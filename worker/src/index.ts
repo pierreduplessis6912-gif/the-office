@@ -1,6 +1,7 @@
 export interface Env {
   OFFICE_DB: D1Database;
   OFFICE_VAULT: R2Bucket;
+  AI: Ai;
 }
 
 export default {
@@ -15,11 +16,12 @@ export default {
       return new Response("auth: reserved, not yet implemented", { status: 501 });
     }
 
-    // First real use of /files and of OFFICE_VAULT. Just storage —
-    // no D1 write here, no transcript, no action. Ground-truth state
-    // (job.create, invoice.create, etc.) is a deliberately later step;
-    // this only proves a voice note recorded on a real phone reaches
-    // real object storage.
+    // /files/audio: store first, transcribe second. The voice note is
+    // never at risk of being lost just because transcription had a bad
+    // day — R2 write happens before the AI call, and a transcription
+    // failure degrades to a clear fallback message rather than losing
+    // the whole request. Still no D1 write, no intent, no action here —
+    // that's the next step, once there's a transcript worth acting on.
     if (url.pathname === "/files/audio" && request.method === "POST") {
       const formData = await request.formData();
       const audio = formData.get("audio");
@@ -28,10 +30,29 @@ export default {
         return Response.json({ error: "missing audio file" }, { status: 400 });
       }
 
+      const audioBuffer = await audio.arrayBuffer();
       const key = `voice-notes/${Date.now()}-${crypto.randomUUID()}.m4a`;
-      await env.OFFICE_VAULT.put(key, await audio.arrayBuffer());
+      await env.OFFICE_VAULT.put(key, audioBuffer);
 
-      return Response.json({ status: "stored", key, message: "Voice note received." });
+      let transcript: string | null = null;
+      try {
+        const result = await env.AI.run("@cf/openai/whisper", {
+          audio: [...new Uint8Array(audioBuffer)],
+        });
+        transcript = (result as { text?: string }).text ?? null;
+      } catch {
+        // Transcription is best-effort here. The recording is already
+        // safe in R2 above, so a Whisper failure never means data loss —
+        // just a plainer response this one time.
+        transcript = null;
+      }
+
+      return Response.json({
+        status: "stored",
+        key,
+        transcript,
+        message: transcript ?? "Voice note received (transcription unavailable).",
+      });
     }
 
     if (url.pathname.startsWith("/files")) {
@@ -41,4 +62,3 @@ export default {
     return new Response("not found", { status: 404 });
   },
 };
-
