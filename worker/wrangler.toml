@@ -1,0 +1,24 @@
+name = "office-api"
+main = "src/index.ts"
+compatibility_date = "2026-07-01"
+
+# D1 — created via the Cloudflare API (see README for the exact curl).
+# Replace REPLACE_WITH_D1_ID once that command returns a real database_id.
+[[d1_databases]]
+binding = "OFFICE_DB"
+database_name = "office-db"
+database_id = "REPLACE_WITH_D1_ID"
+
+# R2 — bucket name only; no ID needed for the binding.
+[[r2_buckets]]
+binding = "OFFICE_VAULT"
+bucket_name = "office-vault"
+
+[vars]
+ENVIRONMENT = "production"
+
+# Subdomain route on the existing websitehub.co.za zone — see README
+# for the DNS-record curl that has to run once before this route works.
+[[routes]]
+pattern = "office.websitehub.co.za/*"
+zone_name = "websitehub.co.za"
