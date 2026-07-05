@@ -5,6 +5,19 @@ workflows:
     environment:
       flutter: stable
     scripts:
+      - name: Bootstrap native scaffolding (Android)
+        script: |
+          cd app
+          if [ ! -d "android" ]; then
+            echo "No android/ folder — generating native scaffold with flutter create."
+            cp pubspec.yaml /tmp/pubspec.yaml.bak
+            cp lib/main.dart /tmp/main.dart.bak
+            flutter create --platforms=android --org za.co.websitehub --project-name the_office .
+            cp /tmp/pubspec.yaml.bak pubspec.yaml
+            cp /tmp/main.dart.bak lib/main.dart
+          else
+            echo "android/ already present, skipping bootstrap."
+          fi
       - name: Get Flutter packages
         script: |
           cd app
@@ -27,4 +40,5 @@ workflows:
   # phone-only pipeline first, without the extra signing/provisioning
   # setup iOS needs. Add an office-ios workflow here once Android is
   # proven and an Apple Developer account + Codemagic code signing are
-  # actually set up.
+  # actually set up. It'll need the same bootstrap-if-missing pattern,
+  # just with --platforms=ios added and signing configured separately.
