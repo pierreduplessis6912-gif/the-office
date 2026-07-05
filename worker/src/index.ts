@@ -39,7 +39,7 @@ export default {
       // this audio format — never silently swallow the real reason.
       let transcriptionError: string | null = null;
       try {
-        const result = await env.AI.run("@cf/openai/whisper", {
+        const result = await env.AI.run("@cf/openai/whisper-large-v3-turbo", {
           audio: [...new Uint8Array(audioBuffer)],
         });
         transcript = (result as { text?: string }).text ?? null;
@@ -63,3 +63,4 @@ export default {
     return new Response("not found", { status: 404 });
   },
 };
+
