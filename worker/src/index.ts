@@ -4,6 +4,17 @@ export interface Env {
   AI: Ai;
 }
 
+async function transcribe(env: Env, audioBuffer: ArrayBuffer): Promise<{ transcript: string | null; transcriptionError: string | null }> {
+  try {
+    const result = await env.AI.run("@cf/openai/whisper", {
+      audio: [...new Uint8Array(audioBuffer)],
+    });
+    return { transcript: (result as { text?: string }).text ?? null, transcriptionError: null };
+  } catch (err) {
+    return { transcript: null, transcriptionError: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -16,12 +27,28 @@ export default {
       return new Response("auth: reserved, not yet implemented", { status: 501 });
     }
 
-    // /files/audio: store first, transcribe second. The voice note is
-    // never at risk of being lost just because transcription had a bad
-    // day — R2 write happens before the AI call, and a transcription
-    // failure degrades to a clear fallback message rather than losing
-    // the whole request. Still no D1 write, no intent, no action here —
-    // that's the next step, once there's a transcript worth acting on.
+    // --- Temporary debug routes, not part of the real API surface ---
+    // Purpose: diagnose why transcription fails on some real uploads
+    // without needing to manually move files between apps. Remove once
+    // the app-recorded-audio question is settled.
+    if (url.pathname === "/debug/list-audio" && request.method === "GET") {
+      const listed = await env.OFFICE_VAULT.list({ prefix: "voice-notes/" });
+      return Response.json({
+        objects: listed.objects.map((o) => ({ key: o.key, size: o.size, uploaded: o.uploaded })),
+      });
+    }
+
+    if (url.pathname === "/debug/retranscribe" && request.method === "GET") {
+      const key = url.searchParams.get("key");
+      if (!key) return Response.json({ error: "missing ?key=" }, { status: 400 });
+      const object = await env.OFFICE_VAULT.get(key);
+      if (!object) return Response.json({ error: "key not found in R2" }, { status: 404 });
+      const audioBuffer = await object.arrayBuffer();
+      const { transcript, transcriptionError } = await transcribe(env, audioBuffer);
+      return Response.json({ key, byteLength: audioBuffer.byteLength, transcript, transcriptionError });
+    }
+    // --- end debug routes ---
+
     if (url.pathname === "/files/audio" && request.method === "POST") {
       const formData = await request.formData();
       const audio = formData.get("audio");
@@ -34,18 +61,7 @@ export default {
       const key = `voice-notes/${Date.now()}-${crypto.randomUUID()}.m4a`;
       await env.OFFICE_VAULT.put(key, audioBuffer);
 
-      let transcript: string | null = null;
-      // Diagnostic only, while we're still confirming Whisper accepts
-      // this audio format — never silently swallow the real reason.
-      let transcriptionError: string | null = null;
-      try {
-        const result = await env.AI.run("@cf/openai/whisper", {
-          audio: [...new Uint8Array(audioBuffer)],
-        });
-        transcript = (result as { text?: string }).text ?? null;
-      } catch (err) {
-        transcriptionError = err instanceof Error ? err.message : String(err);
-      }
+      const { transcript, transcriptionError } = await transcribe(env, audioBuffer);
 
       return Response.json({
         status: "stored",
@@ -63,5 +79,3 @@ export default {
     return new Response("not found", { status: 404 });
   },
 };
-
-
