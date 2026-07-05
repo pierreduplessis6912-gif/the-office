@@ -35,22 +35,23 @@ export default {
       await env.OFFICE_VAULT.put(key, audioBuffer);
 
       let transcript: string | null = null;
+      // Diagnostic only, while we're still confirming Whisper accepts
+      // this audio format — never silently swallow the real reason.
+      let transcriptionError: string | null = null;
       try {
         const result = await env.AI.run("@cf/openai/whisper", {
           audio: [...new Uint8Array(audioBuffer)],
         });
         transcript = (result as { text?: string }).text ?? null;
-      } catch {
-        // Transcription is best-effort here. The recording is already
-        // safe in R2 above, so a Whisper failure never means data loss —
-        // just a plainer response this one time.
-        transcript = null;
+      } catch (err) {
+        transcriptionError = err instanceof Error ? err.message : String(err);
       }
 
       return Response.json({
         status: "stored",
         key,
         transcript,
+        transcriptionError,
         message: transcript ?? "Voice note received (transcription unavailable).",
       });
     }
