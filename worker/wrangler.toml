@@ -7,7 +7,7 @@ compatibility_date = "2026-07-01"
 [[d1_databases]]
 binding = "OFFICE_DB"
 database_name = "office-db"
-database_id = "REPLACE_WITH_D1_ID"
+database_id = "d5343bef-3a3a-4791-860d-fbd96c546abb"
 
 # R2 — bucket name only; no ID needed for the binding.
 [[r2_buckets]]
@@ -22,3 +22,4 @@ ENVIRONMENT = "production"
 [[routes]]
 pattern = "office.websitehub.co.za/*"
 zone_name = "websitehub.co.za"
+
