@@ -31,7 +31,7 @@ export default {
       const key = `voice-notes/${Date.now()}-${crypto.randomUUID()}.m4a`;
       await env.OFFICE_VAULT.put(key, await audio.arrayBuffer());
 
-      return Response.json({ status: "stored", key });
+      return Response.json({ status: "stored", key, message: "Voice note received." });
     }
 
     if (url.pathname.startsWith("/files")) {
@@ -41,3 +41,4 @@ export default {
     return new Response("not found", { status: 404 });
   },
 };
+
