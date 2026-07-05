@@ -15,6 +15,9 @@ workflows:
             flutter create --platforms=android --org za.co.websitehub --project-name the_office .
             cp /tmp/pubspec.yaml.bak pubspec.yaml
             cp /tmp/main.dart.bak lib/main.dart
+            echo "Patching RECORD_AUDIO permission into the generated manifest."
+            python3 -c "import re; p='android/app/src/main/AndroidManifest.xml'; c=open(p).read(); c=(c if 'RECORD_AUDIO' in c else re.sub(r'(<manifest [^>]*>)', r'\1\n    <uses-permission android:name=\"android.permission.RECORD_AUDIO\" />', c, count=1)); open(p,'w').write(c); assert 'RECORD_AUDIO' in open(p).read()"
+            echo "Permission patch confirmed in manifest."
           else
             echo "android/ already present, skipping bootstrap."
           fi
@@ -41,4 +44,4 @@ workflows:
   # setup iOS needs. Add an office-ios workflow here once Android is
   # proven and an Apple Developer account + Codemagic code signing are
   # actually set up. It'll need the same bootstrap-if-missing pattern,
-  # just with --platforms=ios added and signing configured separately.
+  # the RECORD_AUDIO manifest patch, plus signing configured separately.
