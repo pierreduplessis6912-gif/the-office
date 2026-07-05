@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -92,13 +93,11 @@ class _OfficeHomeState extends State<OfficeHome> {
       final response = await http.Response.fromStream(streamed);
 
       if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final message = (data['message'] as String?) ?? 'Voice note received.';
         setState(() {
           _status = 'Morning Peter...';
-          _recent.insert(
-            0,
-            'Voice note saved — '
-            '${DateTime.now().toLocal().toString().substring(0, 16)}',
-          );
+          _recent.insert(0, message);
         });
       } else {
         setState(() => _status = 'Upload failed (${response.statusCode})');
@@ -166,3 +165,4 @@ class _OfficeHomeState extends State<OfficeHome> {
     );
   }
 }
+
