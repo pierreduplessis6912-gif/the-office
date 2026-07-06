@@ -92,6 +92,47 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
   }
 }
 
+// Comparison variant only — not used in the real pipeline yet. Uses
+// the MINIMAL prompt, no curated examples at all, specifically to test
+// whether a more capable model gets these right through genuine
+// understanding rather than needing a hand-built list of cases. Kimi
+// K2.6 needs thinking explicitly disabled or it burns its whole token
+// budget on internal reasoning before ever answering (found earlier
+// today) — temperature 0 for the same determinism reason as the other
+// model.
+async function extractIntentKimi(env: Env, transcript: string): Promise<{ extraction: Extraction | null; raw: unknown; rawText: string | null }> {
+  let rawText: string | null = null;
+  let result: unknown = null;
+  try {
+    result = await env.AI.run("@cf/moonshotai/kimi-k2.6", {
+      temperature: 0,
+      chat_template_kwargs: { thinking: false },
+      messages: [
+        {
+          role: "system",
+          content:
+            "Extract structured facts from a tradesperson's message. " +
+            'customer_name is the specific customer mentioned, exactly as spoken or typed, or null if none. ' +
+            'intent is "payment" ONLY if the message explicitly describes money already being received from ' +
+            'a customer — not if the customer is merely mentioned, looked up, or asked about. ' +
+            "amount is a plain number in the currency's major unit (e.g. rand, not cents) if a specific " +
+            "amount was stated, exactly as given — never estimate or calculate, only use a number " +
+            "that was actually stated, or null if none was. Return ONLY JSON, no markdown, no explanation: " +
+            '{"customer_name": string or null, "intent": "payment" or "lookup" or "reminder" or "note" or "other", "amount": number or null}',
+        },
+        { role: "user", content: transcript },
+      ],
+    });
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    rawText = r.choices?.[0]?.message?.content ?? null;
+    const cleaned = (rawText ?? "").replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned) as Extraction;
+    return { extraction: parsed, raw: result, rawText };
+  } catch (err) {
+    return { extraction: null, raw: result ?? (err instanceof Error ? err.message : String(err)), rawText };
+  }
+}
+
 // Crude first-pass reconciliation: match on the first token of the
 // spoken name (usually the first name) against existing customers.
 // This is deliberately the simplest thing that could work — it will
@@ -313,6 +354,19 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
 
       return Response.json({ key, transcript, transcriptionError, ...processed });
     }
+    if (url.pathname === "/debug/compare-extraction" && request.method === "GET") {
+      const text = url.searchParams.get("text");
+      if (!text) return Response.json({ error: "missing ?text=" }, { status: 400 });
+
+      const [small, kimi] = await Promise.all([extractIntent(env, text), extractIntentKimi(env, text)]);
+
+      return Response.json({
+        text,
+        small_model: { model: "@cf/meta/llama-3.1-8b-instruct-fast (few-shot examples)", extraction: small.extraction, rawText: small.rawText },
+        kimi: { model: "@cf/moonshotai/kimi-k2.6 (minimal prompt, no examples)", extraction: kimi.extraction, rawText: kimi.rawText },
+      });
+    }
+
     // --- end debug routes ---
 
     // List everything still waiting on a human decision.
@@ -443,4 +497,5 @@ export default {
     });
   },
 };
+
 
