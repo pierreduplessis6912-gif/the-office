@@ -29,7 +29,8 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
   let result: unknown = null;
   try {
     result = await env.AI.run("@cf/moonshotai/kimi-k2.6", {
-      max_tokens: 200,
+      max_tokens: 300,
+      chat_template_kwargs: { thinking: false },
       messages: [
         {
           role: "system",
@@ -39,7 +40,7 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
         { role: "user", content: transcript },
       ],
     });
-    rawText = (result as { response?: string }).response ?? null;
+    rawText = (result as { choices?: Array<{ message?: { content?: string } }> }).choices?.[0]?.message?.content ?? null;
     const cleaned = (rawText ?? "").replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(cleaned) as Extraction;
     return { extraction: parsed, raw: result, rawText };
@@ -182,5 +183,6 @@ export default {
     return new Response("not found", { status: 404 });
   },
 };
+
 
 
