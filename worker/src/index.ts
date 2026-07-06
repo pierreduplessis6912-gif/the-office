@@ -347,6 +347,51 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ errors: results });
     }
 
+    // Standing health check — reusable going forward, not just for
+    // this test. If the gap between now and processedUpToDatetime ever
+    // exceeds Cloudflare's own stated p99 (2 minutes), that's a real
+    // signal something's stuck, not normal lag.
+    if (url.pathname === "/debug/memory-health" && request.method === "GET") {
+      try {
+        const info = await env.MEMORY.describe();
+        const processedAt = new Date((info as { processedUpToDatetime: string }).processedUpToDatetime);
+        const gapSeconds = (Date.now() - processedAt.getTime()) / 1000;
+        return Response.json({
+          vectorCount: (info as { vectorCount: number }).vectorCount,
+          processedUpToDatetime: (info as { processedUpToDatetime: string }).processedUpToDatetime,
+          gapSeconds,
+          likelyStuck: gapSeconds > 120,
+        });
+      } catch (err) {
+        return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
+      }
+    }
+
+    // Isolated stress test: N individual, concurrent, single-vector
+    // upserts — deliberately the exact pattern Cloudflare's own docs
+    // flag as inefficient for write-heavy workloads. Bypasses the LLM
+    // pipeline entirely so this only tests Vectorize's write behavior,
+    // not extraction variability. Simulates "many clients writing at
+    // once" without needing many real clients.
+    if (url.pathname === "/debug/stress-memory" && request.method === "GET") {
+      const count = Number(url.searchParams.get("count") ?? "20");
+      try {
+        const before = await env.MEMORY.describe();
+        const writes = Array.from({ length: count }, (_, i) =>
+          storeMemory(env, `stress test entry number ${i} at ${Date.now()}`, null)
+        );
+        await Promise.all(writes);
+        const after = await env.MEMORY.describe();
+        return Response.json({
+          requested: count,
+          before: { vectorCount: (before as { vectorCount: number }).vectorCount, processedUpToDatetime: (before as { processedUpToDatetime: string }).processedUpToDatetime },
+          after: { vectorCount: (after as { vectorCount: number }).vectorCount, processedUpToDatetime: (after as { processedUpToDatetime: string }).processedUpToDatetime },
+        });
+      } catch (err) {
+        return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
+      }
+    }
+
     // --- end debug routes ---
 
     // List everything still waiting on a human decision.
@@ -477,6 +522,7 @@ export default {
     });
   },
 };
+
 
 
 
