@@ -2,6 +2,7 @@ export interface Env {
   OFFICE_DB: D1Database;
   OFFICE_VAULT: R2Bucket;
   AI: Ai;
+  MEMORY: VectorizeIndex;
 }
 
 interface Extraction {
@@ -55,7 +56,10 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             '"Jenny paid me a thousand rand" -> {"customer_name":"Jenny","intent":"payment","amount":1000}\n' +
             '"let\'s look up Jenny\'s profile" -> {"customer_name":"Jenny","intent":"lookup","amount":null}\n' +
             '"what does Jenny owe" -> {"customer_name":"Jenny","intent":"lookup","amount":null}\n' +
-            '"remind me to call Jenny tomorrow" -> {"customer_name":"Jenny","intent":"reminder","amount":null}',
+            '"give me Jenny\'s address" -> {"customer_name":"Jenny","intent":"lookup","amount":null}\n' +
+            '"how many customers do i have" -> {"customer_name":null,"intent":"lookup","amount":null}\n' +
+            '"remind me to call Jenny tomorrow" -> {"customer_name":"Jenny","intent":"reminder","amount":null}\n' +
+            '"jenny lives at 12 golf way" -> {"customer_name":"jenny","intent":"note","amount":null}',
         },
         { role: "user", content: transcript },
       ],
@@ -148,11 +152,88 @@ async function holdForConfirmation(
   return { id: inserted!.id };
 }
 
+// --- Memory: color, not ground truth. Never used for money or ------
+// anything with real-world consequence — only for recalling what was
+// said (an address, a preference, a note) when nothing structured
+// exists to answer from instead.
+
+async function embedText(env: Env, text: string): Promise<number[]> {
+  const result = await env.AI.run("@cf/baai/bge-base-en-v1.5", { text });
+  return (result as { data: number[][] }).data[0];
+}
+
+// Fire-and-forget from the caller's point of view via ctx.waitUntil —
+// "thrown in a pot, indexed in the background." Never blocks the
+// response, and a failure here never breaks the request that
+// triggered it; at worst, one fact doesn't get remembered.
+async function storeMemory(env: Env, text: string, customerId: number | null): Promise<void> {
+  try {
+    const vector = await embedText(env, text);
+    await env.MEMORY.upsert([
+      {
+        id: crypto.randomUUID(),
+        values: vector,
+        metadata: {
+          customerId: customerId != null ? String(customerId) : "",
+          text,
+          createdAt: new Date().toISOString(),
+        },
+      },
+    ]);
+  } catch {
+    // Best-effort. Never surfaces to the person who spoke.
+  }
+}
+
+async function searchMemory(env: Env, query: string, customerId: number | null): Promise<string[]> {
+  try {
+    const vector = await embedText(env, query);
+    const results = await env.MEMORY.query(vector, {
+      topK: 3,
+      returnMetadata: true,
+      filter: customerId != null ? { customerId: String(customerId) } : undefined,
+    });
+    return (results.matches ?? [])
+      .filter((m) => m.score > 0.6)
+      .map((m) => (m.metadata as { text?: string } | undefined)?.text)
+      .filter((t): t is string => !!t);
+  } catch {
+    return [];
+  }
+}
+
+// Synthesizes a real answer from retrieved memory, rather than a
+// templated "Found existing customer" line. If nothing relevant comes
+// back, says so honestly rather than guessing.
+async function answerFromMemory(env: Env, question: string, facts: string[]): Promise<string> {
+  if (facts.length === 0) {
+    return "I don't have anything on file for that yet.";
+  }
+  try {
+    const result = await env.AI.run("@cf/meta/llama-3.1-8b-instruct-fast", {
+      messages: [
+        {
+          role: "system",
+          content:
+            "Answer the tradesperson's question using only the facts below. Be brief, one sentence. " +
+            "If the facts don't actually answer the question, say you don't have that on file.\n\n" +
+            `Facts:\n${facts.map((f) => `- ${f}`).join("\n")}`,
+        },
+        { role: "user", content: question },
+      ],
+    });
+    const answer = (result as { response?: unknown }).response;
+    return typeof answer === "string" && answer.trim() ? answer.trim() : facts[0];
+  } catch {
+    return facts[0];
+  }
+}
+
 // Shared by both /files/audio (after transcription) and /messages/text
-// (directly on typed input) — same extraction, reconciliation, and
-// guard() logic either way. A transcript is a transcript, whether it
-// came from Whisper or a keyboard.
-async function processTranscript(env: Env, transcript: string): Promise<ProcessResult> {
+// (directly on typed input) — same extraction, reconciliation, guard(),
+// and memory logic either way. A transcript is a transcript, whether
+// it came from Whisper or a keyboard.
+async function processTranscript(env: Env, transcript: string, ctx: ExecutionContext): Promise<ProcessResult> {
   let extraction: Extraction | null = null;
   let extractionRaw: unknown = null;
   let extractionRawText: string | null = null;
@@ -178,18 +259,27 @@ async function processTranscript(env: Env, transcript: string): Promise<ProcessR
     pendingActionId = held.id;
   }
 
-  const message = pendingActionId
-    ? `Payment noted for ${customer!.name}${extraction!.amount ? ` of R${extraction!.amount}` : ""} — needs your confirmation (action #${pendingActionId}) before it's recorded.`
-    : customer
-      ? customer.matched
-        ? `Found existing customer: ${customer.name}.`
-        : `New customer noted: ${customer.name}.`
-      : "Got it.";
+  // Store every message as memory, regardless of intent — background,
+  // never blocks this response. This is what lets "jenny lives at 12
+  // golf way" be recalled later without needing its own rigid schema.
+  ctx.waitUntil(storeMemory(env, transcript, customer?.id ?? null));
+
+  let message: string;
+  if (pendingActionId) {
+    message = `Payment noted for ${customer!.name}${extraction!.amount ? ` of R${extraction!.amount}` : ""} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
+  } else if (extraction?.intent === "lookup") {
+    const facts = await searchMemory(env, transcript, customer?.id ?? null);
+    message = await answerFromMemory(env, transcript, facts);
+  } else if (customer) {
+    message = customer.matched ? `Found existing customer: ${customer.name}.` : `New customer noted: ${customer.name}.`;
+  } else {
+    message = "Got it.";
+  }
 
   return { extraction, extractionRaw, extractionRawText, customer, pendingActionId, message };
 }
 
-async function handleRequest(request: Request, env: Env): Promise<Response> {
+async function handleRequest(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname === "/" || url.pathname === "/health") {
@@ -218,7 +308,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
       const audioBuffer = await object.arrayBuffer();
 
       const { transcript, transcriptionError } = await transcribe(env, audioBuffer);
-      const processed = transcript ? await processTranscript(env, transcript) : null;
+      const processed = transcript ? await processTranscript(env, transcript, ctx) : null;
 
       return Response.json({ key, transcript, transcriptionError, ...processed });
     }
@@ -270,7 +360,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     }
 
     // "Talk" mode. Full pipeline: store audio, transcribe, extract,
-    // reconcile, guard.
+    // reconcile, guard, remember.
     if (url.pathname === "/files/audio" && request.method === "POST") {
       const formData = await request.formData();
       const audio = formData.get("audio");
@@ -288,7 +378,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
       ]);
 
       const processed = transcript
-        ? await processTranscript(env, transcript)
+        ? await processTranscript(env, transcript, ctx)
         : {
             extraction: null,
             extractionRaw: null,
@@ -311,7 +401,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
         return Response.json({ error: "missing text" }, { status: 400 });
       }
 
-      const processed = await processTranscript(env, text);
+      const processed = await processTranscript(env, text, ctx);
       return Response.json({ status: "processed", transcript: text, ...processed });
     }
 
@@ -335,12 +425,12 @@ const CORS_HEADERS = {
 };
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
 
-    const response = await handleRequest(request, env);
+    const response = await handleRequest(request, env, ctx);
     const newHeaders = new Headers(response.headers);
     for (const [key, value] of Object.entries(CORS_HEADERS)) {
       newHeaders.set(key, value);
@@ -352,5 +442,3 @@ export default {
     });
   },
 };
-
-
