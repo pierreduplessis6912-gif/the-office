@@ -81,6 +81,43 @@ export default {
       return new Response("auth: reserved, not yet implemented", { status: 501 });
     }
 
+    // --- Temporary debug routes, reintroduced to diagnose a specific
+    // reconciliation gap. Read-only against R2 metadata and reruns the
+    // real pipeline against a specific object — no write side effects
+    // beyond what /files/audio itself already does (a customer row may
+    // be created, same as a live request would). Remove once resolved.
+    if (url.pathname === "/debug/list-audio" && request.method === "GET") {
+      const listed = await env.OFFICE_VAULT.list({ prefix: "voice-notes/" });
+      return Response.json({
+        objects: listed.objects.map((o) => ({ key: o.key, size: o.size, uploaded: o.uploaded })),
+      });
+    }
+
+    if (url.pathname === "/debug/reprocess" && request.method === "GET") {
+      const key = url.searchParams.get("key");
+      if (!key) return Response.json({ error: "missing ?key=" }, { status: 400 });
+      const object = await env.OFFICE_VAULT.get(key);
+      if (!object) return Response.json({ error: "key not found in R2" }, { status: 404 });
+      const audioBuffer = await object.arrayBuffer();
+
+      const { transcript, transcriptionError } = await transcribe(env, audioBuffer);
+      let extraction: Extraction | null = null;
+      let kimiRaw: unknown = null;
+      let customer: { id: number; name: string; matched: boolean } | null = null;
+
+      if (transcript) {
+        const result = await extractIntent(env, transcript);
+        extraction = result.extraction;
+        kimiRaw = result.raw;
+        if (extraction?.customer_name) {
+          customer = await reconcileCustomer(env, extraction.customer_name);
+        }
+      }
+
+      return Response.json({ key, transcript, transcriptionError, extraction, kimiRaw, customer });
+    }
+    // --- end debug routes ---
+
     if (url.pathname === "/files/audio" && request.method === "POST") {
       const formData = await request.formData();
       const audio = formData.get("audio");
@@ -134,3 +171,4 @@ export default {
     return new Response("not found", { status: 404 });
   },
 };
+
