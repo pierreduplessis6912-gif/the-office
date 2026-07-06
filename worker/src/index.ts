@@ -24,9 +24,12 @@ async function transcribe(env: Env, audioBuffer: ArrayBuffer): Promise<{ transcr
 // or malformed extraction just means no structured fact this time,
 // not a broken request. The transcript itself is always preserved
 // regardless of what this returns.
-async function extractIntent(env: Env, transcript: string): Promise<{ extraction: Extraction | null; raw: unknown }> {
+async function extractIntent(env: Env, transcript: string): Promise<{ extraction: Extraction | null; raw: unknown; rawText: string | null }> {
+  let rawText: string | null = null;
+  let result: unknown = null;
   try {
-    const result = await env.AI.run("@cf/moonshotai/kimi-k2.6", {
+    result = await env.AI.run("@cf/moonshotai/kimi-k2.6", {
+      max_tokens: 200,
       messages: [
         {
           role: "system",
@@ -36,12 +39,15 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
         { role: "user", content: transcript },
       ],
     });
-    const rawText = (result as { response?: string }).response ?? "";
-    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    rawText = (result as { response?: string }).response ?? null;
+    const cleaned = (rawText ?? "").replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(cleaned) as Extraction;
-    return { extraction: parsed, raw: result };
+    return { extraction: parsed, raw: result, rawText };
   } catch (err) {
-    return { extraction: null, raw: err instanceof Error ? err.message : String(err) };
+    // rawText (and result) are preserved from before the failure, not
+    // overwritten by the error — the whole point of this diagnostic is
+    // seeing what actually broke, not just that something did.
+    return { extraction: null, raw: result ?? (err instanceof Error ? err.message : String(err)), rawText };
   }
 }
 
@@ -103,18 +109,20 @@ export default {
       const { transcript, transcriptionError } = await transcribe(env, audioBuffer);
       let extraction: Extraction | null = null;
       let kimiRaw: unknown = null;
+      let kimiRawText: string | null = null;
       let customer: { id: number; name: string; matched: boolean } | null = null;
 
       if (transcript) {
         const result = await extractIntent(env, transcript);
         extraction = result.extraction;
         kimiRaw = result.raw;
+        kimiRawText = result.rawText;
         if (extraction?.customer_name) {
           customer = await reconcileCustomer(env, extraction.customer_name);
         }
       }
 
-      return Response.json({ key, transcript, transcriptionError, extraction, kimiRaw, customer });
+      return Response.json({ key, transcript, transcriptionError, extraction, kimiRaw, kimiRawText, customer });
     }
     // --- end debug routes ---
 
@@ -134,12 +142,14 @@ export default {
 
       let extraction: Extraction | null = null;
       let kimiRaw: unknown = null;
+      let kimiRawText: string | null = null;
       let customer: { id: number; name: string; matched: boolean } | null = null;
 
       if (transcript) {
         const result = await extractIntent(env, transcript);
         extraction = result.extraction;
         kimiRaw = result.raw;
+        kimiRawText = result.rawText;
 
         if (extraction?.customer_name) {
           customer = await reconcileCustomer(env, extraction.customer_name);
@@ -159,6 +169,7 @@ export default {
         transcriptionError,
         extraction,
         kimiRaw,
+        kimiRawText,
         customer,
         message,
       });
@@ -171,4 +182,5 @@ export default {
     return new Response("not found", { status: 404 });
   },
 };
+
 
