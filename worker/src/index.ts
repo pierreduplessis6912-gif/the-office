@@ -31,76 +31,14 @@ async function transcribe(env: Env, audioBuffer: ArrayBuffer): Promise<{ transcr
   }
 }
 
-// Deliberately a small, fast model, not a frontier one — this is a
-// three-field extraction from one short sentence, not a reasoning
-// task. JSON Mode enforces the schema server-side instead of us
-// asking nicely and hoping, which is both faster and more reliable
-// than prompt-based JSON on a smaller model.
+// Kimi, not the small "fast" model — proven head-to-head: 5/5 correct
+// with only the plain rule and zero curated examples, versus the small
+// model getting 4/5 wrong on the same input even with few-shot
+// examples and temperature 0. Genuine understanding beats pattern-
+// matching against a list we could never make complete. thinking must
+// stay disabled or Kimi burns its whole token budget on internal
+// reasoning before ever answering; temperature 0 for determinism.
 async function extractIntent(env: Env, transcript: string): Promise<{ extraction: Extraction | null; raw: unknown; rawText: string | null }> {
-  let rawText: string | null = null;
-  let result: unknown = null;
-  try {
-    result = await env.AI.run("@cf/meta/llama-3.1-8b-instruct-fast", {
-      temperature: 0,
-      messages: [
-        {
-          role: "system",
-          content:
-            "Extract structured facts from a tradesperson's message. " +
-            'customer_name is the specific customer mentioned, exactly as spoken or typed, or null if none. ' +
-            'intent is "payment" ONLY if the message explicitly describes money already being received from ' +
-            'a customer — not if the customer is merely mentioned, looked up, or asked about. ' +
-            "amount is a plain number in the currency's major unit (e.g. rand, not cents) if a specific " +
-            "amount was stated, exactly as given — never estimate or calculate, only use a number " +
-            "that was actually stated, or null if none was.\n\n" +
-            "Examples:\n" +
-            '"Jenny paid me a thousand rand" -> {"customer_name":"Jenny","intent":"payment","amount":1000}\n' +
-            '"let\'s look up Jenny\'s profile" -> {"customer_name":"Jenny","intent":"lookup","amount":null}\n' +
-            '"what does Jenny owe" -> {"customer_name":"Jenny","intent":"lookup","amount":null}\n' +
-            '"give me Jenny\'s address" -> {"customer_name":"Jenny","intent":"lookup","amount":null}\n' +
-            '"how many customers do i have" -> {"customer_name":null,"intent":"lookup","amount":null}\n' +
-            '"remind me to call Jenny tomorrow" -> {"customer_name":"Jenny","intent":"reminder","amount":null}\n' +
-            '"jenny lives at 12 golf way" -> {"customer_name":"jenny","intent":"note","amount":null}',
-        },
-        { role: "user", content: transcript },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          type: "object",
-          properties: {
-            customer_name: { type: ["string", "null"] },
-            intent: { type: "string", enum: ["payment", "lookup", "reminder", "note", "other"] },
-            amount: { type: ["number", "null"] },
-          },
-          required: ["customer_name", "intent", "amount"],
-        },
-      },
-    });
-
-    const r = result as { response?: unknown };
-    if (r.response && typeof r.response === "object") {
-      rawText = JSON.stringify(r.response);
-      return { extraction: r.response as Extraction, raw: result, rawText };
-    }
-    rawText = typeof r.response === "string" ? r.response : null;
-    const cleaned = (rawText ?? "").replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(cleaned) as Extraction;
-    return { extraction: parsed, raw: result, rawText };
-  } catch (err) {
-    return { extraction: null, raw: result ?? (err instanceof Error ? err.message : String(err)), rawText };
-  }
-}
-
-// Comparison variant only — not used in the real pipeline yet. Uses
-// the MINIMAL prompt, no curated examples at all, specifically to test
-// whether a more capable model gets these right through genuine
-// understanding rather than needing a hand-built list of cases. Kimi
-// K2.6 needs thinking explicitly disabled or it burns its whole token
-// budget on internal reasoning before ever answering (found earlier
-// today) — temperature 0 for the same determinism reason as the other
-// model.
-async function extractIntentKimi(env: Env, transcript: string): Promise<{ extraction: Extraction | null; raw: unknown; rawText: string | null }> {
   let rawText: string | null = null;
   let result: unknown = null;
   try {
@@ -354,19 +292,6 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
 
       return Response.json({ key, transcript, transcriptionError, ...processed });
     }
-    if (url.pathname === "/debug/compare-extraction" && request.method === "GET") {
-      const text = url.searchParams.get("text");
-      if (!text) return Response.json({ error: "missing ?text=" }, { status: 400 });
-
-      const [small, kimi] = await Promise.all([extractIntent(env, text), extractIntentKimi(env, text)]);
-
-      return Response.json({
-        text,
-        small_model: { model: "@cf/meta/llama-3.1-8b-instruct-fast (few-shot examples)", extraction: small.extraction, rawText: small.rawText },
-        kimi: { model: "@cf/moonshotai/kimi-k2.6 (minimal prompt, no examples)", extraction: kimi.extraction, rawText: kimi.rawText },
-      });
-    }
-
     // --- end debug routes ---
 
     // List everything still waiting on a human decision.
@@ -497,5 +422,6 @@ export default {
     });
   },
 };
+
 
 
