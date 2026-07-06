@@ -15,9 +15,19 @@ binding = "OFFICE_VAULT"
 bucket_name = "office-vault"
 
 # Workers AI — no separate account/secret needed, this is a binding on
-# the same Cloudflare account. Used for @cf/openai/whisper transcription.
+# the same Cloudflare account. Used for @cf/openai/whisper transcription,
+# @cf/meta/llama-3.1-8b-instruct-fast extraction, and @cf/baai/bge-base-en-v1.5
+# embeddings.
 [ai]
 binding = "AI"
+
+# Vectorize — conversational memory. Color, not ground truth: never used
+# for money or anything with real-world consequence, only for recalling
+# what was said (an address, a preference, a note) when nothing more
+# authoritative exists to answer from.
+[[vectorize]]
+binding = "MEMORY"
+index_name = "office-memory"
 
 [vars]
 ENVIRONMENT = "production"
@@ -27,3 +37,4 @@ ENVIRONMENT = "production"
 [[routes]]
 pattern = "office.websitehub.co.za/*"
 zone_name = "websitehub.co.za"
+
