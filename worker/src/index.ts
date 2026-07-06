@@ -6,7 +6,8 @@ export interface Env {
 
 interface Extraction {
   customer_name: string | null;
-  intent: "lookup" | "note" | "reminder" | "other";
+  intent: "payment" | "lookup" | "reminder" | "note" | "other";
+  amount: number | null;
 }
 
 async function transcribe(env: Env, audioBuffer: ArrayBuffer): Promise<{ transcript: string | null; transcriptionError: string | null }> {
@@ -35,7 +36,7 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
         {
           role: "system",
           content:
-            'Extract structured facts from a tradesperson\'s voice note transcript. Return ONLY JSON, no markdown, no explanation: {"customer_name": string or null, "intent": "lookup" or "note" or "reminder" or "other"}. customer_name is the specific customer mentioned, exactly as spoken, or null if none.',
+            'Extract structured facts from a tradesperson\'s voice note transcript. Return ONLY JSON, no markdown, no explanation: {"customer_name": string or null, "intent": "payment" or "lookup" or "reminder" or "note" or "other", "amount": number or null}. customer_name is the specific customer mentioned, exactly as spoken, or null if none. intent is "payment" only if the transcript describes money being received from a customer. amount is a plain number in the currency\'s major unit (e.g. rand, not cents) if a specific amount was stated, exactly as heard — never estimate or calculate, only transcribe a number that was actually said, or null if none was.',
         },
         { role: "user", content: transcript },
       ],
@@ -76,6 +77,28 @@ async function reconcileCustomer(env: Env, spokenName: string): Promise<{ id: nu
   return { id: inserted!.id, name: inserted!.name, matched: false };
 }
 
+// Ground truth, not a belief: this is a real row, tied to a real
+// customer id, with the original transcript preserved alongside it so
+// any later dispute can be traced back to exactly what was said and
+// when. No guard() yet — that's the very next step — so this still
+// runs autonomously. Recording a payment note is not yet the same as
+// paying out or deleting anything, so this is a deliberate, temporary
+// choice, not an oversight.
+async function recordPayment(
+  env: Env,
+  customerId: number,
+  amount: number | null,
+  sourceTranscript: string
+): Promise<{ id: number; customerId: number; amount: number | null }> {
+  const inserted = await env.OFFICE_DB.prepare(
+    "INSERT INTO payments (customer_id, amount, source_transcript) VALUES (?, ?, ?) RETURNING id"
+  )
+    .bind(customerId, amount, sourceTranscript)
+    .first<{ id: number }>();
+
+  return { id: inserted!.id, customerId, amount };
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -87,7 +110,6 @@ export default {
     if (url.pathname.startsWith("/auth")) {
       return new Response("auth: reserved, not yet implemented", { status: 501 });
     }
-
 
     if (url.pathname === "/files/audio" && request.method === "POST") {
       const formData = await request.formData();
@@ -107,6 +129,7 @@ export default {
       let kimiRaw: unknown = null;
       let kimiRawText: string | null = null;
       let customer: { id: number; name: string; matched: boolean } | null = null;
+      let payment: { id: number; customerId: number; amount: number | null } | null = null;
 
       if (transcript) {
         const result = await extractIntent(env, transcript);
@@ -117,13 +140,19 @@ export default {
         if (extraction?.customer_name) {
           customer = await reconcileCustomer(env, extraction.customer_name);
         }
+
+        if (extraction?.intent === "payment" && customer) {
+          payment = await recordPayment(env, customer.id, extraction.amount, transcript);
+        }
       }
 
-      const message = customer
-        ? customer.matched
-          ? `Found existing customer: ${customer.name}.`
-          : `New customer noted: ${customer.name}.`
-        : transcript ?? "Voice note received (transcription unavailable).";
+      const message = payment
+        ? `Recorded payment for ${customer!.name}${payment.amount ? ` of R${payment.amount}` : ""}.`
+        : customer
+          ? customer.matched
+            ? `Found existing customer: ${customer.name}.`
+            : `New customer noted: ${customer.name}.`
+          : transcript ?? "Voice note received (transcription unavailable).";
 
       return Response.json({
         status: "stored",
@@ -134,6 +163,7 @@ export default {
         kimiRaw,
         kimiRawText,
         customer,
+        payment,
         message,
       });
     }
@@ -145,7 +175,3 @@ export default {
     return new Response("not found", { status: 404 });
   },
 };
-
-
-
-
