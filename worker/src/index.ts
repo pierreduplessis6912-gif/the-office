@@ -41,6 +41,7 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
   let result: unknown = null;
   try {
     result = await env.AI.run("@cf/meta/llama-3.1-8b-instruct-fast", {
+      temperature: 0,
       messages: [
         {
           role: "system",
@@ -442,3 +443,4 @@ export default {
     });
   },
 };
+
