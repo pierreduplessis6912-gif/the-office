@@ -169,7 +169,7 @@ async function searchMemory(env: Env, query: string, customerId: number | null):
   try {
     const vector = await embedText(env, query);
     const results = await env.MEMORY.query(vector, {
-      topK: 3,
+      topK: 8,
       returnMetadata: true,
       filter: customerId != null ? { customerId: String(customerId) } : undefined,
     });
@@ -239,10 +239,15 @@ async function processTranscript(env: Env, transcript: string, ctx: ExecutionCon
     pendingActionId = held.id;
   }
 
-  // Store every message as memory, regardless of intent — background,
-  // never blocks this response. This is what lets "jenny lives at 12
-  // golf way" be recalled later without needing its own rigid schema.
-  ctx.waitUntil(storeMemory(env, transcript, customer?.id ?? null));
+  // Store only actual statements, never questions — a lookup is a
+  // question, not a fact to remember. Storing it was the exact bug:
+  // repeated identical questions score ~1.0 against themselves and
+  // crowd out the real fact from ever appearing in a small topK
+  // result. This is what "background, thrown in the pot" always
+  // should have meant — facts, not queries about facts.
+  if (extraction?.intent !== "lookup") {
+    ctx.waitUntil(storeMemory(env, transcript, customer?.id ?? null));
+  }
 
   let message: string;
   if (pendingActionId) {
@@ -445,6 +450,7 @@ export default {
     });
   },
 };
+
 
 
 
