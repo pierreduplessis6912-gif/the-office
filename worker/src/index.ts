@@ -253,7 +253,14 @@ async function processTranscript(env: Env, transcript: string, ctx: ExecutionCon
   if (pendingActionId) {
     message = `Payment noted for ${customer!.name}${extraction!.amount ? ` of R${extraction!.amount}` : ""} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
   } else if (extraction?.intent === "lookup") {
-    const facts = await searchMemory(env, transcript, customer?.id ?? null);
+    const memoryFacts = await searchMemory(env, transcript, customer?.id ?? null);
+    // A customer's existence in the structured table is itself a fact
+    // worth answering from — memory search alone can't know this
+    // unless someone happened to say "X is on file" as a sentence,
+    // which nobody actually does. This is what makes "do you have John
+    // on file?" answerable even when nothing else has ever been said
+    // about him.
+    const facts = customer ? [`${customer.name} is a known customer.`, ...memoryFacts] : memoryFacts;
     message = await answerFromMemory(env, transcript, facts);
   } else if (customer) {
     message = customer.matched ? `Found existing customer: ${customer.name}.` : `New customer noted: ${customer.name}.`;
@@ -450,6 +457,7 @@ export default {
     });
   },
 };
+
 
 
 
