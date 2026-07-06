@@ -10,6 +10,15 @@ interface Extraction {
   amount: number | null;
 }
 
+interface ProcessResult {
+  extraction: Extraction | null;
+  extractionRaw: unknown;
+  extractionRawText: string | null;
+  customer: { id: number; name: string; matched: boolean } | null;
+  pendingActionId: number | null;
+  message: string;
+}
+
 async function transcribe(env: Env, audioBuffer: ArrayBuffer): Promise<{ transcript: string | null; transcriptionError: string | null }> {
   try {
     const result = await env.AI.run("@cf/openai/whisper", {
@@ -35,12 +44,12 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
         {
           role: "system",
           content:
-            "Extract structured facts from a tradesperson's voice note transcript. " +
-            'customer_name is the specific customer mentioned, exactly as spoken, or null if none. ' +
-            'intent is "payment" only if the transcript describes money being received from a customer. ' +
+            "Extract structured facts from a tradesperson's message. " +
+            'customer_name is the specific customer mentioned, exactly as spoken or typed, or null if none. ' +
+            'intent is "payment" only if the message describes money being received from a customer. ' +
             "amount is a plain number in the currency's major unit (e.g. rand, not cents) if a specific " +
-            "amount was stated, exactly as heard — never estimate or calculate, only transcribe a number " +
-            "that was actually said, or null if none was.",
+            "amount was stated, exactly as given — never estimate or calculate, only use a number " +
+            "that was actually stated, or null if none was.",
         },
         { role: "user", content: transcript },
       ],
@@ -97,9 +106,9 @@ async function reconcileCustomer(env: Env, spokenName: string): Promise<{ id: nu
 }
 
 // The actual real ground-truth write. Only ever called from the
-// confirm endpoint below — never directly from /files/audio anymore.
-// That's the whole point of guard(): the path from "extracted" to
-// "written" now has a mandatory stop in the middle.
+// confirm endpoint — never directly from the message pipeline. That's
+// the whole point of guard(): the path from "extracted" to "written"
+// always has a mandatory stop in the middle.
 async function recordPayment(
   env: Env,
   customerId: number,
@@ -117,9 +126,7 @@ async function recordPayment(
 
 // guard(): every money-touching intent lands here, not in the real
 // ledger, until it's explicitly confirmed. Deliberately blunt for now
-// — everything pauses, regardless of amount or confidence — rather
-// than trying to guess a threshold before there's any real usage data
-// to base one on.
+// — everything pauses, regardless of amount or confidence.
 async function holdForConfirmation(
   env: Env,
   type: string,
@@ -135,6 +142,47 @@ async function holdForConfirmation(
   return { id: inserted!.id };
 }
 
+// Shared by both /files/audio (after transcription) and /messages/text
+// (directly on typed input) — same extraction, reconciliation, and
+// guard() logic either way. A transcript is a transcript, whether it
+// came from Whisper or a keyboard.
+async function processTranscript(env: Env, transcript: string): Promise<ProcessResult> {
+  let extraction: Extraction | null = null;
+  let extractionRaw: unknown = null;
+  let extractionRawText: string | null = null;
+  let customer: { id: number; name: string; matched: boolean } | null = null;
+  let pendingActionId: number | null = null;
+
+  const result = await extractIntent(env, transcript);
+  extraction = result.extraction;
+  extractionRaw = result.raw;
+  extractionRawText = result.rawText;
+
+  if (extraction?.customer_name) {
+    customer = await reconcileCustomer(env, extraction.customer_name);
+  }
+
+  if (extraction?.intent === "payment" && customer) {
+    const held = await holdForConfirmation(
+      env,
+      "payment",
+      { customerId: customer.id, customerName: customer.name, amount: extraction.amount },
+      transcript
+    );
+    pendingActionId = held.id;
+  }
+
+  const message = pendingActionId
+    ? `Payment noted for ${customer!.name}${extraction!.amount ? ` of R${extraction!.amount}` : ""} — needs your confirmation (action #${pendingActionId}) before it's recorded.`
+    : customer
+      ? customer.matched
+        ? `Found existing customer: ${customer.name}.`
+        : `New customer noted: ${customer.name}.`
+      : "Got it.";
+
+  return { extraction, extractionRaw, extractionRawText, customer, pendingActionId, message };
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -148,12 +196,8 @@ export default {
     }
 
     // --- Debug routes. Left in deliberately during this experimentation
-    // phase instead of adding/removing them every time something needs
-    // diagnosing — read-only against R2 metadata, and reprocess mirrors
-    // the real /files/audio pipeline exactly (including holding payment
-    // intents rather than writing them directly), so it tells the truth
-    // about what actually happened, not a simplified stand-in. Strip
-    // these before anything resembling real customer data goes through.
+    // phase. Strip these before anything resembling real customer data
+    // goes through.
     if (url.pathname === "/debug/list-audio" && request.method === "GET") {
       const listed = await env.OFFICE_VAULT.list({ prefix: "voice-notes/" });
       return Response.json({
@@ -169,43 +213,9 @@ export default {
       const audioBuffer = await object.arrayBuffer();
 
       const { transcript, transcriptionError } = await transcribe(env, audioBuffer);
-      let extraction: Extraction | null = null;
-      let extractionRaw: unknown = null;
-      let extractionRawText: string | null = null;
-      let customer: { id: number; name: string; matched: boolean } | null = null;
-      let pendingActionId: number | null = null;
+      const processed = transcript ? await processTranscript(env, transcript) : null;
 
-      if (transcript) {
-        const result = await extractIntent(env, transcript);
-        extraction = result.extraction;
-        extractionRaw = result.raw;
-        extractionRawText = result.rawText;
-
-        if (extraction?.customer_name) {
-          customer = await reconcileCustomer(env, extraction.customer_name);
-        }
-
-        if (extraction?.intent === "payment" && customer) {
-          const held = await holdForConfirmation(
-            env,
-            "payment",
-            { customerId: customer.id, customerName: customer.name, amount: extraction.amount },
-            transcript
-          );
-          pendingActionId = held.id;
-        }
-      }
-
-      return Response.json({
-        key,
-        transcript,
-        transcriptionError,
-        extraction,
-        extractionRaw,
-        extractionRawText,
-        customer,
-        pendingActionId,
-      });
+      return Response.json({ key, transcript, transcriptionError, ...processed });
     }
     // --- end debug routes ---
 
@@ -217,8 +227,6 @@ export default {
       return Response.json({ pending: results });
     }
 
-    // The only path that turns a held payment intent into a real,
-    // ground-truth payments row.
     if (url.pathname.match(/^\/actions\/\d+\/confirm$/) && request.method === "POST") {
       const id = Number(url.pathname.split("/")[2]);
       const action = await env.OFFICE_DB.prepare(
@@ -256,6 +264,8 @@ export default {
       return Response.json({ status: "rejected", id });
     }
 
+    // "Talk" mode. Full pipeline: store audio, transcribe, extract,
+    // reconcile, guard.
     if (url.pathname === "/files/audio" && request.method === "POST") {
       const formData = await request.formData();
       const audio = formData.get("audio");
@@ -272,53 +282,32 @@ export default {
         transcribe(env, audioBuffer),
       ]);
 
-      let extraction: Extraction | null = null;
-      let extractionRaw: unknown = null;
-      let extractionRawText: string | null = null;
-      let customer: { id: number; name: string; matched: boolean } | null = null;
-      let pendingActionId: number | null = null;
+      const processed = transcript
+        ? await processTranscript(env, transcript)
+        : {
+            extraction: null,
+            extractionRaw: null,
+            extractionRawText: null,
+            customer: null,
+            pendingActionId: null,
+            message: "Voice note received (transcription unavailable).",
+          };
 
-      if (transcript) {
-        const result = await extractIntent(env, transcript);
-        extraction = result.extraction;
-        extractionRaw = result.raw;
-        extractionRawText = result.rawText;
+      return Response.json({ status: "stored", key, transcript, transcriptionError, ...processed });
+    }
 
-        if (extraction?.customer_name) {
-          customer = await reconcileCustomer(env, extraction.customer_name);
-        }
+    // "Type" mode. Same pipeline, no transcription step needed since
+    // the text is already text.
+    if (url.pathname === "/messages/text" && request.method === "POST") {
+      const body = (await request.json()) as { text?: string };
+      const text = body.text?.trim();
 
-        if (extraction?.intent === "payment" && customer) {
-          const held = await holdForConfirmation(
-            env,
-            "payment",
-            { customerId: customer.id, customerName: customer.name, amount: extraction.amount },
-            transcript
-          );
-          pendingActionId = held.id;
-        }
+      if (!text) {
+        return Response.json({ error: "missing text" }, { status: 400 });
       }
 
-      const message = pendingActionId
-        ? `Payment noted for ${customer!.name}${extraction!.amount ? ` of R${extraction!.amount}` : ""} — needs your confirmation (action #${pendingActionId}) before it's recorded.`
-        : customer
-          ? customer.matched
-            ? `Found existing customer: ${customer.name}.`
-            : `New customer noted: ${customer.name}.`
-          : transcript ?? "Voice note received (transcription unavailable).";
-
-      return Response.json({
-        status: "stored",
-        key,
-        transcript,
-        transcriptionError,
-        extraction,
-        extractionRaw,
-        extractionRawText,
-        customer,
-        pendingActionId,
-        message,
-      });
+      const processed = await processTranscript(env, text);
+      return Response.json({ status: "processed", transcript: text, ...processed });
     }
 
     if (url.pathname.startsWith("/files")) {
@@ -328,4 +317,3 @@ export default {
     return new Response("not found", { status: 404 });
   },
 };
-
