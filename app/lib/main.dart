@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -11,6 +12,18 @@ import 'package:record/record.dart';
 /// Changing this one line is the entire cost of a future domain swap.
 const officeApiBase = 'https://office.websitehub.co.za';
 
+// Design tokens. Grounded in the actual subject — an invoice book and
+// a work order, not a generic messaging app — rather than Material's
+// auto-derived defaults. See design plan: aged ledger paper, ballpoint
+// ink, workwear pine (the Office), leather brown (Peter), stamp red
+// reserved for anything still waiting on a decision.
+const _paper = Color(0xFFF2ECDC);
+const _ink = Color(0xFF2B2620);
+const _officeAccent = Color(0xFF1F4B3F);
+const _userAccent = Color(0xFF6B4A2B);
+const _stampRed = Color(0xFFB23A2E);
+const _muted = Color(0xFF8A8172);
+
 void main() => runApp(const OfficeApp());
 
 class OfficeApp extends StatelessWidget {
@@ -18,11 +31,32 @@ class OfficeApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final base = ThemeData.light();
     return MaterialApp(
       title: 'The Office',
       theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF2D6A4F),
         useMaterial3: true,
+        scaffoldBackgroundColor: _paper,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: _officeAccent,
+          brightness: Brightness.light,
+        ).copyWith(surface: _paper),
+        textTheme: GoogleFonts.workSansTextTheme(base.textTheme).apply(
+          bodyColor: _ink,
+          displayColor: _ink,
+        ),
+        appBarTheme: AppBarTheme(
+          backgroundColor: _paper,
+          foregroundColor: _ink,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          titleTextStyle: GoogleFonts.ibmPlexMono(
+            color: _ink,
+            fontWeight: FontWeight.w600,
+            fontSize: 19,
+            letterSpacing: 1.8,
+          ),
+        ),
       ),
       home: const OfficeHome(),
     );
@@ -221,16 +255,16 @@ class _OfficeHomeState extends State<OfficeHome> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Office')),
+      appBar: AppBar(title: const Text('THE OFFICE')),
       body: SafeArea(
         child: Column(
           children: [
             Expanded(
               child: ListView.builder(
                 controller: _scrollController,
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 itemCount: _messages.length,
-                itemBuilder: (context, i) => _MessageBubble(message: _messages[i]),
+                itemBuilder: (context, i) => _MessageLine(message: _messages[i]),
               ),
             ),
             _Composer(
@@ -246,46 +280,141 @@ class _OfficeHomeState extends State<OfficeHome> {
   }
 }
 
-class _MessageBubble extends StatelessWidget {
+// Not a chat bubble — a ledger line. Each entry is a small-caps mono
+// label, a colored accent stripe identifying who wrote it, and the
+// message in a plain, highly legible body face. This is the structural
+// device that makes it read as a work log rather than a messenger
+// clone: the same information a bubble would carry (who, what), told
+// through typography and a stripe instead of rounded colored fills.
+class _MessageLine extends StatelessWidget {
   final ChatMessage message;
-  const _MessageBubble({required this.message});
+  const _MessageLine({required this.message});
+
+  bool get _isPending =>
+      message.role == MessageRole.office && message.text.contains('needs your confirmation');
 
   @override
   Widget build(BuildContext context) {
+    if (message.role == MessageRole.status) {
+      return _buildStatus();
+    }
+    if (_isPending) {
+      return _buildStamp();
+    }
+    return _buildLine();
+  }
+
+  Widget _buildLine() {
     final isUser = message.role == MessageRole.user;
-    final isStatus = message.role == MessageRole.status;
+    final accent = isUser ? _userAccent : _officeAccent;
+    final label = isUser ? 'PETER' : 'OFFICE';
 
-    final bubbleColor = isUser
-        ? Theme.of(context).colorScheme.primaryContainer
-        : isStatus
-            ? Colors.transparent
-            : Theme.of(context).colorScheme.surfaceContainerHighest;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 3,
+            height: 20,
+            margin: const EdgeInsets.only(top: 3, right: 10),
+            color: accent,
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.ibmPlexMono(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.4,
+                    color: accent,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  message.text,
+                  style: GoogleFonts.workSans(fontSize: 15.5, color: _ink, height: 1.35),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-    final textStyle = isStatus
-        ? TextStyle(color: Colors.grey.shade600, fontStyle: FontStyle.italic)
-        : const TextStyle();
+  Widget _buildStatus() {
+    return Padding(
+      padding: const EdgeInsets.only(left: 13, top: 4, bottom: 10),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 12,
+            height: 12,
+            child: CircularProgressIndicator(strokeWidth: 1.6, color: _muted),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            message.text.toUpperCase(),
+            style: GoogleFonts.ibmPlexMono(fontSize: 11.5, color: _muted, letterSpacing: 0.8),
+          ),
+        ],
+      ),
+    );
+  }
 
-    return Align(
-      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: isStatus ? const EdgeInsets.symmetric(horizontal: 4, vertical: 6) : const EdgeInsets.all(12),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
-        decoration: isStatus
-            ? null
-            : BoxDecoration(
-                color: bubbleColor,
-                borderRadius: BorderRadius.circular(16),
-              ),
-        child: Text(message.text, style: textStyle),
+  // The signature element: anything guard() has held for confirmation
+  // renders as a literal, rotated, dashed-ink stamp — an honest visual
+  // metaphor for an unstamped invoice waiting on approval, rather than
+  // a generic colored alert box.
+  Widget _buildStamp() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Transform.rotate(
+          angle: -0.035,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            constraints: const BoxConstraints(maxWidth: 320),
+            decoration: BoxDecoration(
+              border: Border.all(color: _stampRed, width: 2),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'PENDING CONFIRMATION',
+                  style: GoogleFonts.ibmPlexMono(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.6,
+                    color: _stampRed,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  message.text,
+                  style: GoogleFonts.workSans(fontSize: 14, color: _ink, height: 1.3),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
 }
 
-// Bottom-anchored, thumb-reachable — mic and text live in the same
-// composer bar, same reasoning as any chat interface: the primary
-// action should never require repositioning your grip on the phone.
+// Bottom-anchored, thumb-reachable, and styled as "write on the line"
+// rather than a filled rounded pill — an underline, not chrome, to
+// stay consistent with the ledger metaphor instead of borrowing a
+// generic messaging-app composer.
 class _Composer extends StatelessWidget {
   final TextEditingController controller;
   final bool isRecording;
@@ -303,14 +432,18 @@ class _Composer extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: Color(0x332B2620), width: 1)),
+        ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             IconButton(
-              iconSize: 30,
-              icon: Icon(isRecording ? Icons.stop_circle : Icons.mic),
-              color: isRecording ? Colors.red : null,
+              iconSize: 26,
+              icon: Icon(isRecording ? Icons.stop_circle : Icons.mic_none),
+              color: isRecording ? _stampRed : _officeAccent,
               onPressed: onMicTap,
             ),
             Expanded(
@@ -318,17 +451,23 @@ class _Composer extends StatelessWidget {
                 controller: controller,
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => onSend(),
+                style: GoogleFonts.workSans(fontSize: 15.5, color: _ink),
                 decoration: InputDecoration(
-                  hintText: 'Type or tap the mic...',
-                  filled: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
+                  hintText: 'Write it down, or tap the mic...',
+                  hintStyle: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic, fontSize: 14.5),
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  border: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0x552B2620))),
+                  enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0x552B2620))),
+                  focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: _officeAccent, width: 1.5)),
                 ),
               ),
             ),
+            const SizedBox(width: 4),
             IconButton(
-              iconSize: 28,
+              iconSize: 24,
               icon: const Icon(Icons.arrow_upward),
+              color: _officeAccent,
               onPressed: onSend,
             ),
           ],
@@ -337,4 +476,3 @@ class _Composer extends StatelessWidget {
     );
   }
 }
-
