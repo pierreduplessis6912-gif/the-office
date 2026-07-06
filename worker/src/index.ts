@@ -183,8 +183,7 @@ async function processTranscript(env: Env, transcript: string): Promise<ProcessR
   return { extraction, extractionRaw, extractionRawText, customer, pendingActionId, message };
 }
 
-export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+async function handleRequest(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname === "/" || url.pathname === "/health") {
@@ -315,5 +314,36 @@ export default {
     }
 
     return new Response("not found", { status: 404 });
+}
+
+// CORS wrapper. Browsers enforce this; native apps and curl never did,
+// which is exactly why this was never needed until testing moved to
+// the web preview. Allowing all origins is fine here since there's no
+// cookie-based auth to protect — every route is either public or will
+// get its own real auth later, not relying on origin-checking for
+// security.
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: CORS_HEADERS });
+    }
+
+    const response = await handleRequest(request, env);
+    const newHeaders = new Headers(response.headers);
+    for (const [key, value] of Object.entries(CORS_HEADERS)) {
+      newHeaders.set(key, value);
+    }
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: newHeaders,
+    });
   },
 };
+
