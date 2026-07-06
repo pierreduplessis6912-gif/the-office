@@ -160,8 +160,21 @@ async function storeMemory(env: Env, text: string, customerId: number | null): P
         },
       },
     ]);
-  } catch {
-    // Best-effort. Never surfaces to the person who spoke.
+  } catch (err) {
+    // This runs in ctx.waitUntil — there is no response left to attach
+    // an error to, so silently swallowing it (as before) means genuine
+    // failures are indistinguishable from "nothing was ever said."
+    // Log it somewhere durable instead, so a real failure is at least
+    // findable after the fact rather than invisible forever.
+    try {
+      await env.OFFICE_DB.prepare(
+        "INSERT INTO memory_errors (customer_id, text, error) VALUES (?, ?, ?)"
+      )
+        .bind(customerId, text, err instanceof Error ? err.message : String(err))
+        .run();
+    } catch {
+      // If even the error log fails, there's nothing further to do.
+    }
   }
 }
 
@@ -327,6 +340,13 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       });
     }
 
+    if (url.pathname === "/debug/memory-errors" && request.method === "GET") {
+      const { results } = await env.OFFICE_DB.prepare(
+        "SELECT id, customer_id, text, error, created_at FROM memory_errors ORDER BY created_at DESC LIMIT 20"
+      ).all();
+      return Response.json({ errors: results });
+    }
+
     // --- end debug routes ---
 
     // List everything still waiting on a human decision.
@@ -457,6 +477,7 @@ export default {
     });
   },
 };
+
 
 
 
