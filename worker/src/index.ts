@@ -147,6 +147,68 @@ export default {
       return new Response("auth: reserved, not yet implemented", { status: 501 });
     }
 
+    // --- Debug routes. Left in deliberately during this experimentation
+    // phase instead of adding/removing them every time something needs
+    // diagnosing — read-only against R2 metadata, and reprocess mirrors
+    // the real /files/audio pipeline exactly (including holding payment
+    // intents rather than writing them directly), so it tells the truth
+    // about what actually happened, not a simplified stand-in. Strip
+    // these before anything resembling real customer data goes through.
+    if (url.pathname === "/debug/list-audio" && request.method === "GET") {
+      const listed = await env.OFFICE_VAULT.list({ prefix: "voice-notes/" });
+      return Response.json({
+        objects: listed.objects.map((o) => ({ key: o.key, size: o.size, uploaded: o.uploaded })),
+      });
+    }
+
+    if (url.pathname === "/debug/reprocess" && request.method === "GET") {
+      const key = url.searchParams.get("key");
+      if (!key) return Response.json({ error: "missing ?key=" }, { status: 400 });
+      const object = await env.OFFICE_VAULT.get(key);
+      if (!object) return Response.json({ error: "key not found in R2" }, { status: 404 });
+      const audioBuffer = await object.arrayBuffer();
+
+      const { transcript, transcriptionError } = await transcribe(env, audioBuffer);
+      let extraction: Extraction | null = null;
+      let extractionRaw: unknown = null;
+      let extractionRawText: string | null = null;
+      let customer: { id: number; name: string; matched: boolean } | null = null;
+      let pendingActionId: number | null = null;
+
+      if (transcript) {
+        const result = await extractIntent(env, transcript);
+        extraction = result.extraction;
+        extractionRaw = result.raw;
+        extractionRawText = result.rawText;
+
+        if (extraction?.customer_name) {
+          customer = await reconcileCustomer(env, extraction.customer_name);
+        }
+
+        if (extraction?.intent === "payment" && customer) {
+          const held = await holdForConfirmation(
+            env,
+            "payment",
+            { customerId: customer.id, customerName: customer.name, amount: extraction.amount },
+            transcript
+          );
+          pendingActionId = held.id;
+        }
+      }
+
+      return Response.json({
+        key,
+        transcript,
+        transcriptionError,
+        extraction,
+        extractionRaw,
+        extractionRawText,
+        customer,
+        pendingActionId,
+      });
+    }
+    // --- end debug routes ---
+
     // List everything still waiting on a human decision.
     if (url.pathname === "/actions/pending" && request.method === "GET") {
       const { results } = await env.OFFICE_DB.prepare(
@@ -266,3 +328,4 @@ export default {
     return new Response("not found", { status: 404 });
   },
 };
+
