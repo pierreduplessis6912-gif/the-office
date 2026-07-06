@@ -292,6 +292,29 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
 
       return Response.json({ key, transcript, transcriptionError, ...processed });
     }
+    if (url.pathname === "/debug/search-memory" && request.method === "GET") {
+      const text = url.searchParams.get("text");
+      const customerId = url.searchParams.get("customerId");
+      if (!text) return Response.json({ error: "missing ?text=" }, { status: 400 });
+
+      const vector = await embedText(env, text);
+      const results = await env.MEMORY.query(vector, {
+        topK: 10,
+        returnMetadata: true,
+        filter: customerId ? { customerId } : undefined,
+      });
+
+      return Response.json({
+        text,
+        customerId,
+        matches: (results.matches ?? []).map((m) => ({
+          score: m.score,
+          text: (m.metadata as { text?: string } | undefined)?.text,
+          createdAt: (m.metadata as { createdAt?: string } | undefined)?.createdAt,
+        })),
+      });
+    }
+
     // --- end debug routes ---
 
     // List everything still waiting on a human decision.
@@ -422,6 +445,7 @@ export default {
     });
   },
 };
+
 
 
 
