@@ -46,10 +46,16 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
           content:
             "Extract structured facts from a tradesperson's message. " +
             'customer_name is the specific customer mentioned, exactly as spoken or typed, or null if none. ' +
-            'intent is "payment" only if the message describes money being received from a customer. ' +
+            'intent is "payment" ONLY if the message explicitly describes money already being received from ' +
+            'a customer — not if the customer is merely mentioned, looked up, or asked about. ' +
             "amount is a plain number in the currency's major unit (e.g. rand, not cents) if a specific " +
             "amount was stated, exactly as given — never estimate or calculate, only use a number " +
-            "that was actually stated, or null if none was.",
+            "that was actually stated, or null if none was.\n\n" +
+            "Examples:\n" +
+            '"Jenny paid me a thousand rand" -> {"customer_name":"Jenny","intent":"payment","amount":1000}\n' +
+            '"let\'s look up Jenny\'s profile" -> {"customer_name":"Jenny","intent":"lookup","amount":null}\n' +
+            '"what does Jenny owe" -> {"customer_name":"Jenny","intent":"lookup","amount":null}\n' +
+            '"remind me to call Jenny tomorrow" -> {"customer_name":"Jenny","intent":"reminder","amount":null}',
         },
         { role: "user", content: transcript },
       ],
@@ -346,4 +352,5 @@ export default {
     });
   },
 };
+
 
