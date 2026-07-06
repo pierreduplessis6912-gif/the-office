@@ -149,24 +149,33 @@ class _OfficeHomeState extends State<OfficeHome> {
   // --- Talk mode -----------------------------------------------------
 
   Future<void> _toggleRecording() async {
-    if (_isRecording) {
-      final path = await _recorder.stop();
-      setState(() => _isRecording = false);
-      if (path != null) {
-        await _handleRecording(path);
+    try {
+      if (_isRecording) {
+        final path = await _recorder.stop();
+        setState(() => _isRecording = false);
+        if (path != null) {
+          await _handleRecording(path);
+        }
+        return;
       }
-      return;
-    }
 
-    if (!await _recorder.hasPermission()) {
-      _addMessage(MessageRole.office, 'Microphone permission denied.');
-      return;
-    }
+      if (!await _recorder.hasPermission()) {
+        _addMessage(MessageRole.office, 'Microphone permission denied.');
+        return;
+      }
 
-    final dir = await getTemporaryDirectory();
-    final path = '${dir.path}/note_${DateTime.now().millisecondsSinceEpoch}.m4a';
-    await _recorder.start(const RecordConfig(), path: path);
-    setState(() => _isRecording = true);
+      final dir = await getTemporaryDirectory();
+      final path = '${dir.path}/note_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _recorder.start(const RecordConfig(), path: path);
+      setState(() => _isRecording = true);
+    } catch (e, stack) {
+      // Surface the real error instead of failing silently — this is
+      // a diagnostic addition specifically to find out what's actually
+      // breaking on web, not a permanent behavior.
+      setState(() => _isRecording = false);
+      _addMessage(MessageRole.office, 'Mic error: $e');
+      debugPrint('Mic error: $e\n$stack');
+    }
   }
 
   Future<void> _handleRecording(String path) async {
@@ -328,3 +337,4 @@ class _Composer extends StatelessWidget {
     );
   }
 }
+
