@@ -18,6 +18,7 @@ interface ProcessResult {
   customer: { id: number; name: string; matched: boolean } | null;
   pendingActionId: number | null;
   message: string;
+  rewrittenQuery: string;
 }
 
 async function transcribe(env: Env, audioBuffer: ArrayBuffer): Promise<{ transcript: string | null; transcriptionError: string | null }> {
@@ -375,7 +376,7 @@ async function processTranscript(
     message = "Got it.";
   }
 
-  return { extraction, extractionRaw, extractionRawText, customer, pendingActionId, message };
+  return { extraction, extractionRaw, extractionRawText, customer, pendingActionId, message, rewrittenQuery: rewritten };
 }
 
 async function handleRequest(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -594,6 +595,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             customer: null,
             pendingActionId: null,
             message: "Voice note received (transcription unavailable).",
+            rewrittenQuery: "",
           };
 
       return Response.json({ status: "stored", key, transcript, transcriptionError, ...processed });
@@ -651,6 +653,7 @@ export default {
     });
   },
 };
+
 
 
 
