@@ -203,12 +203,16 @@ async function storeMemory(env: Env, text: string, customerId: number | null): P
 }
 
 // Reranking replaces the hand-tuned raw-cosine threshold with an
-// actual cross-encoder relevance judgment — the same technique
-// Cloudflare's own AI Search product uses (and its own default
-// threshold, 0.4, happens to match the number we landed on earlier
-// today by trial and error). Degrades gracefully to the raw
-// candidates if the reranker call itself fails, rather than losing
-// everything.
+// actual cross-encoder relevance judgment. Real observed data: the
+// model's raw scores were ~0.0005 and ~0.00008 for a correct vs. an
+// unrelated match — nowhere near a 0-1 range, despite Cloudflare's
+// docs describing a 0-1 mapping via sigmoid. Sigmoid on numbers this
+// close to zero just pushes everything toward 0.5 and doesn't
+// meaningfully separate them either. What IS meaningful: relative
+// ranking — the correct match scored ~6.7x higher than the wrong one.
+// So: sort by score, take the top few, and let the LLM synthesis step
+// (already proven reliable) decide actual relevance — same lesson as
+// the embedding threshold, don't trust an uncalibrated absolute cutoff.
 async function rerank(env: Env, query: string, candidates: string[]): Promise<string[]> {
   if (candidates.length === 0) return [];
   try {
@@ -216,16 +220,13 @@ async function rerank(env: Env, query: string, candidates: string[]): Promise<st
       query,
       contexts: candidates.map((text) => ({ text })),
     });
-    // Shape not yet verified empirically against the direct binding —
-    // handle a couple of plausible envelopes rather than assume, same
-    // lesson as every other model call today.
     const scored =
       (result as { response?: Array<{ id: number; score: number }> }).response ??
       (result as unknown as Array<{ id: number; score: number }>) ??
       [];
     return scored
-      .filter((s) => s.score > 0.4)
       .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
       .map((s) => candidates[s.id])
       .filter((t): t is string => !!t);
   } catch {
@@ -650,6 +651,7 @@ export default {
     });
   },
 };
+
 
 
 
