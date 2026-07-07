@@ -16,18 +16,26 @@ bucket_name = "office-vault"
 
 # Workers AI — no separate account/secret needed, this is a binding on
 # the same Cloudflare account. Used for @cf/openai/whisper transcription,
-# @cf/meta/llama-3.1-8b-instruct-fast extraction, and @cf/baai/bge-base-en-v1.5
+# @cf/moonshotai/kimi-k2.6 extraction/rewriting, and @cf/baai/bge-base-en-v1.5
 # embeddings.
 [ai]
 binding = "AI"
 
-# Vectorize — conversational memory. Color, not ground truth: never used
-# for money or anything with real-world consequence, only for recalling
-# what was said (an address, a preference, a note) when nothing more
-# authoritative exists to answer from.
+# Vectorize — the slow, batched, cross-customer associative layer.
+# No longer written to or queried directly per-message — KV is the
+# fast, primary per-customer memory now. Vectorize is fed by the
+# hourly consolidation cron from pending_memory_flush, and reserved
+# for cross-customer search (not yet built) and unscoped fallback
+# lookups when no customer has been identified.
 [[vectorize]]
 binding = "MEMORY"
 index_name = "office-memory"
+
+# KV — fast, per-customer notes. Read/write instantly, no async
+# indexing delay. This is what a lookup actually reads from now.
+[[kv_namespaces]]
+binding = "CUSTOMER_NOTES"
+id = "5c76e3a5c8f645c29d693ce5577872a1"
 
 [vars]
 ENVIRONMENT = "production"
@@ -38,3 +46,8 @@ ENVIRONMENT = "production"
 pattern = "office.websitehub.co.za/*"
 zone_name = "websitehub.co.za"
 
+# Hourly consolidation: flushes pending_memory_flush into Vectorize in
+# one batched upsert, and checks customer_facts for breadth-qualifying
+# schema candidates. See the scheduled() handler in src/index.ts.
+[triggers]
+crons = ["0 * * * *"]
