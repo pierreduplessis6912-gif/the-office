@@ -307,8 +307,10 @@ async function rewriteQuery(env: Env, history: HistoryTurn[], message: string): 
           content:
             "Rewrite the new message to be fully self-contained, replacing any pronouns or vague " +
             "references (her, him, that, it, the invoice, etc.) with the specific name or thing they " +
-            "refer to, using the conversation history for context. If the message is already " +
-            "self-contained, return it completely unchanged. Return ONLY the rewritten message, " +
+            "refer to, using the conversation history for context. Do NOT answer the message, add new " +
+            "information, or change its type — a question must stay phrased as a question, a statement " +
+            "stays a statement. Only resolve what the ambiguous words refer to. If the message is " +
+            "already self-contained, return it completely unchanged. Return ONLY the rewritten message, " +
             "nothing else — no explanation, no quotes.\n\nConversation history:\n" +
             historyText,
         },
@@ -653,6 +655,7 @@ export default {
     });
   },
 };
+
 
 
 
