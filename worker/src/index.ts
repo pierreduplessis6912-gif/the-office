@@ -78,7 +78,31 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
 // share "Jenny", but it is not real fuzzy matching and won't help if
 // the first name itself is misheard. Good enough to prove the pattern;
 // not the final algorithm.
-async function reconcileCustomer(env: Env, spokenName: string): Promise<{ id: number; name: string; matched: boolean }> {
+// Pronouns and other generic words are not names. Kimi has now
+// produced "her" and, earlier today, a garbled typo ("jonh") as if
+// they were real customer names — and reconciliation created permanent
+// junk records from both, with zero validation standing in the way.
+// This is the same category of mistake we guard against for money:
+// an LLM's raw output becoming a permanent write with nothing
+// deterministic checking it first. Creating a new customer deserves
+// the same discipline.
+const NOT_A_NAME = new Set([
+  "her", "him", "he", "she", "it", "they", "them", "we", "us", "you",
+  "i", "me", "this", "that", "someone", "somebody", "who", "customer", "client",
+]);
+
+function looksLikeAName(name: string): boolean {
+  const trimmed = name.trim().toLowerCase();
+  if (trimmed.length < 2) return false;
+  if (NOT_A_NAME.has(trimmed)) return false;
+  return true;
+}
+
+async function reconcileCustomer(env: Env, spokenName: string): Promise<{ id: number; name: string; matched: boolean } | null> {
+  if (!looksLikeAName(spokenName)) {
+    return null;
+  }
+
   const firstToken = spokenName.trim().split(/\s+/)[0];
   const existing = await env.OFFICE_DB.prepare("SELECT id, name FROM customers WHERE name LIKE ? LIMIT 1")
     .bind(`%${firstToken}%`)
@@ -531,6 +555,7 @@ export default {
     });
   },
 };
+
 
 
 
