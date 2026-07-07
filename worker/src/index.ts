@@ -3,12 +3,15 @@ export interface Env {
   OFFICE_VAULT: R2Bucket;
   AI: Ai;
   MEMORY: VectorizeIndex;
+  CUSTOMER_NOTES: KVNamespace;
 }
 
 interface Extraction {
   customer_name: string | null;
   intent: "payment" | "lookup" | "reminder" | "note" | "other";
   amount: number | null;
+  fact_key: string | null;
+  fact_value: string | null;
 }
 
 interface ProcessResult {
@@ -56,8 +59,14 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             'a customer — not if the customer is merely mentioned, looked up, or asked about. ' +
             "amount is a plain number in the currency's major unit (e.g. rand, not cents) if a specific " +
             "amount was stated, exactly as given — never estimate or calculate, only use a number " +
-            "that was actually stated, or null if none was. Return ONLY JSON, no markdown, no explanation: " +
-            '{"customer_name": string or null, "intent": "payment" or "lookup" or "reminder" or "note" or "other", "amount": number or null}',
+            "that was actually stated, or null if none was. " +
+            "fact_key and fact_value: if the message states a clear, structured attribute about the " +
+            "customer that could apply to any customer (address, phone_number, email, etc.), extract it " +
+            'as a short snake_case key and its value — e.g. fact_key: "address", fact_value: "12 Golf ' +
+            'Way, Eco Estate, Eshowe". If the message is a general note that does not cleanly reduce to ' +
+            "one key and value, set both to null. Return ONLY JSON, no markdown, no explanation: " +
+            '{"customer_name": string or null, "intent": "payment" or "lookup" or "reminder" or "note" ' +
+            'or "other", "amount": number or null, "fact_key": string or null, "fact_value": string or null}',
         },
         { role: "user", content: transcript },
       ],
@@ -74,19 +83,10 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
 
 // Crude first-pass reconciliation: match on the first token of the
 // spoken name (usually the first name) against existing customers.
-// This is deliberately the simplest thing that could work — it will
-// catch "Jenny Hawkins" vs "Jenny Hoax" vs "Jenny Hawks" since they
-// share "Jenny", but it is not real fuzzy matching and won't help if
-// the first name itself is misheard. Good enough to prove the pattern;
-// not the final algorithm.
-// Pronouns and other generic words are not names. Kimi has now
-// produced "her" and, earlier today, a garbled typo ("jonh") as if
-// they were real customer names — and reconciliation created permanent
-// junk records from both, with zero validation standing in the way.
-// This is the same category of mistake we guard against for money:
-// an LLM's raw output becoming a permanent write with nothing
-// deterministic checking it first. Creating a new customer deserves
-// the same discipline.
+// Pronouns and other generic words are not names — reconciliation
+// rejects them before ever creating a record, the same discipline as
+// guarding money against an LLM's raw output becoming a permanent
+// write with nothing deterministic checking it first.
 const NOT_A_NAME = new Set([
   "her", "him", "he", "she", "it", "they", "them", "we", "us", "you",
   "i", "me", "this", "that", "someone", "somebody", "who", "customer", "client",
@@ -140,8 +140,10 @@ async function recordPayment(
 }
 
 // guard(): every money-touching intent lands here, not in the real
-// ledger, until it's explicitly confirmed. Deliberately blunt for now
-// — everything pauses, regardless of amount or confidence.
+// ledger, until it's explicitly confirmed. Also reused for
+// schema-candidate suggestions below — same mechanism, same
+// discipline: the system proposes, a human decides, nothing
+// consequential happens automatically.
 async function holdForConfirmation(
   env: Env,
   type: string,
@@ -157,48 +159,112 @@ async function holdForConfirmation(
   return { id: inserted!.id };
 }
 
+// Fields already promoted to real columns go straight there. Anything
+// else goes into the middle-tier holding table — structured, but not
+// yet proven common enough across customers to earn its own column.
+// This function never promotes a field itself; it can only write to
+// the holding table. Promotion only ever happens via a human running
+// an actual migration, prompted by the breadth-check below.
+async function applyStructuredFact(
+  env: Env,
+  customerId: number,
+  key: string,
+  value: string,
+  sourceTranscript: string
+): Promise<void> {
+  const normalizedKey = key.trim().toLowerCase().replace(/\s+/g, "_");
+
+  if (normalizedKey === "address") {
+    await env.OFFICE_DB.prepare("UPDATE customers SET address = ? WHERE id = ?").bind(value, customerId).run();
+    return;
+  }
+
+  await env.OFFICE_DB.prepare(
+    "INSERT INTO customer_facts (customer_id, key, value, source_transcript) VALUES (?, ?, ?, ?)"
+  )
+    .bind(customerId, normalizedKey, value, sourceTranscript)
+    .run();
+}
+
 // --- Memory: color, not ground truth. Never used for money or ------
 // anything with real-world consequence — only for recalling what was
-// said (an address, a preference, a note) when nothing structured
-// exists to answer from instead.
+// said (a preference, a note) when nothing structured exists to
+// answer from instead.
 
 async function embedText(env: Env, text: string): Promise<number[]> {
   const result = await env.AI.run("@cf/baai/bge-base-en-v1.5", { text });
   return (result as { data: number[][] }).data[0];
 }
 
-// Fire-and-forget from the caller's point of view via ctx.waitUntil —
-// "thrown in a pot, indexed in the background." Never blocks the
-// response, and a failure here never breaks the request that
-// triggered it; at worst, one fact doesn't get remembered.
-async function storeMemory(env: Env, text: string, customerId: number | null): Promise<void> {
+interface CustomerNote {
+  text: string;
+  storedAt: string;
+}
+
+// The primary read path for per-customer lookups now. Instant KV
+// read, no async indexing delay — this is what "give me Jenny's
+// address" actually reads from moments after it was said.
+async function getCustomerNotes(env: Env, customerId: number): Promise<string[]> {
+  try {
+    const raw = await env.CUSTOMER_NOTES.get(`customer:${customerId}`);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as { facts: CustomerNote[] };
+    return parsed.facts.map((f) => f.text);
+  } catch {
+    return [];
+  }
+}
+
+// The primary write path now. Instant, per-customer, no async
+// indexing delay standing between "Peter said it" and "Peter can ask
+// about it." Also queues the same fact into pending_memory_flush for
+// later batch consolidation into Vectorize — that side stays
+// intentionally slower, since it only serves cross-customer search
+// and an unscoped fallback, never same-session recall.
+async function appendCustomerNote(env: Env, customerId: number, text: string): Promise<void> {
+  try {
+    const key = `customer:${customerId}`;
+    const raw = await env.CUSTOMER_NOTES.get(key);
+    const existing: { facts: CustomerNote[] } = raw ? JSON.parse(raw) : { facts: [] };
+    existing.facts.push({ text, storedAt: new Date().toISOString() });
+    await env.CUSTOMER_NOTES.put(key, JSON.stringify(existing));
+
+    await env.OFFICE_DB.prepare("INSERT INTO pending_memory_flush (customer_id, text) VALUES (?, ?)")
+      .bind(customerId, text)
+      .run();
+  } catch (err) {
+    try {
+      await env.OFFICE_DB.prepare("INSERT INTO memory_errors (customer_id, text, error) VALUES (?, ?, ?)")
+        .bind(customerId, text, err instanceof Error ? err.message : String(err))
+        .run();
+    } catch {
+      // Nothing further to do if even the error log fails.
+    }
+  }
+}
+
+// Fallback only, for the rare case a note has no identifiable
+// customer to scope it to — writes straight to Vectorize since there
+// is no KV key to append it under. Kept deliberately separate from
+// the batched consolidation path below; this one write is genuinely
+// one-off, not part of a queue.
+async function storeUnscopedMemory(env: Env, text: string): Promise<void> {
   try {
     const vector = await embedText(env, text);
     await env.MEMORY.upsert([
       {
         id: crypto.randomUUID(),
         values: vector,
-        metadata: {
-          customerId: customerId != null ? String(customerId) : "",
-          text,
-          createdAt: new Date().toISOString(),
-        },
+        metadata: { customerId: "", text, createdAt: new Date().toISOString() },
       },
     ]);
   } catch (err) {
-    // This runs in ctx.waitUntil — there is no response left to attach
-    // an error to, so silently swallowing it (as before) means genuine
-    // failures are indistinguishable from "nothing was ever said."
-    // Log it somewhere durable instead, so a real failure is at least
-    // findable after the fact rather than invisible forever.
     try {
-      await env.OFFICE_DB.prepare(
-        "INSERT INTO memory_errors (customer_id, text, error) VALUES (?, ?, ?)"
-      )
-        .bind(customerId, text, err instanceof Error ? err.message : String(err))
+      await env.OFFICE_DB.prepare("INSERT INTO memory_errors (customer_id, text, error) VALUES (NULL, ?, ?)")
+        .bind(text, err instanceof Error ? err.message : String(err))
         .run();
     } catch {
-      // If even the error log fails, there's nothing further to do.
+      // Nothing further to do.
     }
   }
 }
@@ -206,14 +272,9 @@ async function storeMemory(env: Env, text: string, customerId: number | null): P
 // Reranking replaces the hand-tuned raw-cosine threshold with an
 // actual cross-encoder relevance judgment. Real observed data: the
 // model's raw scores were ~0.0005 and ~0.00008 for a correct vs. an
-// unrelated match — nowhere near a 0-1 range, despite Cloudflare's
-// docs describing a 0-1 mapping via sigmoid. Sigmoid on numbers this
-// close to zero just pushes everything toward 0.5 and doesn't
-// meaningfully separate them either. What IS meaningful: relative
-// ranking — the correct match scored ~6.7x higher than the wrong one.
-// So: sort by score, take the top few, and let the LLM synthesis step
-// (already proven reliable) decide actual relevance — same lesson as
-// the embedding threshold, don't trust an uncalibrated absolute cutoff.
+// unrelated match — nowhere near a 0-1 range. What IS meaningful:
+// relative ranking. So: sort by score, take the top few, and let the
+// LLM synthesis step decide actual relevance.
 async function rerank(env: Env, query: string, candidates: string[]): Promise<string[]> {
   if (candidates.length === 0) return [];
   try {
@@ -235,6 +296,9 @@ async function rerank(env: Env, query: string, candidates: string[]): Promise<st
   }
 }
 
+// Direct Vectorize search — now only used as a fallback when no
+// customer has been identified at all (nothing in KV to read
+// instead), and by the cross-customer debug tooling below.
 async function searchMemory(env: Env, query: string, customerId: number | null): Promise<string[]> {
   try {
     const vector = await embedText(env, query);
@@ -279,22 +343,18 @@ async function answerFromMemory(env: Env, question: string, facts: string[]): Pr
   }
 }
 
-// Shared by both /files/audio (after transcription) and /messages/text
-// (directly on typed input) — same extraction, reconciliation, guard(),
-// and memory logic either way. A transcript is a transcript, whether
-// it came from Whisper or a keyboard.
 interface HistoryTurn {
   role: "user" | "office";
   text: string;
 }
 
 // Query rewriting: the established fix for pronoun/reference
-// resolution in conversational retrieval — not a Durable Object, not
-// hoping an unscoped search gets lucky. Turns "what did we invoice
+// resolution in conversational retrieval. Turns "what did we invoice
 // her?" into a fully self-contained question using recent context,
-// BEFORE extraction or retrieval ever sees it. Falls back to the
-// original message unchanged if there's no history, or if rewriting
-// itself fails for any reason.
+// BEFORE extraction or retrieval ever sees it. Runs on Kimi, not the
+// small model — proven: the small model kept quietly answering the
+// question instead of just resolving references, twice, even after
+// explicit prompt constraints; Kimi got it right first try.
 async function rewriteQuery(env: Env, history: HistoryTurn[], message: string): Promise<string> {
   if (history.length === 0) return message;
   try {
@@ -326,6 +386,10 @@ async function rewriteQuery(env: Env, history: HistoryTurn[], message: string): 
   }
 }
 
+// Shared by both /files/audio (after transcription) and /messages/text
+// (directly on typed input) — same extraction, reconciliation, guard(),
+// and memory logic either way. A transcript is a transcript, whether
+// it came from Whisper or a keyboard.
 async function processTranscript(
   env: Env,
   transcript: string,
@@ -359,18 +423,30 @@ async function processTranscript(
     pendingActionId = held.id;
   }
 
+  // A promoted field (address) or a candidate for the holding table —
+  // written immediately either way, independent of whether this also
+  // gets stored as a narrative note below.
+  if (extraction?.fact_key && extraction?.fact_value && customer) {
+    ctx.waitUntil(applyStructuredFact(env, customer.id, extraction.fact_key, extraction.fact_value, transcript));
+  }
+
   // Store the ORIGINAL words, not the rewritten version — the
   // rewrite exists purely to correctly resolve intent and retrieval,
   // never to replace what was actually said in the permanent record.
+  // Never store questions — a lookup is a question, not a fact.
   if (extraction?.intent !== "lookup") {
-    ctx.waitUntil(storeMemory(env, transcript, customer?.id ?? null));
+    if (customer) {
+      ctx.waitUntil(appendCustomerNote(env, customer.id, transcript));
+    } else {
+      ctx.waitUntil(storeUnscopedMemory(env, transcript));
+    }
   }
 
   let message: string;
   if (pendingActionId) {
     message = `Payment noted for ${customer!.name}${extraction!.amount ? ` of R${extraction!.amount}` : ""} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
   } else if (extraction?.intent === "lookup") {
-    const memoryFacts = await searchMemory(env, rewritten, customer?.id ?? null);
+    const memoryFacts = customer ? await getCustomerNotes(env, customer.id) : await searchMemory(env, rewritten, null);
     const facts = customer ? [`${customer.name} is a known customer.`, ...memoryFacts] : memoryFacts;
     message = await answerFromMemory(env, rewritten, facts);
   } else if (customer) {
@@ -380,6 +456,74 @@ async function processTranscript(
   }
 
   return { extraction, extractionRaw, extractionRawText, customer, pendingActionId, message, rewrittenQuery: rewritten };
+}
+
+// Consolidation: drains pending_memory_flush into Vectorize in ONE
+// batched upsert instead of many individual ones — the pattern
+// Cloudflare's own docs recommend for write-heavy workloads. Also
+// runs the schema-candidate breadth-check in the same pass. Shared by
+// the real hourly cron and a manual debug trigger for testing today.
+async function runConsolidation(env: Env): Promise<{ flushed: number; schemaCandidates: string[] }> {
+  const { results } = await env.OFFICE_DB.prepare(
+    "SELECT id, customer_id, text FROM pending_memory_flush ORDER BY id LIMIT 500"
+  ).all<{ id: number; customer_id: number | null; text: string }>();
+
+  let flushed = 0;
+  if (results.length > 0) {
+    try {
+      const vectors = await Promise.all(
+        results.map(async (row) => ({
+          id: crypto.randomUUID(),
+          values: await embedText(env, row.text),
+          metadata: {
+            customerId: row.customer_id != null ? String(row.customer_id) : "",
+            text: row.text,
+            createdAt: new Date().toISOString(),
+          },
+        }))
+      );
+      await env.MEMORY.upsert(vectors);
+      flushed = vectors.length;
+
+      const ids = results.map((r) => r.id);
+      await env.OFFICE_DB.prepare(`DELETE FROM pending_memory_flush WHERE id IN (${ids.map(() => "?").join(",")})`)
+        .bind(...ids)
+        .run();
+    } catch (err) {
+      await env.OFFICE_DB.prepare("INSERT INTO memory_errors (customer_id, text, error) VALUES (NULL, ?, ?)")
+        .bind(`consolidation batch of ${results.length}`, err instanceof Error ? err.message : String(err))
+        .run();
+    }
+  }
+
+  // Breadth-check: any key in the holding table now common enough
+  // across distinct customers to be worth a real column? This never
+  // executes a migration — only proposes, via the same pending_action
+  // mechanism as a payment, so a human always makes the actual call.
+  const schemaCandidates: string[] = [];
+  const { results: breadthResults } = await env.OFFICE_DB.prepare(
+    "SELECT key, COUNT(DISTINCT customer_id) as breadth FROM customer_facts GROUP BY key HAVING breadth >= 5"
+  ).all<{ key: string; breadth: number }>();
+
+  for (const row of breadthResults) {
+    const existingCandidate = await env.OFFICE_DB.prepare(
+      "SELECT id FROM pending_actions WHERE type = 'schema_candidate' AND json_extract(payload, '$.key') = ? AND status = 'pending'"
+    )
+      .bind(row.key)
+      .first();
+
+    if (!existingCandidate) {
+      await holdForConfirmation(
+        env,
+        "schema_candidate",
+        { key: row.key, breadth: row.breadth },
+        `Auto-detected: "${row.key}" now recorded for ${row.breadth} distinct customers — worth its own column?`
+      );
+      schemaCandidates.push(row.key);
+    }
+  }
+
+  return { flushed, schemaCandidates };
 }
 
 async function handleRequest(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -415,6 +559,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
 
       return Response.json({ key, transcript, transcriptionError, ...processed });
     }
+
     if (url.pathname === "/debug/search-memory" && request.method === "GET") {
       const text = url.searchParams.get("text");
       const customerId = url.searchParams.get("customerId");
@@ -438,6 +583,15 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       });
     }
 
+    // Inspect the actual primary memory now — the KV blob for one
+    // customer, not Vectorize (which lags behind, batched, on cron).
+    if (url.pathname === "/debug/customer-notes" && request.method === "GET") {
+      const customerId = url.searchParams.get("customerId");
+      if (!customerId) return Response.json({ error: "missing ?customerId=" }, { status: 400 });
+      const raw = await env.CUSTOMER_NOTES.get(`customer:${customerId}`);
+      return Response.json({ customerId, raw: raw ? JSON.parse(raw) : null });
+    }
+
     if (url.pathname === "/debug/memory-errors" && request.method === "GET") {
       const { results } = await env.OFFICE_DB.prepare(
         "SELECT id, customer_id, text, error, created_at FROM memory_errors ORDER BY created_at DESC LIMIT 20"
@@ -445,10 +599,6 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ errors: results });
     }
 
-    // Standing health check — reusable going forward, not just for
-    // this test. If the gap between now and processedUpToDatetime ever
-    // exceeds Cloudflare's own stated p99 (2 minutes), that's a real
-    // signal something's stuck, not normal lag.
     if (url.pathname === "/debug/memory-health" && request.method === "GET") {
       try {
         const info = await env.MEMORY.describe();
@@ -465,18 +615,12 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       }
     }
 
-    // Isolated stress test: N individual, concurrent, single-vector
-    // upserts — deliberately the exact pattern Cloudflare's own docs
-    // flag as inefficient for write-heavy workloads. Bypasses the LLM
-    // pipeline entirely so this only tests Vectorize's write behavior,
-    // not extraction variability. Simulates "many clients writing at
-    // once" without needing many real clients.
     if (url.pathname === "/debug/stress-memory" && request.method === "GET") {
       const count = Number(url.searchParams.get("count") ?? "20");
       try {
         const before = await env.MEMORY.describe();
         const writes = Array.from({ length: count }, (_, i) =>
-          storeMemory(env, `stress test entry number ${i} at ${Date.now()}`, null)
+          storeUnscopedMemory(env, `stress test entry number ${i} at ${Date.now()}`)
         );
         await Promise.all(writes);
         const after = await env.MEMORY.describe();
@@ -515,6 +659,14 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       }
     }
 
+    // Manual trigger for the same job the hourly cron runs — lets us
+    // test consolidation and schema-candidate detection today instead
+    // of waiting for the clock.
+    if (url.pathname === "/admin/flush-memory" && request.method === "POST") {
+      const result = await runConsolidation(env);
+      return Response.json(result);
+    }
+
     // --- end debug routes ---
 
     // List everything still waiting on a human decision.
@@ -547,6 +699,22 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           .bind(id)
           .run();
         return Response.json({ status: "confirmed", payment });
+      }
+
+      if (action.type === "schema_candidate") {
+        // Acknowledged only — this never runs a migration itself. The
+        // actual ALTER TABLE / CREATE TABLE stays a deliberate, manual
+        // step, the same way it has been all day.
+        await env.OFFICE_DB.prepare(
+          "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+        )
+          .bind(id)
+          .run();
+        return Response.json({
+          status: "acknowledged",
+          note: "No migration was run. Add the column or table yourself when ready.",
+          payload: JSON.parse(action.payload),
+        });
       }
 
       return Response.json({ error: `unknown pending action type: ${action.type}` }, { status: 400 });
@@ -655,20 +823,11 @@ export default {
       headers: newHeaders,
     });
   },
+
+  // The real hourly consolidation — same job the manual
+  // /admin/flush-memory debug route triggers, running on its own
+  // schedule now (see [triggers] in wrangler.toml).
+  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(runConsolidation(env).then(() => undefined));
+  },
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
