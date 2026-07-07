@@ -186,8 +186,17 @@ async function searchMemory(env: Env, query: string, customerId: number | null):
       returnMetadata: true,
       filter: customerId != null ? { customerId: String(customerId) } : undefined,
     });
+    // Threshold lowered from 0.6 to 0.4 based on real observed data: a
+    // genuinely correct match ("jenny lives at 12 golf way..." against
+    // the query "address") scored 0.59 — below the old cutoff, which
+    // silently discarded a real, correct fact. The synthesis step
+    // already correctly says "I don't have that on file" when the
+    // passed-in facts don't actually answer the question, so a lower
+    // threshold here shifts the judgment call to something already
+    // proven reliable today, rather than an arbitrary embedding-score
+    // cutoff with no real evidence behind the exact number.
     return (results.matches ?? [])
-      .filter((m) => m.score > 0.6)
+      .filter((m) => m.score > 0.4)
       .map((m) => (m.metadata as { text?: string } | undefined)?.text)
       .filter((t): t is string => !!t);
   } catch {
@@ -522,6 +531,7 @@ export default {
     });
   },
 };
+
 
 
 
