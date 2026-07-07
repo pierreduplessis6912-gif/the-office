@@ -485,6 +485,31 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       }
     }
 
+    if (url.pathname === "/debug/rerank-raw" && request.method === "GET") {
+      const query = url.searchParams.get("query") ?? "what is Jenny's address?";
+      const customerId = url.searchParams.get("customerId") ?? "1";
+      try {
+        const vector = await embedText(env, query);
+        const vecResults = await env.MEMORY.query(vector, {
+          topK: 8,
+          returnMetadata: true,
+          filter: { customerId },
+        });
+        const candidates = (vecResults.matches ?? [])
+          .map((m) => (m.metadata as { text?: string } | undefined)?.text)
+          .filter((t): t is string => !!t);
+
+        const rerankResult = await env.AI.run("@cf/baai/bge-reranker-base", {
+          query,
+          contexts: candidates.map((text) => ({ text })),
+        });
+
+        return Response.json({ query, candidates, rerankResultRaw: rerankResult });
+      } catch (err) {
+        return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
+      }
+    }
+
     // --- end debug routes ---
 
     // List everything still waiting on a human decision.
@@ -625,6 +650,7 @@ export default {
     });
   },
 };
+
 
 
 
