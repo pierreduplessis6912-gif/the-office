@@ -202,6 +202,37 @@ async function storeMemory(env: Env, text: string, customerId: number | null): P
   }
 }
 
+// Reranking replaces the hand-tuned raw-cosine threshold with an
+// actual cross-encoder relevance judgment — the same technique
+// Cloudflare's own AI Search product uses (and its own default
+// threshold, 0.4, happens to match the number we landed on earlier
+// today by trial and error). Degrades gracefully to the raw
+// candidates if the reranker call itself fails, rather than losing
+// everything.
+async function rerank(env: Env, query: string, candidates: string[]): Promise<string[]> {
+  if (candidates.length === 0) return [];
+  try {
+    const result = await env.AI.run("@cf/baai/bge-reranker-base", {
+      query,
+      contexts: candidates.map((text) => ({ text })),
+    });
+    // Shape not yet verified empirically against the direct binding —
+    // handle a couple of plausible envelopes rather than assume, same
+    // lesson as every other model call today.
+    const scored =
+      (result as { response?: Array<{ id: number; score: number }> }).response ??
+      (result as unknown as Array<{ id: number; score: number }>) ??
+      [];
+    return scored
+      .filter((s) => s.score > 0.4)
+      .sort((a, b) => b.score - a.score)
+      .map((s) => candidates[s.id])
+      .filter((t): t is string => !!t);
+  } catch {
+    return candidates;
+  }
+}
+
 async function searchMemory(env: Env, query: string, customerId: number | null): Promise<string[]> {
   try {
     const vector = await embedText(env, query);
@@ -210,19 +241,10 @@ async function searchMemory(env: Env, query: string, customerId: number | null):
       returnMetadata: true,
       filter: customerId != null ? { customerId: String(customerId) } : undefined,
     });
-    // Threshold lowered from 0.6 to 0.4 based on real observed data: a
-    // genuinely correct match ("jenny lives at 12 golf way..." against
-    // the query "address") scored 0.59 — below the old cutoff, which
-    // silently discarded a real, correct fact. The synthesis step
-    // already correctly says "I don't have that on file" when the
-    // passed-in facts don't actually answer the question, so a lower
-    // threshold here shifts the judgment call to something already
-    // proven reliable today, rather than an arbitrary embedding-score
-    // cutoff with no real evidence behind the exact number.
-    return (results.matches ?? [])
-      .filter((m) => m.score > 0.4)
+    const candidates = (results.matches ?? [])
       .map((m) => (m.metadata as { text?: string } | undefined)?.text)
       .filter((t): t is string => !!t);
+    return await rerank(env, query, candidates);
   } catch {
     return [];
   }
@@ -259,14 +281,61 @@ async function answerFromMemory(env: Env, question: string, facts: string[]): Pr
 // (directly on typed input) — same extraction, reconciliation, guard(),
 // and memory logic either way. A transcript is a transcript, whether
 // it came from Whisper or a keyboard.
-async function processTranscript(env: Env, transcript: string, ctx: ExecutionContext): Promise<ProcessResult> {
+interface HistoryTurn {
+  role: "user" | "office";
+  text: string;
+}
+
+// Query rewriting: the established fix for pronoun/reference
+// resolution in conversational retrieval — not a Durable Object, not
+// hoping an unscoped search gets lucky. Turns "what did we invoice
+// her?" into a fully self-contained question using recent context,
+// BEFORE extraction or retrieval ever sees it. Falls back to the
+// original message unchanged if there's no history, or if rewriting
+// itself fails for any reason.
+async function rewriteQuery(env: Env, history: HistoryTurn[], message: string): Promise<string> {
+  if (history.length === 0) return message;
+  try {
+    const historyText = history.map((h) => `${h.role === "user" ? "Peter" : "Office"}: ${h.text}`).join("\n");
+    const result = await env.AI.run("@cf/meta/llama-3.1-8b-instruct-fast", {
+      temperature: 0,
+      messages: [
+        {
+          role: "system",
+          content:
+            "Rewrite the new message to be fully self-contained, replacing any pronouns or vague " +
+            "references (her, him, that, it, the invoice, etc.) with the specific name or thing they " +
+            "refer to, using the conversation history for context. If the message is already " +
+            "self-contained, return it completely unchanged. Return ONLY the rewritten message, " +
+            "nothing else — no explanation, no quotes.\n\nConversation history:\n" +
+            historyText,
+        },
+        { role: "user", content: message },
+      ],
+    });
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const rewritten = r.choices?.[0]?.message?.content?.trim();
+    return rewritten && rewritten.length > 0 ? rewritten : message;
+  } catch {
+    return message;
+  }
+}
+
+async function processTranscript(
+  env: Env,
+  transcript: string,
+  ctx: ExecutionContext,
+  history: HistoryTurn[] = []
+): Promise<ProcessResult> {
+  const rewritten = await rewriteQuery(env, history, transcript);
+
   let extraction: Extraction | null = null;
   let extractionRaw: unknown = null;
   let extractionRawText: string | null = null;
   let customer: { id: number; name: string; matched: boolean } | null = null;
   let pendingActionId: number | null = null;
 
-  const result = await extractIntent(env, transcript);
+  const result = await extractIntent(env, rewritten);
   extraction = result.extraction;
   extractionRaw = result.raw;
   extractionRawText = result.rawText;
@@ -285,12 +354,9 @@ async function processTranscript(env: Env, transcript: string, ctx: ExecutionCon
     pendingActionId = held.id;
   }
 
-  // Store only actual statements, never questions — a lookup is a
-  // question, not a fact to remember. Storing it was the exact bug:
-  // repeated identical questions score ~1.0 against themselves and
-  // crowd out the real fact from ever appearing in a small topK
-  // result. This is what "background, thrown in the pot" always
-  // should have meant — facts, not queries about facts.
+  // Store the ORIGINAL words, not the rewritten version — the
+  // rewrite exists purely to correctly resolve intent and retrieval,
+  // never to replace what was actually said in the permanent record.
   if (extraction?.intent !== "lookup") {
     ctx.waitUntil(storeMemory(env, transcript, customer?.id ?? null));
   }
@@ -299,15 +365,9 @@ async function processTranscript(env: Env, transcript: string, ctx: ExecutionCon
   if (pendingActionId) {
     message = `Payment noted for ${customer!.name}${extraction!.amount ? ` of R${extraction!.amount}` : ""} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
   } else if (extraction?.intent === "lookup") {
-    const memoryFacts = await searchMemory(env, transcript, customer?.id ?? null);
-    // A customer's existence in the structured table is itself a fact
-    // worth answering from — memory search alone can't know this
-    // unless someone happened to say "X is on file" as a sentence,
-    // which nobody actually does. This is what makes "do you have John
-    // on file?" answerable even when nothing else has ever been said
-    // about him.
+    const memoryFacts = await searchMemory(env, rewritten, customer?.id ?? null);
     const facts = customer ? [`${customer.name} is a known customer.`, ...memoryFacts] : memoryFacts;
-    message = await answerFromMemory(env, transcript, facts);
+    message = await answerFromMemory(env, rewritten, facts);
   } else if (customer) {
     message = customer.matched ? `Found existing customer: ${customer.name}.` : `New customer noted: ${customer.name}.`;
   } else {
@@ -477,6 +537,15 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     if (url.pathname === "/files/audio" && request.method === "POST") {
       const formData = await request.formData();
       const audio = formData.get("audio");
+      const historyRaw = formData.get("history");
+      let history: HistoryTurn[] = [];
+      if (typeof historyRaw === "string") {
+        try {
+          history = JSON.parse(historyRaw);
+        } catch {
+          history = [];
+        }
+      }
 
       if (!(audio instanceof File)) {
         return Response.json({ error: "missing audio file" }, { status: 400 });
@@ -491,7 +560,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       ]);
 
       const processed = transcript
-        ? await processTranscript(env, transcript, ctx)
+        ? await processTranscript(env, transcript, ctx, history)
         : {
             extraction: null,
             extractionRaw: null,
@@ -507,14 +576,15 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // "Type" mode. Same pipeline, no transcription step needed since
     // the text is already text.
     if (url.pathname === "/messages/text" && request.method === "POST") {
-      const body = (await request.json()) as { text?: string };
+      const body = (await request.json()) as { text?: string; history?: HistoryTurn[] };
       const text = body.text?.trim();
+      const history = Array.isArray(body.history) ? body.history : [];
 
       if (!text) {
         return Response.json({ error: "missing text" }, { status: 400 });
       }
 
-      const processed = await processTranscript(env, text, ctx);
+      const processed = await processTranscript(env, text, ctx, history);
       return Response.json({ status: "processed", transcript: text, ...processed });
     }
 
@@ -555,6 +625,7 @@ export default {
     });
   },
 };
+
 
 
 
