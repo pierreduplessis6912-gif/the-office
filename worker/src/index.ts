@@ -173,17 +173,29 @@ async function applyStructuredFact(
   sourceTranscript: string
 ): Promise<void> {
   const normalizedKey = key.trim().toLowerCase().replace(/\s+/g, "_");
+  try {
+    if (normalizedKey === "address") {
+      await env.OFFICE_DB.prepare("UPDATE customers SET address = ? WHERE id = ?").bind(value, customerId).run();
+      return;
+    }
 
-  if (normalizedKey === "address") {
-    await env.OFFICE_DB.prepare("UPDATE customers SET address = ? WHERE id = ?").bind(value, customerId).run();
-    return;
+    await env.OFFICE_DB.prepare(
+      "INSERT INTO customer_facts (customer_id, key, value, source_transcript) VALUES (?, ?, ?, ?)"
+    )
+      .bind(customerId, normalizedKey, value, sourceTranscript)
+      .run();
+  } catch (err) {
+    // This runs in ctx.waitUntil — there is no response left to attach
+    // an error to. Log it durably instead of letting it vanish, same
+    // discipline as appendCustomerNote and storeUnscopedMemory below.
+    try {
+      await env.OFFICE_DB.prepare("INSERT INTO memory_errors (customer_id, text, error) VALUES (?, ?, ?)")
+        .bind(customerId, `structured fact: ${normalizedKey}=${value}`, err instanceof Error ? err.message : String(err))
+        .run();
+    } catch {
+      // Nothing further to do if even the error log fails.
+    }
   }
-
-  await env.OFFICE_DB.prepare(
-    "INSERT INTO customer_facts (customer_id, key, value, source_transcript) VALUES (?, ?, ?, ?)"
-  )
-    .bind(customerId, normalizedKey, value, sourceTranscript)
-    .run();
 }
 
 // --- Memory: color, not ground truth. Never used for money or ------
@@ -831,3 +843,4 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
