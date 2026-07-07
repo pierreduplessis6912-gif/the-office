@@ -299,7 +299,8 @@ async function rewriteQuery(env: Env, history: HistoryTurn[], message: string): 
   if (history.length === 0) return message;
   try {
     const historyText = history.map((h) => `${h.role === "user" ? "Peter" : "Office"}: ${h.text}`).join("\n");
-    const result = await env.AI.run("@cf/meta/llama-3.1-8b-instruct-fast", {
+    const result = await env.AI.run("@cf/moonshotai/kimi-k2.6", {
+      chat_template_kwargs: { thinking: false },
       temperature: 0,
       messages: [
         {
@@ -655,6 +656,7 @@ export default {
     });
   },
 };
+
 
 
 
