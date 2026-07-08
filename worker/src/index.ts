@@ -255,6 +255,59 @@ async function appendCustomerNote(env: Env, customerId: number, text: string): P
   }
 }
 
+interface LifeEntry {
+  text: string;
+  storedAt: string;
+}
+
+// Peter's own life — not a customer, not a job, just a person
+// thinking out loud in the truck. Date-keyed, same instant-write
+// pattern as customer notes, so "what do I need to do today" is a
+// direct KV read, not a search. This is the actual gap named last
+// night: the pipeline could hear "Jenny lives at X" perfectly and had
+// nowhere at all to put "picking up the wife at 15:30."
+async function appendLifeEvent(env: Env, text: string): Promise<void> {
+  try {
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const key = `life:${today}`;
+    const raw = await env.CUSTOMER_NOTES.get(key);
+    const existing: { facts: LifeEntry[] } = raw ? JSON.parse(raw) : { facts: [] };
+    existing.facts.push({ text, storedAt: new Date().toISOString() });
+    await env.CUSTOMER_NOTES.put(key, JSON.stringify(existing));
+  } catch (err) {
+    try {
+      await env.OFFICE_DB.prepare("INSERT INTO memory_errors (customer_id, text, error) VALUES (NULL, ?, ?)")
+        .bind(text, err instanceof Error ? err.message : String(err))
+        .run();
+    } catch {
+      // Nothing further to do.
+    }
+  }
+}
+
+// Reads the last N days of life events, each tagged with its date so
+// the synthesis step can reason about "today" versus "this week"
+// correctly rather than treating everything as equally recent.
+async function getRecentLifeEvents(env: Env, days: number): Promise<string[]> {
+  const entries: string[] = [];
+  const now = new Date();
+  for (let i = 0; i < days; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().slice(0, 10);
+    try {
+      const raw = await env.CUSTOMER_NOTES.get(`life:${dateStr}`);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { facts: LifeEntry[] };
+        entries.push(...parsed.facts.map((f) => `[${dateStr}] ${f.text}`));
+      }
+    } catch {
+      // Skip this day on error rather than fail the whole read.
+    }
+  }
+  return entries;
+}
+
 // Fallback only, for the rare case a note has no identifiable
 // customer to scope it to — writes straight to Vectorize since there
 // is no KV key to append it under. Kept deliberately separate from
@@ -446,11 +499,13 @@ async function processTranscript(
   // rewrite exists purely to correctly resolve intent and retrieval,
   // never to replace what was actually said in the permanent record.
   // Never store questions — a lookup is a question, not a fact.
+  // No customer mentioned isn't "nowhere to put this" anymore — it's
+  // Peter's own day: the actual gap named last night, now closed.
   if (extraction?.intent !== "lookup") {
     if (customer) {
       ctx.waitUntil(appendCustomerNote(env, customer.id, transcript));
     } else {
-      ctx.waitUntil(storeUnscopedMemory(env, transcript));
+      ctx.waitUntil(appendLifeEvent(env, transcript));
     }
   }
 
@@ -458,9 +513,17 @@ async function processTranscript(
   if (pendingActionId) {
     message = `Payment noted for ${customer!.name}${extraction!.amount ? ` of R${extraction!.amount}` : ""} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
   } else if (extraction?.intent === "lookup") {
-    const memoryFacts = customer ? await getCustomerNotes(env, customer.id) : await searchMemory(env, rewritten, null);
-    const facts = customer ? [`${customer.name} is a known customer.`, ...memoryFacts] : memoryFacts;
-    message = await answerFromMemory(env, rewritten, facts);
+    if (customer) {
+      const memoryFacts = await getCustomerNotes(env, customer.id);
+      const facts = [`${customer.name} is a known customer.`, ...memoryFacts];
+      message = await answerFromMemory(env, rewritten, facts);
+    } else {
+      // No customer named — this is a question about Peter's own
+      // day or week, not a customer lookup. Read straight from the
+      // date-keyed life-event store, not an unscoped Vectorize search.
+      const lifeFacts = await getRecentLifeEvents(env, 7);
+      message = await answerFromMemory(env, rewritten, lifeFacts);
+    }
   } else if (customer) {
     message = customer.matched ? `Found existing customer: ${customer.name}.` : `New customer noted: ${customer.name}.`;
   } else {
@@ -602,6 +665,13 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       if (!customerId) return Response.json({ error: "missing ?customerId=" }, { status: 400 });
       const raw = await env.CUSTOMER_NOTES.get(`customer:${customerId}`);
       return Response.json({ customerId, raw: raw ? JSON.parse(raw) : null });
+    }
+
+    // Inspect a given day's life events directly — defaults to today.
+    if (url.pathname === "/debug/life-events" && request.method === "GET") {
+      const date = url.searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
+      const raw = await env.CUSTOMER_NOTES.get(`life:${date}`);
+      return Response.json({ date, raw: raw ? JSON.parse(raw) : null });
     }
 
     if (url.pathname === "/debug/memory-errors" && request.method === "GET") {
@@ -843,4 +913,5 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
