@@ -1,3 +1,5 @@
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+
 export interface Env {
   OFFICE_DB: D1Database;
   OFFICE_VAULT: R2Bucket;
@@ -971,6 +973,148 @@ async function runConsolidation(env: Env): Promise<{ flushed: number; schemaCand
   return { flushed, schemaCandidates };
 }
 
+// Real, structured data becomes a real PDF — same reasoning as the
+// docx approach already proven elsewhere: pure JS, no native deps,
+// runs directly in the Workers isolate. Subtotal is recomputed fresh
+// from line_items here, not read from invoices.amount — the line
+// items are the actual ground truth; a cached total is a convenience,
+// not the source of it. VAT applies from the business's current
+// default; a genuine per-invoice override is a real refinement for
+// later, once there's evidence it's actually needed.
+async function generateInvoicePdf(env: Env, invoiceId: number): Promise<Uint8Array> {
+  const business = await env.OFFICE_DB.prepare("SELECT * FROM business_profile WHERE id = 1").first<{
+    name: string | null;
+    trading_as: string | null;
+    vat_no: string | null;
+    address: string | null;
+    phone: string | null;
+    email: string | null;
+    banking_details: string | null;
+    vat_registered: number;
+    vat_rate: number;
+  }>();
+
+  const invoice = await env.OFFICE_DB.prepare(
+    "SELECT i.id, i.description, i.status, i.created_at, c.name as customer_name, c.address as customer_address FROM invoices i JOIN customers c ON c.id = i.customer_id WHERE i.id = ?"
+  )
+    .bind(invoiceId)
+    .first<{
+      id: number;
+      description: string;
+      status: string;
+      created_at: string;
+      customer_name: string;
+      customer_address: string | null;
+    }>();
+
+  if (!invoice) {
+    throw new Error(`no such invoice: ${invoiceId}`);
+  }
+
+  const { results: lineItems } = await env.OFFICE_DB.prepare(
+    "SELECT description, quantity, unit_price, line_total FROM line_items WHERE invoice_id = ?"
+  )
+    .bind(invoiceId)
+    .all<{ description: string; quantity: number; unit_price: number; line_total: number }>();
+
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([595.28, 841.89]); // A4
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const grey = rgb(0.45, 0.45, 0.45);
+  const black = rgb(0, 0, 0);
+
+  let y = 792;
+  const left = 50;
+  const right = 400;
+
+  page.drawText(business?.name ?? "[Business name not set]", { x: left, y, size: 14, font: bold });
+  y -= 18;
+  if (business?.trading_as) {
+    page.drawText(`T/A ${business.trading_as}`, { x: left, y, size: 10, font });
+    y -= 14;
+  }
+  if (business?.vat_no) {
+    page.drawText(`VAT No: ${business.vat_no}`, { x: left, y, size: 10, font });
+    y -= 14;
+  }
+  if (business?.address) {
+    page.drawText(business.address, { x: left, y, size: 10, font });
+    y -= 14;
+  }
+  if (business?.phone) {
+    page.drawText(business.phone, { x: left, y, size: 10, font });
+    y -= 14;
+  }
+  if (business?.email) {
+    page.drawText(business.email, { x: left, y, size: 10, font });
+    y -= 14;
+  }
+  const leftEndY = y;
+
+  let yRight = 792;
+  page.drawText("BILL TO", { x: right, y: yRight, size: 9, font: bold, color: grey });
+  yRight -= 14;
+  page.drawText(invoice.customer_name, { x: right, y: yRight, size: 12, font: bold });
+  yRight -= 14;
+  if (invoice.customer_address) {
+    page.drawText(invoice.customer_address, { x: right, y: yRight, size: 10, font });
+    yRight -= 14;
+  }
+
+  y = Math.min(leftEndY, yRight) - 30;
+
+  page.drawText("TAX INVOICE", { x: left, y, size: 16, font: bold });
+  page.drawText(`Invoice #${invoice.id}`, { x: right, y, size: 10, font, color: grey });
+  y -= 30;
+
+  page.drawText("DESCRIPTION", { x: left, y, size: 9, font: bold, color: grey });
+  page.drawText("QTY", { x: 340, y, size: 9, font: bold, color: grey });
+  page.drawText("RATE", { x: 400, y, size: 9, font: bold, color: grey });
+  page.drawText("AMOUNT", { x: 480, y, size: 9, font: bold, color: grey });
+  y -= 8;
+  page.drawLine({ start: { x: left, y }, end: { x: 545, y }, thickness: 1, color: grey });
+  y -= 18;
+
+  let subtotal = 0;
+  for (const item of lineItems) {
+    page.drawText(item.description, { x: left, y, size: 10, font, maxWidth: 270 });
+    page.drawText(String(item.quantity), { x: 340, y, size: 10, font });
+    page.drawText(`R${item.unit_price.toLocaleString()}`, { x: 400, y, size: 10, font });
+    page.drawText(`R${item.line_total.toLocaleString()}`, { x: 480, y, size: 10, font });
+    subtotal += item.line_total;
+    y -= 22;
+  }
+
+  y -= 8;
+  page.drawLine({ start: { x: 380, y: y + 12 }, end: { x: 545, y: y + 12 }, thickness: 0.5, color: grey });
+
+  page.drawText("SUBTOTAL", { x: 400, y, size: 10, font: bold });
+  page.drawText(`R${subtotal.toLocaleString()}`, { x: 480, y, size: 10, font });
+  y -= 16;
+
+  let vatAmount = 0;
+  if (business?.vat_registered) {
+    vatAmount = subtotal * ((business.vat_rate ?? 15) / 100);
+    page.drawText(`VAT (${business.vat_rate}%)`, { x: 400, y, size: 10, font });
+    page.drawText(`R${vatAmount.toFixed(2)}`, { x: 480, y, size: 10, font });
+    y -= 16;
+  }
+
+  const total = subtotal + vatAmount;
+  page.drawText("TOTAL", { x: 400, y, size: 12, font: bold });
+  page.drawText(`R${total.toFixed(2)}`, { x: 480, y, size: 12, font: bold, color: black });
+  y -= 40;
+
+  if (business?.banking_details) {
+    page.drawText("Payment Info", { x: left, y, size: 11, font: bold });
+    y -= 16;
+    page.drawText(business.banking_details, { x: left, y, size: 9, font, maxWidth: 300 });
+  }
+
+  return await pdfDoc.save();
+}
+
 async function handleRequest(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
@@ -1117,6 +1261,21 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     if (url.pathname === "/admin/flush-memory" && request.method === "POST") {
       const result = await runConsolidation(env);
       return Response.json(result);
+    }
+
+    if (url.pathname.match(/^\/invoices\/\d+\/pdf$/) && request.method === "GET") {
+      const invoiceId = Number(url.pathname.split("/")[2]);
+      try {
+        const pdfBytes = await generateInvoicePdf(env, invoiceId);
+        return new Response(pdfBytes, {
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `inline; filename="invoice-${invoiceId}.pdf"`,
+          },
+        });
+      } catch (err) {
+        return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
+      }
     }
 
     // Regression smoke test — zero side effects, tests extraction
@@ -1418,6 +1577,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
