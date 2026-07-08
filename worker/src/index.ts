@@ -808,9 +808,15 @@ async function rewriteQuery(env: Env, history: HistoryTurn[], message: string): 
   if (history.length === 0) return message;
   try {
     const historyText = history.map((h) => `${h.role === "user" ? "Peter" : "Office"}: ${h.text}`).join("\n");
+    // thinking enabled here specifically — proven necessary by a real
+    // side-by-side test: resolving a pronoun among MULTIPLE plausible
+    // candidates against an explicit tie-break rule (recency over
+    // frequency) genuinely requires reasoning, unlike simple
+    // classification where thinking:false was proven sufficient.
     const result = await env.AI.run("@cf/moonshotai/kimi-k2.6", {
-      chat_template_kwargs: { thinking: false },
+      chat_template_kwargs: { thinking: true },
       temperature: 0,
+      max_tokens: 600,
       messages: [
         {
           role: "system",
@@ -1820,6 +1826,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
