@@ -1521,6 +1521,46 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ allPassed: results.every((r) => r.pass), results });
     }
 
+    if (url.pathname === "/debug/rewrite-thinking-test" && request.method === "GET") {
+      const historyText =
+        "Peter: we quoted Sarah Bennett R8000 for tiling the bathroom\n" +
+        "Office: Quotation noted for Sarah Bennett of R8000 (1 line item) — needs your confirmation (action #9) before it's recorded.\n" +
+        "Peter: jenny paid R500\n" +
+        "Office: Payment noted for Jenny Hawke of R500 — needs your confirmation (action #10) before it's recorded.";
+      const message = "whats her balance?";
+      const systemPrompt =
+        "Rewrite the new message to be fully self-contained, replacing any pronouns or vague " +
+        "references (her, him, that, it, the invoice, etc.) with the specific name or thing they " +
+        "refer to, using the conversation history for context. When more than one person or thing " +
+        "could match, ALWAYS resolve to whichever was mentioned MOST RECENTLY in the history, never " +
+        "whichever was mentioned most often — recency wins over frequency, always. Do NOT answer " +
+        "the message, add new information, or change its type — a question must stay phrased as a " +
+        "question, a statement stays a statement. Only resolve what the ambiguous words refer to. " +
+        "If the message is already self-contained, return it completely unchanged. Return ONLY the " +
+        "rewritten message, nothing else — no explanation, no quotes.\n\nConversation history:\n" +
+        historyText;
+
+      const runOnce = async (thinking: boolean) => {
+        const result = await env.AI.run("@cf/moonshotai/kimi-k2.6", {
+          chat_template_kwargs: { thinking },
+          temperature: 0,
+          max_tokens: thinking ? 600 : undefined,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: message },
+          ],
+        });
+        const r = result as { choices?: Array<{ message?: { content?: string; reasoning_content?: string } }> };
+        return {
+          content: r.choices?.[0]?.message?.content ?? null,
+          reasoning: r.choices?.[0]?.message?.reasoning_content ?? null,
+        };
+      };
+
+      const [thinkingOff, thinkingOn] = await Promise.all([runOnce(false), runOnce(true)]);
+      return Response.json({ thinkingOff, thinkingOn });
+    }
+
     // --- end debug routes ---
 
     // List everything still waiting on a human decision.
@@ -1780,6 +1820,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
