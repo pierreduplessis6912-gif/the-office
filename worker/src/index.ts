@@ -1084,84 +1084,94 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     }
 
     if (url.pathname.match(/^\/actions\/\d+\/confirm$/) && request.method === "POST") {
-      const id = Number(url.pathname.split("/")[2]);
-      const action = await env.OFFICE_DB.prepare(
-        "SELECT id, type, payload, source_transcript, status FROM pending_actions WHERE id = ?"
-      )
-        .bind(id)
-        .first<{ id: number; type: string; payload: string; source_transcript: string; status: string }>();
-
-      if (!action) return Response.json({ error: "no such pending action" }, { status: 404 });
-      if (action.status !== "pending") {
-        return Response.json({ error: `action already ${action.status}` }, { status: 409 });
-      }
-
-      if (action.type === "payment") {
-        const payload = JSON.parse(action.payload) as { customerId: number; amount: number | null };
-        const payment = await recordPayment(env, payload.customerId, payload.amount, action.source_transcript);
-        await env.OFFICE_DB.prepare(
-          "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+      try {
+        const id = Number(url.pathname.split("/")[2]);
+        const action = await env.OFFICE_DB.prepare(
+          "SELECT id, type, payload, source_transcript, status FROM pending_actions WHERE id = ?"
         )
           .bind(id)
-          .run();
-        return Response.json({ status: "confirmed", payment });
-      }
+          .first<{ id: number; type: string; payload: string; source_transcript: string; status: string }>();
 
-      if (action.type === "invoice") {
-        const payload = JSON.parse(action.payload) as {
-          customerId: number;
-          description: string;
-          amount: number;
-        };
-        const invoice = await recordInvoice(env, payload.customerId, payload.description, payload.amount, action.source_transcript);
-        await env.OFFICE_DB.prepare(
-          "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
-        )
-          .bind(id)
-          .run();
-        return Response.json({ status: "confirmed", invoice });
-      }
+        if (!action) return Response.json({ error: "no such pending action" }, { status: 404 });
+        if (action.status !== "pending") {
+          return Response.json({ error: `action already ${action.status}` }, { status: 409 });
+        }
 
-      if (action.type === "quotation") {
-        const payload = JSON.parse(action.payload) as {
-          customerId: number;
-          description: string;
-          amount: number;
-          lineItems?: LineItemWithTotal[];
-        };
-        const quotation = await recordQuotation(
-          env,
-          payload.customerId,
-          payload.description,
-          payload.amount,
-          action.source_transcript,
-          payload.lineItems ?? []
+        if (action.type === "payment") {
+          const payload = JSON.parse(action.payload) as { customerId: number; amount: number | null };
+          const payment = await recordPayment(env, payload.customerId, payload.amount, action.source_transcript);
+          await env.OFFICE_DB.prepare(
+            "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+          )
+            .bind(id)
+            .run();
+          return Response.json({ status: "confirmed", payment });
+        }
+
+        if (action.type === "invoice") {
+          const payload = JSON.parse(action.payload) as {
+            customerId: number;
+            description: string;
+            amount: number;
+          };
+          const invoice = await recordInvoice(env, payload.customerId, payload.description, payload.amount, action.source_transcript);
+          await env.OFFICE_DB.prepare(
+            "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+          )
+            .bind(id)
+            .run();
+          return Response.json({ status: "confirmed", invoice });
+        }
+
+        if (action.type === "quotation") {
+          const payload = JSON.parse(action.payload) as {
+            customerId: number;
+            description: string;
+            amount: number;
+            lineItems?: LineItemWithTotal[];
+          };
+          const quotation = await recordQuotation(
+            env,
+            payload.customerId,
+            payload.description,
+            payload.amount,
+            action.source_transcript,
+            payload.lineItems ?? []
+          );
+          await env.OFFICE_DB.prepare(
+            "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+          )
+            .bind(id)
+            .run();
+          return Response.json({ status: "confirmed", quotation });
+        }
+
+        if (action.type === "schema_candidate") {
+          // Acknowledged only — this never runs a migration itself. The
+          // actual ALTER TABLE / CREATE TABLE stays a deliberate, manual
+          // step, the same way it has been all day.
+          await env.OFFICE_DB.prepare(
+            "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+          )
+            .bind(id)
+            .run();
+          return Response.json({
+            status: "acknowledged",
+            note: "No migration was run. Add the column or table yourself when ready.",
+            payload: JSON.parse(action.payload),
+          });
+        }
+
+        return Response.json({ error: `unknown pending action type: ${action.type}` }, { status: 400 });
+      } catch (err) {
+        // This handler never had error handling wrapped around it at
+        // all — an uncaught exception here just produced Cloudflare's
+        // generic crash page, with no way to see what actually broke.
+        return Response.json(
+          { error: "confirm handler threw", detail: err instanceof Error ? err.message : String(err) },
+          { status: 500 }
         );
-        await env.OFFICE_DB.prepare(
-          "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
-        )
-          .bind(id)
-          .run();
-        return Response.json({ status: "confirmed", quotation });
       }
-
-      if (action.type === "schema_candidate") {
-        // Acknowledged only — this never runs a migration itself. The
-        // actual ALTER TABLE / CREATE TABLE stays a deliberate, manual
-        // step, the same way it has been all day.
-        await env.OFFICE_DB.prepare(
-          "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
-        )
-          .bind(id)
-          .run();
-        return Response.json({
-          status: "acknowledged",
-          note: "No migration was run. Add the column or table yourself when ready.",
-          payload: JSON.parse(action.payload),
-        });
-      }
-
-      return Response.json({ error: `unknown pending action type: ${action.type}` }, { status: 400 });
     }
 
     if (url.pathname.match(/^\/actions\/\d+\/reject$/) && request.method === "POST") {
@@ -1275,6 +1285,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
