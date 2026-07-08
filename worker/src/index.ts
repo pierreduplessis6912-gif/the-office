@@ -25,6 +25,7 @@ interface ProcessResult {
   extractionRawText: string | null;
   customer: { id: number; name: string; matched: boolean } | null;
   pendingActionId: number | null;
+  factPendingActionId: number | null;
   message: string;
   rewrittenQuery: string;
 }
@@ -853,11 +854,21 @@ async function processTranscript(
     }
   }
 
-  // A promoted field (address) or a candidate for the holding table —
-  // written immediately either way, independent of whether this also
-  // gets stored as a narrative note below.
+  // Holds for confirmation instead of writing immediately. Real
+  // evidence today: a misreconciled customer had this fire before
+  // anyone ever saw a pending action to reject, silently overwriting
+  // a different real person's address. Same discipline as money now
+  // — a wrong reconciliation can no longer cause silent damage before
+  // a human gets a chance to catch it.
+  let factPendingActionId: number | null = null;
   if (extraction?.fact_key && extraction?.fact_value && customer) {
-    ctx.waitUntil(applyStructuredFact(env, customer.id, extraction.fact_key, extraction.fact_value, transcript));
+    const held = await holdForConfirmation(
+      env,
+      "customer_fact",
+      { customerId: customer.id, customerName: customer.name, key: extraction.fact_key, value: extraction.fact_value },
+      transcript
+    );
+    factPendingActionId = held.id;
   }
 
   // A personal fragment riding alongside a customer message gets its
@@ -942,7 +953,11 @@ async function processTranscript(
     message = "Got it.";
   }
 
-  return { extraction, extractionRaw, extractionRawText, customer, pendingActionId, message, rewrittenQuery: rewritten };
+  if (factPendingActionId) {
+    message += ` ${extraction!.fact_key} noted (${extraction!.fact_value}) — needs your confirmation (action #${factPendingActionId}) before it's saved.`;
+  }
+
+  return { extraction, extractionRaw, extractionRawText, customer, pendingActionId, factPendingActionId, message, rewrittenQuery: rewritten };
 }
 
 // Consolidation: drains pending_memory_flush into Vectorize in ONE
@@ -1490,6 +1505,21 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           });
         }
 
+        if (action.type === "customer_fact") {
+          const payload = JSON.parse(action.payload) as {
+            customerId: number;
+            key: string;
+            value: string;
+          };
+          await applyStructuredFact(env, payload.customerId, payload.key, payload.value, action.source_transcript);
+          await env.OFFICE_DB.prepare(
+            "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+          )
+            .bind(id)
+            .run();
+          return Response.json({ status: "confirmed", key: payload.key, value: payload.value });
+        }
+
         if (action.type === "schema_candidate") {
           // Acknowledged only — this never runs a migration itself. The
           // actual ALTER TABLE / CREATE TABLE stays a deliberate, manual
@@ -1563,6 +1593,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             extractionRawText: null,
             customer: null,
             pendingActionId: null,
+            factPendingActionId: null,
             message: "Voice note received (transcription unavailable).",
             rewrittenQuery: "",
           };
@@ -1629,6 +1660,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
