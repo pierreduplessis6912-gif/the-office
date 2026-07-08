@@ -118,6 +118,61 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
   }
 }
 
+interface LineItemExtraction {
+  description: string;
+  note: string | null;
+  quantity: number;
+  unit: string | null;
+  unit_price: number;
+}
+
+// A quotation or invoice is often more than one flat number — real
+// speech describes multiple distinct lines ("carpet for the main
+// bedroom at R18,700, plus uplift and restretch at R15,120"). This is
+// a separate, focused call rather than folded into the main
+// classifier — same reasoning as rewriteQuery and answerFromMemory
+// being their own steps: one job per call, easier to get right, easier
+// to test in isolation. Never asks the model to calculate anything —
+// only to extract the numbers actually stated; the actual line total
+// is always computed deterministically afterward, in code.
+async function extractLineItems(env: Env, transcript: string): Promise<LineItemExtraction[]> {
+  try {
+    const result = await env.AI.run("@cf/moonshotai/kimi-k2.6", {
+      temperature: 0,
+      chat_template_kwargs: { thinking: false },
+      messages: [
+        {
+          role: "system",
+          content:
+            "Extract every distinct line item from a tradesperson's quotation or invoice description. " +
+            "Each line item has: description (what the work or material is), note (an informal aside or " +
+            "preference mentioned alongside it, e.g. a colour preference — or null if none), quantity " +
+            "(a plain number, default 1 if not stated), unit (e.g. 'sqm', 'meter', 'each', 'hour', or " +
+            "null if not stated), and unit_price (the rand amount per unit, or the flat amount if " +
+            "quantity is 1 and no per-unit rate was given). Never calculate a total yourself — only " +
+            'extract numbers actually stated. Return ONLY JSON: {"line_items": [{"description": ' +
+            'string, "note": string or null, "quantity": number, "unit": string or null, "unit_price": ' +
+            "number}]}\n\n" +
+            "Example:\n" +
+            '"carpet for the main bedroom at R18700, plus uplift and restretch for R15120" -> ' +
+            '{"line_items": [' +
+            '{"description":"Supply and install carpet, main bedroom","note":null,"quantity":1,"unit":null,"unit_price":18700},' +
+            '{"description":"Uplift carpet, uplift tile, rescreed and restretch carpet","note":null,"quantity":1,"unit":null,"unit_price":15120}' +
+            "]}",
+        },
+        { role: "user", content: transcript },
+      ],
+    });
+    const r2 = result as { choices?: Array<{ message?: { content?: string } }> };
+    const rawText2 = r2.choices?.[0]?.message?.content ?? "";
+    const cleaned2 = rawText2.replace(/```json|```/g, "").trim();
+    const parsed2 = JSON.parse(cleaned2) as { line_items: LineItemExtraction[] };
+    return parsed2.line_items ?? [];
+  } catch {
+    return [];
+  }
+}
+
 // Crude first-pass reconciliation: match on the first token of the
 // spoken name (usually the first name) against existing customers.
 // Pronouns and other generic words are not names — reconciliation
@@ -218,12 +273,17 @@ async function recordInvoice(
 // Peter's given a customer, and getting it wrong (wrong amount, wrong
 // customer) is exactly as consequential as getting a payment wrong,
 // even though no money has moved yet.
+interface LineItemWithTotal extends LineItemExtraction {
+  line_total: number;
+}
+
 async function recordQuotation(
   env: Env,
   customerId: number,
   description: string,
   amount: number,
-  sourceTranscript: string
+  sourceTranscript: string,
+  lineItems: LineItemWithTotal[] = []
 ): Promise<{ id: number; customerId: number; amount: number }> {
   const inserted = await env.OFFICE_DB.prepare(
     "INSERT INTO quotations (customer_id, description, amount, source_transcript) VALUES (?, ?, ?, ?) RETURNING id"
@@ -231,7 +291,17 @@ async function recordQuotation(
     .bind(customerId, description, amount, sourceTranscript)
     .first<{ id: number }>();
 
-  return { id: inserted!.id, customerId, amount };
+  const quotationId = inserted!.id;
+
+  for (const item of lineItems) {
+    await env.OFFICE_DB.prepare(
+      "INSERT INTO line_items (quotation_id, description, note, quantity, unit, unit_price, line_total) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    )
+      .bind(quotationId, item.description, item.note, item.quantity, item.unit, item.unit_price, item.line_total)
+      .run();
+  }
+
+  return { id: quotationId, customerId, amount };
 }
 
 // The real answer to "who owes me money" — a provable SQL aggregate,
@@ -618,14 +688,35 @@ async function processTranscript(
     pendingActionId = held.id;
   }
 
-  if (extraction?.intent === "quotation" && customer && extraction.amount) {
-    const held = await holdForConfirmation(
-      env,
-      "quotation",
-      { customerId: customer.id, customerName: customer.name, description: transcript, amount: extraction.amount },
-      transcript
-    );
-    pendingActionId = held.id;
+  let quotationLineItems: LineItemWithTotal[] = [];
+  if (extraction?.intent === "quotation" && customer) {
+    const rawLineItems = await extractLineItems(env, transcript);
+    // Line total is always computed here, in code — never asked of
+    // the model. Same discipline as every rand figure all day.
+    quotationLineItems = rawLineItems.map((item) => ({
+      ...item,
+      line_total: item.quantity * item.unit_price,
+    }));
+    const total =
+      quotationLineItems.length > 0
+        ? quotationLineItems.reduce((sum, item) => sum + item.line_total, 0)
+        : extraction.amount ?? 0;
+
+    if (total > 0) {
+      const held = await holdForConfirmation(
+        env,
+        "quotation",
+        {
+          customerId: customer.id,
+          customerName: customer.name,
+          description: transcript,
+          amount: total,
+          lineItems: quotationLineItems,
+        },
+        transcript
+      );
+      pendingActionId = held.id;
+    }
   }
 
   // A promoted field (address) or a candidate for the holding table —
@@ -668,7 +759,15 @@ async function processTranscript(
   let message: string;
   if (pendingActionId) {
     const kind = extraction?.intent === "invoice" ? "Invoice" : extraction?.intent === "quotation" ? "Quotation" : "Payment";
-    message = `${kind} noted for ${customer!.name}${extraction!.amount ? ` of R${extraction!.amount}` : ""} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
+    const displayAmount =
+      extraction?.intent === "quotation" && quotationLineItems.length > 0
+        ? quotationLineItems.reduce((sum, item) => sum + item.line_total, 0)
+        : extraction!.amount;
+    const lineItemNote =
+      quotationLineItems.length > 0
+        ? ` (${quotationLineItems.length} line item${quotationLineItems.length > 1 ? "s" : ""})`
+        : "";
+    message = `${kind} noted for ${customer!.name}${displayAmount ? ` of R${displayAmount}` : ""}${lineItemNote} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
   } else if (extraction?.intent === "lookup") {
     if (extraction?.query_scope === "business") {
       // No single customer — a business-wide financial question,
@@ -1028,8 +1127,16 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           customerId: number;
           description: string;
           amount: number;
+          lineItems?: LineItemWithTotal[];
         };
-        const quotation = await recordQuotation(env, payload.customerId, payload.description, payload.amount, action.source_transcript);
+        const quotation = await recordQuotation(
+          env,
+          payload.customerId,
+          payload.description,
+          payload.amount,
+          action.source_transcript,
+          payload.lineItems ?? []
+        );
         await env.OFFICE_DB.prepare(
           "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
         )
@@ -1168,6 +1275,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
