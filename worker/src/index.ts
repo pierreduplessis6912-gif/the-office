@@ -1263,6 +1263,10 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json(result);
     }
 
+    if (url.pathname === "/debug/pdf-route-test" && request.method === "GET") {
+      return Response.json({ ok: true, note: "this trivial route works" });
+    }
+
     if (url.pathname.match(/^\/invoices\/\d+\/pdf$/) && request.method === "GET") {
       const invoiceId = Number(url.pathname.split("/")[2]);
       try {
@@ -1577,6 +1581,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
