@@ -4,16 +4,31 @@ The API is the Office. Everything else — this Flutter app, a future PWA,
 WhatsApp, email, voice — is just a client of it. See `worker/` for the
 backend, `app/` for the first native client.
 
-## Build order (deliberate, do not skip ahead)
+# The Office
 
-1. Shell screen — proves the phone-only pipeline (this commit).
-2. Real mic capture, wired to a real backend call.
-3. One real action function, writing to D1 — proves ground-truth state.
-4. `guard()` — the one deterministic check before anything destructive,
-   money-touching, or customer-facing executes.
-5. Memory/Vectorize — deliberately last. Color, not ground truth.
+The API is the Office. Everything else — this Flutter app, a future PWA,
+WhatsApp, email, voice — is just a client of it. See `worker/` for the
+backend, `app/` for the first native client.
 
-Do not build 5 before 3 is solid.
+**For the current, real state of the system — schema, what's built,
+what's deliberately deferred, known bugs and their fixes — see
+[`STATUS.md`](./STATUS.md). Read that before starting any new work;
+it's kept current, the section below is historical.**
+
+## Original build order (completed)
+
+1. ~~Shell screen~~ — done.
+2. ~~Real mic capture, wired to a real backend call~~ — done.
+3. ~~One real action function, writing to D1~~ — done, and expanded
+   well beyond one function (see `STATUS.md`).
+4. ~~`guard()`~~ — done, and extended on 2026-07-08 to cover structured
+   customer facts (address, phone number), not just money.
+5. ~~Memory/Vectorize~~ — done, plus a full KV-based instant-memory
+   layer that didn't exist when this list was first written.
+
+The discipline behind this list — don't build step 5 before step 3 is
+solid — is still the operating principle for everything added since.
+See `STATUS.md` for what that's produced.
 
 ## One-time setup still required (not done by this commit)
 
@@ -101,3 +116,4 @@ nothing to configure beyond connecting the repo and confirming the
   `codemagic.yaml`; values live only in Cloudflare's and GitHub's
   encrypted secret stores.
 - Rotate `CF_TOKEN` and any pasted PAT after initial setup is done.
+
