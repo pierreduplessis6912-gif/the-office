@@ -12,6 +12,7 @@ interface Extraction {
   amount: number | null;
   fact_key: string | null;
   fact_value: string | null;
+  personal_note: string | null;
 }
 
 interface ProcessResult {
@@ -69,14 +70,21 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             "customer that could apply to any customer (address, phone_number, email, etc.), extract it " +
             'as a short snake_case key and its value — e.g. fact_key: "address", fact_value: "12 Golf ' +
             'Way, Eco Estate, Eshowe". If the message is a general note that does not cleanly reduce to ' +
-            "one key and value, set both to null.\n\n" +
+            "one key and value, set both to null. " +
+            "personal_note: real speech often mixes a customer-related part with something that is " +
+            "actually about the tradesperson's own life, not the customer — an errand, a reminder, a " +
+            "family task. If the message contains such a fragment ALONGSIDE a customer reference, " +
+            "extract just that personal fragment as personal_note, in its own words. If there is no " +
+            "such mixed-in personal fragment, set it to null.\n\n" +
             "Examples:\n" +
-            '"what do I need to do today?" -> {"customer_name":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null}\n' +
-            '"how\'s my week going?" -> {"customer_name":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null}\n' +
-            '"dropped the wife at work, need dog food later" -> {"customer_name":null,"intent":"note","amount":null,"fact_key":null,"fact_value":null}\n\n' +
+            '"what do I need to do today?" -> {"customer_name":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null}\n' +
+            '"how\'s my week going?" -> {"customer_name":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null}\n' +
+            '"dropped the wife at work, need dog food later" -> {"customer_name":null,"intent":"note","amount":null,"fact_key":null,"fact_value":null,"personal_note":null}\n' +
+            '"heading to jenny\'s job now, remind me to get dog food after" -> {"customer_name":"jenny","intent":"reminder","amount":null,"fact_key":null,"fact_value":null,"personal_note":"remind me to get dog food after"}\n\n' +
             "Return ONLY JSON, no markdown, no explanation: " +
             '{"customer_name": string or null, "intent": "payment" or "lookup" or "reminder" or "note" ' +
-            'or "other", "amount": number or null, "fact_key": string or null, "fact_value": string or null}',
+            'or "other", "amount": number or null, "fact_key": string or null, "fact_value": string or ' +
+            'null, "personal_note": string or null}',
         },
         { role: "user", content: transcript },
       ],
@@ -505,6 +513,14 @@ async function processTranscript(
     ctx.waitUntil(applyStructuredFact(env, customer.id, extraction.fact_key, extraction.fact_value, transcript));
   }
 
+  // A personal fragment riding alongside a customer message gets its
+  // own life event, independent of whatever happens to the customer
+  // part below. This is what stops "remind me to get dog food" from
+  // silently vanishing into a stranger's customer file.
+  if (extraction?.personal_note) {
+    ctx.waitUntil(appendLifeEvent(env, extraction.personal_note));
+  }
+
   // Store the ORIGINAL words, not the rewritten version — the
   // rewrite exists purely to correctly resolve intent and retrieval,
   // never to replace what was actually said in the permanent record.
@@ -514,7 +530,10 @@ async function processTranscript(
   if (extraction?.intent !== "lookup") {
     if (customer) {
       ctx.waitUntil(appendCustomerNote(env, customer.id, transcript));
-    } else {
+    } else if (!extraction?.personal_note) {
+      // Only fall back to storing the whole transcript as a life
+      // event if personal_note didn't already capture the relevant
+      // fragment above — avoids storing the same thing twice.
       ctx.waitUntil(appendLifeEvent(env, transcript));
     }
   }
@@ -536,6 +555,9 @@ async function processTranscript(
     }
   } else if (customer) {
     message = customer.matched ? `Found existing customer: ${customer.name}.` : `New customer noted: ${customer.name}.`;
+    if (extraction?.personal_note) {
+      message += ` Also noted: ${extraction.personal_note}.`;
+    }
   } else {
     message = "Got it.";
   }
@@ -923,6 +945,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
