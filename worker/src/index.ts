@@ -485,6 +485,33 @@ async function getOutstandingInvoices(env: Env): Promise<string[]> {
   return results.map((r) => `${r.name} owes R${r.invoiced - r.paid} (invoiced R${r.invoiced}, paid R${r.paid}).`);
 }
 
+// The real fix for "what's Sarah's balance" answering wrong — a
+// single customer's balance was only ever being searched for in
+// narrative notes, never computed from the actual invoices/payments
+// tables the way the business-wide "who owes me money" query already
+// does. Honest about the case where payments exist with no invoice
+// (Sarah paid R500 with nothing invoiced against her) rather than
+// fabricating a balance-owed figure that doesn't cleanly apply.
+async function getCustomerFinancialSummary(env: Env, customerId: number): Promise<string | null> {
+  const row = await env.OFFICE_DB.prepare(
+    `SELECT
+       COALESCE((SELECT SUM(amount) FROM invoices WHERE customer_id = ?), 0) as invoiced,
+       COALESCE((SELECT SUM(amount) FROM payments WHERE customer_id = ?), 0) as paid`
+  )
+    .bind(customerId, customerId)
+    .first<{ invoiced: number; paid: number }>();
+
+  if (!row || (row.invoiced === 0 && row.paid === 0)) return null;
+
+  const balance = row.invoiced - row.paid;
+  if (row.invoiced === 0) {
+    return `No invoices on file, but R${row.paid} in payments recorded — nothing currently invoiced to balance against.`;
+  }
+  if (balance > 0) return `Owes R${balance} (invoiced R${row.invoiced}, paid R${row.paid}).`;
+  if (balance < 0) return `Has paid R${-balance} more than invoiced (invoiced R${row.invoiced}, paid R${row.paid}).`;
+  return `Fully paid up (invoiced R${row.invoiced}, paid R${row.paid}).`;
+}
+
 // guard(): every money-touching intent lands here, not in the real
 // ledger, until it's explicitly confirmed. Also reused for
 // schema-candidate suggestions below — same mechanism, same
@@ -1063,7 +1090,12 @@ async function processTranscript(
       message = await answerFromMemory(env, rewritten, facts);
     } else if (customer) {
       const memoryFacts = await getCustomerNotes(env, customer.id);
-      const facts = [`${customer.name} is a known customer.`, ...memoryFacts];
+      const financialSummary = await getCustomerFinancialSummary(env, customer.id);
+      const facts = [
+        `${customer.name} is a known customer.`,
+        ...(financialSummary ? [`${customer.name}: ${financialSummary}`] : []),
+        ...memoryFacts,
+      ];
       message = await answerFromMemory(env, rewritten, facts);
     } else {
       // No customer named, not a business question — a question
@@ -1833,6 +1865,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
