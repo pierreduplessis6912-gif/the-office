@@ -55,6 +55,11 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
           content:
             "Extract structured facts from a tradesperson's message. " +
             'customer_name is the specific customer mentioned, exactly as spoken or typed, or null if none. ' +
+            'intent is "lookup" for ANY question, including questions with no customer at all — such as ' +
+            'the tradesperson asking about their own day, week, tasks, or schedule (e.g. "what do I need ' +
+            'to do today?", "how\'s my week going?"). A question is a lookup whether it is about a ' +
+            'customer or about the tradesperson\'s own life — the presence of a question is what matters, ' +
+            'not whether a customer is named. ' +
             'intent is "payment" ONLY if the message explicitly describes money already being received from ' +
             'a customer — not if the customer is merely mentioned, looked up, or asked about. ' +
             "amount is a plain number in the currency's major unit (e.g. rand, not cents) if a specific " +
@@ -64,7 +69,12 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             "customer that could apply to any customer (address, phone_number, email, etc.), extract it " +
             'as a short snake_case key and its value — e.g. fact_key: "address", fact_value: "12 Golf ' +
             'Way, Eco Estate, Eshowe". If the message is a general note that does not cleanly reduce to ' +
-            "one key and value, set both to null. Return ONLY JSON, no markdown, no explanation: " +
+            "one key and value, set both to null.\n\n" +
+            "Examples:\n" +
+            '"what do I need to do today?" -> {"customer_name":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null}\n' +
+            '"how\'s my week going?" -> {"customer_name":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null}\n' +
+            '"dropped the wife at work, need dog food later" -> {"customer_name":null,"intent":"note","amount":null,"fact_key":null,"fact_value":null}\n\n' +
+            "Return ONLY JSON, no markdown, no explanation: " +
             '{"customer_name": string or null, "intent": "payment" or "lookup" or "reminder" or "note" ' +
             'or "other", "amount": number or null, "fact_key": string or null, "fact_value": string or null}',
         },
@@ -913,5 +923,6 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
