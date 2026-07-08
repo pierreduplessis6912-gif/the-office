@@ -478,19 +478,24 @@ async function answerFromMemory(env: Env, question: string, facts: string[]): Pr
     return "I don't have anything on file for that yet.";
   }
   try {
-    const result = await env.AI.run("@cf/meta/llama-3.1-8b-instruct-fast", {
+    const result = await env.AI.run("@cf/moonshotai/kimi-k2.6", {
+      temperature: 0,
+      chat_template_kwargs: { thinking: false },
       messages: [
         {
           role: "system",
           content:
-            "Answer the tradesperson's question using only the facts below. Be brief, one sentence. " +
+            "Answer the tradesperson's question using only the facts below. Be brief, one sentence, " +
+            "but ALWAYS include any specific numbers, amounts, or figures from the facts — never " +
+            "summarize a number away into a vague statement. " +
             "If the facts don't actually answer the question, say you don't have that on file.\n\n" +
             `Facts:\n${facts.map((f) => `- ${f}`).join("\n")}`,
         },
         { role: "user", content: question },
       ],
     });
-    const answer = (result as { response?: unknown }).response;
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const answer = r.choices?.[0]?.message?.content;
     return typeof answer === "string" && answer.trim() ? answer.trim() : facts[0];
   } catch {
     return facts[0];
@@ -1053,6 +1058,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
