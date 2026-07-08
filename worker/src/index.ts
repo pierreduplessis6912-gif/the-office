@@ -117,6 +117,23 @@ function looksLikeAName(name: string): boolean {
   return true;
 }
 
+// Second layer of defense against storing questions as facts — never
+// trust intent classification alone for this, since it's been
+// observed to misfire twice now, in two different storage paths
+// (customer notes yesterday, life events today). A dumb, deterministic
+// check can't be talked out of being right by an off day from the
+// model. Not a replacement for the intent check — an extra one.
+const QUESTION_STARTERS = [
+  "what", "who", "when", "where", "why", "how", "do ", "does ", "did ",
+  "is ", "are ", "was ", "were ", "can ", "could ", "would ", "should ",
+];
+
+function looksLikeAQuestion(text: string): boolean {
+  const trimmed = text.trim().toLowerCase();
+  if (trimmed.endsWith("?")) return true;
+  return QUESTION_STARTERS.some((starter) => trimmed.startsWith(starter));
+}
+
 async function reconcileCustomer(env: Env, spokenName: string): Promise<{ id: number; name: string; matched: boolean } | null> {
   if (!looksLikeAName(spokenName)) {
     return null;
@@ -525,9 +542,14 @@ async function processTranscript(
   // rewrite exists purely to correctly resolve intent and retrieval,
   // never to replace what was actually said in the permanent record.
   // Never store questions — a lookup is a question, not a fact.
+  // Two independent checks, not one: intent classification (has
+  // misfired before) AND a dumb, deterministic question-shape check
+  // that can't be talked out of it. Either one flagging it is enough
+  // to skip storage.
   // No customer mentioned isn't "nowhere to put this" anymore — it's
   // Peter's own day: the actual gap named last night, now closed.
-  if (extraction?.intent !== "lookup") {
+  const isQuestion = extraction?.intent === "lookup" || looksLikeAQuestion(transcript);
+  if (!isQuestion) {
     if (customer) {
       ctx.waitUntil(appendCustomerNote(env, customer.id, transcript));
     } else if (!extraction?.personal_note) {
@@ -945,6 +967,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
