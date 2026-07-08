@@ -224,7 +224,36 @@ async function reconcileCustomer(env: Env, spokenName: string): Promise<{ id: nu
     return null;
   }
 
-  const firstToken = spokenName.trim().split(/\s+/)[0];
+  const tokens = spokenName.trim().split(/\s+/);
+
+  // If a full name (first + last) was given, the match must account
+  // for BOTH parts — matching on the first name alone silently
+  // conflates any two people who happen to share it. Confirmed real:
+  // "John Wilkins" matched an unrelated existing "John Titlestadt" on
+  // first-token-only matching. Only fall back to a looser, first-name
+  // -only match when genuinely just one name was given — the best
+  // that can honestly be done with that little information.
+  if (tokens.length >= 2) {
+    const firstName = tokens[0];
+    const lastName = tokens[tokens.length - 1];
+    const existingFull = await env.OFFICE_DB.prepare(
+      "SELECT id, name FROM customers WHERE name LIKE ? AND name LIKE ? LIMIT 1"
+    )
+      .bind(`%${firstName}%`, `%${lastName}%`)
+      .first<{ id: number; name: string }>();
+
+    if (existingFull) {
+      return { id: existingFull.id, name: existingFull.name, matched: true };
+    }
+
+    const insertedFull = await env.OFFICE_DB.prepare("INSERT INTO customers (name) VALUES (?) RETURNING id, name")
+      .bind(spokenName)
+      .first<{ id: number; name: string }>();
+
+    return { id: insertedFull!.id, name: insertedFull!.name, matched: false };
+  }
+
+  const firstToken = tokens[0];
   const existing = await env.OFFICE_DB.prepare("SELECT id, name FROM customers WHERE name LIKE ? LIMIT 1")
     .bind(`%${firstToken}%`)
     .first<{ id: number; name: string }>();
@@ -1600,6 +1629,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
