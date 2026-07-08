@@ -8,7 +8,7 @@ export interface Env {
 
 interface Extraction {
   customer_name: string | null;
-  intent: "payment" | "invoice" | "lookup" | "reminder" | "note" | "other";
+  intent: "payment" | "invoice" | "quotation" | "lookup" | "reminder" | "note" | "other";
   amount: number | null;
   fact_key: string | null;
   fact_value: string | null;
@@ -62,10 +62,15 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             'financial question like "who owes me money". ' +
             'intent is "payment" ONLY if the message explicitly describes money already being RECEIVED from ' +
             'a customer — not if the customer is merely mentioned, looked up, or asked about. ' +
-            'intent is "invoice" if the message describes money being BILLED or OWED by a customer — a job ' +
-            'total, an invoice amount, work done that the customer now owes for — money going out as a bill, ' +
-            'not money coming in as a payment. "the total invoice amount is R39000" or "we invoiced Jenny ' +
-            'R850" is invoice, never payment. "Jenny paid R850" is payment, never invoice. ' +
+            'intent is "invoice" if the message describes money being BILLED for work already done — ' +
+            'the job is complete or underway and the customer now owes for it. "the total invoice amount ' +
+            'is R39000" or "we invoiced Jenny R850" is invoice, never payment or quotation. ' +
+            'intent is "quotation" if the message describes a PROPOSED price for work NOT YET done or not ' +
+            'yet agreed — an estimate, a quote given to the customer before starting. "we quoted Jenny ' +
+            'R39000 for the carpets" or "gave her a quote of R5000" is quotation, never invoice — nothing ' +
+            'has been billed yet, only proposed. The tense and framing matter: "quoted"/"quote"/"estimate" ' +
+            '-> quotation; "invoiced"/"invoice"/"the total is" (for completed or in-progress work) -> ' +
+            'invoice; "paid" -> payment. ' +
             "amount is a plain number in the currency's major unit (e.g. rand, not cents) if a specific " +
             "amount was stated, exactly as given — never estimate or calculate, only use a number " +
             "that was actually stated, or null if none was. " +
@@ -90,14 +95,15 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             '"who owes me money?" -> {"customer_name":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"business"}\n' +
             '"what does Jenny owe?" -> {"customer_name":"Jenny","intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"customer"}\n' +
             '"the total invoice for the carpets is R39000" -> {"customer_name":null,"intent":"invoice","amount":39000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null}\n' +
+            '"we quoted Jenny R39000 for the carpets" -> {"customer_name":"Jenny","intent":"quotation","amount":39000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null}\n' +
             '"Jenny paid R850" -> {"customer_name":"Jenny","intent":"payment","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null}\n' +
             '"dropped the wife at work, need dog food later" -> {"customer_name":null,"intent":"note","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null}\n' +
             '"heading to jenny\'s job now, remind me to get dog food after" -> {"customer_name":"jenny","intent":"reminder","amount":null,"fact_key":null,"fact_value":null,"personal_note":"remind me to get dog food after","query_scope":null}\n\n' +
             "Return ONLY JSON, no markdown, no explanation: " +
-            '{"customer_name": string or null, "intent": "payment" or "invoice" or "lookup" or "reminder" ' +
-            'or "note" or "other", "amount": number or null, "fact_key": string or null, "fact_value": ' +
-            'string or null, "personal_note": string or null, "query_scope": "customer" or "personal" or ' +
-            '"business" or null}',
+            '{"customer_name": string or null, "intent": "payment" or "invoice" or "quotation" or "lookup" ' +
+            'or "reminder" or "note" or "other", "amount": number or null, "fact_key": string or null, ' +
+            '"fact_value": string or null, "personal_note": string or null, "query_scope": "customer" or ' +
+            '"personal" or "business" or null}',
         },
         { role: "user", content: transcript },
       ],
@@ -201,6 +207,26 @@ async function recordInvoice(
 ): Promise<{ id: number; customerId: number; amount: number }> {
   const inserted = await env.OFFICE_DB.prepare(
     "INSERT INTO invoices (customer_id, description, amount, source_transcript) VALUES (?, ?, ?, ?) RETURNING id"
+  )
+    .bind(customerId, description, amount, sourceTranscript)
+    .first<{ id: number }>();
+
+  return { id: inserted!.id, customerId, amount };
+}
+
+// Same guarded pattern again — a quotation is a real, standing figure
+// Peter's given a customer, and getting it wrong (wrong amount, wrong
+// customer) is exactly as consequential as getting a payment wrong,
+// even though no money has moved yet.
+async function recordQuotation(
+  env: Env,
+  customerId: number,
+  description: string,
+  amount: number,
+  sourceTranscript: string
+): Promise<{ id: number; customerId: number; amount: number }> {
+  const inserted = await env.OFFICE_DB.prepare(
+    "INSERT INTO quotations (customer_id, description, amount, source_transcript) VALUES (?, ?, ?, ?) RETURNING id"
   )
     .bind(customerId, description, amount, sourceTranscript)
     .first<{ id: number }>();
@@ -592,6 +618,16 @@ async function processTranscript(
     pendingActionId = held.id;
   }
 
+  if (extraction?.intent === "quotation" && customer && extraction.amount) {
+    const held = await holdForConfirmation(
+      env,
+      "quotation",
+      { customerId: customer.id, customerName: customer.name, description: transcript, amount: extraction.amount },
+      transcript
+    );
+    pendingActionId = held.id;
+  }
+
   // A promoted field (address) or a candidate for the holding table —
   // written immediately either way, independent of whether this also
   // gets stored as a narrative note below.
@@ -631,7 +667,7 @@ async function processTranscript(
 
   let message: string;
   if (pendingActionId) {
-    const kind = extraction?.intent === "invoice" ? "Invoice" : "Payment";
+    const kind = extraction?.intent === "invoice" ? "Invoice" : extraction?.intent === "quotation" ? "Quotation" : "Payment";
     message = `${kind} noted for ${customer!.name}${extraction!.amount ? ` of R${extraction!.amount}` : ""} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
   } else if (extraction?.intent === "lookup") {
     if (extraction?.query_scope === "business") {
@@ -917,6 +953,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           check: (e) => e?.intent === "invoice",
         },
         {
+          name: "quotation classifies correctly, not invoice",
+          text: "we quoted Jenny R6000 for the new blinds",
+          check: (e) => e?.intent === "quotation",
+        },
+        {
           name: "a stated fact is not misread as a question",
           text: "jenny lives at 5 Ocean View, Eshowe",
           check: (e) => e?.intent !== "lookup",
@@ -980,6 +1021,21 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           .bind(id)
           .run();
         return Response.json({ status: "confirmed", invoice });
+      }
+
+      if (action.type === "quotation") {
+        const payload = JSON.parse(action.payload) as {
+          customerId: number;
+          description: string;
+          amount: number;
+        };
+        const quotation = await recordQuotation(env, payload.customerId, payload.description, payload.amount, action.source_transcript);
+        await env.OFFICE_DB.prepare(
+          "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+        )
+          .bind(id)
+          .run();
+        return Response.json({ status: "confirmed", quotation });
       }
 
       if (action.type === "schema_candidate") {
@@ -1112,6 +1168,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
