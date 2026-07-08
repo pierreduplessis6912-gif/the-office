@@ -879,6 +879,60 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json(result);
     }
 
+    // Regression smoke test — zero side effects, tests extraction
+    // classification alone (the piece that's actually broken most
+    // often today), not the full write pipeline. Safe to rerun after
+    // every future change without polluting KV or D1 with test data,
+    // the exact mistake that broke retrieval twice yesterday.
+    if (url.pathname === "/debug/smoke-test" && request.method === "GET") {
+      const cases: Array<{ name: string; text: string; check: (e: Extraction | null) => boolean }> = [
+        {
+          name: "mixed customer+personal message splits correctly",
+          text: "heading to jenny's job now, remind me to get dog food after",
+          check: (e) => e?.customer_name?.toLowerCase() === "jenny" && !!e?.personal_note,
+        },
+        {
+          name: "self-directed question classifies as personal lookup",
+          text: "what do I need to do today?",
+          check: (e) => e?.intent === "lookup" && e?.query_scope === "personal",
+        },
+        {
+          name: "business financial question classifies as business lookup",
+          text: "who owes me money?",
+          check: (e) => e?.intent === "lookup" && e?.query_scope === "business",
+        },
+        {
+          name: "plain customer lookup classifies correctly",
+          text: "what is Jenny's address?",
+          check: (e) => e?.intent === "lookup" && e?.query_scope === "customer",
+        },
+        {
+          name: "payment classifies correctly, not invoice",
+          text: "Jenny paid R500",
+          check: (e) => e?.intent === "payment",
+        },
+        {
+          name: "invoice classifies correctly, not payment",
+          text: "we invoiced Jenny R2000 for materials",
+          check: (e) => e?.intent === "invoice",
+        },
+        {
+          name: "a stated fact is not misread as a question",
+          text: "jenny lives at 5 Ocean View, Eshowe",
+          check: (e) => e?.intent !== "lookup",
+        },
+      ];
+
+      const results = await Promise.all(
+        cases.map(async (c) => {
+          const { extraction } = await extractIntent(env, c.text);
+          return { name: c.name, input: c.text, pass: c.check(extraction), extraction };
+        })
+      );
+
+      return Response.json({ allPassed: results.every((r) => r.pass), results });
+    }
+
     // --- end debug routes ---
 
     // List everything still waiting on a human decision.
@@ -1058,6 +1112,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
