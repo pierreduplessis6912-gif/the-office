@@ -765,13 +765,24 @@ async function processTranscript(
         : extraction.amount ?? 0;
 
     if (total > 0) {
+      // A clean, readable description derived from the actual line
+      // items — not the raw spoken sentence. This is what shows up
+      // on any document generated from this quotation later, and on
+      // any invoice converted from it, so it's worth getting right
+      // once, at the source, rather than patching each place it's
+      // displayed downstream.
+      const cleanDescription =
+        quotationLineItems.length > 0
+          ? quotationLineItems.map((item) => item.description).join("; ")
+          : transcript;
+
       const held = await holdForConfirmation(
         env,
         "quotation",
         {
           customerId: customer.id,
           customerName: customer.name,
-          description: transcript,
+          description: cleanDescription,
           amount: total,
           lineItems: quotationLineItems,
         },
@@ -1581,6 +1592,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
