@@ -8,12 +8,13 @@ export interface Env {
 
 interface Extraction {
   customer_name: string | null;
-  intent: "payment" | "invoice" | "quotation" | "lookup" | "reminder" | "note" | "other";
+  intent: "payment" | "invoice" | "quotation" | "convert_quote" | "lookup" | "reminder" | "note" | "other";
   amount: number | null;
   fact_key: string | null;
   fact_value: string | null;
   personal_note: string | null;
   query_scope: "customer" | "personal" | "business" | null;
+  deposit_percent: number | null;
 }
 
 interface ProcessResult {
@@ -71,6 +72,10 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             'has been billed yet, only proposed. The tense and framing matter: "quoted"/"quote"/"estimate" ' +
             '-> quotation; "invoiced"/"invoice"/"the total is" (for completed or in-progress work) -> ' +
             'invoice; "paid" -> payment. ' +
+            'intent is "convert_quote" if the message asks to turn an existing quotation into an invoice — ' +
+            'typically mentioning a completed job and/or a deposit already paid. "convert Jenny\'s quote to ' +
+            'an invoice, she paid an 80% deposit" or "find the quote for this job and convert it, ' +
+            'remaining balance is 20%" is convert_quote. ' +
             "amount is a plain number in the currency's major unit (e.g. rand, not cents) if a specific " +
             "amount was stated, exactly as given — never estimate or calculate, only use a number " +
             "that was actually stated, or null if none was. " +
@@ -89,21 +94,25 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             'no customer named. "business" if it is a business-wide question with no single customer named ' +
             '— asking about money owed across customers, totals, counts, or anything spanning more than one ' +
             'customer (e.g. "who owes me money", "how many customers do I have"). If intent is not ' +
-            "lookup, set query_scope to null.\n\n" +
+            "lookup, set query_scope to null. " +
+            'deposit_percent: ONLY set when intent is "convert_quote" — if a deposit percentage already ' +
+            'paid was stated (e.g. "80% deposit"), extract it as a plain number (80, not 0.8). Null if no ' +
+            "percentage was stated or intent is not convert_quote.\n\n" +
             "Examples:\n" +
-            '"what do I need to do today?" -> {"customer_name":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"personal"}\n' +
-            '"who owes me money?" -> {"customer_name":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"business"}\n' +
-            '"what does Jenny owe?" -> {"customer_name":"Jenny","intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"customer"}\n' +
-            '"the total invoice for the carpets is R39000" -> {"customer_name":null,"intent":"invoice","amount":39000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null}\n' +
-            '"we quoted Jenny R39000 for the carpets" -> {"customer_name":"Jenny","intent":"quotation","amount":39000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null}\n' +
-            '"Jenny paid R850" -> {"customer_name":"Jenny","intent":"payment","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null}\n' +
-            '"dropped the wife at work, need dog food later" -> {"customer_name":null,"intent":"note","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null}\n' +
-            '"heading to jenny\'s job now, remind me to get dog food after" -> {"customer_name":"jenny","intent":"reminder","amount":null,"fact_key":null,"fact_value":null,"personal_note":"remind me to get dog food after","query_scope":null}\n\n' +
+            '"what do I need to do today?" -> {"customer_name":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"personal","deposit_percent":null}\n' +
+            '"who owes me money?" -> {"customer_name":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"business","deposit_percent":null}\n' +
+            '"what does Jenny owe?" -> {"customer_name":"Jenny","intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"customer","deposit_percent":null}\n' +
+            '"the total invoice for the carpets is R39000" -> {"customer_name":null,"intent":"invoice","amount":39000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null}\n' +
+            '"we quoted Jenny R39000 for the carpets" -> {"customer_name":"Jenny","intent":"quotation","amount":39000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null}\n' +
+            '"Jenny paid R850" -> {"customer_name":"Jenny","intent":"payment","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null}\n' +
+            '"dropped the wife at work, need dog food later" -> {"customer_name":null,"intent":"note","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null}\n' +
+            '"heading to jenny\'s job now, remind me to get dog food after" -> {"customer_name":"jenny","intent":"reminder","amount":null,"fact_key":null,"fact_value":null,"personal_note":"remind me to get dog food after","query_scope":null,"deposit_percent":null}\n' +
+            '"we completed Jenny\'s installation, she paid an 80% deposit, convert the quote to an invoice for the remaining balance" -> {"customer_name":"Jenny","intent":"convert_quote","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":80}\n\n' +
             "Return ONLY JSON, no markdown, no explanation: " +
-            '{"customer_name": string or null, "intent": "payment" or "invoice" or "quotation" or "lookup" ' +
-            'or "reminder" or "note" or "other", "amount": number or null, "fact_key": string or null, ' +
-            '"fact_value": string or null, "personal_note": string or null, "query_scope": "customer" or ' +
-            '"personal" or "business" or null}',
+            '{"customer_name": string or null, "intent": "payment" or "invoice" or "quotation" or ' +
+            '"convert_quote" or "lookup" or "reminder" or "note" or "other", "amount": number or null, ' +
+            '"fact_key": string or null, "fact_value": string or null, "personal_note": string or null, ' +
+            '"query_scope": "customer" or "personal" or "business" or null, "deposit_percent": number or null}',
         },
         { role: "user", content: transcript },
       ],
@@ -302,6 +311,57 @@ async function recordQuotation(
   }
 
   return { id: quotationId, customerId, amount };
+}
+
+// No reference-number system exists yet — with one customer generally
+// having at most one open quote at a time, "their most recent
+// not-yet-converted quote" is honest and sufficient for now. A real
+// reference-number lookup is a reasonable refinement once someone
+// actually has multiple simultaneous open quotes — not needed yet.
+async function findLatestOpenQuotation(
+  env: Env,
+  customerId: number
+): Promise<{ id: number; amount: number; description: string } | null> {
+  const row = await env.OFFICE_DB.prepare(
+    "SELECT id, amount, description FROM quotations WHERE customer_id = ? AND status != 'converted' ORDER BY created_at DESC LIMIT 1"
+  )
+    .bind(customerId)
+    .first<{ id: number; amount: number; description: string }>();
+  return row ?? null;
+}
+
+// The actual, guarded conversion. total/depositAmount/remainingBalance
+// are computed once, in processTranscript, before this is ever held
+// for confirmation — this function only ever writes numbers that were
+// already decided, the same pattern as recordInvoice and
+// recordQuotation. The deposit math itself is never something Kimi
+// calculates — it identifies that a deposit was mentioned and what
+// percentage; the multiplication and subtraction happen here, in code.
+async function convertQuoteToInvoice(
+  env: Env,
+  quotationId: number,
+  customerId: number,
+  description: string,
+  remainingBalance: number,
+  sourceTranscript: string
+): Promise<{ invoiceId: number }> {
+  const inserted = await env.OFFICE_DB.prepare(
+    "INSERT INTO invoices (customer_id, description, amount, source_transcript, quotation_id) VALUES (?, ?, ?, ?, ?) RETURNING id"
+  )
+    .bind(customerId, description, remainingBalance, sourceTranscript, quotationId)
+    .first<{ id: number }>();
+
+  const invoiceId = inserted!.id;
+
+  await env.OFFICE_DB.prepare(
+    "INSERT INTO line_items (invoice_id, description, quantity, unit_price, line_total) VALUES (?, ?, 1, ?, ?)"
+  )
+    .bind(invoiceId, description, remainingBalance, remainingBalance)
+    .run();
+
+  await env.OFFICE_DB.prepare("UPDATE quotations SET status = 'converted' WHERE id = ?").bind(quotationId).run();
+
+  return { invoiceId };
 }
 
 // The real answer to "who owes me money" — a provable SQL aggregate,
@@ -719,6 +779,38 @@ async function processTranscript(
     }
   }
 
+  let convertQuoteFound: { quotationId: number; total: number; depositAmount: number; remainingBalance: number } | null = null;
+  if (extraction?.intent === "convert_quote" && customer) {
+    const quotation = await findLatestOpenQuotation(env, customer.id);
+    if (quotation) {
+      const total = quotation.amount;
+      // Deposit math computed once, here, deterministically — this is
+      // the actual number that gets held for confirmation and, later,
+      // written verbatim. Kimi only ever identifies the percentage
+      // stated; it never touches this arithmetic.
+      const depositAmount = extraction.deposit_percent ? total * (extraction.deposit_percent / 100) : 0;
+      const remainingBalance = total - depositAmount;
+      convertQuoteFound = { quotationId: quotation.id, total, depositAmount, remainingBalance };
+
+      const held = await holdForConfirmation(
+        env,
+        "convert_quote",
+        {
+          quotationId: quotation.id,
+          customerId: customer.id,
+          customerName: customer.name,
+          description: `Balance due — ${quotation.description}`,
+          remainingBalance,
+          total,
+          depositAmount,
+          depositPercent: extraction.deposit_percent,
+        },
+        transcript
+      );
+      pendingActionId = held.id;
+    }
+  }
+
   // A promoted field (address) or a candidate for the holding table —
   // written immediately either way, independent of whether this also
   // gets stored as a narrative note below.
@@ -757,7 +849,20 @@ async function processTranscript(
   }
 
   let message: string;
-  if (pendingActionId) {
+  if (extraction?.intent === "convert_quote" && !pendingActionId) {
+    // Intent recognized, but no open quotation exists for this
+    // customer to convert — say so honestly rather than silently
+    // falling through to a generic message.
+    message = customer
+      ? `I don't have an open quotation on file for ${customer.name} to convert.`
+      : "I don't have anything on file for that yet.";
+  } else if (pendingActionId && extraction?.intent === "convert_quote" && convertQuoteFound) {
+    const { total, depositAmount, remainingBalance, quotationId } = convertQuoteFound;
+    const depositNote = extraction.deposit_percent
+      ? ` ${extraction.deposit_percent}% deposit (R${depositAmount}) already paid —`
+      : "";
+    message = `Found quotation #${quotationId} for ${customer!.name} (R${total} total).${depositNote} remaining balance R${remainingBalance}. Needs your confirmation (action #${pendingActionId}) to convert to invoice.`;
+  } else if (pendingActionId) {
     const kind = extraction?.intent === "invoice" ? "Invoice" : extraction?.intent === "quotation" ? "Quotation" : "Payment";
     const displayAmount =
       extraction?.intent === "quotation" && quotationLineItems.length > 0
@@ -1057,6 +1162,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           check: (e) => e?.intent === "quotation",
         },
         {
+          name: "convert_quote classifies correctly with deposit percent",
+          text: "we completed Jenny's installation, she paid an 80% deposit, convert the quote to an invoice for the remaining balance",
+          check: (e) => e?.intent === "convert_quote" && e?.deposit_percent === 80,
+        },
+        {
           name: "a stated fact is not misread as a question",
           text: "jenny lives at 5 Ocean View, Eshowe",
           check: (e) => e?.intent !== "lookup",
@@ -1144,6 +1254,29 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             .bind(id)
             .run();
           return Response.json({ status: "confirmed", quotation });
+        }
+
+        if (action.type === "convert_quote") {
+          const payload = JSON.parse(action.payload) as {
+            quotationId: number;
+            customerId: number;
+            description: string;
+            remainingBalance: number;
+          };
+          const result = await convertQuoteToInvoice(
+            env,
+            payload.quotationId,
+            payload.customerId,
+            payload.description,
+            payload.remainingBalance,
+            action.source_transcript
+          );
+          await env.OFFICE_DB.prepare(
+            "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+          )
+            .bind(id)
+            .run();
+          return Response.json({ status: "confirmed", invoice: result });
         }
 
         if (action.type === "schema_candidate") {
@@ -1285,6 +1418,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
