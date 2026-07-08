@@ -1404,7 +1404,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           )
             .bind(id)
             .run();
-          return Response.json({ status: "confirmed", invoice });
+          return Response.json({
+            status: "confirmed",
+            invoice,
+            pdfUrl: `${url.origin}/invoices/${invoice.id}/pdf`,
+          });
         }
 
         if (action.type === "quotation") {
@@ -1450,7 +1454,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           )
             .bind(id)
             .run();
-          return Response.json({ status: "confirmed", invoice: result });
+          return Response.json({
+            status: "confirmed",
+            invoice: result,
+            pdfUrl: `${url.origin}/invoices/${result.invoiceId}/pdf`,
+          });
         }
 
         if (action.type === "schema_candidate") {
@@ -1592,6 +1600,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
