@@ -23,6 +23,7 @@ const _officeAccent = Color(0xFF1F4B3F);
 const _userAccent = Color(0xFF6B4A2B);
 const _stampRed = Color(0xFFB23A2E);
 const _muted = Color(0xFF8A8172);
+const _confirmedGreen = Color(0xFF2F6B4F);
 
 void main() => runApp(const OfficeApp());
 
@@ -65,11 +66,30 @@ class OfficeApp extends StatelessWidget {
 
 enum MessageRole { user, office, status }
 
+enum PendingStatus { pending, confirmed, rejected }
+
+// A single guard()-held item riding on a message — a payment, an
+// invoice, a quotation, a structured fact. A message can carry more
+// than one (e.g. a quotation AND an address, both awaiting separate
+// confirmation), so this lives as a list, not a single flag.
+class PendingItem {
+  final int id;
+  PendingStatus status;
+  bool busy;
+  PendingItem({required this.id, this.status = PendingStatus.pending, this.busy = false});
+}
+
 class ChatMessage {
   final String id;
   MessageRole role;
   String text;
-  ChatMessage({required this.id, required this.role, required this.text});
+  List<PendingItem> pendingItems;
+  ChatMessage({
+    required this.id,
+    required this.role,
+    required this.text,
+    List<PendingItem>? pendingItems,
+  }) : pendingItems = pendingItems ?? [];
 }
 
 class OfficeHome extends StatefulWidget {
@@ -111,12 +131,13 @@ class _OfficeHomeState extends State<OfficeHome> {
     return id;
   }
 
-  void _updateMessage(String id, {MessageRole? role, required String text}) {
+  void _updateMessage(String id, {MessageRole? role, required String text, List<PendingItem>? pendingItems}) {
     final index = _messages.indexWhere((m) => m.id == id);
     if (index == -1) return;
     setState(() {
       if (role != null) _messages[index].role = role;
       _messages[index].text = text;
+      if (pendingItems != null) _messages[index].pendingItems = pendingItems;
     });
     _scrollToEnd();
   }
@@ -148,6 +169,28 @@ class _OfficeHomeState extends State<OfficeHome> {
     _statusTimer = null;
   }
 
+  // The actual fix for the query-rewriting gap: the backend has been
+  // able to resolve "her" -> "Jenny" using history since yesterday,
+  // but nothing in the app ever sent any history to use. Last 3
+  // exchanges (6 messages), skipping status lines — those were never
+  // really said by anyone, just narration of waiting.
+  List<Map<String, String>> _recentHistory() {
+    final real = _messages.where((m) => m.role != MessageRole.status).toList();
+    final recent = real.length > 6 ? real.sublist(real.length - 6) : real;
+    return recent
+        .map((m) => {'role': m.role == MessageRole.user ? 'user' : 'office', 'text': m.text})
+        .toList();
+  }
+
+  List<PendingItem> _extractPendingItems(Map<String, dynamic> data) {
+    final items = <PendingItem>[];
+    final pendingActionId = data['pendingActionId'];
+    if (pendingActionId is int) items.add(PendingItem(id: pendingActionId));
+    final factPendingActionId = data['factPendingActionId'];
+    if (factPendingActionId is int) items.add(PendingItem(id: factPendingActionId));
+    return items;
+  }
+
   // --- Type mode ---------------------------------------------------
 
   Future<void> _sendText() async {
@@ -155,6 +198,7 @@ class _OfficeHomeState extends State<OfficeHome> {
     if (text.isEmpty) return;
     _textController.clear();
 
+    final history = _recentHistory();
     _addMessage(MessageRole.user, text);
     final statusId = _addMessage(MessageRole.status, 'Reading that...');
     _startStatusCycle(statusId, ['Reading that...', 'Checking who you meant...', 'Writing it down...']);
@@ -164,13 +208,18 @@ class _OfficeHomeState extends State<OfficeHome> {
       final response = await http.post(
         uri,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'text': text}),
+        body: jsonEncode({'text': text, 'history': history}),
       );
       _stopStatusCycle();
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
-        _updateMessage(statusId, role: MessageRole.office, text: data['message'] as String? ?? 'Done.');
+        _updateMessage(
+          statusId,
+          role: MessageRole.office,
+          text: data['message'] as String? ?? 'Done.',
+          pendingItems: _extractPendingItems(data),
+        );
       } else {
         _updateMessage(statusId, role: MessageRole.office, text: 'Something went wrong (${response.statusCode}).');
       }
@@ -213,6 +262,8 @@ class _OfficeHomeState extends State<OfficeHome> {
   }
 
   Future<void> _handleRecording(String path) async {
+    final history = _recentHistory();
+
     // Acknowledge instantly — we don't have the real words yet (no live
     // on-device transcript wired in this version), so a voice-message
     // placeholder stands in until the real transcript comes back and
@@ -226,6 +277,7 @@ class _OfficeHomeState extends State<OfficeHome> {
       final uri = Uri.parse('$officeApiBase/files/audio');
       final request = http.MultipartRequest('POST', uri);
       request.files.add(await http.MultipartFile.fromPath('audio', path));
+      request.fields['history'] = jsonEncode(history);
       final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);
       _stopStatusCycle();
@@ -236,7 +288,12 @@ class _OfficeHomeState extends State<OfficeHome> {
         if (transcript != null && transcript.trim().isNotEmpty) {
           _updateMessage(userId, text: transcript);
         }
-        _updateMessage(statusId, role: MessageRole.office, text: data['message'] as String? ?? 'Done.');
+        _updateMessage(
+          statusId,
+          role: MessageRole.office,
+          text: data['message'] as String? ?? 'Done.',
+          pendingItems: _extractPendingItems(data),
+        );
       } else {
         _updateMessage(statusId, role: MessageRole.office, text: 'Upload failed (${response.statusCode}).');
       }
@@ -252,6 +309,35 @@ class _OfficeHomeState extends State<OfficeHome> {
     }
   }
 
+  // --- Guard() actions — the actual point of today's build ----------
+
+  Future<void> _resolvePendingItem(String messageId, int itemId, bool confirm) async {
+    final msgIndex = _messages.indexWhere((m) => m.id == messageId);
+    if (msgIndex == -1) return;
+    final itemIndex = _messages[msgIndex].pendingItems.indexWhere((p) => p.id == itemId);
+    if (itemIndex == -1) return;
+
+    setState(() => _messages[msgIndex].pendingItems[itemIndex].busy = true);
+
+    try {
+      final uri = Uri.parse('$officeApiBase/actions/$itemId/${confirm ? "confirm" : "reject"}');
+      final response = await http.post(uri);
+      setState(() {
+        _messages[msgIndex].pendingItems[itemIndex].busy = false;
+        _messages[msgIndex].pendingItems[itemIndex].status =
+            response.statusCode == 200
+                ? (confirm ? PendingStatus.confirmed : PendingStatus.rejected)
+                : PendingStatus.pending;
+      });
+      if (response.statusCode != 200) {
+        _addMessage(MessageRole.office, 'Could not ${confirm ? "confirm" : "reject"} that — try again.');
+      }
+    } catch (_) {
+      setState(() => _messages[msgIndex].pendingItems[itemIndex].busy = false);
+      _addMessage(MessageRole.office, 'Could not reach the Office to ${confirm ? "confirm" : "reject"} that.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -264,7 +350,11 @@ class _OfficeHomeState extends State<OfficeHome> {
                 controller: _scrollController,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 itemCount: _messages.length,
-                itemBuilder: (context, i) => _MessageLine(message: _messages[i]),
+                itemBuilder: (context, i) => _MessageLine(
+                  message: _messages[i],
+                  onConfirm: (itemId) => _resolvePendingItem(_messages[i].id, itemId, true),
+                  onReject: (itemId) => _resolvePendingItem(_messages[i].id, itemId, false),
+                ),
               ),
             ),
             _Composer(
@@ -282,23 +372,20 @@ class _OfficeHomeState extends State<OfficeHome> {
 
 // Not a chat bubble — a ledger line. Each entry is a small-caps mono
 // label, a colored accent stripe identifying who wrote it, and the
-// message in a plain, highly legible body face. This is the structural
-// device that makes it read as a work log rather than a messenger
-// clone: the same information a bubble would carry (who, what), told
-// through typography and a stripe instead of rounded colored fills.
+// message in a plain, highly legible body face.
 class _MessageLine extends StatelessWidget {
   final ChatMessage message;
-  const _MessageLine({required this.message});
+  final void Function(int itemId) onConfirm;
+  final void Function(int itemId) onReject;
 
-  bool get _isPending =>
-      message.role == MessageRole.office && message.text.contains('needs your confirmation');
+  const _MessageLine({required this.message, required this.onConfirm, required this.onReject});
 
   @override
   Widget build(BuildContext context) {
     if (message.role == MessageRole.status) {
       return _buildStatus();
     }
-    if (_isPending) {
+    if (message.pendingItems.isNotEmpty) {
       return _buildStamp();
     }
     return _buildLine();
@@ -367,9 +454,11 @@ class _MessageLine extends StatelessWidget {
   }
 
   // The signature element: anything guard() has held for confirmation
-  // renders as a literal, rotated, dashed-ink stamp — an honest visual
-  // metaphor for an unstamped invoice waiting on approval, rather than
-  // a generic colored alert box.
+  // renders as a literal, rotated, dashed-ink stamp — driven by the
+  // real pendingActionId/factPendingActionId fields from the API now,
+  // not by matching words in the message text. A message can carry
+  // more than one item (e.g. a quotation and a fact), each with its
+  // own Confirm/Reject buttons and its own resolved state.
   Widget _buildStamp() {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -381,7 +470,7 @@ class _MessageLine extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             constraints: const BoxConstraints(maxWidth: 320),
             decoration: BoxDecoration(
-              border: Border.all(color: _stampRed, width: 2),
+              border: Border.all(color: _stampColorFor(message.pendingItems), width: 2),
               borderRadius: BorderRadius.circular(4),
             ),
             child: Column(
@@ -389,12 +478,12 @@ class _MessageLine extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'PENDING CONFIRMATION',
+                  _stampLabelFor(message.pendingItems),
                   style: GoogleFonts.ibmPlexMono(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1.6,
-                    color: _stampRed,
+                    color: _stampColorFor(message.pendingItems),
                   ),
                 ),
                 const SizedBox(height: 5),
@@ -402,9 +491,70 @@ class _MessageLine extends StatelessWidget {
                   message.text,
                   style: GoogleFonts.workSans(fontSize: 14, color: _ink, height: 1.3),
                 ),
+                const SizedBox(height: 10),
+                ...message.pendingItems.map(_buildActionRow),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Color _stampColorFor(List<PendingItem> items) {
+    if (items.every((i) => i.status == PendingStatus.confirmed)) return _confirmedGreen;
+    if (items.every((i) => i.status != PendingStatus.pending)) return _muted;
+    return _stampRed;
+  }
+
+  String _stampLabelFor(List<PendingItem> items) {
+    if (items.every((i) => i.status == PendingStatus.confirmed)) return 'CONFIRMED';
+    if (items.every((i) => i.status != PendingStatus.pending)) return 'RESOLVED';
+    return 'PENDING CONFIRMATION';
+  }
+
+  Widget _buildActionRow(PendingItem item) {
+    if (item.status == PendingStatus.confirmed) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text('✓ Confirmed (#${item.id})',
+            style: GoogleFonts.ibmPlexMono(fontSize: 11, color: _confirmedGreen, fontWeight: FontWeight.w600)),
+      );
+    }
+    if (item.status == PendingStatus.rejected) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text('✕ Rejected (#${item.id})',
+            style: GoogleFonts.ibmPlexMono(fontSize: 11, color: _muted, fontWeight: FontWeight.w600)),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: item.busy
+          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: _stampRed))
+          : Row(
+              children: [
+                _actionButton('Confirm', _confirmedGreen, () => onConfirm(item.id)),
+                const SizedBox(width: 10),
+                _actionButton('Reject', _muted, () => onReject(item.id)),
+              ],
+            ),
+    );
+  }
+
+  Widget _actionButton(String label, Color color, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          border: Border.all(color: color, width: 1.5),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text(
+          label.toUpperCase(),
+          style: GoogleFonts.ibmPlexMono(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1, color: color),
         ),
       ),
     );
