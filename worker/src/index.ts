@@ -8,11 +8,12 @@ export interface Env {
 
 interface Extraction {
   customer_name: string | null;
-  intent: "payment" | "lookup" | "reminder" | "note" | "other";
+  intent: "payment" | "invoice" | "lookup" | "reminder" | "note" | "other";
   amount: number | null;
   fact_key: string | null;
   fact_value: string | null;
   personal_note: string | null;
+  query_scope: "customer" | "personal" | "business" | null;
 }
 
 interface ProcessResult {
@@ -57,12 +58,14 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             "Extract structured facts from a tradesperson's message. " +
             'customer_name is the specific customer mentioned, exactly as spoken or typed, or null if none. ' +
             'intent is "lookup" for ANY question, including questions with no customer at all — such as ' +
-            'the tradesperson asking about their own day, week, tasks, or schedule (e.g. "what do I need ' +
-            'to do today?", "how\'s my week going?"). A question is a lookup whether it is about a ' +
-            'customer or about the tradesperson\'s own life — the presence of a question is what matters, ' +
-            'not whether a customer is named. ' +
-            'intent is "payment" ONLY if the message explicitly describes money already being received from ' +
+            'the tradesperson asking about their own day, week, tasks, or schedule, or asking a business-wide ' +
+            'financial question like "who owes me money". ' +
+            'intent is "payment" ONLY if the message explicitly describes money already being RECEIVED from ' +
             'a customer — not if the customer is merely mentioned, looked up, or asked about. ' +
+            'intent is "invoice" if the message describes money being BILLED or OWED by a customer — a job ' +
+            'total, an invoice amount, work done that the customer now owes for — money going out as a bill, ' +
+            'not money coming in as a payment. "the total invoice amount is R39000" or "we invoiced Jenny ' +
+            'R850" is invoice, never payment. "Jenny paid R850" is payment, never invoice. ' +
             "amount is a plain number in the currency's major unit (e.g. rand, not cents) if a specific " +
             "amount was stated, exactly as given — never estimate or calculate, only use a number " +
             "that was actually stated, or null if none was. " +
@@ -75,16 +78,26 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             "actually about the tradesperson's own life, not the customer — an errand, a reminder, a " +
             "family task. If the message contains such a fragment ALONGSIDE a customer reference, " +
             "extract just that personal fragment as personal_note, in its own words. If there is no " +
-            "such mixed-in personal fragment, set it to null.\n\n" +
+            "such mixed-in personal fragment, set it to null. " +
+            'query_scope: ONLY set when intent is "lookup". "customer" if a specific customer_name was ' +
+            'given. "personal" if it is about the tradesperson\'s own day, week, tasks, or schedule with ' +
+            'no customer named. "business" if it is a business-wide question with no single customer named ' +
+            '— asking about money owed across customers, totals, counts, or anything spanning more than one ' +
+            'customer (e.g. "who owes me money", "how many customers do I have"). If intent is not ' +
+            "lookup, set query_scope to null.\n\n" +
             "Examples:\n" +
-            '"what do I need to do today?" -> {"customer_name":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null}\n' +
-            '"how\'s my week going?" -> {"customer_name":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null}\n' +
-            '"dropped the wife at work, need dog food later" -> {"customer_name":null,"intent":"note","amount":null,"fact_key":null,"fact_value":null,"personal_note":null}\n' +
-            '"heading to jenny\'s job now, remind me to get dog food after" -> {"customer_name":"jenny","intent":"reminder","amount":null,"fact_key":null,"fact_value":null,"personal_note":"remind me to get dog food after"}\n\n' +
+            '"what do I need to do today?" -> {"customer_name":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"personal"}\n' +
+            '"who owes me money?" -> {"customer_name":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"business"}\n' +
+            '"what does Jenny owe?" -> {"customer_name":"Jenny","intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"customer"}\n' +
+            '"the total invoice for the carpets is R39000" -> {"customer_name":null,"intent":"invoice","amount":39000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null}\n' +
+            '"Jenny paid R850" -> {"customer_name":"Jenny","intent":"payment","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null}\n' +
+            '"dropped the wife at work, need dog food later" -> {"customer_name":null,"intent":"note","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null}\n' +
+            '"heading to jenny\'s job now, remind me to get dog food after" -> {"customer_name":"jenny","intent":"reminder","amount":null,"fact_key":null,"fact_value":null,"personal_note":"remind me to get dog food after","query_scope":null}\n\n' +
             "Return ONLY JSON, no markdown, no explanation: " +
-            '{"customer_name": string or null, "intent": "payment" or "lookup" or "reminder" or "note" ' +
-            'or "other", "amount": number or null, "fact_key": string or null, "fact_value": string or ' +
-            'null, "personal_note": string or null}',
+            '{"customer_name": string or null, "intent": "payment" or "invoice" or "lookup" or "reminder" ' +
+            'or "note" or "other", "amount": number or null, "fact_key": string or null, "fact_value": ' +
+            'string or null, "personal_note": string or null, "query_scope": "customer" or "personal" or ' +
+            '"business" or null}',
         },
         { role: "user", content: transcript },
       ],
@@ -172,6 +185,47 @@ async function recordPayment(
     .first<{ id: number }>();
 
   return { id: inserted!.id, customerId, amount };
+}
+
+// Same discipline as recordPayment — the ground-truth write, only
+// ever called from the confirm endpoint. Money billed deserves the
+// same guard as money received, even though nothing physically moved
+// yet: a wrong customer or a wrong amount here is just as real a
+// mistake as a wrong payment would be.
+async function recordInvoice(
+  env: Env,
+  customerId: number,
+  description: string,
+  amount: number,
+  sourceTranscript: string
+): Promise<{ id: number; customerId: number; amount: number }> {
+  const inserted = await env.OFFICE_DB.prepare(
+    "INSERT INTO invoices (customer_id, description, amount, source_transcript) VALUES (?, ?, ?, ?) RETURNING id"
+  )
+    .bind(customerId, description, amount, sourceTranscript)
+    .first<{ id: number }>();
+
+  return { id: inserted!.id, customerId, amount };
+}
+
+// The real answer to "who owes me money" — a provable SQL aggregate,
+// not an LLM's guess at what a sentence meant. Simplest honest first
+// version: total invoiced per customer minus total paid per customer,
+// not matched to specific invoices. Good enough for a real answer
+// today; per-invoice reconciliation is a harder problem for later,
+// once there's evidence it's actually needed.
+async function getOutstandingInvoices(env: Env): Promise<string[]> {
+  const { results } = await env.OFFICE_DB.prepare(
+    `SELECT c.name as name,
+            COALESCE(SUM(i.amount), 0) as invoiced,
+            COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.customer_id = c.id), 0) as paid
+     FROM customers c
+     JOIN invoices i ON i.customer_id = c.id
+     GROUP BY c.id
+     HAVING invoiced > paid`
+  ).all<{ name: string; invoiced: number; paid: number }>();
+
+  return results.map((r) => `${r.name} owes R${r.invoiced - r.paid} (invoiced R${r.invoiced}, paid R${r.paid}).`);
 }
 
 // guard(): every money-touching intent lands here, not in the real
@@ -523,6 +577,16 @@ async function processTranscript(
     pendingActionId = held.id;
   }
 
+  if (extraction?.intent === "invoice" && customer && extraction.amount) {
+    const held = await holdForConfirmation(
+      env,
+      "invoice",
+      { customerId: customer.id, customerName: customer.name, description: transcript, amount: extraction.amount },
+      transcript
+    );
+    pendingActionId = held.id;
+  }
+
   // A promoted field (address) or a candidate for the holding table —
   // written immediately either way, independent of whether this also
   // gets stored as a narrative note below.
@@ -562,15 +626,22 @@ async function processTranscript(
 
   let message: string;
   if (pendingActionId) {
-    message = `Payment noted for ${customer!.name}${extraction!.amount ? ` of R${extraction!.amount}` : ""} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
+    const kind = extraction?.intent === "invoice" ? "Invoice" : "Payment";
+    message = `${kind} noted for ${customer!.name}${extraction!.amount ? ` of R${extraction!.amount}` : ""} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
   } else if (extraction?.intent === "lookup") {
-    if (customer) {
+    if (extraction?.query_scope === "business") {
+      // No single customer — a business-wide financial question,
+      // answered from a real SQL aggregate, not a guess from a
+      // sentence. This is the actual fix for "who owes me money."
+      const outstandingFacts = await getOutstandingInvoices(env);
+      message = await answerFromMemory(env, rewritten, outstandingFacts);
+    } else if (customer) {
       const memoryFacts = await getCustomerNotes(env, customer.id);
       const facts = [`${customer.name} is a known customer.`, ...memoryFacts];
       message = await answerFromMemory(env, rewritten, facts);
     } else {
-      // No customer named — this is a question about Peter's own
-      // day or week, not a customer lookup. Read straight from the
+      // No customer named, not a business question — a question
+      // about Peter's own day or week. Read straight from the
       // date-keyed life-event store, not an unscoped Vectorize search.
       const lifeFacts = await getRecentLifeEvents(env, 7);
       message = await answerFromMemory(env, rewritten, lifeFacts);
@@ -837,6 +908,21 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         return Response.json({ status: "confirmed", payment });
       }
 
+      if (action.type === "invoice") {
+        const payload = JSON.parse(action.payload) as {
+          customerId: number;
+          description: string;
+          amount: number;
+        };
+        const invoice = await recordInvoice(env, payload.customerId, payload.description, payload.amount, action.source_transcript);
+        await env.OFFICE_DB.prepare(
+          "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+        )
+          .bind(id)
+          .run();
+        return Response.json({ status: "confirmed", invoice });
+      }
+
       if (action.type === "schema_candidate") {
         // Acknowledged only — this never runs a migration itself. The
         // actual ALTER TABLE / CREATE TABLE stays a deliberate, manual
@@ -967,6 +1053,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
