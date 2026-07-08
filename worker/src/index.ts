@@ -10,12 +10,14 @@ export interface Env {
 
 interface Extraction {
   customer_name: string | null;
+  character_name: string | null;
+  character_relationship: string | null;
   intent: "payment" | "invoice" | "quotation" | "convert_quote" | "lookup" | "reminder" | "note" | "other";
   amount: number | null;
   fact_key: string | null;
   fact_value: string | null;
   personal_note: string | null;
-  query_scope: "customer" | "personal" | "business" | null;
+  query_scope: "customer" | "personal" | "business" | "character" | null;
   deposit_percent: number | null;
 }
 
@@ -60,7 +62,13 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
           role: "system",
           content:
             "Extract structured facts from a tradesperson's message. " +
-            'customer_name is the specific customer mentioned, exactly as spoken or typed, or null if none. ' +
+            'customer_name is the specific customer mentioned, exactly as spoken or typed, or null if none ' +
+            "— someone the tradesperson does BUSINESS with (quotes, invoices, jobs, payments). " +
+            'character_name is a personal relation mentioned instead of a customer — spouse, family, ' +
+            "staff, friends — someone in the tradesperson's life but NOT a business customer. Only one of " +
+            "customer_name or character_name should be set per message, based on who is actually being " +
+            'talked about. character_relationship is the stated relationship if given (e.g. "wife", ' +
+            '"nanny", "son"), or null if not stated or not applicable. ' +
             'intent is "lookup" for ANY question, including questions with no customer at all — such as ' +
             'the tradesperson asking about their own day, week, tasks, or schedule, or asking a business-wide ' +
             'financial question like "who owes me money". ' +
@@ -93,29 +101,33 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             "extract just that personal fragment as personal_note, in its own words. If there is no " +
             "such mixed-in personal fragment, set it to null. " +
             'query_scope: ONLY set when intent is "lookup". "customer" if a specific customer_name was ' +
-            'given. "personal" if it is about the tradesperson\'s own day, week, tasks, or schedule with ' +
-            'no customer named. "business" if it is a business-wide question with no single customer named ' +
-            '— asking about money owed across customers, totals, counts, or anything spanning more than one ' +
-            'customer (e.g. "who owes me money", "how many customers do I have"). If intent is not ' +
-            "lookup, set query_scope to null. " +
+            'given. "character" if a specific character_name was given instead — asking about a personal ' +
+            'relation, not a customer (e.g. "how is my wife doing"). "personal" if it is about the ' +
+            "tradesperson's own day, week, tasks, or schedule with no customer or character named. " +
+            '"business" if it is a business-wide question with no single customer named — asking about ' +
+            "money owed across customers, totals, counts, or anything spanning more than one customer " +
+            '(e.g. "who owes me money", "how many customers do I have"). If intent is not lookup, set ' +
+            "query_scope to null. " +
             'deposit_percent: ONLY set when intent is "convert_quote" — if a deposit percentage already ' +
             'paid was stated (e.g. "80% deposit"), extract it as a plain number (80, not 0.8). Null if no ' +
             "percentage was stated or intent is not convert_quote.\n\n" +
             "Examples:\n" +
-            '"what do I need to do today?" -> {"customer_name":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"personal","deposit_percent":null}\n' +
-            '"who owes me money?" -> {"customer_name":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"business","deposit_percent":null}\n' +
-            '"what does Jenny owe?" -> {"customer_name":"Jenny","intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"customer","deposit_percent":null}\n' +
-            '"the total invoice for the carpets is R39000" -> {"customer_name":null,"intent":"invoice","amount":39000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null}\n' +
-            '"we quoted Jenny R39000 for the carpets" -> {"customer_name":"Jenny","intent":"quotation","amount":39000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null}\n' +
-            '"Jenny paid R850" -> {"customer_name":"Jenny","intent":"payment","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null}\n' +
-            '"dropped the wife at work, need dog food later" -> {"customer_name":null,"intent":"note","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null}\n' +
-            '"heading to jenny\'s job now, remind me to get dog food after" -> {"customer_name":"jenny","intent":"reminder","amount":null,"fact_key":null,"fact_value":null,"personal_note":"remind me to get dog food after","query_scope":null,"deposit_percent":null}\n' +
-            '"we completed Jenny\'s installation, she paid an 80% deposit, convert the quote to an invoice for the remaining balance" -> {"customer_name":"Jenny","intent":"convert_quote","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":80}\n\n' +
+            '"what do I need to do today?" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"personal","deposit_percent":null}\n' +
+            '"who owes me money?" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"business","deposit_percent":null}\n' +
+            '"what does Jenny owe?" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"customer","deposit_percent":null}\n' +
+            '"the total invoice for the carpets is R39000" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"invoice","amount":39000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null}\n' +
+            '"we quoted Jenny R39000 for the carpets" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"quotation","amount":39000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null}\n' +
+            '"Jenny paid R850" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"payment","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null}\n' +
+            '"picked up my wife from work, she\'s annoyed about the kitchen guy not showing" -> {"customer_name":null,"character_name":"wife","character_relationship":"wife","intent":"note","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null}\n' +
+            '"how is my wife doing?" -> {"customer_name":null,"character_name":"wife","character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"character","deposit_percent":null}\n' +
+            '"heading to jenny\'s job now, remind me to get dog food after" -> {"customer_name":"jenny","character_name":null,"character_relationship":null,"intent":"reminder","amount":null,"fact_key":null,"fact_value":null,"personal_note":"remind me to get dog food after","query_scope":null,"deposit_percent":null}\n' +
+            '"we completed Jenny\'s installation, she paid an 80% deposit, convert the quote to an invoice for the remaining balance" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"convert_quote","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":80}\n\n' +
             "Return ONLY JSON, no markdown, no explanation: " +
-            '{"customer_name": string or null, "intent": "payment" or "invoice" or "quotation" or ' +
-            '"convert_quote" or "lookup" or "reminder" or "note" or "other", "amount": number or null, ' +
-            '"fact_key": string or null, "fact_value": string or null, "personal_note": string or null, ' +
-            '"query_scope": "customer" or "personal" or "business" or null, "deposit_percent": number or null}',
+            '{"customer_name": string or null, "character_name": string or null, "character_relationship": ' +
+            'string or null, "intent": "payment" or "invoice" or "quotation" or "convert_quote" or ' +
+            '"lookup" or "reminder" or "note" or "other", "amount": number or null, "fact_key": string or ' +
+            'null, "fact_value": string or null, "personal_note": string or null, "query_scope": ' +
+            '"customer" or "character" or "personal" or "business" or null, "deposit_percent": number or null}',
         },
         { role: "user", content: transcript },
       ],
@@ -265,6 +277,63 @@ async function reconcileCustomer(env: Env, spokenName: string): Promise<{ id: nu
 
   const inserted = await env.OFFICE_DB.prepare("INSERT INTO customers (name) VALUES (?) RETURNING id, name")
     .bind(spokenName)
+    .first<{ id: number; name: string }>();
+
+  return { id: inserted!.id, name: inserted!.name, matched: false };
+}
+
+// A character is a personal relation — wife, nanny, family — never a
+// business customer. Same reconciliation discipline as customers
+// (full-name matching, pronoun rejection), against a genuinely
+// separate table that guard(), invoices, and "who owes me money" can
+// never see. Relationship is only ever stored once, at creation —
+// there is no guarded update path here, since nothing here carries
+// financial consequence the way a customer's address does.
+async function reconcileCharacter(
+  env: Env,
+  spokenName: string,
+  relationship: string | null
+): Promise<{ id: number; name: string; matched: boolean } | null> {
+  if (!looksLikeAName(spokenName)) {
+    return null;
+  }
+
+  const tokens = spokenName.trim().split(/\s+/);
+
+  if (tokens.length >= 2) {
+    const firstName = tokens[0];
+    const lastName = tokens[tokens.length - 1];
+    const existingFull = await env.OFFICE_DB.prepare(
+      "SELECT id, name FROM characters WHERE name LIKE ? AND name LIKE ? LIMIT 1"
+    )
+      .bind(`%${firstName}%`, `%${lastName}%`)
+      .first<{ id: number; name: string }>();
+
+    if (existingFull) {
+      return { id: existingFull.id, name: existingFull.name, matched: true };
+    }
+
+    const insertedFull = await env.OFFICE_DB.prepare(
+      "INSERT INTO characters (name, relationship) VALUES (?, ?) RETURNING id, name"
+    )
+      .bind(spokenName, relationship)
+      .first<{ id: number; name: string }>();
+
+    return { id: insertedFull!.id, name: insertedFull!.name, matched: false };
+  }
+
+  const existing = await env.OFFICE_DB.prepare("SELECT id, name FROM characters WHERE name LIKE ? LIMIT 1")
+    .bind(`%${tokens[0]}%`)
+    .first<{ id: number; name: string }>();
+
+  if (existing) {
+    return { id: existing.id, name: existing.name, matched: true };
+  }
+
+  const inserted = await env.OFFICE_DB.prepare(
+    "INSERT INTO characters (name, relationship) VALUES (?, ?) RETURNING id, name"
+  )
+    .bind(spokenName, relationship)
     .first<{ id: number; name: string }>();
 
   return { id: inserted!.id, name: inserted!.name, matched: false };
@@ -532,6 +601,39 @@ async function appendCustomerNote(env: Env, customerId: number, text: string): P
   }
 }
 
+// Same instant KV pattern as customer notes, distinct key prefix.
+// Deliberately no staging-queue entry for Vectorize consolidation —
+// that machinery exists to support cross-customer business search,
+// which characters should never appear in.
+async function getCharacterNotes(env: Env, characterId: number): Promise<string[]> {
+  try {
+    const raw = await env.CUSTOMER_NOTES.get(`character:${characterId}`);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as { facts: CustomerNote[] };
+    return parsed.facts.map((f) => f.text);
+  } catch {
+    return [];
+  }
+}
+
+async function appendCharacterNote(env: Env, characterId: number, text: string): Promise<void> {
+  try {
+    const key = `character:${characterId}`;
+    const raw = await env.CUSTOMER_NOTES.get(key);
+    const existing: { facts: CustomerNote[] } = raw ? JSON.parse(raw) : { facts: [] };
+    existing.facts.push({ text, storedAt: new Date().toISOString() });
+    await env.CUSTOMER_NOTES.put(key, JSON.stringify(existing));
+  } catch (err) {
+    try {
+      await env.OFFICE_DB.prepare("INSERT INTO memory_errors (customer_id, text, error) VALUES (NULL, ?, ?)")
+        .bind(text, err instanceof Error ? err.message : String(err))
+        .run();
+    } catch {
+      // Nothing further to do.
+    }
+  }
+}
+
 interface LifeEntry {
   text: string;
   storedAt: string;
@@ -749,6 +851,7 @@ async function processTranscript(
   let extractionRaw: unknown = null;
   let extractionRawText: string | null = null;
   let customer: { id: number; name: string; matched: boolean } | null = null;
+  let character: { id: number; name: string; matched: boolean } | null = null;
   let pendingActionId: number | null = null;
 
   const result = await extractIntent(env, rewritten);
@@ -758,6 +861,10 @@ async function processTranscript(
 
   if (extraction?.customer_name) {
     customer = await reconcileCustomer(env, extraction.customer_name);
+  }
+
+  if (extraction?.character_name) {
+    character = await reconcileCharacter(env, extraction.character_name, extraction.character_relationship);
   }
 
   if (extraction?.intent === "payment" && customer) {
@@ -893,6 +1000,8 @@ async function processTranscript(
   if (!isQuestion) {
     if (customer) {
       ctx.waitUntil(appendCustomerNote(env, customer.id, transcript));
+    } else if (character) {
+      ctx.waitUntil(appendCharacterNote(env, character.id, transcript));
     } else if (!extraction?.personal_note) {
       // Only fall back to storing the whole transcript as a life
       // event if personal_note didn't already capture the relevant
@@ -933,6 +1042,10 @@ async function processTranscript(
       // sentence. This is the actual fix for "who owes me money."
       const outstandingFacts = await getOutstandingInvoices(env);
       message = await answerFromMemory(env, rewritten, outstandingFacts);
+    } else if (character) {
+      const characterFacts = await getCharacterNotes(env, character.id);
+      const facts = [`${character.name} is a known personal contact.`, ...characterFacts];
+      message = await answerFromMemory(env, rewritten, facts);
     } else if (customer) {
       const memoryFacts = await getCustomerNotes(env, customer.id);
       const facts = [`${customer.name} is a known customer.`, ...memoryFacts];
@@ -1389,6 +1502,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           text: "jenny lives at 5 Ocean View, Eshowe",
           check: (e) => e?.intent !== "lookup",
         },
+        {
+          name: "a personal relation is classified as a character, not a customer",
+          text: "picked up my wife from work, she's annoyed about the kitchen guy not showing",
+          check: (e) => e?.character_name === "wife" && !e?.customer_name,
+        },
       ];
 
       const results = await Promise.all(
@@ -1660,6 +1778,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
