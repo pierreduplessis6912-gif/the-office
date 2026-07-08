@@ -838,7 +838,14 @@ async function rewriteQuery(env: Env, history: HistoryTurn[], message: string): 
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const rewritten = r.choices?.[0]?.message?.content?.trim();
     return rewritten && rewritten.length > 0 ? rewritten : message;
-  } catch {
+  } catch (err) {
+    try {
+      await env.OFFICE_DB.prepare("INSERT INTO memory_errors (customer_id, text, error) VALUES (NULL, ?, ?)")
+        .bind(`rewriteQuery failed for: ${message}`, err instanceof Error ? err.message : String(err))
+        .run();
+    } catch {
+      // Nothing further to do.
+    }
     return message;
   }
 }
@@ -1826,6 +1833,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
