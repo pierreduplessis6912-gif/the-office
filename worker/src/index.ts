@@ -12,7 +12,7 @@ interface Extraction {
   customer_name: string | null;
   character_name: string | null;
   character_relationship: string | null;
-  intent: "payment" | "invoice" | "quotation" | "convert_quote" | "lookup" | "reminder" | "note" | "other";
+  intent: "payment" | "invoice" | "quotation" | "convert_quote" | "work_observation" | "lookup" | "reminder" | "note" | "other";
   amount: number | null;
   fact_key: string | null;
   fact_value: string | null;
@@ -87,6 +87,11 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             'typically mentioning a completed job and/or a deposit already paid. "convert Jenny\'s quote to ' +
             'an invoice, she paid an 80% deposit" or "find the quote for this job and convert it, ' +
             'remaining balance is 20%" is convert_quote. ' +
+            'intent is "work_observation" if the message describes measuring, scoping, or inspecting a job ' +
+            '— components, measurements, or tasks — with NO price stated at all. This is earlier than a ' +
+            'quotation: the tradesperson is recording what they observed, not proposing a cost. If any ' +
+            'rand amount is mentioned, it is NOT work_observation — use quotation, invoice, or payment ' +
+            'instead. ' +
             "amount is a plain number in the currency's major unit (e.g. rand, not cents) if a specific " +
             "amount was stated, exactly as given — never estimate or calculate, only use a number " +
             "that was actually stated, or null if none was. " +
@@ -121,13 +126,14 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             '"picked up my wife from work, she\'s annoyed about the kitchen guy not showing" -> {"customer_name":null,"character_name":"wife","character_relationship":"wife","intent":"note","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null}\n' +
             '"how is my wife doing?" -> {"customer_name":null,"character_name":"wife","character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"character","deposit_percent":null}\n' +
             '"heading to jenny\'s job now, remind me to get dog food after" -> {"customer_name":"jenny","character_name":null,"character_relationship":null,"intent":"reminder","amount":null,"fact_key":null,"fact_value":null,"personal_note":"remind me to get dog food after","query_scope":null,"deposit_percent":null}\n' +
-            '"we completed Jenny\'s installation, she paid an 80% deposit, convert the quote to an invoice for the remaining balance" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"convert_quote","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":80}\n\n' +
+            '"we completed Jenny\'s installation, she paid an 80% deposit, convert the quote to an invoice for the remaining balance" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"convert_quote","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":80}\n' +
+            '"Dwayne is a new customer, I measured the reception area at 6600 by 4100, we also need repair work" -> {"customer_name":"Dwayne","character_name":null,"character_relationship":null,"intent":"work_observation","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null}\n\n' +
             "Return ONLY JSON, no markdown, no explanation: " +
             '{"customer_name": string or null, "character_name": string or null, "character_relationship": ' +
             'string or null, "intent": "payment" or "invoice" or "quotation" or "convert_quote" or ' +
-            '"lookup" or "reminder" or "note" or "other", "amount": number or null, "fact_key": string or ' +
-            'null, "fact_value": string or null, "personal_note": string or null, "query_scope": ' +
-            '"customer" or "character" or "personal" or "business" or null, "deposit_percent": number or null}',
+            '"work_observation" or "lookup" or "reminder" or "note" or "other", "amount": number or null, ' +
+            '"fact_key": string or null, "fact_value": string or null, "personal_note": string or null, ' +
+            '"query_scope": "customer" or "character" or "personal" or "business" or null, "deposit_percent": number or null}',
         },
         { role: "user", content: transcript },
       ],
@@ -195,6 +201,123 @@ async function extractLineItems(env: Env, transcript: string): Promise<LineItemE
   } catch {
     return [];
   }
+}
+
+interface WorkComponent {
+  name: string;
+  width_mm: number | null;
+  length_mm: number | null;
+}
+
+interface WorkTask {
+  description: string;
+}
+
+interface WorkObservationExtraction {
+  job_description: string;
+  components: WorkComponent[];
+  tasks: WorkTask[];
+  scheduled_date_raw: string | null;
+}
+
+// A generalization of "areas" — a named component of a job, which
+// SOMETIMES has dimensions and sometimes doesn't ("reception area" vs
+// "circuit 1" vs "repair work"). Deliberately not trade-specific.
+// Never asked to calculate anything — area_sqm is always computed
+// afterward, in code, from raw width/length, the same discipline as
+// every rand figure. scheduled_date_raw is extracted exactly as
+// spoken ("next Thursday") and deliberately left unresolved — turning
+// that into a real calendar date is genuine future work, not
+// something to fake here.
+async function extractWorkObservation(env: Env, transcript: string): Promise<WorkObservationExtraction> {
+  const empty: WorkObservationExtraction = {
+    job_description: transcript,
+    components: [],
+    tasks: [],
+    scheduled_date_raw: null,
+  };
+  try {
+    const result = await env.AI.run("@cf/moonshotai/kimi-k2.6", {
+      temperature: 0,
+      chat_template_kwargs: { thinking: false },
+      messages: [
+        {
+          role: "system",
+          content:
+            "Extract the structure of a tradesperson's job observation. job_description is a short " +
+            "summary of the overall job (e.g. 'vinyl flooring installation'). components is every " +
+            "distinct named part of the job that was measured or identified — a room, an area, a " +
+            "circuit, a fixture — each with a name and, if stated, width_mm and length_mm (null if no " +
+            "dimensions were given for that component; never invent dimensions). tasks is every piece " +
+            "of described work that is NOT a measured component — repair work, screeding, skirting, " +
+            "installation steps — just a description each. scheduled_date_raw is any date or timeframe " +
+            "mentioned, extracted exactly as said (e.g. 'next Thursday') — never resolve it into an " +
+            "actual date yourself, just extract the phrase, or null if none was mentioned. Never " +
+            "calculate area or any other number — only extract what was actually stated. Return ONLY " +
+            'JSON: {"job_description": string, "components": [{"name": string, "width_mm": number or ' +
+            'null, "length_mm": number or null}], "tasks": [{"description": string}], ' +
+            '"scheduled_date_raw": string or null}\n\n' +
+            "Example:\n" +
+            '"I measured the reception area at 6600 by 4100 and the office at 3300 by 3900, we also need repair work and screeding" -> ' +
+            '{"job_description":"vinyl flooring installation","components":[{"name":"reception area","width_mm":6600,"length_mm":4100},{"name":"office","width_mm":3300,"length_mm":3900}],"tasks":[{"description":"repair work"},{"description":"screeding"}],"scheduled_date_raw":null}',
+        },
+        { role: "user", content: transcript },
+      ],
+    });
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const rawText = r.choices?.[0]?.message?.content ?? "";
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned) as WorkObservationExtraction;
+    return {
+      job_description: parsed.job_description || transcript,
+      components: parsed.components ?? [],
+      tasks: parsed.tasks ?? [],
+      scheduled_date_raw: parsed.scheduled_date_raw ?? null,
+    };
+  } catch {
+    return empty;
+  }
+}
+
+// Unguarded, deliberately — same reasoning already applied to
+// characters and life events. Nothing here touches money or the
+// outside world; a wrong measurement is a cheap, easily corrected
+// mistake, not the category of consequence guard() exists for. Area
+// is always computed here, in code, from raw dimensions — never asked
+// of the model.
+async function recordWorkObservation(
+  env: Env,
+  customerId: number,
+  observation: WorkObservationExtraction,
+  sourceTranscript: string
+): Promise<{ jobScopeId: number }> {
+  const inserted = await env.OFFICE_DB.prepare(
+    "INSERT INTO job_scopes (customer_id, description, scheduled_date_raw, source_transcript) VALUES (?, ?, ?, ?) RETURNING id"
+  )
+    .bind(customerId, observation.job_description, observation.scheduled_date_raw, sourceTranscript)
+    .first<{ id: number }>();
+
+  const jobScopeId = inserted!.id;
+
+  for (const component of observation.components) {
+    const areaSqm =
+      component.width_mm != null && component.length_mm != null
+        ? (component.width_mm * component.length_mm) / 1_000_000
+        : null;
+    await env.OFFICE_DB.prepare(
+      "INSERT INTO scope_components (job_scope_id, name, width_mm, length_mm, area_sqm) VALUES (?, ?, ?, ?, ?)"
+    )
+      .bind(jobScopeId, component.name, component.width_mm, component.length_mm, areaSqm)
+      .run();
+  }
+
+  for (const task of observation.tasks) {
+    await env.OFFICE_DB.prepare("INSERT INTO scope_tasks (job_scope_id, description) VALUES (?, ?)")
+      .bind(jobScopeId, task.description)
+      .run();
+  }
+
+  return { jobScopeId };
 }
 
 // Crude first-pass reconciliation: match on the first token of the
@@ -1112,6 +1235,17 @@ async function processTranscript(
     }
   }
 
+  let workObservationResult: { jobScopeId: number; componentCount: number; taskCount: number } | null = null;
+  if (extraction?.intent === "work_observation" && customer) {
+    const observation = await extractWorkObservation(env, transcript);
+    const recorded = await recordWorkObservation(env, customer.id, observation, transcript);
+    workObservationResult = {
+      jobScopeId: recorded.jobScopeId,
+      componentCount: observation.components.length,
+      taskCount: observation.tasks.length,
+    };
+  }
+
   // Holds for confirmation instead of writing immediately. Real
   // evidence today: a misreconciled customer had this fire before
   // anyone ever saw a pending action to reject, silently overwriting
@@ -1186,6 +1320,12 @@ async function processTranscript(
         ? ` (${quotationLineItems.length} line item${quotationLineItems.length > 1 ? "s" : ""})`
         : "";
     message = `${kind} noted for ${customer!.name}${displayAmount ? ` of R${displayAmount}` : ""}${lineItemNote} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
+  } else if (workObservationResult) {
+    const { jobScopeId, componentCount, taskCount } = workObservationResult;
+    const parts: string[] = [];
+    if (componentCount > 0) parts.push(`${componentCount} component${componentCount > 1 ? "s" : ""} measured`);
+    if (taskCount > 0) parts.push(`${taskCount} task${taskCount > 1 ? "s" : ""} noted`);
+    message = `Job scope #${jobScopeId} recorded for ${customer!.name}${parts.length ? ` — ${parts.join(", ")}` : ""}.`;
   } else if (extraction?.intent === "lookup") {
     if (extraction?.query_scope === "business") {
       // No single customer — a business-wide financial question,
@@ -1654,6 +1794,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           check: (e) => e?.intent === "convert_quote" && e?.deposit_percent === 80,
         },
         {
+          name: "work_observation classifies correctly, no price stated",
+          text: "Dwayne is a new customer, I measured the reception area at 6600 by 4100 for vinyl flooring, we also need repair work",
+          check: (e) => e?.intent === "work_observation" && e?.amount === null,
+        },
+        {
           name: "a stated fact is not misread as a question",
           text: "jenny lives at 5 Ocean View, Eshowe",
           check: (e) => e?.intent !== "lookup",
@@ -1713,6 +1858,30 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
 
       const [thinkingOff, thinkingOn] = await Promise.all([runOnce(false), runOnce(true)]);
       return Response.json({ thinkingOff, thinkingOn });
+    }
+
+    if (url.pathname === "/debug/job-scopes" && request.method === "GET") {
+      const { results: scopes } = await env.OFFICE_DB.prepare(
+        "SELECT js.id, js.customer_id, c.name as customer_name, js.description, js.scheduled_date_raw, js.created_at FROM job_scopes js JOIN customers c ON c.id = js.customer_id ORDER BY js.created_at DESC LIMIT 10"
+      ).all();
+
+      const enriched = await Promise.all(
+        (scopes as Array<{ id: number }>).map(async (scope) => {
+          const { results: components } = await env.OFFICE_DB.prepare(
+            "SELECT name, width_mm, length_mm, area_sqm FROM scope_components WHERE job_scope_id = ?"
+          )
+            .bind(scope.id)
+            .all();
+          const { results: tasks } = await env.OFFICE_DB.prepare(
+            "SELECT description FROM scope_tasks WHERE job_scope_id = ?"
+          )
+            .bind(scope.id)
+            .all();
+          return { ...scope, components, tasks };
+        })
+      );
+
+      return Response.json({ jobScopes: enriched });
     }
 
     if (url.pathname === "/debug/captures" && request.method === "GET") {
@@ -2042,6 +2211,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
