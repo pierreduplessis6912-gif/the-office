@@ -20,6 +20,14 @@ are not.
   owes me money" — all computed deterministically in code from real
   stored numbers. The model's job is to identify *what was said*, never
   to calculate anything from it.
+- **Every real AI call is wrapped in `withRetry`.** Real evidence
+  2026-07-09: multiple genuine transient failures, every one succeeding
+  cleanly on a plain retry seconds later. Any new function that calls
+  `env.AI.run(...)` for anything user-facing must wrap the call the
+  same way — see `withRetry` near the top of `index.ts`. The two
+  `/debug/*` diagnostic routes that deliberately call the model raw,
+  unwrapped, are the sole intentional exception, since they exist
+  specifically to show unmodified behavior.
 - **Build only what's earned by real evidence.** Every non-trivial
   piece here exists because a real test or a real failure demanded it,
   not because it seemed like a reasonable feature to add. This is the
@@ -218,3 +226,4 @@ build once a batch of UI changes is settled.
   `office.websitehub.co.za/*` → `office-api`) — subdomain-specific
   routing correctly takes precedence; confirmed directly via the
   Cloudflare API, not assumed.
+
