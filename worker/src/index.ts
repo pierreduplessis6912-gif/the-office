@@ -205,12 +205,14 @@ async function extractLineItems(env: Env, transcript: string): Promise<LineItemE
 
 interface WorkComponent {
   name: string;
-  width_mm: number | null;
-  length_mm: number | null;
+  width: number | null;
+  length: number | null;
+  unit: "mm" | "m" | null; // the model's job: recognize the unit; conversion always happens in code
 }
 
 interface WorkTask {
   description: string;
+  component_name: string | null; // e.g. "Theatre 2" — null if it applies to the whole job, not one part
 }
 
 interface WorkObservationExtraction {
@@ -247,19 +249,29 @@ async function extractWorkObservation(env: Env, transcript: string): Promise<Wor
             "Extract the structure of a tradesperson's job observation. job_description is a short " +
             "summary of the overall job (e.g. 'vinyl flooring installation'). components is every " +
             "distinct named part of the job that was measured or identified — a room, an area, a " +
-            "circuit, a fixture — each with a name and, if stated, width_mm and length_mm (null if no " +
-            "dimensions were given for that component; never invent dimensions). tasks is every piece " +
-            "of described work that is NOT a measured component — repair work, screeding, skirting, " +
-            "installation steps — just a description each. scheduled_date_raw is any date or timeframe " +
+            "circuit, a fixture — each with a name and, if stated, width, length, and unit. unit is " +
+            "'mm' or 'm' — recognize which was meant from context and magnitude, never guess randomly: " +
+            "numbers like 6600 or 4100 with no stated unit are almost always millimeters (a laser " +
+            "measure's native output); numbers like 8, 6, 7, or 5.5 with no stated unit, especially for " +
+            "a room or building, are almost always meters. If dimensions were stated with an explicit " +
+            "unit, use that. Only extract the number and unit exactly as implied — NEVER convert or " +
+            "calculate anything yourself, that always happens afterward, in code. Set width/length to " +
+            "null if no dimensions were given for that component; never invent dimensions. tasks is " +
+            "every piece of described work that is NOT a measured component — repair work, screeding, " +
+            "moisture testing, skirting removal — each with a description and, if the task was clearly " +
+            "said about ONE specific named component (e.g. 'Theatre 2 needs moisture testing'), " +
+            "component_name matching that component's name exactly; null if the task applies to the " +
+            "whole job rather than one specific part. scheduled_date_raw is any date or timeframe " +
             "mentioned, extracted exactly as said (e.g. 'next Thursday') — never resolve it into an " +
-            "actual date yourself, just extract the phrase, or null if none was mentioned. Never " +
-            "calculate area or any other number — only extract what was actually stated. Return ONLY " +
-            'JSON: {"job_description": string, "components": [{"name": string, "width_mm": number or ' +
-            'null, "length_mm": number or null}], "tasks": [{"description": string}], ' +
-            '"scheduled_date_raw": string or null}\n\n' +
-            "Example:\n" +
+            "actual date yourself, just extract the phrase, or null if none was mentioned. Return ONLY " +
+            'JSON: {"job_description": string, "components": [{"name": string, "width": number or ' +
+            'null, "length": number or null, "unit": "mm" or "m" or null}], "tasks": [{"description": ' +
+            'string, "component_name": string or null}], "scheduled_date_raw": string or null}\n\n' +
+            "Examples:\n" +
             '"I measured the reception area at 6600 by 4100 and the office at 3300 by 3900, we also need repair work and screeding" -> ' +
-            '{"job_description":"vinyl flooring installation","components":[{"name":"reception area","width_mm":6600,"length_mm":4100},{"name":"office","width_mm":3300,"length_mm":3900}],"tasks":[{"description":"repair work"},{"description":"screeding"}],"scheduled_date_raw":null}',
+            '{"job_description":"vinyl flooring installation","components":[{"name":"reception area","width":6600,"length":4100,"unit":"mm"},{"name":"office","width":3300,"length":3900,"unit":"mm"}],"tasks":[{"description":"repair work","component_name":null},{"description":"screeding","component_name":null}],"scheduled_date_raw":null}\n' +
+            '"Theatre 2 is 8 by 6, Theatre 3 is 7 by 5.5, vinyl throughout. Theatre 2 needs moisture testing. Theatre 3 needs skirting removed first." -> ' +
+            '{"job_description":"vinyl flooring installation","components":[{"name":"Theatre 2","width":8,"length":6,"unit":"m"},{"name":"Theatre 3","width":7,"length":5.5,"unit":"m"}],"tasks":[{"description":"moisture testing","component_name":"Theatre 2"},{"description":"skirting removed first","component_name":"Theatre 3"}],"scheduled_date_raw":null}',
         },
         { role: "user", content: transcript },
       ],
@@ -299,21 +311,35 @@ async function recordWorkObservation(
 
   const jobScopeId = inserted!.id;
 
+  // Maps a component's name back to its real D1 id, so a task naming
+  // "Theatre 2" can be linked to the actual row just inserted for it.
+  const componentIdByName = new Map<string, number>();
+
   for (const component of observation.components) {
-    const areaSqm =
-      component.width_mm != null && component.length_mm != null
-        ? (component.width_mm * component.length_mm) / 1_000_000
-        : null;
-    await env.OFFICE_DB.prepare(
-      "INSERT INTO scope_components (job_scope_id, name, width_mm, length_mm, area_sqm) VALUES (?, ?, ?, ?, ?)"
+    // Unit conversion — the one piece of arithmetic in this whole
+    // step — always happens here, in code. The model's only job was
+    // recognizing which unit was meant; multiplying by 1000 is never
+    // something it does itself.
+    const widthMm = component.width != null ? (component.unit === "m" ? component.width * 1000 : component.width) : null;
+    const lengthMm =
+      component.length != null ? (component.unit === "m" ? component.length * 1000 : component.length) : null;
+    const areaSqm = widthMm != null && lengthMm != null ? (widthMm * lengthMm) / 1_000_000 : null;
+
+    const insertedComponent = await env.OFFICE_DB.prepare(
+      "INSERT INTO scope_components (job_scope_id, name, width_mm, length_mm, area_sqm) VALUES (?, ?, ?, ?, ?) RETURNING id"
     )
-      .bind(jobScopeId, component.name, component.width_mm, component.length_mm, areaSqm)
-      .run();
+      .bind(jobScopeId, component.name, widthMm, lengthMm, areaSqm)
+      .first<{ id: number }>();
+
+    componentIdByName.set(component.name.toLowerCase(), insertedComponent!.id);
   }
 
   for (const task of observation.tasks) {
-    await env.OFFICE_DB.prepare("INSERT INTO scope_tasks (job_scope_id, description) VALUES (?, ?)")
-      .bind(jobScopeId, task.description)
+    const componentId = task.component_name ? componentIdByName.get(task.component_name.toLowerCase()) ?? null : null;
+    await env.OFFICE_DB.prepare(
+      "INSERT INTO scope_tasks (job_scope_id, description, component_id) VALUES (?, ?, ?)"
+    )
+      .bind(jobScopeId, task.description, componentId)
       .run();
   }
 
@@ -1873,7 +1899,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             .bind(scope.id)
             .all();
           const { results: tasks } = await env.OFFICE_DB.prepare(
-            "SELECT description FROM scope_tasks WHERE job_scope_id = ?"
+            "SELECT description, component_id FROM scope_tasks WHERE job_scope_id = ?"
           )
             .bind(scope.id)
             .all();
@@ -2211,6 +2237,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
