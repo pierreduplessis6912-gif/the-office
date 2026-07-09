@@ -881,12 +881,57 @@ async function rewriteQuery(env: Env, history: HistoryTurn[], message: string): 
 // (directly on typed input) — same extraction, reconciliation, guard(),
 // and memory logic either way. A transcript is a transcript, whether
 // it came from Whisper or a keyboard.
+// The receptacle. Every single message lands here, unconditionally,
+// the instant it arrives — before extraction even runs, and
+// regardless of what extraction later manages or fails to structure
+// from it. This is what would have saved Dwayne's measurements: even
+// when extraction only pulls out a phone number, the entire real
+// sentence still exists verbatim, findable later. Nothing said is
+// ever truly lost — it's just not yet understood.
+async function logCapture(env: Env, rawText: string, source: string): Promise<number | null> {
+  try {
+    const inserted = await env.OFFICE_DB.prepare(
+      "INSERT INTO captures (raw_text, source) VALUES (?, ?) RETURNING id"
+    )
+      .bind(rawText, source)
+      .first<{ id: number }>();
+    return inserted!.id;
+  } catch (err) {
+    try {
+      await env.OFFICE_DB.prepare("INSERT INTO memory_errors (customer_id, text, error) VALUES (NULL, ?, ?)")
+        .bind(`logCapture failed: ${rawText}`, err instanceof Error ? err.message : String(err))
+        .run();
+    } catch {
+      // Nothing further to do.
+    }
+    return null;
+  }
+}
+
+// Enriches the raw capture with a loose hint once extraction knows who
+// it was about — never required at capture time, only added after.
+async function updateCaptureHint(env: Env, captureId: number, subjectHint: string | null): Promise<void> {
+  try {
+    await env.OFFICE_DB.prepare(
+      "UPDATE captures SET subject_hint = ?, extraction_status = 'processed' WHERE id = ?"
+    )
+      .bind(subjectHint, captureId)
+      .run();
+  } catch {
+    // Best-effort enrichment — the raw capture already exists
+    // regardless, which is the part that actually matters.
+  }
+}
+
 async function processTranscript(
   env: Env,
   transcript: string,
   ctx: ExecutionContext,
-  history: HistoryTurn[] = []
+  history: HistoryTurn[] = [],
+  source: string = "text"
 ): Promise<ProcessResult> {
+  const captureId = await logCapture(env, transcript, source);
+
   const rewritten = await rewriteQuery(env, history, transcript);
 
   let extraction: Extraction | null = null;
@@ -907,6 +952,11 @@ async function processTranscript(
 
   if (extraction?.character_name) {
     character = await reconcileCharacter(env, extraction.character_name, extraction.character_relationship);
+  }
+
+  if (captureId !== null) {
+    const hint = customer?.name ?? character?.name ?? null;
+    ctx.waitUntil(updateCaptureHint(env, captureId, hint));
   }
 
   if (extraction?.intent === "payment" && customer) {
@@ -1359,7 +1409,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       const audioBuffer = await object.arrayBuffer();
 
       const { transcript, transcriptionError } = await transcribe(env, audioBuffer);
-      const processed = transcript ? await processTranscript(env, transcript, ctx) : null;
+      const processed = transcript ? await processTranscript(env, transcript, ctx, [], "voice") : null;
 
       return Response.json({ key, transcript, transcriptionError, ...processed });
     }
@@ -1606,6 +1656,13 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ thinkingOff, thinkingOn });
     }
 
+    if (url.pathname === "/debug/captures" && request.method === "GET") {
+      const { results } = await env.OFFICE_DB.prepare(
+        "SELECT id, raw_text, source, subject_hint, extraction_status, created_at FROM captures ORDER BY created_at DESC LIMIT 20"
+      ).all();
+      return Response.json({ captures: results });
+    }
+
     // --- end debug routes ---
 
     // List everything still waiting on a human decision.
@@ -1791,7 +1848,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       ]);
 
       const processed = transcript
-        ? await processTranscript(env, transcript, ctx, history)
+        ? await processTranscript(env, transcript, ctx, history, "voice")
         : {
             extraction: null,
             extractionRaw: null,
@@ -1817,7 +1874,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         return Response.json({ error: "missing text" }, { status: 400 });
       }
 
-      const processed = await processTranscript(env, text, ctx, history);
+      const processed = await processTranscript(env, text, ctx, history, "text");
       return Response.json({ status: "processed", transcript: text, ...processed });
     }
 
@@ -1865,6 +1922,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
