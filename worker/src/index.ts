@@ -914,7 +914,9 @@ async function logCapture(env: Env, rawText: string, source: string, r2Key: stri
 // it's enrichment, arriving after, exactly like subject_hint does.
 async function updateCaptureText(env: Env, captureId: number, rawText: string): Promise<void> {
   try {
-    await env.OFFICE_DB.prepare("UPDATE captures SET raw_text = ? WHERE id = ?").bind(rawText, captureId).run();
+    await env.OFFICE_DB.prepare("UPDATE captures SET raw_text = ?, extraction_status = 'processed' WHERE id = ?")
+      .bind(rawText, captureId)
+      .run();
   } catch {
     // Best effort — the row and the real R2 image already exist
     // regardless, which is what actually matters.
@@ -2009,6 +2011,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
