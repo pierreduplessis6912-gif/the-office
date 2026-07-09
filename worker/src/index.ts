@@ -1716,9 +1716,16 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     }
 
     if (url.pathname === "/debug/captures" && request.method === "GET") {
-      const { results } = await env.OFFICE_DB.prepare(
-        "SELECT id, raw_text, source, subject_hint, extraction_status, r2_key, created_at FROM captures ORDER BY created_at DESC LIMIT 20"
-      ).all();
+      const status = url.searchParams.get("status");
+      const { results } = status
+        ? await env.OFFICE_DB.prepare(
+            "SELECT id, raw_text, source, subject_hint, extraction_status, r2_key, created_at FROM captures WHERE extraction_status = ? ORDER BY created_at DESC LIMIT 50"
+          )
+            .bind(status)
+            .all()
+        : await env.OFFICE_DB.prepare(
+            "SELECT id, raw_text, source, subject_hint, extraction_status, r2_key, created_at FROM captures ORDER BY created_at DESC LIMIT 20"
+          ).all();
       return Response.json({ captures: results });
     }
 
@@ -1929,6 +1936,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     if (url.pathname === "/files/photo" && request.method === "POST") {
       const formData = await request.formData();
       const photo = formData.get("photo");
+      const caption = formData.get("caption");
 
       if (!(photo instanceof File)) {
         return Response.json({ error: "missing photo file" }, { status: 400 });
@@ -1945,11 +1953,34 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       const base64 = arrayBufferToBase64(photoBuffer);
       const description = await describeImage(env, base64, mimeType);
 
-      if (captureId !== null) {
-        await updateCaptureText(env, captureId, description);
+      // A caption is optional — never invented, never guessed from the
+      // image itself. If given, it's just a spoken or typed sentence
+      // like any other, so it reuses the exact same extraction and
+      // reconciliation already proven for text and voice, rather than
+      // inventing a separate subject-detection path for photos.
+      let subjectHint: string | null = null;
+      let rawText = description;
+      if (typeof caption === "string" && caption.trim().length > 0) {
+        const captionText = caption.trim();
+        rawText = `${captionText}\n\n[Photo description: ${description}]`;
+        const { extraction } = await extractIntent(env, captionText);
+        if (extraction?.customer_name) {
+          const customer = await reconcileCustomer(env, extraction.customer_name);
+          subjectHint = customer?.name ?? null;
+        } else if (extraction?.character_name) {
+          const character = await reconcileCharacter(env, extraction.character_name, extraction.character_relationship);
+          subjectHint = character?.name ?? null;
+        }
       }
 
-      return Response.json({ status: "stored", key, captureId, description });
+      if (captureId !== null) {
+        await updateCaptureText(env, captureId, rawText);
+        if (subjectHint) {
+          await updateCaptureHint(env, captureId, subjectHint);
+        }
+      }
+
+      return Response.json({ status: "stored", key, captureId, description, subjectHint });
     }
 
     // "Type" mode. Same pipeline, no transcription step needed since
@@ -2011,6 +2042,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
