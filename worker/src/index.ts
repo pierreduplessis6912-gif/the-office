@@ -1,4 +1,5 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
 
 export interface Env {
   OFFICE_DB: D1Database;
@@ -96,10 +97,15 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             "amount was stated, exactly as given — never estimate or calculate, only use a number " +
             "that was actually stated, or null if none was. " +
             "fact_key and fact_value: if the message states a clear, structured attribute about the " +
-            "customer that could apply to any customer (address, phone_number, email, etc.), extract it " +
-            'as a short snake_case key and its value — e.g. fact_key: "address", fact_value: "12 Golf ' +
-            'Way, Eco Estate, Eshowe". If the message is a general note that does not cleanly reduce to ' +
-            "one key and value, set both to null. " +
+            "customer, extract it as a short snake_case key and its value. For a phone number, email, " +
+            "or address specifically, ALWAYS use exactly these keys — \"phone_number\", \"email\", or " +
+            '"address" — never a variant like "cell", "mobile", or "contact_number", so the same kind ' +
+            "of fact is always named the same way. For anything else genuinely specific to this trade " +
+            "or job (e.g. a circuit rating, a paint colour, a fabric type), invent a short, clear " +
+            'snake_case key as before — e.g. fact_key: "address", fact_value: "12 Golf Way, Eco Estate, ' +
+            'Eshowe". Extract the value exactly as stated — never reformat, normalize, or convert it ' +
+            "yourself, that always happens afterward, in code. If the message is a general note that " +
+            "does not cleanly reduce to one key and value, set both to null. " +
             "personal_note: real speech often mixes a customer-related part with something that is " +
             "actually about the tradesperson's own life, not the customer — an errand, a reminder, a " +
             "family task. If the message contains such a fragment ALONGSIDE a customer reference, " +
@@ -701,10 +707,24 @@ async function applyStructuredFact(
       return;
     }
 
+    // Real normalization, always in code — never left to the model's
+    // own formatting. Defaults to South Africa since that's the
+    // business's actual market; a number already carrying a country
+    // code (e.g. "+44...") is respected as given.
+    let normalizedValue = value;
+    if (normalizedKey === "phone_number") {
+      const parsed = parsePhoneNumberFromString(value, "ZA");
+      if (parsed?.isValid()) {
+        normalizedValue = parsed.formatInternational();
+      }
+    } else if (normalizedKey === "email") {
+      normalizedValue = value.trim().toLowerCase();
+    }
+
     await env.OFFICE_DB.prepare(
       "INSERT INTO customer_facts (customer_id, key, value, source_transcript) VALUES (?, ?, ?, ?)"
     )
-      .bind(customerId, normalizedKey, value, sourceTranscript)
+      .bind(customerId, normalizedKey, normalizedValue, sourceTranscript)
       .run();
   } catch (err) {
     // This runs in ctx.waitUntil — there is no response left to attach
@@ -2237,6 +2257,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
