@@ -888,12 +888,12 @@ async function rewriteQuery(env: Env, history: HistoryTurn[], message: string): 
 // when extraction only pulls out a phone number, the entire real
 // sentence still exists verbatim, findable later. Nothing said is
 // ever truly lost — it's just not yet understood.
-async function logCapture(env: Env, rawText: string, source: string): Promise<number | null> {
+async function logCapture(env: Env, rawText: string, source: string, r2Key: string | null = null): Promise<number | null> {
   try {
     const inserted = await env.OFFICE_DB.prepare(
-      "INSERT INTO captures (raw_text, source) VALUES (?, ?) RETURNING id"
+      "INSERT INTO captures (raw_text, source, r2_key) VALUES (?, ?, ?) RETURNING id"
     )
-      .bind(rawText, source)
+      .bind(rawText, source, r2Key)
       .first<{ id: number }>();
     return inserted!.id;
   } catch (err) {
@@ -905,6 +905,62 @@ async function logCapture(env: Env, rawText: string, source: string): Promise<nu
       // Nothing further to do.
     }
     return null;
+  }
+}
+
+// Fills in the real content once it's known — for a photo, the raw
+// image itself is what was actually captured (same role a transcript
+// plays for voice); the description is already an interpretation, so
+// it's enrichment, arriving after, exactly like subject_hint does.
+async function updateCaptureText(env: Env, captureId: number, rawText: string): Promise<void> {
+  try {
+    await env.OFFICE_DB.prepare("UPDATE captures SET raw_text = ? WHERE id = ?").bind(rawText, captureId).run();
+  } catch {
+    // Best effort — the row and the real R2 image already exist
+    // regardless, which is what actually matters.
+  }
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 8192; // avoid call-stack limits on large images
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+// Reuses Kimi K2.6 — the same model already proven for extraction,
+// rewriting, and synthesis — rather than reaching for a separate
+// vision model before there's evidence this one isn't enough. Asked
+// to be literal, not creative: this is a raw record of what a
+// tradesperson photographed, not a caption for a gallery.
+async function describeImage(env: Env, base64: string, mimeType: string): Promise<string> {
+  try {
+    const result = await env.AI.run("@cf/moonshotai/kimi-k2.6", {
+      temperature: 0,
+      chat_template_kwargs: { thinking: false },
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text:
+                "Describe exactly what is shown in this photo, including any visible text, numbers, or " +
+                "measurements — read them precisely if legible. Be literal and specific, not creative: " +
+                "this is a raw record of what a tradesperson photographed on a job.",
+            },
+            { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } },
+          ],
+        },
+      ],
+    });
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    return r.choices?.[0]?.message?.content?.trim() || "[could not describe image]";
+  } catch (err) {
+    return `[image description failed: ${err instanceof Error ? err.message : String(err)}]`;
   }
 }
 
@@ -928,9 +984,10 @@ async function processTranscript(
   transcript: string,
   ctx: ExecutionContext,
   history: HistoryTurn[] = [],
-  source: string = "text"
+  source: string = "text",
+  r2Key: string | null = null
 ): Promise<ProcessResult> {
-  const captureId = await logCapture(env, transcript, source);
+  const captureId = await logCapture(env, transcript, source, r2Key);
 
   const rewritten = await rewriteQuery(env, history, transcript);
 
@@ -1409,7 +1466,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       const audioBuffer = await object.arrayBuffer();
 
       const { transcript, transcriptionError } = await transcribe(env, audioBuffer);
-      const processed = transcript ? await processTranscript(env, transcript, ctx, [], "voice") : null;
+      const processed = transcript ? await processTranscript(env, transcript, ctx, [], "voice", key) : null;
 
       return Response.json({ key, transcript, transcriptionError, ...processed });
     }
@@ -1658,7 +1715,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
 
     if (url.pathname === "/debug/captures" && request.method === "GET") {
       const { results } = await env.OFFICE_DB.prepare(
-        "SELECT id, raw_text, source, subject_hint, extraction_status, created_at FROM captures ORDER BY created_at DESC LIMIT 20"
+        "SELECT id, raw_text, source, subject_hint, extraction_status, r2_key, created_at FROM captures ORDER BY created_at DESC LIMIT 20"
       ).all();
       return Response.json({ captures: results });
     }
@@ -1848,7 +1905,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       ]);
 
       const processed = transcript
-        ? await processTranscript(env, transcript, ctx, history, "voice")
+        ? await processTranscript(env, transcript, ctx, history, "voice", key)
         : {
             extraction: null,
             extractionRaw: null,
@@ -1861,6 +1918,36 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           };
 
       return Response.json({ status: "stored", key, transcript, transcriptionError, ...processed });
+    }
+
+    // Photo capture. The raw image itself is what was actually
+    // captured — same role a transcript plays for voice — so the
+    // capture row and its real R2 key exist the instant it arrives,
+    // before Kimi's vision description ever runs.
+    if (url.pathname === "/files/photo" && request.method === "POST") {
+      const formData = await request.formData();
+      const photo = formData.get("photo");
+
+      if (!(photo instanceof File)) {
+        return Response.json({ error: "missing photo file" }, { status: 400 });
+      }
+
+      const photoBuffer = await photo.arrayBuffer();
+      const mimeType = photo.type || "image/jpeg";
+      const extension = mimeType.includes("png") ? "png" : "jpg";
+      const key = `photos/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+
+      await env.OFFICE_VAULT.put(key, photoBuffer);
+      const captureId = await logCapture(env, "[photo — description pending]", "photo", key);
+
+      const base64 = arrayBufferToBase64(photoBuffer);
+      const description = await describeImage(env, base64, mimeType);
+
+      if (captureId !== null) {
+        await updateCaptureText(env, captureId, description);
+      }
+
+      return Response.json({ status: "stored", key, captureId, description });
     }
 
     // "Type" mode. Same pipeline, no transcription step needed since
@@ -1922,6 +2009,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
