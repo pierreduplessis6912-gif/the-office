@@ -1838,8 +1838,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
 
       const results = await Promise.all(
         cases.map(async (c) => {
-          const { extraction } = await extractIntent(env, c.text);
-          return { name: c.name, input: c.text, pass: c.check(extraction), extraction };
+          const { extraction, raw } = await extractIntent(env, c.text);
+          return { name: c.name, input: c.text, pass: c.check(extraction), extraction, rawOnFailure: extraction ? undefined : raw };
         })
       );
 
@@ -2237,6 +2237,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
