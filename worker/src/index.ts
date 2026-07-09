@@ -33,11 +33,36 @@ interface ProcessResult {
   rewrittenQuery: string;
 }
 
+// Real evidence today: multiple genuine, transient AI-call failures,
+// every single one succeeding cleanly on a plain retry seconds later.
+// Wrapping every real model call in a couple of quick, automatic
+// retries means Peter should rarely if ever see one of these at all
+// — the existing per-function fallback behavior (empty results, a
+// logged error) is still there as a backstop if every attempt
+// genuinely fails, this just makes reaching that backstop far less
+// likely.
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts: number = 3, baseDelayMs: number = 300): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, baseDelayMs * 2 ** (attempt - 1)));
+      }
+    }
+  }
+  throw lastError;
+}
+
 async function transcribe(env: Env, audioBuffer: ArrayBuffer): Promise<{ transcript: string | null; transcriptionError: string | null }> {
   try {
-    const result = await env.AI.run("@cf/openai/whisper", {
-      audio: [...new Uint8Array(audioBuffer)],
-    });
+    const result = await withRetry(() =>
+      env.AI.run("@cf/openai/whisper", {
+        audio: [...new Uint8Array(audioBuffer)],
+      })
+    );
     return { transcript: (result as { text?: string }).text ?? null, transcriptionError: null };
   } catch (err) {
     return { transcript: null, transcriptionError: err instanceof Error ? err.message : String(err) };
@@ -55,14 +80,15 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
   let rawText: string | null = null;
   let result: unknown = null;
   try {
-    result = await env.AI.run("@cf/moonshotai/kimi-k2.6", {
-      temperature: 0,
-      chat_template_kwargs: { thinking: false },
-      messages: [
-        {
-          role: "system",
-          content:
-            "Extract structured facts from a tradesperson's message. " +
+    result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        temperature: 0,
+        chat_template_kwargs: { thinking: false },
+        messages: [
+          {
+            role: "system",
+            content:
+              "Extract structured facts from a tradesperson's message. " +
             'customer_name is the specific customer mentioned, exactly as spoken or typed, or null if none ' +
             "— someone the tradesperson does BUSINESS with (quotes, invoices, jobs, payments). " +
             'character_name is a personal relation mentioned instead of a customer — spouse, family, ' +
@@ -143,7 +169,7 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
         },
         { role: "user", content: transcript },
       ],
-    });
+    }));
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     rawText = r.choices?.[0]?.message?.content ?? null;
     const cleaned = (rawText ?? "").replace(/```json|```/g, "").trim();
@@ -173,14 +199,15 @@ interface LineItemExtraction {
 // is always computed deterministically afterward, in code.
 async function extractLineItems(env: Env, transcript: string): Promise<LineItemExtraction[]> {
   try {
-    const result = await env.AI.run("@cf/moonshotai/kimi-k2.6", {
-      temperature: 0,
-      chat_template_kwargs: { thinking: false },
-      messages: [
-        {
-          role: "system",
-          content:
-            "Extract every distinct line item from a tradesperson's quotation or invoice description. " +
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        temperature: 0,
+        chat_template_kwargs: { thinking: false },
+        messages: [
+          {
+            role: "system",
+            content:
+              "Extract every distinct line item from a tradesperson's quotation or invoice description. " +
             "Each line item has: description (what the work or material is), note (an informal aside or " +
             "preference mentioned alongside it, e.g. a colour preference — or null if none), quantity " +
             "(a plain number, default 1 if not stated), unit (e.g. 'sqm', 'meter', 'each', 'hour', or " +
@@ -198,7 +225,7 @@ async function extractLineItems(env: Env, transcript: string): Promise<LineItemE
         },
         { role: "user", content: transcript },
       ],
-    });
+    }));
     const r2 = result as { choices?: Array<{ message?: { content?: string } }> };
     const rawText2 = r2.choices?.[0]?.message?.content ?? "";
     const cleaned2 = rawText2.replace(/```json|```/g, "").trim();
@@ -245,14 +272,15 @@ async function extractWorkObservation(env: Env, transcript: string): Promise<Wor
     scheduled_date_raw: null,
   };
   try {
-    const result = await env.AI.run("@cf/moonshotai/kimi-k2.6", {
-      temperature: 0,
-      chat_template_kwargs: { thinking: false },
-      messages: [
-        {
-          role: "system",
-          content:
-            "Extract the structure of a tradesperson's job observation. job_description is a short " +
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        temperature: 0,
+        chat_template_kwargs: { thinking: false },
+        messages: [
+          {
+            role: "system",
+            content:
+              "Extract the structure of a tradesperson's job observation. job_description is a short " +
             "summary of the overall job (e.g. 'vinyl flooring installation'). components is every " +
             "distinct named part of the job that was measured or identified — a room, an area, a " +
             "circuit, a fixture — each with a name and, if stated, width, length, and unit. unit is " +
@@ -281,7 +309,7 @@ async function extractWorkObservation(env: Env, transcript: string): Promise<Wor
         },
         { role: "user", content: transcript },
       ],
-    });
+    }));
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const rawText = r.choices?.[0]?.message?.content ?? "";
     const cleaned = rawText.replace(/```json|```/g, "").trim();
@@ -746,7 +774,7 @@ async function applyStructuredFact(
 // answer from instead.
 
 async function embedText(env: Env, text: string): Promise<number[]> {
-  const result = await env.AI.run("@cf/baai/bge-base-en-v1.5", { text });
+  const result = await withRetry(() => env.AI.run("@cf/baai/bge-base-en-v1.5", { text }));
   return (result as { data: number[][] }).data[0];
 }
 
@@ -918,10 +946,12 @@ async function storeUnscopedMemory(env: Env, text: string): Promise<void> {
 async function rerank(env: Env, query: string, candidates: string[]): Promise<string[]> {
   if (candidates.length === 0) return [];
   try {
-    const result = await env.AI.run("@cf/baai/bge-reranker-base", {
-      query,
-      contexts: candidates.map((text) => ({ text })),
-    });
+    const result = await withRetry(() =>
+      env.AI.run("@cf/baai/bge-reranker-base", {
+        query,
+        contexts: candidates.map((text) => ({ text })),
+      })
+    );
     const scored =
       (result as { response?: Array<{ id: number; score: number }> }).response ??
       (result as unknown as Array<{ id: number; score: number }>) ??
@@ -964,22 +994,23 @@ async function answerFromMemory(env: Env, question: string, facts: string[]): Pr
     return "I don't have anything on file for that yet.";
   }
   try {
-    const result = await env.AI.run("@cf/moonshotai/kimi-k2.6", {
-      temperature: 0,
-      chat_template_kwargs: { thinking: false },
-      messages: [
-        {
-          role: "system",
-          content:
-            "Answer the tradesperson's question using only the facts below. Be brief, one sentence, " +
-            "but ALWAYS include any specific numbers, amounts, or figures from the facts — never " +
-            "summarize a number away into a vague statement. " +
-            "If the facts don't actually answer the question, say you don't have that on file.\n\n" +
-            `Facts:\n${facts.map((f) => `- ${f}`).join("\n")}`,
-        },
-        { role: "user", content: question },
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        temperature: 0,
+        chat_template_kwargs: { thinking: false },
+        messages: [
+          {
+            role: "system",
+            content:
+              "Answer the tradesperson's question using only the facts below. Be brief, one sentence, " +
+              "but ALWAYS include any specific numbers, amounts, or figures from the facts — never " +
+              "summarize a number away into a vague statement. " +
+              "If the facts don't actually answer the question, say you don't have that on file.\n\n" +
+              `Facts:\n${facts.map((f) => `- ${f}`).join("\n")}`,
+          },
+          { role: "user", content: question },
       ],
-    });
+    }));
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const answer = r.choices?.[0]?.message?.content;
     return typeof answer === "string" && answer.trim() ? answer.trim() : facts[0];
@@ -1009,14 +1040,15 @@ async function rewriteQuery(env: Env, history: HistoryTurn[], message: string): 
     // candidates against an explicit tie-break rule (recency over
     // frequency) genuinely requires reasoning, unlike simple
     // classification where thinking:false was proven sufficient.
-    const result = await env.AI.run("@cf/moonshotai/kimi-k2.6", {
-      chat_template_kwargs: { thinking: true },
-      temperature: 0,
-      max_tokens: 600,
-      messages: [
-        {
-          role: "system",
-          content:
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        chat_template_kwargs: { thinking: true },
+        temperature: 0,
+        max_tokens: 600,
+        messages: [
+          {
+            role: "system",
+            content:
             "Rewrite the new message to be fully self-contained, replacing any pronouns or vague " +
             "references (her, him, that, it, the invoice, etc.) with the specific name or thing they " +
             "refer to, using the conversation history for context. When more than one person or thing " +
@@ -1030,7 +1062,7 @@ async function rewriteQuery(env: Env, history: HistoryTurn[], message: string): 
         },
         { role: "user", content: message },
       ],
-    });
+    }));
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const rewritten = r.choices?.[0]?.message?.content?.trim();
     return rewritten && rewritten.length > 0 ? rewritten : message;
@@ -1109,25 +1141,26 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 // tradesperson photographed, not a caption for a gallery.
 async function describeImage(env: Env, base64: string, mimeType: string): Promise<string> {
   try {
-    const result = await env.AI.run("@cf/moonshotai/kimi-k2.6", {
-      temperature: 0,
-      chat_template_kwargs: { thinking: false },
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text:
-                "Describe exactly what is shown in this photo, including any visible text, numbers, or " +
-                "measurements — read them precisely if legible. Be literal and specific, not creative: " +
-                "this is a raw record of what a tradesperson photographed on a job.",
-            },
-            { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } },
-          ],
-        },
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        temperature: 0,
+        chat_template_kwargs: { thinking: false },
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text:
+                  "Describe exactly what is shown in this photo, including any visible text, numbers, or " +
+                  "measurements — read them precisely if legible. Be literal and specific, not creative: " +
+                  "this is a raw record of what a tradesperson photographed on a job.",
+              },
+              { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } },
+            ],
+          },
       ],
-    });
+    }));
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     return r.choices?.[0]?.message?.content?.trim() || "[could not describe image]";
   } catch (err) {
@@ -2257,6 +2290,7 @@ export default {
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
+
 
 
 
