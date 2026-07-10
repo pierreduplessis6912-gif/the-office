@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>The Office</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --void: #0a0a0b;
+    --pulse: #e63946;
+    --pulse-glow: rgba(230, 57, 70, 0.3);
+    --breathe: #2a9d8f;
+    --breathe-glow: rgba(42, 157, 143, 0.3);
+    --amber: #f4a261;
+    --text-primary: #f5f5f5;
+    --text-secondary: #8a8a8f;
+    --text-tertiary: #5a5a5f;
+    --surface: #141418;
+    --surface-elevated: #1e1e24;
+    --border: #2a2a30;
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-body: 'Inter', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    background: var(--void);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ---------- Top bar: minimal, just identity + history access ---------- */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 20px 8px;
+    flex-shrink: 0;
+  }
+
+  .brand {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+  }
+
+  .icon-btn {
+    background: none;
+    border: none;
+    color: var(--text-tertiary);
+    font-size: 20px;
+    padding: 8px;
+    cursor: pointer;
+    line-height: 1;
+    transition: color 0.2s ease;
+  }
+  .icon-btn:hover { color: var(--text-secondary); }
+  .icon-btn:focus-visible { outline: 2px solid var(--pulse); outline-offset: 2px; border-radius: 6px; }
+
+  /* ---------- The response area: the whole point ---------- */
+  .stage {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 28px;
+    text-align: center;
+    gap: 18px;
+    overflow-y: auto;
+    min-height: 0;
+  }
+
+  .waveform {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 44px;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+  .waveform.active { opacity: 1; }
+  .waveform .bar {
+    width: 3px;
+    border-radius: 2px;
+    background: var(--pulse);
+    animation: wave 1.1s ease-in-out infinite;
+  }
+  .waveform.calm .bar { background: var(--breathe); }
+  .waveform .bar:nth-child(1) { height: 10px; animation-delay: 0s; }
+  .waveform .bar:nth-child(2) { height: 22px; animation-delay: 0.1s; }
+  .waveform .bar:nth-child(3) { height: 32px; animation-delay: 0.2s; }
+  .waveform .bar:nth-child(4) { height: 18px; animation-delay: 0.3s; }
+  .waveform .bar:nth-child(5) { height: 36px; animation-delay: 0.15s; }
+  .waveform .bar:nth-child(6) { height: 14px; animation-delay: 0.25s; }
+  .waveform .bar:nth-child(7) { height: 26px; animation-delay: 0.05s; }
+
+  @keyframes wave {
+    0%, 100% { transform: scaleY(0.45); opacity: 0.55; }
+    50% { transform: scaleY(1); opacity: 1; }
+  }
+
+  .response-text {
+    font-size: 19px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    max-width: 440px;
+    transition: color 0.3s ease;
+  }
+  .response-text.calm { color: var(--breathe); font-size: 21px; }
+
+  .response-sub {
+    font-size: 13px;
+    color: var(--text-tertiary);
+    max-width: 380px;
+  }
+
+  /* ---------- Structured "view" card: register / document / confirm ---------- */
+  /* Deliberately plain — a bordered block, not a chat bubble. Only
+     ever appears when there's something real to act on: a guard()
+     confirmation, or a document link. Nothing narrated inside it. */
+  .view-card {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+    max-width: 400px;
+    width: 100%;
+    text-align: left;
+  }
+  .view-card.visible { display: block; }
+
+  .view-label {
+    font-family: var(--font-display);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--pulse);
+    margin-bottom: 10px;
+  }
+  .view-label.done { color: var(--breathe); }
+
+  .view-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .view-btn {
+    flex: 1;
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1.5px solid var(--breathe);
+    background: none;
+    color: var(--breathe);
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .view-btn.reject { border-color: var(--text-tertiary); color: var(--text-secondary); }
+  .view-btn:hover { background: rgba(255,255,255,0.04); }
+  .view-btn:disabled { opacity: 0.4; cursor: default; }
+
+  .view-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--amber);
+    text-decoration: none;
+    border-bottom: 1px solid var(--amber);
+    padding-bottom: 2px;
+  }
+
+  .view-status {
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    margin-top: 10px;
+  }
+  .view-status.confirmed { color: var(--breathe); }
+  .view-status.rejected { color: var(--text-tertiary); }
+
+  /* ---------- Mic area ---------- */
+  .mic-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0 max(28px, env(safe-area-inset-bottom));
+    flex-shrink: 0;
+  }
+
+  .mic-btn {
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    border: none;
+    background: radial-gradient(circle at 32% 30%, var(--pulse), #7a0f18);
+    box-shadow: 0 4px 26px var(--pulse-glow);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: none;
+  }
+  .mic-btn svg { width: 28px; height: 28px; }
+  .mic-btn.recording {
+    animation: pulse-rec 1.1s ease-in-out infinite;
+    box-shadow: 0 4px 34px var(--pulse-glow);
+  }
+  .mic-btn:active { transform: scale(0.96); }
+  .mic-btn:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 4px; }
+
+  @keyframes pulse-rec {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.06); }
+  }
+
+  .mic-label {
+    font-family: var(--font-display);
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+  }
+
+  /* ---------- Text fallback — deliberately secondary, summoned not shown ---------- */
+  .text-toggle {
+    background: none;
+    border: none;
+    color: var(--text-tertiary);
+    font-family: var(--font-body);
+    font-size: 12.5px;
+    font-style: italic;
+    cursor: pointer;
+    padding: 4px 8px;
+  }
+  .text-toggle:hover { color: var(--text-secondary); }
+
+  .text-fallback {
+    display: none;
+    width: 100%;
+    max-width: 440px;
+    padding: 0 20px;
+    margin-top: 8px;
+  }
+  .text-fallback.visible { display: flex; gap: 8px; }
+
+  .text-input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 11px 14px;
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 14.5px;
+  }
+  .text-input:focus { outline: none; border-color: var(--text-tertiary); }
+  .text-input::placeholder { color: var(--text-tertiary); font-style: italic; }
+
+  .text-send {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    width: 42px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 17px;
+  }
+  .text-send:hover { color: var(--text-primary); }
+
+  /* ---------- History drawer — swipe-right equivalent, hidden by default ---------- */
+  .history-drawer {
+    position: fixed;
+    inset: 0;
+    background: rgba(10,10,11,0.97);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+  }
+  .history-drawer.open { transform: translateX(0); }
+
+  .history-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .history-title {
+    font-family: var(--font-display);
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+
+  .history-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 20px 30px;
+  }
+
+  .history-line {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .history-role {
+    font-family: var(--font-display);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .history-role.user { color: var(--amber); }
+  .history-role.office { color: var(--breathe); }
+  .history-text { font-size: 14px; color: var(--text-secondary); line-height: 1.4; }
+
+  .history-empty {
+    color: var(--text-tertiary);
+    font-size: 13.5px;
+    font-style: italic;
+    text-align: center;
+    padding-top: 40px;
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="brand">The Office</span>
+  <button class="icon-btn" id="historyOpenBtn" aria-label="View recent conversation" title="Recent">&#8942;</button>
+</div>
+
+<div class="stage">
+  <div class="waveform" id="waveform">
+    <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+    <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
+  </div>
+
+  <div class="response-text" id="responseText">Morning Peter — talk, or tap below to write it down.</div>
+  <div class="response-sub" id="responseSub"></div>
+
+  <div class="view-card" id="viewCard">
+    <div class="view-label" id="viewLabel">PENDING CONFIRMATION</div>
+    <div id="viewBody" style="font-size:13.5px;color:var(--text-secondary);line-height:1.4;"></div>
+    <div class="view-row" id="viewActions">
+      <button class="view-btn" id="viewConfirm">Confirm</button>
+      <button class="view-btn reject" id="viewReject">Reject</button>
+    </div>
+    <div class="view-status" id="viewStatus" style="display:none;"></div>
+    <a class="view-link" id="viewDocLink" href="#" target="_blank" style="display:none;">&#128196; VIEW DOCUMENT</a>
+  </div>
+</div>
+
+<div class="text-fallback" id="textFallback">
+  <input class="text-input" id="textInput" type="text" placeholder="Write it down..." />
+  <button class="text-send" id="textSendBtn" aria-label="Send">&#8593;</button>
+</div>
+
+<div class="mic-area">
+  <button class="mic-btn" id="micBtn" aria-label="Hold to talk">
+    <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+      <line x1="12" y1="19" x2="12" y2="23"></line>
+      <line x1="8" y1="23" x2="16" y2="23"></line>
+    </svg>
+  </button>
+  <span class="mic-label" id="micLabel">Hold to talk</span>
+  <button class="text-toggle" id="textToggleBtn">or write it down</button>
+</div>
+
+<div class="history-drawer" id="historyDrawer">
+  <div class="history-header">
+    <span class="history-title">Recent</span>
+    <button class="icon-btn" id="historyCloseBtn" aria-label="Close">&#10005;</button>
+  </div>
+  <div class="history-list" id="historyList">
+    <div class="history-empty">Nothing yet — talk or write, and it'll show up here.</div>
+  </div>
+</div>
+
+<script>
+const OFFICE_API_BASE = 'https://office.websitehub.co.za';
+
+// Real conversation memory — the exact same shape the Flutter client
+// already sends, last 3 exchanges (6 entries), so the backend's
+// multi-turn resolution has what it needs. This is the only "state"
+// that persists across turns; the screen itself only ever shows the
+// most recent exchange.
+let history = [];
+
+const waveform = document.getElementById('waveform');
+const responseText = document.getElementById('responseText');
+const responseSub = document.getElementById('responseSub');
+const viewCard = document.getElementById('viewCard');
+const viewLabel = document.getElementById('viewLabel');
+const viewBody = document.getElementById('viewBody');
+const viewActions = document.getElementById('viewActions');
+const viewConfirm = document.getElementById('viewConfirm');
+const viewReject = document.getElementById('viewReject');
+const viewStatus = document.getElementById('viewStatus');
+const viewDocLink = document.getElementById('viewDocLink');
+const micBtn = document.getElementById('micBtn');
+const micLabel = document.getElementById('micLabel');
+const textToggleBtn = document.getElementById('textToggleBtn');
+const textFallback = document.getElementById('textFallback');
+const textInput = document.getElementById('textInput');
+const textSendBtn = document.getElementById('textSendBtn');
+const historyOpenBtn = document.getElementById('historyOpenBtn');
+const historyCloseBtn = document.getElementById('historyCloseBtn');
+const historyDrawer = document.getElementById('historyDrawer');
+const historyList = document.getElementById('historyList');
+
+let currentPendingId = null;
+
+function pushHistory(role, text) {
+  history.push({ role: role, text: text });
+  if (history.length > 6) history = history.slice(history.length - 6);
+  renderHistoryList();
+}
+
+function renderHistoryList() {
+  if (history.length === 0) {
+    historyList.innerHTML = '<div class="history-empty">Nothing yet — talk or write, and it\'ll show up here.</div>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < history.length; i++) {
+    var h = history[i];
+    html += '<div class="history-line">' +
+      '<div class="history-role ' + h.role + '">' + (h.role === 'user' ? 'Peter' : 'Office') + '</div>' +
+      '<div class="history-text">' + escapeHtml(h.text) + '</div>' +
+    '</div>';
+  }
+  historyList.innerHTML = html;
+}
+
+function escapeHtml(s) {
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function setThinking(label) {
+  waveform.classList.remove('calm');
+  waveform.classList.add('active');
+  responseText.classList.remove('calm');
+  responseText.textContent = label;
+  responseSub.textContent = '';
+  hideViewCard();
+}
+
+function showResponse(text) {
+  waveform.classList.remove('active');
+  responseText.textContent = text || 'Got it.';
+}
+
+function hideViewCard() {
+  viewCard.classList.remove('visible');
+  currentPendingId = null;
+  viewDocLink.style.display = 'none';
+  viewStatus.style.display = 'none';
+  viewActions.style.display = 'flex';
+}
+
+// The one structured, non-narrated element on screen — appears only
+// when there's a real guard() confirmation waiting, or a document
+// link, never for an ordinary answer.
+function showPending(itemId) {
+  currentPendingId = itemId;
+  viewCard.classList.add('visible');
+  viewLabel.textContent = 'PENDING CONFIRMATION';
+  viewLabel.classList.remove('done');
+  viewBody.textContent = 'Action #' + itemId + ' needs your confirmation before it\'s recorded.';
+  viewActions.style.display = 'flex';
+  viewStatus.style.display = 'none';
+  viewDocLink.style.display = 'none';
+}
+
+function resolvePending(confirm) {
+  if (currentPendingId === null) return;
+  var itemId = currentPendingId;
+  viewActions.style.display = 'none';
+  viewStatus.style.display = 'block';
+  viewStatus.className = 'view-status';
+  viewStatus.textContent = 'Working...';
+  fetch(OFFICE_API_BASE + '/actions/' + itemId + '/' + (confirm ? 'confirm' : 'reject'), { method: 'POST' })
+    .then(function (res) {
+      if (res.ok) {
+        res.json().catch(function () { return {}; }).then(function (data) {
+          viewLabel.textContent = confirm ? 'CONFIRMED' : 'REJECTED';
+          if (confirm) viewLabel.classList.add('done'); else viewLabel.classList.remove('done');
+          viewStatus.className = 'view-status ' + (confirm ? 'confirmed' : 'rejected');
+          viewStatus.textContent = confirm ? '\u2713 Confirmed' : '\u2715 Rejected';
+          if (confirm && data && data.pdfUrl) {
+            viewDocLink.href = data.pdfUrl;
+            viewDocLink.style.display = 'inline-flex';
+          }
+        });
+      } else {
+        viewStatus.className = 'view-status';
+        viewStatus.textContent = 'Could not reach the Office — try again.';
+        viewActions.style.display = 'flex';
+      }
+    })
+    .catch(function () {
+      viewStatus.className = 'view-status';
+      viewStatus.textContent = 'Could not reach the Office — try again.';
+      viewActions.style.display = 'flex';
+    });
+}
+
+viewConfirm.addEventListener('click', function () { resolvePending(true); });
+viewReject.addEventListener('click', function () { resolvePending(false); });
+
+function handleApiResponse(data) {
+  pushHistory('office', data.message || 'Done.');
+  showResponse(data.message);
+  var pendingId = null;
+  if (typeof data.pendingActionId === 'number') pendingId = data.pendingActionId;
+  else if (typeof data.factPendingActionId === 'number') pendingId = data.factPendingActionId;
+  if (pendingId !== null) {
+    showPending(pendingId);
+  } else {
+    hideViewCard();
+  }
+}
+
+// --- Text path -------------------------------------------------------
+
+function sendText(text) {
+  if (!text || !text.trim()) return;
+  var trimmed = text.trim();
+  pushHistory('user', trimmed);
+  setThinking('Reading that...');
+  fetch(OFFICE_API_BASE + '/messages/text', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: trimmed, history: history })
+  })
+    .then(function (res) {
+      if (res.ok) {
+        res.json().then(handleApiResponse);
+      } else {
+        showResponse('Something went wrong (' + res.status + ').');
+      }
+    })
+    .catch(function () {
+      showResponse('Could not reach the Office — check connection.');
+    });
+}
+
+textToggleBtn.addEventListener('click', function () {
+  var willShow = !textFallback.classList.contains('visible');
+  textFallback.classList.toggle('visible', willShow);
+  if (willShow) textInput.focus();
+});
+
+textSendBtn.addEventListener('click', function () {
+  var val = textInput.value;
+  textInput.value = '';
+  sendText(val);
+});
+
+textInput.addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') {
+    var val = textInput.value;
+    textInput.value = '';
+    sendText(val);
+  }
+});
+
+// --- Voice path --------------------------------------------------------
+
+var mediaRecorder = null;
+var audioChunks = [];
+var isRecording = false;
+
+function startRecording() {
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+    audioChunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = function (e) { if (e.data.size > 0) audioChunks.push(e.data); };
+    mediaRecorder.onstop = function () {
+      stream.getTracks().forEach(function (t) { t.stop(); });
+      var blob = new Blob(audioChunks, { type: 'audio/webm' });
+      sendAudio(blob);
+    };
+    mediaRecorder.start();
+    isRecording = true;
+    micBtn.classList.add('recording');
+    micLabel.textContent = 'Recording... release to send';
+    waveform.classList.add('active');
+    waveform.classList.remove('calm');
+  }).catch(function () {
+    showResponse('Microphone permission denied.');
+  });
+}
+
+function stopRecording() {
+  if (mediaRecorder && isRecording) {
+    mediaRecorder.stop();
+  }
+  isRecording = false;
+  micBtn.classList.remove('recording');
+  micLabel.textContent = 'Hold to talk';
+}
+
+function sendAudio(blob) {
+  setThinking('Transcribing...');
+  var form = new FormData();
+  form.append('audio', blob, 'note.webm');
+  form.append('history', JSON.stringify(history));
+  fetch(OFFICE_API_BASE + '/files/audio', { method: 'POST', body: form })
+    .then(function (res) {
+      if (res.ok) {
+        res.json().then(function (data) {
+          if (data.transcript && data.transcript.trim()) {
+            pushHistory('user', data.transcript);
+          }
+          handleApiResponse(data);
+        });
+      } else {
+        showResponse('Upload failed (' + res.status + ').');
+      }
+    })
+    .catch(function () {
+      showResponse('Upload failed — check connection.');
+    });
+}
+
+// Hold-to-talk: mouse and touch both, matching the manifesto's
+// "hold to talk, release to send" exactly.
+micBtn.addEventListener('mousedown', function (e) { e.preventDefault(); startRecording(); });
+micBtn.addEventListener('mouseup', function (e) { e.preventDefault(); stopRecording(); });
+micBtn.addEventListener('mouseleave', function () { if (isRecording) stopRecording(); });
+micBtn.addEventListener('touchstart', function (e) { e.preventDefault(); startRecording(); }, { passive: false });
+micBtn.addEventListener('touchend', function (e) { e.preventDefault(); stopRecording(); }, { passive: false });
+
+// --- History drawer ------------------------------------------------
+
+historyOpenBtn.addEventListener('click', function () { historyDrawer.classList.add('open'); });
+historyCloseBtn.addEventListener('click', function () { historyDrawer.classList.remove('open'); });
+</script>
+
+</body>
+</html>
