@@ -1223,17 +1223,20 @@ async function runQueryRewriteModel(
     env.AI.run("@cf/moonshotai/kimi-k2.6", {
       chat_template_kwargs: { thinking: true },
       temperature: 0,
-      // Confirmed via /debug/rewrite-query-raw, not guessed: at 1200
-      // the model's reasoning was genuinely correct — it identified
-      // exactly the right facts to resolve "those instances" into —
-      // but finish_reason came back "length", meaning it was still
-      // drafting the final sentence when the budget ran out, never
-      // reaching content at all. This isn't runaway or wrong
-      // reasoning, it's real reasoning that needs more room to finish.
-      // Raised generously since this call is low-frequency (once per
-      // drill-down turn) and correctness matters far more than a few
-      // hundred extra tokens here.
-      max_tokens: 2500,
+      // Real evidence 2026-07-10, via /debug/rewrite-query-raw: raising
+      // the budget from 600 -> 1200 -> 2500 never converged — the raw
+      // reasoning trace showed the model looping, redrafting nearly
+      // the same sentence six or seven times, never committing. More
+      // tokens can't fix a loop, only a real fix can. Root cause found
+      // in the trace itself: the worked example below used a shorter,
+      // differently-worded version of the SAME ProSupply scenario as
+      // the live test, and the model kept getting stuck reconciling
+      // "should I match the example's brevity or the real history's
+      // extra detail" — a genuine self-conflict this prompt caused.
+      // Fixed by using an unrelated example scenario (can never be
+      // confused with live data) plus explicit decisiveness and
+      // conciseness rules, so there's nothing left to loop over.
+      max_tokens: 1500,
       messages: [
         {
           role: "system",
@@ -1246,22 +1249,28 @@ async function runQueryRewriteModel(
           "References aren't always to a single name — a phrase can also point at a WHOLE SET of facts " +
           "or events the office just described (\"those instances\", \"that situation\", \"all of " +
           "that\", \"what happened there\"). Resolve these the same way: replace the vague phrase with a " +
-          "concrete, specific description of what was actually just discussed, grounded in exactly what " +
-          "the history says — name the real entity involved and briefly what the facts actually were. " +
+          "concrete reference naming the real entity involved, plus a SHORT few-word label for each fact " +
+          "— not a verbatim restatement of every clause from the history. Keep the rewritten sentence " +
+          "close in length to the original question; it only needs to be specific enough to retrieve the " +
+          "right facts, not a full recap of everything that was said. " +
           "Never invent a fact that wasn't in the history; only make an existing vague reference " +
-          "concrete. If a drill-down question stays vague because the model can't find anything in the " +
+          "concrete. If a drill-down question stays vague because there's genuinely nothing in the " +
           "history to ground it in, leave it as close to the original as possible rather than guessing " +
           "at an entity that was never mentioned. " +
+          "Commit to ONE rewritten sentence and write it directly — do not draft multiple candidate " +
+          "phrasings, do not second-guess your own wording, do not compare your answer against any " +
+          "example below for exact phrasing. The example illustrates the general pattern only, using an " +
+          "unrelated scenario — never treat it as a template to match word-for-word. " +
           "Do NOT answer the message, add new information, or change its type — a question must stay " +
           "phrased as a question, a statement stays a statement. Only resolve what the ambiguous words " +
           "refer to. If the message is already self-contained, return it completely unchanged. Return " +
           "ONLY the rewritten message, nothing else — no explanation, no quotes.\n\n" +
-          "Example:\nPeter: why don't we buy from ProSupply anymore\n" +
-          "Office: We don't buy from ProSupply anymore because they were late delivering tiles for " +
-          "Jenny's job in March, their pricing has gone up 15 percent since January, and Sarah in " +
-          "dispatch was rude when we called about the delay.\n" +
-          'New message: "who did we deal with in those instances?" -> "who did we deal with regarding ' +
-          'ProSupply\'s late delivery, price increase, and rude staff member?"\n\n' +
+          "Example (an unrelated scenario, illustrating the pattern only):\n" +
+          "Peter: how's the Miller job going\n" +
+          "Office: Slow — the electrician missed two appointments and the client is unhappy about the " +
+          "delay.\n" +
+          'New message: "who\'s responsible for that mess?" -> "who\'s responsible for the missed ' +
+          'appointments on the Miller job?"\n\n' +
           "Conversation history:\n" +
           historyText,
       },
