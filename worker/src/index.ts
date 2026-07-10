@@ -1219,7 +1219,18 @@ async function rewriteQuery(env: Env, history: HistoryTurn[], message: string): 
       env.AI.run("@cf/moonshotai/kimi-k2.6", {
         chat_template_kwargs: { thinking: true },
         temperature: 0,
-        max_tokens: 600,
+        // Bumped from 600 — real evidence 2026-07-10: the multi-fact
+        // resolution rule and worked example added below made the
+        // prompt meaningfully longer, and under thinking:true the
+        // model spends real tokens reasoning before ever emitting a
+        // final answer. 600 came back completely empty for a genuinely
+        // harder drill-down case — silently falling back to the
+        // unresolved original message with no error thrown, since the
+        // API call itself succeeded. This raise is the hypothesis
+        // being tested now, not yet confirmed — the new empty-content
+        // logging below exists specifically so this is verifiable
+        // either way rather than assumed.
+        max_tokens: 1200,
         messages: [
           {
             role: "system",
@@ -1256,6 +1267,20 @@ async function rewriteQuery(env: Env, history: HistoryTurn[], message: string): 
     }));
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const rewritten = r.choices?.[0]?.message?.content?.trim();
+    if (!rewritten) {
+      // Not an exception — the call succeeded, it just produced no
+      // usable content, silently falling back to the unresolved
+      // original message. That's the same class of silent failure
+      // logCapture/memory_errors exists to catch everywhere else;
+      // logged here too rather than left invisible.
+      try {
+        await env.OFFICE_DB.prepare("INSERT INTO memory_errors (customer_id, text, error) VALUES (NULL, ?, ?)")
+          .bind(`rewriteQuery returned empty content for: ${message}`, "empty completion, no exception thrown")
+          .run();
+      } catch {
+        // Nothing further to do.
+      }
+    }
     return rewritten && rewritten.length > 0 ? rewritten : message;
   } catch (err) {
     try {
