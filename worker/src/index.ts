@@ -113,6 +113,18 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             "Jenny is only mentioned as which job was affected, not who or what the message is actually " +
             "describing — character_name here is \"ProSupply\" (a supplier), not \"Jenny\". Always ask: " +
             "who or what is this sentence fundamentally reporting on, not just which names appear in it. " +
+            "A second, related trap: when a message names an INDIVIDUAL PERSON only as a staff member or " +
+            "contact AT a company (e.g. \"Sarah in dispatch\" at ProSupply, \"their rep\", \"the guy at " +
+            "Company X\"), the note is really about the COMPANY relationship, not a new standalone person " +
+            "— character_name must stay the company (e.g. \"ProSupply\"), never the individual's first " +
+            "name alone. Splitting a supplier relationship across a separate record for every staff " +
+            "member mentioned in passing scatters the same relationship across multiple untraceable " +
+            "entities. Only extract a person as their own character_name when they're referenced " +
+            "independently of any company context (a personal relation, or someone with no stated employer " +
+            'in the message). "called ProSupply about the March delay, spoke to Sarah in dispatch, she ' +
+            'was rude about it" is about the ProSupply relationship — character_name is "ProSupply", not ' +
+            '"Sarah"; Sarah\'s rudeness is a detail worth keeping in the note text itself, not a reason to ' +
+            "fork off a new entity. " +
             'intent is "lookup" for ANY question, including questions with no customer at all — such as ' +
             'the tradesperson asking about their own day, week, tasks, or schedule, or asking a business-wide ' +
             'financial question like "who owes me money". ' +
@@ -196,7 +208,8 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             '"Dwayne is a new customer, I measured the reception area at 6600 by 4100, we also need repair work" -> {"customer_name":"Dwayne","character_name":null,"character_relationship":null,"intent":"work_observation","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
             '"price up Dwayne\'s job, R450 a square meter for the reception area and office, flat R3500 for the repair work" -> {"customer_name":"Dwayne","character_name":null,"character_relationship":null,"intent":"price_scope","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":"quotation"}\n' +
             '"invoice out Dwayne\'s job, R450 a square meter for the reception area and office, the job\'s already done" -> {"customer_name":"Dwayne","character_name":null,"character_relationship":null,"intent":"price_scope","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":"invoice"}\n' +
-            '"ProSupply was late delivering the tiles for Jenny\'s job back in March, held us up by four days" -> {"customer_name":null,"character_name":"ProSupply","character_relationship":"supplier","intent":"note","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n\n' +
+            '"ProSupply was late delivering the tiles for Jenny\'s job back in March, held us up by four days" -> {"customer_name":null,"character_name":"ProSupply","character_relationship":"supplier","intent":"note","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
+            '"called ProSupply about the March delay, spoke to Sarah in dispatch, she was really rude about it" -> {"customer_name":null,"character_name":"ProSupply","character_relationship":"supplier","intent":"note","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n\n' +
             "Return ONLY JSON, no markdown, no explanation: " +
             '{"customer_name": string or null, "character_name": string or null, "character_relationship": ' +
             'string or null, "intent": "payment" or "invoice" or "quotation" or "convert_quote" or ' +
@@ -1988,6 +2001,19 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ status: "deleted", id });
     }
 
+    // Same shape as delete-customer, for a character created in error
+    // — e.g. a staff contact that fragmented off a supplier
+    // relationship instead of staying attached to it. No
+    // pending_memory_flush cleanup needed here: characters never
+    // queue into Vectorize consolidation in the first place.
+    if (url.pathname === "/debug/delete-character" && request.method === "POST") {
+      const id = url.searchParams.get("id");
+      if (!id) return Response.json({ error: "missing ?id=" }, { status: 400 });
+      await env.OFFICE_DB.prepare("DELETE FROM characters WHERE id = ?").bind(id).run();
+      await env.CUSTOMER_NOTES.delete(`character:${id}`);
+      return Response.json({ status: "deleted", id });
+    }
+
     // Inspect a given day's life events directly — defaults to today.
     if (url.pathname === "/debug/life-events" && request.method === "GET") {
       const date = url.searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
@@ -2166,6 +2192,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           text: "ProSupply was late delivering the tiles for Jenny's job back in March, held us up by four days",
           check: (e) => e?.character_name === "ProSupply" && !e?.customer_name,
         },
+        {
+          name: "a named staff contact at a supplier doesn't fork off its own entity",
+          text: "called ProSupply about the March delay, spoke to Sarah in dispatch, she was really rude about it",
+          check: (e) => e?.character_name === "ProSupply",
+        },
       ];
 
       const results = await Promise.all(
@@ -2216,6 +2247,18 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
 
       const [thinkingOff, thinkingOn] = await Promise.all([runOnce(false), runOnce(true)]);
       return Response.json({ thinkingOff, thinkingOn });
+    }
+
+    if (url.pathname === "/debug/characters" && request.method === "GET") {
+      const { results: characters } = await env.OFFICE_DB.prepare(
+        "SELECT id, name, relationship, created_at FROM characters ORDER BY created_at DESC LIMIT 20"
+      ).all<{ id: number; name: string; relationship: string | null; created_at: string }>();
+
+      const enriched = await Promise.all(
+        characters.map(async (c) => ({ ...c, notes: await getCharacterNotes(env, c.id) }))
+      );
+
+      return Response.json({ characters: enriched });
     }
 
     if (url.pathname === "/debug/job-scopes" && request.method === "GET") {
