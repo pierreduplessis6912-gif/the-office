@@ -1,11 +1,11 @@
 # The Office — Current State
 
-Last updated: 2026-07-09. This is the authoritative "where things actually
+Last updated: 2026-07-10. This is the authoritative "where things actually
 stand" document. If it disagrees with a memory of a past conversation,
 trust this file — it's meant to be kept current; conversation summaries
 are not.
 
-## Philosophy (proven over three real build sessions, not aspirational)
+## Philosophy (proven over four real build sessions, not aspirational)
 
 - **The API is the Office.** Every client — this Flutter app, the free
   web preview, a future WhatsApp integration, email — is just a window
@@ -167,24 +167,55 @@ not for every write.
 
 ```
 customer_name, character_name, character_relationship,
-intent: payment | invoice | quotation | convert_quote | work_observation
-        | lookup | reminder | note | other,
+intent: payment | invoice | quotation | convert_quote | price_scope
+        | work_observation | lookup | reminder | note | other,
 amount, fact_key, fact_value, personal_note,
 query_scope: customer | character | personal | business | null,
-deposit_percent
+deposit_percent,
+scope_document_type: quotation | invoice | null  -- only set when intent is price_scope
 ```
 
 Runs on **Kimi K2.6** (`chat_template_kwargs.thinking: false`,
 `temperature: 0`) — proven superior to a smaller model via a real
 head-to-head test (5/5 correct vs. 1/5, zero curated examples needed).
 
-**Two dedicated, separate extraction calls exist for genuinely
+**Three dedicated, separate extraction calls exist for genuinely
 different shapes of output**, rather than overloading the single flat
 classifier: `extractLineItems` (multiple priced line items from one
-quotation) and `extractWorkObservation` (components + tasks +
-optional schedule phrase from one job-scoping message). Same reasoning
-as `rewriteQuery` and `answerFromMemory` being their own steps — one
-job per call.
+quotation), `extractWorkObservation` (components + tasks + optional
+schedule phrase from one job-scoping message), and `extractScopePricing`
+(matches spoken rates to the real, already-measured component/task
+names of an existing job_scope — grounded in real given names, never
+allowed to invent new ones). Same reasoning as `rewriteQuery` and
+`answerFromMemory` being their own steps — one job per call.
+
+**`price_scope` (2026-07-10) is the job_scopes → priced-document link.**
+It finds a customer's most recent `job_scope`, gives the model the
+real component names/areas and task descriptions, and asks it to match
+spoken rates against them — `pricing_type` ('per_sqm' or 'flat') and
+`rate` only; the actual `area_sqm x rate` multiplication always
+happens in code afterward, the same discipline as every other number
+in this system. `scope_document_type` decides the destination using
+the identical tense rule already proven for plain quotation vs invoice
+("quote"/"price up" -> quotation; "invoice"/"invoice out" -> invoice),
+defaulting to quotation when genuinely ambiguous since proposing a
+price is less consequential than billing one. Reuses the exact same
+guarded `holdForConfirmation` pipeline as every other quotation/invoice
+— no new pending-action type, no schema change. Proven live 2026-07-10
+against all three real job scopes: Dwayne (quotation #5, R25,311.50),
+Jose (quotation #6, R54,050), and TestCo (same job scope priced twice
+— quotation #4 R17,350, then invoice #4 R20,150 at a different rate —
+confirming both destinations really work off the same underlying
+mechanism).
+
+`recordInvoice` now optionally accepts real line items — `line_items`
+already supported `invoice_id` via its CHECK constraint (exactly one
+of quotation_id/invoice_id, never both), it just never had a writer
+until price_scope needed to produce invoices as naturally as
+quotations. Plain flat-amount invoices (no job scope involved) are
+unaffected — confirmed live: existing invoices created the old way
+still show an empty `lineItems` array, only price_scope-derived
+invoices carry real ones.
 
 **Query rewriting runs with `chat_template_kwargs.thinking: true`**
 (the one deliberate exception to `thinking: false` elsewhere) —
@@ -271,6 +302,9 @@ reasoning traces as evidence, not assumption.
 `/debug/memory-health`, `/debug/stress-memory`, `/debug/rerank-raw`,
 `/debug/smoke-test`, `/debug/captures` (supports `?status=` filter to
 revisit unprocessed captures as a batch), `/debug/job-scopes`,
+`/debug/quotations`, `/debug/invoices` (both real, verified 2026-07-10
+while proving price_scope end to end — each shows line items directly,
+not just the summed total, since a right total can hide a wrong line),
 `/debug/rewrite-thinking-test` (served its diagnostic purpose already
 — safe to remove), `/debug/pdf-route-test` (leftover from a routing
 diagnosis — safe to remove), `/admin/flush-memory`.
@@ -279,8 +313,8 @@ diagnosis — safe to remove), `/admin/flush-memory`.
 through production.** `/files/audio`, `/files/photo`, `/messages/text`,
 and `/actions/*` are real, production routes — not debug — and stay.
 
-`/debug/smoke-test` is the actual regression safety net — 11 real
-classification test cases as of 2026-07-09 (grew from 9), zero side
+`/debug/smoke-test` is the actual regression safety net — 14 real
+classification test cases as of 2026-07-10 (grew from 11), zero side
 effects (tests `extractIntent` in isolation, never writes to KV or
 D1), safe to rerun after every single future change. **Note:** it
 fires its cases concurrently — a real, observed cause of transient
@@ -309,10 +343,6 @@ Codemagic — still only proven on the web preview.**
   second real entity means a second Office instance, not a schema
   change (see Pinned Ideas for the real, costed migration path if this
   ever changes).
-- **`job_scopes` → quotation conversion doesn't exist yet.** Two real
-  work observations (Dwayne, Jose) have been recorded; neither has
-  ever been turned into a priced quotation. The natural next link in
-  the actual chain (observe → scope → quote → invoice) is unbuilt.
 - **Document/PDF capture — the third "sense" — is still completely
   untouched.** Voice and photos are both real; there's no upload path
   for a supplier quote, an existing invoice, or a scanned form yet.
