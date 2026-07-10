@@ -20,6 +20,7 @@ interface Extraction {
   personal_note: string | null;
   query_scope: "customer" | "personal" | "business" | "character" | null;
   deposit_percent: number | null;
+  scope_document_type: "quotation" | "invoice" | null;
 }
 
 interface ProcessResult {
@@ -116,12 +117,20 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             'remaining balance is 20%" is convert_quote. ' +
             'intent is "price_scope" if the message states prices or rates to apply to a job that was ' +
             "already measured and scoped earlier (an existing job_scope with components and/or tasks), " +
-            "turning that unpriced observation into a real quotation. This differs from plain " +
-            '"quotation" — a plain quotation is a fresh price given directly for described work with no ' +
-            "prior measurement step; price_scope specifically references pricing up something already " +
-            'measured (e.g. "price up Dwayne\'s job", "R450 a square meter for the reception area", ' +
-            '"R3500 flat for the repair work"). Prefer price_scope whenever a rate is being applied per ' +
-            "named component or area rather than one flat total invented fresh for the whole job. " +
+            "turning that unpriced observation into a real priced document — either a quotation or an " +
+            'invoice. This differs from plain "quotation"/"invoice" — those are a fresh price given ' +
+            "directly for described work with no prior measurement step; price_scope specifically " +
+            'references pricing up something already measured (e.g. "price up Dwayne\'s job", "R450 a ' +
+            'square meter for the reception area", "R3500 flat for the repair work"). Prefer price_scope ' +
+            "whenever a rate is being applied per named component or area rather than one flat total " +
+            "invented fresh for the whole job. " +
+            'When intent is "price_scope", also set scope_document_type using the EXACT SAME tense rule ' +
+            'as quotation vs invoice above: "quote"/"quoted"/"estimate"/"price up" -> "quotation" (a ' +
+            'proposed price, nothing billed yet); "invoice"/"invoiced"/"bill"/"invoice out" -> "invoice" ' +
+            "(work is done or being billed now, not merely proposed). If genuinely ambiguous with no " +
+            'clear signal either way, default to "quotation" — proposing a price is less consequential ' +
+            "than billing one, so the safer default when unsure is the earlier, less committal document. " +
+            'scope_document_type is null whenever intent is not "price_scope". ' +
             'intent is "work_observation" if the message describes measuring, scoping, or inspecting a job ' +
             '— components, measurements, or tasks — with NO price stated at all. This is earlier than a ' +
             'quotation: the tradesperson is recording what they observed, not proposing a cost. If any ' +
@@ -157,24 +166,26 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             'paid was stated (e.g. "80% deposit"), extract it as a plain number (80, not 0.8). Null if no ' +
             "percentage was stated or intent is not convert_quote.\n\n" +
             "Examples:\n" +
-            '"what do I need to do today?" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"personal","deposit_percent":null}\n' +
-            '"who owes me money?" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"business","deposit_percent":null}\n' +
-            '"what does Jenny owe?" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"customer","deposit_percent":null}\n' +
-            '"the total invoice for the carpets is R39000" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"invoice","amount":39000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null}\n' +
-            '"we quoted Jenny R39000 for the carpets" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"quotation","amount":39000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null}\n' +
-            '"Jenny paid R850" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"payment","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null}\n' +
-            '"picked up my wife from work, she\'s annoyed about the kitchen guy not showing" -> {"customer_name":null,"character_name":"wife","character_relationship":"wife","intent":"note","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null}\n' +
-            '"how is my wife doing?" -> {"customer_name":null,"character_name":"wife","character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"character","deposit_percent":null}\n' +
-            '"heading to jenny\'s job now, remind me to get dog food after" -> {"customer_name":"jenny","character_name":null,"character_relationship":null,"intent":"reminder","amount":null,"fact_key":null,"fact_value":null,"personal_note":"remind me to get dog food after","query_scope":null,"deposit_percent":null}\n' +
-            '"we completed Jenny\'s installation, she paid an 80% deposit, convert the quote to an invoice for the remaining balance" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"convert_quote","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":80}\n' +
-            '"Dwayne is a new customer, I measured the reception area at 6600 by 4100, we also need repair work" -> {"customer_name":"Dwayne","character_name":null,"character_relationship":null,"intent":"work_observation","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null}\n' +
-            '"price up Dwayne\'s job, R450 a square meter for the reception area and office, flat R3500 for the repair work" -> {"customer_name":"Dwayne","character_name":null,"character_relationship":null,"intent":"price_scope","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null}\n\n' +
+            '"what do I need to do today?" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"personal","deposit_percent":null,"scope_document_type":null}\n' +
+            '"who owes me money?" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"business","deposit_percent":null,"scope_document_type":null}\n' +
+            '"what does Jenny owe?" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"customer","deposit_percent":null,"scope_document_type":null}\n' +
+            '"the total invoice for the carpets is R39000" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"invoice","amount":39000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
+            '"we quoted Jenny R39000 for the carpets" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"quotation","amount":39000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
+            '"Jenny paid R850" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"payment","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
+            '"picked up my wife from work, she\'s annoyed about the kitchen guy not showing" -> {"customer_name":null,"character_name":"wife","character_relationship":"wife","intent":"note","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
+            '"how is my wife doing?" -> {"customer_name":null,"character_name":"wife","character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"character","deposit_percent":null,"scope_document_type":null}\n' +
+            '"heading to jenny\'s job now, remind me to get dog food after" -> {"customer_name":"jenny","character_name":null,"character_relationship":null,"intent":"reminder","amount":null,"fact_key":null,"fact_value":null,"personal_note":"remind me to get dog food after","query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
+            '"we completed Jenny\'s installation, she paid an 80% deposit, convert the quote to an invoice for the remaining balance" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"convert_quote","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":80,"scope_document_type":null}\n' +
+            '"Dwayne is a new customer, I measured the reception area at 6600 by 4100, we also need repair work" -> {"customer_name":"Dwayne","character_name":null,"character_relationship":null,"intent":"work_observation","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
+            '"price up Dwayne\'s job, R450 a square meter for the reception area and office, flat R3500 for the repair work" -> {"customer_name":"Dwayne","character_name":null,"character_relationship":null,"intent":"price_scope","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":"quotation"}\n' +
+            '"invoice out Dwayne\'s job, R450 a square meter for the reception area and office, the job\'s already done" -> {"customer_name":"Dwayne","character_name":null,"character_relationship":null,"intent":"price_scope","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":"invoice"}\n\n' +
             "Return ONLY JSON, no markdown, no explanation: " +
             '{"customer_name": string or null, "character_name": string or null, "character_relationship": ' +
             'string or null, "intent": "payment" or "invoice" or "quotation" or "convert_quote" or ' +
             '"price_scope" or "work_observation" or "lookup" or "reminder" or "note" or "other", "amount": number or null, ' +
             '"fact_key": string or null, "fact_value": string or null, "personal_note": string or null, ' +
-            '"query_scope": "customer" or "character" or "personal" or "business" or null, "deposit_percent": number or null}',
+            '"query_scope": "customer" or "character" or "personal" or "business" or null, "deposit_percent": ' +
+            'number or null, "scope_document_type": "quotation" or "invoice" or null}',
         },
         { role: "user", content: transcript },
       ],
@@ -625,13 +636,18 @@ async function recordPayment(
 // ever called from the confirm endpoint. Money billed deserves the
 // same guard as money received, even though nothing physically moved
 // yet: a wrong customer or a wrong amount here is just as real a
-// mistake as a wrong payment would be.
+// mistake as a wrong payment would be. lineItems is optional and new
+// — line_items already supported invoice_id via its CHECK constraint
+// (exactly one of quotation_id/invoice_id, never both), it just had
+// no real writer until price_scope needed to produce invoices as
+// naturally as quotations, not just flat single-amount ones.
 async function recordInvoice(
   env: Env,
   customerId: number,
   description: string,
   amount: number,
-  sourceTranscript: string
+  sourceTranscript: string,
+  lineItems: LineItemWithTotal[] = []
 ): Promise<{ id: number; customerId: number; amount: number }> {
   const inserted = await env.OFFICE_DB.prepare(
     "INSERT INTO invoices (customer_id, description, amount, source_transcript) VALUES (?, ?, ?, ?) RETURNING id"
@@ -639,7 +655,17 @@ async function recordInvoice(
     .bind(customerId, description, amount, sourceTranscript)
     .first<{ id: number }>();
 
-  return { id: inserted!.id, customerId, amount };
+  const invoiceId = inserted!.id;
+
+  for (const item of lineItems) {
+    await env.OFFICE_DB.prepare(
+      "INSERT INTO line_items (invoice_id, description, note, quantity, unit, unit_price, line_total) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    )
+      .bind(invoiceId, item.description, item.note, item.quantity, item.unit, item.unit_price, item.line_total)
+      .run();
+  }
+
+  return { id: invoiceId, customerId, amount };
 }
 
 // Same guarded pattern again — a quotation is a real, standing figure
@@ -1431,9 +1457,17 @@ async function processTranscript(
           ? quotationLineItems.map((item) => item.description).join("; ")
           : transcript;
 
+      // price_scope has two possible destinations, not one — the same
+      // measured job can become a proposed price OR a real invoice,
+      // decided by the exact same tense signal ("quote" vs "invoice")
+      // already proven for the plain, un-scoped quotation/invoice
+      // intents. A plain "quotation" intent always lands here too,
+      // since it never had an invoice-flavored sibling to begin with.
+      const isScopeInvoice = extraction.intent === "price_scope" && extraction.scope_document_type === "invoice";
+
       const held = await holdForConfirmation(
         env,
-        "quotation",
+        isScopeInvoice ? "invoice" : "quotation",
         {
           customerId: customer.id,
           customerName: customer.name,
@@ -1566,14 +1600,15 @@ async function processTranscript(
       : "";
     message = `Found quotation #${quotationId} for ${customer!.name} (R${total} total).${depositNote} remaining balance R${remainingBalance}. Needs your confirmation (action #${pendingActionId}) to convert to invoice.`;
   } else if (pendingActionId) {
-    const kind =
-      extraction?.intent === "invoice"
-        ? "Invoice"
-        : extraction?.intent === "quotation" || extraction?.intent === "price_scope"
-          ? "Quotation"
-          : "Payment";
+    // price_scope's actual destination document depends on
+    // scope_document_type, decided the same tense-based way as the
+    // plain quotation/invoice split — not always "Quotation" anymore.
+    const isScopeInvoice = extraction?.intent === "price_scope" && extraction?.scope_document_type === "invoice";
+    const isQuotationLike =
+      extraction?.intent === "quotation" || (extraction?.intent === "price_scope" && !isScopeInvoice);
+    const kind = extraction?.intent === "invoice" || isScopeInvoice ? "Invoice" : isQuotationLike ? "Quotation" : "Payment";
     const displayAmount =
-      (extraction?.intent === "quotation" || extraction?.intent === "price_scope") && quotationLineItems.length > 0
+      (isQuotationLike || isScopeInvoice) && quotationLineItems.length > 0
         ? quotationLineItems.reduce((sum, item) => sum + item.line_total, 0)
         : extraction!.amount;
     const lineItemNote =
@@ -2062,7 +2097,12 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         {
           name: "price_scope classifies correctly, distinct from a plain quotation",
           text: "price up Dwayne's job, R450 a square meter for the reception area and office, flat R3500 for the repair work",
-          check: (e) => e?.intent === "price_scope",
+          check: (e) => e?.intent === "price_scope" && e?.scope_document_type === "quotation",
+        },
+        {
+          name: "price_scope recognizes invoice framing, not just quotation",
+          text: "invoice out Dwayne's job, R450 a square meter for the reception area and office, the job's already done",
+          check: (e) => e?.intent === "price_scope" && e?.scope_document_type === "invoice",
         },
         {
           name: "a stated fact is not misread as a question",
@@ -2169,6 +2209,25 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ quotations: enriched });
     }
 
+    if (url.pathname === "/debug/invoices" && request.method === "GET") {
+      const { results: invoices } = await env.OFFICE_DB.prepare(
+        "SELECT i.id, i.customer_id, c.name as customer_name, i.description, i.amount, i.status, i.quotation_id, i.created_at FROM invoices i JOIN customers c ON c.id = i.customer_id ORDER BY i.created_at DESC LIMIT 10"
+      ).all();
+
+      const enriched = await Promise.all(
+        (invoices as Array<{ id: number }>).map(async (invoice) => {
+          const { results: lineItems } = await env.OFFICE_DB.prepare(
+            "SELECT description, note, quantity, unit, unit_price, line_total FROM line_items WHERE invoice_id = ?"
+          )
+            .bind(invoice.id)
+            .all();
+          return { ...invoice, lineItems };
+        })
+      );
+
+      return Response.json({ invoices: enriched });
+    }
+
     if (url.pathname === "/debug/captures" && request.method === "GET") {
       const status = url.searchParams.get("status");
       const { results } = status
@@ -2223,8 +2282,16 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             customerId: number;
             description: string;
             amount: number;
+            lineItems?: LineItemWithTotal[];
           };
-          const invoice = await recordInvoice(env, payload.customerId, payload.description, payload.amount, action.source_transcript);
+          const invoice = await recordInvoice(
+            env,
+            payload.customerId,
+            payload.description,
+            payload.amount,
+            action.source_transcript,
+            payload.lineItems ?? []
+          );
           await env.OFFICE_DB.prepare(
             "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
           )
