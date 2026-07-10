@@ -1304,15 +1304,75 @@ async function runQueryRewriteModel(
   };
 }
 
+// Real evidence 2026-07-10, gathered via /debug/rewrite-query-raw
+// across several real attempts: thinking:true reliably loops —
+// redrafting the same near-identical sentence five-plus times,
+// hitting the token ceiling with empty content — specifically on
+// references that resolve to a SUMMARY of several facts (e.g. "those
+// instances"), no matter how explicitly it's told to size its effort
+// down or stop re-examining an already-correct answer. The same
+// setting is exactly what's needed for genuine tie-breaks between
+// multiple named candidates (e.g. "her" between two people). One
+// call can't have both settings. So: classify first, cheaply and
+// fast (thinking:false, tiny budget — this classification itself
+// never needs to loop), then route to the right reasoning mode for
+// the real rewrite. This is the actual fix, not another prompt
+// tweak on the single-call approach, which was tried three times
+// first and failed all three.
+async function classifyReferenceComplexity(
+  env: Env,
+  history: HistoryTurn[],
+  message: string
+): Promise<"tiebreak" | "simple"> {
+  try {
+    const historyText = history.map((h) => `${h.role === "user" ? "Peter" : "Office"}: ${h.text}`).join("\n");
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        chat_template_kwargs: { thinking: false },
+        temperature: 0,
+        max_tokens: 20,
+        messages: [
+          {
+            role: "system",
+            content:
+              "Does resolving any vague reference in the new message require choosing between MULTIPLE " +
+              "different named people or things mentioned in the history that could all plausibly match " +
+              "(a genuine tie-break — e.g. \"her\" could mean either of two different women mentioned)? " +
+              "Or is there at most one plausible match, or no real ambiguity at all (the reference is " +
+              "already clear, or just needs a short label filled in from what was already said)? " +
+              'Answer with exactly one word: "TIEBREAK" or "SIMPLE". No explanation.\n\n' +
+              "Conversation history:\n" +
+              historyText,
+          },
+          { role: "user", content: message },
+        ],
+      })
+    );
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const answer = r.choices?.[0]?.message?.content?.trim().toUpperCase() ?? "";
+    return answer.includes("TIEBREAK") ? "tiebreak" : "simple";
+  } catch {
+    // Unclear beats wrong here — if classification itself fails,
+    // default to the safer, already-proven path (full reasoning)
+    // rather than risk a silent tie-break mistake.
+    return "tiebreak";
+  }
+}
+
 async function rewriteQuery(env: Env, history: HistoryTurn[], message: string): Promise<string> {
   if (history.length === 0) return message;
   try {
-    // thinking enabled here specifically — proven necessary by a real
-    // side-by-side test: resolving a pronoun among MULTIPLE plausible
-    // candidates against an explicit tie-break rule (recency over
-    // frequency) genuinely requires reasoning, unlike simple
-    // classification where thinking:false was proven sufficient.
-    const { content: rewritten, finishReason } = await runQueryRewriteModel(env, history, message);
+    // Classify first, cheaply — this decides which of the two proven
+    // configurations to use for the real rewrite below. thinking:true
+    // stays reserved for genuine tie-breaks (proven necessary there);
+    // everything else runs thinking:false with a tight budget (proven
+    // fast and correct for fact-summary references, where thinking:true
+    // reliably loops instead).
+    const complexity = await classifyReferenceComplexity(env, history, message);
+    const { content: rewritten, finishReason } = await runQueryRewriteModel(env, history, message, {
+      thinking: complexity === "tiebreak",
+      maxTokens: complexity === "tiebreak" ? 1500 : 300,
+    });
     if (!rewritten) {
       // Not an exception — the call succeeded, it just produced no
       // usable content, silently falling back to the unresolved
@@ -1324,7 +1384,7 @@ async function rewriteQuery(env: Env, history: HistoryTurn[], message: string): 
       // mid-reasoning, anything else means something different failed.
       try {
         await env.OFFICE_DB.prepare("INSERT INTO memory_errors (customer_id, text, error) VALUES (NULL, ?, ?)")
-          .bind(`rewriteQuery returned empty content for: ${message}`, `empty completion, finish_reason=${finishReason}`)
+          .bind(`rewriteQuery returned empty content for: ${message}`, `complexity=${complexity}, empty completion, finish_reason=${finishReason}`)
           .run();
       } catch {
         // Nothing further to do.
@@ -2096,6 +2156,19 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         maxTokens: body.maxTokens,
       });
       return Response.json({ input: body.text, history, thinking: body.thinking ?? true, maxTokens: body.maxTokens ?? 1500, ...raw });
+    }
+
+    // The real production path — classify, then route, exactly what
+    // /messages/text calls internally — for faithful end-to-end
+    // verification distinct from the raw single-call introspection
+    // above.
+    if (url.pathname === "/debug/rewrite-query-test" && request.method === "POST") {
+      const body = (await request.json()) as { text?: string; history?: HistoryTurn[] };
+      if (!body.text) return Response.json({ error: "missing text" }, { status: 400 });
+      const history = Array.isArray(body.history) ? body.history : [];
+      const complexity = await classifyReferenceComplexity(env, history, body.text);
+      const rewritten = await rewriteQuery(env, history, body.text);
+      return Response.json({ input: body.text, complexity, rewritten });
     }
 
     // Scoped cleanup for a customer row created in error (e.g. a
