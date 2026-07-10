@@ -585,19 +585,127 @@ architecture at all.**
   prioritized ahead of retrieval depth itself.
 - **The ambient "briefing card" / ambient emotional state (the sigh, red ↔
   green cognitive-load indicator, unprompted "3 things need your
-  attention")** is explicitly *not* the same as conversational retrieval —
-  it's push, not pull, and it directly re-raises the periodic-briefing
+  attention")** was explicitly *not* the same as conversational retrieval —
+  it's push, not pull, and it directly re-raised the periodic-briefing
   question already decided against once ("Known gaps": deliberately not
   built as a cron-generated snapshot, named as unearned complexity). Real,
-  demonstrated need has been the bar for every other build decision here
+  demonstrated need had been the bar for every other build decision here
   (the receptacle, work observations, `withRetry`, thinking-mode for
-  rewrites) — this is the first idea on the roadmap that has no such
-  evidence and, by its own nature (an ambient/automatic layer), can't
+  rewrites) — this was the first idea on the roadmap with no such evidence
+  and, by its own nature (an ambient/automatic layer), couldn't
   straightforwardly generate the kind of evidence a bug or a lost
-  measurement does. Pierre named the real risk directly: this could land as
-  invasive or dictatorial if built wrong. **Deliberately held apart from
-  "deferred pending evidence": this is deferred pending a real design
-  decision about tone and control, to be made on purpose, not backed into.**
+  measurement does. Deliberately held apart from "deferred pending
+  evidence": deferred pending a real design decision about tone and
+  control, to be made on purpose, not backed into. **That decision was
+  made 2026-07-10 — see the section immediately below.** Resolved as
+  "notification embers," not the original briefing-card shape.
+
+## Architectural pivot: structured answers become navigation, not prose (2026-07-10)
+
+**The core realization.** Every real bug found and fixed today — the
+ProSupply subject-attribution errors, the `rewriteQuery` looping saga, the
+quotations/invoices topic-mixing, the dog food leaking into Jenny's
+file — happened in exactly one place: asking a model to *narrate*
+structured business data in prose. The data itself was never wrong.
+`answerFromMemory` given a bag of real facts and asked to compose a
+paragraph about them will, correctly, include things a person wouldn't —
+because "what's relevant to include" is a judgment call, and judgment
+calls are exactly where every failure today lived. This isn't a
+hallucination problem — nothing was invented, ever. It's an
+over-inclusion / composition problem: real facts, wrongly weighted into
+prose.
+
+**The reframe.** An office assistant doesn't answer questions — it hands
+you the thing you asked for. "How many quotations are pending?" isn't
+actually a question needing an essay; it's a request for a list. "Show
+me Jenny's invoice" isn't a request for a summary of Jenny; it's a
+request to open a specific document. Once a request resolves to
+something that already exists as structured data — a register, a
+document, a customer summary — the model's job is to *identify which
+one*, not describe its contents. The application renders it; the model
+never touches the content of what gets shown.
+
+**What this changes.** The entire financial/structured-data surface —
+quotation counts, invoice lists, customer dashboards, "show me X" —
+moves from prose narration to a closed, typed navigation payload
+alongside the existing `message` field:
+
+```
+{
+  "message": "You have 5 outstanding quotations.",  // always present —
+                                                      // the short spoken
+                                                      // line, TTS-ready,
+                                                      // still fully
+                                                      // AI-narrated
+  "view": {
+    "type": "register" | "document" | "summary" | "contact" | "confirm" | null,
+    ...
+  }
+}
+```
+
+`view: null` is the ordinary case — most intake, most small facts, all
+personality and conversational narration, unchanged. `view` only appears
+when the answer is *fundamentally* one of those closed types. `confirm`
+generalizes the existing `pendingActionId`/guard() stamp into the same
+family rather than being its own separate field. Not yet built — this is
+a designed contract, to be proven the same way everything else here has
+been: via debug routes first, real testing, before any client renders it.
+
+**What does NOT change — this is the important boundary.** Intake,
+`guard()`, storage, retrieval mechanics, and — explicitly — conversational,
+relational retrieval (multi-turn drill-down: "why don't we buy from
+ProSupply anymore" → "who did we deal with" → "when was that") stay
+exactly as built and proven today. That's *understanding*, not financial
+data retrieval, and understanding is the one thing genuinely worth
+spending model reasoning on. The pivot is specifically: once understanding
+resolves to a request for structured business data, stop narrating it and
+navigate to it instead. Conversation-shaped questions stay conversations;
+data-shaped requests become navigation.
+
+**"Notification embers" — the UI concept this pairs with, and the actual
+resolution of the ambient/emotional-layer question above.** Four
+color-coded, glanceable indicators, each a real, deterministic count in a
+real bucket — no narration, no editorializing, no synthesized "cognitive
+load" score:
+- **Red — actions needed.** Real, already-built: the `pending_actions`
+  table (guard()-held quotations, invoices, payments, facts). Tap → a
+  `register` view of what's actually pending.
+- **Blue — reports/documents ready.** Real, already-built as of today:
+  real invoices/quotations with real `pdfUrl`s. Tap → a `register` of
+  real documents.
+- **Yellow — calendar.** Does NOT exist yet. `job_scopes.scheduled_date_raw`
+  is a raw, unparsed text field today, not a queryable date. Real
+  plumbing would be needed before this ember means anything.
+- **Green — to-do list.** Does NOT exist yet. No task/to-do entity with a
+  done/not-done state exists — `personal_note`/life events are narrative
+  facts by date, not checkable items. Also needs real plumbing first.
+
+Red and blue are a rendering layer on data that's already correct and
+tested; yellow and green are new, unearned plumbing and shouldn't be
+assumed equally close just because the four embers look symmetric in a
+mockup.
+
+**Why this resolves the ambient layer question rather than reopening it.**
+The original risk, named directly: the system narrating unprompted
+judgments about Peter's state ("you've accomplished something today,
+chill"). Embers never do this. They report a real count; Peter supplies
+100% of the interpretation. The system never asserts anything about his
+cognitive load, never weights one bucket's urgency against another's,
+never pushes. Pierre was explicit: "it has to be self-guiding, Peter must
+guide" — the system does not editorialize what's shown, only shows what's
+real and lets Peter decide what it means. That constraint is what makes
+this the safe version of the idea that was deliberately parked, not a
+second ambient feature sitting alongside a still-deferred one.
+
+**One real open technical question, not yet resolved:** does document
+generation stay synchronous (today's behavior — confirm a quotation, the
+PDF exists immediately, in the same response that would light the ember)
+or does "turns blue when ready" imply something that can take real
+background time, requiring an async/notify mechanism that doesn't exist
+in this architecture at all right now? These are genuinely different
+builds. Not decided yet — flagged so it isn't silently assumed either way
+when this gets built.
 
 ## Real infrastructure quirks worth remembering
 
