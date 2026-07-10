@@ -90,13 +90,29 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             role: "system",
             content:
               "Extract structured facts from a tradesperson's message. " +
-            'customer_name is the specific customer mentioned, exactly as spoken or typed, or null if none ' +
-            "— someone the tradesperson does BUSINESS with (quotes, invoices, jobs, payments). " +
-            'character_name is a personal relation mentioned instead of a customer — spouse, family, ' +
-            "staff, friends — someone in the tradesperson's life but NOT a business customer. Only one of " +
-            "customer_name or character_name should be set per message, based on who is actually being " +
-            'talked about. character_relationship is the stated relationship if given (e.g. "wife", ' +
-            '"nanny", "son"), or null if not stated or not applicable. ' +
+            "The real invariant that decides customer_name vs character_name is whether the tradesperson " +
+            "BILLS this entity — quotes, invoices, jobs, or payments FROM them TO this entity — never " +
+            "whether the relationship is personal or business. " +
+            'customer_name is the specific entity the tradesperson bills — the one who owes money for ' +
+            "work or goods the tradesperson provides. Exactly as spoken or typed, or null if none. " +
+            'character_name is ANYONE mentioned who is NOT billed by the tradesperson — this covers both ' +
+            "personal relations (spouse, family, staff, friends) AND business relations the tradesperson " +
+            "does NOT invoice, most importantly suppliers, subcontractors, or referral partners (someone " +
+            "the tradesperson buys FROM or pays, not someone who owes the tradesperson). A supplier is " +
+            "never customer_name, even though the relationship is business, not personal — the " +
+            "tradesperson doesn't bill their supplier, so the same protection from ever being " +
+            "accidentally quoted or invoiced that a personal relation gets applies here too. " +
+            "character_relationship is the stated relationship if given (e.g. \"wife\", \"nanny\", " +
+            '"son", "supplier", "subcontractor"), or a reasonable short label inferred from context ' +
+            '(e.g. "supplier" for a company the tradesperson clearly buys materials from), or null if ' +
+            "genuinely unclear. Only one of customer_name or character_name should be set per message. " +
+            "CRITICAL — when a message mentions more than one name, customer_name/character_name must be " +
+            "whichever one the message is actually ABOUT — the entity performing or experiencing what's " +
+            "described — never a different name mentioned only as incidental context. For example, " +
+            '"ProSupply was late delivering the tiles for Jenny\'s job" is ABOUT ProSupply\'s lateness; ' +
+            "Jenny is only mentioned as which job was affected, not who or what the message is actually " +
+            "describing — character_name here is \"ProSupply\" (a supplier), not \"Jenny\". Always ask: " +
+            "who or what is this sentence fundamentally reporting on, not just which names appear in it. " +
             'intent is "lookup" for ANY question, including questions with no customer at all — such as ' +
             'the tradesperson asking about their own day, week, tasks, or schedule, or asking a business-wide ' +
             'financial question like "who owes me money". ' +
@@ -155,8 +171,9 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             "extract just that personal fragment as personal_note, in its own words. If there is no " +
             "such mixed-in personal fragment, set it to null. " +
             'query_scope: ONLY set when intent is "lookup". "customer" if a specific customer_name was ' +
-            'given. "character" if a specific character_name was given instead — asking about a personal ' +
-            'relation, not a customer (e.g. "how is my wife doing"). "personal" if it is about the ' +
+            'given. "character" if a specific character_name was given instead — asking about anyone the ' +
+            'tradesperson does not bill, personal or a supplier (e.g. "how is my wife doing", "why don\'t ' +
+            'we buy from ProSupply anymore"). "personal" if it is about the ' +
             "tradesperson's own day, week, tasks, or schedule with no customer or character named. " +
             '"business" if it is a business-wide question with no single customer named — asking about ' +
             "money owed across customers, totals, counts, or anything spanning more than one customer " +
@@ -178,7 +195,8 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             '"we completed Jenny\'s installation, she paid an 80% deposit, convert the quote to an invoice for the remaining balance" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"convert_quote","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":80,"scope_document_type":null}\n' +
             '"Dwayne is a new customer, I measured the reception area at 6600 by 4100, we also need repair work" -> {"customer_name":"Dwayne","character_name":null,"character_relationship":null,"intent":"work_observation","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
             '"price up Dwayne\'s job, R450 a square meter for the reception area and office, flat R3500 for the repair work" -> {"customer_name":"Dwayne","character_name":null,"character_relationship":null,"intent":"price_scope","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":"quotation"}\n' +
-            '"invoice out Dwayne\'s job, R450 a square meter for the reception area and office, the job\'s already done" -> {"customer_name":"Dwayne","character_name":null,"character_relationship":null,"intent":"price_scope","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":"invoice"}\n\n' +
+            '"invoice out Dwayne\'s job, R450 a square meter for the reception area and office, the job\'s already done" -> {"customer_name":"Dwayne","character_name":null,"character_relationship":null,"intent":"price_scope","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":"invoice"}\n' +
+            '"ProSupply was late delivering the tiles for Jenny\'s job back in March, held us up by four days" -> {"customer_name":null,"character_name":"ProSupply","character_relationship":"supplier","intent":"note","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n\n' +
             "Return ONLY JSON, no markdown, no explanation: " +
             '{"customer_name": string or null, "character_name": string or null, "character_relationship": ' +
             'string or null, "intent": "payment" or "invoice" or "quotation" or "convert_quote" or ' +
@@ -1631,7 +1649,7 @@ async function processTranscript(
       message = await answerFromMemory(env, rewritten, outstandingFacts);
     } else if (character) {
       const characterFacts = await getCharacterNotes(env, character.id);
-      const facts = [`${character.name} is a known personal contact.`, ...characterFacts];
+      const facts = [`${character.name} is a known contact.`, ...characterFacts];
       message = await answerFromMemory(env, rewritten, facts);
     } else if (customer) {
       const memoryFacts = await getCustomerNotes(env, customer.id);
@@ -2113,6 +2131,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           name: "a personal relation is classified as a character, not a customer",
           text: "picked up my wife from work, she's annoyed about the kitchen guy not showing",
           check: (e) => e?.character_name === "wife" && !e?.customer_name,
+        },
+        {
+          name: "a supplier is classified as a character (not billed), and the real subject wins over an incidental customer mention",
+          text: "ProSupply was late delivering the tiles for Jenny's job back in March, held us up by four days",
+          check: (e) => e?.character_name === "ProSupply" && !e?.customer_name,
         },
       ];
 
