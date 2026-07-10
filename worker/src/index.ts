@@ -1223,7 +1223,17 @@ async function runQueryRewriteModel(
     env.AI.run("@cf/moonshotai/kimi-k2.6", {
       chat_template_kwargs: { thinking: true },
       temperature: 0,
-      max_tokens: 1200,
+      // Confirmed via /debug/rewrite-query-raw, not guessed: at 1200
+      // the model's reasoning was genuinely correct — it identified
+      // exactly the right facts to resolve "those instances" into —
+      // but finish_reason came back "length", meaning it was still
+      // drafting the final sentence when the budget ran out, never
+      // reaching content at all. This isn't runaway or wrong
+      // reasoning, it's real reasoning that needs more room to finish.
+      // Raised generously since this call is low-frequency (once per
+      // drill-down turn) and correctness matters far more than a few
+      // hundred extra tokens here.
+      max_tokens: 2500,
       messages: [
         {
           role: "system",
