@@ -733,6 +733,53 @@ async function resolveFollowUpEntity(env: Env, history: HistoryTurn[], message: 
   }
 }
 
+// The business-scope sibling of resolveFollowUpEntity, same reasoning
+// applied to a topic instead of a named entity. Real bug found live
+// 2026-07-10: "how many quotations are pending" -> "names and
+// amounts" pulled in unrelated outstanding-invoice facts too, because
+// business-scope lookups always fetched both fact sets regardless of
+// which one the conversation was actually about. thinking:false,
+// closed-form, same proven shape as everything else in this file that
+// has never looped.
+async function classifyBusinessTopic(
+  env: Env,
+  history: HistoryTurn[],
+  message: string
+): Promise<"quotations" | "invoices" | "general"> {
+  if (history.length === 0) return "general";
+  try {
+    const historyText = history.map((h) => `${h.role === "user" ? "Peter" : "Office"}: ${h.text}`).join("\n");
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        chat_template_kwargs: { thinking: false },
+        temperature: 0,
+        max_tokens: 10,
+        messages: [
+          {
+            role: "system",
+            content:
+              "Is the new message specifically about QUOTATIONS, specifically about INVOICES/money owed, " +
+              'or a GENERAL business question — based on the standing topic of the conversation below ' +
+              '(what Peter\'s own most recent question was actually about, not just any word that ' +
+              'appears). Answer with exactly one word: "QUOTATIONS", "INVOICES", or "GENERAL".\n\n' +
+              "Conversation:\n" +
+              historyText,
+          },
+          { role: "user", content: message },
+        ],
+      })
+    );
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const answer = r.choices?.[0]?.message?.content?.trim().toUpperCase() ?? "";
+    if (answer.includes("QUOTATION")) return "quotations";
+    if (answer.includes("INVOICE")) return "invoices";
+    return "general";
+  } catch {
+    return "general";
+  }
+}
+
+
 // The actual real ground-truth write. Only ever called from the
 // confirm endpoint — never directly from the message pipeline. That's
 // the whole point of guard(): the path from "extracted" to "written"
@@ -1669,8 +1716,18 @@ async function processTranscript(
   // to skip storage.
   // No customer mentioned isn't "nowhere to put this" anymore — it's
   // Peter's own day: the actual gap named last night, now closed.
+  // Real bug found live 2026-07-10: a "reminder" message's
+  // customer_name is timing/location context for the reminder
+  // ("after Jenny's job"), not a fact ABOUT the customer — the same
+  // subject-attribution principle already applied to ProSupply. The
+  // raw transcript (dog food and all) was still being stored verbatim
+  // into the customer's own file even though personal_note above
+  // already captured the whole thing correctly and separately —
+  // "remind me to get dog food" doesn't belong in Jenny's notes just
+  // because her job happened to be the reminder's trigger.
   const isQuestion = extraction?.intent === "lookup" || looksLikeAQuestion(transcript);
-  if (!isQuestion) {
+  const isReminder = extraction?.intent === "reminder";
+  if (!isQuestion && !isReminder) {
     if (customer) {
       ctx.waitUntil(appendCustomerNote(env, customer.id, transcript));
     } else if (character) {
@@ -1736,12 +1793,18 @@ async function processTranscript(
     if (extraction?.query_scope === "business") {
       // No single customer — a business-wide financial question,
       // answered from real SQL aggregates, not a guess from a
-      // sentence. Outstanding invoices AND quotations both included
-      // now — a business-wide question could reasonably be about
-      // either, and only having one silently made the other
-      // unanswerable.
-      const outstandingFacts = await getOutstandingInvoices(env);
-      const quotationFacts = await getQuotationsSummary(env);
+      // sentence. Real bug found live 2026-07-10: including both
+      // fact sets unconditionally meant a follow-up specifically
+      // about quotations ("names and amounts") pulled in unrelated
+      // invoice-balance facts too. classifyBusinessTopic anchors on
+      // the conversation's actual standing topic the same way
+      // resolveFollowUpEntity does for named entities — a truly
+      // general question (no history, or genuinely broad) still gets
+      // both fact sets; a topic-specific follow-up gets only what's
+      // relevant to it.
+      const topic = await classifyBusinessTopic(env, history, transcript);
+      const outstandingFacts = topic !== "quotations" ? await getOutstandingInvoices(env) : [];
+      const quotationFacts = topic !== "invoices" ? await getQuotationsSummary(env) : [];
       message = await answerFromMemory(env, transcript, [...outstandingFacts, ...quotationFacts]);
     } else if (character) {
       const characterFacts = await getCharacterNotes(env, character.id);
