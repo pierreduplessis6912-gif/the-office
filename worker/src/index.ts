@@ -1959,6 +1959,35 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ customerId, raw: raw ? JSON.parse(raw) : null });
     }
 
+    // The write-back counterpart to /debug/customer-notes GET — for
+    // correcting a KV entry directly (e.g. removing a fact that got
+    // filed under the wrong entity) without needing wrangler access.
+    // Deliberately generic (any key, any JSON value) rather than one
+    // narrow "remove a fact" endpoint — the same reasoning as every
+    // other debug tool here: general enough to be useful again, not
+    // custom-built for one cleanup.
+    if (url.pathname === "/debug/kv-set" && request.method === "POST") {
+      const body = (await request.json()) as { key?: string; value?: unknown };
+      if (!body.key) return Response.json({ error: "missing key" }, { status: 400 });
+      await env.CUSTOMER_NOTES.put(body.key, JSON.stringify(body.value));
+      return Response.json({ status: "set", key: body.key });
+    }
+
+    // Scoped cleanup for a customer row created in error (e.g. a
+    // supplier that should have been a character) — removes the D1
+    // row, its KV notes, and any pending_memory_flush entries so
+    // nothing dangling gets embedded into Vectorize afterward. Not a
+    // general SQL executor on purpose — this only ever does exactly
+    // these three deletes, scoped to one customer id.
+    if (url.pathname === "/debug/delete-customer" && request.method === "POST") {
+      const id = url.searchParams.get("id");
+      if (!id) return Response.json({ error: "missing ?id=" }, { status: 400 });
+      await env.OFFICE_DB.prepare("DELETE FROM customers WHERE id = ?").bind(id).run();
+      await env.OFFICE_DB.prepare("DELETE FROM pending_memory_flush WHERE customer_id = ?").bind(id).run();
+      await env.CUSTOMER_NOTES.delete(`customer:${id}`);
+      return Response.json({ status: "deleted", id });
+    }
+
     // Inspect a given day's life events directly — defaults to today.
     if (url.pathname === "/debug/life-events" && request.method === "GET") {
       const date = url.searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
