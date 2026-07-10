@@ -1222,78 +1222,39 @@ async function runQueryRewriteModel(
   const thinking = options.thinking ?? true;
   const maxTokens = options.maxTokens ?? 1500;
   const historyText = history.map((h) => `${h.role === "user" ? "Peter" : "Office"}: ${h.text}`).join("\n");
+  // Real evidence 2026-07-10: the previous version of this prompt
+  // grew, fix by fix, into a long list of rules — most of them added
+  // specifically to stop a loop the last fix had caused. Every extra
+  // clause gave the model something new to check its own answer
+  // against, and thinking:true has room to do exactly that: every
+  // failed reasoning trace showed it re-reading its own instructions
+  // mid-answer ("wait, the instruction says...", "let me reconsider").
+  // The fix isn't a better rule, it's fewer of them — a short, direct
+  // instruction the same way you'd actually ask a person, with
+  // nothing left to argue with itself about. Two short prompts
+  // instead of one long one, chosen by thinking (tiebreak needs real
+  // reasoning; everything else doesn't).
+  const systemPrompt = thinking
+    ? "Rewrite the new message so it stands alone, replacing any pronoun or vague reference with the " +
+      "specific name it means, using the conversation below. If more than one person could match, pick " +
+      "whoever was mentioned most recently. Return only the rewritten message, nothing else.\n\n" +
+      "Conversation:\n" +
+      historyText
+    : "The new message refers back to something just discussed below. Rewrite it so it stands alone — " +
+      "replace the vague reference with a short, direct mention of what it's about. Keep it brief. " +
+      "Return only the rewritten message, nothing else.\n\n" +
+      "Conversation:\n" +
+      historyText;
   const result = await withRetry(() =>
     env.AI.run("@cf/moonshotai/kimi-k2.6", {
       chat_template_kwargs: { thinking },
       temperature: 0,
-      // Real evidence 2026-07-10, via /debug/rewrite-query-raw: raising
-      // the budget from 600 -> 1200 -> 2500 never converged — the raw
-      // reasoning trace showed the model looping, redrafting nearly
-      // the same sentence six or seven times, never committing. More
-      // tokens can't fix a loop, only a real fix can. Root cause found
-      // in the trace itself: the worked example below used a shorter,
-      // differently-worded version of the SAME ProSupply scenario as
-      // the live test, and the model kept getting stuck reconciling
-      // "should I match the example's brevity or the real history's
-      // extra detail" — a genuine self-conflict this prompt caused.
-      // Fixed by using an unrelated example scenario (can never be
-      // confused with live data) plus explicit decisiveness and
-      // conciseness rules — but real evidence after that fix STILL
-      // showed looping (five-plus candidate phrasings, same ceiling
-      // hit), meaning the deeper cause is thinking:true itself having
-      // no stopping signal for a task this simple, not any specific
-      // wording in the prompt. thinking/maxTokens now overridable so
-      // this can be tested directly via /debug/rewrite-query-raw
-      // rather than guessed at across another redeploy cycle.
       max_tokens: maxTokens,
       messages: [
-        {
-          role: "system",
-          content:
-          "Rewrite the new message to be fully self-contained, replacing any pronouns or vague " +
-          "references (her, him, that, it, the invoice, etc.) with the specific name or thing they " +
-          "refer to, using the conversation history for context. When more than one person or thing " +
-          "could match, ALWAYS resolve to whichever was mentioned MOST RECENTLY in the history, never " +
-          "whichever was mentioned most often — recency wins over frequency, always. " +
-          "References aren't always to a single name — a phrase can also point at a WHOLE SET of facts " +
-          "or events the office just described (\"those instances\", \"that situation\", \"all of " +
-          "that\", \"what happened there\"). Resolve these the same way: replace the vague phrase with a " +
-          "concrete reference naming the real entity involved, plus a SHORT few-word label for each fact " +
-          "— not a verbatim restatement of every clause from the history. Keep the rewritten sentence " +
-          "close in length to the original question; it only needs to be specific enough to retrieve the " +
-          "right facts, not a full recap of everything that was said. " +
-          "Never invent a fact that wasn't in the history; only make an existing vague reference " +
-          "concrete. If a drill-down question stays vague because there's genuinely nothing in the " +
-          "history to ground it in, leave it as close to the original as possible rather than guessing " +
-          "at an entity that was never mentioned. " +
-          "SIZE YOUR REASONING TO THE ACTUAL DIFFICULTY of this specific message — most references are " +
-          "not hard. If there is only ONE plausible person or thing the reference could mean, or the " +
-          "message just needs a short label for recently-discussed facts, resolve it in a SHORT burst of " +
-          "reasoning — a sentence or two — and commit immediately; do not keep re-examining an answer " +
-          "that's already clearly right. Only reason at real length when there are genuinely MULTIPLE " +
-          "competing candidates that need an actual tie-break (e.g. two different people who could both " +
-          "plausibly be \"her\" — resolve those using the recency rule above). Most messages need the " +
-          "short path; treat the long path as the exception, not the default. " +
-          "Commit to ONE rewritten sentence and write it directly — do not draft multiple candidate " +
-          "phrasings, do not second-guess your own wording, do not compare your answer against any " +
-          "example below for exact phrasing. The example illustrates the general pattern only, using an " +
-          "unrelated scenario — never treat it as a template to match word-for-word. " +
-          "Do NOT answer the message, add new information, or change its type — a question must stay " +
-          "phrased as a question, a statement stays a statement. Only resolve what the ambiguous words " +
-          "refer to. If the message is already self-contained, return it completely unchanged. Return " +
-          "ONLY the rewritten message, nothing else — no explanation, no quotes.\n\n" +
-          "Example (an unrelated scenario, illustrating the pattern only):\n" +
-          "Peter: how's the Miller job going\n" +
-          "Office: Slow — the electrician missed two appointments and the client is unhappy about the " +
-          "delay.\n" +
-          'New message: "who\'s responsible for that mess?" -> "who\'s responsible for the missed ' +
-          'appointments on the Miller job?"\n\n' +
-          "Conversation history:\n" +
-          historyText,
-      },
-      { role: "user", content: message },
-    ],
-  }));
+        { role: "system", content: systemPrompt },
+        { role: "user", content: message },
+      ],
+    }));
   const r = result as {
     choices?: Array<{ message?: { content?: string; reasoning_content?: string }; finish_reason?: string }>;
   };
@@ -1335,13 +1296,10 @@ async function classifyReferenceComplexity(
           {
             role: "system",
             content:
-              "Does resolving any vague reference in the new message require choosing between MULTIPLE " +
-              "different named people or things mentioned in the history that could all plausibly match " +
-              "(a genuine tie-break — e.g. \"her\" could mean either of two different women mentioned)? " +
-              "Or is there at most one plausible match, or no real ambiguity at all (the reference is " +
-              "already clear, or just needs a short label filled in from what was already said)? " +
-              'Answer with exactly one word: "TIEBREAK" or "SIMPLE". No explanation.\n\n' +
-              "Conversation history:\n" +
+              "Could a pronoun or vague word in the new message mean two or more DIFFERENT people or " +
+              'things from the conversation below? Answer "TIEBREAK" if so, otherwise "SIMPLE". One ' +
+              "word only.\n\n" +
+              "Conversation:\n" +
               historyText,
           },
           { role: "user", content: message },
