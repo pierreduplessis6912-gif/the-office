@@ -243,11 +243,12 @@ interface LineItemExtraction {
 // speech describes multiple distinct lines ("carpet for the main
 // bedroom at R18,700, plus uplift and restretch at R15,120"). This is
 // a separate, focused call rather than folded into the main
-// classifier — same reasoning as rewriteQuery and answerFromMemory
-// being their own steps: one job per call, easier to get right, easier
-// to test in isolation. Never asks the model to calculate anything —
-// only to extract the numbers actually stated; the actual line total
-// is always computed deterministically afterward, in code.
+// classifier — same reasoning as resolveFollowUpEntity and
+// answerFromMemory being their own steps: one job per call, easier to
+// get right, easier to test in isolation. Never asks the model to
+// calculate anything — only to extract the numbers actually stated;
+// the actual line total is always computed deterministically
+// afterward, in code.
 async function extractLineItems(env: Env, transcript: string): Promise<LineItemExtraction[]> {
   try {
     const result = await withRetry(() =>
@@ -642,6 +643,90 @@ async function reconcileCharacter(
     .first<{ id: number; name: string }>();
 
   return { id: inserted!.id, name: inserted!.name, matched: false };
+}
+
+// Read-only counterpart to reconcileCustomer/reconcileCharacter —
+// used only for resolving a follow-up question to an EXISTING entity,
+// never allowed to create one. A mere lookup accidentally creating a
+// customer or character row would be a real, silent data-integrity
+// bug, the same class of thing guard() and reconciliation discipline
+// exist to prevent everywhere else.
+async function findExistingEntityByName(
+  env: Env,
+  name: string
+): Promise<{ type: "customer" | "character"; id: number; name: string } | null> {
+  if (!looksLikeAName(name)) return null;
+  const tokens = name.trim().split(/\s+/);
+  const firstToken = tokens[0];
+  const lastToken = tokens[tokens.length - 1];
+
+  const customerRow =
+    tokens.length >= 2
+      ? await env.OFFICE_DB.prepare("SELECT id, name FROM customers WHERE name LIKE ? AND name LIKE ? LIMIT 1")
+          .bind(`%${firstToken}%`, `%${lastToken}%`)
+          .first<{ id: number; name: string }>()
+      : await env.OFFICE_DB.prepare("SELECT id, name FROM customers WHERE name LIKE ? LIMIT 1")
+          .bind(`%${firstToken}%`)
+          .first<{ id: number; name: string }>();
+  if (customerRow) return { type: "customer", id: customerRow.id, name: customerRow.name };
+
+  const characterRow =
+    tokens.length >= 2
+      ? await env.OFFICE_DB.prepare("SELECT id, name FROM characters WHERE name LIKE ? AND name LIKE ? LIMIT 1")
+          .bind(`%${firstToken}%`, `%${lastToken}%`)
+          .first<{ id: number; name: string }>()
+      : await env.OFFICE_DB.prepare("SELECT id, name FROM characters WHERE name LIKE ? LIMIT 1")
+          .bind(`%${firstToken}%`)
+          .first<{ id: number; name: string }>();
+  if (characterRow) return { type: "character", id: characterRow.id, name: characterRow.name };
+
+  return null;
+}
+
+// Real evidence 2026-07-10: the previous approach — asking the model
+// to REWRITE a follow-up into a fluent, self-contained sentence —
+// looped repeatedly under thinking:true, no matter how the prompt was
+// tuned, because open-ended prose generation has no natural stopping
+// point. This replaces it entirely: the model's only job is to name
+// which EXISTING entity a vague follow-up refers to — a closed,
+// structured extraction, the exact same shape as extractIntent's
+// customer_name/character_name fields, which have never once looped
+// across this whole build. Code does everything else: the real
+// lookup, the real facts, the real answer — the original question
+// text goes straight to answerFromMemory unmodified, no rewritten
+// sentence ever generated.
+async function resolveFollowUpEntity(env: Env, history: HistoryTurn[], message: string): Promise<string | null> {
+  if (history.length === 0) return null;
+  try {
+    const historyText = history.map((h) => `${h.role === "user" ? "Peter" : "Office"}: ${h.text}`).join("\n");
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        chat_template_kwargs: { thinking: false },
+        temperature: 0,
+        messages: [
+          {
+            role: "system",
+            content:
+              "The new message may refer back to someone already named in the conversation below, " +
+              'without naming them again ("who did we deal with", "what\'s her balance", "tell me ' +
+              'more"). If so, return their exact name as it appears below. If the new message already ' +
+              'names someone itself, or doesn\'t refer back to anyone, return null. Return ONLY JSON: ' +
+              '{"name": string or null}\n\n' +
+              "Conversation:\n" +
+              historyText,
+          },
+          { role: "user", content: message },
+        ],
+      })
+    );
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const rawText = r.choices?.[0]?.message?.content ?? "";
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned) as { name: string | null };
+    return parsed.name ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // The actual real ground-truth write. Only ever called from the
@@ -1199,168 +1284,6 @@ interface HistoryTurn {
   text: string;
 }
 
-// Query rewriting: the established fix for pronoun/reference
-// resolution in conversational retrieval. Turns "what did we invoice
-// her?" into a fully self-contained question using recent context,
-// BEFORE extraction or retrieval ever sees it. Runs on Kimi, not the
-// small model — proven: the small model kept quietly answering the
-// question instead of just resolving references, twice, even after
-// explicit prompt constraints; Kimi got it right first try.
-// The raw call, shared between rewriteQuery and its debug
-// counterpart below — extracted specifically so the diagnostic route
-// can never drift from the real prompt while investigating a real,
-// unexplained failure: content came back empty twice in a row (600
-// and 1200 max_tokens) with no exception thrown, meaning the answer
-// has to come from actually seeing the reasoning trace and finish
-// reason, not from guessing at another token-budget number.
-async function runQueryRewriteModel(
-  env: Env,
-  history: HistoryTurn[],
-  message: string,
-  options: { thinking?: boolean; maxTokens?: number } = {}
-): Promise<{ content: string | null; reasoning: string | null; finishReason: string | null }> {
-  const thinking = options.thinking ?? true;
-  const maxTokens = options.maxTokens ?? 1500;
-  const historyText = history.map((h) => `${h.role === "user" ? "Peter" : "Office"}: ${h.text}`).join("\n");
-  // Real evidence 2026-07-10: the previous version of this prompt
-  // grew, fix by fix, into a long list of rules — most of them added
-  // specifically to stop a loop the last fix had caused. Every extra
-  // clause gave the model something new to check its own answer
-  // against, and thinking:true has room to do exactly that: every
-  // failed reasoning trace showed it re-reading its own instructions
-  // mid-answer ("wait, the instruction says...", "let me reconsider").
-  // The fix isn't a better rule, it's fewer of them — a short, direct
-  // instruction the same way you'd actually ask a person, with
-  // nothing left to argue with itself about. Two short prompts
-  // instead of one long one, chosen by thinking (tiebreak needs real
-  // reasoning; everything else doesn't).
-  const systemPrompt = thinking
-    ? "Rewrite the new message so it stands alone, replacing any pronoun or vague reference with the " +
-      "specific name it means, using the conversation below. If more than one person could match, pick " +
-      "whoever was mentioned most recently. Return only the rewritten message, nothing else.\n\n" +
-      "Conversation:\n" +
-      historyText
-    : "The new message refers back to something just discussed below. Rewrite it so it stands alone — " +
-      "replace the vague reference with a short, direct mention of what it's about. Keep it brief. " +
-      "Return only the rewritten message, nothing else.\n\n" +
-      "Conversation:\n" +
-      historyText;
-  const result = await withRetry(() =>
-    env.AI.run("@cf/moonshotai/kimi-k2.6", {
-      chat_template_kwargs: { thinking },
-      temperature: 0,
-      max_tokens: maxTokens,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: message },
-      ],
-    }));
-  const r = result as {
-    choices?: Array<{ message?: { content?: string; reasoning_content?: string }; finish_reason?: string }>;
-  };
-  return {
-    content: r.choices?.[0]?.message?.content?.trim() || null,
-    reasoning: r.choices?.[0]?.message?.reasoning_content ?? null,
-    finishReason: r.choices?.[0]?.finish_reason ?? null,
-  };
-}
-
-// Real evidence 2026-07-10, gathered via /debug/rewrite-query-raw
-// across several real attempts: thinking:true reliably loops —
-// redrafting the same near-identical sentence five-plus times,
-// hitting the token ceiling with empty content — specifically on
-// references that resolve to a SUMMARY of several facts (e.g. "those
-// instances"), no matter how explicitly it's told to size its effort
-// down or stop re-examining an already-correct answer. The same
-// setting is exactly what's needed for genuine tie-breaks between
-// multiple named candidates (e.g. "her" between two people). One
-// call can't have both settings. So: classify first, cheaply and
-// fast (thinking:false, tiny budget — this classification itself
-// never needs to loop), then route to the right reasoning mode for
-// the real rewrite. This is the actual fix, not another prompt
-// tweak on the single-call approach, which was tried three times
-// first and failed all three.
-async function classifyReferenceComplexity(
-  env: Env,
-  history: HistoryTurn[],
-  message: string
-): Promise<"tiebreak" | "simple"> {
-  try {
-    const historyText = history.map((h) => `${h.role === "user" ? "Peter" : "Office"}: ${h.text}`).join("\n");
-    const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        chat_template_kwargs: { thinking: false },
-        temperature: 0,
-        max_tokens: 20,
-        messages: [
-          {
-            role: "system",
-            content:
-              "Could a pronoun or vague word in the new message mean two or more DIFFERENT people or " +
-              'things from the conversation below? Answer "TIEBREAK" if so, otherwise "SIMPLE". One ' +
-              "word only.\n\n" +
-              "Conversation:\n" +
-              historyText,
-          },
-          { role: "user", content: message },
-        ],
-      })
-    );
-    const r = result as { choices?: Array<{ message?: { content?: string } }> };
-    const answer = r.choices?.[0]?.message?.content?.trim().toUpperCase() ?? "";
-    return answer.includes("TIEBREAK") ? "tiebreak" : "simple";
-  } catch {
-    // Unclear beats wrong here — if classification itself fails,
-    // default to the safer, already-proven path (full reasoning)
-    // rather than risk a silent tie-break mistake.
-    return "tiebreak";
-  }
-}
-
-async function rewriteQuery(env: Env, history: HistoryTurn[], message: string): Promise<string> {
-  if (history.length === 0) return message;
-  try {
-    // Classify first, cheaply — this decides which of the two proven
-    // configurations to use for the real rewrite below. thinking:true
-    // stays reserved for genuine tie-breaks (proven necessary there);
-    // everything else runs thinking:false with a tight budget (proven
-    // fast and correct for fact-summary references, where thinking:true
-    // reliably loops instead).
-    const complexity = await classifyReferenceComplexity(env, history, message);
-    const { content: rewritten, finishReason } = await runQueryRewriteModel(env, history, message, {
-      thinking: complexity === "tiebreak",
-      maxTokens: complexity === "tiebreak" ? 1500 : 300,
-    });
-    if (!rewritten) {
-      // Not an exception — the call succeeded, it just produced no
-      // usable content, silently falling back to the unresolved
-      // original message. That's the same class of silent failure
-      // logCapture/memory_errors exists to catch everywhere else;
-      // logged here too rather than left invisible. finishReason is
-      // included since it's the single most useful diagnostic detail
-      // — "length" would mean the token budget genuinely ran out
-      // mid-reasoning, anything else means something different failed.
-      try {
-        await env.OFFICE_DB.prepare("INSERT INTO memory_errors (customer_id, text, error) VALUES (NULL, ?, ?)")
-          .bind(`rewriteQuery returned empty content for: ${message}`, `complexity=${complexity}, empty completion, finish_reason=${finishReason}`)
-          .run();
-      } catch {
-        // Nothing further to do.
-      }
-    }
-    return rewritten && rewritten.length > 0 ? rewritten : message;
-  } catch (err) {
-    try {
-      await env.OFFICE_DB.prepare("INSERT INTO memory_errors (customer_id, text, error) VALUES (NULL, ?, ?)")
-        .bind(`rewriteQuery failed for: ${message}`, err instanceof Error ? err.message : String(err))
-        .run();
-    } catch {
-      // Nothing further to do.
-    }
-    return message;
-  }
-}
-
 // Shared by both /files/audio (after transcription) and /messages/text
 // (directly on typed input) — same extraction, reconciliation, guard(),
 // and memory logic either way. A transcript is a transcript, whether
@@ -1476,8 +1399,6 @@ async function processTranscript(
 ): Promise<ProcessResult> {
   const captureId = await logCapture(env, transcript, source, r2Key);
 
-  const rewritten = await rewriteQuery(env, history, transcript);
-
   let extraction: Extraction | null = null;
   let extractionRaw: unknown = null;
   let extractionRawText: string | null = null;
@@ -1485,7 +1406,11 @@ async function processTranscript(
   let character: { id: number; name: string; matched: boolean } | null = null;
   let pendingActionId: number | null = null;
 
-  const result = await extractIntent(env, rewritten);
+  // Extraction always runs on the real, original words — never a
+  // rewritten version. extractIntent already resolves customer_name/
+  // character_name directly and reliably for the vast majority of
+  // messages, which name who they're about outright.
+  const result = await extractIntent(env, transcript);
   extraction = result.extraction;
   extractionRaw = result.raw;
   extractionRawText = result.rawText;
@@ -1496,6 +1421,25 @@ async function processTranscript(
 
   if (extraction?.character_name) {
     character = await reconcileCharacter(env, extraction.character_name, extraction.character_relationship);
+  }
+
+  // Only for the genuinely ambiguous case — a lookup with no name in
+  // the message itself, drilling into recent conversation ("who did
+  // we deal with in those instances?"). Skipped for every ordinary
+  // message, which is the vast majority — cheap by construction, not
+  // just by accident.
+  if (extraction?.intent === "lookup" && !customer && !character && history.length > 0) {
+    const resolvedName = await resolveFollowUpEntity(env, history, transcript);
+    if (resolvedName) {
+      const found = await findExistingEntityByName(env, resolvedName);
+      if (found?.type === "customer") {
+        customer = { id: found.id, name: found.name, matched: true };
+        extraction = { ...extraction, query_scope: "customer" };
+      } else if (found?.type === "character") {
+        character = { id: found.id, name: found.name, matched: true };
+        extraction = { ...extraction, query_scope: "character" };
+      }
+    }
   }
 
   if (captureId !== null) {
@@ -1767,11 +1711,11 @@ async function processTranscript(
       // answered from a real SQL aggregate, not a guess from a
       // sentence. This is the actual fix for "who owes me money."
       const outstandingFacts = await getOutstandingInvoices(env);
-      message = await answerFromMemory(env, rewritten, outstandingFacts);
+      message = await answerFromMemory(env, transcript, outstandingFacts);
     } else if (character) {
       const characterFacts = await getCharacterNotes(env, character.id);
       const facts = [`${character.name} is a known contact.`, ...characterFacts];
-      message = await answerFromMemory(env, rewritten, facts);
+      message = await answerFromMemory(env, transcript, facts);
     } else if (customer) {
       const memoryFacts = await getCustomerNotes(env, customer.id);
       const financialSummary = await getCustomerFinancialSummary(env, customer.id);
@@ -1780,13 +1724,13 @@ async function processTranscript(
         ...(financialSummary ? [`${customer.name}: ${financialSummary}`] : []),
         ...memoryFacts,
       ];
-      message = await answerFromMemory(env, rewritten, facts);
+      message = await answerFromMemory(env, transcript, facts);
     } else {
       // No customer named, not a business question — a question
       // about Peter's own day or week. Read straight from the
       // date-keyed life-event store, not an unscoped Vectorize search.
       const lifeFacts = await getRecentLifeEvents(env, 7);
-      message = await answerFromMemory(env, rewritten, lifeFacts);
+      message = await answerFromMemory(env, transcript, lifeFacts);
     }
   } else if (customer) {
     message = customer.matched ? `Found existing customer: ${customer.name}.` : `New customer noted: ${customer.name}.`;
@@ -1801,7 +1745,7 @@ async function processTranscript(
     message += ` ${extraction!.fact_key} noted (${extraction!.fact_value}) — needs your confirmation (action #${factPendingActionId}) before it's saved.`;
   }
 
-  return { extraction, extractionRaw, extractionRawText, customer, pendingActionId, factPendingActionId, message, rewrittenQuery: rewritten };
+  return { extraction, extractionRaw, extractionRawText, customer, pendingActionId, factPendingActionId, message, rewrittenQuery: transcript };
 }
 
 // Consolidation: drains pending_memory_flush into Vectorize in ONE
@@ -2094,39 +2038,18 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ status: "set", key: body.key });
     }
 
-    // Full raw visibility into runQueryRewriteModel — reasoning trace,
-    // content, and finish_reason — for diagnosing a real, unexplained
-    // failure: content came back empty twice in a row (600 and 1200
-    // max_tokens) with no exception thrown. Takes the exact same
-    // {history, text} shape as /messages/text so a real failing case
-    // can be replayed exactly, not approximated.
-    if (url.pathname === "/debug/rewrite-query-raw" && request.method === "POST") {
-      const body = (await request.json()) as {
-        text?: string;
-        history?: HistoryTurn[];
-        thinking?: boolean;
-        maxTokens?: number;
-      };
-      if (!body.text) return Response.json({ error: "missing text" }, { status: 400 });
-      const history = Array.isArray(body.history) ? body.history : [];
-      const raw = await runQueryRewriteModel(env, history, body.text, {
-        thinking: body.thinking,
-        maxTokens: body.maxTokens,
-      });
-      return Response.json({ input: body.text, history, thinking: body.thinking ?? true, maxTokens: body.maxTokens ?? 1500, ...raw });
-    }
-
-    // The real production path — classify, then route, exactly what
-    // /messages/text calls internally — for faithful end-to-end
-    // verification distinct from the raw single-call introspection
-    // above.
-    if (url.pathname === "/debug/rewrite-query-test" && request.method === "POST") {
+    // Debug counterpart to resolveFollowUpEntity, the closed-form
+    // replacement for the abandoned prose-rewriting approach (see the
+    // 2026-07-10 bug log in STATUS.md for why). Takes the same
+    // {history, text} shape as /messages/text so a real drill-down
+    // conversation can be replayed exactly.
+    if (url.pathname === "/debug/resolve-entity-test" && request.method === "POST") {
       const body = (await request.json()) as { text?: string; history?: HistoryTurn[] };
       if (!body.text) return Response.json({ error: "missing text" }, { status: 400 });
       const history = Array.isArray(body.history) ? body.history : [];
-      const complexity = await classifyReferenceComplexity(env, history, body.text);
-      const rewritten = await rewriteQuery(env, history, body.text);
-      return Response.json({ input: body.text, complexity, rewritten });
+      const resolvedName = await resolveFollowUpEntity(env, history, body.text);
+      const found = resolvedName ? await findExistingEntityByName(env, resolvedName) : null;
+      return Response.json({ input: body.text, resolvedName, found });
     }
 
     // Scoped cleanup for a customer row created in error (e.g. a
