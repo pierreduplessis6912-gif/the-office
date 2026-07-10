@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// The one thing every future client (Flutter, PWA, desktop) points at.
 /// Changing this one line is the entire cost of a future domain swap.
@@ -76,7 +77,11 @@ class PendingItem {
   final int id;
   PendingStatus status;
   bool busy;
-  PendingItem({required this.id, this.status = PendingStatus.pending, this.busy = false});
+  // Only set once confirmed, and only for invoice/quotation confirms
+  // — the backend has always returned this, nothing on the client
+  // ever did anything with it until now.
+  String? pdfUrl;
+  PendingItem({required this.id, this.status = PendingStatus.pending, this.busy = false, this.pdfUrl});
 }
 
 class ChatMessage {
@@ -322,12 +327,26 @@ class _OfficeHomeState extends State<OfficeHome> {
     try {
       final uri = Uri.parse('$officeApiBase/actions/$itemId/${confirm ? "confirm" : "reject"}');
       final response = await http.post(uri);
+      // Only invoice/quotation confirms carry a real pdfUrl — every
+      // other confirm type (payment, customer_fact) simply won't have
+      // one, which is fine, this stays null for those.
+      String? pdfUrl;
+      if (response.statusCode == 200 && confirm) {
+        try {
+          final data = jsonDecode(response.body) as Map<String, dynamic>;
+          pdfUrl = data['pdfUrl'] as String?;
+        } catch (_) {
+          // Body wasn't valid JSON or didn't have the field — fine,
+          // pdfUrl just stays null, nothing to surface.
+        }
+      }
       setState(() {
         _messages[msgIndex].pendingItems[itemIndex].busy = false;
         _messages[msgIndex].pendingItems[itemIndex].status =
             response.statusCode == 200
                 ? (confirm ? PendingStatus.confirmed : PendingStatus.rejected)
                 : PendingStatus.pending;
+        _messages[msgIndex].pendingItems[itemIndex].pdfUrl = pdfUrl;
       });
       if (response.statusCode != 200) {
         _addMessage(MessageRole.office, 'Could not ${confirm ? "confirm" : "reject"} that — try again.');
@@ -517,8 +536,38 @@ class _MessageLine extends StatelessWidget {
     if (item.status == PendingStatus.confirmed) {
       return Padding(
         padding: const EdgeInsets.only(top: 4),
-        child: Text('✓ Confirmed (#${item.id})',
-            style: GoogleFonts.ibmPlexMono(fontSize: 11, color: _confirmedGreen, fontWeight: FontWeight.w600)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('✓ Confirmed (#${item.id})',
+                style: GoogleFonts.ibmPlexMono(fontSize: 11, color: _confirmedGreen, fontWeight: FontWeight.w600)),
+            if (item.pdfUrl != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: InkWell(
+                  onTap: () => launchUrl(Uri.parse(item.pdfUrl!), webOnlyWindowName: '_blank'),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.description_outlined, size: 14, color: _officeAccent),
+                      const SizedBox(width: 5),
+                      Text(
+                        'VIEW DOCUMENT',
+                        style: GoogleFonts.ibmPlexMono(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1,
+                          color: _officeAccent,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
       );
     }
     if (item.status == PendingStatus.rejected) {
