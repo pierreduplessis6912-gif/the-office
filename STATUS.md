@@ -295,6 +295,30 @@ reasoning traces as evidence, not assumption.
     `scope_tasks.component_id`, resolved in code from an optional
     `component_name` the model reports per task.
 
+**2026-07-10:**
+11. **Subject-attribution: extraction picked an incidentally-mentioned
+    name over the real subject of the message.** "ProSupply was late
+    delivering the tiles for Jenny's job back in March" got filed
+    under Jenny (the job mentioned as context) instead of ProSupply
+    (who the message was actually about — the late delivery). Found
+    live while seeding a real multi-turn retrieval test, not
+    synthetically. Fixed: the extraction prompt now explicitly asks
+    "who or what is this sentence fundamentally reporting on," not
+    just which names appear in it — with a real example baked in.
+    Live data this had already polluted (a stray note filed onto
+    Jenny Hawke's real customer file) was corrected by hand afterward
+    via the two debug routes added for exactly this.
+12. **`character_name` was defined too narrowly — personal relations
+    only, no way to hold a supplier.** The same bug above also
+    revealed that a supplier ("ProSupply") had nowhere safe to live:
+    forcing it into `customers` would have made it silently
+    quotable/invoiceable, the exact class of risk `characters` exists
+    to prevent for personal relations. Fixed by broadening the real
+    invariant: `character_name` now covers anyone NOT billed by the
+    tradesperson — personal or business — not just personal relations.
+    `characters.relationship` already stored a free string; no schema
+    change needed, only the extraction prompt's definition.
+
 ## Debug and diagnostic routes
 
 `/debug/list-audio`, `/debug/reprocess`, `/debug/search-memory`,
@@ -305,6 +329,13 @@ revisit unprocessed captures as a batch), `/debug/job-scopes`,
 `/debug/quotations`, `/debug/invoices` (both real, verified 2026-07-10
 while proving price_scope end to end — each shows line items directly,
 not just the summed total, since a right total can hide a wrong line),
+`/debug/kv-set` (generic KV write-back, the counterpart to
+`/debug/customer-notes` GET — POST `{key, value}`) and
+`/debug/delete-customer?id=` (scoped: deletes the customers row, its
+KV notes, and any pending_memory_flush entries — not a general SQL
+executor). Both earned live 2026-07-10 correcting real data a
+subject-attribution bug had polluted, not built ahead of need — kept
+because the same class of correction will likely be needed again.
 `/debug/rewrite-thinking-test` (served its diagnostic purpose already
 — safe to remove), `/debug/pdf-route-test` (leftover from a routing
 diagnosis — safe to remove), `/admin/flush-memory`.
@@ -419,6 +450,36 @@ Codemagic — still only proven on the web preview.**
   Explicitly not to be built ahead of the trigger: manual provisioning
   becoming an actual bottleneck, or someone needing to sign up without
   a human in the loop at all.
+- **Relational memory: events with multiple participants, not notes
+  owned by one entity (2026-07-10).** Surfaced by the ProSupply/Jenny
+  bug above — that bug is fixed (a note now attributes to its real
+  single subject), but it exposed a real, larger question underneath:
+  should the same event ever be visible from more than one entity's
+  side? E.g. a late-delivery event should arguably be findable both by
+  asking about the supplier AND by asking about the customer whose job
+  it delayed. This is a genuine, well-reasoned hypothesis — but nothing
+  that's actually happened yet has demonstrated the need for it; today
+  a note simply belongs to whichever single entity it's really about,
+  and that's honestly sufficient until someone asks about Jenny and is
+  missing something that only lives under ProSupply. Held to the same
+  bar as everything else here: pinned, not built, until a real gap
+  demonstrates it.
+
+  **If and when it's built, the design must NOT be a single
+  polymorphic "Entity" table with a type column.** That was explicitly
+  proposed and explicitly rejected — it's the exact same shape as the
+  `people` table already rejected three times, and it would reopen the
+  one thing `characters` exists to structurally guarantee: that a
+  personal relation or supplier can never accidentally become billable
+  through a bad reconciliation. The safe version of the same idea
+  already has a proven precedent in this schema — `line_items` already
+  links to *either* `quotation_id` *or* `invoice_id` via a CHECK
+  constraint (exactly one non-null, never both), not a single
+  polymorphic `document_id`. An `events` + `event_participants` table
+  using the identical pattern (`customer_id` or `character_id`, never
+  both) gets the real benefit — one event, viewable from either side —
+  without reopening that risk. `customers` and `characters` stay
+  exactly as structurally separate as they are today.
 
 ## UX vision — the Ether, and what it does / doesn't change (2026-07-10)
 
