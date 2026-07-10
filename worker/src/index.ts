@@ -13,7 +13,7 @@ interface Extraction {
   customer_name: string | null;
   character_name: string | null;
   character_relationship: string | null;
-  intent: "payment" | "invoice" | "quotation" | "convert_quote" | "work_observation" | "lookup" | "reminder" | "note" | "other";
+  intent: "payment" | "invoice" | "quotation" | "convert_quote" | "price_scope" | "work_observation" | "lookup" | "reminder" | "note" | "other";
   amount: number | null;
   fact_key: string | null;
   fact_value: string | null;
@@ -114,11 +114,19 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             'typically mentioning a completed job and/or a deposit already paid. "convert Jenny\'s quote to ' +
             'an invoice, she paid an 80% deposit" or "find the quote for this job and convert it, ' +
             'remaining balance is 20%" is convert_quote. ' +
+            'intent is "price_scope" if the message states prices or rates to apply to a job that was ' +
+            "already measured and scoped earlier (an existing job_scope with components and/or tasks), " +
+            "turning that unpriced observation into a real quotation. This differs from plain " +
+            '"quotation" — a plain quotation is a fresh price given directly for described work with no ' +
+            "prior measurement step; price_scope specifically references pricing up something already " +
+            'measured (e.g. "price up Dwayne\'s job", "R450 a square meter for the reception area", ' +
+            '"R3500 flat for the repair work"). Prefer price_scope whenever a rate is being applied per ' +
+            "named component or area rather than one flat total invented fresh for the whole job. " +
             'intent is "work_observation" if the message describes measuring, scoping, or inspecting a job ' +
             '— components, measurements, or tasks — with NO price stated at all. This is earlier than a ' +
             'quotation: the tradesperson is recording what they observed, not proposing a cost. If any ' +
-            'rand amount is mentioned, it is NOT work_observation — use quotation, invoice, or payment ' +
-            'instead. ' +
+            'rand amount is mentioned, it is NOT work_observation — use quotation, invoice, price_scope, ' +
+            "or payment instead. " +
             "amount is a plain number in the currency's major unit (e.g. rand, not cents) if a specific " +
             "amount was stated, exactly as given — never estimate or calculate, only use a number " +
             "that was actually stated, or null if none was. " +
@@ -159,11 +167,12 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             '"how is my wife doing?" -> {"customer_name":null,"character_name":"wife","character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"character","deposit_percent":null}\n' +
             '"heading to jenny\'s job now, remind me to get dog food after" -> {"customer_name":"jenny","character_name":null,"character_relationship":null,"intent":"reminder","amount":null,"fact_key":null,"fact_value":null,"personal_note":"remind me to get dog food after","query_scope":null,"deposit_percent":null}\n' +
             '"we completed Jenny\'s installation, she paid an 80% deposit, convert the quote to an invoice for the remaining balance" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"convert_quote","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":80}\n' +
-            '"Dwayne is a new customer, I measured the reception area at 6600 by 4100, we also need repair work" -> {"customer_name":"Dwayne","character_name":null,"character_relationship":null,"intent":"work_observation","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null}\n\n' +
+            '"Dwayne is a new customer, I measured the reception area at 6600 by 4100, we also need repair work" -> {"customer_name":"Dwayne","character_name":null,"character_relationship":null,"intent":"work_observation","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null}\n' +
+            '"price up Dwayne\'s job, R450 a square meter for the reception area and office, flat R3500 for the repair work" -> {"customer_name":"Dwayne","character_name":null,"character_relationship":null,"intent":"price_scope","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null}\n\n' +
             "Return ONLY JSON, no markdown, no explanation: " +
             '{"customer_name": string or null, "character_name": string or null, "character_relationship": ' +
             'string or null, "intent": "payment" or "invoice" or "quotation" or "convert_quote" or ' +
-            '"work_observation" or "lookup" or "reminder" or "note" or "other", "amount": number or null, ' +
+            '"price_scope" or "work_observation" or "lookup" or "reminder" or "note" or "other", "amount": number or null, ' +
             '"fact_key": string or null, "fact_value": string or null, "personal_note": string or null, ' +
             '"query_scope": "customer" or "character" or "personal" or "business" or null, "deposit_percent": number or null}',
         },
@@ -231,6 +240,77 @@ async function extractLineItems(env: Env, transcript: string): Promise<LineItemE
     const cleaned2 = rawText2.replace(/```json|```/g, "").trim();
     const parsed2 = JSON.parse(cleaned2) as { line_items: LineItemExtraction[] };
     return parsed2.line_items ?? [];
+  } catch {
+    return [];
+  }
+}
+
+interface ScopePricingItem {
+  matched_name: string | null; // must match a given component/task name exactly, or null if it doesn't
+  description: string;
+  pricing_type: "per_sqm" | "flat";
+  rate: number;
+}
+
+// The job_scopes -> quotation link. Grounded in the real, already-
+// measured components and tasks for this job — the model is given
+// their exact names and told to match against them, never to invent
+// new ones. It only ever identifies which named part a rate applies
+// to and whether that rate is per-square-meter or a flat amount; the
+// actual multiplication against a component's real area_sqm always
+// happens afterward, in code, the same discipline as every other
+// number in this system.
+async function extractScopePricing(
+  env: Env,
+  transcript: string,
+  components: Array<{ name: string; area_sqm: number | null }>,
+  tasks: Array<{ description: string }>
+): Promise<ScopePricingItem[]> {
+  try {
+    const componentList = components.map((c) => `${c.name}${c.area_sqm != null ? ` (${c.area_sqm} sqm)` : ""}`).join(", ") || "none";
+    const taskList = tasks.map((t) => t.description).join(", ") || "none";
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        temperature: 0,
+        chat_template_kwargs: { thinking: false },
+        messages: [
+          {
+            role: "system",
+            content:
+              "A tradesperson is stating prices to apply to a job that was already measured. You are " +
+              "given the exact real components (named parts, some with a real measured area in square " +
+              "meters) and tasks (described work with no measurement) that exist for this job. Match " +
+              "what the tradesperson says to these exact given names — never invent a new component or " +
+              "task name. For each priced item extract: matched_name (copied EXACTLY from the given " +
+              "component or task list) or null if it genuinely doesn't match anything given, description " +
+              "(a short label — the matched name if matched, otherwise describe what was priced), " +
+              "pricing_type ('per_sqm' if a rate is given per square meter, meant to be multiplied by " +
+              "that component's real area; 'flat' if a single flat amount was stated for that item), and " +
+              "rate (the plain number stated — the per-sqm rate or the flat amount, exactly as said, " +
+              "never a total you calculate yourself). Return ONLY JSON: " +
+              '{"priced_items": [{"matched_name": string or null, "description": string, "pricing_type": ' +
+              '"per_sqm" or "flat", "rate": number}]}\n\n' +
+              "Example:\n" +
+              'Components: "Reception area (27.06 sqm), Office (12.87 sqm)". Tasks: "repair work, screeding". ' +
+              'Tradesperson said: "R450 a square meter for the reception and the office, flat R3500 for the repair work and screeding" -> ' +
+              '{"priced_items": [' +
+              '{"matched_name":"Reception area","description":"Reception area","pricing_type":"per_sqm","rate":450},' +
+              '{"matched_name":"Office","description":"Office","pricing_type":"per_sqm","rate":450},' +
+              '{"matched_name":null,"description":"Repair work and screeding","pricing_type":"flat","rate":3500}' +
+              "]}",
+          },
+          {
+            role: "user",
+            content: `Components: ${componentList}. Tasks: ${taskList}.\n\nTradesperson said: "${transcript}"`,
+          },
+        ],
+      })
+    );
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const rawText = r.choices?.[0]?.message?.content ?? "";
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned) as { priced_items: ScopePricingItem[] };
+    return parsed.priced_items ?? [];
   } catch {
     return [];
   }
@@ -612,6 +692,44 @@ async function findLatestOpenQuotation(
     .bind(customerId)
     .first<{ id: number; amount: number; description: string }>();
   return row ?? null;
+}
+
+// The read side of the job_scopes -> quotation link. No status column
+// on job_scopes yet and no reference-number system — same honest
+// simplification as findLatestOpenQuotation above: "their most recent
+// recorded job scope" is sufficient while one customer generally has
+// at most one open, unpriced job at a time. Returns the real
+// components and tasks so extractScopePricing has real names to match
+// spoken rates against, never invented ones.
+async function findLatestJobScope(
+  env: Env,
+  customerId: number
+): Promise<{
+  id: number;
+  description: string;
+  components: Array<{ id: number; name: string; area_sqm: number | null }>;
+  tasks: Array<{ id: number; description: string }>;
+} | null> {
+  const scope = await env.OFFICE_DB.prepare(
+    "SELECT id, description FROM job_scopes WHERE customer_id = ? ORDER BY created_at DESC LIMIT 1"
+  )
+    .bind(customerId)
+    .first<{ id: number; description: string }>();
+  if (!scope) return null;
+
+  const { results: components } = await env.OFFICE_DB.prepare(
+    "SELECT id, name, area_sqm FROM scope_components WHERE job_scope_id = ?"
+  )
+    .bind(scope.id)
+    .all<{ id: number; name: string; area_sqm: number | null }>();
+
+  const { results: tasks } = await env.OFFICE_DB.prepare(
+    "SELECT id, description FROM scope_tasks WHERE job_scope_id = ?"
+  )
+    .bind(scope.id)
+    .all<{ id: number; description: string }>();
+
+  return { id: scope.id, description: scope.description, components: components ?? [], tasks: tasks ?? [] };
 }
 
 // The actual, guarded conversion. total/depositAmount/remainingBalance
@@ -1241,14 +1359,61 @@ async function processTranscript(
   }
 
   let quotationLineItems: LineItemWithTotal[] = [];
-  if (extraction?.intent === "quotation" && customer) {
-    const rawLineItems = await extractLineItems(env, transcript);
-    // Line total is always computed here, in code — never asked of
-    // the model. Same discipline as every rand figure all day.
-    quotationLineItems = rawLineItems.map((item) => ({
-      ...item,
-      line_total: item.quantity * item.unit_price,
-    }));
+  // price_scope found a customer but no recorded job_scope to price —
+  // tracked separately so the message branch below can say so
+  // honestly, the same pattern as convertQuoteFound/convertQuoteToInvoice
+  // distinguishing "recognized intent, nothing to act on" from silence.
+  let priceScopeNotFound = false;
+  if ((extraction?.intent === "quotation" || extraction?.intent === "price_scope") && customer) {
+    if (extraction.intent === "price_scope") {
+      // The job_scopes -> quotation link. Grounded entirely in the
+      // real, already-measured job — extraction is only ever told the
+      // real component names and areas that exist, never asked to
+      // invent structure that isn't already there.
+      const jobScope = await findLatestJobScope(env, customer.id);
+      if (!jobScope) {
+        priceScopeNotFound = true;
+      } else {
+        const pricedItems = await extractScopePricing(env, transcript, jobScope.components, jobScope.tasks);
+        quotationLineItems = pricedItems.map((item) => {
+          const component = item.matched_name
+            ? jobScope.components.find((c) => c.name.toLowerCase() === item.matched_name!.toLowerCase())
+            : undefined;
+          // The only real arithmetic in this whole step — rate x real
+          // measured area — always happens here, in code. The model's
+          // job was only ever matching a name and recognizing whether
+          // the stated rate was per-sqm or flat.
+          if (item.pricing_type === "per_sqm" && component?.area_sqm != null) {
+            const lineTotal = Math.round(component.area_sqm * item.rate * 100) / 100;
+            return {
+              description: component.name,
+              note: null,
+              quantity: component.area_sqm,
+              unit: "sqm",
+              unit_price: item.rate,
+              line_total: lineTotal,
+            };
+          }
+          return {
+            description: component?.name ?? item.description,
+            note: null,
+            quantity: 1,
+            unit: null,
+            unit_price: item.rate,
+            line_total: item.rate,
+          };
+        });
+      }
+    } else {
+      const rawLineItems = await extractLineItems(env, transcript);
+      // Line total is always computed here, in code — never asked of
+      // the model. Same discipline as every rand figure all day.
+      quotationLineItems = rawLineItems.map((item) => ({
+        ...item,
+        line_total: item.quantity * item.unit_price,
+      }));
+    }
+
     const total =
       quotationLineItems.length > 0
         ? quotationLineItems.reduce((sum, item) => sum + item.line_total, 0)
@@ -1382,6 +1547,18 @@ async function processTranscript(
     message = customer
       ? `I don't have an open quotation on file for ${customer.name} to convert.`
       : "I don't have anything on file for that yet.";
+  } else if (extraction?.intent === "price_scope" && priceScopeNotFound) {
+    // Same honesty as the convert_quote case above — intent was
+    // recognized, but there's no recorded job_scope for this customer
+    // to price up.
+    message = customer
+      ? `I don't have a job scope on file for ${customer.name} to price.`
+      : "I don't have anything on file for that yet.";
+  } else if (extraction?.intent === "price_scope" && !pendingActionId) {
+    // A job scope was found, but nothing spoken matched a real
+    // component/task or produced a positive total — say so rather
+    // than silently doing nothing.
+    message = `Found a job scope for ${customer!.name}, but couldn't match any priced item to it — try naming the component or task exactly as measured.`;
   } else if (pendingActionId && extraction?.intent === "convert_quote" && convertQuoteFound) {
     const { total, depositAmount, remainingBalance, quotationId } = convertQuoteFound;
     const depositNote = extraction.deposit_percent
@@ -1389,9 +1566,14 @@ async function processTranscript(
       : "";
     message = `Found quotation #${quotationId} for ${customer!.name} (R${total} total).${depositNote} remaining balance R${remainingBalance}. Needs your confirmation (action #${pendingActionId}) to convert to invoice.`;
   } else if (pendingActionId) {
-    const kind = extraction?.intent === "invoice" ? "Invoice" : extraction?.intent === "quotation" ? "Quotation" : "Payment";
+    const kind =
+      extraction?.intent === "invoice"
+        ? "Invoice"
+        : extraction?.intent === "quotation" || extraction?.intent === "price_scope"
+          ? "Quotation"
+          : "Payment";
     const displayAmount =
-      extraction?.intent === "quotation" && quotationLineItems.length > 0
+      (extraction?.intent === "quotation" || extraction?.intent === "price_scope") && quotationLineItems.length > 0
         ? quotationLineItems.reduce((sum, item) => sum + item.line_total, 0)
         : extraction!.amount;
     const lineItemNote =
@@ -1876,6 +2058,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           name: "work_observation classifies correctly, no price stated",
           text: "Dwayne is a new customer, I measured the reception area at 6600 by 4100 for vinyl flooring, we also need repair work",
           check: (e) => e?.intent === "work_observation" && e?.amount === null,
+        },
+        {
+          name: "price_scope classifies correctly, distinct from a plain quotation",
+          text: "price up Dwayne's job, R450 a square meter for the reception area and office, flat R3500 for the repair work",
+          check: (e) => e?.intent === "price_scope",
         },
         {
           name: "a stated fact is not misread as a question",
