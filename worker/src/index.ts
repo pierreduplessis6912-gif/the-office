@@ -932,6 +932,29 @@ async function getOutstandingInvoices(env: Env): Promise<string[]> {
   return results.map((r) => `${r.name} owes R${r.invoiced - r.paid} (invoiced R${r.invoiced}, paid R${r.paid}).`);
 }
 
+// Real gap found live 2026-07-10: business-scope lookups only ever
+// fetched outstanding invoices — "how many quotations do we have"
+// got fed nothing about quotations at all and honestly (but wrongly)
+// said "I don't have that on file," despite six real quotations
+// existing. Same class of bug as getCustomerFinancialSummary above,
+// one level up: real data existed, nothing ever queried it for this
+// scope of question.
+async function getQuotationsSummary(env: Env): Promise<string[]> {
+  const { results } = await env.OFFICE_DB.prepare(
+    `SELECT c.name as name, q.amount as amount, q.status as status
+     FROM quotations q JOIN customers c ON c.id = q.customer_id
+     ORDER BY q.created_at DESC`
+  ).all<{ name: string; amount: number; status: string }>();
+
+  if (results.length === 0) return ["No quotations on file."];
+
+  const total = results.reduce((sum, r) => sum + r.amount, 0);
+  const openCount = results.filter((r) => r.status !== "converted").length;
+  const summary = `There are ${results.length} quotations on file, totaling R${total}. ${openCount} still open, not yet converted to an invoice.`;
+  const perQuotation = results.map((r) => `${r.name}: R${r.amount} (${r.status}).`);
+  return [summary, ...perQuotation];
+}
+
 // The real fix for "what's Sarah's balance" answering wrong — a
 // single customer's balance was only ever being searched for in
 // narrative notes, never computed from the actual invoices/payments
@@ -1712,10 +1735,14 @@ async function processTranscript(
   } else if (extraction?.intent === "lookup") {
     if (extraction?.query_scope === "business") {
       // No single customer — a business-wide financial question,
-      // answered from a real SQL aggregate, not a guess from a
-      // sentence. This is the actual fix for "who owes me money."
+      // answered from real SQL aggregates, not a guess from a
+      // sentence. Outstanding invoices AND quotations both included
+      // now — a business-wide question could reasonably be about
+      // either, and only having one silently made the other
+      // unanswerable.
       const outstandingFacts = await getOutstandingInvoices(env);
-      message = await answerFromMemory(env, transcript, outstandingFacts);
+      const quotationFacts = await getQuotationsSummary(env);
+      message = await answerFromMemory(env, transcript, [...outstandingFacts, ...quotationFacts]);
     } else if (character) {
       const characterFacts = await getCharacterNotes(env, character.id);
       const facts = [`${character.name} is a known contact.`, ...characterFacts];
