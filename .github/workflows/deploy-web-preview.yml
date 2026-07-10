@@ -1,15 +1,16 @@
 name: Deploy web preview
 
-# Free iteration loop, separate entirely from Codemagic's build minutes.
-# Public repo means unlimited GitHub Actions minutes — this exists so UI
-# changes (layout, status text, menus) can be checked by refreshing a
-# browser tab, with a real native build only spent once a batch of
-# changes is actually settled.
+# Deliberately NOT the Flutter app. This deploys a small, disposable
+# static HTML/CSS/JS prototype (web-preview/) used to iterate quickly
+# on UX direction (the Ether manifesto) against the real live backend,
+# while the Flutter app itself stays parked — UX and architecture kept
+# deliberately separate, same discipline as everywhere else in this
+# build. No build step at all: the file is already what gets served.
 on:
   push:
     branches: [main]
     paths:
-      - "app/**"
+      - "web-preview/**"
       - ".github/workflows/deploy-web-preview.yml"
 
 jobs:
@@ -18,37 +19,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-
-      - name: Bootstrap web scaffolding if missing
-        run: |
-          cd app
-          if [ ! -d "web" ]; then
-            echo "No web/ folder — generating it with flutter create."
-            cp pubspec.yaml /tmp/pubspec.yaml.bak
-            cp lib/main.dart /tmp/main.dart.bak
-            flutter create --platforms=web --org za.co.websitehub --project-name the_office .
-            cp /tmp/pubspec.yaml.bak pubspec.yaml
-            cp /tmp/main.dart.bak lib/main.dart
-          else
-            echo "web/ already present, skipping bootstrap."
-          fi
-
-      - name: Get packages
-        run: |
-          cd app
-          flutter pub get
-
-      - name: Build web
-        run: |
-          cd app
-          flutter build web --release
-
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy app/build/web --project-name=the-office-preview
+          command: pages deploy web-preview --project-name=the-office-preview
