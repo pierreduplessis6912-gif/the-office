@@ -707,11 +707,15 @@ async function resolveFollowUpEntity(env: Env, history: HistoryTurn[], message: 
           {
             role: "system",
             content:
-              "The new message may refer back to someone already named in the conversation below, " +
-              'without naming them again ("who did we deal with", "what\'s her balance", "tell me ' +
-              'more"). If so, return their exact name as it appears below. If the new message already ' +
-              'names someone itself, or doesn\'t refer back to anyone, return null. Return ONLY JSON: ' +
-              '{"name": string or null}\n\n' +
+              "The new message may refer back to the STANDING TOPIC of the conversation below, without " +
+              'naming it again ("who did we deal with", "what\'s her balance", "tell me more"). The ' +
+              "standing topic is normally who or what Peter's own most recent question was about — not " +
+              "just any name that happens to appear in the Office's reply (a reply often mentions other " +
+              "people or jobs as supporting detail, not as a new topic). If the new message clearly asks " +
+              "about one of those other names specifically, use that instead. Return the exact name of " +
+              "the standing topic as it appears below, or null if the new message already names someone " +
+              'itself or there is no standing topic to refer back to. Return ONLY JSON: {"name": string ' +
+              'or null}\n\n' +
               "Conversation:\n" +
               historyText,
           },
