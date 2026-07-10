@@ -2150,6 +2150,25 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ jobScopes: enriched });
     }
 
+    if (url.pathname === "/debug/quotations" && request.method === "GET") {
+      const { results: quotes } = await env.OFFICE_DB.prepare(
+        "SELECT q.id, q.customer_id, c.name as customer_name, q.description, q.amount, q.status, q.created_at FROM quotations q JOIN customers c ON c.id = q.customer_id ORDER BY q.created_at DESC LIMIT 10"
+      ).all();
+
+      const enriched = await Promise.all(
+        (quotes as Array<{ id: number }>).map(async (quote) => {
+          const { results: lineItems } = await env.OFFICE_DB.prepare(
+            "SELECT description, note, quantity, unit, unit_price, line_total FROM line_items WHERE quotation_id = ?"
+          )
+            .bind(quote.id)
+            .all();
+          return { ...quote, lineItems };
+        })
+      );
+
+      return Response.json({ quotations: enriched });
+    }
+
     if (url.pathname === "/debug/captures" && request.method === "GET") {
       const status = url.searchParams.get("status");
       const { results } = status
