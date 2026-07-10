@@ -186,8 +186,8 @@ quotation), `extractWorkObservation` (components + tasks + optional
 schedule phrase from one job-scoping message), and `extractScopePricing`
 (matches spoken rates to the real, already-measured component/task
 names of an existing job_scope — grounded in real given names, never
-allowed to invent new ones). Same reasoning as `rewriteQuery` and
-`answerFromMemory` being their own steps — one job per call.
+allowed to invent new ones). Same reasoning as `resolveFollowUpEntity`
+and `answerFromMemory` being their own steps — one job per call.
 
 **`price_scope` (2026-07-10) is the job_scopes → priced-document link.**
 It finds a customer's most recent `job_scope`, gives the model the
@@ -217,20 +217,52 @@ unaffected — confirmed live: existing invoices created the old way
 still show an empty `lineItems` array, only price_scope-derived
 invoices carry real ones.
 
-**Query rewriting runs with `chat_template_kwargs.thinking: true`**
-(the one deliberate exception to `thinking: false` elsewhere) —
-proven necessary twice: once for basic reference resolution, and again
-2026-07-09 when a *second*, more subtle bug surfaced — resolving a
-pronoun correctly required weighing *recency* against *frequency* of
-mention, which the model only got right when allowed to reason
-step-by-step, confirmed via a direct side-by-side comparison with real
-reasoning traces as evidence, not assumption.
+**Multi-turn conversational retrieval depth (2026-07-10) — proven live,**
+**after one approach was tried, found broken, and replaced.** The
+original design (`rewriteQuery`) asked the model to rewrite a vague
+follow-up ("who did we deal with in those instances?") into a fully
+self-contained, fluently-worded sentence before extraction ever saw
+it. Real testing against a genuine 3-hop drill-down conversation (why
+don't we buy from ProSupply anymore → who did we deal with in those
+instances → when was that) found this approach reliably looped under
+`thinking: true` — the raw reasoning trace showed the model redrafting
+the same near-identical sentence five-plus times, hitting the token
+ceiling with empty content, no matter how the prompt was tuned (five
+separate attempts: worked example, decisiveness rules, conciseness
+rules, effort-sizing instructions, a classify-then-route split). The
+pattern only ever broke on open-ended prose *generation*; `thinking:
+false` alone fixed the looping but broke the one case `thinking: true`
+was originally added for (a genuine pronoun tie-break between two
+different people). Root cause, once actually seen in the reasoning
+traces: every fix added another rule, and thinking-mode reasoning has
+room to audit its own answer against a growing rulebook — that's
+what the "wait, let me reconsider..." loops actually were.
+
+**Replaced entirely, not patched further.** `resolveFollowUpEntity`
+asks only one narrow, closed-form question — which EXISTING named
+entity does this follow-up refer to — the same JSON-extraction shape
+as `extractIntent`'s `customer_name`/`character_name` fields, which
+have never looped once anywhere in this build, because there's no
+open-ended text to generate. `findExistingEntityByName` then does a
+plain, read-only SELECT (never an INSERT — a mere lookup must never
+silently create a customer or character). The *original, unedited*
+question goes straight to `answerFromMemory` with that entity's real
+facts. No sentence is ever rewritten by the model in this path at all.
+Proven live across the full 3-hop ProSupply conversation, each hop
+landing on the correct fact, no looping, `finish_reason: stop` every
+time. One real resolution bug surfaced and was fixed in the same
+session: the resolver initially anchored on any name mentioned in the
+office's own reply (picked "Sarah" — a supporting detail — over
+"ProSupply", the actual standing topic), which then collided with an
+unrelated real customer coincidentally also named Sarah. Fixed by
+anchoring explicitly on what Peter's own question was originally
+about, not any name appearing anywhere in the exchange.
 
 ## Models in use
 
-- `@cf/moonshotai/kimi-k2.6` — extraction, query rewriting (thinking
-  enabled), answer synthesis, image description (confirmed to support
-  vision input)
+- `@cf/moonshotai/kimi-k2.6` — extraction, follow-up entity resolution
+  (`thinking: false`, closed-form), answer synthesis, image description
+  (confirmed to support vision input)
 - `@cf/openai/whisper` — voice transcription
 - `@cf/baai/bge-base-en-v1.5` — embeddings
 - `@cf/baai/bge-reranker-base` — reranks Vectorize results (real scores
@@ -318,6 +350,41 @@ reasoning traces as evidence, not assumption.
     tradesperson — personal or business — not just personal relations.
     `characters.relationship` already stored a free string; no schema
     change needed, only the extraction prompt's definition.
+13. **A named staff contact at a supplier fragmented off its own
+    entity.** "Called ProSupply... spoke to Sarah in dispatch" filed
+    the note under a brand-new standalone character "Sarah",
+    disconnected from ProSupply — the fact that actually explained why
+    Peter stopped buying from them became unreachable by asking about
+    ProSupply. Fixed with the same subject-attribution discipline as
+    bug #11: a person named only as a company's staff/contact is a
+    detail of that relationship, not a separate entity.
+14. **`rewriteQuery` reliably looped under `thinking: true` on
+    fact-summary references, no matter how the prompt was tuned.**
+    Real multi-turn testing (why don't we buy from ProSupply anymore →
+    who did we deal with in those instances) found the model
+    redrafting the same near-identical rewritten sentence five-plus
+    times, hitting the token ceiling with empty content — confirmed via
+    a dedicated raw-introspection debug route showing the actual
+    reasoning trace and `finish_reason: length`, not guessed at. Five
+    separate fixes attempted first (raising `max_tokens` 600→1200→2500,
+    fixing a self-conflicting worked example, explicit decisiveness/
+    conciseness rules, a classify-then-route split between `thinking`
+    modes) — all failed to stop the loop, because the real cause was
+    open-ended prose *generation* having no natural stopping point
+    under `thinking: true`, not any specific wording. See the
+    Extraction schema section above for the actual fix: the whole
+    approach was replaced with closed-form entity extraction
+    (`resolveFollowUpEntity`), not patched further.
+15. **The replacement's first version anchored on the wrong entity.**
+    `resolveFollowUpEntity` initially picked any name mentioned in the
+    office's own reply, not necessarily the actual standing topic —
+    it resolved "who did we deal with" to "Sarah" (a supporting detail
+    inside ProSupply's notes) instead of "ProSupply" itself, and that
+    wrong name then collided with an unrelated real customer
+    coincidentally also named Sarah. Fixed by anchoring explicitly on
+    what Peter's own question was originally about, treating other
+    names in a reply as supporting detail unless the new message
+    specifically asks about one of them.
 
 ## Debug and diagnostic routes
 
@@ -329,22 +396,27 @@ revisit unprocessed captures as a batch), `/debug/job-scopes`,
 `/debug/quotations`, `/debug/invoices` (both real, verified 2026-07-10
 while proving price_scope end to end — each shows line items directly,
 not just the summed total, since a right total can hide a wrong line),
-`/debug/kv-set` (generic KV write-back, the counterpart to
-`/debug/customer-notes` GET — POST `{key, value}`) and
-`/debug/delete-customer?id=` (scoped: deletes the customers row, its
-KV notes, and any pending_memory_flush entries — not a general SQL
-executor). Both earned live 2026-07-10 correcting real data a
-subject-attribution bug had polluted, not built ahead of need — kept
-because the same class of correction will likely be needed again.
-`/debug/rewrite-thinking-test` (served its diagnostic purpose already
-— safe to remove), `/debug/pdf-route-test` (leftover from a routing
-diagnosis — safe to remove), `/admin/flush-memory`.
+`/debug/characters` (the `characters` table had zero visibility until
+today), `/debug/kv-set` (generic KV write-back, the counterpart to
+`/debug/customer-notes` GET — POST `{key, value}`), `/debug/delete-
+customer?id=` and `/debug/delete-character?id=` (scoped: delete the
+row, its KV notes, and — for customers — any pending_memory_flush
+entries; not a general SQL executor). All four earned live 2026-07-10
+correcting real data two subject-attribution bugs had polluted, not
+built ahead of need — kept because the same class of correction will
+likely be needed again. `/debug/resolve-entity-test` — the real
+replacement for the abandoned query-rewriting approach, see Extraction
+schema section above; takes the same `{text, history}` shape as
+`/messages/text` so a real drill-down conversation can be replayed
+exactly. `/debug/rewrite-thinking-test` (served its diagnostic purpose
+already — safe to remove), `/debug/pdf-route-test` (leftover from a
+routing diagnosis — safe to remove), `/admin/flush-memory`.
 
 **Strip all debug/admin routes before any real customer data flows
 through production.** `/files/audio`, `/files/photo`, `/messages/text`,
 and `/actions/*` are real, production routes — not debug — and stay.
 
-`/debug/smoke-test` is the actual regression safety net — 14 real
+`/debug/smoke-test` is the actual regression safety net — 15 real
 classification test cases as of 2026-07-10 (grew from 11), zero side
 effects (tests `extractIntent` in isolation, never writes to KV or
 D1), safe to rerun after every single future change. **Note:** it
@@ -501,14 +573,12 @@ architecture at all.**
   - *Conversational, multi-turn retrieval depth* — asking a question, then
     drilling into the answer two or three more turns deep with pronouns and
     references ("who did we deal with in those instances?" / "when was
-    that?") — is the same mechanism `rewriteQuery` already proves necessary
-    for single-hop resolution (the recency-vs-frequency bug, 2026-07-09),
-    extended to real depth. **This is now the next priority to prove out**,
-    ahead of new features: a real multi-turn smoke-test scenario (modeled on
-    a "why don't you buy from us anymore" / follow-up / follow-up rep
-    conversation), run the same disciplined way as the existing 11-case
-    `/debug/smoke-test`, to find where depth actually breaks before building
-    anything new to fix it.
+    that?"). **Proven live 2026-07-10** with the exact scenario named here
+    (why don't we buy from ProSupply anymore → who did we deal with → when
+    was that), all three hops landing on the correct fact. Not via
+    `rewriteQuery`, which this same testing found and replaced — see the
+    Extraction schema section above for the real mechanism
+    (`resolveFollowUpEntity`) and the five failed attempts that preceded it.
 - **Reports/exports on demand** (a conversation compiled into a document)
   are confirmed to be the same category as invoice/quotation PDFs — an
   output layer built on top of retrieval, not a prerequisite for it. Not
