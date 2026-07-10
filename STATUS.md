@@ -390,6 +390,54 @@ Codemagic — still only proven on the web preview.**
   becoming an actual bottleneck, or someone needing to sign up without
   a human in the loop at all.
 
+## UX vision — the Ether, and what it does / doesn't change (2026-07-10)
+
+A design manifesto ("The Ether") and a business-philosophy vision doc were
+reviewed against this file directly, on purpose, to test which parts are
+already earned by the real backend and which parts would reopen settled
+decisions. Conclusion: **architecture and UX have deliberately been kept
+separate throughout this build, and most of the vision holds without moving
+architecture at all.**
+
+- **"Askable, not searchable."** Two genuinely different things travel under
+  this phrase, and only one is a new capability:
+  - *Canonical facts rendered as affordances* ("phone James" → tappable
+    contact card, "WhatsApp James" → prepopulated message) is a client
+    rendering decision on data that's already correct — `customer_facts`
+    already stores `phone_number`/`email`/`address` under closed, consistent
+    keys, already normalized via `libphonenumber-js`. No backend work
+    implied; this is UI work on top of what already exists.
+  - *Conversational, multi-turn retrieval depth* — asking a question, then
+    drilling into the answer two or three more turns deep with pronouns and
+    references ("who did we deal with in those instances?" / "when was
+    that?") — is the same mechanism `rewriteQuery` already proves necessary
+    for single-hop resolution (the recency-vs-frequency bug, 2026-07-09),
+    extended to real depth. **This is now the next priority to prove out**,
+    ahead of new features: a real multi-turn smoke-test scenario (modeled on
+    a "why don't you buy from us anymore" / follow-up / follow-up rep
+    conversation), run the same disciplined way as the existing 11-case
+    `/debug/smoke-test`, to find where depth actually breaks before building
+    anything new to fix it.
+- **Reports/exports on demand** (a conversation compiled into a document)
+  are confirmed to be the same category as invoice/quotation PDFs — an
+  output layer built on top of retrieval, not a prerequisite for it. Not
+  prioritized ahead of retrieval depth itself.
+- **The ambient "briefing card" / ambient emotional state (the sigh, red ↔
+  green cognitive-load indicator, unprompted "3 things need your
+  attention")** is explicitly *not* the same as conversational retrieval —
+  it's push, not pull, and it directly re-raises the periodic-briefing
+  question already decided against once ("Known gaps": deliberately not
+  built as a cron-generated snapshot, named as unearned complexity). Real,
+  demonstrated need has been the bar for every other build decision here
+  (the receptacle, work observations, `withRetry`, thinking-mode for
+  rewrites) — this is the first idea on the roadmap that has no such
+  evidence and, by its own nature (an ambient/automatic layer), can't
+  straightforwardly generate the kind of evidence a bug or a lost
+  measurement does. Pierre named the real risk directly: this could land as
+  invasive or dictatorial if built wrong. **Deliberately held apart from
+  "deferred pending evidence": this is deferred pending a real design
+  decision about tone and control, to be made on purpose, not backed into.**
+
 ## Real infrastructure quirks worth remembering
 
 - Vectorize had one real, unexplained processing stall (matched an
