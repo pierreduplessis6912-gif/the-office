@@ -1266,6 +1266,14 @@ async function runQueryRewriteModel(
           "concrete. If a drill-down question stays vague because there's genuinely nothing in the " +
           "history to ground it in, leave it as close to the original as possible rather than guessing " +
           "at an entity that was never mentioned. " +
+          "SIZE YOUR REASONING TO THE ACTUAL DIFFICULTY of this specific message — most references are " +
+          "not hard. If there is only ONE plausible person or thing the reference could mean, or the " +
+          "message just needs a short label for recently-discussed facts, resolve it in a SHORT burst of " +
+          "reasoning — a sentence or two — and commit immediately; do not keep re-examining an answer " +
+          "that's already clearly right. Only reason at real length when there are genuinely MULTIPLE " +
+          "competing candidates that need an actual tie-break (e.g. two different people who could both " +
+          "plausibly be \"her\" — resolve those using the recency rule above). Most messages need the " +
+          "short path; treat the long path as the exception, not the default. " +
           "Commit to ONE rewritten sentence and write it directly — do not draft multiple candidate " +
           "phrasings, do not second-guess your own wording, do not compare your answer against any " +
           "example below for exact phrasing. The example illustrates the general pattern only, using an " +
