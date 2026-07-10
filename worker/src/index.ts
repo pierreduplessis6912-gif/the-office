@@ -1216,12 +1216,15 @@ interface HistoryTurn {
 async function runQueryRewriteModel(
   env: Env,
   history: HistoryTurn[],
-  message: string
+  message: string,
+  options: { thinking?: boolean; maxTokens?: number } = {}
 ): Promise<{ content: string | null; reasoning: string | null; finishReason: string | null }> {
+  const thinking = options.thinking ?? true;
+  const maxTokens = options.maxTokens ?? 1500;
   const historyText = history.map((h) => `${h.role === "user" ? "Peter" : "Office"}: ${h.text}`).join("\n");
   const result = await withRetry(() =>
     env.AI.run("@cf/moonshotai/kimi-k2.6", {
-      chat_template_kwargs: { thinking: true },
+      chat_template_kwargs: { thinking },
       temperature: 0,
       // Real evidence 2026-07-10, via /debug/rewrite-query-raw: raising
       // the budget from 600 -> 1200 -> 2500 never converged — the raw
@@ -1235,8 +1238,14 @@ async function runQueryRewriteModel(
       // extra detail" — a genuine self-conflict this prompt caused.
       // Fixed by using an unrelated example scenario (can never be
       // confused with live data) plus explicit decisiveness and
-      // conciseness rules, so there's nothing left to loop over.
-      max_tokens: 1500,
+      // conciseness rules — but real evidence after that fix STILL
+      // showed looping (five-plus candidate phrasings, same ceiling
+      // hit), meaning the deeper cause is thinking:true itself having
+      // no stopping signal for a task this simple, not any specific
+      // wording in the prompt. thinking/maxTokens now overridable so
+      // this can be tested directly via /debug/rewrite-query-raw
+      // rather than guessed at across another redeploy cycle.
+      max_tokens: maxTokens,
       messages: [
         {
           role: "system",
@@ -2066,11 +2075,19 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // {history, text} shape as /messages/text so a real failing case
     // can be replayed exactly, not approximated.
     if (url.pathname === "/debug/rewrite-query-raw" && request.method === "POST") {
-      const body = (await request.json()) as { text?: string; history?: HistoryTurn[] };
+      const body = (await request.json()) as {
+        text?: string;
+        history?: HistoryTurn[];
+        thinking?: boolean;
+        maxTokens?: number;
+      };
       if (!body.text) return Response.json({ error: "missing text" }, { status: 400 });
       const history = Array.isArray(body.history) ? body.history : [];
-      const raw = await runQueryRewriteModel(env, history, body.text);
-      return Response.json({ input: body.text, history, ...raw });
+      const raw = await runQueryRewriteModel(env, history, body.text, {
+        thinking: body.thinking,
+        maxTokens: body.maxTokens,
+      });
+      return Response.json({ input: body.text, history, thinking: body.thinking ?? true, maxTokens: body.maxTokens ?? 1500, ...raw });
     }
 
     // Scoped cleanup for a customer row created in error (e.g. a
