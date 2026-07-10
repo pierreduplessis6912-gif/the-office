@@ -1206,76 +1206,89 @@ interface HistoryTurn {
 // small model — proven: the small model kept quietly answering the
 // question instead of just resolving references, twice, even after
 // explicit prompt constraints; Kimi got it right first try.
+// The raw call, shared between rewriteQuery and its debug
+// counterpart below — extracted specifically so the diagnostic route
+// can never drift from the real prompt while investigating a real,
+// unexplained failure: content came back empty twice in a row (600
+// and 1200 max_tokens) with no exception thrown, meaning the answer
+// has to come from actually seeing the reasoning trace and finish
+// reason, not from guessing at another token-budget number.
+async function runQueryRewriteModel(
+  env: Env,
+  history: HistoryTurn[],
+  message: string
+): Promise<{ content: string | null; reasoning: string | null; finishReason: string | null }> {
+  const historyText = history.map((h) => `${h.role === "user" ? "Peter" : "Office"}: ${h.text}`).join("\n");
+  const result = await withRetry(() =>
+    env.AI.run("@cf/moonshotai/kimi-k2.6", {
+      chat_template_kwargs: { thinking: true },
+      temperature: 0,
+      max_tokens: 1200,
+      messages: [
+        {
+          role: "system",
+          content:
+          "Rewrite the new message to be fully self-contained, replacing any pronouns or vague " +
+          "references (her, him, that, it, the invoice, etc.) with the specific name or thing they " +
+          "refer to, using the conversation history for context. When more than one person or thing " +
+          "could match, ALWAYS resolve to whichever was mentioned MOST RECENTLY in the history, never " +
+          "whichever was mentioned most often — recency wins over frequency, always. " +
+          "References aren't always to a single name — a phrase can also point at a WHOLE SET of facts " +
+          "or events the office just described (\"those instances\", \"that situation\", \"all of " +
+          "that\", \"what happened there\"). Resolve these the same way: replace the vague phrase with a " +
+          "concrete, specific description of what was actually just discussed, grounded in exactly what " +
+          "the history says — name the real entity involved and briefly what the facts actually were. " +
+          "Never invent a fact that wasn't in the history; only make an existing vague reference " +
+          "concrete. If a drill-down question stays vague because the model can't find anything in the " +
+          "history to ground it in, leave it as close to the original as possible rather than guessing " +
+          "at an entity that was never mentioned. " +
+          "Do NOT answer the message, add new information, or change its type — a question must stay " +
+          "phrased as a question, a statement stays a statement. Only resolve what the ambiguous words " +
+          "refer to. If the message is already self-contained, return it completely unchanged. Return " +
+          "ONLY the rewritten message, nothing else — no explanation, no quotes.\n\n" +
+          "Example:\nPeter: why don't we buy from ProSupply anymore\n" +
+          "Office: We don't buy from ProSupply anymore because they were late delivering tiles for " +
+          "Jenny's job in March, their pricing has gone up 15 percent since January, and Sarah in " +
+          "dispatch was rude when we called about the delay.\n" +
+          'New message: "who did we deal with in those instances?" -> "who did we deal with regarding ' +
+          'ProSupply\'s late delivery, price increase, and rude staff member?"\n\n' +
+          "Conversation history:\n" +
+          historyText,
+      },
+      { role: "user", content: message },
+    ],
+  }));
+  const r = result as {
+    choices?: Array<{ message?: { content?: string; reasoning_content?: string }; finish_reason?: string }>;
+  };
+  return {
+    content: r.choices?.[0]?.message?.content?.trim() || null,
+    reasoning: r.choices?.[0]?.message?.reasoning_content ?? null,
+    finishReason: r.choices?.[0]?.finish_reason ?? null,
+  };
+}
+
 async function rewriteQuery(env: Env, history: HistoryTurn[], message: string): Promise<string> {
   if (history.length === 0) return message;
   try {
-    const historyText = history.map((h) => `${h.role === "user" ? "Peter" : "Office"}: ${h.text}`).join("\n");
     // thinking enabled here specifically — proven necessary by a real
     // side-by-side test: resolving a pronoun among MULTIPLE plausible
     // candidates against an explicit tie-break rule (recency over
     // frequency) genuinely requires reasoning, unlike simple
     // classification where thinking:false was proven sufficient.
-    const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        chat_template_kwargs: { thinking: true },
-        temperature: 0,
-        // Bumped from 600 — real evidence 2026-07-10: the multi-fact
-        // resolution rule and worked example added below made the
-        // prompt meaningfully longer, and under thinking:true the
-        // model spends real tokens reasoning before ever emitting a
-        // final answer. 600 came back completely empty for a genuinely
-        // harder drill-down case — silently falling back to the
-        // unresolved original message with no error thrown, since the
-        // API call itself succeeded. This raise is the hypothesis
-        // being tested now, not yet confirmed — the new empty-content
-        // logging below exists specifically so this is verifiable
-        // either way rather than assumed.
-        max_tokens: 1200,
-        messages: [
-          {
-            role: "system",
-            content:
-            "Rewrite the new message to be fully self-contained, replacing any pronouns or vague " +
-            "references (her, him, that, it, the invoice, etc.) with the specific name or thing they " +
-            "refer to, using the conversation history for context. When more than one person or thing " +
-            "could match, ALWAYS resolve to whichever was mentioned MOST RECENTLY in the history, never " +
-            "whichever was mentioned most often — recency wins over frequency, always. " +
-            "References aren't always to a single name — a phrase can also point at a WHOLE SET of facts " +
-            "or events the office just described (\"those instances\", \"that situation\", \"all of " +
-            "that\", \"what happened there\"). Resolve these the same way: replace the vague phrase with a " +
-            "concrete, specific description of what was actually just discussed, grounded in exactly what " +
-            "the history says — name the real entity involved and briefly what the facts actually were. " +
-            "Never invent a fact that wasn't in the history; only make an existing vague reference " +
-            "concrete. If a drill-down question stays vague because the model can't find anything in the " +
-            "history to ground it in, leave it as close to the original as possible rather than guessing " +
-            "at an entity that was never mentioned. " +
-            "Do NOT answer the message, add new information, or change its type — a question must stay " +
-            "phrased as a question, a statement stays a statement. Only resolve what the ambiguous words " +
-            "refer to. If the message is already self-contained, return it completely unchanged. Return " +
-            "ONLY the rewritten message, nothing else — no explanation, no quotes.\n\n" +
-            "Example:\nPeter: why don't we buy from ProSupply anymore\n" +
-            "Office: We don't buy from ProSupply anymore because they were late delivering tiles for " +
-            "Jenny's job in March, their pricing has gone up 15 percent since January, and Sarah in " +
-            "dispatch was rude when we called about the delay.\n" +
-            'New message: "who did we deal with in those instances?" -> "who did we deal with regarding ' +
-            'ProSupply\'s late delivery, price increase, and rude staff member?"\n\n' +
-            "Conversation history:\n" +
-            historyText,
-        },
-        { role: "user", content: message },
-      ],
-    }));
-    const r = result as { choices?: Array<{ message?: { content?: string } }> };
-    const rewritten = r.choices?.[0]?.message?.content?.trim();
+    const { content: rewritten, finishReason } = await runQueryRewriteModel(env, history, message);
     if (!rewritten) {
       // Not an exception — the call succeeded, it just produced no
       // usable content, silently falling back to the unresolved
       // original message. That's the same class of silent failure
       // logCapture/memory_errors exists to catch everywhere else;
-      // logged here too rather than left invisible.
+      // logged here too rather than left invisible. finishReason is
+      // included since it's the single most useful diagnostic detail
+      // — "length" would mean the token budget genuinely ran out
+      // mid-reasoning, anything else means something different failed.
       try {
         await env.OFFICE_DB.prepare("INSERT INTO memory_errors (customer_id, text, error) VALUES (NULL, ?, ?)")
-          .bind(`rewriteQuery returned empty content for: ${message}`, "empty completion, no exception thrown")
+          .bind(`rewriteQuery returned empty content for: ${message}`, `empty completion, finish_reason=${finishReason}`)
           .run();
       } catch {
         // Nothing further to do.
@@ -2025,6 +2038,20 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       if (!body.key) return Response.json({ error: "missing key" }, { status: 400 });
       await env.CUSTOMER_NOTES.put(body.key, JSON.stringify(body.value));
       return Response.json({ status: "set", key: body.key });
+    }
+
+    // Full raw visibility into runQueryRewriteModel — reasoning trace,
+    // content, and finish_reason — for diagnosing a real, unexplained
+    // failure: content came back empty twice in a row (600 and 1200
+    // max_tokens) with no exception thrown. Takes the exact same
+    // {history, text} shape as /messages/text so a real failing case
+    // can be replayed exactly, not approximated.
+    if (url.pathname === "/debug/rewrite-query-raw" && request.method === "POST") {
+      const body = (await request.json()) as { text?: string; history?: HistoryTurn[] };
+      if (!body.text) return Response.json({ error: "missing text" }, { status: 400 });
+      const history = Array.isArray(body.history) ? body.history : [];
+      const raw = await runQueryRewriteModel(env, history, body.text);
+      return Response.json({ input: body.text, history, ...raw });
     }
 
     // Scoped cleanup for a customer row created in error (e.g. a
