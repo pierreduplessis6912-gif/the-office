@@ -1828,7 +1828,13 @@ async function runConsolidation(env: Env): Promise<{ flushed: number; schemaCand
 // not the source of it. VAT applies from the business's current
 // default; a genuine per-invoice override is a real refinement for
 // later, once there's evidence it's actually needed.
-async function generateInvoicePdf(env: Env, invoiceId: number): Promise<Uint8Array> {
+// Generalized from the original invoice-only version — quotations
+// never had PDF support at all, discovered live 2026-07-10 when asked
+// for a real quotation document that simply didn't exist yet. Same
+// business header, same line-item table, same subtotal/VAT/total math
+// either way; only the title, document number, and source table
+// differ.
+async function generateDocumentPdf(env: Env, id: number, kind: "invoice" | "quotation"): Promise<Uint8Array> {
   const business = await env.OFFICE_DB.prepare("SELECT * FROM business_profile WHERE id = 1").first<{
     name: string | null;
     trading_as: string | null;
@@ -1841,10 +1847,13 @@ async function generateInvoicePdf(env: Env, invoiceId: number): Promise<Uint8Arr
     vat_rate: number;
   }>();
 
-  const invoice = await env.OFFICE_DB.prepare(
-    "SELECT i.id, i.description, i.status, i.created_at, c.name as customer_name, c.address as customer_address FROM invoices i JOIN customers c ON c.id = i.customer_id WHERE i.id = ?"
+  const table = kind === "invoice" ? "invoices" : "quotations";
+  const lineItemColumn = kind === "invoice" ? "invoice_id" : "quotation_id";
+
+  const doc = await env.OFFICE_DB.prepare(
+    `SELECT d.id, d.description, d.status, d.created_at, c.name as customer_name, c.address as customer_address FROM ${table} d JOIN customers c ON c.id = d.customer_id WHERE d.id = ?`
   )
-    .bind(invoiceId)
+    .bind(id)
     .first<{
       id: number;
       description: string;
@@ -1854,14 +1863,14 @@ async function generateInvoicePdf(env: Env, invoiceId: number): Promise<Uint8Arr
       customer_address: string | null;
     }>();
 
-  if (!invoice) {
-    throw new Error(`no such invoice: ${invoiceId}`);
+  if (!doc) {
+    throw new Error(`no such ${kind}: ${id}`);
   }
 
   const { results: lineItems } = await env.OFFICE_DB.prepare(
-    "SELECT description, quantity, unit_price, line_total FROM line_items WHERE invoice_id = ?"
+    `SELECT description, quantity, unit_price, line_total FROM line_items WHERE ${lineItemColumn} = ?`
   )
-    .bind(invoiceId)
+    .bind(id)
     .all<{ description: string; quantity: number; unit_price: number; line_total: number }>();
 
   const pdfDoc = await PDFDocument.create();
@@ -1902,17 +1911,19 @@ async function generateInvoicePdf(env: Env, invoiceId: number): Promise<Uint8Arr
   let yRight = 792;
   page.drawText("BILL TO", { x: right, y: yRight, size: 9, font: bold, color: grey });
   yRight -= 14;
-  page.drawText(invoice.customer_name, { x: right, y: yRight, size: 12, font: bold });
+  page.drawText(doc.customer_name, { x: right, y: yRight, size: 12, font: bold });
   yRight -= 14;
-  if (invoice.customer_address) {
-    page.drawText(invoice.customer_address, { x: right, y: yRight, size: 10, font });
+  if (doc.customer_address) {
+    page.drawText(doc.customer_address, { x: right, y: yRight, size: 10, font });
     yRight -= 14;
   }
 
   y = Math.min(leftEndY, yRight) - 30;
 
-  page.drawText("TAX INVOICE", { x: left, y, size: 16, font: bold });
-  page.drawText(`Invoice #${invoice.id}`, { x: right, y, size: 10, font, color: grey });
+  const title = kind === "invoice" ? "TAX INVOICE" : "QUOTATION";
+  const label = kind === "invoice" ? "Invoice" : "Quotation";
+  page.drawText(title, { x: left, y, size: 16, font: bold });
+  page.drawText(`${label} #${doc.id}`, { x: right, y, size: 10, font, color: grey });
   y -= 30;
 
   page.drawText("DESCRIPTION", { x: left, y, size: 9, font: bold, color: grey });
@@ -1952,6 +1963,11 @@ async function generateInvoicePdf(env: Env, invoiceId: number): Promise<Uint8Arr
   page.drawText("TOTAL", { x: 400, y, size: 12, font: bold });
   page.drawText(`R${total.toFixed(2)}`, { x: 480, y, size: 12, font: bold, color: black });
   y -= 40;
+
+  if (kind === "quotation") {
+    page.drawText("Quote valid for 7 days unless otherwise specified.", { x: left, y, size: 9, font, color: grey });
+    y -= 20;
+  }
 
   if (business?.banking_details) {
     page.drawText("Payment Info", { x: left, y, size: 11, font: bold });
@@ -2173,11 +2189,31 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     if (url.pathname.match(/^\/invoices\/\d+\/pdf$/) && request.method === "GET") {
       const invoiceId = Number(url.pathname.split("/")[2]);
       try {
-        const pdfBytes = await generateInvoicePdf(env, invoiceId);
+        const pdfBytes = await generateDocumentPdf(env, invoiceId, "invoice");
         return new Response(pdfBytes, {
           headers: {
             "Content-Type": "application/pdf",
             "Content-Disposition": `inline; filename="invoice-${invoiceId}.pdf"`,
+          },
+        });
+      } catch (err) {
+        return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
+      }
+    }
+
+    // Quotations never had a PDF route at all until now — found live
+    // 2026-07-10 when asked for a real quotation document that simply
+    // didn't exist yet, despite quotations having worked correctly
+    // end to end (price_scope, plain quotations, line items) all
+    // along. Same generator as invoices, just the other document type.
+    if (url.pathname.match(/^\/quotations\/\d+\/pdf$/) && request.method === "GET") {
+      const quotationId = Number(url.pathname.split("/")[2]);
+      try {
+        const pdfBytes = await generateDocumentPdf(env, quotationId, "quotation");
+        return new Response(pdfBytes, {
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `inline; filename="quotation-${quotationId}.pdf"`,
           },
         });
       } catch (err) {
@@ -2489,7 +2525,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           )
             .bind(id)
             .run();
-          return Response.json({ status: "confirmed", quotation });
+          return Response.json({
+            status: "confirmed",
+            quotation,
+            pdfUrl: `${url.origin}/quotations/${quotation.id}/pdf`,
+          });
         }
 
         if (action.type === "convert_quote") {
