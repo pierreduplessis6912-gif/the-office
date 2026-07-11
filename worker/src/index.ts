@@ -1802,14 +1802,22 @@ async function processTranscript(
   // silently vanishing into a stranger's customer file.
   if (extraction?.personal_note) {
     ctx.waitUntil(appendLifeEvent(env, extraction.personal_note));
-    // Real evidence 2026-07-10: only "reminder" creates a checkable
-    // open task — a request for something LATER. task_complete's
-    // personal_note reports something already done and is handled in
-    // its own branch below, matched against real open tasks rather
-    // than creating a new one.
-    if (extraction.intent === "reminder") {
-      ctx.waitUntil(createTask(env, extraction.personal_note));
-    }
+  }
+  // Real bug found live 2026-07-11: "remind me to phone my mother"
+  // correctly recognized "mother" as a character and intent as
+  // "reminder", but left personal_note null — the model treated the
+  // WHOLE message as being about that character rather than a mixed
+  // customer/character-plus-personal split, since there was no
+  // separate customer to split away from. Task creation used to be
+  // gated on personal_note being set, so this silently created no
+  // task at all, while still replying "Got it." — exactly the kind
+  // of silent failure the receptacle exists to prevent. Fixed by
+  // decoupling: a reminder ALWAYS creates a task, using personal_note
+  // when there genuinely was a mixed message to split, falling back
+  // to the full transcript when the reminder was never mixed with
+  // anything else to begin with.
+  if (extraction?.intent === "reminder") {
+    ctx.waitUntil(createTask(env, extraction.personal_note ?? transcript));
   }
 
   // Store the ORIGINAL words, not the rewritten version — the
