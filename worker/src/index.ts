@@ -1394,16 +1394,29 @@ function cleanTaskDescription(raw: string): string {
 // from pending_actions — guard()-confirmed items (payments, invoices,
 // facts) already have their own done state (status/resolved_at); this
 // is only ever for personal errands, never business/money records.
-async function createTask(env: Env, description: string): Promise<void> {
-  await env.OFFICE_DB.prepare("INSERT INTO tasks (description, done) VALUES (?, 0)")
-    .bind(cleanTaskDescription(description))
+// Real feature 2026-07-11: optional customer_id/character_id — the
+// actual prerequisite named by the ember-bar design for a future
+// [Call] action ("call Sarah about invoice" needs Sarah's real phone
+// number, which means a real link to her record, not a loose name in
+// text). Same pattern as the captures FK fix — exactly one of the two
+// is ever set, never both.
+async function createTask(
+  env: Env,
+  description: string,
+  customerId: number | null = null,
+  characterId: number | null = null
+): Promise<void> {
+  await env.OFFICE_DB.prepare("INSERT INTO tasks (description, done, customer_id, character_id) VALUES (?, 0, ?, ?)")
+    .bind(cleanTaskDescription(description), customerId, characterId)
     .run();
 }
 
-async function getOpenTasks(env: Env): Promise<Array<{ id: number; description: string }>> {
+async function getOpenTasks(
+  env: Env
+): Promise<Array<{ id: number; description: string; customer_id: number | null; character_id: number | null }>> {
   const { results } = await env.OFFICE_DB.prepare(
-    "SELECT id, description FROM tasks WHERE done = 0 ORDER BY created_at DESC"
-  ).all<{ id: number; description: string }>();
+    "SELECT id, description, customer_id, character_id FROM tasks WHERE done = 0 ORDER BY created_at DESC"
+  ).all<{ id: number; description: string; customer_id: number | null; character_id: number | null }>();
   return results ?? [];
 }
 
@@ -2153,7 +2166,7 @@ async function processTranscript(
   // to the full transcript when the reminder was never mixed with
   // anything else to begin with.
   if (extraction?.intent === "reminder") {
-    ctx.waitUntil(createTask(env, extraction.personal_note ?? transcript));
+    ctx.waitUntil(createTask(env, extraction.personal_note ?? transcript, customer?.id ?? null, character?.id ?? null));
   }
 
   // Store the ORIGINAL words, not the rewritten version — the
@@ -2696,9 +2709,24 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ status: "ok" });
     }
 
+    // Real feature 2026-07-11: the actual prerequisite for a future
+    // [Call] ember action — tasks linked to a real customer/character
+    // record, not just a loose name in text. Same idempotent ALTER
+    // pattern as the captures FK migration.
+    if (url.pathname === "/debug/init-tasks-fk" && request.method === "POST") {
+      for (const column of ["customer_id INTEGER", "character_id INTEGER"]) {
+        try {
+          await env.OFFICE_DB.prepare(`ALTER TABLE tasks ADD COLUMN ${column}`).run();
+        } catch {
+          // Already exists — fine, that's what makes this idempotent.
+        }
+      }
+      return Response.json({ status: "ok" });
+    }
+
     if (url.pathname === "/debug/tasks" && request.method === "GET") {
       const { results } = await env.OFFICE_DB.prepare(
-        "SELECT id, description, done, created_at, completed_at FROM tasks ORDER BY created_at DESC LIMIT 30"
+        "SELECT id, description, done, customer_id, character_id, created_at, completed_at FROM tasks ORDER BY created_at DESC LIMIT 30"
       ).all();
       return Response.json({ tasks: results });
     }
