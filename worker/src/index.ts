@@ -1258,11 +1258,37 @@ async function completeTask(env: Env, id: number): Promise<void> {
 // matching, which is exactly the line drawn against. Rebuilt as pure
 // deterministic logic, same "execution ladder" as everything else in
 // this reasoning: register-of-one (only one open task exists, so
-// there's nothing else it could mean), then real substring matching,
-// then — only if genuinely unresolvable — present the real candidates
-// and let Peter decide. No AI call anywhere in this function. The
-// only remaining AI-adjacent step is phrasing "did you mean X or Y,"
-// which is plain string joining downstream, not reasoning either.
+// there's nothing else it could mean), then real token-overlap
+// matching, then — only if genuinely unresolvable — present the real
+// candidates and let Peter decide. No AI call anywhere in this
+// function. The only remaining AI-adjacent step is phrasing "did you
+// mean X or Y," which is plain string joining downstream, not
+// reasoning either.
+//
+// A small set of words carrying no matching signal on their own —
+// excluded so "called them" doesn't spuriously overlap with "remind
+// me to" in every task description.
+const TASK_MATCH_STOPWORDS = new Set([
+  "the", "a", "an", "to", "them", "it", "that", "this", "my", "i", "on",
+  "for", "of", "in", "and", "with", "about", "up", "me", "remind",
+]);
+
+// Crude, deterministic stemming — just enough to see "called" and
+// "call" as the same token without any semantic reasoning. This is
+// still an index, not a judgment: fixed rules, always the same
+// output for the same input, fully inspectable.
+function stem(word: string): string {
+  if (word.endsWith("ed") && word.length > 4) return word.slice(0, -2);
+  if (word.endsWith("ing") && word.length > 5) return word.slice(0, -3);
+  if (word.endsWith("s") && word.length > 3) return word.slice(0, -1);
+  return word;
+}
+
+function meaningfulTokens(text: string): Set<string> {
+  const words = text.toLowerCase().match(/[a-z]+/g) ?? [];
+  return new Set(words.filter((w) => w.length > 2 && !TASK_MATCH_STOPWORDS.has(w)).map(stem));
+}
+
 function resolveTaskCompletion(
   message: string,
   openTasks: Array<{ id: number; description: string }>
@@ -1271,16 +1297,21 @@ function resolveTaskCompletion(
   // Only one thing it could possibly mean — no matching needed at all.
   if (openTasks.length === 1) return { matched: openTasks[0], candidates: [] };
 
-  const messageLower = message.toLowerCase();
-  const directMatches = openTasks.filter(
-    (t) => messageLower.includes(t.description.toLowerCase()) || t.description.toLowerCase().includes(messageLower)
-  );
+  const messageTokens = meaningfulTokens(message);
+  const directMatches = openTasks.filter((t) => {
+    const taskTokens = meaningfulTokens(t.description);
+    for (const tok of messageTokens) {
+      if (taskTokens.has(tok)) return true;
+    }
+    return false;
+  });
 
   if (directMatches.length === 1) return { matched: directMatches[0], candidates: [] };
   if (directMatches.length > 1) return { matched: null, candidates: directMatches };
-  // No substring match among multiple open tasks — genuinely
-  // unspecified which one. Ask Peter rather than guess; present every
-  // real open task since nothing narrows it further.
+  // No token overlap with ANY open task — genuinely unspecified.
+  // Presenting every open task here is a defensible last resort
+  // (asking is cheap), but only reached when there's truly zero
+  // linguistic signal to narrow it, not when matching just missed.
   return { matched: null, candidates: openTasks };
 }
 
