@@ -122,9 +122,12 @@ line_items       (id, quotation_id, invoice_id, description, note, quantity, uni
                  -- CHECK constraint: exactly one of quotation_id/invoice_id is set, never both, never neither
 jobs             (id, customer_id, description, amount, source_transcript, quotation_id, status, created_at)
                  -- exists, still not exercised by any real flow
-job_scopes       (id, customer_id, description, scheduled_date_raw, source_transcript, created_at)
-                 -- scheduled_date_raw is the phrase exactly as said ("next Thursday") — deliberately
-                 -- never resolved into a real date; that's genuine future work, not done yet
+job_scopes       (id, customer_id, description, scheduled_date_raw, scheduled_date, source_transcript, created_at)
+                 -- scheduled_date_raw is the phrase exactly as said ("next Thursday"); scheduled_date
+                 -- (2026-07-11) is the real, resolved calendar date — resolveScheduledDate does the
+                 -- actual date math deterministically, in code, no AI call, same reasoning as "the LLM
+                 -- must never do arithmetic" extended to dates. Verified live: "next Thursday" resolved
+                 -- correctly to the real date. Genuinely unparseable phrases stay honestly null.
 scope_components (id, job_scope_id, name, width_mm, length_mm, area_sqm, created_at)
                  -- width_mm/length_mm always in real millimeters; area_sqm always computed in code
                  -- from real converted values, never from the model's raw, possibly-unconverted numbers
@@ -489,6 +492,36 @@ about, not any name appearing anywhere in the exchange.
     through the already-existing read-only `findExistingEntityByName`
     instead.
 
+**2026-07-11, real scheduling ("what's up today"):**
+25. **The execution register silently overrode a genuinely self-
+    scoped question.** "What's up for today?" was correctly classified
+    `query_scope: "personal"` by the model — no entity involved at
+    all — but the register still fired (intent=lookup, no name given)
+    and silently rewrote it to a customer lookup about whichever
+    customer was most recently touched, answering "New customer
+    Sipho, measured the office..." instead of the actual schedule.
+    Fixed by excluding `personal`-scoped lookups from register/AI
+    fallback resolution entirely — that classification is a strong,
+    reliable signal nothing entity-specific is being asked about.
+    Deliberately kept `business`-scoped lookups eligible for the
+    fallback: the already-proven ProSupply case genuinely needs it to
+    correct an uncertain business-wide guess into the right entity, so
+    the fix couldn't be "block the register for anything non-
+    customer" — the two cases needed different treatment.
+26. **`answerFromMemory` silently dropped facts under its own "be
+    brief, one sentence" instruction** whenever a question genuinely
+    had multiple distinct relevant answers. "What's up today" combining
+    one scheduled job and five open tasks collapsed down to mentioning
+    only the job — not wrong, just incomplete, and silently so. The
+    same failure family as the dog-food bug from earlier this session,
+    the opposite symptom: that one crammed in too much irrelevant
+    content into one sentence, this one dropped too much relevant
+    content trying to stay in one — both from asking a single sentence
+    to do a list's job. Fixed by requiring coverage of every relevant
+    fact; a single-fact answer still naturally comes out as one
+    sentence, a multi-fact one becomes a short list instead of a
+    silent omission.
+
 ## Debug and diagnostic routes
 
 `/debug/list-audio`, `/debug/reprocess`, `/debug/search-memory`,
@@ -518,7 +551,14 @@ matching behavior directly), `/debug/complete-task/:id` (direct
 tappable completion, no natural-language matching needed — the real
 endpoint a future ember list would call). `/debug/init-selections-
 table` (same one-time schema-init pattern) and `/debug/selections`
-(list, for verifying the execution register directly). `/debug/rewrite-thinking-
+(list, for verifying the execution register directly). `/debug/init-
+captures-fk` (idempotent `ALTER TABLE`, real customer_id/character_id
+columns) — `/debug/captures` now supports real `?customerId=`/
+`?characterId=` filtering, a genuine join, no more fuzzy `subject_hint`
+text matching. `/debug/init-job-scopes-date` (same idempotent pattern,
+the real `scheduled_date` column) and `/debug/schedule` (the actual
+calendar query — real, queryable dates, computed live, no cron
+snapshot). `/debug/rewrite-thinking-
 test` (served its diagnostic purpose already — safe to remove),
 `/debug/pdf-route-test` (leftover from a routing diagnosis — safe to
 remove), `/admin/flush-memory`.
@@ -703,6 +743,32 @@ Codemagic — still only proven on the web preview.**
   isn't necessarily permanent (a second tile supplier later would need
   the same phrase to become ambiguous again, not silently keep
   resolving to the first one forever).
+- **The full scheduling engine (2026-07-11).** Real reframe worth
+  keeping: a calendar answers "what does my day look like," a
+  scheduler answers "what needs to happen, and when" — Office needs
+  the second one, and a calendar (whenever one exists) is just one
+  view over it, the same way Gmail's Inbox is a view over stored mail,
+  not the storage itself. The full shape: a generic `schedules` table
+  (`trigger_time`, `recurrence`, `target`, `payload`, `status`) that
+  can fire a reminder to Peter OR notify a future department ("quarter
+  end → Finance → prepare VAT summary"). Genuinely the right eventual
+  primitive — but pinned, not built, for two real reasons: (1) it
+  would generalize two things — `tasks` (open/done, no due time) and
+  `job_scopes.scheduled_date` (a real date, no recurrence) — before
+  either has been pressure-tested on its own, the exact premature-
+  generalization risk the execution register was deliberately proven
+  small before extending; (2) "wakes departments and notifies Peter"
+  implies genuine PUSH (a real Cron Trigger or notification channel),
+  which is in direct tension with everything else decided this
+  session — the embers design ("Peter must guide"), the Ether
+  manifesto's own anti-pattern list ("no notifications, it waits for
+  him"), and the deliberately-rejected cron-generated briefing. The
+  honest, already-proven version stays PULL: "what's up today"
+  (2026-07-11) computes live, on request, from real scheduled jobs and
+  open tasks — no cron, no push — the same "smallest honest version"
+  discipline as the weekly briefing. Real push is a separate, later,
+  deliberate decision, not something to fold in by calling it "the
+  scheduler."
 
 ## UX vision — the Ether, and what it does / doesn't change (2026-07-10)
 
