@@ -687,6 +687,46 @@ the *same kind* of result (the three document-producing ones sharing
 code — a capability-cluster convenience, not a step toward collapsing
 the six branches into one engine.
 
+## Principle 22 — Capabilities Emerge From Captured Reality (2026-07-11)
+
+Not borrowed from external research — a real extension of the
+receptacle philosophy (capture first, understand second, decide
+later), naming something the receptacle alone doesn't: one real
+utterance can and should feed *multiple* departments at once, without
+Peter ever choosing which one.
+
+> Peter doesn't maintain business systems. He describes reality, once,
+> in his own words. The departments that need that reality read it —
+> he never re-enters the same fact for each one.
+
+1. *Problem:* traditional business software makes the user think like
+   the software — "which module do I open, which form do I fill in for
+   this fact." That's real cognitive overhead, and it's exactly what
+   Office has been trying to remove since the very first session.
+2. *How solved:* a single captured fact ("Jenny paid R500") already
+   updates more than one thing without Peter doing anything extra —
+   it's a payment record, it moves the Finance ember count, it's
+   retrievable later as a customer fact. Nothing about the utterance
+   changes depending on which of those consumes it.
+3. *Does Office have this problem?* Yes, and the core mechanism is
+   already real, proven daily this session — one message routinely
+   updates `pending_actions`, the execution register, an ember count,
+   and a customer's real financial summary, all from a single
+   extraction pass. What's NOT yet real: the vision this principle was
+   named from goes much further (expense capture from a receipt photo,
+   automatic trip logging, job-cost profitability) — genuinely
+   unbuilt, a real and large surface, not a small gap. See the Known
+   Gaps / Pinned Ideas in `STATUS.md` for the honest inventory.
+4. *What survives regardless of how much of that surface gets built?*
+   **One capture, many capabilities — never make Peter re-describe the
+   same reality once per department that needs it.**
+
+**Status:** ✅ Adopted as a standing design constraint. The mechanism
+is real and proven at today's scale (a handful of departments); the
+much larger vision it was articulated from (a continuously-assembled
+P&L from receipts, GPS logs, and fuel purchases) is honestly pinned,
+not built — see `STATUS.md`.
+
 ## Closing synthesis — where AI actually lives
 
 Seven research entries in, the pattern is no longer a surprise: **every
