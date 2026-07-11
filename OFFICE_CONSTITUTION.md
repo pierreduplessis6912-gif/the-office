@@ -638,6 +638,55 @@ technology, deliberately parked (not abandoned) as a possible future
 door — the native-first approach described here is the current,
 preferred plan, not a stopgap until an API integration replaces it.
 
+## Principle 21 — Generic Lifecycle, Specific Capability (2026-07-11)
+
+Not borrowed from external research — discovered by applying the exact
+same test the execution register was held to (Principle 16's own
+discovery process) to a second, independent system: `pending_actions`.
+
+> The lifecycle a piece of work moves through is the generic part.
+> What happens at the execute step never has to be — and often
+> shouldn't be.
+
+1. *Problem:* six real, working pending-action types already exist
+   (`payment`, `invoice`, `quotation`, `convert_quote`, `customer_fact`,
+   `schema_candidate`), each with genuinely different business rules
+   (VAT math, deposit math, line items, guard() specifics). The
+   temptation, on seeing one table and one confirm endpoint already
+   serving all six, is to ask "can this become a universal action
+   engine" — collapsing the six into one metadata-driven executor.
+2. *How solved:* don't. Checked directly against the real code:
+   every one of the six branches already follows the same four real
+   stages — receive (parse payload), execute (the type-specific record
+   function — guard() already did real validation before the pending
+   action even existed), and report (update status, return a result).
+   That's the genuine primitive. The *content* of each stage — what
+   gets executed, what gets reported — stays capability-specific,
+   on purpose, forever.
+3. *Does Office have this problem?* Yes, confirmed by direct
+   inspection rather than assumed: three of the six branches
+   (`invoice`, `quotation`, `convert_quote`) report a `pdfUrl`/
+   `shareMessage`; the other three report a raw record or nothing
+   extra. That's not an inconsistency to fix — a document and a fact
+   and a payment are different *kinds* of result, and forcing them
+   into one shape would be exactly the flattening this principle warns
+   against.
+4. *What survives if the implementation changes?* **Standardize the
+   lifecycle a piece of work moves through — receive, hold, confirm,
+   execute, report — never the logic that runs at the execute step.**
+   Six hand-written branches today, sixty later if that's what real
+   capabilities demand, is a feature of this design, not a debt to
+   eventually collapse.
+
+**Status:** ✅ Adopted. The `pending_actions` table and the confirm
+endpoint are the proven, reusable lifecycle — zero schema or endpoint
+changes were needed for any capability built this entire session. A
+genuinely earned, narrow exception: capabilities that happen to share
+the *same kind* of result (the three document-producing ones sharing
+`pdfUrl`/`shareMessage` generation) may share that one small piece of
+code — a capability-cluster convenience, not a step toward collapsing
+the six branches into one engine.
+
 ## Closing synthesis — where AI actually lives
 
 Seven research entries in, the pattern is no longer a surprise: **every
