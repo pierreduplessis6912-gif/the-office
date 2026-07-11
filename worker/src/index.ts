@@ -3088,6 +3088,77 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // captured — same role a transcript plays for voice — so the
     // capture row and its real R2 key exist the instant it arrives,
     // before Kimi's vision description ever runs.
+    // The third "sense" alongside voice and photos — a supplier
+    // quote, an existing invoice, a scanned form. Same receptacle-
+    // first discipline: the raw file is stored reliably before any
+    // understanding is attempted, mirroring /files/photo exactly.
+    // Honest limitation, not silently overclaimed: an image gets the
+    // same real vision description photos already get; a genuine PDF
+    // is captured and stored reliably but its text isn't extracted
+    // yet — no PDF-parsing capability exists in this environment
+    // today, and pdf-lib (already a dependency) is a generation/
+    // manipulation library, not a text-extraction one. Named as a
+    // real, explicit gap rather than pretended solved.
+    if (url.pathname === "/files/document" && request.method === "POST") {
+      const formData = await request.formData();
+      const document = formData.get("document");
+      const caption = formData.get("caption");
+
+      if (!(document instanceof File)) {
+        return Response.json({ error: "missing document file" }, { status: 400 });
+      }
+
+      const docBuffer = await document.arrayBuffer();
+      const mimeType = document.type || "application/octet-stream";
+      const isImage = mimeType.startsWith("image/");
+      const isPdf = mimeType === "application/pdf";
+      const extension = isPdf ? "pdf" : mimeType.includes("png") ? "png" : mimeType.includes("jpeg") || mimeType.includes("jpg") ? "jpg" : "bin";
+      const key = `documents/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+
+      await env.OFFICE_VAULT.put(key, docBuffer);
+      const captureId = await logCapture(env, "[document — description pending]", "document", key);
+
+      let description: string;
+      if (isImage) {
+        const base64 = arrayBufferToBase64(docBuffer);
+        description = await describeImage(env, base64, mimeType);
+      } else if (isPdf) {
+        // Honest placeholder — the file itself is safely stored and
+        // fully retrievable (r2Key on the capture, same as any
+        // photo), it just isn't searchable by content yet.
+        description = `PDF document uploaded (${document.name || "untitled"}, ${docBuffer.byteLength} bytes) — text content not yet extracted.`;
+      } else {
+        description = `File uploaded (${document.name || "untitled"}, ${mimeType}, ${docBuffer.byteLength} bytes).`;
+      }
+
+      // Same caption-based subject-hint logic as /files/photo, same
+      // reasoning: never guess a subject from the file itself, only
+      // ever from something actually said about it.
+      let subjectHint: string | null = null;
+      let rawText = description;
+      if (typeof caption === "string" && caption.trim().length > 0) {
+        const captionText = caption.trim();
+        rawText = `${captionText}\n\n[Document: ${description}]`;
+        const { extraction } = await extractIntent(env, captionText);
+        if (extraction?.customer_name) {
+          const customer = await reconcileCustomer(env, extraction.customer_name);
+          subjectHint = customer?.name ?? null;
+        } else if (extraction?.character_name) {
+          const character = await reconcileCharacter(env, extraction.character_name, extraction.character_relationship);
+          subjectHint = character?.name ?? null;
+        }
+      }
+
+      if (captureId !== null) {
+        await updateCaptureText(env, captureId, rawText);
+        if (subjectHint) {
+          await updateCaptureHint(env, captureId, subjectHint);
+        }
+      }
+
+      return Response.json({ status: "stored", key, captureId, description, subjectHint });
+    }
+
     if (url.pathname === "/files/photo" && request.method === "POST") {
       const formData = await request.formData();
       const photo = formData.get("photo");
