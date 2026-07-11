@@ -2441,6 +2441,26 @@ async function generateShareMessage(
   return `Hi ${firstName}, here's your ${label} from ${businessName} — R${amount.toLocaleString()}. View it here: ${pdfUrl}`;
 }
 
+// Principle 21's explicitly-legitimate exception, not a step toward
+// collapsing the three document-producing confirm branches into one
+// executor: invoice, quotation, and convert_quote all report the SAME
+// KIND of result (a real document), so they share the one small piece
+// of code that shapes that result. The three capabilities otherwise
+// stay completely independent — their execute() steps (recordInvoice,
+// recordQuotation, convertQuoteToInvoice) remain separate on purpose.
+async function buildDocumentResponse(
+  env: Env,
+  origin: string,
+  kind: "invoice" | "quotation",
+  documentId: number,
+  customerName: string | undefined,
+  amount: number
+): Promise<{ pdfUrl: string; shareMessage: string | null }> {
+  const pdfUrl = `${origin}/${kind}s/${documentId}/pdf`;
+  const shareMessage = customerName ? await generateShareMessage(env, kind, customerName, amount, pdfUrl) : null;
+  return { pdfUrl, shareMessage };
+}
+
 // not the source of it. VAT applies from the business's current
 // default; a genuine per-invoice override is a real refinement for
 // later, once there's evidence it's actually needed.
@@ -3276,16 +3296,15 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           )
             .bind(id)
             .run();
-          const invoicePdfUrl = `${url.origin}/invoices/${invoice.id}/pdf`;
-          const shareMessage = payload.customerName
-            ? await generateShareMessage(env, "invoice", payload.customerName, invoice.amount, invoicePdfUrl)
-            : null;
-          return Response.json({
-            status: "confirmed",
-            invoice,
-            pdfUrl: invoicePdfUrl,
-            shareMessage,
-          });
+          const { pdfUrl, shareMessage } = await buildDocumentResponse(
+            env,
+            url.origin,
+            "invoice",
+            invoice.id,
+            payload.customerName,
+            invoice.amount
+          );
+          return Response.json({ status: "confirmed", invoice, pdfUrl, shareMessage });
         }
 
         if (action.type === "quotation") {
@@ -3309,16 +3328,15 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           )
             .bind(id)
             .run();
-          const quotationPdfUrl = `${url.origin}/quotations/${quotation.id}/pdf`;
-          const shareMessage = payload.customerName
-            ? await generateShareMessage(env, "quotation", payload.customerName, quotation.amount, quotationPdfUrl)
-            : null;
-          return Response.json({
-            status: "confirmed",
-            quotation,
-            pdfUrl: quotationPdfUrl,
-            shareMessage,
-          });
+          const { pdfUrl, shareMessage } = await buildDocumentResponse(
+            env,
+            url.origin,
+            "quotation",
+            quotation.id,
+            payload.customerName,
+            quotation.amount
+          );
+          return Response.json({ status: "confirmed", quotation, pdfUrl, shareMessage });
         }
 
         if (action.type === "convert_quote") {
@@ -3342,22 +3360,19 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           )
             .bind(id)
             .run();
-          const convertedPdfUrl = `${url.origin}/invoices/${result.invoiceId}/pdf`;
-          // Real fix 2026-07-11: this path produces a real invoice too
-          // — often the more meaningful message of the three ("your
-          // job is done, here's the final balance") — but only the
-          // two direct create-quotation/create-invoice paths had a
-          // shareMessage until now. customerName was already sitting
-          // in the payload, just never read out here.
-          const convertedShareMessage = payload.customerName
-            ? await generateShareMessage(env, "invoice", payload.customerName, payload.remainingBalance, convertedPdfUrl)
-            : null;
-          return Response.json({
-            status: "confirmed",
-            invoice: result,
-            pdfUrl: convertedPdfUrl,
-            shareMessage: convertedShareMessage,
-          });
+          // This path produces a real invoice too — often the more
+          // meaningful message of the three ("your job is done, here's
+          // the final balance") — same shared helper as the other two,
+          // since it reports the same KIND of result (a document).
+          const { pdfUrl, shareMessage } = await buildDocumentResponse(
+            env,
+            url.origin,
+            "invoice",
+            result.invoiceId,
+            payload.customerName,
+            payload.remainingBalance
+          );
+          return Response.json({ status: "confirmed", invoice: result, pdfUrl, shareMessage });
         }
 
         if (action.type === "customer_fact") {
