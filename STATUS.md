@@ -563,15 +563,22 @@ Codemagic — still only proven on the web preview.**
   review 2026-07-11: CORS is wide open and there's no rate limiting —
   low urgency for a genuinely single-user system reachable only by
   Peter, but the same underlying gap as no-auth, not a separate one.
-- **`captures.subject_hint` is a loose text string, not a real foreign
-  key.** "Show me every capture about Jenny" would need a fuzzy text
-  match today, not a clean join.
 - **PDF text extraction is not built.** `/files/document` (2026-07-11)
   stores a real PDF reliably and correctly — verified live with a real
   file — but doesn't read its contents. No PDF-parsing capability
   exists in this environment; `pdf-lib` (already a dependency) is a
   generation/manipulation library, not a text-extraction one. Named
   honestly rather than pretended solved.
+- **`captures` real FK backfill.** `customer_id`/`character_id` (added
+  2026-07-11) are correctly populated for every NEW capture from here
+  on, verified live via a real clean join (`?customerId=1`). Every
+  capture from *before* that migration only has the old text
+  `subject_hint`, no real FK — a genuine asymmetry, deliberately left
+  as-is for now rather than backfilled. A retroactive backfill would
+  mean re-deriving structure from a loose string after the fact, the
+  exact kind of fuzzy matching Principle 1 is skeptical of — low risk
+  as a one-time correction rather than an ongoing judgment call, but
+  not worth doing while the real capture volume stays this small.
 - **WhatsApp:** a real Evolution API number exists from earlier work;
   no read/reply pipeline is built. Real platform constraint to design
   around: WhatsApp enforces a 24-hour free-messaging window per
