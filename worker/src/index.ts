@@ -1815,10 +1815,19 @@ async function processTranscript(
   }
 
   // Only for the genuinely ambiguous case — a lookup with no name in
-  // the message itself. The register check below needs no history at
+  // the message itself, AND the model didn't already confidently
+  // decide this has nothing to do with any specific entity. Real bug
+  // found live 2026-07-11: "what's up for today?" correctly classified
+  // as query_scope "personal" by the model, but the register still
+  // fired (intent=lookup, no name given) and silently overrode it to
+  // "customer" — answering about whichever customer was most recently
+  // touched instead of Peter's actual question, because nothing
+  // checked whether the model had already ruled out an entity being
+  // involved at all. The register check below needs no history at
   // all (it reads real, persisted D1 state); only the AI-based
   // fallback further down genuinely needs history text to scan.
-  if (extraction?.intent === "lookup" && !customer && !character) {
+  const scopeCouldBeEntity = extraction?.query_scope !== "personal";
+  if (extraction?.intent === "lookup" && !customer && !character && scopeCouldBeEntity) {
     // Register first — rung 1 of the Execution Ladder, zero AI calls.
     // Peter's own words already established this selection on a prior
     // turn ("show me Jenny"); a later vague reference ("show me the
