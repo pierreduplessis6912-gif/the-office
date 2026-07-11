@@ -246,4 +246,352 @@ of a long visual list.
 
 ---
 
-*Next: Research 002 — CRM (relationship representation, not UI).*
+## Research 002 — Operating Systems (2026-07-11)
+
+Originally planned as the first study; done second because Gmail
+turned out to be the more useful starting shape. Studied properly now
+rather than skipped.
+
+### Principle 8 — Decide and Execute Are Separate Roles
+
+**Borrowed from:** the OS scheduler/dispatcher split. The short-term
+scheduler *decides* which process runs next; the dispatcher is a
+distinct mechanism that actually performs the context switch and hands
+over control. They are never the same piece of code.
+
+1. *Problem:* deciding what should happen next and actually making it
+   happen are different kinds of work, and conflating them makes
+   both harder to reason about and test independently.
+2. *How solved:* two named, separate roles, always.
+3. *Does Office have this problem?* Yes, and — same pattern as several
+   Gmail findings — Office already does this correctly without having
+   named it: `extractIntent` decides *what* is happening; the
+   dispatch chain in `processTranscript` executes it. They've never
+   been the same function.
+4. *What survives?* **Decide what should happen, and how it gets
+   executed, in two separate places — never conflate classification
+   with action.**
+
+**Status:** ✅ Adopted — confirmed, already true in practice; worth
+keeping deliberate as new intents get added, so the temptation to let
+an extraction function also "just handle" its own side effect is
+recognized and refused.
+
+### Principle 9 — Queues Decouple Producer From Consumer
+
+**Borrowed from:** OS message queues and event loops — a producer
+places work on a queue and moves on; a consumer drains it whenever
+it's ready. Neither blocks waiting on the other.
+
+1. *Problem:* two pieces of work happening at different speeds
+   shouldn't force the faster one to wait for the slower one.
+2. *How solved:* an intermediate queue, decoupling timing entirely.
+3. *Does Office have this problem?* Yes, and again — already solved,
+   independently, before this research happened. `pending_memory_flush`
+   is a real message queue: KV writes happen immediately and don't
+   wait on Vectorize's slower consolidation step, which drains the
+   queue on its own schedule.
+4. *What survives?* **When two steps run at different speeds, decouple
+   them with a real queue rather than forcing the fast one to wait.**
+
+**Status:** ✅ Adopted — confirmed, already built correctly.
+
+---
+
+## Research 003 — CRM / Salesforce (2026-07-11)
+
+### Principle 10 — Loose vs. Owned Relationships Are Different Things
+
+**Borrowed from:** Salesforce's Lookup vs. Master-Detail relationship
+types. A Lookup is a loose association — related records exist
+independently of each other. Master-Detail is ownership — the child
+has no independent existence and is deleted along with its parent.
+
+1. *Problem:* not every relationship between two records means the
+   same thing; some are "these happen to be connected," others are
+   "this literally cannot exist without that."
+2. *How solved:* two distinct relationship types, chosen deliberately
+   per case, not a single generic foreign key for everything.
+3. *Does Office have this problem?* Yes, and — same pattern a third
+   time — already solved correctly. `customers`/`characters` are
+   Lookup-style: structurally separate, no ownership either way (the
+   entire safety property behind that separation, see `STATUS.md`).
+   `line_items` are Master-Detail-style: they have no independent
+   existence, own no identity without their parent quotation or
+   invoice, enforced by a real CHECK constraint.
+4. *What survives?* **Name the difference between "these are related"
+   and "this belongs to that" explicitly in the schema — don't let one
+   generic foreign key pattern quietly stand in for both.**
+
+**Status:** ✅ Adopted — confirmed, already correctly distinguished.
+
+### Principle 11 — Business Objects Convert Along a Funnel
+
+**Borrowed from:** Salesforce's Lead → Account/Contact/Opportunity
+conversion — an unqualified prospect becomes real business objects
+once qualified, a one-way progression through real stages.
+
+1. *Problem:* a business relationship starts uncertain and becomes
+   more concrete over time; the data shape needs to reflect that
+   instead of forcing full structure from the first moment.
+2. *How solved:* a real, named conversion step between lifecycle
+   stages, not one flat object trying to represent every stage at
+   once.
+3. *Does Office have this problem?* Yes — and this is the clearest
+   parallel found in any research entry to something Office built
+   deliberately, in stages, over real sessions: `work_observation` →
+   `price_scope` → `quotation`/`invoice` is exactly this funnel.
+   Job scopes measure something uncertain; `price_scope` converts it
+   into a real priced document only once real prices are known;
+   `convert_quote` converts a quotation into an invoice only once work
+   is actually done and a deposit is paid.
+4. *What survives?* **Model the business relationship's real
+   uncertainty over time — don't force final structure onto an early,
+   unconfirmed stage.**
+
+**Status:** ✅ Adopted — confirmed; this is effectively a description
+of `job_scopes`' entire design, arrived at independently.
+
+### Principle 12 — Standard Shapes First, Custom Only When Forced
+
+**Borrowed from:** Salesforce's own best-practice guidance — use
+standard objects (Account, Contact, Opportunity) before ever building
+a custom object; only diverge when the standard shape genuinely
+doesn't fit.
+
+1. *Problem:* premature custom structure creates maintenance burden
+   and fragments what should be one coherent model.
+2. *How solved:* a strict default toward reuse, custom objects treated
+   as the exception requiring justification, not the default.
+3. *Does Office have this problem?* Yes, and it's the same discipline
+   as "build only what's earned" that's governed every decision in
+   this project already — most visibly in the three separate,
+   documented rejections of a polymorphic `people` table.
+4. *What survives?* **Reach for what already exists before building
+   something new; require a real, demonstrated gap before adding
+   structure.**
+
+**Status:** ✅ Adopted — confirmed; this is a restatement of a
+principle Office already lived by, not a new one.
+
+---
+
+## Research 004 — Search (SQLite FTS5) (2026-07-11)
+
+Studied instead of Elasticsearch — same underlying ideas, and directly
+relevant since `line_items`/`tasks` already live in the exact SQLite
+database Office runs on.
+
+### Principle 13 — Matching and "Did You Mean" Are Different Layers
+
+**Borrowed from:** FTS5's own documentation, stated almost verbatim —
+*"FTS5 is not a typo-tolerant engine. It does prefix matching, not
+fuzzy matching. If you need 'did you mean...' behavior, that's a layer
+above FTS5."*
+
+1. *Problem:* exact, deterministic matching and forgiving,
+   judgment-based suggestion are fundamentally different jobs, and a
+   real search engine refuses to conflate them.
+2. *How solved:* the matching engine stays strictly literal; anything
+   fuzzier is explicitly a separate, higher layer, built on top, never
+   folded in.
+3. *Does Office have this problem?* Yes — this is, almost word for
+   word, the same conclusion the Execution Ladder work reached
+   independently, before this research happened: matching is
+   deterministic (`resolveTaskCompletion`); "did you mean X or Y" is a
+   distinct, later step that only ever presents what the deterministic
+   layer already found.
+4. *What survives?* **Keep exact matching and forgiving suggestion in
+   two separate layers, always — never let a matching engine start
+   guessing on its own authority.**
+
+**Status:** ✅ Adopted — direct, independent confirmation of Genesis
+Principle 1, from an authoritative real system, found *after* Office
+had already arrived at the same design under pressure.
+
+### Principle 14 — Stemming Is Indexing, Not Reasoning
+
+**Borrowed from:** FTS5's Porter tokenizer — "connect" is made to
+match "connecting" and "connected" through a fixed, deterministic
+suffix-stripping algorithm applied at index time, not through a model
+judging that the words are related.
+
+1. *Problem:* naive exact-string matching misses obviously related
+   word forms ("call" vs. "called").
+2. *How solved:* a small, fixed, rule-based transformation applied
+   uniformly — same input always produces the same output.
+3. *Does Office have this problem?* Yes, and it was solved the same
+   way, independently, the same day: `resolveTaskCompletion`'s crude
+   suffix-stripping `stem()` function is a hand-rolled Porter-style
+   tokenizer, built to fix the exact bug this principle describes
+   ("called them" failing to match "call Sarah...").
+4. *What survives?* **Word-form normalization belongs in deterministic
+   code, applied uniformly — it is indexing, not a judgment call, even
+   though it looks a little like "understanding" language.**
+
+**Status:** ✅ Adopted — confirmed; independently reinvented, now
+named properly.
+
+### Principle 15 — Synonyms Are Data, Not Judgment
+
+**Borrowed from:** FTS5's synonym tokenizer — "dog" can be made to
+also match "canine" or "k9," but only because that mapping was
+supplied as data to the tokenizer, never because the engine reasoned
+its way to the connection at query time.
+
+1. *Problem:* some words mean the same thing without sharing any
+   letters, which pure stemming can never catch.
+2. *How solved:* a stored, explicit mapping, consulted at index or
+   query time — still just a lookup table, not reasoning.
+3. *Does Office have this problem?* Plausibly, later — this is exactly
+   the already-pinned "business aliases" idea (rung 4 of the Execution
+   Ladder): "the tile guy" → a real supplier, stored from a past
+   clarification. Real evidence this session showed Peter's actual
+   phrasing tends to already be specific, so this remains genuinely
+   not yet earned.
+4. *What survives?* **A synonym mapping is a stored fact to look up,
+   never a similarity judgment made fresh each time.**
+
+**Status:** ⏸ Deferred — same status as before this research, now
+with stronger independent grounding for *how* to build it correctly
+whenever it's earned: a literal lookup table, not an AI call.
+
+---
+
+## Research 005 — Git (2026-07-11)
+
+### Principle 16 — Immutable History, Mutable Pointers
+
+**Borrowed from:** Git's object model — blobs, trees, and commits are
+permanent and content-addressed, never edited once created; branches
+and `HEAD` are the only mutable things, and they're just names
+pointing at a spot in that immutable history.
+
+1. *Problem:* a system needs to both remember everything that
+   happened, permanently, and represent "the current state" as
+   something that can change — without letting the second need corrupt
+   the first.
+2. *How solved:* strict separation — the record of what happened is
+   permanent; only a small set of pointers to that record are allowed
+   to move.
+3. *Does Office have this problem?* Yes, and it's mostly already
+   solved, with one real gap worth naming honestly. `captures` is
+   genuinely Git-like: logged raw and unconditionally, never edited.
+   Every guarded record (`pending_actions`) carries its immutable
+   `source_transcript` forever, even as `status` — the mutable
+   pointer — moves from pending to confirmed. But the status column
+   itself is a real `UPDATE`, with no separate, permanent record of
+   *when* or *why* it moved, the way a Git ref-log records every place
+   `HEAD` has ever pointed.
+4. *What survives?* **The event that caused a change should be
+   permanent; only a small, explicit pointer to "current state" should
+   ever be allowed to move — and even that pointer's history is worth
+   keeping.**
+
+**Status:** ✅ Adopted for the core pattern (confirmed, already
+mostly true) / ⏸ Deferred for the ref-log idea specifically — no real
+gap has yet demonstrated Office needs a history of *when* a
+pending_action's status changed, beyond the single `resolved_at`
+timestamp it already has. Worth revisiting if an audit-trail need ever
+surfaces for real.
+
+---
+
+## Research 006 — ERP / SAP (2026-07-11)
+
+### Principle 17 — One Chain, One Source of Truth Per Stage
+
+**Borrowed from:** ERP's document flow model (quote → sales order →
+delivery → invoice → payment) — each stage is a real, distinct
+document, linked to the one before it, and no stage is allowed to
+silently duplicate or override what a prior stage already established.
+
+1. *Problem:* a business transaction moves through real stages over
+   time, and letting any one system re-derive or contradict an earlier
+   stage's numbers creates exactly the kind of drift a system of
+   record can't tolerate.
+2. *How solved:* each stage owns its own real document, referencing
+   the previous stage by ID, never recalculating what it already
+   settled.
+3. *Does Office have this problem?* Yes — already solved, the same
+   pattern as Principle 11 from a different angle. `quotations` →
+   `invoices` via `quotation_id`, with `line_items` computed once, in
+   code, and never re-derived by the model at any later stage.
+4. *What survives?* **Once a number is settled at one stage, every
+   later stage references it — it is never recalculated or guessed at
+   again.**
+
+**Status:** ✅ Adopted — confirmed, already the entire reasoning
+behind "the LLM must never do arithmetic."
+
+---
+
+## Research 007 — Databases (2026-07-11)
+
+### Principle 18 — An Index Is a Precomputed Answer
+
+**Borrowed from:** database indexes and materialized views — rather
+than scanning and recomputing an answer from raw rows every time a
+common question is asked, the answer (or a fast path to it) is kept
+ready in advance.
+
+1. *Problem:* recomputing the same aggregate from scratch on every
+   request wastes work and risks inconsistency between two places
+   that should agree.
+2. *How solved:* a real, maintained structure that already holds (or
+   can cheaply produce) the answer to a known, common question.
+3. *Does Office have this problem?* Yes, and — same pattern as
+   throughout this document — already solved. `getOutstandingInvoices`
+   and `getQuotationsSummary` are real SQL aggregates, computed fresh
+   from ground truth on request rather than an AI attempting to recall
+   or reconstruct the numbers from memory.
+4. *What survives?* **A known, common question deserves a real,
+   precomputed or cheaply-computed path to its answer — never a
+   from-scratch guess.**
+
+**Status:** ✅ Adopted — confirmed. Worth noting explicitly:
+Office's version of "the index" is real SQL, run fresh each time
+rather than cached — correct for its current small scale, and worth
+revisiting only if query volume or table size ever makes it genuinely
+slow, not before.
+
+---
+
+## Closing synthesis — where AI actually lives
+
+Seven research entries in, the pattern is no longer a surprise: **every
+single external system studied had already, independently, been
+arrived at by Office under real pressure**, usually from a real bug,
+before this research phase began. That's not a coincidence worth
+under-selling — it's the strongest possible validation available,
+because it means these principles weren't chosen because they sounded
+right in the abstract. They were forced into existence by what actually
+broke, and then confirmed, afterward, by decades of systems that
+solved the same underlying problems for the same underlying reasons.
+
+The honest map, laid end to end:
+
+- **The Intent Engine** (Genesis Principles 1–2) is the scheduler and
+  the translator — it decides what Peter meant and narrates what
+  happened, and never the business logic in between.
+- **The Dispatcher** (Principle 8) is `processTranscript`'s dispatch
+  chain — decide and execute, kept apart on purpose.
+- **Execution Registers** (pinned, not yet built) are the mutable
+  pointers (Principle 16) — small, explicit, always pointing at
+  something real and immutable underneath.
+- **Business Objects** (Principles 10, 11, 17) are the real schema —
+  loosely or tightly related on purpose, converting through real
+  funnel stages, each number settled once and referenced forever after.
+- **Search** (Principles 13–15) is retrieval-first (Principle 4),
+  deterministic matching with forgiving suggestion kept strictly
+  separate (Principle 1, confirmed independently by Principle 13).
+- **Departments** (the still-distant "Finance/Marketing/Website/Tender"
+  vision) are, in this language, just more business-object clusters
+  behind the same dispatcher, the same execution ladder, the same
+  narrator — nothing about the architecture changes shape to
+  accommodate them; they're additional nouns, not a new kind of noun.
+
+If a future version of Office is tempted to let the AI "just guess" —
+match a task, resolve a customer, recalculate a total — the answer was
+never really "can we?" It was always: does this violate Principle 1?
+
