@@ -593,6 +593,51 @@ here forward — including the ember bar, whenever it's built: every
 ember's dark state must be treated as a genuine, positive outcome to
 design for, not an empty placeholder waiting to be filled.
 
+## Principle 20 — One Office, Many Doors (2026-07-11)
+
+Not borrowed from external research — discovered through direct product
+conversation about WhatsApp integration, but the belief is bigger than
+WhatsApp.
+
+> Any external capability (share-in from WhatsApp, share-out to
+> WhatsApp, a future integration with anything else) is an EXTENSION of
+> Office's own native ingestion and delivery — never a substitute for
+> it, and never something Office's core functionality is allowed to
+> depend on.
+
+1. *Problem:* Android's Share Sheet, Notification Listener, and similar
+   platform features make it tempting to let an external app (WhatsApp,
+   Gmail, whatever's popular this year) become the *real* entry or exit
+   point for a capability, with Office just relaying it. That quietly
+   makes Office dependent on which apps a given Peter happens to have
+   installed — the research itself named this directly: "we build our
+   app assuming not everyone has WhatsApp."
+2. *How solved:* every capability an external app's share sheet could
+   offer must already exist as a genuine, standalone, native Office
+   capability first. The external channel becomes one more *door* into
+   the same room — never the room itself.
+3. *Does Office have this problem?* Checked against what's actually
+   built, not aspirational: **all three doors named in this
+   conversation already exist, independent of WhatsApp or any external
+   app.** A file shareable via WhatsApp → already uploadable natively
+   (`/files/document`). A photo shareable via WhatsApp → already
+   captureable natively (`/files/photo`, real vision description). A
+   document shareable *to* WhatsApp → already viewable natively and
+   professionally (the real quotation/invoice PDF routes). WhatsApp
+   share-in/share-out, whenever built, adds entry/exit points to these
+   same native capabilities — it doesn't replace them.
+4. *What survives if the specific integration changes?* **Build the
+   native door first, always. An external app's share sheet is
+   additive convenience, never the foundation anything depends on.**
+
+**Status:** ✅ Adopted, and — same pattern as Principles 3, 4, 10, 11,
+13, 14, 17, 18 — retroactively confirmed rather than newly required:
+the native doors already existed before this principle was named.
+Whatsapp Business API / Evolution API integration is real, working
+technology, deliberately parked (not abandoned) as a possible future
+door — the native-first approach described here is the current,
+preferred plan, not a stopgap until an API integration replaces it.
+
 ## Closing synthesis — where AI actually lives
 
 Seven research entries in, the pattern is no longer a surprise: **every
