@@ -161,8 +161,13 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             'scope_document_type is null whenever intent is not "price_scope". ' +
             'intent is "task_complete" if the message reports a personal errand or reminder as DONE — ' +
             '"got the dog food", "picked up the kids", "phoned my mother" — past tense, something ' +
-            'finished, not a new request. This is different from "reminder", which is asking for ' +
-            "something to be remembered for LATER, not reporting it done now. " +
+            'finished, not a new request. This includes bare, pronoun-only completions with no concrete ' +
+            'object stated — "did that", "called them", "sorted", "done" — these still count as ' +
+            "task_complete even without naming what was done; exactly WHICH open task it completes is " +
+            "resolved separately, later, against the real list of open tasks — your only job here is " +
+            "recognizing that a completion is being reported at all, however vaguely phrased. This is " +
+            'different from "reminder", which is asking for something to be remembered for LATER, not ' +
+            "reporting it done now. " +
             'intent is "work_observation" if the message describes measuring, scoping, or inspecting a job ' +
             '— components, measurements, or tasks — with NO price stated at all. This is earlier than a ' +
             'quotation: the tradesperson is recording what they observed, not proposing a cost. If any ' +
@@ -209,6 +214,7 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             '"how is my wife doing?" -> {"customer_name":null,"character_name":"wife","character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"character","deposit_percent":null,"scope_document_type":null}\n' +
             '"heading to jenny\'s job now, remind me to get dog food after" -> {"customer_name":"jenny","character_name":null,"character_relationship":null,"intent":"reminder","amount":null,"fact_key":null,"fact_value":null,"personal_note":"remind me to get dog food after","query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
             '"got the dog food" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"task_complete","amount":null,"fact_key":null,"fact_value":null,"personal_note":"got the dog food","query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
+            '"called them" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"task_complete","amount":null,"fact_key":null,"fact_value":null,"personal_note":"called them","query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
             '"we completed Jenny\'s installation, she paid an 80% deposit, convert the quote to an invoice for the remaining balance" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"convert_quote","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":80,"scope_document_type":null}\n' +
             '"Dwayne is a new customer, I measured the reception area at 6600 by 4100, we also need repair work" -> {"customer_name":"Dwayne","character_name":null,"character_relationship":null,"intent":"work_observation","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
             '"price up Dwayne\'s job, R450 a square meter for the reception area and office, flat R3500 for the repair work" -> {"customer_name":"Dwayne","character_name":null,"character_relationship":null,"intent":"price_scope","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":"quotation"}\n' +
@@ -2571,6 +2577,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         {
           name: "task_complete is distinct from reminder by tense — done now, not later",
           text: "got the dog food",
+          check: (e) => e?.intent === "task_complete",
+        },
+        {
+          name: "bare pronoun-only completions still count as task_complete, not note",
+          text: "called them",
           check: (e) => e?.intent === "task_complete",
         },
       ];
