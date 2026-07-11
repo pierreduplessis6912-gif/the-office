@@ -1363,13 +1363,40 @@ async function appendLifeEvent(env: Env, text: string): Promise<void> {
   }
 }
 
+// Small, deterministic cleanup — real polish item flagged since the
+// first task test today: task descriptions stored the raw reminder
+// phrasing verbatim ("remind me to get dog food"), making completion
+// messages read oddly ("Marked done: remind me to get dog food"
+// instead of "Marked done: get dog food"). Fixed rules, same input
+// always produces the same output — text munging, not AI judgment.
+// Verified directly in Node before deploying.
+function cleanTaskDescription(raw: string): string {
+  let text = raw.trim();
+  const prefixes = [
+    /^remind me to\s+/i,
+    /^please remind me to\s+/i,
+    /^remember to\s+/i,
+    /^don.t forget to\s+/i,
+    /^dont forget to\s+/i,
+  ];
+  for (const p of prefixes) {
+    if (p.test(text)) {
+      text = text.replace(p, "");
+      break;
+    }
+  }
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 // Real evidence 2026-07-10: a checkable personal errand needs a done
 // state the narrative life-event log never had. Deliberately separate
 // from pending_actions — guard()-confirmed items (payments, invoices,
 // facts) already have their own done state (status/resolved_at); this
 // is only ever for personal errands, never business/money records.
 async function createTask(env: Env, description: string): Promise<void> {
-  await env.OFFICE_DB.prepare("INSERT INTO tasks (description, done) VALUES (?, 0)").bind(description).run();
+  await env.OFFICE_DB.prepare("INSERT INTO tasks (description, done) VALUES (?, 0)")
+    .bind(cleanTaskDescription(description))
+    .run();
 }
 
 async function getOpenTasks(env: Env): Promise<Array<{ id: number; description: string }>> {
