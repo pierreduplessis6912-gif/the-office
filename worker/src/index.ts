@@ -1617,9 +1617,21 @@ async function answerFromMemory(env: Env, question: string, facts: string[]): Pr
           {
             role: "system",
             content:
-              "Answer the tradesperson's question using only the facts below. Be brief, one sentence, " +
-              "but ALWAYS include any specific numbers, amounts, or figures from the facts — never " +
-              "summarize a number away into a vague statement. " +
+              // Real bug found live 2026-07-11: the old instruction
+              // ("be brief, one sentence") caused this to silently
+              // drop facts whenever a question genuinely had several
+              // distinct relevant answers — "what's up today"
+              // combining a scheduled job and five open tasks
+              // collapsed down to mentioning only the job. Fixed by
+              // requiring coverage of every relevant fact; a single-
+              // fact answer still naturally comes out as one plain
+              // sentence, a multi-fact one becomes a short list
+              // instead of a silent omission.
+              "Answer the tradesperson's question using only the facts below. Cover every fact that's " +
+              "relevant to the question — never silently drop one just to stay brief. If only one fact " +
+              "is relevant, answer in one plain sentence. If several are relevant, list them briefly, " +
+              "each in a short phrase. Always include any specific numbers, amounts, or figures from the " +
+              "facts — never summarize a number away into a vague statement. " +
               "If the facts don't actually answer the question, say you don't have that on file.\n\n" +
               `Facts:\n${facts.map((f) => `- ${f}`).join("\n")}`,
           },
