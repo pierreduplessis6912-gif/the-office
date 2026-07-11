@@ -1253,50 +1253,35 @@ async function completeTask(env: Env, id: number): Promise<void> {
   await env.OFFICE_DB.prepare("UPDATE tasks SET done = 1, completed_at = datetime('now') WHERE id = ?").bind(id).run();
 }
 
-// Real evidence 2026-07-10, Pierre explicit: "if the model doesn't
-// understand it should ask for clarity" — matching a loose spoken
-// completion phrase against real open tasks is exactly the kind of
-// judgment call that shouldn't be silently guessed. One clear match
-// completes it; more than one plausible match, or none, means saying
-// so honestly rather than picking — same discipline as every other
-// "recognized intent, nothing safe to act on" case in this file
-// (price_scope's missing job scope, convert_quote's missing
-// quotation).
-async function resolveTaskCompletion(
-  env: Env,
+// Real correction 2026-07-11: this used to hand the AI the list of
+// open tasks and ask it to judge which one matched — that's AI doing
+// matching, which is exactly the line drawn against. Rebuilt as pure
+// deterministic logic, same "execution ladder" as everything else in
+// this reasoning: register-of-one (only one open task exists, so
+// there's nothing else it could mean), then real substring matching,
+// then — only if genuinely unresolvable — present the real candidates
+// and let Peter decide. No AI call anywhere in this function. The
+// only remaining AI-adjacent step is phrasing "did you mean X or Y,"
+// which is plain string joining downstream, not reasoning either.
+function resolveTaskCompletion(
   message: string,
   openTasks: Array<{ id: number; description: string }>
-): Promise<{ matched: string | null; candidates: string[] }> {
+): { matched: { id: number; description: string } | null; candidates: Array<{ id: number; description: string }> } {
   if (openTasks.length === 0) return { matched: null, candidates: [] };
-  try {
-    const taskList = openTasks.map((t) => t.description).join(", ");
-    const result = await withRetry(() =>
-      env.AI.run("@cf/moonshotai/kimi-k2.6", {
-        chat_template_kwargs: { thinking: false },
-        temperature: 0,
-        messages: [
-          {
-            role: "system",
-            content:
-              "Given this list of open tasks, does the new message report exactly ONE of them as done? " +
-              "If it clearly matches exactly one, return its exact description from the list. If it could " +
-              "plausibly match more than one, list the plausible ones as candidates instead of guessing. " +
-              "If it doesn't clearly match any, return null with no candidates. Never invent a task not " +
-              `in the list.\n\nOpen tasks: ${taskList}\n\n` +
-              'Return ONLY JSON: {"matched": string or null, "candidates": string[]}',
-          },
-          { role: "user", content: message },
-        ],
-      })
-    );
-    const r = result as { choices?: Array<{ message?: { content?: string } }> };
-    const rawText = r.choices?.[0]?.message?.content ?? "";
-    const cleaned = rawText.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(cleaned) as { matched: string | null; candidates?: string[] };
-    return { matched: parsed.matched ?? null, candidates: parsed.candidates ?? [] };
-  } catch {
-    return { matched: null, candidates: [] };
-  }
+  // Only one thing it could possibly mean — no matching needed at all.
+  if (openTasks.length === 1) return { matched: openTasks[0], candidates: [] };
+
+  const messageLower = message.toLowerCase();
+  const directMatches = openTasks.filter(
+    (t) => messageLower.includes(t.description.toLowerCase()) || t.description.toLowerCase().includes(messageLower)
+  );
+
+  if (directMatches.length === 1) return { matched: directMatches[0], candidates: [] };
+  if (directMatches.length > 1) return { matched: null, candidates: directMatches };
+  // No substring match among multiple open tasks — genuinely
+  // unspecified which one. Ask Peter rather than guess; present every
+  // real open task since nothing narrows it further.
+  return { matched: null, candidates: openTasks };
 }
 
 async function getCompletedToday(env: Env): Promise<string[]> {
@@ -1862,24 +1847,22 @@ async function processTranscript(
 
   let message: string;
   if (extraction?.intent === "task_complete") {
-    // Real evidence 2026-07-10, Pierre explicit: ask for clarity
-    // rather than guess. Completing a task is immediate, no guard()
-    // needed — a personal errand is low-stakes, same reasoning as
-    // unguarded work observations (cheap to fix if wrong), unlike
-    // money or identity.
+    // Deterministic matching now — no AI call at all in the matching
+    // step itself (see resolveTaskCompletion). Completing a task is
+    // immediate, no guard() needed — a personal errand is low-stakes,
+    // same reasoning as unguarded work observations (cheap to fix if
+    // wrong), unlike money or identity.
     const completionPhrase = extraction.personal_note ?? transcript;
     const openTasks = await getOpenTasks(env);
-    const { matched, candidates } = await resolveTaskCompletion(env, completionPhrase, openTasks);
+    const { matched, candidates } = resolveTaskCompletion(completionPhrase, openTasks);
     if (matched) {
-      const task = openTasks.find((t) => t.description === matched);
-      if (task) {
-        await completeTask(env, task.id);
-        message = `Marked done: ${task.description}.`;
-      } else {
-        message = "I don't have an open task matching that.";
-      }
+      await completeTask(env, matched.id);
+      message = `Marked done: ${matched.description}.`;
     } else if (candidates.length > 0) {
-      message = `Did you mean ${candidates.join(" or ")}?`;
+      // Plain string joining, not reasoning — the AI never picks
+      // between these, it never even sees them; this is the "ask
+      // Peter" step of the ladder, phrased directly in code.
+      message = `Did you mean ${candidates.map((c) => c.description).join(" or ")}?`;
     } else {
       message = "I don't have an open task matching that.";
     }
