@@ -2448,6 +2448,13 @@ async function generateShareMessage(
 // of code that shapes that result. The three capabilities otherwise
 // stay completely independent — their execute() steps (recordInvoice,
 // recordQuotation, convertQuoteToInvoice) remain separate on purpose.
+// Real feature 2026-07-11: this is also where the execution register
+// gets written for documents — proving the register generalizes to a
+// third and fourth selection type (quotation, invoice) exactly as
+// designed (Principle 16), using the exact same setSelection function
+// already proven for customer/character, no new code needed there at
+// all. Register writing belongs in the report stage, the same reason
+// it already happens for customer/character in processTranscript.
 async function buildDocumentResponse(
   env: Env,
   origin: string,
@@ -2458,6 +2465,8 @@ async function buildDocumentResponse(
 ): Promise<{ pdfUrl: string; shareMessage: string | null }> {
   const pdfUrl = `${origin}/${kind}s/${documentId}/pdf`;
   const shareMessage = customerName ? await generateShareMessage(env, kind, customerName, amount, pdfUrl) : null;
+  const label = customerName ? `${kind} for ${customerName} (R${amount.toLocaleString()})` : `${kind} (R${amount.toLocaleString()})`;
+  await setSelection(env, kind, documentId, label);
   return { pdfUrl, shareMessage };
 }
 
