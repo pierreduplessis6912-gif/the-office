@@ -3325,6 +3325,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           const payload = JSON.parse(action.payload) as {
             quotationId: number;
             customerId: number;
+            customerName?: string;
             description: string;
             remainingBalance: number;
           };
@@ -3341,10 +3342,21 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           )
             .bind(id)
             .run();
+          const convertedPdfUrl = `${url.origin}/invoices/${result.invoiceId}/pdf`;
+          // Real fix 2026-07-11: this path produces a real invoice too
+          // — often the more meaningful message of the three ("your
+          // job is done, here's the final balance") — but only the
+          // two direct create-quotation/create-invoice paths had a
+          // shareMessage until now. customerName was already sitting
+          // in the payload, just never read out here.
+          const convertedShareMessage = payload.customerName
+            ? await generateShareMessage(env, "invoice", payload.customerName, payload.remainingBalance, convertedPdfUrl)
+            : null;
           return Response.json({
             status: "confirmed",
             invoice: result,
-            pdfUrl: `${url.origin}/invoices/${result.invoiceId}/pdf`,
+            pdfUrl: convertedPdfUrl,
+            shareMessage: convertedShareMessage,
           });
         }
 
