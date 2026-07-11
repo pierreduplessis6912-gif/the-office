@@ -557,6 +557,42 @@ slow, not before.
 
 ---
 
+## Principle 19 — Silence Is Success (2026-07-11)
+
+Not borrowed from external research — discovered through direct product
+conversation, crystallizing three things that had been scattered across
+this project without ever being named as one belief: the Ether
+manifesto's sigh state ("nothing urgent, breathe"), the embers'
+own founding rule ("Peter must guide," never editorializing), and the
+deliberately-rejected cron-generated briefing.
+
+> The absence of notifications is a positive outcome, not a lack of
+> functionality. An empty screen means the organization is under
+> control — Office achieved something, not that it has nothing to
+> show.
+
+1. *Problem:* almost all business software measures its own value by
+   how much it surfaces — more dashboards, more widgets, more things
+   demanding attention. That's optimizing for the wrong signal.
+2. *How solved:* invert the measure entirely. Success is a quiet
+   screen. Office should actively want to have nothing to show Peter,
+   the same way a good employee doesn't manufacture status updates to
+   look busy.
+3. *Does Office have this problem?* Yes, directly — the embers concept
+   (color-coded, per-department pulse indicators, dark when a
+   department has nothing pending) is the concrete mechanism this
+   principle governs. An ember lighting up must always mean something
+   *real* is pending; a quiet ember is the actual desired steady
+   state, not an empty or unfinished one.
+4. *What survives if the implementation changes?* **Office should be
+   measured by how little it needs to show, not by how much it can
+   show — silence is the product working, not the product being idle.**
+
+**Status:** ✅ Adopted, as a design constraint on everything built from
+here forward — including the ember bar, whenever it's built: every
+ember's dark state must be treated as a genuine, positive outcome to
+design for, not an empty placeholder waiting to be filled.
+
 ## Closing synthesis — where AI actually lives
 
 Seven research entries in, the pattern is no longer a surprise: **every
