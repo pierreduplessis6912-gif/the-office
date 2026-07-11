@@ -465,16 +465,96 @@ async function extractWorkObservation(env: Env, transcript: string): Promise<Wor
 // mistake, not the category of consequence guard() exists for. Area
 // is always computed here, in code, from raw dimensions — never asked
 // of the model.
+// Real feature 2026-07-11: scheduled_date_raw has always been a free
+// phrase ("next Thursday", "in two weeks"), never resolved into a
+// real, queryable date. Turning that phrase into an actual calendar
+// date is the same class of problem as "the LLM must never do
+// arithmetic" — the model's job stays extracting the phrase; this
+// function does the actual date math, deterministically, verified
+// directly in Node before ever touching production. Covers the real,
+// common phrasings only (today/tomorrow/weekday names/"in N days or
+// weeks"/day-of-month); anything genuinely unparseable stays honestly
+// null rather than guessed at by an AI call.
+function resolveScheduledDate(rawPhrase: string | null, now: Date): string | null {
+  if (!rawPhrase) return null;
+  const phrase = rawPhrase.toLowerCase().trim();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const toIso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+  if (phrase.includes("today")) return toIso(now);
+  if (phrase.includes("tomorrow")) {
+    const d = new Date(now);
+    d.setDate(d.getDate() + 1);
+    return toIso(d);
+  }
+
+  const weekdays = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+  for (let i = 0; i < weekdays.length; i++) {
+    if (phrase.includes(weekdays[i])) {
+      const currentDay = now.getDay();
+      let diff = (i - currentDay + 7) % 7;
+      if (diff === 0) diff = 7; // "Thursday" said on a Thursday means the next one, not today
+      const d = new Date(now);
+      d.setDate(d.getDate() + diff);
+      return toIso(d);
+    }
+  }
+
+  const inDaysMatch = phrase.match(/in (\d+) days?/);
+  if (inDaysMatch) {
+    const d = new Date(now);
+    d.setDate(d.getDate() + parseInt(inDaysMatch[1], 10));
+    return toIso(d);
+  }
+  const inWeeksMatch = phrase.match(/in (\d+) weeks?/);
+  if (inWeeksMatch) {
+    const d = new Date(now);
+    d.setDate(d.getDate() + parseInt(inWeeksMatch[1], 10) * 7);
+    return toIso(d);
+  }
+  if (phrase.includes("next week")) {
+    const d = new Date(now);
+    d.setDate(d.getDate() + 7);
+    return toIso(d);
+  }
+
+  const dayOfMonthMatch = phrase.match(/\b(\d{1,2})(st|nd|rd|th)?\b/);
+  if (dayOfMonthMatch) {
+    const day = parseInt(dayOfMonthMatch[1], 10);
+    if (day >= 1 && day <= 31) {
+      const year = now.getFullYear();
+      let month = now.getMonth();
+      let candidate = new Date(year, month, day);
+      if (candidate < now) {
+        month += 1;
+        candidate = new Date(year, month, day);
+      }
+      return toIso(candidate);
+    }
+  }
+
+  return null;
+}
+
+// The Worker's own clock is UTC; the business runs on SAST (UTC+2, no
+// DST — safe as a fixed offset, unlike timezones that observe it).
+// Without this, a message sent close to midnight SAST could resolve
+// "today"/weekday math against the wrong UTC day.
+function nowInBusinessTimezone(): Date {
+  return new Date(Date.now() + 2 * 60 * 60 * 1000);
+}
+
 async function recordWorkObservation(
   env: Env,
   customerId: number,
   observation: WorkObservationExtraction,
   sourceTranscript: string
 ): Promise<{ jobScopeId: number }> {
+  const scheduledDate = resolveScheduledDate(observation.scheduled_date_raw, nowInBusinessTimezone());
   const inserted = await env.OFFICE_DB.prepare(
-    "INSERT INTO job_scopes (customer_id, description, scheduled_date_raw, source_transcript) VALUES (?, ?, ?, ?) RETURNING id"
+    "INSERT INTO job_scopes (customer_id, description, scheduled_date_raw, scheduled_date, source_transcript) VALUES (?, ?, ?, ?, ?) RETURNING id"
   )
-    .bind(customerId, observation.job_description, observation.scheduled_date_raw, sourceTranscript)
+    .bind(customerId, observation.job_description, observation.scheduled_date_raw, scheduledDate, sourceTranscript)
     .first<{ id: number }>();
 
   const jobScopeId = inserted!.id;
@@ -2808,9 +2888,22 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ characters: enriched });
     }
 
+    // One-time schema migration for the new real, queryable date —
+    // scheduled_date_raw has always been a free phrase; this is the
+    // actual resolved calendar date. Same idempotent ALTER pattern as
+    // every other schema-init route here.
+    if (url.pathname === "/debug/init-job-scopes-date" && request.method === "POST") {
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE job_scopes ADD COLUMN scheduled_date TEXT").run();
+      } catch {
+        // Already exists — fine, that's what makes this idempotent.
+      }
+      return Response.json({ status: "ok" });
+    }
+
     if (url.pathname === "/debug/job-scopes" && request.method === "GET") {
       const { results: scopes } = await env.OFFICE_DB.prepare(
-        "SELECT js.id, js.customer_id, c.name as customer_name, js.description, js.scheduled_date_raw, js.created_at FROM job_scopes js JOIN customers c ON c.id = js.customer_id ORDER BY js.created_at DESC LIMIT 10"
+        "SELECT js.id, js.customer_id, c.name as customer_name, js.description, js.scheduled_date_raw, js.scheduled_date, js.created_at FROM job_scopes js JOIN customers c ON c.id = js.customer_id ORDER BY js.created_at DESC LIMIT 10"
       ).all();
 
       const enriched = await Promise.all(
@@ -2830,6 +2923,31 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       );
 
       return Response.json({ jobScopes: enriched });
+    }
+
+    // The actual calendar query — real, queryable dates, no cron
+    // snapshot, no pre-computed briefing. Computed live, on request,
+    // same "smallest honest version" discipline already applied to
+    // the weekly-briefing gap. Defaults to the next 14 days.
+    if (url.pathname === "/debug/schedule" && request.method === "GET") {
+      const days = Number(url.searchParams.get("days") ?? "14");
+      const today = nowInBusinessTimezone();
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const todayIso = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+      const until = new Date(today);
+      until.setDate(until.getDate() + days);
+      const untilIso = `${until.getFullYear()}-${pad(until.getMonth() + 1)}-${pad(until.getDate())}`;
+
+      const { results } = await env.OFFICE_DB.prepare(
+        `SELECT js.id, c.name as customer_name, js.description, js.scheduled_date, js.scheduled_date_raw
+         FROM job_scopes js JOIN customers c ON c.id = js.customer_id
+         WHERE js.scheduled_date IS NOT NULL AND js.scheduled_date BETWEEN ? AND ?
+         ORDER BY js.scheduled_date ASC`
+      )
+        .bind(todayIso, untilIso)
+        .all();
+
+      return Response.json({ from: todayIso, to: untilIso, schedule: results });
     }
 
     if (url.pathname === "/debug/quotations" && request.method === "GET") {
