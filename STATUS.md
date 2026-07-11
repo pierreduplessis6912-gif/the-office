@@ -858,6 +858,27 @@ Codemagic — still only proven on the web preview.**
   rejection risk if it reads as the app's primary purpose rather than
   a clearly consented, secondary convenience. Worth scoping carefully,
   narrowly, and explicitly if built — not a default assumption.
+- **The accounting-capability endgame (2026-07-11): a real P&L.**
+  Named explicitly now as the actual destination Finance-department
+  work is heading toward, so it's a deliberate roadmap, not an
+  assumption quietly baked into every finance-adjacent feature.
+  Honest split, checked directly rather than glossed over:
+  - **Revenue side — real, working, most of accounts receivable
+    already functions:** quotations → invoices → payments is a
+    genuine chain, deterministic VAT math, real per-customer and
+    business-wide outstanding-balance queries (`getOutstandingInvoices`,
+    `getQuotationsSummary`, the Finance ember).
+  - **Expense side — does not exist in any form.** No concept of a
+    cost anywhere in this schema: no expenses table, no way to record
+    what Peter pays out (materials, fuel, supplier invoices, wages),
+    no chart of accounts, no income/expense categorization. A P&L is
+    revenue minus expenses — today Office can only ever answer the
+    first half.
+  - Not a reason to hesitate on finance-adjacent work — the register
+    wiring for quotations/invoices is worth building regardless of how
+    far the P&L destination is — but worth being honest that "building
+    toward a P&L" and "the revenue chain already works" are not the
+    same claim, and shouldn't be quietly conflated.
 
 ## UX vision — the Ether, and what it does / doesn't change (2026-07-10)
 
