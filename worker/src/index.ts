@@ -1679,22 +1679,24 @@ async function answerFromMemory(env: Env, question: string, facts: string[]): Pr
           {
             role: "system",
             content:
-              // Real bug found live 2026-07-11: the old instruction
-              // ("be brief, one sentence") caused this to silently
-              // drop facts whenever a question genuinely had several
-              // distinct relevant answers — "what's up today"
-              // combining a scheduled job and five open tasks
-              // collapsed down to mentioning only the job. Fixed by
-              // requiring coverage of every relevant fact; a single-
-              // fact answer still naturally comes out as one plain
-              // sentence, a multi-fact one becomes a short list
-              // instead of a silent omission.
-              "Answer the tradesperson's question using only the facts below. Cover every fact that's " +
-              "relevant to the question — never silently drop one just to stay brief. If only one fact " +
-              "is relevant, answer in one plain sentence. If several are relevant, list them briefly, " +
-              "each in a short phrase. Always include any specific numbers, amounts, or figures from the " +
-              "facts — never summarize a number away into a vague statement. " +
-              "If the facts don't actually answer the question, say you don't have that on file.\n\n" +
+              // Real bug found live 2026-07-11: as the fact list grew
+              // long (real life events accumulating from a full day of
+              // testing), the model started echoing facts back nearly
+              // verbatim in order rather than reasoning about which
+              // ones actually answer the question, and cut off before
+              // reaching facts appended later in the list. The earlier
+              // fix (cover every relevant fact) was correct but
+              // ambiguous about "relevant" — tightened to make
+              // filtering an explicit, separate step from coverage.
+              "Answer the tradesperson's question using only the facts below. First decide which facts " +
+              "actually answer THIS question — ignore any that are unrelated context, even if they're in " +
+              "the list. Then cover every one of those relevant facts — never silently drop one just to " +
+              "stay brief. If only one fact is relevant, answer in one plain sentence. If several are " +
+              "relevant, list them briefly, each in a short phrase. Do not simply repeat the facts back " +
+              "in the order given — decide relevance first. Always include any specific numbers, amounts, " +
+              "or figures from the facts you do use — never summarize a number away into a vague " +
+              "statement. If none of the facts actually answer the question, say you don't have that on " +
+              "file.\n\n" +
               `Facts:\n${facts.map((f) => `- ${f}`).join("\n")}`,
           },
           { role: "user", content: question },
@@ -2297,10 +2299,18 @@ async function processTranscript(
       // Real evidence 2026-07-11: "what's up today" needed a THIRD
       // source that didn't exist until now — real scheduled jobs and
       // still-open tasks, not just what already happened.
-      const lifeFacts = await getRecentLifeEvents(env, 7);
-      const completedFacts = await getCompletedToday(env);
+      // Real bug found live 2026-07-11: as life events accumulated
+      // across real testing, this fact list grew long enough that the
+      // model started echoing raw life-event facts verbatim instead
+      // of synthesizing, and never even reached the schedule/task
+      // facts that came after them in the array. Fixed by ordering
+      // the most directly relevant facts first — schedule and
+      // completed-today are exactly what "what's up today" is asking
+      // about; life events are supplementary color, not the answer.
       const scheduleFacts = await getTodaysSchedule(env);
-      message = await answerFromMemory(env, transcript, [...lifeFacts, ...completedFacts, ...scheduleFacts]);
+      const completedFacts = await getCompletedToday(env);
+      const lifeFacts = await getRecentLifeEvents(env, 7);
+      message = await answerFromMemory(env, transcript, [...scheduleFacts, ...completedFacts, ...lifeFacts]);
     }
   } else if (customer) {
     message = customer.matched ? `Found existing customer: ${customer.name}.` : `New customer noted: ${customer.name}.`;
