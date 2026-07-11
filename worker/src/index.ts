@@ -694,6 +694,51 @@ async function findExistingEntityByName(
   return null;
 }
 
+// The execution register — rung 1 of the Execution Ladder (see
+// OFFICE_CONSTITUTION.md). Peter's own words ARE the selection event,
+// the same way a click is in a desktop UI: "show me Jenny" makes
+// Jenny the current customer selection, overwritten the moment
+// something else is explicitly named. No decay policy needed — there
+// is no ephemeral state to go stale, just "whichever was named most
+// recently." Generic key/value on purpose (Git's mutable-pointer
+// pattern, Principle 16) rather than fixed columns per entity type,
+// so a future department (marketing, tender, cybersecurity) doesn't
+// need a schema migration just to get a selection slot.
+async function setSelection(env: Env, key: string, entityId: number, label: string): Promise<void> {
+  await env.OFFICE_DB.prepare(
+    `INSERT INTO selections (key, entity_id, label, updated_at) VALUES (?, ?, ?, datetime('now'))
+     ON CONFLICT(key) DO UPDATE SET entity_id = excluded.entity_id, label = excluded.label, updated_at = excluded.updated_at`
+  )
+    .bind(key, entityId, label)
+    .run();
+}
+
+async function getSelection(
+  env: Env,
+  key: string
+): Promise<{ entityId: number; label: string; updatedAt: string } | null> {
+  const row = await env.OFFICE_DB.prepare("SELECT entity_id, label, updated_at FROM selections WHERE key = ?")
+    .bind(key)
+    .first<{ entity_id: number; label: string; updated_at: string }>();
+  return row ? { entityId: row.entity_id, label: row.label, updatedAt: row.updated_at } : null;
+}
+
+// The actual read side of the register — checked BEFORE any AI-based
+// resolution is attempted, per Principle 1 (Deterministic Before AI).
+// Whichever of customer/character was named most recently wins, same
+// "last thing selected" simplicity as a desktop file selection.
+async function getCurrentSelection(
+  env: Env
+): Promise<{ type: "customer" | "character"; id: number; name: string } | null> {
+  const [custSel, charSel] = await Promise.all([getSelection(env, "customer"), getSelection(env, "character")]);
+  if (!custSel && !charSel) return null;
+  if (custSel && !charSel) return { type: "customer", id: custSel.entityId, name: custSel.label };
+  if (charSel && !custSel) return { type: "character", id: charSel.entityId, name: charSel.label };
+  return custSel!.updatedAt >= charSel!.updatedAt
+    ? { type: "customer", id: custSel!.entityId, name: custSel!.label }
+    : { type: "character", id: charSel!.entityId, name: charSel!.label };
+}
+
 // Real evidence 2026-07-10: the previous approach — asking the model
 // to REWRITE a follow-up into a fluent, self-contained sentence —
 // looped repeatedly under thinking:true, no matter how the prompt was
@@ -1623,17 +1668,46 @@ async function processTranscript(
   // message, which is the vast majority — cheap by construction, not
   // just by accident.
   if (extraction?.intent === "lookup" && !customer && !character && history.length > 0) {
-    const resolvedName = await resolveFollowUpEntity(env, history, transcript);
-    if (resolvedName) {
-      const found = await findExistingEntityByName(env, resolvedName);
-      if (found?.type === "customer") {
-        customer = { id: found.id, name: found.name, matched: true };
-        extraction = { ...extraction, query_scope: "customer" };
-      } else if (found?.type === "character") {
-        character = { id: found.id, name: found.name, matched: true };
-        extraction = { ...extraction, query_scope: "character" };
+    // Register first — rung 1 of the Execution Ladder, zero AI calls.
+    // Peter's own words already established this selection on a prior
+    // turn ("show me Jenny"); a later vague reference ("show me the
+    // quote") should read that real, already-known answer before ever
+    // falling back to AI-based history scanning.
+    const current = await getCurrentSelection(env);
+    if (current?.type === "customer") {
+      customer = { id: current.id, name: current.name, matched: true };
+      extraction = { ...extraction, query_scope: "customer" };
+    } else if (current?.type === "character") {
+      character = { id: current.id, name: current.name, matched: true };
+      extraction = { ...extraction, query_scope: "character" };
+    } else {
+      // Register genuinely empty — nothing has been explicitly
+      // selected yet this history. Only now does AI-based resolution
+      // get invoked at all.
+      const resolvedName = await resolveFollowUpEntity(env, history, transcript);
+      if (resolvedName) {
+        const found = await findExistingEntityByName(env, resolvedName);
+        if (found?.type === "customer") {
+          customer = { id: found.id, name: found.name, matched: true };
+          extraction = { ...extraction, query_scope: "customer" };
+        } else if (found?.type === "character") {
+          character = { id: found.id, name: found.name, matched: true };
+          extraction = { ...extraction, query_scope: "character" };
+        }
       }
     }
+  }
+
+  // Write-back — whichever of customer/character was just resolved,
+  // by any path (direct name, or the register/AI fallback above),
+  // becomes the new current selection, overwriting whatever was there
+  // before. This is what makes the NEXT vague reference resolvable
+  // without any AI call at all.
+  if (customer) {
+    ctx.waitUntil(setSelection(env, "customer", customer.id, customer.name));
+  }
+  if (character) {
+    ctx.waitUntil(setSelection(env, "character", character.id, character.name));
   }
 
   if (captureId !== null) {
@@ -2374,6 +2448,29 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         "SELECT id, description, done, created_at, completed_at FROM tasks ORDER BY created_at DESC LIMIT 30"
       ).all();
       return Response.json({ tasks: results });
+    }
+
+    // The execution register's schema — see OFFICE_CONSTITUTION.md
+    // Principle 16. Generic key/value on purpose: a future selection
+    // type (quotation, invoice, task, a future department) never
+    // needs a schema migration, just a new key.
+    if (url.pathname === "/debug/init-selections-table" && request.method === "POST") {
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS selections (
+          key TEXT PRIMARY KEY,
+          entity_id INTEGER NOT NULL,
+          label TEXT NOT NULL,
+          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`
+      ).run();
+      return Response.json({ status: "ok" });
+    }
+
+    if (url.pathname === "/debug/selections" && request.method === "GET") {
+      const { results } = await env.OFFICE_DB.prepare(
+        "SELECT key, entity_id, label, updated_at FROM selections ORDER BY updated_at DESC"
+      ).all();
+      return Response.json({ selections: results });
     }
 
     // Direct, tappable completion — no natural-language matching
