@@ -650,10 +650,22 @@ Codemagic — still only proven on the web preview.**
   exact kind of fuzzy matching Principle 1 is skeptical of — low risk
   as a one-time correction rather than an ongoing judgment call, but
   not worth doing while the real capture volume stays this small.
-- **WhatsApp:** a real Evolution API number exists from earlier work;
-  no read/reply pipeline is built. Real platform constraint to design
-  around: WhatsApp enforces a 24-hour free-messaging window per
-  contact without a pre-approved template.
+- **WhatsApp (2026-07-11, real pivot):** the plan changed from a
+  WhatsApp Business API integration to native Android behavior — Share
+  Sheet in/out (see OFFICE_CONSTITUTION.md Principle 20, "One Office,
+  Many Doors"). A real Evolution API number exists from earlier work
+  and remains real, working technology — deliberately parked as a
+  possible future door, not abandoned, but no longer the active plan.
+  Verified against what's actually built, not aspirational: all three
+  native "doors" this pivot depends on already exist independently of
+  WhatsApp — file upload (`/files/document`), photo capture
+  (`/files/photo`), and document display (the real quotation/invoice
+  PDF routes). What's still missing: the actual Share Sheet
+  in/out wiring on the Android side (native, not backend — out of
+  scope for backend-only work), and a real "prepare a WhatsApp-ready
+  message" generator for a confirmed quotation/invoice (backend,
+  genuinely missing — the confirm response returns the raw record and
+  `pdfUrl` today, not the actual text a human would send).
 - **GPS/location customer detection:** proven *possible* — D1
   genuinely supports the trig functions needed for real Haversine
   distance math (verified live), and TenderLogix already has
@@ -834,6 +846,18 @@ Codemagic — still only proven on the web preview.**
   multi-turn resolution depends entirely on the client re-sending
   recent turns each request. Neither trigger has actually happened
   yet. Pinned, not built, until one does.
+- **Notification Listener (2026-07-11).** A real, distinct Android
+  capability — not a WhatsApp feature specifically, its own thing with
+  its own weight. With explicit user consent, Office could observe
+  incoming notification text from supported apps and offer to act on
+  it ("Jenny: 'can you quote the lounge?' → create a quotation task?").
+  Deliberately NOT folded into the WhatsApp pivot (Principle 20) as a
+  footnote — real, separate privacy and consent considerations, and a
+  real, named risk: heavy Play Store scrutiny of anything resembling
+  automated interaction with other apps' content, with genuine
+  rejection risk if it reads as the app's primary purpose rather than
+  a clearly consented, secondary convenience. Worth scoping carefully,
+  narrowly, and explicitly if built — not a default assumption.
 
 ## UX vision — the Ether, and what it does / doesn't change (2026-07-10)
 
