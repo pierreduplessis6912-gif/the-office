@@ -1,11 +1,11 @@
 # The Office — Current State
 
-Last updated: 2026-07-10. This is the authoritative "where things actually
+Last updated: 2026-07-11. This is the authoritative "where things actually
 stand" document. If it disagrees with a memory of a past conversation,
 trust this file — it's meant to be kept current; conversation summaries
 are not.
 
-## Philosophy (proven over four real build sessions, not aspirational)
+## Philosophy (proven over five real build sessions, not aspirational)
 
 - **The API is the Office.** Every client — this Flutter app, the free
   web preview, a future WhatsApp integration, email — is just a window
@@ -145,6 +145,13 @@ business_profile (id fixed=1 via CHECK, name, trading_as, vat_no, address, phone
                   banking_details, vat_registered, vat_rate, analytics_opt_in)
                  -- real seeded data: Zululand PPE and Industrial Supplies / Zululand Flooring and Blinds
                  -- analytics_opt_in: genuinely off by default, nothing built to use it yet — see below
+tasks            (id, description, done, created_at, completed_at)  -- 2026-07-11, real, checkable
+                 -- personal errands only ("get dog food", "phone my mother") — deliberately does NOT
+                 -- duplicate pending_actions' own done state (status/resolved_at), which already covers
+                 -- guard()-confirmed business records. Created only by "reminder" intent; matched and
+                 -- closed only by "task_complete" intent, via fully deterministic word-token matching
+                 -- (resolveTaskCompletion) — no AI call anywhere in that matching step. See the
+                 -- Execution Ladder section below for why.
 ```
 
 **Why `characters` is a separate table, not a `type` column on
@@ -386,6 +393,67 @@ about, not any name appearing anywhere in the exchange.
     names in a reply as supporting detail unless the new message
     specifically asks about one of them.
 
+**2026-07-11, found live via the static preview UI, not curl testing:**
+16. **A reminder's raw transcript leaked a personal errand into a
+    customer's own file.** "Heading to jenny's job now, remind me to
+    get dog food after" correctly isolated `personal_note`, but the
+    raw transcript — dog food and all — was *also* stored verbatim as
+    a customer note under Jenny, since storage only skipped that
+    fallback when there was no customer at all. Same subject-
+    attribution principle as bug #11, just missed for this intent.
+    Fixed by excluding "reminder" (and later "task_complete") from
+    ever writing to a customer/character's own note store.
+17. **Business-scope follow-ups pulled in unrelated fact sets.** "How
+    many quotations are pending?" → "names and amounts" surfaced
+    invoice-balance facts too, because business-scope lookups always
+    fetched both outstanding-invoice and quotation facts regardless of
+    which one the conversation was actually about. Fixed with
+    `classifyBusinessTopic`, the business-scope sibling of
+    `resolveFollowUpEntity` — same standing-topic anchoring, one level
+    up from named entities.
+18. **A purely-personal reminder involving a character created no
+    task at all, silently.** "Remind me to phone my mother" correctly
+    classified as `reminder` with `character_name: "mother"`, but left
+    `personal_note: null` — the model treated the whole message as
+    being about that character rather than a mixed split, since there
+    was no separate customer to split away from. Task creation used to
+    depend on `personal_note` being set, so no task was created, while
+    the response still said "Got it." Fixed by decoupling: a reminder
+    always creates a task now, falling back to the full transcript
+    when there was nothing to split.
+19. **Bare pronoun-only task completions ("did that", "called them")
+    misclassified as `note` instead of `task_complete`, twice in a
+    row.** Root cause: `extractIntent` classifies before it ever knows
+    what open tasks exist, so it had no grounding that a vague
+    completion was even plausible. Fixed by broadening the
+    `task_complete` rule and examples to explicitly include pronoun-
+    only phrasing — the real matching precision still lives entirely
+    downstream, in code, against the real open-task list.
+20. **A real architectural correction, not just a bug: task
+    completion matching was originally implemented as an AI call**
+    (`resolveTaskCompletion` handed Kimi the list of open tasks and
+    asked it to judge which one matched). Direct testing surfaced a
+    real, repeatable failure mode this design invites: real
+    ambiguity (two genuinely similar open "call" tasks) needing to be
+    asked about rather than guessed. Working through this live
+    produced the session's biggest standing principle — see "The
+    Execution Ladder" below — and the function was rebuilt as pure
+    deterministic word-token matching, zero AI calls. The rebuild
+    itself then surfaced a second, narrower bug: naive full-string
+    substring matching missed "called" against "call" entirely,
+    falling back to presenting *every* open task as a candidate,
+    including a completely unrelated one ("pick up the kids" showing
+    up for "called them"). Fixed with light deterministic stemming and
+    token-overlap matching instead of substring containment — still a
+    literal index, not AI judgment, just a correct one. Verified
+    directly in Node before ever redeploying.
+21. **The smoke-test suite itself became unreliable at 17 cases.**
+    Running all cases concurrently via `Promise.all` started tripping
+    Workers AI's own capacity limit ("3040: Capacity temporarily
+    exceeded"), which never happened at 11–14 cases. A regression
+    suite that fails under its own concurrent load isn't trustworthy;
+    fixed by running cases sequentially instead.
+
 ## Debug and diagnostic routes
 
 `/debug/list-audio`, `/debug/reprocess`, `/debug/search-memory`,
@@ -408,22 +476,29 @@ likely be needed again. `/debug/resolve-entity-test` — the real
 replacement for the abandoned query-rewriting approach, see Extraction
 schema section above; takes the same `{text, history}` shape as
 `/messages/text` so a real drill-down conversation can be replayed
-exactly. `/debug/rewrite-thinking-test` (served its diagnostic purpose
-already — safe to remove), `/debug/pdf-route-test` (leftover from a
-routing diagnosis — safe to remove), `/admin/flush-memory`.
+exactly. `/debug/init-tasks-table` (one-time schema init — no
+Cloudflare CLI access from this environment, `IF NOT EXISTS` makes it
+safe to call more than once), `/debug/tasks` (list, for verifying
+matching behavior directly), `/debug/complete-task/:id` (direct
+tappable completion, no natural-language matching needed — the real
+endpoint a future ember list would call). `/debug/rewrite-thinking-
+test` (served its diagnostic purpose already — safe to remove),
+`/debug/pdf-route-test` (leftover from a routing diagnosis — safe to
+remove), `/admin/flush-memory`.
 
 **Strip all debug/admin routes before any real customer data flows
 through production.** `/files/audio`, `/files/photo`, `/messages/text`,
 and `/actions/*` are real, production routes — not debug — and stay.
 
-`/debug/smoke-test` is the actual regression safety net — 15 real
-classification test cases as of 2026-07-10 (grew from 11), zero side
+`/debug/smoke-test` is the actual regression safety net — 17 real
+classification test cases as of 2026-07-11 (grew from 11), zero side
 effects (tests `extractIntent` in isolation, never writes to KV or
-D1), safe to rerun after every single future change. **Note:** it
-fires its cases concurrently — a real, observed cause of transient
-`extraction: null` failures unrelated to actual code correctness. If
-it fails, check the `rawOnFailure` field on failing cases and retry
-once before concluding there's a genuine regression.
+D1), safe to rerun after every single future change. Runs sequentially,
+not concurrently — real bug found live 2026-07-11: at 17 cases,
+`Promise.all` started tripping Workers AI's own capacity limit, which
+never happened at 11–14. If it ever fails again, check the
+`rawOnFailure` field on failing cases before concluding there's a
+genuine regression.
 
 ## Free iteration loop
 
@@ -552,6 +627,33 @@ Codemagic — still only proven on the web preview.**
   both) gets the real benefit — one event, viewable from either side —
   without reopening that risk. `customers` and `characters` stay
   exactly as structurally separate as they are today.
+- **Execution register (2026-07-11).** Rung 1 of the Execution Ladder
+  (see that section above for the full reasoning) — a small, generic
+  key/value store of Peter's most recent explicit selections
+  ("customer" → 42, "task" → 87), read before any deterministic
+  matching or AI reasoning is attempted for a vague reference. Not
+  session/ephemeral state that needs a decay policy — the selection
+  simply *is* whatever was last explicitly named, overwritten the
+  moment something new is named, same way a file stays "selected" in
+  a desktop UI until something else is clicked. Genuinely useful,
+  well-reasoned, not yet built — no real gap has demonstrated it's
+  needed yet the way task completion demonstrated deterministic
+  candidate-count resolution. When built: generic key/value, not fixed
+  nullable columns per entity type, so new departments don't each need
+  a schema migration to get a selection slot.
+- **Business aliases (2026-07-11).** Rung 4 of the Execution Ladder —
+  a stored mapping from a role-style phrase ("the tile guy") to a real
+  entity, built from a *previous* clarification so the same question
+  is never asked twice. Deliberately not built yet: real conversation
+  this session showed Peter's actual phrasing tends to already be
+  specific ("James from CTM," "John from Tile Africa"), so generic
+  role-matching would have solved a rarer case than the common one.
+  Worth building once real, repeated evidence shows Peter actually
+  using role-descriptors instead of names — not before. If built, the
+  invalidation rule needs deliberate design: an alias learned once
+  isn't necessarily permanent (a second tile supplier later would need
+  the same phrase to become ambiguous again, not silently keep
+  resolving to the first one forever).
 
 ## UX vision — the Ether, and what it does / doesn't change (2026-07-10)
 
@@ -706,6 +808,94 @@ background time, requiring an async/notify mechanism that doesn't exist
 in this architecture at all right now? These are genuinely different
 builds. Not decided yet — flagged so it isn't silently assumed either way
 when this gets built.
+
+## The Execution Ladder: AI extracts and narrates, it never matches (2026-07-11)
+
+**The principle, stated as plainly as possible:** the AI's job is
+exactly two things — decode what Peter said into a structured intent,
+and narrate the outcome back in plain language. Everything in between
+— figuring out *which* customer, *which* task, *which* document a vague
+reference actually means — belongs to deterministic code, never to a
+model's judgment. Not because the model can't do it. Because it
+shouldn't have to, and because a system of record shouldn't guess.
+Accounting software doesn't guess which invoice you meant. Neither
+should this.
+
+**How this was arrived at, because the reasoning matters as much as
+the rule.** `resolveTaskCompletion` was originally built as an AI call
+— hand Kimi the list of open tasks, ask it to judge which one a vague
+completion phrase ("called them") referred to. It worked in testing.
+Real conversation surfaced the actual problem: with two genuinely
+similar open tasks and zero disambiguating language, this design was
+*asking the AI to do exactly the kind of judgment call that should be
+refused, not attempted*. Working through a Gmail analogy exposed the
+real distinction: Gmail's zero-ambiguity comes from an explicit
+selection event (a click); Office's equivalent selection event is
+Peter's own words — "show me Jenny" *is* the selection, the same way a
+click is. Once that's true, there's no reason the system should ever
+re-derive "what's this about" through AI reasoning when a
+deterministic, inspectable answer already exists or can be computed.
+
+**The ladder itself, in resolution order:**
+1. **Execution register / current selection** — whatever was most
+   recently and explicitly named by Peter (a customer, a quotation, an
+   invoice, a task). Not yet built — see Pinned Ideas below.
+2. **Exact ID** — if the reference is already a real ID, resolve
+   directly.
+3. **Exact name / real substring or token match** — deterministic
+   string matching against real stored data (proven live: word-token
+   overlap with light stemming, not naive substring containment,
+   which was tried first and found to under-match "called" against
+   "call").
+4. **Business aliases** — a stored mapping ("the tile guy" → a real
+   supplier) built from a *previous* clarification, so the same
+   question is never asked twice. Not yet built — see Pinned Ideas.
+5. **Deterministic candidate count** — 0 real candidates means nothing
+   to act on, say so; exactly 1 means that's the only possible
+   referent, resolve without even needing to match; 2+ means present
+   the real candidates.
+6. **Ask Peter** — the only fallback, ever. There is deliberately no
+   step 7. No "AI guess" rung exists on this ladder, and none should
+   be added.
+
+**What "ask Peter" actually is, precisely, so it doesn't quietly grow
+back into reasoning:** code decides *that* clarification is needed and
+*which* real candidates exist (steps 3–5 above); phrasing that into
+"did you mean X or Y?" is plain string joining, not a model call. If a
+future version wants friendlier phrasing via the AI, that phrasing
+must never be handed the decision of *which* candidates to include —
+only the job of saying it naturally. Extraction and narration are the
+only two seats the AI ever occupies in this pipeline; matching is not
+a third seat with a friendlier name.
+
+**Proof this works, not just theory:** `resolveTaskCompletion` was
+rebuilt as pure deterministic logic — zero AI calls, verified directly
+in Node before ever touching production (see bug #20 above for the
+real bug the rebuild itself surfaced and how it was fixed). The
+"called them" test case, with two genuinely similar open tasks and no
+disambiguating language, now correctly asks rather than guesses —
+identical behavior to the AI-matching version, at a fraction of the
+cost, with zero risk of a silent wrong guess.
+
+**What's real today vs. what's designed but not built:**
+- Real: deterministic candidate-count resolution (rungs 5–6) for task
+  completion. This is the actual, working instance of the ladder.
+- Not yet built: the execution register (rung 1) and the alias table
+  (rung 4) — both well-reasoned, both genuinely useful, neither yet
+  earned by a demonstrated need the way task completion was. Pinned,
+  not built — same discipline as everything else in this file. If and
+  when the register is built, it should be a small, generic key/value
+  structure ("selections: customer→42, task→87"), not fixed nullable
+  columns per entity type — new departments (marketing, tender,
+  cybersecurity) shouldn't each require a schema migration to get a
+  selection slot.
+- A real open risk on aliases, worth deciding on purpose whenever
+  they're built: an alias learned once ("the tile guy" → John) isn't
+  necessarily permanent truth — if Peter later works with a second
+  tile supplier, the same phrase needs to become ambiguous again, not
+  silently keep resolving to John forever. Not a reason not to build
+  aliases; a reason to design their invalidation rule deliberately
+  rather than assume permanence.
 
 ## Real infrastructure quirks worth remembering
 
