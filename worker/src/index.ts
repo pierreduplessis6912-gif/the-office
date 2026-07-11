@@ -32,6 +32,7 @@ interface ProcessResult {
   factPendingActionId: number | null;
   message: string;
   rewrittenQuery: string;
+  embers: { tasks: number; scheduler: number; finance: number };
 }
 
 // Real evidence today: multiple genuine, transient AI-call failures,
@@ -1530,6 +1531,40 @@ async function getTodaysSchedule(env: Env): Promise<string[]> {
   return [...jobFacts, ...taskFacts];
 }
 
+// Real feature 2026-07-11 — the ember bar, scoped deliberately to only
+// the three departments with real data behind them today. No Weather
+// (no external API exists anywhere in this project), no Call/
+// Reschedule actions on tasks (tasks have no customer/character link
+// or due date yet — both real, named gaps, not silently promised).
+// Counts only, computed fresh on every response — this is what makes
+// an ember feel "live": it updates the instant Peter's own words
+// change something, not from a persistent connection pushing on its
+// own. Per Principle 19, a zero here is the genuinely desired steady
+// state, not an empty placeholder.
+async function getEmberCounts(env: Env): Promise<{ tasks: number; scheduler: number; finance: number }> {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const now = nowInBusinessTimezone();
+  const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+
+  const [tasksRow, schedulerRow, financeRow] = await Promise.all([
+    env.OFFICE_DB.prepare("SELECT COUNT(*) as n FROM tasks WHERE done = 0").first<{ n: number }>(),
+    env.OFFICE_DB.prepare("SELECT COUNT(*) as n FROM job_scopes WHERE scheduled_date = ?").bind(today).first<{ n: number }>(),
+    env.OFFICE_DB.prepare(
+      `SELECT COUNT(*) as n FROM (
+         SELECT c.id, COALESCE(SUM(i.amount), 0) - COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.customer_id = c.id), 0) as balance
+         FROM customers c JOIN invoices i ON i.customer_id = c.id
+         GROUP BY c.id HAVING balance > 0
+       )`
+    ).first<{ n: number }>(),
+  ]);
+
+  return {
+    tasks: tasksRow?.n ?? 0,
+    scheduler: schedulerRow?.n ?? 0,
+    finance: financeRow?.n ?? 0,
+  };
+}
+
 // Reads the last N days of life events, each tagged with its date so
 // the synthesis step can reason about "today" versus "this week"
 // correctly rather than treating everything as equally recent.
@@ -2280,7 +2315,8 @@ async function processTranscript(
     message += ` ${extraction!.fact_key} noted (${extraction!.fact_value}) — needs your confirmation (action #${factPendingActionId}) before it's saved.`;
   }
 
-  return { extraction, extractionRaw, extractionRawText, customer, pendingActionId, factPendingActionId, message, rewrittenQuery: transcript };
+  const embers = await getEmberCounts(env);
+  return { extraction, extractionRaw, extractionRawText, customer, pendingActionId, factPendingActionId, message, rewrittenQuery: transcript, embers };
 }
 
 // Consolidation: drains pending_memory_flush into Vectorize in ONE
@@ -3463,6 +3499,41 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       }
 
       return Response.json({ status: "stored", key, captureId, description, subjectHint });
+    }
+
+    // Real, permanent production routes — not debug — behind each
+    // ember. Tapping one should show the actual real register: what's
+    // really open, really scheduled, really outstanding. No Weather
+    // route exists because no external weather API exists anywhere
+    // in this project yet — deliberately not stubbed.
+    if (url.pathname === "/embers/tasks" && request.method === "GET") {
+      const openTasks = await getOpenTasks(env);
+      return Response.json({ tasks: openTasks });
+    }
+
+    if (url.pathname === "/embers/scheduler" && request.method === "GET") {
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const now = nowInBusinessTimezone();
+      const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      const { results } = await env.OFFICE_DB.prepare(
+        `SELECT js.id, js.description, c.name as customer_name FROM job_scopes js
+         JOIN customers c ON c.id = js.customer_id WHERE js.scheduled_date = ?`
+      )
+        .bind(today)
+        .all();
+      return Response.json({ scheduledToday: results });
+    }
+
+    if (url.pathname === "/embers/finance" && request.method === "GET") {
+      const { results } = await env.OFFICE_DB.prepare(
+        `SELECT c.id, c.name,
+                COALESCE(SUM(i.amount), 0) as invoiced,
+                COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.customer_id = c.id), 0) as paid
+         FROM customers c JOIN invoices i ON i.customer_id = c.id
+         GROUP BY c.id HAVING invoiced > paid
+         ORDER BY (invoiced - paid) DESC`
+      ).all();
+      return Response.json({ outstanding: results });
     }
 
     // "Type" mode. Same pipeline, no transcription step needed since
