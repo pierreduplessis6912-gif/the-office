@@ -727,16 +727,21 @@ async function getSelection(
 // resolution is attempted, per Principle 1 (Deterministic Before AI).
 // Whichever of customer/character was named most recently wins, same
 // "last thing selected" simplicity as a desktop file selection.
-async function getCurrentSelection(
-  env: Env
-): Promise<{ type: "customer" | "character"; id: number; name: string } | null> {
-  const [custSel, charSel] = await Promise.all([getSelection(env, "customer"), getSelection(env, "character")]);
-  if (!custSel && !charSel) return null;
-  if (custSel && !charSel) return { type: "customer", id: custSel.entityId, name: custSel.label };
-  if (charSel && !custSel) return { type: "character", id: charSel.entityId, name: charSel.label };
-  return custSel!.updatedAt >= charSel!.updatedAt
-    ? { type: "customer", id: custSel!.entityId, name: custSel!.label }
-    : { type: "character", id: charSel!.entityId, name: charSel!.label };
+// The register's untyped read strategy — for genuinely type-agnostic
+// references ("it", "them", "that"), as opposed to getSelection()'s
+// typed read strategy for when Peter names a specific kind of thing
+// ("the quote", "the invoice"). The property that makes this an
+// actual primitive, not just a shape that happens to fit two types
+// today: adding a third, fourth, or tenth selection type later means
+// only inserting rows under a new key — this function never changes.
+// No type names appear anywhere in it on purpose.
+async function getCurrentSelection(env: Env): Promise<{ type: string; id: number; name: string } | null> {
+  const row = await env.OFFICE_DB.prepare("SELECT key, entity_id, label FROM selections ORDER BY updated_at DESC LIMIT 1").first<{
+    key: string;
+    entity_id: number;
+    label: string;
+  }>();
+  return row ? { type: row.key, id: row.entity_id, name: row.label } : null;
 }
 
 // Real evidence 2026-07-10: the previous approach — asking the model
