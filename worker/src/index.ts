@@ -2415,6 +2415,32 @@ async function runConsolidation(env: Env): Promise<{ flushed: number; schemaCand
 // runs directly in the Workers isolate. Subtotal is recomputed fresh
 // from line_items here, not read from invoices.amount — the line
 // items are the actual ground truth; a cached total is a convenience,
+// Real feature 2026-07-11 — the actual missing piece underneath "Peter
+// taps Send via WhatsApp" (Principle 20, One Office, Many Doors): a
+// real, natural message a human would send, not just a raw pdfUrl.
+// Deliberately deterministic, not an AI call — this is genuinely a
+// narration task, but a reliably template-able one with real data
+// already on hand (customer name, business name, amount, document
+// type), so there's nothing here that actually needs language
+// flexibility. First name only, for the same warmth a real person
+// would use texting a customer, not a formal full-name greeting.
+async function generateShareMessage(
+  env: Env,
+  kind: "invoice" | "quotation",
+  customerName: string,
+  amount: number,
+  pdfUrl: string
+): Promise<string> {
+  const business = await env.OFFICE_DB.prepare("SELECT name, trading_as FROM business_profile WHERE id = 1").first<{
+    name: string | null;
+    trading_as: string | null;
+  }>();
+  const businessName = business?.trading_as ?? business?.name ?? "us";
+  const firstName = customerName.trim().split(/\s+/)[0];
+  const label = kind === "invoice" ? "invoice" : "quote";
+  return `Hi ${firstName}, here's your ${label} from ${businessName} — R${amount.toLocaleString()}. View it here: ${pdfUrl}`;
+}
+
 // not the source of it. VAT applies from the business's current
 // default; a genuine per-invoice override is a real refinement for
 // later, once there's evidence it's actually needed.
@@ -3232,6 +3258,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         if (action.type === "invoice") {
           const payload = JSON.parse(action.payload) as {
             customerId: number;
+            customerName?: string;
             description: string;
             amount: number;
             lineItems?: LineItemWithTotal[];
@@ -3249,16 +3276,22 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           )
             .bind(id)
             .run();
+          const invoicePdfUrl = `${url.origin}/invoices/${invoice.id}/pdf`;
+          const shareMessage = payload.customerName
+            ? await generateShareMessage(env, "invoice", payload.customerName, invoice.amount, invoicePdfUrl)
+            : null;
           return Response.json({
             status: "confirmed",
             invoice,
-            pdfUrl: `${url.origin}/invoices/${invoice.id}/pdf`,
+            pdfUrl: invoicePdfUrl,
+            shareMessage,
           });
         }
 
         if (action.type === "quotation") {
           const payload = JSON.parse(action.payload) as {
             customerId: number;
+            customerName?: string;
             description: string;
             amount: number;
             lineItems?: LineItemWithTotal[];
@@ -3276,10 +3309,15 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           )
             .bind(id)
             .run();
+          const quotationPdfUrl = `${url.origin}/quotations/${quotation.id}/pdf`;
+          const shareMessage = payload.customerName
+            ? await generateShareMessage(env, "quotation", payload.customerName, quotation.amount, quotationPdfUrl)
+            : null;
           return Response.json({
             status: "confirmed",
             quotation,
-            pdfUrl: `${url.origin}/quotations/${quotation.id}/pdf`,
+            pdfUrl: quotationPdfUrl,
+            shareMessage,
           });
         }
 
