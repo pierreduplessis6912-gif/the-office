@@ -522,6 +522,30 @@ about, not any name appearing anywhere in the exchange.
     sentence, a multi-fact one becomes a short list instead of a
     silent omission.
 
+**2026-07-11, ember bar and a regression it exposed:**
+27. **Task descriptions stored the raw "remind me to..." phrasing
+    verbatim**, making completion messages read oddly ("Marked done:
+    remind me to get dog food" instead of "Marked done: get dog
+    food"). Fixed with a small, deterministic prefix-stripper
+    (`cleanTaskDescription`), verified directly in Node before
+    deploying. Historical tasks created before the fix keep the old
+    phrasing — same honest asymmetry as the captures FK backfill, not
+    silently rewritten.
+28. **A real regression in `answerFromMemory`, caught the very next
+    time "what's up today" was tested for real.** As life events
+    genuinely accumulated across a full day of real testing, the
+    personal-scope fact list grew long enough that the model started
+    echoing raw life-event facts back nearly verbatim — dropping the
+    actual schedule/task facts entirely, which were appended later in
+    the array and never reached. Bug #26's fix (cover every relevant
+    fact) was correct but left "relevant" ambiguous under a long,
+    noisy fact list. Fixed two ways: facts reordered so the most
+    directly relevant ones (schedule, completed-today) come first,
+    life events last as supplementary context; and the prompt
+    tightened to make relevance-filtering an explicit, separate step
+    from coverage — "decide what answers this question first, then
+    cover all of those, don't just repeat back everything given."
+
 ## Debug and diagnostic routes
 
 `/debug/list-audio`, `/debug/reprocess`, `/debug/search-memory`,
@@ -566,7 +590,14 @@ remove), `/admin/flush-memory`.
 **Strip all debug/admin routes before any real customer data flows
 through production.** `/files/audio`, `/files/photo`, `/files/document`
 (2026-07-11, the third "sense" — verified live with a real image and a
-real PDF), `/messages/text`,
+real PDF), `/messages/text`, `/embers/tasks`, `/embers/scheduler`,
+`/embers/finance` (2026-07-11 — the real tap-to-expand register behind
+each ember; every `/messages/text` response also carries live
+`embers: {tasks, scheduler, finance}` counts, recomputed fresh on every
+turn, riding along with the normal response rather than needing any
+push/real-time infrastructure — see OFFICE_CONSTITUTION.md Principle
+19, "Silence is success," and the UX vision section below for the full
+design),
 and `/actions/*` are real, production routes — not debug — and stay.
 
 `/debug/smoke-test` is the actual regression safety net — 17 real
@@ -637,6 +668,22 @@ Codemagic — still only proven on the web preview.**
   cron-generated pre-computed snapshot — identified as unearned
   complexity. The "smallest honest version" (on-demand personal/
   business lookup, computed live) is what exists.
+- **Tasks have no link to a real customer or character** — pure text,
+  no FK, unlike `captures` which got exactly this fix 2026-07-11. Named
+  live by the ember-bar UX design: a `[Call]` action button on a task
+  ("call Sarah about invoice") needs a real phone number to call, which
+  means the task needs a real link to Sarah's actual record. Not built
+  — the ember bar itself only shows real counts and a real list today,
+  no per-item actions yet.
+- **Tasks have no due/scheduled time at all**, only open/done. A
+  `[Reschedule]` action on a task needs exactly the due-time concept
+  the full scheduler (pinned, not built — see Pinned Ideas) would add.
+  Deliberately not smuggled in early just to make one ember-bar button
+  real.
+- **No weather integration** — a completely new kind of gap versus
+  Tasks/Scheduler/Finance, which are all real internal data already.
+  Needs a genuine external API dependency that's never been discussed
+  or evaluated anywhere in this project. Not stubbed, not estimated.
 
 ## Pinned ideas (validated as real and possible, not built)
 
