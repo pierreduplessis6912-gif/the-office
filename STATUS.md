@@ -769,6 +769,24 @@ Codemagic — still only proven on the web preview.**
   discipline as the weekly briefing. Real push is a separate, later,
   deliberate decision, not something to fold in by calling it "the
   scheduler."
+- **A unique thread/conversation identifier (2026-07-11).** Real
+  instinct, checked honestly against every real bug found today
+  (register scope-override, `answerFromMemory` dropping facts,
+  phantom customer creation, the dog-food leak) — none of them
+  actually needed one; all were solved with real timestamps, real
+  debug routes, and the real conversation text already in hand. This
+  is genuinely distinct from the execution register: the register
+  deliberately holds only "the current value per type," overwritten
+  the instant something new is named — it has no memory of the
+  *sequence* that led there, on purpose. A thread ID would matter the
+  moment something needs what the register structurally can't give:
+  replaying everything that happened in a real time window,
+  independent of which entities were touched, OR a durable server-side
+  fallback if client-side `history` transmission ever proves
+  unreliable (an app killed mid-conversation, a closed tab) — today,
+  multi-turn resolution depends entirely on the client re-sending
+  recent turns each request. Neither trigger has actually happened
+  yet. Pinned, not built, until one does.
 
 ## UX vision — the Ether, and what it does / doesn't change (2026-07-10)
 
