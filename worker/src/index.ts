@@ -13,7 +13,7 @@ interface Extraction {
   customer_name: string | null;
   character_name: string | null;
   character_relationship: string | null;
-  intent: "payment" | "invoice" | "quotation" | "convert_quote" | "price_scope" | "work_observation" | "lookup" | "reminder" | "note" | "other";
+  intent: "payment" | "invoice" | "quotation" | "convert_quote" | "price_scope" | "work_observation" | "lookup" | "reminder" | "task_complete" | "note" | "other";
   amount: number | null;
   fact_key: string | null;
   fact_value: string | null;
@@ -159,6 +159,10 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             'clear signal either way, default to "quotation" — proposing a price is less consequential ' +
             "than billing one, so the safer default when unsure is the earlier, less committal document. " +
             'scope_document_type is null whenever intent is not "price_scope". ' +
+            'intent is "task_complete" if the message reports a personal errand or reminder as DONE — ' +
+            '"got the dog food", "picked up the kids", "phoned my mother" — past tense, something ' +
+            'finished, not a new request. This is different from "reminder", which is asking for ' +
+            "something to be remembered for LATER, not reporting it done now. " +
             'intent is "work_observation" if the message describes measuring, scoping, or inspecting a job ' +
             '— components, measurements, or tasks — with NO price stated at all. This is earlier than a ' +
             'quotation: the tradesperson is recording what they observed, not proposing a cost. If any ' +
@@ -204,6 +208,7 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             '"picked up my wife from work, she\'s annoyed about the kitchen guy not showing" -> {"customer_name":null,"character_name":"wife","character_relationship":"wife","intent":"note","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
             '"how is my wife doing?" -> {"customer_name":null,"character_name":"wife","character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"character","deposit_percent":null,"scope_document_type":null}\n' +
             '"heading to jenny\'s job now, remind me to get dog food after" -> {"customer_name":"jenny","character_name":null,"character_relationship":null,"intent":"reminder","amount":null,"fact_key":null,"fact_value":null,"personal_note":"remind me to get dog food after","query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
+            '"got the dog food" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"task_complete","amount":null,"fact_key":null,"fact_value":null,"personal_note":"got the dog food","query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
             '"we completed Jenny\'s installation, she paid an 80% deposit, convert the quote to an invoice for the remaining balance" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"convert_quote","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":80,"scope_document_type":null}\n' +
             '"Dwayne is a new customer, I measured the reception area at 6600 by 4100, we also need repair work" -> {"customer_name":"Dwayne","character_name":null,"character_relationship":null,"intent":"work_observation","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
             '"price up Dwayne\'s job, R450 a square meter for the reception area and office, flat R3500 for the repair work" -> {"customer_name":"Dwayne","character_name":null,"character_relationship":null,"intent":"price_scope","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":"quotation"}\n' +
@@ -213,7 +218,7 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             "Return ONLY JSON, no markdown, no explanation: " +
             '{"customer_name": string or null, "character_name": string or null, "character_relationship": ' +
             'string or null, "intent": "payment" or "invoice" or "quotation" or "convert_quote" or ' +
-            '"price_scope" or "work_observation" or "lookup" or "reminder" or "note" or "other", "amount": number or null, ' +
+            '"price_scope" or "work_observation" or "lookup" or "reminder" or "task_complete" or "note" or "other", "amount": number or null, ' +
             '"fact_key": string or null, "fact_value": string or null, "personal_note": string or null, ' +
             '"query_scope": "customer" or "character" or "personal" or "business" or null, "deposit_percent": ' +
             'number or null, "scope_document_type": "quotation" or "invoice" or null}',
@@ -1222,6 +1227,99 @@ async function appendLifeEvent(env: Env, text: string): Promise<void> {
   }
 }
 
+// Real evidence 2026-07-10: a checkable personal errand needs a done
+// state the narrative life-event log never had. Deliberately separate
+// from pending_actions — guard()-confirmed items (payments, invoices,
+// facts) already have their own done state (status/resolved_at); this
+// is only ever for personal errands, never business/money records.
+async function createTask(env: Env, description: string): Promise<void> {
+  await env.OFFICE_DB.prepare("INSERT INTO tasks (description, done) VALUES (?, 0)").bind(description).run();
+}
+
+async function getOpenTasks(env: Env): Promise<Array<{ id: number; description: string }>> {
+  const { results } = await env.OFFICE_DB.prepare(
+    "SELECT id, description FROM tasks WHERE done = 0 ORDER BY created_at DESC"
+  ).all<{ id: number; description: string }>();
+  return results ?? [];
+}
+
+async function completeTask(env: Env, id: number): Promise<void> {
+  await env.OFFICE_DB.prepare("UPDATE tasks SET done = 1, completed_at = datetime('now') WHERE id = ?").bind(id).run();
+}
+
+// Real evidence 2026-07-10, Pierre explicit: "if the model doesn't
+// understand it should ask for clarity" — matching a loose spoken
+// completion phrase against real open tasks is exactly the kind of
+// judgment call that shouldn't be silently guessed. One clear match
+// completes it; more than one plausible match, or none, means saying
+// so honestly rather than picking — same discipline as every other
+// "recognized intent, nothing safe to act on" case in this file
+// (price_scope's missing job scope, convert_quote's missing
+// quotation).
+async function resolveTaskCompletion(
+  env: Env,
+  message: string,
+  openTasks: Array<{ id: number; description: string }>
+): Promise<{ matched: string | null; candidates: string[] }> {
+  if (openTasks.length === 0) return { matched: null, candidates: [] };
+  try {
+    const taskList = openTasks.map((t) => t.description).join(", ");
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        chat_template_kwargs: { thinking: false },
+        temperature: 0,
+        messages: [
+          {
+            role: "system",
+            content:
+              "Given this list of open tasks, does the new message report exactly ONE of them as done? " +
+              "If it clearly matches exactly one, return its exact description from the list. If it could " +
+              "plausibly match more than one, list the plausible ones as candidates instead of guessing. " +
+              "If it doesn't clearly match any, return null with no candidates. Never invent a task not " +
+              `in the list.\n\nOpen tasks: ${taskList}\n\n` +
+              'Return ONLY JSON: {"matched": string or null, "candidates": string[]}',
+          },
+          { role: "user", content: message },
+        ],
+      })
+    );
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const rawText = r.choices?.[0]?.message?.content ?? "";
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned) as { matched: string | null; candidates?: string[] };
+    return { matched: parsed.matched ?? null, candidates: parsed.candidates ?? [] };
+  } catch {
+    return { matched: null, candidates: [] };
+  }
+}
+
+async function getCompletedToday(env: Env): Promise<string[]> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { results: doneTasks } = await env.OFFICE_DB.prepare(
+    "SELECT description FROM tasks WHERE done = 1 AND date(completed_at) = ?"
+  )
+    .bind(today)
+    .all<{ description: string }>();
+
+  const { results: confirmed } = await env.OFFICE_DB.prepare(
+    "SELECT type, payload FROM pending_actions WHERE status = 'confirmed' AND date(resolved_at) = ?"
+  )
+    .bind(today)
+    .all<{ type: string; payload: string }>();
+
+  const taskFacts = doneTasks.map((t) => `Done: ${t.description}.`);
+  const actionFacts = confirmed.map((a) => {
+    try {
+      const payload = JSON.parse(a.payload) as { customerName?: string; amount?: number };
+      return `${a.type} confirmed${payload.customerName ? ` for ${payload.customerName}` : ""}${payload.amount ? ` (R${payload.amount})` : ""}.`;
+    } catch {
+      return `${a.type} confirmed.`;
+    }
+  });
+
+  return [...taskFacts, ...actionFacts];
+}
+
 // Reads the last N days of life events, each tagged with its date so
 // the synthesis step can reason about "today" versus "this week"
 // correctly rather than treating everything as equally recent.
@@ -1704,6 +1802,14 @@ async function processTranscript(
   // silently vanishing into a stranger's customer file.
   if (extraction?.personal_note) {
     ctx.waitUntil(appendLifeEvent(env, extraction.personal_note));
+    // Real evidence 2026-07-10: only "reminder" creates a checkable
+    // open task — a request for something LATER. task_complete's
+    // personal_note reports something already done and is handled in
+    // its own branch below, matched against real open tasks rather
+    // than creating a new one.
+    if (extraction.intent === "reminder") {
+      ctx.waitUntil(createTask(env, extraction.personal_note));
+    }
   }
 
   // Store the ORIGINAL words, not the rewritten version — the
@@ -1726,8 +1832,8 @@ async function processTranscript(
   // "remind me to get dog food" doesn't belong in Jenny's notes just
   // because her job happened to be the reminder's trigger.
   const isQuestion = extraction?.intent === "lookup" || looksLikeAQuestion(transcript);
-  const isReminder = extraction?.intent === "reminder";
-  if (!isQuestion && !isReminder) {
+  const isPersonalErrand = extraction?.intent === "reminder" || extraction?.intent === "task_complete";
+  if (!isQuestion && !isPersonalErrand) {
     if (customer) {
       ctx.waitUntil(appendCustomerNote(env, customer.id, transcript));
     } else if (character) {
@@ -1741,7 +1847,29 @@ async function processTranscript(
   }
 
   let message: string;
-  if (extraction?.intent === "convert_quote" && !pendingActionId) {
+  if (extraction?.intent === "task_complete") {
+    // Real evidence 2026-07-10, Pierre explicit: ask for clarity
+    // rather than guess. Completing a task is immediate, no guard()
+    // needed — a personal errand is low-stakes, same reasoning as
+    // unguarded work observations (cheap to fix if wrong), unlike
+    // money or identity.
+    const completionPhrase = extraction.personal_note ?? transcript;
+    const openTasks = await getOpenTasks(env);
+    const { matched, candidates } = await resolveTaskCompletion(env, completionPhrase, openTasks);
+    if (matched) {
+      const task = openTasks.find((t) => t.description === matched);
+      if (task) {
+        await completeTask(env, task.id);
+        message = `Marked done: ${task.description}.`;
+      } else {
+        message = "I don't have an open task matching that.";
+      }
+    } else if (candidates.length > 0) {
+      message = `Did you mean ${candidates.join(" or ")}?`;
+    } else {
+      message = "I don't have an open task matching that.";
+    }
+  } else if (extraction?.intent === "convert_quote" && !pendingActionId) {
     // Intent recognized, but no open quotation exists for this
     // customer to convert — say so honestly rather than silently
     // falling through to a generic message.
@@ -1823,8 +1951,12 @@ async function processTranscript(
       // No customer named, not a business question — a question
       // about Peter's own day or week. Read straight from the
       // date-keyed life-event store, not an unscoped Vectorize search.
+      // Today's completed tasks and confirmed guard() actions are
+      // included too — real evidence 2026-07-10: "what did I get done
+      // today" needs both sources, not just narrative life events.
       const lifeFacts = await getRecentLifeEvents(env, 7);
-      message = await answerFromMemory(env, transcript, lifeFacts);
+      const completedFacts = await getCompletedToday(env);
+      message = await answerFromMemory(env, transcript, [...lifeFacts, ...completedFacts]);
     }
   } else if (customer) {
     message = customer.matched ? `Found existing customer: ${customer.name}.` : `New customer noted: ${customer.name}.`;
@@ -2190,6 +2322,41 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ status: "deleted", id });
     }
 
+    // One-time schema init for the new tasks table (2026-07-10) — real,
+    // demonstrated need: a checkable personal errand needs a done state
+    // that the narrative life-event log never had, and guard()-confirmed
+    // items already have their own done state (pending_actions.status)
+    // that this deliberately doesn't duplicate. IF NOT EXISTS makes this
+    // safe to call more than once.
+    if (url.pathname === "/debug/init-tasks-table" && request.method === "POST") {
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS tasks (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          description TEXT NOT NULL,
+          done INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          completed_at TEXT
+        )`
+      ).run();
+      return Response.json({ status: "ok" });
+    }
+
+    if (url.pathname === "/debug/tasks" && request.method === "GET") {
+      const { results } = await env.OFFICE_DB.prepare(
+        "SELECT id, description, done, created_at, completed_at FROM tasks ORDER BY created_at DESC LIMIT 30"
+      ).all();
+      return Response.json({ tasks: results });
+    }
+
+    // Direct, tappable completion — no natural-language matching
+    // needed. This is the real endpoint a future "tap to complete"
+    // ember list would call.
+    if (url.pathname.match(/^\/debug\/complete-task\/\d+$/) && request.method === "POST") {
+      const id = Number(url.pathname.split("/")[3]);
+      await completeTask(env, id);
+      return Response.json({ status: "completed", id });
+    }
+
     // Inspect a given day's life events directly — defaults to today.
     if (url.pathname === "/debug/life-events" && request.method === "GET") {
       const date = url.searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
@@ -2392,6 +2559,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           name: "a named staff contact at a supplier doesn't fork off its own entity",
           text: "called ProSupply about the March delay, spoke to Sarah in dispatch, she was really rude about it",
           check: (e) => e?.character_name === "ProSupply",
+        },
+        {
+          name: "task_complete is distinct from reminder by tense — done now, not later",
+          text: "got the dog food",
+          check: (e) => e?.intent === "task_complete",
         },
       ];
 
