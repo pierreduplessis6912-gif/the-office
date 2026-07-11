@@ -2586,12 +2586,17 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         },
       ];
 
-      const results = await Promise.all(
-        cases.map(async (c) => {
-          const { extraction, raw } = await extractIntent(env, c.text);
-          return { name: c.name, input: c.text, pass: c.check(extraction), extraction, rawOnFailure: extraction ? undefined : raw };
-        })
-      );
+      // Sequential, not Promise.all — real bug found live 2026-07-11:
+      // as this suite grew to 17 cases, running them all concurrently
+      // started tripping Workers AI's capacity limit ("3040: Capacity
+      // temporarily exceeded"), which never happened at 11-14 cases.
+      // A regression suite that fails on its own load isn't reliable;
+      // sequential execution is slower but actually trustworthy.
+      const results: Array<{ name: string; input: string; pass: boolean; extraction: Extraction | null; rawOnFailure?: unknown }> = [];
+      for (const c of cases) {
+        const { extraction, raw } = await extractIntent(env, c.text);
+        results.push({ name: c.name, input: c.text, pass: c.check(extraction), extraction, rawOnFailure: extraction ? undefined : raw });
+      }
 
       return Response.json({ allPassed: results.every((r) => r.pass), results });
     }
