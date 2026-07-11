@@ -1618,14 +1618,26 @@ async function describeImage(env: Env, base64: string, mimeType: string): Promis
   }
 }
 
-// Enriches the raw capture with a loose hint once extraction knows who
-// it was about — never required at capture time, only added after.
-async function updateCaptureHint(env: Env, captureId: number, subjectHint: string | null): Promise<void> {
+// Enriches the raw capture with a hint once extraction knows who it
+// was about — never required at capture time, only added after. Real
+// fix 2026-07-11: this used to store only a loose text string (the
+// entity's name), which meant "show me every capture about Jenny"
+// needed a fuzzy LIKE match, not a clean join. Now stores the real
+// customer_id/character_id alongside the text (kept for quick
+// display without a join) — exactly one of the two is ever set, same
+// discipline as line_items' quotation_id/invoice_id CHECK constraint.
+async function updateCaptureHint(
+  env: Env,
+  captureId: number,
+  subjectHint: string | null,
+  customerId: number | null = null,
+  characterId: number | null = null
+): Promise<void> {
   try {
     await env.OFFICE_DB.prepare(
-      "UPDATE captures SET subject_hint = ?, extraction_status = 'processed' WHERE id = ?"
+      "UPDATE captures SET subject_hint = ?, customer_id = ?, character_id = ?, extraction_status = 'processed' WHERE id = ?"
     )
-      .bind(subjectHint, captureId)
+      .bind(subjectHint, customerId, characterId, captureId)
       .run();
   } catch {
     // Best-effort enrichment — the raw capture already exists
@@ -1744,7 +1756,7 @@ async function processTranscript(
 
   if (captureId !== null) {
     const hint = customer?.name ?? character?.name ?? null;
-    ctx.waitUntil(updateCaptureHint(env, captureId, hint));
+    ctx.waitUntil(updateCaptureHint(env, captureId, hint, customer?.id ?? null, character?.id ?? null));
   }
 
   if (extraction?.intent === "payment" && customer) {
@@ -2858,17 +2870,52 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ invoices: enriched });
     }
 
+    // One-time schema migration for the real captures FK columns —
+    // real fix 2026-07-11, closing the gap named since day one
+    // ("subject_hint is a loose text string, not a real foreign
+    // key"). SQLite's ADD COLUMN has no IF NOT EXISTS, so each is
+    // wrapped individually to stay safe to call more than once, same
+    // as every other schema-init route here.
+    if (url.pathname === "/debug/init-captures-fk" && request.method === "POST") {
+      for (const column of ["customer_id INTEGER", "character_id INTEGER"]) {
+        try {
+          await env.OFFICE_DB.prepare(`ALTER TABLE captures ADD COLUMN ${column}`).run();
+        } catch {
+          // Already exists — fine, that's what makes this idempotent.
+        }
+      }
+      return Response.json({ status: "ok" });
+    }
+
     if (url.pathname === "/debug/captures" && request.method === "GET") {
       const status = url.searchParams.get("status");
-      const { results } = status
-        ? await env.OFFICE_DB.prepare(
-            "SELECT id, raw_text, source, subject_hint, extraction_status, r2_key, created_at FROM captures WHERE extraction_status = ? ORDER BY created_at DESC LIMIT 50"
-          )
-            .bind(status)
-            .all()
-        : await env.OFFICE_DB.prepare(
-            "SELECT id, raw_text, source, subject_hint, extraction_status, r2_key, created_at FROM captures ORDER BY created_at DESC LIMIT 20"
-          ).all();
+      const customerId = url.searchParams.get("customerId");
+      const characterId = url.searchParams.get("characterId");
+      const columns = "id, raw_text, source, subject_hint, customer_id, character_id, extraction_status, r2_key, created_at";
+      let results;
+      if (customerId) {
+        // The actual clean join this gap was about — no more fuzzy
+        // text matching on subject_hint needed.
+        ({ results } = await env.OFFICE_DB.prepare(
+          `SELECT ${columns} FROM captures WHERE customer_id = ? ORDER BY created_at DESC LIMIT 50`
+        )
+          .bind(customerId)
+          .all());
+      } else if (characterId) {
+        ({ results } = await env.OFFICE_DB.prepare(
+          `SELECT ${columns} FROM captures WHERE character_id = ? ORDER BY created_at DESC LIMIT 50`
+        )
+          .bind(characterId)
+          .all());
+      } else if (status) {
+        ({ results } = await env.OFFICE_DB.prepare(
+          `SELECT ${columns} FROM captures WHERE extraction_status = ? ORDER BY created_at DESC LIMIT 50`
+        )
+          .bind(status)
+          .all());
+      } else {
+        ({ results } = await env.OFFICE_DB.prepare(`SELECT ${columns} FROM captures ORDER BY created_at DESC LIMIT 20`).all());
+      }
       return Response.json({ captures: results });
     }
 
@@ -3135,6 +3182,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       // reasoning: never guess a subject from the file itself, only
       // ever from something actually said about it.
       let subjectHint: string | null = null;
+      let subjectCustomerId: number | null = null;
+      let subjectCharacterId: number | null = null;
       let rawText = description;
       if (typeof caption === "string" && caption.trim().length > 0) {
         const captionText = caption.trim();
@@ -3143,16 +3192,18 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         if (extraction?.customer_name) {
           const customer = await reconcileCustomer(env, extraction.customer_name);
           subjectHint = customer?.name ?? null;
+          subjectCustomerId = customer?.id ?? null;
         } else if (extraction?.character_name) {
           const character = await reconcileCharacter(env, extraction.character_name, extraction.character_relationship);
           subjectHint = character?.name ?? null;
+          subjectCharacterId = character?.id ?? null;
         }
       }
 
       if (captureId !== null) {
         await updateCaptureText(env, captureId, rawText);
         if (subjectHint) {
-          await updateCaptureHint(env, captureId, subjectHint);
+          await updateCaptureHint(env, captureId, subjectHint, subjectCustomerId, subjectCharacterId);
         }
       }
 
@@ -3185,6 +3236,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       // reconciliation already proven for text and voice, rather than
       // inventing a separate subject-detection path for photos.
       let subjectHint: string | null = null;
+      let subjectCustomerId: number | null = null;
+      let subjectCharacterId: number | null = null;
       let rawText = description;
       if (typeof caption === "string" && caption.trim().length > 0) {
         const captionText = caption.trim();
@@ -3193,16 +3246,18 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         if (extraction?.customer_name) {
           const customer = await reconcileCustomer(env, extraction.customer_name);
           subjectHint = customer?.name ?? null;
+          subjectCustomerId = customer?.id ?? null;
         } else if (extraction?.character_name) {
           const character = await reconcileCharacter(env, extraction.character_name, extraction.character_relationship);
           subjectHint = character?.name ?? null;
+          subjectCharacterId = character?.id ?? null;
         }
       }
 
       if (captureId !== null) {
         await updateCaptureText(env, captureId, rawText);
         if (subjectHint) {
-          await updateCaptureHint(env, captureId, subjectHint);
+          await updateCaptureHint(env, captureId, subjectHint, subjectCustomerId, subjectCharacterId);
         }
       }
 
