@@ -1659,12 +1659,36 @@ async function processTranscript(
   extractionRaw = result.raw;
   extractionRawText = result.rawText;
 
+  // Real bug found via external review 2026-07-11, confirmed against
+  // the actual code: reconcileCustomer/reconcileCharacter create a
+  // new row on no-match, and were being called unconditionally for
+  // EVERY intent, including "lookup" — so "what's Jenny's address?"
+  // for a Jenny who doesn't exist silently created her, then
+  // correctly said "I don't have anything on file." Not corrupted
+  // data, but a real violation of Principle 1: a lookup should be
+  // pure resolution, never a write. Fixed by routing lookup intent
+  // through the already-existing read-only findExistingEntityByName
+  // instead of the create-or-find reconcile functions.
   if (extraction?.customer_name) {
-    customer = await reconcileCustomer(env, extraction.customer_name);
+    if (extraction.intent === "lookup") {
+      const found = await findExistingEntityByName(env, extraction.customer_name);
+      if (found?.type === "customer") {
+        customer = { id: found.id, name: found.name, matched: true };
+      }
+    } else {
+      customer = await reconcileCustomer(env, extraction.customer_name);
+    }
   }
 
   if (extraction?.character_name) {
-    character = await reconcileCharacter(env, extraction.character_name, extraction.character_relationship);
+    if (extraction.intent === "lookup") {
+      const found = await findExistingEntityByName(env, extraction.character_name);
+      if (found?.type === "character") {
+        character = { id: found.id, name: found.name, matched: true };
+      }
+    } else {
+      character = await reconcileCharacter(env, extraction.character_name, extraction.character_relationship);
+    }
   }
 
   // Only for the genuinely ambiguous case — a lookup with no name in
