@@ -1663,16 +1663,20 @@ async function processTranscript(
   }
 
   // Only for the genuinely ambiguous case — a lookup with no name in
-  // the message itself, drilling into recent conversation ("who did
-  // we deal with in those instances?"). Skipped for every ordinary
-  // message, which is the vast majority — cheap by construction, not
-  // just by accident.
-  if (extraction?.intent === "lookup" && !customer && !character && history.length > 0) {
+  // the message itself. The register check below needs no history at
+  // all (it reads real, persisted D1 state); only the AI-based
+  // fallback further down genuinely needs history text to scan.
+  if (extraction?.intent === "lookup" && !customer && !character) {
     // Register first — rung 1 of the Execution Ladder, zero AI calls.
     // Peter's own words already established this selection on a prior
     // turn ("show me Jenny"); a later vague reference ("show me the
     // quote") should read that real, already-known answer before ever
-    // falling back to AI-based history scanning.
+    // falling back to AI-based history scanning. Real bug found live
+    // 2026-07-11: this check was originally gated behind
+    // `history.length > 0`, inherited unchanged from the old
+    // AI-only fallback — but the register lives in D1, not in
+    // conversation history, so a test that deliberately sent no
+    // history skipped it entirely. Fixed: unconditional now.
     const current = await getCurrentSelection(env);
     if (current?.type === "customer") {
       customer = { id: current.id, name: current.name, matched: true };
@@ -1680,10 +1684,9 @@ async function processTranscript(
     } else if (current?.type === "character") {
       character = { id: current.id, name: current.name, matched: true };
       extraction = { ...extraction, query_scope: "character" };
-    } else {
-      // Register genuinely empty — nothing has been explicitly
-      // selected yet this history. Only now does AI-based resolution
-      // get invoked at all.
+    } else if (history.length > 0) {
+      // Register genuinely empty, and there's real history to scan —
+      // only now does AI-based resolution get invoked at all.
       const resolvedName = await resolveFollowUpEntity(env, history, transcript);
       if (resolvedName) {
         const found = await findExistingEntityByName(env, resolvedName);
