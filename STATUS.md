@@ -152,6 +152,14 @@ tasks            (id, description, done, created_at, completed_at)  -- 2026-07-1
                  -- closed only by "task_complete" intent, via fully deterministic word-token matching
                  -- (resolveTaskCompletion) — no AI call anywhere in that matching step. See the
                  -- Execution Ladder section below for why.
+selections       (key PRIMARY KEY, entity_id, label, updated_at)  -- 2026-07-11, the execution register
+                 -- rung 1 of the Execution Ladder, OFFICE_CONSTITUTION.md Principle 16. Generic
+                 -- key/value on purpose — `key` IS the type ("customer", "character"; quotation/
+                 -- invoice/task/supplier/project whenever those are earned) so a new selection type
+                 -- never needs a schema migration, only new rows. Two real read strategies:
+                 -- getSelection(key) for typed lookups ("the quote"), getCurrentSelection() for
+                 -- untyped ones ("it"/"them") — a single query, no type names in it, ordered by
+                 -- updated_at. Checked BEFORE any AI-based resolution is attempted, per Principle 1.
 ```
 
 **Why `characters` is a separate table, not a `type` column on
@@ -454,6 +462,33 @@ about, not any name appearing anywhere in the exchange.
     suite that fails under its own concurrent load isn't trustworthy;
     fixed by running cases sequentially instead.
 
+**2026-07-11, execution register:**
+22. **The register check was gated behind `history.length > 0`,**
+    inherited unchanged from the old AI-only fallback it replaced.
+    The register reads real, persisted D1 state — it needs no history
+    at all — but a live test that deliberately sent no history skipped
+    it entirely and fell through to "I don't have that on file." Fixed
+    by making the register check unconditional whenever nothing was
+    directly named; only the genuine AI-based fallback stays gated
+    behind having real history text to scan.
+23. **`getCurrentSelection` was hardcoded pairwise comparison of
+    exactly two type names, not actually a generic primitive** — it
+    only looked like one because the schema underneath it already
+    was. Caught before a third type could multiply the pattern:
+    rebuilt as a single query with no type names in it at all,
+    ordered by `updated_at`. Adding a third, fourth, or tenth selection
+    type now means only inserting rows under a new key.
+24. **Phantom customer/character creation on lookup**, found via
+    external code review and confirmed against the actual code:
+    `reconcileCustomer`/`reconcileCharacter` create a row on no-match
+    and were called unconditionally for every intent, including
+    `lookup` — so asking about someone who doesn't exist silently
+    created them, then correctly said "I don't have anything on
+    file." A real violation of Principle 1 (a lookup should be pure
+    resolution, never a write), fixed by routing lookup intent
+    through the already-existing read-only `findExistingEntityByName`
+    instead.
+
 ## Debug and diagnostic routes
 
 `/debug/list-audio`, `/debug/reprocess`, `/debug/search-memory`,
@@ -481,13 +516,17 @@ Cloudflare CLI access from this environment, `IF NOT EXISTS` makes it
 safe to call more than once), `/debug/tasks` (list, for verifying
 matching behavior directly), `/debug/complete-task/:id` (direct
 tappable completion, no natural-language matching needed — the real
-endpoint a future ember list would call). `/debug/rewrite-thinking-
+endpoint a future ember list would call). `/debug/init-selections-
+table` (same one-time schema-init pattern) and `/debug/selections`
+(list, for verifying the execution register directly). `/debug/rewrite-thinking-
 test` (served its diagnostic purpose already — safe to remove),
 `/debug/pdf-route-test` (leftover from a routing diagnosis — safe to
 remove), `/admin/flush-memory`.
 
 **Strip all debug/admin routes before any real customer data flows
-through production.** `/files/audio`, `/files/photo`, `/messages/text`,
+through production.** `/files/audio`, `/files/photo`, `/files/document`
+(2026-07-11, the third "sense" — verified live with a real image and a
+real PDF), `/messages/text`,
 and `/actions/*` are real, production routes — not debug — and stay.
 
 `/debug/smoke-test` is the actual regression safety net — 17 real
@@ -520,16 +559,19 @@ Codemagic — still only proven on the web preview.**
   multi-tenancy — this is explicitly one Office per business entity; a
   second real entity means a second Office instance, not a schema
   change (see Pinned Ideas for the real, costed migration path if this
-  ever changes).
-- **Document/PDF capture — the third "sense" — is still completely
-  untouched.** Voice and photos are both real; there's no upload path
-  for a supplier quote, an existing invoice, or a scanned form yet.
+  ever changes). Real, related gap named alongside this by external
+  review 2026-07-11: CORS is wide open and there's no rate limiting —
+  low urgency for a genuinely single-user system reachable only by
+  Peter, but the same underlying gap as no-auth, not a separate one.
 - **`captures.subject_hint` is a loose text string, not a real foreign
   key.** "Show me every capture about Jenny" would need a fuzzy text
   match today, not a clean join.
-- **No tappable document-card UI** for the `pdfUrl` the API already
-  returns on invoice confirmation — the URL is real and correct;
-  nothing in the app surfaces it as something to tap yet.
+- **PDF text extraction is not built.** `/files/document` (2026-07-11)
+  stores a real PDF reliably and correctly — verified live with a real
+  file — but doesn't read its contents. No PDF-parsing capability
+  exists in this environment; `pdf-lib` (already a dependency) is a
+  generation/manipulation library, not a text-extraction one. Named
+  honestly rather than pretended solved.
 - **WhatsApp:** a real Evolution API number exists from earlier work;
   no read/reply pipeline is built. Real platform constraint to design
   around: WhatsApp enforces a 24-hour free-messaging window per
