@@ -1446,7 +1446,9 @@ function resolveTaskCompletion(
 }
 
 async function getCompletedToday(env: Env): Promise<string[]> {
-  const today = new Date().toISOString().slice(0, 10);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const now = nowInBusinessTimezone();
+  const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   const { results: doneTasks } = await env.OFFICE_DB.prepare(
     "SELECT description FROM tasks WHERE done = 1 AND date(completed_at) = ?"
   )
@@ -1470,6 +1472,35 @@ async function getCompletedToday(env: Env): Promise<string[]> {
   });
 
   return [...taskFacts, ...actionFacts];
+}
+
+// Real feature 2026-07-11: "what's up today" needs to combine two
+// real, already-built sources — job_scopes with a real scheduled_date
+// falling on today, and currently open tasks (no due date exists on
+// tasks yet; the full scheduling engine that would add one is
+// deliberately pinned, not built — see OFFICE_CONSTITUTION.md). This
+// stays the same "smallest honest version, computed live" pattern
+// already used for the weekly briefing and the calendar query — no
+// cron, no push, read fresh on request.
+async function getTodaysSchedule(env: Env): Promise<string[]> {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const now = nowInBusinessTimezone();
+  const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+
+  const { results: scheduledJobs } = await env.OFFICE_DB.prepare(
+    `SELECT js.description, c.name as customer_name FROM job_scopes js
+     JOIN customers c ON c.id = js.customer_id
+     WHERE js.scheduled_date = ?`
+  )
+    .bind(today)
+    .all<{ description: string; customer_name: string }>();
+
+  const openTasks = await getOpenTasks(env);
+
+  const jobFacts = scheduledJobs.map((j) => `Scheduled today: ${j.description} for ${j.customer_name}.`);
+  const taskFacts = openTasks.map((t) => `Still open: ${t.description}.`);
+
+  return [...jobFacts, ...taskFacts];
 }
 
 // Reads the last N days of life events, each tagged with its date so
@@ -2180,9 +2211,13 @@ async function processTranscript(
       // Today's completed tasks and confirmed guard() actions are
       // included too — real evidence 2026-07-10: "what did I get done
       // today" needs both sources, not just narrative life events.
+      // Real evidence 2026-07-11: "what's up today" needed a THIRD
+      // source that didn't exist until now — real scheduled jobs and
+      // still-open tasks, not just what already happened.
       const lifeFacts = await getRecentLifeEvents(env, 7);
       const completedFacts = await getCompletedToday(env);
-      message = await answerFromMemory(env, transcript, [...lifeFacts, ...completedFacts]);
+      const scheduleFacts = await getTodaysSchedule(env);
+      message = await answerFromMemory(env, transcript, [...lifeFacts, ...completedFacts, ...scheduleFacts]);
     }
   } else if (customer) {
     message = customer.matched ? `Found existing customer: ${customer.name}.` : `New customer noted: ${customer.name}.`;
