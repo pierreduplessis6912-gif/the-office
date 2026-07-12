@@ -164,11 +164,20 @@ async function processTranscript(
     pendingActionId = held.id;
   }
 
-  if (extraction?.intent === "expense" && character) {
+  // Real bug found live 2026-07-12: this required a named supplier
+  // (character) to exist before an expense would even be held for
+  // confirmation. A genuine, common case — "filled up the bakkie with
+  // diesel for R650," no supplier named at all — silently vanished
+  // with no record, no pending action, and no error, exactly the
+  // silent-loss failure mode the receptacle exists to prevent.
+  // recordExpense already correctly supports a null characterId;
+  // the guard just shouldn't have required one to exist. Fixed to
+  // require only a real amount, same pattern as invoice below.
+  if (extraction?.intent === "expense" && extraction.amount) {
     const held = await holdForConfirmation(
       env,
       "expense",
-      { characterId: character.id, characterName: character.name, amount: extraction.amount, description: transcript },
+      { characterId: character?.id ?? null, characterName: character?.name, amount: extraction.amount, description: transcript },
       transcript
     );
     pendingActionId = held.id;
