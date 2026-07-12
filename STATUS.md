@@ -616,6 +616,18 @@ error, not curl output):**
     shape as `classifyBusinessTopic`, legitimate per Principle 2 since
     a wrong category is low-stakes and easily corrected) confirmed
     working correctly alongside the fix in the same test.
+31. **The job-profitability caveat was reliably stripped out during
+    synthesis, twice in a row, live 2026-07-12.** `getJobProfitability`
+    used to bake its "only explicitly-linked expenses count" caveat
+    into one combined fact string handed to `answerFromMemory` — and
+    the model's own relevance-filtering (correctly protective in every
+    prior case) treated the caveat as extraneous and dropped it both
+    times a real profitability question was asked. A caveat qualifying
+    the very number being reported isn't optional context to weigh —
+    fixed by splitting the return into `{fact, caveat}` and appending
+    the caveat deterministically in code after synthesis, never a fact
+    the model could discard. Same fix pattern as the aged-debtors
+    capability hint (bug-adjacent feature, not numbered separately).
 
 ## Debug and diagnostic routes
 
@@ -1015,9 +1027,26 @@ Codemagic — still only proven on the web preview.**
     no named supplier were silently vanishing entirely, with no record
     and no error — fixed, verified live alongside the category feature
     in the same test.
-  - Still genuinely missing toward an actual P&L: job-cost linking, a
-    formal profit-and-loss statement combining categorized revenue and
-    expense. Not a reason to hesitate on finance-adjacent work — but
+  - **Job-cost linking — real, built, verified live (2026-07-12).**
+    `expenses.customer_id` links a cost to the job it was actually for,
+    genuinely distinct from `character_id` (who was paid) — no
+    ambiguity risk, since an expense never invoices anyone.
+    `getJobProfitability`: real revenue invoiced against a customer
+    minus real expenses explicitly linked to that job, verified live
+    (Jenny's job: R13,664 revenue, R420 linked cost, R13,244 profit,
+    correct arithmetic). Honest about its own limitation, and the
+    honesty is now guaranteed rather than left to chance: the caveat
+    (only explicitly-linked expenses count) used to be baked into one
+    fact string handed to the model, which reliably stripped it out
+    during synthesis, twice in a row, live. Fixed by splitting the
+    return so the caveat is appended deterministically in code — never
+    a fact for the model to weigh and possibly drop, same fix pattern
+    as the aged-debtors capability hint.
+  - Still genuinely missing toward an actual P&L: a formal
+    profit-and-loss statement combining categorized revenue and
+    expense across the whole business (job profitability exists
+    per-customer; nothing yet aggregates it business-wide by
+    category). Not a reason to hesitate on finance-adjacent work — but
     worth being honest that "building toward a P&L" and "the revenue
     chain already works" are not the same claim, and shouldn't be
     quietly conflated.
