@@ -363,6 +363,7 @@ export async function extractWorkObservation(env: Env, transcript: string): Prom
     components: [],
     tasks: [],
     scheduled_date_raw: null,
+    installer_name: null,
   };
   try {
     const result = await withRetry(() =>
@@ -390,15 +391,22 @@ export async function extractWorkObservation(env: Env, transcript: string): Prom
             "component_name matching that component's name exactly; null if the task applies to the " +
             "whole job rather than one specific part. scheduled_date_raw is any date or timeframe " +
             "mentioned, extracted exactly as said (e.g. 'next Thursday') — never resolve it into an " +
-            "actual date yourself, just extract the phrase, or null if none was mentioned. Return ONLY " +
+            "actual date yourself, just extract the phrase, or null if none was mentioned. " +
+            "installer_name is who is assigned to actually DO this job, if a real person was named for " +
+            "that purpose (e.g. 'Sipho is doing Jenny's install' or 'assign this to Sipho') — this is " +
+            "genuinely different from the customer (who the job is FOR); leave null if no installer was " +
+            "named, never guess one. Return ONLY " +
             'JSON: {"job_description": string, "components": [{"name": string, "width": number or ' +
             'null, "length": number or null, "unit": "mm" or "m" or null}], "tasks": [{"description": ' +
-            'string, "component_name": string or null}], "scheduled_date_raw": string or null}\n\n' +
+            'string, "component_name": string or null}], "scheduled_date_raw": string or null, ' +
+            '"installer_name": string or null}\n\n' +
             "Examples:\n" +
             '"I measured the reception area at 6600 by 4100 and the office at 3300 by 3900, we also need repair work and screeding" -> ' +
-            '{"job_description":"vinyl flooring installation","components":[{"name":"reception area","width":6600,"length":4100,"unit":"mm"},{"name":"office","width":3300,"length":3900,"unit":"mm"}],"tasks":[{"description":"repair work","component_name":null},{"description":"screeding","component_name":null}],"scheduled_date_raw":null}\n' +
+            '{"job_description":"vinyl flooring installation","components":[{"name":"reception area","width":6600,"length":4100,"unit":"mm"},{"name":"office","width":3300,"length":3900,"unit":"mm"}],"tasks":[{"description":"repair work","component_name":null},{"description":"screeding","component_name":null}],"scheduled_date_raw":null,"installer_name":null}\n' +
             '"Theatre 2 is 8 by 6, Theatre 3 is 7 by 5.5, vinyl throughout. Theatre 2 needs moisture testing. Theatre 3 needs skirting removed first." -> ' +
-            '{"job_description":"vinyl flooring installation","components":[{"name":"Theatre 2","width":8,"length":6,"unit":"m"},{"name":"Theatre 3","width":7,"length":5.5,"unit":"m"}],"tasks":[{"description":"moisture testing","component_name":"Theatre 2"},{"description":"skirting removed first","component_name":"Theatre 3"}],"scheduled_date_raw":null}',
+            '{"job_description":"vinyl flooring installation","components":[{"name":"Theatre 2","width":8,"length":6,"unit":"m"},{"name":"Theatre 3","width":7,"length":5.5,"unit":"m"}],"tasks":[{"description":"moisture testing","component_name":"Theatre 2"},{"description":"skirting removed first","component_name":"Theatre 3"}],"scheduled_date_raw":null,"installer_name":null}\n' +
+            '"Sipho is doing Jenny\'s carpet install next Thursday" -> ' +
+            '{"job_description":"carpet installation","components":[],"tasks":[],"scheduled_date_raw":"next Thursday","installer_name":"Sipho"}',
         },
         { role: "user", content: transcript },
       ],
@@ -412,6 +420,7 @@ export async function extractWorkObservation(env: Env, transcript: string): Prom
       components: parsed.components ?? [],
       tasks: parsed.tasks ?? [],
       scheduled_date_raw: parsed.scheduled_date_raw ?? null,
+      installer_name: parsed.installer_name ?? null,
     };
   } catch {
     return empty;
