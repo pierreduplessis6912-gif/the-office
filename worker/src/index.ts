@@ -1243,7 +1243,10 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     if (url.pathname === "/debug/find-character" && request.method === "GET") {
       const name = url.searchParams.get("name") ?? "";
       const found = await findExistingCharacterByName(env, name);
-      return Response.json({ name, found });
+      if (!found) return Response.json({ name, found });
+      const characterFacts = await getCharacterNotes(env, found.id);
+      const installerActivity = await getInstallerActivity(env, found.id);
+      return Response.json({ name, found, characterFacts, installerActivity });
     }
 
     if (url.pathname === "/debug/find-customer" && request.method === "GET") {
