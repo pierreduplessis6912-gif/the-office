@@ -550,14 +550,21 @@ async function processTranscript(
       // Real feature 2026-07-12 — the real payoff of job-cost linking:
       // if any expenses were ever explicitly linked to this customer's
       // job, this surfaces real profitability alongside the balance.
+      // Real fix 2026-07-12: the caveat is appended deterministically
+      // after synthesis, never handed to the model as a droppable
+      // fact — it was reliably stripped out twice in a row when it
+      // was.
       const profitability = await getJobProfitability(env, customer.id);
       const facts = [
         `${customer.name} is a known customer.`,
         ...(financialSummary ? [`${customer.name}: ${financialSummary}`] : []),
-        ...(profitability ? [`Job profitability for ${customer.name}: ${profitability}`] : []),
+        ...(profitability ? [`Job profitability for ${customer.name}: ${profitability.fact}`] : []),
         ...memoryFacts,
       ];
       message = await answerFromMemory(env, transcript, facts);
+      if (profitability) {
+        message += `\n\n${profitability.caveat}`;
+      }
     } else {
       // No customer named, not a business question — a question
       // about Peter's own day or week. Read straight from the
