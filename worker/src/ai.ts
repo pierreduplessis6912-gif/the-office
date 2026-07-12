@@ -510,6 +510,51 @@ export async function classifyBusinessTopic(
   }
 }
 
+// Real feature 2026-07-12 — the real prerequisite for eventually
+// distinguishing cost of sales from operating expenses in a formal
+// P&L. Same shape as classifyBusinessTopic above, deliberately: a
+// small, closed set, low stakes if imperfect (easily corrected later,
+// nothing destructive happens from a wrong category), which is
+// exactly the class of judgment call Principle 2 treats as legitimate
+// narration/understanding rather than a business decision that needs
+// deterministic code. Never used for the expense amount or supplier
+// itself — those stay exactly as extracted, unguessed.
+export async function classifyExpenseCategory(
+  env: Env,
+  description: string
+): Promise<"materials" | "fuel" | "tools" | "subcontractor" | "other"> {
+  try {
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        chat_template_kwargs: { thinking: false },
+        temperature: 0,
+        max_tokens: 10,
+        messages: [
+          {
+            role: "system",
+            content:
+              "Categorize this business expense into exactly one of: MATERIALS (stock, supplies, product " +
+              "used on a job — tiles, vinyl, glue, carpet), FUEL (fuel, diesel, petrol, vehicle running " +
+              "costs), TOOLS (tools, equipment, machinery), SUBCONTRACTOR (paying another person or " +
+              "business for labor on a job), or OTHER (anything that doesn't clearly fit the above — " +
+              "rent, insurance, admin, wages). Answer with exactly one word.",
+          },
+          { role: "user", content: description },
+        ],
+      })
+    );
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const answer = r.choices?.[0]?.message?.content?.trim().toUpperCase() ?? "";
+    if (answer.includes("MATERIAL")) return "materials";
+    if (answer.includes("FUEL")) return "fuel";
+    if (answer.includes("TOOL")) return "tools";
+    if (answer.includes("SUBCONTRACTOR")) return "subcontractor";
+    return "other";
+  } catch {
+    return "other";
+  }
+}
+
 // --- Memory: color, not ground truth. Never used for money or ------
 // anything with real-world consequence — only for recalling what was
 // said (a preference, a note) when nothing structured exists to
