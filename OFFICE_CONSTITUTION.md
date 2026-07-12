@@ -755,6 +755,56 @@ much larger vision it was articulated from (a continuously-assembled
 P&L from receipts, GPS logs, and fuel purchases) is honestly pinned,
 not built — see `STATUS.md`.
 
+## Principle 23 — A Worker Owns a Primitive (2026-07-12)
+
+Not borrowed from external research — arrived at by direct product
+conversation, then checked immediately against real evidence: at the
+moment this principle was proposed, `index.ts` was 3,876 lines,
+nearly double a proposed 2,000-line threshold.
+
+> A Worker owns a primitive. A file owns an implementation. Lines of
+> code measure complexity, not architecture. When complexity exceeds
+> 2,000 lines, review the architecture — don't just split the file on
+> autopilot, and don't leave it alone either.
+
+1. *Problem:* a growing codebase eventually needs organizing, but "just
+   split it when it gets big" treats every kind of complexity the
+   same way — sometimes the right answer is smaller files with the
+   same real boundaries; sometimes the growth reveals a genuinely new,
+   independent primitive that deserves its own deployable unit.
+2. *How solved:* a real, answerable review question, not a vibe — "can
+   another department invoke this capability without knowing how it
+   works?" If yes, it's a real service boundary (a Worker). If no —
+   if everything using it is still, underneath, serving one primitive
+   — it's organization within one deployable unit (files).
+3. *Does Office have this problem?* Yes, the threshold genuinely fired
+   — but applying the review honestly to what's actually built today
+   (customers, tasks, scheduling, documents, quotations, expenses, all
+   serving exactly one business, one deployment, no second real
+   caller) means the acid test currently answers "no": everything in
+   `index.ts` is still, underneath, one primitive — Office, for Peter,
+   today. The correct action right now is reorganizing into real files
+   along real seams (`identity.ts`, `memory.ts`, `scheduler.ts`,
+   `documents.ts`, `finance.ts`, `ai.ts`), not splitting into separate
+   Workers with real network boundaries, service bindings, and
+   duplicated or split D1/KV/R2 bindings that nothing today actually
+   needs.
+4. *What survives regardless of which answer the review gives?*
+   **2,000 lines is a trigger for a real question, never an automatic
+   action. The question is always the same, whether the answer this
+   time is "split the file" or "this earned its own Worker."**
+
+**Status:** ✅ Adopted. The genuinely earned next trigger for actual
+multi-Worker separation coheres with something already pinned:
+Workers for Platforms — the same real moment (a genuine second
+department or business needing independent deployment) triggers both.
+Every worker should also be testable with fake data, in isolation,
+without invoking another worker or department — that's what makes a
+smoke test a real contract about one primitive rather than a vague
+"does Office still work" surface, and it's the same discipline that
+already produced `/debug/smoke-test`, just not yet organized per
+primitive the way it will be once real file boundaries exist.
+
 ## Closing synthesis — where AI actually lives
 
 Seven research entries in, the pattern is no longer a surprise: **every
