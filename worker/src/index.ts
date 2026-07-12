@@ -894,7 +894,7 @@ async function classifyBusinessTopic(
   env: Env,
   history: HistoryTurn[],
   message: string
-): Promise<"quotations" | "invoices" | "general"> {
+): Promise<"quotations" | "invoices" | "expenses" | "general"> {
   if (history.length === 0) return "general";
   try {
     const historyText = history.map((h) => `${h.role === "user" ? "Peter" : "Office"}: ${h.text}`).join("\n");
@@ -908,9 +908,10 @@ async function classifyBusinessTopic(
             role: "system",
             content:
               "Is the new message specifically about QUOTATIONS, specifically about INVOICES/money owed, " +
-              'or a GENERAL business question — based on the standing topic of the conversation below ' +
-              '(what Peter\'s own most recent question was actually about, not just any word that ' +
-              'appears). Answer with exactly one word: "QUOTATIONS", "INVOICES", or "GENERAL".\n\n' +
+              "specifically about EXPENSES/money spent on suppliers, or a GENERAL business question — " +
+              "based on the standing topic of the conversation below (what Peter's own most recent " +
+              'question was actually about, not just any word that appears). Answer with exactly one ' +
+              'word: "QUOTATIONS", "INVOICES", "EXPENSES", or "GENERAL".\n\n' +
               "Conversation:\n" +
               historyText,
           },
@@ -921,6 +922,7 @@ async function classifyBusinessTopic(
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const answer = r.choices?.[0]?.message?.content?.trim().toUpperCase() ?? "";
     if (answer.includes("QUOTATION")) return "quotations";
+    if (answer.includes("EXPENSE")) return "expenses";
     if (answer.includes("INVOICE")) return "invoices";
     return "general";
   } catch {
@@ -1172,6 +1174,26 @@ async function getQuotationsSummary(env: Env): Promise<string[]> {
   const summary = `There are ${results.length} quotations on file, totaling R${total}. ${openCount} still open, not yet converted to an invoice.`;
   const perQuotation = results.map((r) => `${r.name}: R${r.amount} (${r.status}).`);
   return [summary, ...perQuotation];
+}
+
+// Real feature 2026-07-12 — the second concrete piece of the expense
+// side of the accounting-capability roadmap, mirroring
+// getQuotationsSummary's exact shape for consistency. Real, deterministic
+// SQL aggregate, same as every other business-summary function here —
+// never an AI attempting to recall or total these from memory.
+async function getExpenseSummary(env: Env): Promise<string[]> {
+  const { results } = await env.OFFICE_DB.prepare(
+    `SELECT COALESCE(c.name, 'an unnamed supplier') as name, e.amount as amount, e.description as description
+     FROM expenses e LEFT JOIN characters c ON c.id = e.character_id
+     ORDER BY e.created_at DESC`
+  ).all<{ name: string; amount: number | null; description: string }>();
+
+  if (results.length === 0) return ["No expenses on file."];
+
+  const total = results.reduce((sum, r) => sum + (r.amount ?? 0), 0);
+  const summary = `There are ${results.length} expenses on file, totaling R${total}.`;
+  const perExpense = results.map((r) => `${r.name}: R${r.amount ?? 0} — ${r.description}.`);
+  return [summary, ...perExpense];
 }
 
 // The real fix for "what's Sarah's balance" answering wrong — a
@@ -2336,9 +2358,10 @@ async function processTranscript(
       // both fact sets; a topic-specific follow-up gets only what's
       // relevant to it.
       const topic = await classifyBusinessTopic(env, history, transcript);
-      const outstandingFacts = topic !== "quotations" ? await getOutstandingInvoices(env) : [];
-      const quotationFacts = topic !== "invoices" ? await getQuotationsSummary(env) : [];
-      message = await answerFromMemory(env, transcript, [...outstandingFacts, ...quotationFacts]);
+      const outstandingFacts = topic === "quotations" || topic === "expenses" ? [] : await getOutstandingInvoices(env);
+      const quotationFacts = topic === "invoices" || topic === "expenses" ? [] : await getQuotationsSummary(env);
+      const expenseFacts = topic === "quotations" || topic === "invoices" ? [] : await getExpenseSummary(env);
+      message = await answerFromMemory(env, transcript, [...outstandingFacts, ...quotationFacts, ...expenseFacts]);
     } else if (character) {
       const characterFacts = await getCharacterNotes(env, character.id);
       const facts = [`${character.name} is a known contact.`, ...characterFacts];
