@@ -64,6 +64,37 @@ are not.
 
 ## Architecture
 
+- **File structure (2026-07-12), reorganized per Principle 23 ("A
+  Worker Owns a Primitive").** `index.ts` had grown to 3,876 lines —
+  double a proposed 2,000-line review threshold. The review concluded
+  honestly: everything in it still serves exactly one business, one
+  deployment, no genuine second caller — so the answer was reorganize
+  into real files, not split into separate Workers. Still **one**
+  Cloudflare Worker, one deploy, one `wrangler.toml`:
+  - `types.ts` — every shared interface (`Env`, `Extraction`,
+    `ProcessResult`, etc.), no logic.
+  - `ai.ts` — the AI primitive: every place a model is actually
+    called (extraction, narration, rewriting, vision, embeddings,
+    reranking). No business decisions.
+  - `identity.ts` — customers, characters, the execution register
+    (`setSelection`/`getSelection`/`getCurrentSelection`).
+  - `scheduler.ts` — tasks, real scheduled dates, the ember counts,
+    job-scope recording.
+  - `memory.ts` — captures (the receptacle), customer/character
+    notes, life events, structured facts, Vectorize consolidation.
+  - `finance.ts` — the revenue chain and the expense side, guard()'d
+    the same way, plus document generation (PDFs, share messages).
+  - `index.ts` (1,715 lines remaining) — `processTranscript` (the
+    orchestrator/Execution primitive) and `handleRequest` (routing) —
+    deliberately NOT further split this pass; splitting the giant
+    routing chain carries real risk for no current benefit, unlike
+    extracting already-standalone data/logic functions.
+  Verified with a full multi-file type-check before pushing (only
+  the same pre-existing noise present in every check this session,
+  zero new errors), then verified live in production: smoke test
+  18/18, a real end-to-end message spanning three modules
+  (extraction → identity → finance), and the execution register all
+  confirmed working with zero functional regression.
 - Cloudflare Worker (`office-api`) is the entire backend. Deployed via
   GitHub Actions on every push to `worker/**` (see `.github/workflows/deploy.yml`).
 - D1 (`office-db`) is ground truth for anything structured.
