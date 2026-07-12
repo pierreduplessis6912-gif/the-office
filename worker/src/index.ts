@@ -1236,6 +1236,22 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ characters: enriched });
     }
 
+    // Real diagnostic 2026-07-12 — isolating whether a name-lookup
+    // bug lives in the lookup function itself or downstream in how
+    // the result gets used, without going through the whole
+    // extraction pipeline.
+    if (url.pathname === "/debug/find-character" && request.method === "GET") {
+      const name = url.searchParams.get("name") ?? "";
+      const found = await findExistingCharacterByName(env, name);
+      return Response.json({ name, found });
+    }
+
+    if (url.pathname === "/debug/find-customer" && request.method === "GET") {
+      const name = url.searchParams.get("name") ?? "";
+      const found = await findExistingCustomerByName(env, name);
+      return Response.json({ name, found });
+    }
+
     // One-time schema migration for the new real, queryable date —
     // scheduled_date_raw has always been a free phrase; this is the
     // actual resolved calendar date. Same idempotent ALTER pattern as
