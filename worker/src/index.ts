@@ -2289,6 +2289,16 @@ async function processTranscript(
       ? ` ${extraction.deposit_percent}% deposit (R${depositAmount}) already paid —`
       : "";
     message = `Found quotation #${quotationId} for ${customer!.name} (R${total} total).${depositNote} remaining balance R${remainingBalance}. Needs your confirmation (action #${pendingActionId}) to convert to invoice.`;
+  } else if (extraction?.intent === "expense" && pendingActionId) {
+    // Real crash found live 2026-07-11: the generic pendingActionId
+    // branch below assumes `customer` is always set (`customer!.name`,
+    // a non-null assertion that held at compile time but broke at
+    // runtime) — expense is the first guard()'d intent keyed to
+    // `character` (a supplier) instead of `customer`, and fell through
+    // into that assertion, throwing on every real expense message.
+    // Given its own branch here, same as task_complete and
+    // convert_quote before it.
+    message = `Expense noted${character ? ` for ${character.name}` : ""}${extraction.amount ? ` of R${extraction.amount}` : ""} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
   } else if (pendingActionId) {
     // price_scope's actual destination document depends on
     // scope_document_type, decided the same tense-based way as the
