@@ -3,7 +3,7 @@ import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeI
 import { findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { completeTask, createTask, getCompletedToday, getEmberCounts, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyStructuredFact, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
-import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenQuotation, generateDocumentPdf, getCustomerFinancialSummary, getExpenseSummary, getOutstandingInvoices, getQuotationsSummary, holdForConfirmation, recordExpense, recordInvoice, recordPayment, recordQuotation } from "./finance";
+import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenQuotation, generateDocumentPdf, getCustomerFinancialSummary, getExpenseSummary, getFinancialSnapshot, getOutstandingInvoices, getQuotationsSummary, holdForConfirmation, recordExpense, recordInvoice, recordPayment, recordQuotation } from "./finance";
 
 // Second layer of defense against storing questions as facts — never
 // trust intent classification alone for this, since it's been
@@ -495,7 +495,14 @@ async function processTranscript(
       const outstandingFacts = topic === "quotations" || topic === "expenses" ? [] : await getOutstandingInvoices(env);
       const quotationFacts = topic === "invoices" || topic === "expenses" ? [] : await getQuotationsSummary(env);
       const expenseFacts = topic === "quotations" || topic === "invoices" ? [] : await getExpenseSummary(env);
-      message = await answerFromMemory(env, transcript, [...outstandingFacts, ...quotationFacts, ...expenseFacts]);
+      // Real feature 2026-07-12: the combined snapshot (reading both
+      // revenue and expenses) only for genuinely general questions —
+      // a topic-specific follow-up about just quotations, just
+      // invoices, or just expenses shouldn't have the combined
+      // position dragged in alongside it, same discipline as every
+      // other topic exclusion here.
+      const snapshotFacts = topic === "general" ? await getFinancialSnapshot(env) : [];
+      message = await answerFromMemory(env, transcript, [...outstandingFacts, ...quotationFacts, ...expenseFacts, ...snapshotFacts]);
     } else if (character) {
       const characterFacts = await getCharacterNotes(env, character.id);
       const facts = [`${character.name} is a known contact.`, ...characterFacts];
