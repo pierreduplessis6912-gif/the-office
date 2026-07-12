@@ -1021,6 +1021,45 @@ Codemagic — still only proven on the web preview.**
     worth being honest that "building toward a P&L" and "the revenue
     chain already works" are not the same claim, and shouldn't be
     quietly conflated.
+- **Guide — a dissatisfaction-triggered capability-discovery layer
+  (2026-07-12).** Real, sharp diagnosis, and not hypothetical — it
+  named a failure that had already happened live in this exact
+  session: "who owes me money?" answered correctly, but the aged
+  breakdown only surfaced once the exact phrasing was given
+  explicitly. Proposed mechanism: detect dissatisfaction ("that's not
+  what I meant," a follow-up implying the answer was insufficient),
+  then surface nearby capabilities by name, never by teaching magic
+  phrasing. Pinned, not built — the dissatisfaction-detection trigger
+  itself is a real, unsolved classification problem (distinguishing
+  "that's not what I meant" from an unrelated new question), and nothing
+  today demonstrates it's needed beyond the one real, narrow case
+  already handled below with the smaller, static registry instead.
+- **Behavioral Preferences — deterministic, worker-maintained
+  workflow learning (2026-07-12).** Real, well-reasoned design (observe
+  before suggesting, real occurrence thresholds before acting, "learns
+  behavior, not identity"). Pinned, not built — checked honestly
+  against real evidence: zero repeated-behavior occurrences exist
+  anywhere in this system yet, not even the single occurrence the
+  proposal's own thresholds would call "coincidence." One real,
+  load-bearing gap in the design as proposed, named rather than
+  glossed over: matching today's phrasing against a stored past
+  trigger — real speech never repeats identically — is itself an
+  unsolved matching problem, not something "no AI reasoning required"
+  actually resolves on its own. Worth building once real, repeated
+  usage patterns actually exist to observe — not before.
+- **The small, real, static piece actually built now: a capability
+  registry (2026-07-12).** Not Guide, not Behavioral Preferences — a
+  plain list of what each department can genuinely produce today
+  (Finance: outstanding invoices, aged debtors, cash position,
+  financial snapshot, statement of account), used to append a single,
+  honest, real mention of a closely related capability exactly where
+  the actual live gap occurred — an outstanding-balance answer now
+  briefly notes the aged breakdown is also available, since that's a
+  genuine, already-built capability sitting right next to the one just
+  answered. No dissatisfaction-detection, no learning, no confidence
+  scores — the static piece a fuller Guide would eventually need,
+  built small first, same discipline as everything else in this
+  document.
 
 ## UX vision — the Ether, and what it does / doesn't change (2026-07-10)
 
