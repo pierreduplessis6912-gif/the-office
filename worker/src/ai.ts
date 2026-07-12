@@ -143,8 +143,13 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             'bought — materials, fuel, tools, supplies. "bought glue for R850 at BUCO" or "paid FinFloor ' +
             'R18450 for vinyl" is expense. This is the OPPOSITE direction from "payment" — payment is ' +
             'money coming IN from a customer; expense is money going OUT to a supplier. Use character_name ' +
-            '(with character_relationship "supplier") for who was paid, never customer_name — a supplier ' +
-            "is never billed the way a customer is, so expense never has a customer_name. " +
+            '(with character_relationship "supplier") for who was PAID. If the message ALSO names which ' +
+            "job or customer this cost was FOR (job-costing) — \"bought glue for R850 at BUCO for Jenny's " +
+            'job" or "that vinyl was for the Thanda job" — set customer_name to that job/customer. This is ' +
+            "a genuinely different meaning from every other intent's use of customer_name (who to bill) — " +
+            "an expense never bills anyone, so there's no ambiguity: customer_name on an expense always " +
+            "means \"which job this cost belongs to,\" never \"who owes money.\" Leave customer_name null " +
+            "if no job/customer context was stated at all — never guess one. " +
             'intent is "task_complete" if the message reports a personal errand or reminder as DONE — ' +
             '"got the dog food", "picked up the kids", "phoned my mother" — past tense, something ' +
             'finished, not a new request. This includes bare, pronoun-only completions with no concrete ' +
@@ -197,6 +202,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             '"we quoted Jenny R39000 for the carpets" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"quotation","amount":39000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
             '"Jenny paid R850" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"payment","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
             '"bought glue for R850 at BUCO" -> {"customer_name":null,"character_name":"BUCO","character_relationship":"supplier","intent":"expense","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
+            '"bought glue for R850 at BUCO for Jenny\'s job" -> {"customer_name":"Jenny","character_name":"BUCO","character_relationship":"supplier","intent":"expense","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
             '"picked up my wife from work, she\'s annoyed about the kitchen guy not showing" -> {"customer_name":null,"character_name":"wife","character_relationship":"wife","intent":"note","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
             '"how is my wife doing?" -> {"customer_name":null,"character_name":"wife","character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"character","deposit_percent":null,"scope_document_type":null}\n' +
             '"heading to jenny\'s job now, remind me to get dog food after" -> {"customer_name":"jenny","character_name":null,"character_relationship":null,"intent":"reminder","amount":null,"fact_key":null,"fact_value":null,"personal_note":"remind me to get dog food after","query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
