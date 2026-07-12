@@ -3,7 +3,7 @@ import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeI
 import { findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { completeTask, createTask, getCompletedToday, getEmberCounts, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyStructuredFact, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
-import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateStatementPdf, getAgedDebtorsSummary, getCustomerFinancialSummary, getExpenseSummary, getFinancialSnapshot, getOutstandingInvoices, getQuotationsSummary, holdForConfirmation, recordExpense, recordInvoice, recordPayment, recordQuotation } from "./finance";
+import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateStatementPdf, getAgedDebtorsSummary, getCustomerFinancialSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOutstandingInvoices, getQuotationsSummary, holdForConfirmation, recordExpense, recordInvoice, recordPayment, recordQuotation } from "./finance";
 
 // Second layer of defense against storing questions as facts — never
 // trust intent classification alone for this, since it's been
@@ -177,7 +177,14 @@ async function processTranscript(
     const held = await holdForConfirmation(
       env,
       "expense",
-      { characterId: character?.id ?? null, characterName: character?.name, amount: extraction.amount, description: transcript },
+      {
+        characterId: character?.id ?? null,
+        characterName: character?.name,
+        customerId: customer?.id ?? null,
+        customerName: customer?.name,
+        amount: extraction.amount,
+        description: transcript,
+      },
       transcript
     );
     pendingActionId = held.id;
@@ -540,9 +547,14 @@ async function processTranscript(
     } else if (customer) {
       const memoryFacts = await getCustomerNotes(env, customer.id);
       const financialSummary = await getCustomerFinancialSummary(env, customer.id);
+      // Real feature 2026-07-12 — the real payoff of job-cost linking:
+      // if any expenses were ever explicitly linked to this customer's
+      // job, this surfaces real profitability alongside the balance.
+      const profitability = await getJobProfitability(env, customer.id);
       const facts = [
         `${customer.name} is a known customer.`,
         ...(financialSummary ? [`${customer.name}: ${financialSummary}`] : []),
+        ...(profitability ? [`Job profitability for ${customer.name}: ${profitability}`] : []),
         ...memoryFacts,
       ];
       message = await answerFromMemory(env, transcript, facts);
@@ -771,10 +783,25 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ status: "ok" });
     }
 
+    // Real feature 2026-07-12 — the real prerequisite for job
+    // profitability (getJobProfitability). Idempotent, same pattern
+    // as every other ALTER here.
+    if (url.pathname === "/debug/init-expenses-jobcost" && request.method === "POST") {
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE expenses ADD COLUMN customer_id INTEGER").run();
+      } catch {
+        // Already exists — fine, that's what makes this idempotent.
+      }
+      return Response.json({ status: "ok" });
+    }
+
     if (url.pathname === "/debug/expenses" && request.method === "GET") {
       const { results } = await env.OFFICE_DB.prepare(
-        `SELECT e.id, e.amount, e.description, e.category, e.character_id, c.name as supplier_name, e.created_at
-         FROM expenses e LEFT JOIN characters c ON c.id = e.character_id
+        `SELECT e.id, e.amount, e.description, e.category, e.character_id, c.name as supplier_name,
+                e.customer_id, cu.name as job_name, e.created_at
+         FROM expenses e
+         LEFT JOIN characters c ON c.id = e.character_id
+         LEFT JOIN customers cu ON cu.id = e.customer_id
          ORDER BY e.created_at DESC LIMIT 30`
       ).all();
       return Response.json({ expenses: results });
@@ -1073,6 +1100,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           text: "bought glue for R850 at BUCO",
           check: (e) => e?.intent === "expense" && e?.character_name === "BUCO" && e?.customer_name === null,
         },
+        {
+          name: "expense job-cost linking: customer_name means which job, never who to bill",
+          text: "bought glue for R850 at BUCO for Jenny's job",
+          check: (e) => e?.intent === "expense" && e?.character_name === "BUCO" && e?.customer_name === "Jenny",
+        },
       ];
 
       // Sequential, not Promise.all — real bug found live 2026-07-11:
@@ -1330,10 +1362,19 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           const payload = JSON.parse(action.payload) as {
             characterId: number | null;
             characterName?: string;
+            customerId: number | null;
+            customerName?: string;
             amount: number | null;
             description: string;
           };
-          const expense = await recordExpense(env, payload.characterId, payload.amount, payload.description, action.source_transcript);
+          const expense = await recordExpense(
+            env,
+            payload.characterId,
+            payload.amount,
+            payload.description,
+            action.source_transcript,
+            payload.customerId
+          );
           await env.OFFICE_DB.prepare(
             "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
           )
