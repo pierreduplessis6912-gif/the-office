@@ -969,16 +969,28 @@ Codemagic — still only proven on the web preview.**
     to make that claim). Wired into genuinely general business
     questions only, verified live with real numbers spanning both
     sides.
-  - **Named, explicit next step: aged debtors analysis.** Bucketing
-    real outstanding balances by how old the underlying invoice is
-    (current / 30 / 60 / 90+ days) — directly extends the same real
-    invoice-date data the statement of account already reads, just
-    aggregated across all customers by age instead of listed
-    chronologically for one. Not yet built.
-  - Not a reason to hesitate on finance-adjacent work — but worth
-    being honest that "building toward a P&L" and "the revenue chain
-    already works" are not the same claim, and shouldn't be quietly
-    conflated.
+  - **Aged debtors analysis — real, built, exportable (2026-07-12).**
+    `getAgedDebtorsReport` buckets real outstanding balances by real
+    invoice age (current / 30-60 / 60-90 / 90+ days), verified live
+    with real numbers. Genuine, disclosed limitation, not silently
+    assumed away: payments in this schema link only to a customer,
+    never to a specific invoice, so which invoice a payment actually
+    settled can't be known with certainty — FIFO allocation (oldest
+    invoice paid first) is applied deterministically in code, and
+    stated directly on the exported PDF itself, not buried in a
+    footnote. `generateAgedDebtorsPdf` — real, exportable, same visual
+    family as invoices/quotations/statements. Confirmed working
+    correctly both ways: a narrow question ("who owes me money") gets
+    a narrow answer without the aging detail dragged in; a specific
+    request for the breakdown gets the full aging picture — the
+    relevance-filtering fix from earlier in this document working as
+    intended, verified rather than assumed.
+  - Still genuinely missing toward an actual P&L: expense categories,
+    job-cost linking, a formal profit-and-loss statement combining
+    categorized revenue and expense. Not a reason to hesitate on
+    finance-adjacent work — but worth being honest that "building
+    toward a P&L" and "the revenue chain already works" are not the
+    same claim, and shouldn't be quietly conflated.
 
 ## UX vision — the Ether, and what it does / doesn't change (2026-07-10)
 
