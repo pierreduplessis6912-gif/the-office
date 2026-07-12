@@ -93,17 +93,24 @@ export function nowInBusinessTimezone(): Date {
   return new Date(Date.now() + 2 * 60 * 60 * 1000);
 }
 
+// Real feature 2026-07-12 — the smallest real first domino toward
+// team support: linking a job to who's actually assigned to do it,
+// not just who it's for. installerId is an already-reconciled
+// character (a real, non-billed person), resolved by the caller the
+// same way customerId already is — this function just writes the
+// link, no reconciliation logic duplicated here.
 export async function recordWorkObservation(
   env: Env,
   customerId: number,
   observation: WorkObservationExtraction,
-  sourceTranscript: string
+  sourceTranscript: string,
+  installerId: number | null = null
 ): Promise<{ jobScopeId: number }> {
   const scheduledDate = resolveScheduledDate(observation.scheduled_date_raw, nowInBusinessTimezone());
   const inserted = await env.OFFICE_DB.prepare(
-    "INSERT INTO job_scopes (customer_id, description, scheduled_date_raw, scheduled_date, source_transcript) VALUES (?, ?, ?, ?, ?) RETURNING id"
+    "INSERT INTO job_scopes (customer_id, description, scheduled_date_raw, scheduled_date, installer_id, source_transcript) VALUES (?, ?, ?, ?, ?, ?) RETURNING id"
   )
-    .bind(customerId, observation.job_description, observation.scheduled_date_raw, scheduledDate, sourceTranscript)
+    .bind(customerId, observation.job_description, observation.scheduled_date_raw, scheduledDate, installerId, sourceTranscript)
     .first<{ id: number }>();
 
   const jobScopeId = inserted!.id;
@@ -320,6 +327,33 @@ export async function getTodaysSchedule(env: Env): Promise<string[]> {
   const taskFacts = openTasks.map((t) => `Still open: ${t.description}.`);
 
   return [...jobFacts, ...taskFacts];
+}
+
+// Real feature 2026-07-12 — the first real answer to "how's Sipho
+// doing," honestly scoped to what's genuinely trackable today. Real,
+// deliberately NOT the fuller vision (completion status, average
+// gross margin per installer) — job_scopes has no completion tracking
+// at all yet, and there's no direct link from a job to the quotation/
+// invoice that priced it, so per-installer margin can't be computed
+// without guessing. This reports only jobs assigned and their real
+// scheduled dates — the honest first domino, not the destination.
+export async function getInstallerActivity(env: Env, characterId: number): Promise<string[]> {
+  const { results } = await env.OFFICE_DB.prepare(
+    `SELECT js.description, js.scheduled_date, c.name as customer_name
+     FROM job_scopes js JOIN customers c ON c.id = js.customer_id
+     WHERE js.installer_id = ?
+     ORDER BY js.scheduled_date ASC`
+  )
+    .bind(characterId)
+    .all<{ description: string; scheduled_date: string | null; customer_name: string }>();
+
+  if (results.length === 0) return ["No jobs assigned to this person yet."];
+
+  const summary = `${results.length} job${results.length > 1 ? "s" : ""} assigned.`;
+  const perJob = results.map(
+    (r) => `${r.description} for ${r.customer_name}${r.scheduled_date ? ` (scheduled ${r.scheduled_date})` : " (no date scheduled yet)"}.`
+  );
+  return [summary, ...perJob];
 }
 
 // Real feature 2026-07-11 — the ember bar, scoped deliberately to only
