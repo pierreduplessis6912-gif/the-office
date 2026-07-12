@@ -531,7 +531,7 @@ async function processTranscript(
       // a redundant "you can also see..." tacked onto its own answer.
       const alreadyAskedForAging = /\b(aged|aging|overdue|breakdown)\b/i.test(transcript);
       if (outstandingFacts.length > 0 && !alreadyAskedForAging && topic !== "quotations" && topic !== "expenses") {
-        message += " A more detailed aged breakdown is also available if useful.";
+        message += "\n\nA more detailed aged breakdown is also available if useful.";
       }
     } else if (character) {
       const characterFacts = await getCharacterNotes(env, character.id);
