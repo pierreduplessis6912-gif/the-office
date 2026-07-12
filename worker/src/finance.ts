@@ -323,6 +323,59 @@ export async function getCustomerFinancialSummary(env: Env, customerId: number):
   return `Fully paid up (invoiced R${row.invoiced}, paid R${row.paid}).`;
 }
 
+export interface StatementLine {
+  date: string;
+  type: "invoice" | "payment";
+  description: string;
+  amount: number;
+  runningBalance: number;
+}
+
+// Real feature 2026-07-12 — the foundational piece the rest of the
+// financial-reporting roadmap (aged analysis, exports) builds on: a
+// real, chronological transaction history for one customer, with a
+// running balance computed deterministically in code, never asked of
+// the model. Every invoice adds to the balance; every payment
+// subtracts — the same arithmetic already governing every other real
+// number in this system.
+export async function getCustomerStatementData(env: Env, customerId: number): Promise<StatementLine[]> {
+  const { results: invoiceRows } = await env.OFFICE_DB.prepare(
+    "SELECT id, description, amount, created_at FROM invoices WHERE customer_id = ? ORDER BY created_at"
+  )
+    .bind(customerId)
+    .all<{ id: number; description: string; amount: number; created_at: string }>();
+
+  const { results: paymentRows } = await env.OFFICE_DB.prepare(
+    "SELECT id, amount, created_at FROM payments WHERE customer_id = ? ORDER BY created_at"
+  )
+    .bind(customerId)
+    .all<{ id: number; amount: number | null; created_at: string }>();
+
+  type RawEntry = { date: string; type: "invoice" | "payment"; description: string; amount: number };
+  const entries: RawEntry[] = [
+    ...invoiceRows.map((r) => ({
+      date: r.created_at,
+      type: "invoice" as const,
+      description: `Invoice #${r.id} — ${r.description}`,
+      amount: r.amount,
+    })),
+    ...paymentRows.map((r) => ({
+      date: r.created_at,
+      type: "payment" as const,
+      description: `Payment received`,
+      amount: r.amount ?? 0,
+    })),
+  ];
+
+  entries.sort((a, b) => a.date.localeCompare(b.date));
+
+  let balance = 0;
+  return entries.map((e) => {
+    balance += e.type === "invoice" ? e.amount : -e.amount;
+    return { ...e, runningBalance: balance };
+  });
+}
+
 // guard(): every money-touching intent lands here, not in the real
 // ledger, until it's explicitly confirmed. Also reused for
 // schema-candidate suggestions below — same mechanism, same
@@ -552,6 +605,122 @@ export async function generateDocumentPdf(env: Env, id: number, kind: "invoice" 
     y -= 16;
     page.drawText(business.banking_details, { x: left, y, size: 9, font, maxWidth: 300 });
   }
+
+  return await pdfDoc.save();
+}
+
+// Real feature 2026-07-12 — the first exportable report beyond a
+// single quotation/invoice: a real statement of account, every
+// transaction for one customer, chronological, with the running
+// balance already computed by getCustomerStatementData. Mirrors
+// generateDocumentPdf's exact visual style deliberately, so Peter's
+// documents look like they came from the same business — genuine
+// duplication of the header-drawing code accepted for now rather than
+// a premature shared-helper abstraction; worth revisiting only if a
+// third document type reveals the same repeated pattern.
+export async function generateStatementPdf(env: Env, customerId: number): Promise<Uint8Array> {
+  const business = await env.OFFICE_DB.prepare("SELECT * FROM business_profile WHERE id = 1").first<{
+    name: string | null;
+    trading_as: string | null;
+    vat_no: string | null;
+    address: string | null;
+    phone: string | null;
+    email: string | null;
+    banking_details: string | null;
+  }>();
+
+  const customer = await env.OFFICE_DB.prepare("SELECT name, address FROM customers WHERE id = ?")
+    .bind(customerId)
+    .first<{ name: string; address: string | null }>();
+
+  if (!customer) {
+    throw new Error(`no such customer: ${customerId}`);
+  }
+
+  const lines = await getCustomerStatementData(env, customerId);
+
+  const pdfDoc = await PDFDocument.create();
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const grey = rgb(0.45, 0.45, 0.45);
+  const black = rgb(0, 0, 0);
+
+  const pageWidth = 595.28;
+  const pageHeight = 841.89;
+  const left = 50;
+  const right = 400;
+
+  let page = pdfDoc.addPage([pageWidth, pageHeight]);
+  let y = 792;
+
+  const drawHeader = () => {
+    page.drawText(business?.name ?? "[Business name not set]", { x: left, y, size: 14, font: bold });
+    y -= 18;
+    if (business?.trading_as) {
+      page.drawText(`T/A ${business.trading_as}`, { x: left, y, size: 10, font });
+      y -= 14;
+    }
+    if (business?.vat_no) {
+      page.drawText(`VAT No: ${business.vat_no}`, { x: left, y, size: 10, font });
+      y -= 14;
+    }
+    if (business?.address) {
+      page.drawText(business.address, { x: left, y, size: 10, font });
+      y -= 14;
+    }
+    const leftEndY = y;
+
+    let yRight = 792;
+    page.drawText("STATEMENT FOR", { x: right, y: yRight, size: 9, font: bold, color: grey });
+    yRight -= 14;
+    page.drawText(customer.name, { x: right, y: yRight, size: 12, font: bold });
+    yRight -= 14;
+    if (customer.address) {
+      page.drawText(customer.address, { x: right, y: yRight, size: 10, font });
+      yRight -= 14;
+    }
+
+    y = Math.min(leftEndY, yRight) - 30;
+    page.drawText("STATEMENT OF ACCOUNT", { x: left, y, size: 16, font: bold });
+    y -= 30;
+
+    page.drawText("DATE", { x: left, y, size: 9, font: bold, color: grey });
+    page.drawText("DESCRIPTION", { x: 130, y, size: 9, font: bold, color: grey });
+    page.drawText("AMOUNT", { x: 420, y, size: 9, font: bold, color: grey });
+    page.drawText("BALANCE", { x: 490, y, size: 9, font: bold, color: grey });
+    y -= 8;
+    page.drawLine({ start: { x: left, y }, end: { x: 545, y }, thickness: 1, color: grey });
+    y -= 18;
+  };
+
+  drawHeader();
+
+  if (lines.length === 0) {
+    page.drawText("No transactions on file for this customer.", { x: left, y, size: 10, font, color: grey });
+  }
+
+  for (const line of lines) {
+    // Basic pagination — a real customer with many transactions
+    // shouldn't run off the bottom of one page.
+    if (y < 80) {
+      page = pdfDoc.addPage([pageWidth, pageHeight]);
+      y = 792;
+      drawHeader();
+    }
+    const dateOnly = line.date.slice(0, 10);
+    const signedAmount = line.type === "invoice" ? line.amount : -line.amount;
+    page.drawText(dateOnly, { x: left, y, size: 9, font });
+    page.drawText(line.description, { x: 130, y, size: 9, font, maxWidth: 280 });
+    page.drawText(`R${signedAmount.toLocaleString()}`, { x: 420, y, size: 9, font });
+    page.drawText(`R${line.runningBalance.toLocaleString()}`, { x: 490, y, size: 9, font, color: black });
+    y -= 20;
+  }
+
+  y -= 10;
+  page.drawLine({ start: { x: 420, y: y + 12 }, end: { x: 545, y: y + 12 }, thickness: 0.5, color: grey });
+  const closingBalance = lines.length > 0 ? lines[lines.length - 1].runningBalance : 0;
+  page.drawText("BALANCE DUE", { x: 420, y, size: 11, font: bold });
+  page.drawText(`R${closingBalance.toLocaleString()}`, { x: 490, y, size: 11, font: bold, color: black });
 
   return await pdfDoc.save();
 }
