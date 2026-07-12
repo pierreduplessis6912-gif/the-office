@@ -1621,6 +1621,28 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ outstanding: results });
     }
 
+    // Real feature 2026-07-12 — the actual register behind the new
+    // expenses ember. Today's real spend, not folded into Finance —
+    // opposite direction of money, same as getEmberCounts keeps them
+    // separate. Uses the same SAST-computed "today" as every other
+    // today query here, not SQLite's own date('now') (which is raw
+    // UTC) — that exact inconsistency was already found and fixed
+    // once for getCompletedToday; not repeating it here.
+    if (url.pathname === "/embers/expenses" && request.method === "GET") {
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const now = nowInBusinessTimezone();
+      const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      const { results } = await env.OFFICE_DB.prepare(
+        `SELECT e.id, e.amount, e.description, c.name as supplier_name, e.created_at
+         FROM expenses e LEFT JOIN characters c ON c.id = e.character_id
+         WHERE date(e.created_at) = ?
+         ORDER BY e.created_at DESC`
+      )
+        .bind(today)
+        .all();
+      return Response.json({ todaysExpenses: results });
+    }
+
     // "Type" mode. Same pipeline, no transcription step needed since
     // the text is already text.
     if (url.pathname === "/messages/text" && request.method === "POST") {
