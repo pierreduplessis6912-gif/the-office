@@ -34,7 +34,7 @@ export interface ProcessResult {
   factPendingActionId: number | null;
   message: string;
   rewrittenQuery: string;
-  embers: { tasks: number; scheduler: number; finance: number };
+  embers: { tasks: number; scheduler: number; finance: number; expenses: number };
 }
 
 export interface LineItemExtraction {
