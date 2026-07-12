@@ -3,7 +3,7 @@ import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeI
 import { findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { completeTask, createTask, getCompletedToday, getEmberCounts, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyStructuredFact, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
-import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenQuotation, generateDocumentPdf, generateStatementPdf, getCustomerFinancialSummary, getExpenseSummary, getFinancialSnapshot, getOutstandingInvoices, getQuotationsSummary, holdForConfirmation, recordExpense, recordInvoice, recordPayment, recordQuotation } from "./finance";
+import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateStatementPdf, getAgedDebtorsSummary, getCustomerFinancialSummary, getExpenseSummary, getFinancialSnapshot, getOutstandingInvoices, getQuotationsSummary, holdForConfirmation, recordExpense, recordInvoice, recordPayment, recordQuotation } from "./finance";
 
 // Second layer of defense against storing questions as facts — never
 // trust intent classification alone for this, since it's been
@@ -502,7 +502,12 @@ async function processTranscript(
       // position dragged in alongside it, same discipline as every
       // other topic exclusion here.
       const snapshotFacts = topic === "general" ? await getFinancialSnapshot(env) : [];
-      message = await answerFromMemory(env, transcript, [...outstandingFacts, ...quotationFacts, ...expenseFacts, ...snapshotFacts]);
+      // Aged debtors is fundamentally about receivables — relevant
+      // whenever invoices specifically or the business overall is
+      // being asked about, excluded only when the topic is narrowly
+      // quotations or expenses.
+      const agedFacts = topic === "quotations" || topic === "expenses" ? [] : await getAgedDebtorsSummary(env);
+      message = await answerFromMemory(env, transcript, [...outstandingFacts, ...quotationFacts, ...expenseFacts, ...snapshotFacts, ...agedFacts]);
     } else if (character) {
       const characterFacts = await getCharacterNotes(env, character.id);
       const facts = [`${character.name} is a known contact.`, ...characterFacts];
@@ -910,6 +915,23 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           headers: {
             "Content-Type": "application/pdf",
             "Content-Disposition": `inline; filename="statement-${customerId}.pdf"`,
+          },
+        });
+      } catch (err) {
+        return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
+      }
+    }
+
+    // Real feature 2026-07-12 — the aged debtors report, exportable.
+    // Real FIFO allocation, disclosed directly on the page since
+    // payments aren't linked to a specific invoice in this schema.
+    if (url.pathname === "/reports/aged-debtors/pdf" && request.method === "GET") {
+      try {
+        const pdfBytes = await generateAgedDebtorsPdf(env);
+        return new Response(pdfBytes, {
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `inline; filename="aged-debtors.pdf"`,
           },
         });
       } catch (err) {
