@@ -315,7 +315,81 @@ export async function getFinancialSnapshot(env: Env): Promise<string[]> {
     `Total invoiced to date: R${totalInvoiced}.`,
     `Total actually received: R${totalPaid}.`,
     `Total spent on expenses: R${totalExpenses}.`,
-    `Rough cash position (received minus spent): R${roughPosition}. This is not a full profit and loss — no expense categories or job-cost linking exist yet, just real totals on both sides.`,
+    // Real fix 2026-07-12: this caveat had gone stale — expense
+    // categories and job-cost linking both exist now. This is still
+    // deliberately a cash-basis snapshot (received minus spent), not
+    // the formal, accrual-based P&L below — different questions,
+    // both real.
+    `Rough cash position (received minus spent): R${roughPosition}. This is a cash-basis snapshot, not the formal profit and loss — see getProfitAndLoss for that.`,
+  ];
+}
+
+export interface ProfitAndLossReport {
+  revenue: number;
+  costOfSales: number;
+  grossProfit: number;
+  operatingExpenses: number;
+  netProfit: number;
+  categoryBreakdown: Record<string, number>;
+}
+
+// Real feature 2026-07-12 — the final piece of the accounting-
+// capability roadmap: a formal, business-wide profit-and-loss
+// statement, built entirely from real data already sitting in real
+// tables — nothing here is estimated or narrated by the model.
+// Two real, explicit decisions worth naming rather than burying:
+// (1) Revenue is ACCRUAL-based (real invoiced amounts), not cash —
+// a P&L conventionally recognizes revenue when earned/billed, not
+// when cash lands. That's genuinely different from
+// getFinancialSnapshot's cash-basis "rough position" above — two
+// real, different questions, not a contradiction between them.
+// (2) Cost of Sales vs Operating Expenses is a real categorization
+// convention, stated explicitly, not an infallible standard:
+// materials and subcontractor costs are treated as Cost of Sales
+// (directly tied to delivering the work); fuel, tools, other, and
+// anything uncategorized are treated as Operating Expenses (running
+// the business generally). Reasonable, not definitive — easily
+// revisited later if real use shows a different split fits better.
+export async function getProfitAndLoss(env: Env): Promise<ProfitAndLossReport> {
+  const revenueRow = await env.OFFICE_DB.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM invoices").first<{
+    total: number;
+  }>();
+  const revenue = revenueRow?.total ?? 0;
+
+  const { results: categoryRows } = await env.OFFICE_DB.prepare(
+    "SELECT COALESCE(category, 'other') as category, COALESCE(SUM(amount), 0) as total FROM expenses GROUP BY COALESCE(category, 'other')"
+  ).all<{ category: string; total: number }>();
+
+  const categoryBreakdown: Record<string, number> = {};
+  let costOfSales = 0;
+  let operatingExpenses = 0;
+  for (const row of categoryRows) {
+    categoryBreakdown[row.category] = row.total;
+    if (row.category === "materials" || row.category === "subcontractor") {
+      costOfSales += row.total;
+    } else {
+      operatingExpenses += row.total;
+    }
+  }
+
+  const grossProfit = revenue - costOfSales;
+  const netProfit = grossProfit - operatingExpenses;
+
+  return { revenue, costOfSales, grossProfit, operatingExpenses, netProfit, categoryBreakdown };
+}
+
+export async function getProfitAndLossSummary(env: Env): Promise<string[]> {
+  const report = await getProfitAndLoss(env);
+  const categoryLines = Object.entries(report.categoryBreakdown).map(([cat, amt]) => `${cat}: R${amt}`);
+
+  return [
+    `Revenue: R${report.revenue}.`,
+    `Cost of Sales (materials, subcontractor): R${report.costOfSales}.`,
+    `Gross Profit: R${report.grossProfit}.`,
+    `Operating Expenses (fuel, tools, other): R${report.operatingExpenses}.`,
+    `Net Profit: R${report.netProfit}.`,
+    `Expense breakdown by category: ${categoryLines.join(", ")}.`,
+    "Revenue here is accrual-based (real invoiced amounts), not cash received — a different measure from the cash-position snapshot.",
   ];
 }
 
@@ -975,6 +1049,74 @@ export async function generateAgedDebtorsPdf(env: Env): Promise<Uint8Array> {
   page.drawText(`R${totals.days60.toLocaleString()}`, { x: 360, y, size: 10, font: bold });
   page.drawText(`R${totals.days90Plus.toLocaleString()}`, { x: 420, y, size: 10, font: bold });
   page.drawText(`R${totals.total.toLocaleString()}`, { x: 480, y, size: 10, font: bold, color: black });
+
+  return await pdfDoc.save();
+}
+
+// Real feature 2026-07-12 — the final report of the accounting-
+// capability roadmap. Same visual family as the other three. Real
+// conventions stated directly on the page, not buried in a footnote —
+// accrual-basis revenue, and the materials/subcontractor vs
+// fuel/tools/other categorization split.
+export async function generateProfitAndLossPdf(env: Env): Promise<Uint8Array> {
+  const business = await env.OFFICE_DB.prepare("SELECT name, trading_as FROM business_profile WHERE id = 1").first<{
+    name: string | null;
+    trading_as: string | null;
+  }>();
+
+  const report = await getProfitAndLoss(env);
+
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([595.28, 841.89]);
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const grey = rgb(0.45, 0.45, 0.45);
+  const black = rgb(0, 0, 0);
+
+  const left = 50;
+  let y = 792;
+
+  page.drawText(business?.name ?? "[Business name not set]", { x: left, y, size: 14, font: bold });
+  y -= 18;
+  if (business?.trading_as) {
+    page.drawText(`T/A ${business.trading_as}`, { x: left, y, size: 10, font });
+    y -= 14;
+  }
+  y -= 16;
+  page.drawText("PROFIT AND LOSS STATEMENT", { x: left, y, size: 16, font: bold });
+  y -= 16;
+  page.drawText(
+    "Revenue is accrual-based (real invoiced amounts), not cash received. Cost of Sales includes materials and subcontractor costs; Operating Expenses includes fuel, tools, and other.",
+    { x: left, y, size: 8, font, color: grey, maxWidth: 495 }
+  );
+  y -= 30;
+
+  const row = (label: string, amount: number, boldRow = false) => {
+    page.drawText(label, { x: left, y, size: 11, font: boldRow ? bold : font });
+    page.drawText(`R${amount.toLocaleString()}`, { x: 480, y, size: 11, font: boldRow ? bold : font, color: black });
+    y -= 20;
+  };
+
+  row("Revenue", report.revenue);
+  y -= 6;
+  row("Cost of Sales", report.costOfSales);
+  page.drawLine({ start: { x: left, y: y + 12 }, end: { x: 545, y: y + 12 }, thickness: 0.5, color: grey });
+  y -= 6;
+  row("Gross Profit", report.grossProfit, true);
+  y -= 14;
+  row("Operating Expenses", report.operatingExpenses);
+  page.drawLine({ start: { x: left, y: y + 12 }, end: { x: 545, y: y + 12 }, thickness: 0.5, color: grey });
+  y -= 6;
+  row("NET PROFIT", report.netProfit, true);
+  y -= 30;
+
+  page.drawText("Expense breakdown by category", { x: left, y, size: 11, font: bold });
+  y -= 20;
+  for (const [category, amount] of Object.entries(report.categoryBreakdown)) {
+    page.drawText(category, { x: left, y, size: 10, font });
+    page.drawText(`R${amount.toLocaleString()}`, { x: 480, y, size: 10, font });
+    y -= 18;
+  }
 
   return await pdfDoc.save();
 }
