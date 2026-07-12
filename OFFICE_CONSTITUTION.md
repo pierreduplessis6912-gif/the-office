@@ -1,3 +1,31 @@
+> "So shall my word be that goes out from my mouth; it shall not
+> return to me empty, but it shall accomplish that which I purpose,
+> and shall succeed in the thing for which I sent it." — Isaiah 55:11
+
+This is the conviction every principle in this document exists to
+serve, not one principle among them. Every word Peter speaks into the
+Office is sent out for a purpose — and it must not return empty. It
+must be captured, never lost. It must be understood, never guessed at
+carelessly. It must accomplish the thing it was sent to do — recorded,
+resolved, or honestly answered — never silently dropped, never
+half-done, never left to wonder whether it landed.
+
+Concretely, in the language the rest of this document uses: the
+receptacle never loses what's said (nothing captured is ever silently
+discarded); `guard()` never lets a word about money or identity slip
+through unconfirmed; the execution ladder asks rather than guesses
+when a word is genuinely ambiguous, rather than letting it accomplish
+the *wrong* purpose; and Principle 22 — capabilities emerging from
+captured reality — is this same conviction applied to everything Peter
+describes about his business, not just what he asks for directly.
+Every one of those was arrived at independently, under real pressure,
+before this verse was written down here. That's not incidental — it's
+the same reason the rest of this document keeps discovering principles
+rather than inventing them: a word rightly spoken should not come back
+void.
+
+---
+
 # The Office Constitution
 
 This is not a build log. `STATUS.md` is the build log — it changes
