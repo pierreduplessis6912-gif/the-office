@@ -7,6 +7,7 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import type { Env, LineItemExtraction, LineItemWithTotal } from "./types";
 import { setSelection } from "./identity";
+import { classifyExpenseCategory } from "./ai";
 
 
 
@@ -36,20 +37,26 @@ export async function recordPayment(
 // extraction, no VAT parsing, no job-cost linking yet. Same guard()
 // discipline as recordPayment — money moving is money moving,
 // regardless of direction.
+// Real feature 2026-07-12 — categorized at confirm time, right before
+// the write. Categorization doesn't affect guard()'s validation and
+// has no bearing on whether the expense itself is correct, so it
+// doesn't need to block or slow the initial confirmation response —
+// it only needs to be real by the time the row is actually written.
 export async function recordExpense(
   env: Env,
   characterId: number | null,
   amount: number | null,
   description: string,
   sourceTranscript: string
-): Promise<{ id: number; characterId: number | null; amount: number | null }> {
+): Promise<{ id: number; characterId: number | null; amount: number | null; category: string }> {
+  const category = await classifyExpenseCategory(env, description);
   const inserted = await env.OFFICE_DB.prepare(
-    "INSERT INTO expenses (character_id, amount, description, source_transcript) VALUES (?, ?, ?, ?) RETURNING id"
+    "INSERT INTO expenses (character_id, amount, description, category, source_transcript) VALUES (?, ?, ?, ?, ?) RETURNING id"
   )
-    .bind(characterId, amount, description, sourceTranscript)
+    .bind(characterId, amount, description, category, sourceTranscript)
     .first<{ id: number }>();
 
-  return { id: inserted!.id, characterId, amount };
+  return { id: inserted!.id, characterId, amount, category };
 }
 
 // Same discipline as recordPayment — the ground-truth write, only
@@ -254,17 +261,27 @@ export async function getQuotationsSummary(env: Env): Promise<string[]> {
 // never an AI attempting to recall or total these from memory.
 export async function getExpenseSummary(env: Env): Promise<string[]> {
   const { results } = await env.OFFICE_DB.prepare(
-    `SELECT COALESCE(c.name, 'an unnamed supplier') as name, e.amount as amount, e.description as description
+    `SELECT COALESCE(c.name, 'an unnamed supplier') as name, e.amount as amount, e.description as description,
+            COALESCE(e.category, 'uncategorized') as category
      FROM expenses e LEFT JOIN characters c ON c.id = e.character_id
      ORDER BY e.created_at DESC`
-  ).all<{ name: string; amount: number | null; description: string }>();
+  ).all<{ name: string; amount: number | null; description: string; category: string }>();
 
   if (results.length === 0) return ["No expenses on file."];
 
   const total = results.reduce((sum, r) => sum + (r.amount ?? 0), 0);
   const summary = `There are ${results.length} expenses on file, totaling R${total}.`;
-  const perExpense = results.map((r) => `${r.name}: R${r.amount ?? 0} — ${r.description}.`);
-  return [summary, ...perExpense];
+
+  const byCategory = new Map<string, number>();
+  for (const r of results) {
+    byCategory.set(r.category, (byCategory.get(r.category) ?? 0) + (r.amount ?? 0));
+  }
+  const categoryBreakdown = `By category: ${Array.from(byCategory.entries())
+    .map(([cat, amt]) => `${cat} R${amt}`)
+    .join(", ")}.`;
+
+  const perExpense = results.map((r) => `${r.name}: R${r.amount ?? 0} — ${r.description} (${r.category}).`);
+  return [summary, categoryBreakdown, ...perExpense];
 }
 
 // Real feature 2026-07-12 — the first real view reading BOTH sides of
