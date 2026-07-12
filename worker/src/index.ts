@@ -3,7 +3,7 @@ import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeI
 import { findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { completeTask, createTask, getCompletedToday, getEmberCounts, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyStructuredFact, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
-import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenQuotation, generateDocumentPdf, getCustomerFinancialSummary, getExpenseSummary, getFinancialSnapshot, getOutstandingInvoices, getQuotationsSummary, holdForConfirmation, recordExpense, recordInvoice, recordPayment, recordQuotation } from "./finance";
+import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenQuotation, generateDocumentPdf, generateStatementPdf, getCustomerFinancialSummary, getExpenseSummary, getFinancialSnapshot, getOutstandingInvoices, getQuotationsSummary, holdForConfirmation, recordExpense, recordInvoice, recordPayment, recordQuotation } from "./finance";
 
 // Second layer of defense against storing questions as facts — never
 // trust intent classification alone for this, since it's been
@@ -891,6 +891,25 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           headers: {
             "Content-Type": "application/pdf",
             "Content-Disposition": `inline; filename="quotation-${quotationId}.pdf"`,
+          },
+        });
+      } catch (err) {
+        return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
+      }
+    }
+
+    // Real feature 2026-07-12 — the first exportable report beyond a
+    // single quotation/invoice, per the accounting-capability roadmap.
+    // Real chronological transaction history with a real running
+    // balance, same PDF pattern as invoices/quotations.
+    if (url.pathname.match(/^\/customers\/\d+\/statement\/pdf$/) && request.method === "GET") {
+      const customerId = Number(url.pathname.split("/")[2]);
+      try {
+        const pdfBytes = await generateStatementPdf(env, customerId);
+        return new Response(pdfBytes, {
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `inline; filename="statement-${customerId}.pdf"`,
           },
         });
       } catch (err) {
