@@ -1967,7 +1967,21 @@ async function processTranscript(
   // involved at all. The register check below needs no history at
   // all (it reads real, persisted D1 state); only the AI-based
   // fallback further down genuinely needs history text to scan.
-  const scopeCouldBeEntity = extraction?.query_scope !== "personal";
+  // Real bug found live 2026-07-12: "what have we spent on expenses?"
+  // — a completely standalone, self-contained business question, sent
+  // with zero history — got silently rewritten from query_scope
+  // "business" to "character", because BUCO happened to be the most
+  // recently touched register selection. That's meaningfully
+  // different from the proven ProSupply case ("who did we deal with
+  // in those instances?"), which only correctly resolves to a
+  // specific entity because real history exists for it to genuinely
+  // be a follow-up to. A "business"-scoped question arriving with NO
+  // history at all has nothing to be a follow-up of — the register
+  // should never touch it. "personal" stays excluded outright (same
+  // as before); "business" is now only eligible when there's real
+  // history to justify treating it as a possible follow-up.
+  const scopeCouldBeEntity =
+    extraction?.query_scope !== "personal" && !(extraction?.query_scope === "business" && history.length === 0);
   if (extraction?.intent === "lookup" && !customer && !character && scopeCouldBeEntity) {
     // Register first — rung 1 of the Execution Ladder, zero AI calls.
     // Peter's own words already established this selection on a prior
