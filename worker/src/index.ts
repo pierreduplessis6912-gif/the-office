@@ -3,7 +3,7 @@ import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeI
 import { findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { completeTask, createTask, getCompletedToday, getEmberCounts, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyStructuredFact, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
-import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateStatementPdf, getAgedDebtorsSummary, getCustomerFinancialSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOutstandingInvoices, getQuotationsSummary, holdForConfirmation, recordExpense, recordInvoice, recordPayment, recordQuotation } from "./finance";
+import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedDebtorsSummary, getCustomerFinancialSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOutstandingInvoices, getProfitAndLossSummary, getQuotationsSummary, holdForConfirmation, recordExpense, recordInvoice, recordPayment, recordQuotation } from "./finance";
 
 // Second layer of defense against storing questions as facts — never
 // trust intent classification alone for this, since it's been
@@ -518,12 +518,17 @@ async function processTranscript(
       // position dragged in alongside it, same discipline as every
       // other topic exclusion here.
       const snapshotFacts = topic === "general" ? await getFinancialSnapshot(env) : [];
+      // Real feature 2026-07-12 — the final piece: the formal,
+      // accrual-based P&L, alongside the cash-basis snapshot above.
+      // Genuinely different questions, both real, same "general only"
+      // scoping as the snapshot.
+      const pnlFacts = topic === "general" ? await getProfitAndLossSummary(env) : [];
       // Aged debtors is fundamentally about receivables — relevant
       // whenever invoices specifically or the business overall is
       // being asked about, excluded only when the topic is narrowly
       // quotations or expenses.
       const agedFacts = topic === "quotations" || topic === "expenses" ? [] : await getAgedDebtorsSummary(env);
-      message = await answerFromMemory(env, transcript, [...outstandingFacts, ...quotationFacts, ...expenseFacts, ...snapshotFacts, ...agedFacts]);
+      message = await answerFromMemory(env, transcript, [...outstandingFacts, ...quotationFacts, ...expenseFacts, ...snapshotFacts, ...pnlFacts, ...agedFacts]);
       // Real feature 2026-07-12 — the small, real, static piece of
       // Guide (see STATUS.md's pinned entry for the full design and
       // what's deliberately NOT built yet: dissatisfaction-detection,
@@ -1003,6 +1008,23 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           headers: {
             "Content-Type": "application/pdf",
             "Content-Disposition": `inline; filename="aged-debtors.pdf"`,
+          },
+        });
+      } catch (err) {
+        return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
+      }
+    }
+
+    // Real feature 2026-07-12 — the final report of the accounting-
+    // capability roadmap. A formal, business-wide profit and loss,
+    // built entirely from real data already sitting in real tables.
+    if (url.pathname === "/reports/profit-and-loss/pdf" && request.method === "GET") {
+      try {
+        const pdfBytes = await generateProfitAndLossPdf(env);
+        return new Response(pdfBytes, {
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `inline; filename="profit-and-loss.pdf"`,
           },
         });
       } catch (err) {
