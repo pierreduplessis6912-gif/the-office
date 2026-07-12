@@ -147,12 +147,66 @@ export async function reconcileCharacter(
   return { id: inserted!.id, name: inserted!.name, matched: false };
 }
 
+// Real bug found live 2026-07-12: "Sipho" existed as both a customer
+// (id 12, an unrelated earlier test) and a character (id 7, today's
+// installer). A lookup for character_name="Sipho" used the ambiguous
+// findExistingEntityByName below, which checks customers first,
+// found the customer match, correctly rejected it as the wrong type
+// — and then had nothing left to fall back to, leaving `character`
+// silently unset even though the right character genuinely existed.
+// That's the actual design mistake: findExistingEntityByName is
+// correct for the register/AI-fallback path, where the type truly
+// isn't known in advance — but the moment extraction already tells
+// us which field a name came from (customer_name vs character_name),
+// searching the OTHER table at all is the bug, not a safety net.
+// These two functions search only their own real table.
+export async function findExistingCustomerByName(
+  env: Env,
+  name: string
+): Promise<{ id: number; name: string } | null> {
+  if (!looksLikeAName(name)) return null;
+  const tokens = name.trim().split(/\s+/);
+  const firstToken = tokens[0];
+  const lastToken = tokens[tokens.length - 1];
+  const row =
+    tokens.length >= 2
+      ? await env.OFFICE_DB.prepare("SELECT id, name FROM customers WHERE name LIKE ? AND name LIKE ? LIMIT 1")
+          .bind(`%${firstToken}%`, `%${lastToken}%`)
+          .first<{ id: number; name: string }>()
+      : await env.OFFICE_DB.prepare("SELECT id, name FROM customers WHERE name LIKE ? LIMIT 1")
+          .bind(`%${firstToken}%`)
+          .first<{ id: number; name: string }>();
+  return row ?? null;
+}
+
+export async function findExistingCharacterByName(
+  env: Env,
+  name: string
+): Promise<{ id: number; name: string } | null> {
+  if (!looksLikeAName(name)) return null;
+  const tokens = name.trim().split(/\s+/);
+  const firstToken = tokens[0];
+  const lastToken = tokens[tokens.length - 1];
+  const row =
+    tokens.length >= 2
+      ? await env.OFFICE_DB.prepare("SELECT id, name FROM characters WHERE name LIKE ? AND name LIKE ? LIMIT 1")
+          .bind(`%${firstToken}%`, `%${lastToken}%`)
+          .first<{ id: number; name: string }>()
+      : await env.OFFICE_DB.prepare("SELECT id, name FROM characters WHERE name LIKE ? LIMIT 1")
+          .bind(`%${firstToken}%`)
+          .first<{ id: number; name: string }>();
+  return row ?? null;
+}
+
 // Read-only counterpart to reconcileCustomer/reconcileCharacter —
 // used only for resolving a follow-up question to an EXISTING entity,
 // never allowed to create one. A mere lookup accidentally creating a
 // customer or character row would be a real, silent data-integrity
 // bug, the same class of thing guard() and reconciliation discipline
-// exist to prevent everywhere else.
+// exist to prevent everywhere else. Genuinely still the right tool
+// for its own real use — the register/AI-fallback path in index.ts,
+// where the type truly isn't known in advance — not for a lookup
+// where extraction already told us which field the name came from.
 export async function findExistingEntityByName(
   env: Env,
   name: string
