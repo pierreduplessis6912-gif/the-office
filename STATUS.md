@@ -947,21 +947,38 @@ Codemagic — still only proven on the web preview.**
     already functions:** quotations → invoices → payments is a
     genuine chain, deterministic VAT math, real per-customer and
     business-wide outstanding-balance queries (`getOutstandingInvoices`,
-    `getQuotationsSummary`, the Finance ember).
+    `getQuotationsSummary`, the Finance ember). Real, exportable
+    statement of account per customer added 2026-07-12
+    (`getCustomerStatementData` — chronological transactions, a real
+    running balance; `generateStatementPdf` — a genuine PDF export,
+    verified live against Jenny Hawke's real invoices and payments).
   - **Expense side — real capture started (2026-07-12), one record
-    deep.** A bare `expenses` table (`character_id`, `amount`,
-    `description`, `source_transcript`) and a real `expense` intent
-    ("bought glue for R850 at BUCO"), guard()-confirmed same as every
-    other money-touching intent — proven live with a real record.
+    deep, now its own ember bucket too** (kept separate from Finance
+    deliberately — opposite direction of money). A bare `expenses`
+    table (`character_id`, `amount`, `description`, `source_transcript`)
+    and a real `expense` intent ("bought glue for R850 at BUCO"),
+    guard()-confirmed same as every other money-touching intent.
     Deliberately still missing: no chart of accounts, no expense
-    category, no VAT extraction, no job-cost linking, no P&L query
-    reading both sides yet. The gap from here to an actual P&L is
-    still real and large — this is the first domino, not the finish.
-  - Not a reason to hesitate on finance-adjacent work — the register
-    wiring for quotations/invoices is worth building regardless of how
-    far the P&L destination is — but worth being honest that "building
-    toward a P&L" and "the revenue chain already works" are not the
-    same claim, and shouldn't be quietly conflated.
+    category, no VAT extraction, no job-cost linking. The gap from
+    here to an actual P&L is still real — this is progress, not the
+    finish.
+  - **First combined view of both sides, 2026-07-12:**
+    `getFinancialSnapshot` — total invoiced, total actually received,
+    total spent, and a rough cash-basis position, honestly labeled as
+    NOT a full P&L (no categorization or job-cost linking exists yet
+    to make that claim). Wired into genuinely general business
+    questions only, verified live with real numbers spanning both
+    sides.
+  - **Named, explicit next step: aged debtors analysis.** Bucketing
+    real outstanding balances by how old the underlying invoice is
+    (current / 30 / 60 / 90+ days) — directly extends the same real
+    invoice-date data the statement of account already reads, just
+    aggregated across all customers by age instead of listed
+    chronologically for one. Not yet built.
+  - Not a reason to hesitate on finance-adjacent work — but worth
+    being honest that "building toward a P&L" and "the revenue chain
+    already works" are not the same claim, and shouldn't be quietly
+    conflated.
 
 ## UX vision — the Ether, and what it does / doesn't change (2026-07-10)
 
