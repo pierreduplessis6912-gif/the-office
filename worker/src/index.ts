@@ -1,6 +1,6 @@
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult } from "./types";
 import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractIntent, extractLineItems, extractScopePricing, extractWorkObservation, rerank, resolveFollowUpEntity, storeUnscopedMemory, transcribe } from "./ai";
-import { findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
+import { findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyStructuredFact, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
 import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedDebtorsSummary, getCustomerFinancialSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOutstandingInvoices, getProfitAndLossSummary, getQuotationsSummary, holdForConfirmation, recordExpense, recordInvoice, recordPayment, recordQuotation } from "./finance";
@@ -55,8 +55,8 @@ async function processTranscript(
   // instead of the create-or-find reconcile functions.
   if (extraction?.customer_name) {
     if (extraction.intent === "lookup") {
-      const found = await findExistingEntityByName(env, extraction.customer_name);
-      if (found?.type === "customer") {
+      const found = await findExistingCustomerByName(env, extraction.customer_name);
+      if (found) {
         customer = { id: found.id, name: found.name, matched: true };
       }
     } else {
@@ -66,8 +66,8 @@ async function processTranscript(
 
   if (extraction?.character_name) {
     if (extraction.intent === "lookup") {
-      const found = await findExistingEntityByName(env, extraction.character_name);
-      if (found?.type === "character") {
+      const found = await findExistingCharacterByName(env, extraction.character_name);
+      if (found) {
         character = { id: found.id, name: found.name, matched: true };
       }
     } else {
@@ -1251,7 +1251,12 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
 
     if (url.pathname === "/debug/job-scopes" && request.method === "GET") {
       const { results: scopes } = await env.OFFICE_DB.prepare(
-        "SELECT js.id, js.customer_id, c.name as customer_name, js.description, js.scheduled_date_raw, js.scheduled_date, js.created_at FROM job_scopes js JOIN customers c ON c.id = js.customer_id ORDER BY js.created_at DESC LIMIT 10"
+        `SELECT js.id, js.customer_id, c.name as customer_name, js.description, js.scheduled_date_raw,
+                js.scheduled_date, js.installer_id, ch.name as installer_name, js.created_at
+         FROM job_scopes js
+         JOIN customers c ON c.id = js.customer_id
+         LEFT JOIN characters ch ON ch.id = js.installer_id
+         ORDER BY js.created_at DESC LIMIT 10`
       ).all();
 
       const enriched = await Promise.all(
