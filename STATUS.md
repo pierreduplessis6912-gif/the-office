@@ -546,6 +546,25 @@ about, not any name appearing anywhere in the exchange.
     from coverage — "decide what answers this question first, then
     cover all of those, don't just repeat back everything given."
 
+**2026-07-12, real expense capture (first crash found via a live 1101
+error, not curl output):**
+29. **A real crash on the very first live expense test** — Cloudflare
+    error 1101, an unhandled exception. Root cause: the generic
+    `pendingActionId` confirmation-message branch (shared by payment,
+    invoice, quotation, price_scope) used a `customer!.name` non-null
+    assertion that had silently held for every intent built so far,
+    because every one of them was genuinely keyed to a customer.
+    `expense` was the first guard()'d intent keyed to `character` (a
+    supplier) instead — `customer` was correctly `null`, and the
+    assertion, which TypeScript accepted at compile time, threw at
+    runtime on every real message. Fixed with a dedicated `expense`
+    branch, same pattern as `task_complete` and `convert_quote`
+    getting their own branches before it. Worth remembering the shape
+    of this one specifically: a non-null assertion is only as safe as
+    every future caller sharing the same assumption — the moment a
+    genuinely different shape (character instead of customer) reuses
+    a "generic" branch, the assertion becomes the bug.
+
 ## Debug and diagnostic routes
 
 `/debug/list-audio`, `/debug/reprocess`, `/debug/search-memory`,
@@ -898,12 +917,15 @@ Codemagic — still only proven on the web preview.**
     genuine chain, deterministic VAT math, real per-customer and
     business-wide outstanding-balance queries (`getOutstandingInvoices`,
     `getQuotationsSummary`, the Finance ember).
-  - **Expense side — does not exist in any form.** No concept of a
-    cost anywhere in this schema: no expenses table, no way to record
-    what Peter pays out (materials, fuel, supplier invoices, wages),
-    no chart of accounts, no income/expense categorization. A P&L is
-    revenue minus expenses — today Office can only ever answer the
-    first half.
+  - **Expense side — real capture started (2026-07-12), one record
+    deep.** A bare `expenses` table (`character_id`, `amount`,
+    `description`, `source_transcript`) and a real `expense` intent
+    ("bought glue for R850 at BUCO"), guard()-confirmed same as every
+    other money-touching intent — proven live with a real record.
+    Deliberately still missing: no chart of accounts, no expense
+    category, no VAT extraction, no job-cost linking, no P&L query
+    reading both sides yet. The gap from here to an actual P&L is
+    still real and large — this is the first domino, not the finish.
   - Not a reason to hesitate on finance-adjacent work — the register
     wiring for quotations/invoices is worth building regardless of how
     far the P&L destination is — but worth being honest that "building
