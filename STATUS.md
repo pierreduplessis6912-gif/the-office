@@ -595,6 +595,27 @@ error, not curl output):**
     every future caller sharing the same assumption — the moment a
     genuinely different shape (character instead of customer) reuses
     a "generic" branch, the assertion becomes the bug.
+30. **A more serious variant of the same theme, found live 2026-07-12
+    while testing expense categorization:** the guard() condition for
+    `expense` required a named supplier (`character`) to exist before
+    the expense would even be held for confirmation at all. "Filled up
+    the bakkie with diesel for R650" — a completely real, common
+    expense with no clear supplier character — silently vanished with
+    no pending action, no record, and no error. `recordExpense`
+    already correctly supported a null `characterId`; the guard
+    condition itself was the bug, requiring something that was never
+    actually necessary. This is the exact silent-loss failure mode the
+    receptacle exists to prevent, just one layer past where the
+    receptacle can catch it — the raw capture was logged correctly,
+    but the *business record* it should have produced never
+    materialized. Fixed to require only a real amount, same pattern as
+    `invoice`. Verified live: `characterId: null` now correctly
+    recorded rather than silently dropped, categorization
+    (`classifyExpenseCategory`, 2026-07-12 — real, closed-set AI
+    classification into materials/fuel/tools/subcontractor/other, same
+    shape as `classifyBusinessTopic`, legitimate per Principle 2 since
+    a wrong category is low-stakes and easily corrected) confirmed
+    working correctly alongside the fix in the same test.
 
 ## Debug and diagnostic routes
 
@@ -985,12 +1006,21 @@ Codemagic — still only proven on the web preview.**
     request for the breakdown gets the full aging picture — the
     relevance-filtering fix from earlier in this document working as
     intended, verified rather than assumed.
-  - Still genuinely missing toward an actual P&L: expense categories,
-    job-cost linking, a formal profit-and-loss statement combining
-    categorized revenue and expense. Not a reason to hesitate on
-    finance-adjacent work — but worth being honest that "building
-    toward a P&L" and "the revenue chain already works" are not the
-    same claim, and shouldn't be quietly conflated.
+  - **Expense categories — real, built (2026-07-12).** A closed set
+    (materials/fuel/tools/subcontractor/other), classified at confirm
+    time by `classifyExpenseCategory`, same shape as
+    `classifyBusinessTopic` — the real prerequisite for eventually
+    distinguishing cost of sales from operating expenses. Uncovered a
+    genuinely serious bug in the process (see bug #30): expenses with
+    no named supplier were silently vanishing entirely, with no record
+    and no error — fixed, verified live alongside the category feature
+    in the same test.
+  - Still genuinely missing toward an actual P&L: job-cost linking, a
+    formal profit-and-loss statement combining categorized revenue and
+    expense. Not a reason to hesitate on finance-adjacent work — but
+    worth being honest that "building toward a P&L" and "the revenue
+    chain already works" are not the same claim, and shouldn't be
+    quietly conflated.
 
 ## UX vision — the Ether, and what it does / doesn't change (2026-07-10)
 
