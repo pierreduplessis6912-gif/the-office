@@ -296,6 +296,104 @@ export async function getFinancialSnapshot(env: Env): Promise<string[]> {
   ];
 }
 
+export interface AgedDebtorRow {
+  customerId: number;
+  customerName: string;
+  current: number;
+  days30: number;
+  days60: number;
+  days90Plus: number;
+  total: number;
+}
+
+// Real feature 2026-07-12 — aged debtors analysis, the classic
+// accounts-receivable report. Real, honest limitation disclosed
+// rather than silently assumed away: payments in this schema link
+// only to a customer, never to a specific invoice, so there's no way
+// to know with certainty which invoice a given payment actually
+// settled. FIFO allocation (oldest invoice paid first) is the
+// standard, defensible convention every small-business system uses
+// when payments aren't explicitly tied to invoices — applied here in
+// code, deterministically, never left to the model to estimate.
+// Bucketed by real invoice age in days: current (0-30), 30-60, 60-90,
+// 90+.
+export async function getAgedDebtorsReport(env: Env): Promise<AgedDebtorRow[]> {
+  const { results: customers } = await env.OFFICE_DB.prepare(
+    "SELECT DISTINCT c.id, c.name FROM customers c JOIN invoices i ON i.customer_id = c.id"
+  ).all<{ id: number; name: string }>();
+
+  const now = Date.now();
+  const rows: AgedDebtorRow[] = [];
+
+  for (const customer of customers) {
+    const { results: invoices } = await env.OFFICE_DB.prepare(
+      "SELECT amount, created_at FROM invoices WHERE customer_id = ? ORDER BY created_at ASC"
+    )
+      .bind(customer.id)
+      .all<{ amount: number; created_at: string }>();
+
+    const paidRow = await env.OFFICE_DB.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE customer_id = ?")
+      .bind(customer.id)
+      .first<{ total: number }>();
+
+    let remainingPayment = paidRow?.total ?? 0;
+    let current = 0;
+    let days30 = 0;
+    let days60 = 0;
+    let days90Plus = 0;
+
+    for (const inv of invoices) {
+      let owed = inv.amount;
+      if (remainingPayment > 0) {
+        const applied = Math.min(remainingPayment, owed);
+        owed -= applied;
+        remainingPayment -= applied;
+      }
+      if (owed <= 0) continue;
+
+      const ageDays = Math.floor((now - new Date(inv.created_at).getTime()) / 86400000);
+      if (ageDays <= 30) current += owed;
+      else if (ageDays <= 60) days30 += owed;
+      else if (ageDays <= 90) days60 += owed;
+      else days90Plus += owed;
+    }
+
+    const total = current + days30 + days60 + days90Plus;
+    if (total > 0) {
+      rows.push({ customerId: customer.id, customerName: customer.name, current, days30, days60, days90Plus, total });
+    }
+  }
+
+  return rows.sort((a, b) => b.total - a.total);
+}
+
+export async function getAgedDebtorsSummary(env: Env): Promise<string[]> {
+  const rows = await getAgedDebtorsReport(env);
+  if (rows.length === 0) return ["No outstanding debtors on file."];
+
+  const totals = rows.reduce(
+    (acc, r) => ({
+      current: acc.current + r.current,
+      days30: acc.days30 + r.days30,
+      days60: acc.days60 + r.days60,
+      days90Plus: acc.days90Plus + r.days90Plus,
+    }),
+    { current: 0, days30: 0, days60: 0, days90Plus: 0 }
+  );
+
+  const summary =
+    `Aged debtors: current R${totals.current}, 30-60 days R${totals.days30}, ` +
+    `60-90 days R${totals.days60}, 90+ days R${totals.days90Plus}. ` +
+    `Payments are allocated oldest-invoice-first (FIFO), since payments aren't linked to a specific invoice.`;
+
+  const perCustomer = rows.map(
+    (r) =>
+      `${r.customerName}: R${r.total} total overdue (current R${r.current}, 30-60d R${r.days30}, 60-90d R${r.days60}, 90+d R${r.days90Plus}).`
+  );
+
+  return [summary, ...perCustomer];
+}
+
 // The real fix for "what's Sarah's balance" answering wrong — a
 // single customer's balance was only ever being searched for in
 // narrative notes, never computed from the actual invoices/payments
@@ -721,6 +819,102 @@ export async function generateStatementPdf(env: Env, customerId: number): Promis
   const closingBalance = lines.length > 0 ? lines[lines.length - 1].runningBalance : 0;
   page.drawText("BALANCE DUE", { x: 420, y, size: 11, font: bold });
   page.drawText(`R${closingBalance.toLocaleString()}`, { x: 490, y, size: 11, font: bold, color: black });
+
+  return await pdfDoc.save();
+}
+
+// Real feature 2026-07-12 — the aged debtors report, exportable, same
+// visual family as the other two document generators. Real FIFO
+// allocation disclosed directly on the page itself, not buried in a
+// footnote — anyone reading this report should know exactly what
+// assumption produced these numbers.
+export async function generateAgedDebtorsPdf(env: Env): Promise<Uint8Array> {
+  const business = await env.OFFICE_DB.prepare("SELECT name, trading_as, vat_no, address FROM business_profile WHERE id = 1").first<{
+    name: string | null;
+    trading_as: string | null;
+    vat_no: string | null;
+    address: string | null;
+  }>();
+
+  const rows = await getAgedDebtorsReport(env);
+
+  const pdfDoc = await PDFDocument.create();
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const grey = rgb(0.45, 0.45, 0.45);
+  const black = rgb(0, 0, 0);
+
+  const pageWidth = 595.28;
+  const pageHeight = 841.89;
+  const left = 50;
+
+  let page = pdfDoc.addPage([pageWidth, pageHeight]);
+  let y = 792;
+
+  const drawHeader = () => {
+    page.drawText(business?.name ?? "[Business name not set]", { x: left, y, size: 14, font: bold });
+    y -= 18;
+    if (business?.trading_as) {
+      page.drawText(`T/A ${business.trading_as}`, { x: left, y, size: 10, font });
+      y -= 14;
+    }
+    y -= 16;
+    page.drawText("AGED DEBTORS ANALYSIS", { x: left, y, size: 16, font: bold });
+    y -= 16;
+    page.drawText(
+      "Payments are allocated oldest-invoice-first (FIFO) — payments aren't linked to a specific invoice in this system.",
+      { x: left, y, size: 8, font, color: grey, maxWidth: 495 }
+    );
+    y -= 26;
+
+    page.drawText("CUSTOMER", { x: left, y, size: 9, font: bold, color: grey });
+    page.drawText("CURRENT", { x: 230, y, size: 9, font: bold, color: grey });
+    page.drawText("30-60", { x: 300, y, size: 9, font: bold, color: grey });
+    page.drawText("60-90", { x: 360, y, size: 9, font: bold, color: grey });
+    page.drawText("90+", { x: 420, y, size: 9, font: bold, color: grey });
+    page.drawText("TOTAL", { x: 480, y, size: 9, font: bold, color: grey });
+    y -= 8;
+    page.drawLine({ start: { x: left, y }, end: { x: 545, y }, thickness: 1, color: grey });
+    y -= 18;
+  };
+
+  drawHeader();
+
+  if (rows.length === 0) {
+    page.drawText("No outstanding debtors on file.", { x: left, y, size: 10, font, color: grey });
+  }
+
+  const totals = { current: 0, days30: 0, days60: 0, days90Plus: 0, total: 0 };
+
+  for (const row of rows) {
+    if (y < 80) {
+      page = pdfDoc.addPage([pageWidth, pageHeight]);
+      y = 792;
+      drawHeader();
+    }
+    page.drawText(row.customerName, { x: left, y, size: 9, font, maxWidth: 175 });
+    page.drawText(`R${row.current.toLocaleString()}`, { x: 230, y, size: 9, font });
+    page.drawText(`R${row.days30.toLocaleString()}`, { x: 300, y, size: 9, font });
+    page.drawText(`R${row.days60.toLocaleString()}`, { x: 360, y, size: 9, font });
+    page.drawText(`R${row.days90Plus.toLocaleString()}`, { x: 420, y, size: 9, font });
+    page.drawText(`R${row.total.toLocaleString()}`, { x: 480, y, size: 9, font: bold, color: black });
+    y -= 20;
+
+    totals.current += row.current;
+    totals.days30 += row.days30;
+    totals.days60 += row.days60;
+    totals.days90Plus += row.days90Plus;
+    totals.total += row.total;
+  }
+
+  y -= 8;
+  page.drawLine({ start: { x: left, y: y + 12 }, end: { x: 545, y: y + 12 }, thickness: 0.5, color: grey });
+  page.drawText("TOTAL", { x: left, y, size: 10, font: bold });
+  page.drawText(`R${totals.current.toLocaleString()}`, { x: 230, y, size: 10, font: bold });
+  page.drawText(`R${totals.days30.toLocaleString()}`, { x: 300, y, size: 10, font: bold });
+  page.drawText(`R${totals.days60.toLocaleString()}`, { x: 360, y, size: 10, font: bold });
+  page.drawText(`R${totals.days90Plus.toLocaleString()}`, { x: 420, y, size: 10, font: bold });
+  page.drawText(`R${totals.total.toLocaleString()}`, { x: 480, y, size: 10, font: bold, color: black });
 
   return await pdfDoc.save();
 }
