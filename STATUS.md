@@ -734,17 +734,47 @@ Codemagic — still only proven on the web preview.**
 - **Workers for Platforms migration**, for eventual multi-business
   provisioning. Confirmed real and current: $25/month base plan (on
   top of the existing $5/month Workers Paid plan already in use),
-  standard per-request/CPU billing beyond that. Solves compute
-  isolation and routing between businesses natively — proven at real
-  scale by Cloudflare, not something to build custom. Does **not**
-  automatically solve fleet-wide deployment or cross-instance schema
-  migrations — those remain real tooling to build deliberately
-  (see "Office Developer Tools" framing) whenever this is actually
-  triggered. Runtime code itself needs zero changes to migrate; only
-  the deployment/binding/routing mechanism around it changes.
-  Explicitly not to be built ahead of the trigger: manual provisioning
-  becoming an actual bottleneck, or someone needing to sign up without
-  a human in the loop at all.
+  standard per-request/CPU billing beyond that — Cloudflare only
+  bills one request across the whole dispatch → user Worker → outbound
+  Worker chain, not each hop separately. Solves compute isolation and
+  routing between businesses natively — proven at real scale by
+  Cloudflare, not something to build custom. Each user Worker can have
+  its own D1/R2/KV bindings, matching the non-negotiable isolated-
+  instance-per-business decision exactly. Does **not** automatically
+  solve fleet-wide deployment or cross-instance schema migrations —
+  those remain real tooling to build deliberately (see "Office
+  Developer Tools" framing) whenever this is actually triggered.
+  Runtime code itself needs zero changes to migrate — a user Worker is
+  an ordinary Worker script; only the deployment/binding/routing
+  mechanism around it changes when the time comes.
+  **Decided explicitly 2026-07-11, with real numbers behind it, not
+  just "wait for a trigger" in the abstract:** a likely multi-month
+  runway with zero real customers means $25/month would accumulate for
+  no present benefit. Deferred on cost, not just principle — and
+  deferring costs nothing later, since the code doesn't change either
+  way. Explicitly not to be built ahead of the trigger: manual
+  provisioning becoming an actual bottleneck, or someone needing to
+  sign up without a human in the loop at all.
+- **A dedicated domain and a separate Cloudflare account for Office
+  (2026-07-11).** Real, current migration paths confirmed for each
+  real piece: D1 (`wrangler d1 export` → fresh database → `wrangler d1
+  execute --file`, genuinely simple), R2 (its S3-compatible API means
+  a plain `rclone copy` between old and new bucket, no special
+  cross-account tooling needed), Workers AI (account-level, nothing to
+  migrate, just enable it), secrets (re-added fresh — a clean
+  opportunity to rotate everything properly). One piece flagged as
+  genuinely unverified rather than assumed: no confirmed native
+  Vectorize cross-account export tool found; the real fallback is that
+  Vectorize is explicitly a derived index (not yet load-bearing per
+  this document), rebuildable from the real source data already
+  sitting in D1/KV if needed. `office.websitehub.co.za` is confirmed
+  the real, current production API domain — not preview-only, that's
+  the separate `the-office-preview.pages.dev` static client instead.
+  A genuinely new, dedicated domain sidesteps the one real complication
+  in the account move (Custom Domains/Routes require the Worker and
+  the DNS zone to share an account) by becoming its own zone on the
+  new account from day one, rather than needing a CNAME workaround
+  against the current shared zone.
 - **Relational memory: events with multiple participants, not notes
   owned by one entity (2026-07-10).** Surfaced by the ProSupply/Jenny
   bug above — that bug is fixed (a note now attributes to its real
