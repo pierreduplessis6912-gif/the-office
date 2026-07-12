@@ -452,7 +452,17 @@ export async function getCustomerFinancialSummary(env: Env, customerId: number):
 // without that context contributes to the business-wide totals
 // (getFinancialSnapshot) but not to any specific job's profitability,
 // since there's nothing here to guess which job it was really for.
-export async function getJobProfitability(env: Env, customerId: number): Promise<string | null> {
+// Real fix 2026-07-12: the caveat used to be baked into one combined
+// string handed to the model as a "fact" — and the model's own
+// relevance-filtering reliably stripped it out during synthesis,
+// twice in a row, live. The caveat is a necessary qualifier on the
+// number itself, not extraneous context to weigh and possibly drop —
+// split apart so the caller can append it deterministically, same
+// fix pattern as the aged-debtors capability hint.
+export async function getJobProfitability(
+  env: Env,
+  customerId: number
+): Promise<{ fact: string; caveat: string } | null> {
   const row = await env.OFFICE_DB.prepare(
     `SELECT
        COALESCE((SELECT SUM(amount) FROM invoices WHERE customer_id = ?), 0) as revenue,
@@ -464,11 +474,11 @@ export async function getJobProfitability(env: Env, customerId: number): Promise
   if (!row || (row.revenue === 0 && row.cost === 0)) return null;
 
   const profit = row.revenue - row.cost;
-  return (
-    `Revenue R${row.revenue}, costs linked to this job R${row.cost}, ` +
-    `profit R${profit}. Only expenses explicitly linked to this job are counted here — ` +
-    `an expense recorded without job context isn't included, since there's no way to know which job it was really for.`
-  );
+  return {
+    fact: `Revenue R${row.revenue}, costs linked to this job R${row.cost}, profit R${profit}.`,
+    caveat:
+      "Only expenses explicitly linked to this job are counted — an expense recorded without job context isn't included, since there's no way to know which job it was really for.",
+  };
 }
 
 export interface StatementLine {
