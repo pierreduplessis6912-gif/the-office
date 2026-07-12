@@ -323,7 +323,7 @@ export async function getTodaysSchedule(env: Env): Promise<string[]> {
 }
 
 // Real feature 2026-07-11 — the ember bar, scoped deliberately to only
-// the three departments with real data behind them today. No Weather
+// the departments with real data behind them today. No Weather
 // (no external API exists anywhere in this project), no Call/
 // Reschedule actions on tasks (tasks have no customer/character link
 // or due date yet — both real, named gaps, not silently promised).
@@ -332,12 +332,19 @@ export async function getTodaysSchedule(env: Env): Promise<string[]> {
 // change something, not from a persistent connection pushing on its
 // own. Per Principle 19, a zero here is the genuinely desired steady
 // state, not an empty placeholder.
-export async function getEmberCounts(env: Env): Promise<{ tasks: number; scheduler: number; finance: number }> {
+// Real feature 2026-07-12: expenses is its own bucket, not folded into
+// finance — the two represent opposite directions of money (finance
+// counts real receivables, money owed TO the business; expenses
+// counts real spend, money paid OUT), matching the distinct
+// Finance/Procurement buckets from the original ember design.
+export async function getEmberCounts(
+  env: Env
+): Promise<{ tasks: number; scheduler: number; finance: number; expenses: number }> {
   const pad = (n: number) => String(n).padStart(2, "0");
   const now = nowInBusinessTimezone();
   const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 
-  const [tasksRow, schedulerRow, financeRow] = await Promise.all([
+  const [tasksRow, schedulerRow, financeRow, expensesRow] = await Promise.all([
     env.OFFICE_DB.prepare("SELECT COUNT(*) as n FROM tasks WHERE done = 0").first<{ n: number }>(),
     env.OFFICE_DB.prepare("SELECT COUNT(*) as n FROM job_scopes WHERE scheduled_date = ?").bind(today).first<{ n: number }>(),
     env.OFFICE_DB.prepare(
@@ -347,11 +354,13 @@ export async function getEmberCounts(env: Env): Promise<{ tasks: number; schedul
          GROUP BY c.id HAVING balance > 0
        )`
     ).first<{ n: number }>(),
+    env.OFFICE_DB.prepare("SELECT COUNT(*) as n FROM expenses WHERE date(created_at) = ?").bind(today).first<{ n: number }>(),
   ]);
 
   return {
     tasks: tasksRow?.n ?? 0,
     scheduler: schedulerRow?.n ?? 0,
     finance: financeRow?.n ?? 0,
+    expenses: expensesRow?.n ?? 0,
   };
 }
