@@ -69,6 +69,7 @@ export interface WorkObservationExtraction {
   components: WorkComponent[];
   tasks: WorkTask[];
   scheduled_date_raw: string | null;
+  installer_name: string | null; // who's assigned to actually do this job — e.g. "Sipho is doing Jenny's install"
 }
 
 // Same guarded pattern again — a quotation is a real, standing figure
