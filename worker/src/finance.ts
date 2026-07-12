@@ -42,21 +42,27 @@ export async function recordPayment(
 // has no bearing on whether the expense itself is correct, so it
 // doesn't need to block or slow the initial confirmation response —
 // it only needs to be real by the time the row is actually written.
+// Real feature 2026-07-12 — job-cost linking, the real prerequisite
+// for "how profitable was this job" (getJobProfitability below).
+// customerId here means "which job/customer this cost is FOR" —
+// genuinely distinct from characterId (who was paid) — and is nullable,
+// since most expenses today won't have job context stated at all.
 export async function recordExpense(
   env: Env,
   characterId: number | null,
   amount: number | null,
   description: string,
-  sourceTranscript: string
-): Promise<{ id: number; characterId: number | null; amount: number | null; category: string }> {
+  sourceTranscript: string,
+  customerId: number | null = null
+): Promise<{ id: number; characterId: number | null; customerId: number | null; amount: number | null; category: string }> {
   const category = await classifyExpenseCategory(env, description);
   const inserted = await env.OFFICE_DB.prepare(
-    "INSERT INTO expenses (character_id, amount, description, category, source_transcript) VALUES (?, ?, ?, ?, ?) RETURNING id"
+    "INSERT INTO expenses (character_id, customer_id, amount, description, category, source_transcript) VALUES (?, ?, ?, ?, ?, ?) RETURNING id"
   )
-    .bind(characterId, amount, description, category, sourceTranscript)
+    .bind(characterId, customerId, amount, description, category, sourceTranscript)
     .first<{ id: number }>();
 
-  return { id: inserted!.id, characterId, amount, category };
+  return { id: inserted!.id, characterId, customerId, amount, category };
 }
 
 // Same discipline as recordPayment — the ground-truth write, only
@@ -436,6 +442,33 @@ export async function getCustomerFinancialSummary(env: Env, customerId: number):
   if (balance > 0) return `Owes R${balance} (invoiced R${row.invoiced}, paid R${row.paid}).`;
   if (balance < 0) return `Has paid R${-balance} more than invoiced (invoiced R${row.invoiced}, paid R${row.paid}).`;
   return `Fully paid up (invoiced R${row.invoiced}, paid R${row.paid}).`;
+}
+
+// Real feature 2026-07-12 — the actual payoff of job-cost linking:
+// real revenue invoiced against this customer minus real expenses
+// explicitly linked to this job. Deliberately honest about its own
+// limitation: only expenses that had job context stated at the time
+// ("...for Jenny's job") are counted here — an expense recorded
+// without that context contributes to the business-wide totals
+// (getFinancialSnapshot) but not to any specific job's profitability,
+// since there's nothing here to guess which job it was really for.
+export async function getJobProfitability(env: Env, customerId: number): Promise<string | null> {
+  const row = await env.OFFICE_DB.prepare(
+    `SELECT
+       COALESCE((SELECT SUM(amount) FROM invoices WHERE customer_id = ?), 0) as revenue,
+       COALESCE((SELECT SUM(amount) FROM expenses WHERE customer_id = ?), 0) as cost`
+  )
+    .bind(customerId, customerId)
+    .first<{ revenue: number; cost: number }>();
+
+  if (!row || (row.revenue === 0 && row.cost === 0)) return null;
+
+  const profit = row.revenue - row.cost;
+  return (
+    `Revenue R${row.revenue}, costs linked to this job R${row.cost}, ` +
+    `profit R${profit}. Only expenses explicitly linked to this job are counted here — ` +
+    `an expense recorded without job context isn't included, since there's no way to know which job it was really for.`
+  );
 }
 
 export interface StatementLine {
