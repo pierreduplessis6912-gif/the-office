@@ -267,6 +267,35 @@ export async function getExpenseSummary(env: Env): Promise<string[]> {
   return [summary, ...perExpense];
 }
 
+// Real feature 2026-07-12 — the first real view reading BOTH sides of
+// the accounting-capability roadmap (Principle 22) in one place.
+// Deliberately, honestly NOT a P&L: no expense categories, no job-cost
+// linking, no distinction between capital and operating spend exist
+// yet — calling this "gross profit" or "net profit" would overclaim
+// what's actually being computed. "Rough position" is cash-basis
+// (paid, not merely invoiced) since that's the most concretely real
+// number available — money that has actually moved, not what's owed
+// on paper.
+export async function getFinancialSnapshot(env: Env): Promise<string[]> {
+  const [invoicedRow, paidRow, expensesRow] = await Promise.all([
+    env.OFFICE_DB.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM invoices").first<{ total: number }>(),
+    env.OFFICE_DB.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM payments").first<{ total: number }>(),
+    env.OFFICE_DB.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM expenses").first<{ total: number }>(),
+  ]);
+
+  const totalInvoiced = invoicedRow?.total ?? 0;
+  const totalPaid = paidRow?.total ?? 0;
+  const totalExpenses = expensesRow?.total ?? 0;
+  const roughPosition = totalPaid - totalExpenses;
+
+  return [
+    `Total invoiced to date: R${totalInvoiced}.`,
+    `Total actually received: R${totalPaid}.`,
+    `Total spent on expenses: R${totalExpenses}.`,
+    `Rough cash position (received minus spent): R${roughPosition}. This is not a full profit and loss — no expense categories or job-cost linking exist yet, just real totals on both sides.`,
+  ];
+}
+
 // The real fix for "what's Sarah's balance" answering wrong — a
 // single customer's balance was only ever being searched for in
 // narrative notes, never computed from the actual invoices/payments
