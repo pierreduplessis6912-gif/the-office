@@ -517,6 +517,22 @@ async function processTranscript(
       // quotations or expenses.
       const agedFacts = topic === "quotations" || topic === "expenses" ? [] : await getAgedDebtorsSummary(env);
       message = await answerFromMemory(env, transcript, [...outstandingFacts, ...quotationFacts, ...expenseFacts, ...snapshotFacts, ...agedFacts]);
+      // Real feature 2026-07-12 — the small, real, static piece of
+      // Guide (see STATUS.md's pinned entry for the full design and
+      // what's deliberately NOT built yet: dissatisfaction-detection,
+      // learning, confidence scores). This is deterministic — never
+      // left to the model's own relevance judgment, since that
+      // judgment already correctly excludes the aged breakdown from a
+      // plain "who owes me money" answer as not literally asked for.
+      // A short, honest, code-level mention of a real, already-built,
+      // closely-related capability — not a raw fact for the model to
+      // weigh, a guaranteed addendum. Skipped if aging language was
+      // already used, so a genuine aged-breakdown request never gets
+      // a redundant "you can also see..." tacked onto its own answer.
+      const alreadyAskedForAging = /\b(aged|aging|overdue|breakdown)\b/i.test(transcript);
+      if (outstandingFacts.length > 0 && !alreadyAskedForAging && topic !== "quotations" && topic !== "expenses") {
+        message += " A more detailed aged breakdown is also available if useful.";
+      }
     } else if (character) {
       const characterFacts = await getCharacterNotes(env, character.id);
       const facts = [`${character.name} is a known contact.`, ...characterFacts];
