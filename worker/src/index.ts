@@ -13,7 +13,7 @@ interface Extraction {
   customer_name: string | null;
   character_name: string | null;
   character_relationship: string | null;
-  intent: "payment" | "invoice" | "quotation" | "convert_quote" | "price_scope" | "work_observation" | "lookup" | "reminder" | "task_complete" | "note" | "other";
+  intent: "payment" | "invoice" | "quotation" | "convert_quote" | "price_scope" | "work_observation" | "lookup" | "reminder" | "task_complete" | "expense" | "note" | "other";
   amount: number | null;
   fact_key: string | null;
   fact_value: string | null;
@@ -160,6 +160,12 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             'clear signal either way, default to "quotation" — proposing a price is less consequential ' +
             "than billing one, so the safer default when unsure is the earlier, less committal document. " +
             'scope_document_type is null whenever intent is not "price_scope". ' +
+            'intent is "expense" if the message describes money going OUT to a supplier for something ' +
+            'bought — materials, fuel, tools, supplies. "bought glue for R850 at BUCO" or "paid FinFloor ' +
+            'R18450 for vinyl" is expense. This is the OPPOSITE direction from "payment" — payment is ' +
+            'money coming IN from a customer; expense is money going OUT to a supplier. Use character_name ' +
+            '(with character_relationship "supplier") for who was paid, never customer_name — a supplier ' +
+            "is never billed the way a customer is, so expense never has a customer_name. " +
             'intent is "task_complete" if the message reports a personal errand or reminder as DONE — ' +
             '"got the dog food", "picked up the kids", "phoned my mother" — past tense, something ' +
             'finished, not a new request. This includes bare, pronoun-only completions with no concrete ' +
@@ -211,6 +217,7 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             '"the total invoice for the carpets is R39000" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"invoice","amount":39000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
             '"we quoted Jenny R39000 for the carpets" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"quotation","amount":39000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
             '"Jenny paid R850" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"payment","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
+            '"bought glue for R850 at BUCO" -> {"customer_name":null,"character_name":"BUCO","character_relationship":"supplier","intent":"expense","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
             '"picked up my wife from work, she\'s annoyed about the kitchen guy not showing" -> {"customer_name":null,"character_name":"wife","character_relationship":"wife","intent":"note","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
             '"how is my wife doing?" -> {"customer_name":null,"character_name":"wife","character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"character","deposit_percent":null,"scope_document_type":null}\n' +
             '"heading to jenny\'s job now, remind me to get dog food after" -> {"customer_name":"jenny","character_name":null,"character_relationship":null,"intent":"reminder","amount":null,"fact_key":null,"fact_value":null,"personal_note":"remind me to get dog food after","query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
@@ -225,7 +232,7 @@ async function extractIntent(env: Env, transcript: string): Promise<{ extraction
             "Return ONLY JSON, no markdown, no explanation: " +
             '{"customer_name": string or null, "character_name": string or null, "character_relationship": ' +
             'string or null, "intent": "payment" or "invoice" or "quotation" or "convert_quote" or ' +
-            '"price_scope" or "work_observation" or "lookup" or "reminder" or "task_complete" or "note" or "other", "amount": number or null, ' +
+            '"price_scope" or "work_observation" or "lookup" or "reminder" or "task_complete" or "expense" or "note" or "other", "amount": number or null, ' +
             '"fact_key": string or null, "fact_value": string or null, "personal_note": string or null, ' +
             '"query_scope": "customer" or "character" or "personal" or "business" or null, "deposit_percent": ' +
             'number or null, "scope_document_type": "quotation" or "invoice" or null}',
@@ -939,6 +946,29 @@ async function recordPayment(
     .first<{ id: number }>();
 
   return { id: inserted!.id, customerId, amount };
+}
+
+// Real feature 2026-07-11 — the first concrete piece of the expense
+// side of the accounting-capability roadmap pinned in STATUS.md.
+// Deliberately the smallest possible first domino, same discipline as
+// `tasks`: a bare table and one real intent, no receipt-photo
+// extraction, no VAT parsing, no job-cost linking yet. Same guard()
+// discipline as recordPayment — money moving is money moving,
+// regardless of direction.
+async function recordExpense(
+  env: Env,
+  characterId: number | null,
+  amount: number | null,
+  description: string,
+  sourceTranscript: string
+): Promise<{ id: number; characterId: number | null; amount: number | null }> {
+  const inserted = await env.OFFICE_DB.prepare(
+    "INSERT INTO expenses (character_id, amount, description, source_transcript) VALUES (?, ?, ?, ?) RETURNING id"
+  )
+    .bind(characterId, amount, description, sourceTranscript)
+    .first<{ id: number }>();
+
+  return { id: inserted!.id, characterId, amount };
 }
 
 // Same discipline as recordPayment — the ground-truth write, only
@@ -1978,6 +2008,16 @@ async function processTranscript(
     pendingActionId = held.id;
   }
 
+  if (extraction?.intent === "expense" && character) {
+    const held = await holdForConfirmation(
+      env,
+      "expense",
+      { characterId: character.id, characterName: character.name, amount: extraction.amount, description: transcript },
+      transcript
+    );
+    pendingActionId = held.id;
+  }
+
   if (extraction?.intent === "invoice" && customer && extraction.amount) {
     const held = await holdForConfirmation(
       env,
@@ -2779,6 +2819,32 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ status: "ok" });
     }
 
+    // Real feature 2026-07-11 — the first concrete piece of the
+    // expense side of the accounting-capability roadmap. Deliberately
+    // minimal: a bare table, no category, no VAT, no job linking yet.
+    if (url.pathname === "/debug/init-expenses-table" && request.method === "POST") {
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS expenses (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          character_id INTEGER,
+          amount REAL,
+          description TEXT NOT NULL,
+          source_transcript TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`
+      ).run();
+      return Response.json({ status: "ok" });
+    }
+
+    if (url.pathname === "/debug/expenses" && request.method === "GET") {
+      const { results } = await env.OFFICE_DB.prepare(
+        `SELECT e.id, e.amount, e.description, e.character_id, c.name as supplier_name, e.created_at
+         FROM expenses e LEFT JOIN characters c ON c.id = e.character_id
+         ORDER BY e.created_at DESC LIMIT 30`
+      ).all();
+      return Response.json({ expenses: results });
+    }
+
     if (url.pathname === "/debug/tasks" && request.method === "GET") {
       const { results } = await env.OFFICE_DB.prepare(
         "SELECT id, description, done, customer_id, character_id, created_at, completed_at FROM tasks ORDER BY created_at DESC LIMIT 30"
@@ -3031,6 +3097,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           text: "called them",
           check: (e) => e?.intent === "task_complete",
         },
+        {
+          name: "expense (money out, to a supplier) is distinct from payment (money in, from a customer)",
+          text: "bought glue for R850 at BUCO",
+          check: (e) => e?.intent === "expense" && e?.character_name === "BUCO" && e?.customer_name === null,
+        },
       ];
 
       // Sequential, not Promise.all — real bug found live 2026-07-11:
@@ -3282,6 +3353,22 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             .bind(id)
             .run();
           return Response.json({ status: "confirmed", payment });
+        }
+
+        if (action.type === "expense") {
+          const payload = JSON.parse(action.payload) as {
+            characterId: number | null;
+            characterName?: string;
+            amount: number | null;
+            description: string;
+          };
+          const expense = await recordExpense(env, payload.characterId, payload.amount, payload.description, action.source_transcript);
+          await env.OFFICE_DB.prepare(
+            "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+          )
+            .bind(id)
+            .run();
+          return Response.json({ status: "confirmed", expense });
         }
 
         if (action.type === "invoice") {
