@@ -1042,14 +1042,28 @@ Codemagic — still only proven on the web preview.**
     return so the caveat is appended deterministically in code — never
     a fact for the model to weigh and possibly drop, same fix pattern
     as the aged-debtors capability hint.
-  - Still genuinely missing toward an actual P&L: a formal
-    profit-and-loss statement combining categorized revenue and
-    expense across the whole business (job profitability exists
-    per-customer; nothing yet aggregates it business-wide by
-    category). Not a reason to hesitate on finance-adjacent work — but
-    worth being honest that "building toward a P&L" and "the revenue
-    chain already works" are not the same claim, and shouldn't be
-    quietly conflated.
+  - **The formal profit-and-loss statement — real, built, verified
+    live with exact correct arithmetic (2026-07-12). The roadmap's
+    original destination, honestly reached.** `getProfitAndLoss` /
+    `getProfitAndLossSummary`: real accrual-based revenue (invoiced,
+    not paid — a genuinely different, explicit convention from the
+    cash-basis snapshot, stated directly rather than left ambiguous),
+    real Cost of Sales vs Operating Expenses split (materials/
+    subcontractor vs fuel/tools/other/uncategorized), named explicitly
+    as a reasonable convention, not an infallible standard.
+    `generateProfitAndLossPdf` — real, exportable, same visual family
+    as the other three reports. Verified live: Revenue R40,114 − Cost
+    of Sales R420 = Gross Profit R39,694; minus Operating Expenses
+    R1,500 = Net Profit R38,194 — every figure checked and correct,
+    traceable back to three real expense rows and real invoices, none
+    of it estimated or narrated by the model. A single "how are we
+    doing financially" question now correctly synthesizes cash
+    position, formal P&L, outstanding debtors, aged breakdown,
+    per-customer detail, and category breakdown together into one
+    coherent, well-organized answer — everything built across this
+    entire roadmap working together, not just individually. This
+    closes the accounting-capability roadmap pinned 2026-07-11: every
+    number in that answer traces back to a real row in a real table.
 - **Guide — a dissatisfaction-triggered capability-discovery layer
   (2026-07-12).** Real, sharp diagnosis, and not hypothetical — it
   named a failure that had already happened live in this exact
