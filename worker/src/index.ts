@@ -1,7 +1,7 @@
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult } from "./types";
 import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractIntent, extractLineItems, extractScopePricing, extractWorkObservation, rerank, resolveFollowUpEntity, storeUnscopedMemory, transcribe } from "./ai";
 import { findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
-import { completeTask, createTask, getCompletedToday, getEmberCounts, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
+import { completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyStructuredFact, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
 import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedDebtorsSummary, getCustomerFinancialSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOutstandingInvoices, getProfitAndLossSummary, getQuotationsSummary, holdForConfirmation, recordExpense, recordInvoice, recordPayment, recordQuotation } from "./finance";
 
@@ -332,7 +332,16 @@ async function processTranscript(
   let workObservationResult: { jobScopeId: number; componentCount: number; taskCount: number } | null = null;
   if (extraction?.intent === "work_observation" && customer) {
     const observation = await extractWorkObservation(env, transcript);
-    const recorded = await recordWorkObservation(env, customer.id, observation, transcript);
+    // Real feature 2026-07-12 — the smallest real first domino toward
+    // team support: an installer is reconciled as a real character
+    // (same as a supplier — a real, non-billed person), never
+    // invented, only linked when genuinely named.
+    let installerId: number | null = null;
+    if (observation.installer_name) {
+      const installer = await reconcileCharacter(env, observation.installer_name, "installer");
+      installerId = installer?.id ?? null;
+    }
+    const recorded = await recordWorkObservation(env, customer.id, observation, transcript, installerId);
     workObservationResult = {
       jobScopeId: recorded.jobScopeId,
       componentCount: observation.components.length,
@@ -547,7 +556,19 @@ async function processTranscript(
       }
     } else if (character) {
       const characterFacts = await getCharacterNotes(env, character.id);
-      const facts = [`${character.name} is a known contact.`, ...characterFacts];
+      // Real feature 2026-07-12 — the first real answer to "how's
+      // Sipho doing": if this character has ever been assigned as an
+      // installer on a real job, that activity surfaces here too.
+      // Real, honestly scoped — only jobs assigned and their real
+      // scheduled dates, not completion status or margin, since
+      // neither is tracked yet.
+      const installerActivity = await getInstallerActivity(env, character.id);
+      const hasRealInstallerActivity = installerActivity[0] !== "No jobs assigned to this person yet.";
+      const facts = [
+        `${character.name} is a known contact.`,
+        ...characterFacts,
+        ...(hasRealInstallerActivity ? installerActivity : []),
+      ];
       message = await answerFromMemory(env, transcript, facts);
     } else if (customer) {
       const memoryFacts = await getCustomerNotes(env, customer.id);
@@ -801,6 +822,18 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     if (url.pathname === "/debug/init-expenses-jobcost" && request.method === "POST") {
       try {
         await env.OFFICE_DB.prepare("ALTER TABLE expenses ADD COLUMN customer_id INTEGER").run();
+      } catch {
+        // Already exists — fine, that's what makes this idempotent.
+      }
+      return Response.json({ status: "ok" });
+    }
+
+    // Real feature 2026-07-12 — the real prerequisite for team
+    // support: linking a job to who's actually assigned to do it.
+    // Idempotent, same pattern as every other ALTER here.
+    if (url.pathname === "/debug/init-jobscopes-installer" && request.method === "POST") {
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE job_scopes ADD COLUMN installer_id INTEGER").run();
       } catch {
         // Already exists — fine, that's what makes this idempotent.
       }
