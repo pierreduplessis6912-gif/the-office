@@ -734,9 +734,21 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ status: "ok" });
     }
 
+    // Real feature 2026-07-12 — the real prerequisite for eventually
+    // distinguishing cost of sales from operating expenses in a
+    // formal P&L. Idempotent, same pattern as every other ALTER here.
+    if (url.pathname === "/debug/init-expenses-category" && request.method === "POST") {
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE expenses ADD COLUMN category TEXT").run();
+      } catch {
+        // Already exists — fine, that's what makes this idempotent.
+      }
+      return Response.json({ status: "ok" });
+    }
+
     if (url.pathname === "/debug/expenses" && request.method === "GET") {
       const { results } = await env.OFFICE_DB.prepare(
-        `SELECT e.id, e.amount, e.description, e.character_id, c.name as supplier_name, e.created_at
+        `SELECT e.id, e.amount, e.description, e.category, e.character_id, c.name as supplier_name, e.created_at
          FROM expenses e LEFT JOIN characters c ON c.id = e.character_id
          ORDER BY e.created_at DESC LIMIT 30`
       ).all();
@@ -1681,7 +1693,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       const now = nowInBusinessTimezone();
       const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
       const { results } = await env.OFFICE_DB.prepare(
-        `SELECT e.id, e.amount, e.description, c.name as supplier_name, e.created_at
+        `SELECT e.id, e.amount, e.description, e.category, c.name as supplier_name, e.created_at
          FROM expenses e LEFT JOIN characters c ON c.id = e.character_id
          WHERE date(e.created_at) = ?
          ORDER BY e.created_at DESC`
