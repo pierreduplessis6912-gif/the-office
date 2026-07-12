@@ -1103,6 +1103,62 @@ Codemagic — still only proven on the web preview.**
   scores — the static piece a fuller Guide would eventually need,
   built small first, same discipline as everything else in this
   document.
+- **Multi-industry expansion — onboarding-as-capture, universal
+  primitives, six industries scoped (2026-07-12).** A genuinely
+  thorough, fluent proposal, checked against the same standard as
+  everything else pinned here rather than given a pass for its
+  detail. Real, worth keeping regardless of timing:
+  - **Onboarding is a capture, not a form.** A direct, correct
+    extension of the receptacle philosophy — Peter describes his
+    business the same way he describes a job; extraction identifies
+    the business model; ambiguity holds as a real `schema_candidate`
+    (already real, already proven) rather than a form field. This
+    part doesn't need a second industry to be true — it's a genuine
+    insight about onboarding itself.
+  - **`business_config` as a real, small primitive** — what gets
+    discovered from onboarding, read on every extraction call as
+    translation context (Principle 2: helps map words to the right
+    intent, never computes anything, never decides). A real, well-
+    shaped idea.
+  - **`jobs`/`job_scopes` naturally generalizing toward "project"** —
+    correct observation about something that already exists
+    (`jobs` has sat "unexercised by any real flow" in this schema
+    since early sessions), not a reason to rename it now. Renaming
+    for hypothetical future use, before a second real use case exists
+    to prove the generalization against, is exactly the premature-
+    generalization risk the execution register was deliberately
+    proven small before extending.
+  - **`movements`, `time_entries` as candidate universal shapes** for
+    logistics and professional-services work respectively — real,
+    reasonable designs, checked against the Constitution's own
+    principles correctly (deterministic distance/billable-amount
+    computation in code, never AI; real lifecycle reuse via
+    `pending_actions`). Genuinely unbuilt, and correctly so.
+  - **The honest self-correction worth stating plainly:** the source
+    proposal's own "Honest Roadmap" contradicts its own stated
+    standard in one place — it says the onboarding mechanism is
+    "pinned until one non-trade user is ready to test it live," then
+    immediately recommends building the logistics onboarding first,
+    as though that industry already has more evidentiary weight than
+    Hospitality or Agriculture. It doesn't. Zero real customers exist
+    outside Peter's own flooring business — not one logistics
+    operator, retailer, consultant, farmer, or restaurant has ever
+    sent Office a real message. Every industry in this proposal,
+    including logistics, is held to the exact same standard: pinned
+    until a real person in that industry is actually trying to use
+    Office and hits a real wall, the same way `resolveTaskCompletion`
+    and the expense-guard bug were only ever fixed because a real
+    message exposed them. This is, so far, the single largest
+    distance from real evidence any idea pinned in this document has
+    proposed at once — bigger than Guide, Behavioral Preferences, or
+    Workers for Platforms, each of which was pinned specifically
+    because nothing real demanded them yet either.
+  - Real, related, and worth distinguishing: this is about *multiple
+    businesses/industries* each getting their own onboarding-
+    discovered configuration. It's a different question from "how's
+    Sipho doing" (departments owning facts about participants
+    *within* one business) — related in spirit (both are about the
+    right context shaping the right answer), not the same proposal.
 
 ## UX vision — the Ether, and what it does / doesn't change (2026-07-10)
 
