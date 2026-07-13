@@ -629,6 +629,46 @@ error, not curl output):**
     the model could discard. Same fix pattern as the aged-debtors
     capability hint (bug-adjacent feature, not numbered separately).
 
+**2026-07-12, team support ("how's Sipho doing") — a real, three-layer
+debugging chain, each bug only found because the previous one got
+fixed and testing kept going:**
+32. **A real name collision silently defeated character resolution.**
+    "Sipho" existed as both a customer (id 12, an unrelated much
+    earlier test) and a character (id 7, today's real installer). A
+    lookup for `character_name` used `findExistingEntityByName` — a
+    function that checks customers first, found the wrong-type match,
+    correctly rejected it, and had nothing left to fall back to,
+    leaving `character` silently unset even though the right character
+    genuinely existed. The register/AI-fallback then kicked in and
+    answered about a completely unrelated customer. Root cause: that
+    function is genuinely correct for its own real use (the register's
+    ambiguous-reference fallback, where the type truly isn't known in
+    advance) — the bug was using it in the lookup branch, where
+    extraction had already told us which table a name came from.
+    Fixed with `findExistingCustomerByName`/`findExistingCharacterByName`
+    — type-specific, read-only lookups for when the type is already
+    known. Verified via a direct diagnostic route
+    (`/debug/find-character`) proving the lookup itself was correct in
+    isolation before chasing the bug further downstream.
+33. **The deeper bug, only visible once #32 was fixed: `answerFromMemory`
+    judged real, correct, directly relevant facts as not answering the
+    question at all**, triggering its own "say you don't have that on
+    file" instruction. Diagnostics proved every layer upstream was
+    correct — character resolution, job-installer linking, fact
+    assembly all returned exactly the right data. The actual bug was
+    in how the model read "how's Sipho doing?" — as a general wellbeing
+    check, not what it meant in context. **The first fix was itself a
+    mistake, caught and corrected live**: forcing "how's X doing" to
+    always mean work status was still a guess, just a different one —
+    it would have confidently answered wrong the moment someone
+    genuinely meant wellbeing. Corrected to Principle 24: never guess
+    which interpretation of an ambiguous question was meant; share
+    real, known facts about the person anyway, since withholding
+    known information on a technicality of wording is worse than
+    answering something slightly off the literal question. Verified
+    live: "how's Sipho doing?" now correctly surfaces his real job
+    assignment.
+
 ## Debug and diagnostic routes
 
 `/debug/list-audio`, `/debug/reprocess`, `/debug/search-memory`,
