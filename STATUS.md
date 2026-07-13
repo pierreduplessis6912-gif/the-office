@@ -734,6 +734,27 @@ real job scope correctly linked to the right entity with no crash,
 and the two reminder-shaped segments (already independently verified
 correct — a real task, a real character note) all recorded from one
 message, each in its own correct home.
+38. **One more found during the migration's own verification, not the
+    feature itself**: `/debug/job-scopes` used an `INNER JOIN` against
+    customers — which silently excludes any row with a `NULL`
+    `customer_id` from the view entirely, real data sitting untouched
+    in the table but invisible to the debug route meant to show it.
+    Not a data-loss bug, a visibility bug, but a real one now that a
+    job scope can genuinely have no customer yet. Fixed to `LEFT
+    JOIN`. Caught precisely because verification didn't stop at "the
+    migration ran successfully" — it went looking for the specific
+    row it expected to see and found it missing, which is what
+    actually surfaced this.
+
+**The whole arc, five real bugs deep, closes with one thing worth
+naming plainly: every single one was found because testing kept going
+past the point where things "looked fixed."** The Sipho fix revealed
+the over-split; the over-split fix and the nullable-customer fix
+together revealed the live crash; fixing the crash and verifying it
+properly revealed the debug view's own blind spot. None of these
+would have surfaced from a single pass of "does this work now?" —
+only from checking the actual, specific thing each fix was supposed
+to produce, every time.
 
 ## Debug and diagnostic routes
 
