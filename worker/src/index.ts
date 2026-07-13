@@ -1337,6 +1337,47 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ table, columns: results });
     }
 
+    // Real, careful migration 2026-07-13 — relaxing job_scopes.
+    // customer_id's NOT NULL constraint, the confirmed real cause of
+    // a live crash (a job with a real installer but no yet-known
+    // customer must be recordable, not silently dropped nor crashing
+    // outright). SQLite cannot relax a NOT NULL constraint via a
+    // simple ALTER — this recreates the table with every real column
+    // preserved exactly, verified first against the live schema via
+    // /debug/table-schema rather than reconstructed from memory of
+    // the code that reads it. IDs are preserved exactly (explicit
+    // column list, not SELECT *) since job_scopes.id is referenced by
+    // scope_components and scope_tasks. Idempotent: if the migration
+    // already ran, job_scopes_new won't exist to conflict with, and
+    // this can be safely re-run.
+    if (url.pathname === "/debug/migrate-jobscopes-nullable-customer" && request.method === "POST") {
+      try {
+        await env.OFFICE_DB.batch([
+          env.OFFICE_DB.prepare(
+            `CREATE TABLE job_scopes_new (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              customer_id INTEGER,
+              description TEXT NOT NULL,
+              scheduled_date_raw TEXT,
+              source_transcript TEXT,
+              created_at TEXT DEFAULT (datetime('now')),
+              scheduled_date TEXT,
+              installer_id INTEGER
+            )`
+          ),
+          env.OFFICE_DB.prepare(
+            `INSERT INTO job_scopes_new (id, customer_id, description, scheduled_date_raw, source_transcript, created_at, scheduled_date, installer_id)
+             SELECT id, customer_id, description, scheduled_date_raw, source_transcript, created_at, scheduled_date, installer_id FROM job_scopes`
+          ),
+          env.OFFICE_DB.prepare("DROP TABLE job_scopes"),
+          env.OFFICE_DB.prepare("ALTER TABLE job_scopes_new RENAME TO job_scopes"),
+        ]);
+        return Response.json({ status: "ok" });
+      } catch (err) {
+        return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
+      }
+    }
+
     // One-time schema migration for the new real, queryable date —
     // scheduled_date_raw has always been a free phrase; this is the
     // actual resolved calendar date. Same idempotent ALTER pattern as
