@@ -254,15 +254,20 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             "amount was stated, exactly as given — never estimate or calculate, only use a number " +
             "that was actually stated, or null if none was. " +
             "fact_key and fact_value: if the message states a clear, structured attribute about the " +
-            "customer, extract it as a short snake_case key and its value. For a phone number, email, " +
-            "or address specifically, ALWAYS use exactly these keys — \"phone_number\", \"email\", or " +
-            '"address" — never a variant like "cell", "mobile", or "contact_number", so the same kind ' +
-            "of fact is always named the same way. For anything else genuinely specific to this trade " +
-            "or job (e.g. a circuit rating, a paint colour, a fabric type), invent a short, clear " +
-            'snake_case key as before — e.g. fact_key: "address", fact_value: "12 Golf Way, Eco Estate, ' +
-            'Eshowe". Extract the value exactly as stated — never reformat, normalize, or convert it ' +
-            "yourself, that always happens afterward, in code. If the message is a general note that " +
-            "does not cleanly reduce to one key and value, set both to null. " +
+            "customer OR about a character (a real, non-billed person — a staff member, installer, " +
+            "supplier), extract it as a short snake_case key and its value, the same way either way — " +
+            "just note which one it's about via customer_name/character_name as already extracted. For " +
+            "a phone number, email, or address specifically, ALWAYS use exactly these keys — " +
+            '"phone_number", "email", or "address" — never a variant like "cell", "mobile", or ' +
+            '"contact_number", so the same kind of fact is always named the same way. For structured ' +
+            "attributes about a character specifically — a role, a skill, a qualification, a license, a " +
+            "site permit — use a clear snake_case key (e.g. \"role\", \"skill\", \"license\", " +
+            '"site_permit"). For anything else genuinely specific to this trade or job (e.g. a circuit ' +
+            'rating, a paint colour, a fabric type), invent a short, clear snake_case key as before — ' +
+            'e.g. fact_key: "address", fact_value: "12 Golf Way, Eco Estate, Eshowe". Extract the value ' +
+            "exactly as stated — never reformat, normalize, or convert it yourself, that always happens " +
+            "afterward, in code. If the message is a general note that does not cleanly reduce to one " +
+            "key and value, set both to null. " +
             "personal_note: real speech often mixes a customer-related part with something that is " +
             "actually about the tradesperson's own life, not the customer — an errand, a reminder, a " +
             "family task. If the message contains such a fragment ALONGSIDE a customer reference, " +
@@ -289,6 +294,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             '"Jenny paid R850" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"payment","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
             '"bought glue for R850 at BUCO" -> {"customer_name":null,"character_name":"BUCO","character_relationship":"supplier","intent":"expense","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
             '"bought glue for R850 at BUCO for Jenny\'s job" -> {"customer_name":"Jenny","character_name":"BUCO","character_relationship":"supplier","intent":"expense","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
+            '"Sipho has a driver\'s license" -> {"customer_name":null,"character_name":"Sipho","character_relationship":"installer","intent":"note","amount":null,"fact_key":"license","fact_value":"driver\'s license","personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
             '"picked up my wife from work, she\'s annoyed about the kitchen guy not showing" -> {"customer_name":null,"character_name":"wife","character_relationship":"wife","intent":"note","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
             '"how is my wife doing?" -> {"customer_name":null,"character_name":"wife","character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"character","deposit_percent":null,"scope_document_type":null}\n' +
             '"heading to jenny\'s job now, remind me to get dog food after" -> {"customer_name":"jenny","character_name":null,"character_relationship":null,"intent":"reminder","amount":null,"fact_key":null,"fact_value":null,"personal_note":"remind me to get dog food after","query_scope":null,"deposit_percent":null,"scope_document_type":null}\n' +
