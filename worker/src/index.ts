@@ -1401,6 +1401,101 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ table, columns: results });
     }
 
+    // Real admin tooling 2026-07-13 — genuine, reusable capability,
+    // not a one-off debug hack. The minimal, immediate protection
+    // layer (a real admin key, checked here) before the full
+    // Google-auth system exists — a deletion capability this
+    // consequential can't wait for that larger build to be safe.
+    if (url.pathname.startsWith("/admin/")) {
+      const providedKey = request.headers.get("X-Admin-Key");
+      if (!providedKey || providedKey !== env.ADMIN_KEY) {
+        return Response.json({ error: "unauthorized" }, { status: 401 });
+      }
+    }
+
+    // Real tables discovered from the actual live schema, never a
+    // manually-typed list — the exact discipline that caught the
+    // job_scopes migration issue earlier tonight, applied here so a
+    // real table is never silently missed from export or flush.
+    async function getRealTableNames(): Promise<string[]> {
+      const { results } = await env.OFFICE_DB.prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+      ).all<{ name: string }>();
+      return results.map((r) => r.name);
+    }
+
+    // A genuine safety snapshot before anything irreversible happens
+    // — costs nothing to have, even if never needed.
+    if (url.pathname === "/admin/export" && request.method === "GET") {
+      const tables = await getRealTableNames();
+      const snapshot: Record<string, unknown[]> = {};
+      for (const table of tables) {
+        const { results } = await env.OFFICE_DB.prepare(`SELECT * FROM ${table}`).all();
+        snapshot[table] = results;
+      }
+      return Response.json({ exportedAt: new Date().toISOString(), tables: snapshot });
+    }
+
+    // Real, guarded deletion — the same two-factor discipline guard()
+    // already applies to money and identity, now applied to erasure:
+    // both a real admin key AND an explicit, exact confirmation
+    // phrase are required, so this can never fire by accident. Clears
+    // D1 (every real table, dynamically discovered), KV (customer and
+    // character notes, life events), and R2 (every uploaded file) —
+    // a genuine, complete flush, not a partial one that leaves real
+    // data quietly behind.
+    if (url.pathname === "/admin/flush" && request.method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { confirm?: string };
+      if (body.confirm !== "DELETE ALL DATA") {
+        return Response.json(
+          { error: 'missing or incorrect confirmation — send {"confirm": "DELETE ALL DATA"}' },
+          { status: 400 }
+        );
+      }
+
+      const tables = await getRealTableNames();
+      const deletedCounts: Record<string, number> = {};
+      for (const table of tables) {
+        const countRow = await env.OFFICE_DB.prepare(`SELECT COUNT(*) as n FROM ${table}`).first<{ n: number }>();
+        deletedCounts[table] = countRow?.n ?? 0;
+        await env.OFFICE_DB.prepare(`DELETE FROM ${table}`).run();
+      }
+
+      // KV has no bulk-clear operation — list every real key, delete
+      // each one explicitly.
+      let kvKeysDeleted = 0;
+      let cursor: string | undefined;
+      do {
+        const listed = await env.CUSTOMER_NOTES.list({ cursor });
+        for (const key of listed.keys) {
+          await env.CUSTOMER_NOTES.delete(key.name);
+          kvKeysDeleted++;
+        }
+        cursor = listed.list_complete ? undefined : listed.cursor;
+      } while (cursor);
+
+      // Same for R2 — every real uploaded file, not just the D1
+      // records that reference them.
+      let r2ObjectsDeleted = 0;
+      let r2Cursor: string | undefined;
+      do {
+        const listed = await env.OFFICE_VAULT.list({ cursor: r2Cursor });
+        for (const obj of listed.objects) {
+          await env.OFFICE_VAULT.delete(obj.key);
+          r2ObjectsDeleted++;
+        }
+        r2Cursor = listed.truncated ? listed.cursor : undefined;
+      } while (r2Cursor);
+
+      return Response.json({
+        status: "flushed",
+        flushedAt: new Date().toISOString(),
+        d1RowsDeleted: deletedCounts,
+        kvKeysDeleted,
+        r2ObjectsDeleted,
+      });
+    }
+
     // Real, careful migration 2026-07-13 — relaxing job_scopes.
     // customer_id's NOT NULL constraint, the confirmed real cause of
     // a live crash (a job with a real installer but no yet-known
