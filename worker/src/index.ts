@@ -1,5 +1,5 @@
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult } from "./types";
-import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractIntent, extractLineItems, extractScopePricing, extractWorkObservation, rerank, resolveFollowUpEntity, storeUnscopedMemory, transcribe } from "./ai";
+import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractIntent, extractLineItems, extractMultipleIntents, extractScopePricing, extractWorkObservation, rerank, resolveFollowUpEntity, storeUnscopedMemory, transcribe } from "./ai";
 import { findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyStructuredFact, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
@@ -17,31 +17,29 @@ const QUESTION_STARTERS = [
 ];
 
 
-async function processTranscript(
+// Real feature 2026-07-13 — the reusable core of what used to be the
+// whole of processTranscript, now callable once per item in a
+// multi-intent message instead of once per raw message. Internal
+// logic is otherwise UNCHANGED from the single-intent version proven
+// correct all session — this is a wrapping change, not a rewrite, to
+// keep the real risk of this refactor as small as it can be.
+async function processOneExtraction(
   env: Env,
   transcript: string,
+  extraction: Extraction | null,
+  history: HistoryTurn[],
   ctx: ExecutionContext,
-  history: HistoryTurn[] = [],
-  source: string = "text",
-  r2Key: string | null = null
-): Promise<ProcessResult> {
-  const captureId = await logCapture(env, transcript, source, r2Key);
-
-  let extraction: Extraction | null = null;
-  let extractionRaw: unknown = null;
-  let extractionRawText: string | null = null;
+  captureId: number | null
+): Promise<{
+  customer: { id: number; name: string; matched: boolean } | null;
+  character: { id: number; name: string; matched: boolean } | null;
+  pendingActionId: number | null;
+  factPendingActionId: number | null;
+  message: string;
+}> {
   let customer: { id: number; name: string; matched: boolean } | null = null;
   let character: { id: number; name: string; matched: boolean } | null = null;
   let pendingActionId: number | null = null;
-
-  // Extraction always runs on the real, original words — never a
-  // rewritten version. extractIntent already resolves customer_name/
-  // character_name directly and reliably for the vast majority of
-  // messages, which name who they're about outright.
-  const result = await extractIntent(env, transcript);
-  extraction = result.extraction;
-  extractionRaw = result.raw;
-  extractionRawText = result.rawText;
 
   // Real bug found via external review 2026-07-11, confirmed against
   // the actual code: reconcileCustomer/reconcileCharacter create a
@@ -627,9 +625,71 @@ async function processTranscript(
     message += ` ${extraction!.fact_key} noted (${extraction!.fact_value}) — needs your confirmation (action #${factPendingActionId}) before it's saved.`;
   }
 
-  const embers = await getEmberCounts(env);
-  return { extraction, extractionRaw, extractionRawText, customer, pendingActionId, factPendingActionId, message, rewrittenQuery: transcript, embers };
+  return { customer, character, pendingActionId, factPendingActionId, message };
 }
+// Real feature 2026-07-13 — the thin outer wrapper. Logs the raw
+// capture exactly once per incoming message (the receptacle
+// principle: capture happens before understanding, regardless of how
+// many topics turn out to be inside it), then runs the real,
+// unchanged single-item logic once per genuinely separate topic. For
+// the common case (one topic), this behaves identically to the old
+// processTranscript — same one AI extraction call, same one pass
+// through processOneExtraction, same result. The only real difference
+// for a single-topic message is the one extra split-check call.
+async function processTranscript(
+  env: Env,
+  transcript: string,
+  ctx: ExecutionContext,
+  history: HistoryTurn[] = [],
+  source: string = "text",
+  r2Key: string | null = null
+): Promise<ProcessResult> {
+  const captureId = await logCapture(env, transcript, source, r2Key);
+
+  const items = await extractMultipleIntents(env, transcript);
+
+  const results: Array<{
+    customer: { id: number; name: string; matched: boolean } | null;
+    character: { id: number; name: string; matched: boolean } | null;
+    pendingActionId: number | null;
+    factPendingActionId: number | null;
+    message: string;
+  }> = [];
+
+  for (const item of items) {
+    const outcome = await processOneExtraction(env, item.segment, item.extraction, history, ctx, captureId);
+    results.push(outcome);
+  }
+
+  // Real, deterministic merge — never another AI call to summarize,
+  // which would just reintroduce the exact relevance-judgment risk
+  // Principle 24 already had to correct once tonight. Each segment's
+  // own message already says the real, complete thing that happened
+  // to it; multiple segments just get joined, not resynthesized.
+  const message =
+    results.length === 1
+      ? results[0].message
+      : results.map((r) => `- ${r.message}`).join("\n");
+
+  const pendingActionIds = results.map((r) => r.pendingActionId).filter((id): id is number => id !== null);
+  const factPendingActionIds = results.map((r) => r.factPendingActionId).filter((id): id is number => id !== null);
+  const primary = results[0];
+
+  const embers = await getEmberCounts(env);
+  return {
+    extraction: items[0]?.extraction ?? null,
+    extractionRaw: items[0]?.raw ?? null,
+    extractionRawText: items[0]?.rawText ?? null,
+    customer: results.find((r) => r.customer)?.customer ?? primary?.customer ?? null,
+    pendingActionId: pendingActionIds[0] ?? null,
+    pendingActionIds,
+    factPendingActionId: factPendingActionIds[0] ?? null,
+    message,
+    rewrittenQuery: transcript,
+    embers,
+  };
+}
+
 
 async function handleRequest(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
