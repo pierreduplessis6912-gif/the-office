@@ -1,683 +1,874 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>The Office</title>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <style>
   :root {
-    --void: #0a0a0b;
-    --pulse: #e63946;
-    --pulse-glow: rgba(230, 57, 70, 0.3);
-    --breathe: #2a9d8f;
-    --breathe-glow: rgba(42, 157, 143, 0.3);
-    --amber: #f4a261;
-    --text-primary: #f5f5f5;
-    --text-secondary: #8a8a8f;
-    --text-tertiary: #5a5a5f;
-    --surface: #141418;
-    --surface-elevated: #1e1e24;
-    --border: #2a2a30;
-    --font-display: 'Space Grotesk', sans-serif;
-    --font-body: 'Inter', sans-serif;
+    --charcoal: #17140F;
+    --charcoal-soft: #221E18;
+    --paper: #F5F2EB;
+    --steel: #7A766D;
+    --ember-amber: #E8871E;
+    --ember-red: #C4432B;
+    --sage: #5C7A5C;
+    --blue: #4A7FC1;
+    --purple: #7A5FB8;
   }
-
-  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
+    margin: 0; padding: 0;
+    background: var(--charcoal);
+    color: var(--paper);
+    font-family: 'Work Sans', sans-serif;
     height: 100%;
-    overscroll-behavior: none;
-  }
-
-  body {
-    background: var(--void);
-    color: var(--text-primary);
-    font-family: var(--font-body);
-    -webkit-font-smoothing: antialiased;
-    display: flex;
-    flex-direction: column;
     overflow: hidden;
   }
+  @media (prefers-reduced-motion: reduce) { *, *::before { animation-duration: 0.001ms !important; } }
 
-  /* ---------- Top bar: minimal, just identity + history access ---------- */
-  .topbar {
+  .screen {
+    max-width: 480px;
+    margin: 0 auto;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  /* --- Masthead --- */
+  .masthead {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 18px 20px 8px;
-    flex-shrink: 0;
+    padding: 22px 16px 6px;
   }
-
-  .brand {
-    font-family: var(--font-display);
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0.22em;
-    color: var(--text-tertiary);
-    text-transform: uppercase;
-  }
-
-  .icon-btn {
+  .menu-btn {
     background: none;
     border: none;
-    color: var(--text-tertiary);
-    font-size: 20px;
-    padding: 8px;
+    padding: 6px;
     cursor: pointer;
-    line-height: 1;
-    transition: color 0.2s ease;
+    width: 28px;
   }
-  .icon-btn:hover { color: var(--text-secondary); }
-  .icon-btn:focus-visible { outline: 2px solid var(--pulse); outline-offset: 2px; border-radius: 6px; }
+  .menu-btn svg { width: 18px; height: 18px; stroke: var(--steel); stroke-width: 1.6; }
+  .masthead h1 {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 500;
+    font-size: 14px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--steel);
+    margin: 0;
+    flex: 1;
+    text-align: center;
+  }
+  .embers {
+    display: flex;
+    gap: 8px;
+    width: 28px;
+    justify-content: flex-end;
+  }
+  /* A barely-visible hint that something lives to the right — not a
+     label, not an arrow, just enough texture to be found by a
+     curious thumb. Principle 25: discoverable, never displayed. */
+  .edge-hint {
+    position: absolute;
+    right: 0; top: 50%;
+    transform: translateY(-50%);
+    width: 3px; height: 44px;
+    background: rgba(245,242,235,0.06);
+    border-radius: 3px 0 0 3px;
+    pointer-events: none;
+  }
+  .ember-dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: #2A2620;
+    box-shadow: 0 0 2px 0 rgba(232,135,30,0.12);
+    cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+  .ember-dot:active { transform: scale(0.85); }
 
-  /* ---------- The response area: the whole point ---------- */
+  /* Real fire behaves differently per department, not a flat on/off —
+     Peter should sense the state of his business before he even reads
+     the numbers. */
+  .ember-dot.lit[data-dept="tasks"] {
+    background: var(--ember-amber);
+    animation: flicker-tasks 3.4s ease-in-out infinite;
+  }
+  .ember-dot.lit[data-dept="scheduler"] {
+    background: var(--blue);
+    animation: flicker-tasks 3.9s ease-in-out infinite;
+    animation-delay: -1.1s;
+    filter: hue-rotate(0deg);
+  }
+  .ember-dot.lit[data-dept="finance"] {
+    background: var(--ember-red);
+    animation: glow-heavy 4.6s ease-in-out infinite;
+  }
+  .ember-dot.lit[data-dept="expenses"] {
+    background: var(--purple);
+    animation: flicker-tasks 3.7s ease-in-out infinite;
+    animation-delay: -2.2s;
+  }
+  @keyframes flicker-tasks {
+    0%, 100% { opacity: 0.85; box-shadow: 0 0 5px 1px currentColor; }
+    8%  { opacity: 0.55; box-shadow: 0 0 3px 1px currentColor; }
+    22% { opacity: 1;    box-shadow: 0 0 8px 2px currentColor; }
+    35% { opacity: 0.65; box-shadow: 0 0 4px 1px currentColor; }
+    55% { opacity: 0.95; box-shadow: 0 0 6px 1px currentColor; }
+    70% { opacity: 0.6;  box-shadow: 0 0 4px 1px currentColor; }
+    85% { opacity: 0.92; box-shadow: 0 0 7px 2px currentColor; }
+  }
+  @keyframes glow-heavy {
+    0%, 100% { opacity: 0.5;  box-shadow: 0 0 6px 1px currentColor; }
+    50%      { opacity: 1;    box-shadow: 0 0 13px 3px currentColor; }
+  }
+  .ember-dot.lit { color: inherit; }
+  .ember-dot.lit[data-dept="tasks"], .ember-dot.lit[data-dept="scheduler"],
+  .ember-dot.lit[data-dept="finance"], .ember-dot.lit[data-dept="expenses"] {
+    box-shadow: 0 0 6px 1px currentColor;
+  }
+  /* currentColor needs a real text color per department to drive the shadow */
+  .ember-dot.lit[data-dept="tasks"] { color: var(--ember-amber); }
+  .ember-dot.lit[data-dept="scheduler"] { color: var(--blue); }
+  .ember-dot.lit[data-dept="finance"] { color: var(--ember-red); }
+  .ember-dot.lit[data-dept="expenses"] { color: var(--purple); }
+
+  /* The listening boost — Tasks flickers a little brighter while
+     Office is actively paying attention, a small, real signal that
+     it has leaned forward. */
+  .ember-dot.listening-boost {
+    animation-duration: 1.6s !important;
+    filter: brightness(1.35);
+  }
+
+  /* --- Conversation area --- */
   .stage {
     flex: 1;
+    padding: 10px 30px;
     display: flex;
     flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    overflow-y: auto;
+    gap: 22px;
+  }
+  .stage.has-content { justify-content: flex-start; padding-top: 60px; align-items: stretch; }
+
+  .prompt-quiet {
+    text-align: center;
+    color: var(--steel);
+  }
+  .prompt-quiet .glyph {
+    font-family: 'Oswald', sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0.5;
+    font-weight: 400;
+  }
+
+  /* Light, floating text — never a solid chat bubble. Office's voice
+     drifts into the void rather than announcing itself in a box. */
+  .utterance {
+    max-width: 100%;
+    text-align: center;
+    animation: drift-in 0.5s ease both;
+  }
+  .utterance.you {
+    color: var(--steel);
+    font-size: 14px;
+    font-weight: 400;
+    font-style: italic;
+    line-height: 1.5;
+  }
+  .utterance.office {
+    color: var(--paper);
+    font-size: 15.5px;
+    font-weight: 300;
+    line-height: 1.55;
+    white-space: pre-line;
+  }
+  .utterance.office .label {
+    display: block;
+    font-family: 'Oswald', sans-serif;
+    font-size: 9.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--steel);
+    font-weight: 500;
+    margin-bottom: 6px;
+    opacity: 0.7;
+  }
+  @keyframes drift-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  .listening-indicator {
+    display: flex;
+    gap: 4px;
     align-items: center;
     justify-content: center;
-    padding: 24px 28px;
-    text-align: center;
-    gap: 18px;
-    overflow-y: auto;
-    min-height: 0;
+    padding: 10px;
   }
+  .listening-indicator span {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--ember-amber);
+    animation: bob 1s ease-in-out infinite;
+  }
+  .listening-indicator span:nth-child(2) { animation-delay: 0.15s; }
+  .listening-indicator span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes bob { 0%, 100% { transform: translateY(0); opacity: 0.5; } 50% { transform: translateY(-5px); opacity: 1; } }
 
-  .waveform {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    height: 44px;
-    opacity: 0;
-    transition: opacity 0.25s ease;
-  }
-  .waveform.active { opacity: 1; }
-  .waveform .bar {
-    width: 3px;
-    border-radius: 2px;
-    background: var(--pulse);
-    animation: wave 1.1s ease-in-out infinite;
-  }
-  .waveform.calm .bar { background: var(--breathe); }
-  .waveform .bar:nth-child(1) { height: 10px; animation-delay: 0s; }
-  .waveform .bar:nth-child(2) { height: 22px; animation-delay: 0.1s; }
-  .waveform .bar:nth-child(3) { height: 32px; animation-delay: 0.2s; }
-  .waveform .bar:nth-child(4) { height: 18px; animation-delay: 0.3s; }
-  .waveform .bar:nth-child(5) { height: 36px; animation-delay: 0.15s; }
-  .waveform .bar:nth-child(6) { height: 14px; animation-delay: 0.25s; }
-  .waveform .bar:nth-child(7) { height: 26px; animation-delay: 0.05s; }
-
-  @keyframes wave {
-    0%, 100% { transform: scaleY(0.45); opacity: 0.55; }
-    50% { transform: scaleY(1); opacity: 1; }
-  }
-
-  .response-text {
-    font-size: 19px;
-    line-height: 1.5;
-    color: var(--text-primary);
-    max-width: 440px;
-    transition: color 0.3s ease;
-  }
-  .response-text.calm { color: var(--breathe); font-size: 21px; }
-
-  .response-sub {
-    font-size: 13px;
-    color: var(--text-tertiary);
-    max-width: 380px;
-  }
-
-  /* ---------- Structured "view" card: register / document / confirm ---------- */
-  /* Deliberately plain — a bordered block, not a chat bubble. Only
-     ever appears when there's something real to act on: a guard()
-     confirmation, or a document link. Nothing narrated inside it. */
-  .view-card {
-    display: none;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 18px 20px;
-    max-width: 400px;
-    width: 100%;
-    text-align: left;
-  }
-  .view-card.visible { display: block; }
-
-  .view-label {
-    font-family: var(--font-display);
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--pulse);
-    margin-bottom: 10px;
-  }
-  .view-label.done { color: var(--breathe); }
-
-  .view-row {
-    display: flex;
-    gap: 10px;
-    margin-top: 12px;
-  }
-
-  .view-btn {
-    flex: 1;
-    font-family: var(--font-display);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    padding: 10px 14px;
-    border-radius: 8px;
-    border: 1.5px solid var(--breathe);
-    background: none;
-    color: var(--breathe);
-    cursor: pointer;
-    transition: background 0.15s ease;
-  }
-  .view-btn.reject { border-color: var(--text-tertiary); color: var(--text-secondary); }
-  .view-btn:hover { background: rgba(255,255,255,0.04); }
-  .view-btn:disabled { opacity: 0.4; cursor: default; }
-
-  .view-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin-top: 12px;
-    font-family: var(--font-display);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    color: var(--amber);
-    text-decoration: none;
-    border-bottom: 1px solid var(--amber);
-    padding-bottom: 2px;
-  }
-
-  .view-status {
-    font-family: var(--font-display);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    margin-top: 10px;
-  }
-  .view-status.confirmed { color: var(--breathe); }
-  .view-status.rejected { color: var(--text-tertiary); }
-
-  /* ---------- Mic area ---------- */
-  .mic-area {
+  /* --- Talk control --- */
+  .control {
+    padding: 14px 24px 34px;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 12px;
-    padding: 10px 0 max(28px, env(safe-area-inset-bottom));
-    flex-shrink: 0;
   }
-
-  .mic-btn {
-    width: 76px;
-    height: 76px;
+  .talk-btn {
+    width: 92px; height: 92px;
     border-radius: 50%;
     border: none;
-    background: radial-gradient(circle at 32% 30%, var(--pulse), #7a0f18);
-    box-shadow: 0 4px 26px var(--pulse-glow);
+    background: radial-gradient(circle at 35% 30%, #2E2A22, #201C16 75%);
+    box-shadow: 0 0 10px 1px rgba(196,67,43,0.18);
+    display: flex; align-items: center; justify-content: center;
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-    -webkit-user-select: none;
-    user-select: none;
-    touch-action: none;
+    transition: background 0.55s ease, box-shadow 0.55s ease, transform 0.15s ease;
+    position: relative;
   }
-  .mic-btn svg { width: 28px; height: 28px; }
-  .mic-btn.recording {
-    animation: pulse-rec 1.1s ease-in-out infinite;
-    box-shadow: 0 4px 34px var(--pulse-glow);
+  .talk-btn svg { width: 34px; height: 34px; fill: none; stroke: var(--paper); stroke-width: 2.2; transition: stroke 0.5s ease; }
+  .talk-btn.idle { animation: idle-breathe 3.4s ease-in-out infinite; }
+  @keyframes idle-breathe {
+    0%, 100% { box-shadow: 0 0 8px 1px rgba(196,67,43,0.16); }
+    50% { box-shadow: 0 0 14px 2px rgba(196,67,43,0.3); }
   }
-  .mic-btn:active { transform: scale(0.96); }
-  .mic-btn:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 4px; }
+  .talk-btn.recording {
+    background: radial-gradient(circle at 35% 30%, #F0A54A, var(--ember-red) 75%);
+    box-shadow: 0 0 0 8px rgba(196,67,43,0.18), 0 0 30px 6px rgba(196,67,43,0.65);
+    transform: scale(1.05);
+    animation: none;
+  }
+  .talk-btn.recording svg { stroke: var(--charcoal); }
+  .talk-btn:active { transform: scale(0.96); }
 
-  @keyframes pulse-rec {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.06); }
-  }
-
-  .mic-label {
-    font-family: var(--font-display);
-    font-size: 10.5px;
+  .talk-caption {
+    font-family: 'Oswald', sans-serif;
+    font-size: 11px;
     letter-spacing: 0.16em;
     text-transform: uppercase;
-    color: var(--text-tertiary);
+    color: var(--steel);
+  }
+  .write-link {
+    background: none; border: none;
+    font-family: 'Work Sans', sans-serif;
+    font-style: italic;
+    font-size: 13px;
+    color: var(--steel);
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-color: rgba(122,118,109,0.4);
+    padding: 4px;
   }
 
-  /* ---------- Text fallback — deliberately secondary, summoned not shown ---------- */
-  .text-toggle {
+  /* --- The composer — where talk and text converge, living in the
+     same light void as everything else Office says. Speaking fills
+     it with a transcript; typing fills it directly. Either way,
+     nothing goes anywhere until it's explicitly sent — the same
+     guard()-before-commit discipline the backend already applies to
+     structured data, extended one step earlier to the words
+     themselves. No solid box, no bold button — it drifts into the
+     void the same way a reply would. */
+  .composer {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.4s cubic-bezier(0.25, 0.1, 0.25, 1), opacity 0.3s ease;
+    width: 100%;
+  }
+  .composer.active { max-height: 220px; opacity: 1; }
+  .composer-label {
+    font-family: 'Oswald', sans-serif;
+    font-size: 9.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--steel);
+    text-align: center;
+    margin-bottom: 8px;
+    opacity: 0.7;
+  }
+  .composer textarea {
+    width: 100%;
     background: none;
     border: none;
-    color: var(--text-tertiary);
-    font-family: var(--font-body);
+    border-bottom: 1px solid rgba(245,242,235,0.14);
+    color: var(--paper);
+    font-family: 'Work Sans', sans-serif;
+    font-weight: 300;
+    font-size: 15.5px;
+    line-height: 1.5;
+    text-align: center;
+    resize: none;
+    padding: 0 0 10px;
+    min-height: 40px;
+    max-height: 110px;
+  }
+  .composer textarea:focus { outline: none; border-bottom-color: rgba(232,135,30,0.5); }
+  .composer-actions {
+    display: flex;
+    justify-content: center;
+    gap: 22px;
+    margin-top: 12px;
+  }
+  .composer-actions button {
+    border: none;
+    background: none;
+    font-family: 'Work Sans', sans-serif;
     font-size: 12.5px;
-    font-style: italic;
+    letter-spacing: 0.02em;
     cursor: pointer;
-    padding: 4px 8px;
+    padding: 4px;
   }
-  .text-toggle:hover { color: var(--text-secondary); }
-
-  .text-fallback {
-    display: none;
-    width: 100%;
-    max-width: 440px;
-    padding: 0 20px;
-    margin-top: 8px;
+  .composer-discard { color: var(--steel); }
+  .composer-send {
+    color: var(--ember-amber);
+    font-weight: 500;
   }
-  .text-fallback.visible { display: flex; gap: 8px; }
 
-  .text-input {
-    flex: 1;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 11px 14px;
-    color: var(--text-primary);
-    font-family: var(--font-body);
-    font-size: 14.5px;
-  }
-  .text-input:focus { outline: none; border-color: var(--text-tertiary); }
-  .text-input::placeholder { color: var(--text-tertiary); font-style: italic; }
-
-  .text-send {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    width: 42px;
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-size: 17px;
-  }
-  .text-send:hover { color: var(--text-primary); }
-
-  /* ---------- History drawer — swipe-right equivalent, hidden by default ---------- */
-  .history-drawer {
-    position: fixed;
-    inset: 0;
-    background: rgba(10,10,11,0.97);
+  /* --- Ember detail sheet --- */
+  .sheet-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s ease;
     z-index: 20;
+  }
+  .sheet-backdrop.open { opacity: 1; pointer-events: auto; }
+  .sheet {
+    position: fixed;
+    left: 50%; bottom: 0;
+    transform: translateX(-50%) translateY(100%);
+    width: 100%; max-width: 480px;
+    max-height: 72vh;
+    background: var(--charcoal);
+    border-radius: 18px 18px 0 0;
+    border-top: 1px solid rgba(245,242,235,0.1);
+    z-index: 21;
     display: flex;
     flex-direction: column;
+    transition: transform 0.4s cubic-bezier(0.25, 0.1, 0.25, 1);
+  }
+  .sheet.open { transform: translateX(-50%) translateY(0); }
+  .sheet-handle {
+    width: 36px; height: 4px;
+    background: var(--steel);
+    border-radius: 2px;
+    margin: 10px auto 4px;
+    opacity: 0.5;
+  }
+  .sheet-title {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 20px 12px;
+  }
+  .sheet-title h2 {
+    font-family: 'Oswald', sans-serif;
+    font-size: 15px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0;
+    color: var(--paper);
+  }
+  .sheet-close { background: none; border: none; color: var(--steel); font-size: 20px; cursor: pointer; padding: 4px 8px; }
+  .sheet-body { overflow-y: auto; padding: 0 16px 20px; }
+
+  .docket {
+    background: var(--paper); color: var(--charcoal);
+    border-radius: 3px; padding: 12px 14px 12px 16px;
+    margin-bottom: 8px; position: relative;
+  }
+  .docket::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
+    background: var(--notch, var(--steel));
+    border-radius: 3px 0 0 3px;
+  }
+  .docket[data-status="overdue"] { --notch: var(--ember-red); }
+  .docket[data-status="open"] { --notch: var(--ember-amber); }
+  .docket[data-status="settled"] { --notch: var(--sage); }
+  .docket-title { font-family: 'Oswald', sans-serif; font-weight: 500; font-size: 14.5px; }
+  .docket-sub { font-size: 12px; color: var(--steel); margin-top: 2px; }
+  .docket-row { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+  .docket-amt { font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 14px; }
+  .sheet-empty { text-align: center; color: var(--steel); padding: 30px; font-size: 13px; }
+
+  /* --- Menu drawer (hamburger) --- */
+  .menu-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.35s ease;
+    z-index: 30;
+  }
+  .menu-backdrop.open { opacity: 1; pointer-events: auto; }
+  .menu-drawer {
+    position: fixed; top: 0; bottom: 0; left: 0;
+    width: 78%; max-width: 320px;
+    background: var(--charcoal-soft);
+    border-right: 1px solid rgba(245,242,235,0.08);
     transform: translateX(-100%);
-    transition: transform 0.25s ease;
-  }
-  .history-drawer.open { transform: translateX(0); }
-
-  .history-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 18px 20px;
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-  }
-  .history-title {
-    font-family: var(--font-display);
-    font-size: 12px;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--text-secondary);
-  }
-
-  .history-list {
-    flex: 1;
+    transition: transform 0.4s cubic-bezier(0.25, 0.1, 0.25, 1);
+    z-index: 31;
+    padding: 26px 0;
     overflow-y: auto;
-    padding: 12px 20px 30px;
   }
-
-  .history-line {
-    padding: 10px 0;
-    border-bottom: 1px solid var(--border);
-  }
-  .history-role {
-    font-family: var(--font-display);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.12em;
+  .menu-drawer.open { transform: translateX(0); }
+  .menu-eyebrow {
+    font-family: 'Oswald', sans-serif;
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    margin-bottom: 4px;
+    color: var(--steel);
+    padding: 4px 24px 8px;
+    margin-top: 18px;
   }
-  .history-role.user { color: var(--amber); }
-  .history-role.office { color: var(--breathe); }
-  .history-text { font-size: 14px; color: var(--text-secondary); line-height: 1.4; }
+  .menu-eyebrow:first-child { margin-top: 0; }
+  .menu-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    color: var(--paper);
+    font-family: 'Work Sans', sans-serif;
+    font-size: 14.5px;
+    padding: 11px 24px;
+    cursor: pointer;
+  }
+  .menu-item:active { background: rgba(245,242,235,0.05); }
+  .menu-item .sub { display: block; font-size: 11.5px; color: var(--steel); margin-top: 1px; }
 
-  .history-empty {
-    color: var(--text-tertiary);
-    font-size: 13.5px;
-    font-style: italic;
-    text-align: center;
-    padding-top: 40px;
+  /* --- History panel (swipe left) --- */
+  .history-panel {
+    position: fixed; inset: 0;
+    background: var(--charcoal);
+    transform: translateX(100%);
+    transition: transform 0.4s cubic-bezier(0.25, 0.1, 0.25, 1);
+    z-index: 25;
+    display: flex;
+    flex-direction: column;
+    max-width: 480px;
+    left: 50%;
+    margin-left: -240px;
   }
+  @media (max-width: 480px) { .history-panel { left: 0; margin-left: 0; } }
+  .history-panel.open { transform: translateX(0); }
+  .history-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 22px 20px 14px;
+    border-bottom: 1px solid rgba(245,242,235,0.06);
+  }
+  .history-header h2 {
+    font-family: 'Oswald', sans-serif;
+    font-size: 14px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--steel);
+    margin: 0;
+  }
+  .history-close { background: none; border: none; color: var(--steel); font-size: 20px; cursor: pointer; padding: 4px 8px; }
+  .history-list { flex: 1; overflow-y: auto; padding: 8px 20px 30px; }
+  .history-entry {
+    padding: 13px 0;
+    border-bottom: 1px solid rgba(245,242,235,0.05);
+  }
+  .history-time {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10.5px;
+    color: var(--steel);
+    display: block;
+    margin-bottom: 3px;
+  }
+  .history-text { font-size: 13.5px; line-height: 1.45; color: var(--paper); }
 </style>
 </head>
 <body>
-
-<div class="topbar">
-  <span class="brand">The Office</span>
-  <button class="icon-btn" id="historyOpenBtn" aria-label="View recent conversation" title="Recent">&#8942;</button>
-</div>
-
-<div class="stage">
-  <div class="waveform" id="waveform">
-    <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-    <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
-  </div>
-
-  <div class="response-text" id="responseText">Morning Peter — talk, or tap below to write it down.</div>
-  <div class="response-sub" id="responseSub"></div>
-
-  <div class="view-card" id="viewCard">
-    <div class="view-label" id="viewLabel">PENDING CONFIRMATION</div>
-    <div id="viewBody" style="font-size:13.5px;color:var(--text-secondary);line-height:1.4;"></div>
-    <div class="view-row" id="viewActions">
-      <button class="view-btn" id="viewConfirm">Confirm</button>
-      <button class="view-btn reject" id="viewReject">Reject</button>
+<div class="screen" id="main-screen">
+  <div class="masthead">
+    <button class="menu-btn" id="menu-btn" aria-label="Menu">
+      <svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+    </button>
+    <h1>The Office</h1>
+    <div class="embers" id="embers">
+      <div class="ember-dot" data-dept="tasks" title="Tasks"></div>
+      <div class="ember-dot" data-dept="scheduler" title="Schedule"></div>
+      <div class="ember-dot" data-dept="finance" title="Finance"></div>
+      <div class="ember-dot" data-dept="expenses" title="Expenses"></div>
     </div>
-    <div class="view-status" id="viewStatus" style="display:none;"></div>
-    <a class="view-link" id="viewDocLink" href="#" target="_blank" style="display:none;">&#128196; VIEW DOCUMENT</a>
+  </div>
+  <div class="edge-hint" id="edge-hint"></div>
+
+  <div class="stage" id="stage">
+    <div class="prompt-quiet" id="quiet-prompt">
+      <div class="glyph">Hold to talk, or write it down</div>
+    </div>
+
+    <div class="composer" id="composer">
+      <div class="composer-label" id="composer-label">Write it down</div>
+      <textarea id="composer-input" placeholder="Tell Office what happened…" rows="2"></textarea>
+      <div class="composer-actions">
+        <button class="composer-discard" id="composer-discard">Discard</button>
+        <button class="composer-send" id="composer-send">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="control">
+    <button class="talk-btn idle" id="talk-btn">
+      <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M19 11a7 7 0 0 1-14 0"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
+    </button>
+    <div class="talk-caption" id="talk-caption">Hold to talk</div>
+    <button class="write-link" id="write-toggle">or write it down</button>
   </div>
 </div>
 
-<div class="text-fallback" id="textFallback">
-  <input class="text-input" id="textInput" type="text" placeholder="Write it down..." />
-  <button class="text-send" id="textSendBtn" aria-label="Send">&#8593;</button>
+<div class="sheet-backdrop" id="sheet-backdrop"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">
+    <h2 id="sheet-heading">—</h2>
+    <button class="sheet-close" id="sheet-close">✕</button>
+  </div>
+  <div class="sheet-body" id="sheet-body"></div>
 </div>
 
-<div class="mic-area">
-  <button class="mic-btn" id="micBtn" aria-label="Hold to talk">
-    <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-      <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-      <line x1="12" y1="19" x2="12" y2="23"></line>
-      <line x1="8" y1="23" x2="16" y2="23"></line>
-    </svg>
-  </button>
-  <span class="mic-label" id="micLabel">Hold to talk</span>
-  <button class="text-toggle" id="textToggleBtn">or write it down</button>
+<div class="menu-backdrop" id="menu-backdrop"></div>
+<div class="menu-drawer" id="menu-drawer">
+  <div class="menu-eyebrow">Reports &amp; Documents</div>
+  <button class="menu-item" id="menu-report-pnl">Profit &amp; Loss<span class="sub">Real, accrual-based statement</span></button>
+  <button class="menu-item" id="menu-report-aged">Aged Debtors<span class="sub">Who owes what, and how long</span></button>
+
+  <div class="menu-eyebrow">People</div>
+  <div id="menu-people"><div class="menu-item"><span class="sub">Loading…</span></div></div>
+
+  <div class="menu-eyebrow">Office</div>
+  <button class="menu-item">Settings<span class="sub">Not wired in this prototype</span></button>
 </div>
 
-<div class="history-drawer" id="historyDrawer">
+<div class="history-panel" id="history-panel">
   <div class="history-header">
-    <span class="history-title">Recent</span>
-    <button class="icon-btn" id="historyCloseBtn" aria-label="Close">&#10005;</button>
+    <h2>What's Been Said</h2>
+    <button class="history-close" id="history-close">✕</button>
   </div>
-  <div class="history-list" id="historyList">
-    <div class="history-empty">Nothing yet — talk or write, and it'll show up here.</div>
-  </div>
+  <div class="history-list" id="history-list"><div class="loading">Reading the real log <span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div></div>
 </div>
 
 <script>
-const OFFICE_API_BASE = 'https://office.websitehub.co.za';
+const API = 'https://office.websitehub.co.za';
 
-// Real conversation memory — the exact same shape the Flutter client
-// already sends, last 3 exchanges (6 entries), so the backend's
-// multi-turn resolution has what it needs. This is the only "state"
-// that persists across turns; the screen itself only ever shows the
-// most recent exchange.
-let history = [];
-
-const waveform = document.getElementById('waveform');
-const responseText = document.getElementById('responseText');
-const responseSub = document.getElementById('responseSub');
-const viewCard = document.getElementById('viewCard');
-const viewLabel = document.getElementById('viewLabel');
-const viewBody = document.getElementById('viewBody');
-const viewActions = document.getElementById('viewActions');
-const viewConfirm = document.getElementById('viewConfirm');
-const viewReject = document.getElementById('viewReject');
-const viewStatus = document.getElementById('viewStatus');
-const viewDocLink = document.getElementById('viewDocLink');
-const micBtn = document.getElementById('micBtn');
-const micLabel = document.getElementById('micLabel');
-const textToggleBtn = document.getElementById('textToggleBtn');
-const textFallback = document.getElementById('textFallback');
-const textInput = document.getElementById('textInput');
-const textSendBtn = document.getElementById('textSendBtn');
-const historyOpenBtn = document.getElementById('historyOpenBtn');
-const historyCloseBtn = document.getElementById('historyCloseBtn');
-const historyDrawer = document.getElementById('historyDrawer');
-const historyList = document.getElementById('historyList');
-
-let currentPendingId = null;
-
-function pushHistory(role, text) {
-  history.push({ role: role, text: text });
-  if (history.length > 6) history = history.slice(history.length - 6);
-  renderHistoryList();
+async function safeFetch(path) {
+  try {
+    const res = await fetch(API + path);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) { return null; }
 }
 
-function renderHistoryList() {
-  if (history.length === 0) {
-    historyList.innerHTML = '<div class="history-empty">Nothing yet — talk or write, and it\'ll show up here.</div>';
+function money(n) { return 'R' + Number(n ?? 0).toLocaleString('en-ZA'); }
+function todayStr() {
+  const d = new Date(Date.now() + 2 * 3600 * 1000);
+  return d.toISOString().slice(0, 10);
+}
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str ?? '';
+  return div.innerHTML;
+}
+
+let dataCache = {};
+
+async function loadCounts() {
+  const [tasks, jobScopes, finance, expenses] = await Promise.all([
+    safeFetch('/debug/tasks'),
+    safeFetch('/debug/job-scopes'),
+    safeFetch('/embers/finance'),
+    safeFetch('/embers/expenses'),
+  ]);
+  const openTasks = (tasks?.tasks ?? []).filter(t => !t.done);
+  const today = todayStr();
+  const scheduledToday = (jobScopes?.jobScopes ?? []).filter(j => j.scheduled_date === today);
+  const outstanding = finance?.outstanding ?? [];
+  const todaysExpenses = expenses?.todaysExpenses ?? [];
+
+  const counts = { tasks: openTasks.length, scheduler: scheduledToday.length, finance: outstanding.length, expenses: todaysExpenses.length };
+  Object.entries(counts).forEach(([dept, count]) => {
+    document.querySelector(`.ember-dot[data-dept="${dept}"]`).classList.toggle('lit', count > 0);
+  });
+
+  dataCache = { openTasks, scheduledToday, outstanding, todaysExpenses };
+}
+
+function renderSheetBody(dept) {
+  const headings = { tasks: 'Open Tasks', scheduler: "Today's Jobs", finance: 'Outstanding', expenses: "Today's Expenses" };
+  document.getElementById('sheet-heading').textContent = headings[dept];
+
+  let items = [];
+  if (dept === 'tasks') {
+    items = dataCache.openTasks.map(t => `<div class="docket" data-status="open"><div class="docket-title">${escapeHtml(t.description)}</div></div>`);
+  } else if (dept === 'scheduler') {
+    items = dataCache.scheduledToday.map(j => `<div class="docket" data-status="open"><div class="docket-title">${escapeHtml(j.description)}</div><div class="docket-sub">${escapeHtml(j.customer_name ?? 'No customer yet')}${j.installer_name ? ' · ' + escapeHtml(j.installer_name) : ''}</div></div>`);
+  } else if (dept === 'finance') {
+    items = dataCache.outstanding.map(c => {
+      const bal = (c.invoiced ?? 0) - (c.paid ?? 0);
+      return `<div class="docket" data-status="overdue"><div class="docket-row"><div><div class="docket-title">${escapeHtml(c.name)}</div><div class="docket-sub">Invoiced ${money(c.invoiced)} · Paid ${money(c.paid)}</div></div><div class="docket-amt">${money(bal)}</div></div></div>`;
+    });
+  } else if (dept === 'expenses') {
+    items = dataCache.todaysExpenses.map(e => `<div class="docket" data-status="settled"><div class="docket-row"><div><div class="docket-title">${escapeHtml(e.supplier_name ?? 'Unnamed supplier')}</div><div class="docket-sub">${escapeHtml(e.description)}</div></div><div class="docket-amt">${money(e.amount)}</div></div></div>`);
+  }
+  document.getElementById('sheet-body').innerHTML = items.length ? items.join('') : `<div class="sheet-empty">Nothing here. Silence is the goal.</div>`;
+}
+
+function openSheet(dept) {
+  renderSheetBody(dept);
+  document.getElementById('sheet-backdrop').classList.add('open');
+  document.getElementById('sheet').classList.add('open');
+}
+function closeSheet() {
+  document.getElementById('sheet-backdrop').classList.remove('open');
+  document.getElementById('sheet').classList.remove('open');
+}
+document.querySelectorAll('.ember-dot').forEach(el => el.addEventListener('click', () => openSheet(el.dataset.dept)));
+document.getElementById('sheet-backdrop').addEventListener('click', closeSheet);
+document.getElementById('sheet-close').addEventListener('click', closeSheet);
+
+// --- Conversation stage ---
+const stage = document.getElementById('stage');
+const quietPrompt = document.getElementById('quiet-prompt');
+const composerEl = document.getElementById('composer');
+
+function addUtterance(text, who) {
+  if (quietPrompt.parentElement) quietPrompt.remove();
+  stage.classList.add('has-content');
+  const b = document.createElement('div');
+  b.className = 'utterance ' + who;
+  if (who === 'office') {
+    b.innerHTML = `<span class="label">Office</span>${escapeHtml(text)}`;
+  } else {
+    b.textContent = text;
+  }
+  stage.insertBefore(b, composerEl);
+  stage.scrollTop = stage.scrollHeight;
+  return b;
+}
+
+function addListening() {
+  const el = document.createElement('div');
+  el.className = 'listening-indicator';
+  el.innerHTML = '<span></span><span></span><span></span>';
+  stage.insertBefore(el, composerEl);
+  stage.scrollTop = stage.scrollHeight;
+  return el;
+}
+
+async function sendToOffice(text) {
+  addUtterance(text, 'you');
+  const thinking = addListening();
+  try {
+    const res = await fetch(API + '/messages/text', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+    const data = await res.json();
+    thinking.remove();
+    addUtterance(data.message || 'No response.', 'office');
+  } catch (e) {
+    thinking.remove();
+    addUtterance('Could not reach the real Office API right now.', 'office');
+  }
+  loadCounts();
+}
+
+// --- The composer — the single surface both talk and text converge
+// on. Nothing reaches Office until it's explicitly sent, whether it
+// arrived by typing or by voice.
+const composer = document.getElementById('composer');
+const composerInput = document.getElementById('composer-input');
+const composerLabel = document.getElementById('composer-label');
+
+function openComposer(prefill, label) {
+  if (quietPrompt.parentElement) quietPrompt.style.display = 'none';
+  composerLabel.textContent = label;
+  composerInput.value = prefill ?? '';
+  composer.classList.add('active');
+  composerInput.focus();
+  // Autogrow to fit real content, transcribed or typed.
+  composerInput.style.height = 'auto';
+  composerInput.style.height = Math.min(composerInput.scrollHeight, 120) + 'px';
+}
+function closeComposer() {
+  composer.classList.remove('active');
+  composerInput.value = '';
+  if (quietPrompt.parentElement && !stage.classList.contains('has-content')) {
+    quietPrompt.style.display = '';
+  }
+}
+
+document.getElementById('write-toggle').addEventListener('click', () => {
+  if (composer.classList.contains('active')) { closeComposer(); return; }
+  openComposer('', 'Write it down');
+});
+composerInput.addEventListener('input', () => {
+  composerInput.style.height = 'auto';
+  composerInput.style.height = Math.min(composerInput.scrollHeight, 120) + 'px';
+});
+document.getElementById('composer-discard').addEventListener('click', closeComposer);
+document.getElementById('composer-send').addEventListener('click', () => {
+  const text = composerInput.value.trim();
+  if (!text) return;
+  closeComposer();
+  sendToOffice(text);
+});
+
+// --- Hold to talk (real browser speech recognition where available) ---
+const talkBtn = document.getElementById('talk-btn');
+const talkCaption = document.getElementById('talk-caption');
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognizer = null;
+if (SpeechRecognition) {
+  recognizer = new SpeechRecognition();
+  recognizer.lang = 'en-ZA';
+  recognizer.interimResults = false;
+  recognizer.onresult = (e) => {
+    const transcript = e.results[0][0].transcript;
+    openComposer(transcript, 'Heard you say — check it, then send');
+  };
+  recognizer.onerror = () => {
+    talkBtn.classList.remove('recording');
+    talkCaption.textContent = 'Hold to talk';
+    document.querySelector('.ember-dot[data-dept="tasks"]').classList.remove('listening-boost');
+  };
+  recognizer.onend = () => {
+    talkBtn.classList.remove('recording');
+    talkCaption.textContent = 'Hold to talk';
+    document.querySelector('.ember-dot[data-dept="tasks"]').classList.remove('listening-boost');
+  };
+}
+
+function startTalk() {
+  if (!recognizer) {
+    talkCaption.textContent = 'Voice needs Chrome on this device';
+    setTimeout(() => talkCaption.textContent = 'Hold to talk', 2200);
     return;
   }
-  var html = '';
-  for (var i = 0; i < history.length; i++) {
-    var h = history[i];
-    html += '<div class="history-line">' +
-      '<div class="history-role ' + h.role + '">' + (h.role === 'user' ? 'Peter' : 'Office') + '</div>' +
-      '<div class="history-text">' + escapeHtml(h.text) + '</div>' +
-    '</div>';
-  }
-  historyList.innerHTML = html;
+  talkBtn.classList.add('recording');
+  talkCaption.textContent = 'Listening…';
+  document.querySelector('.ember-dot[data-dept="tasks"]').classList.add('listening-boost');
+  try { recognizer.start(); } catch (e) { /* already started */ }
 }
-
-function escapeHtml(s) {
-  var d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
+function stopTalk() {
+  if (recognizer) { try { recognizer.stop(); } catch (e) {} }
+  document.querySelector('.ember-dot[data-dept="tasks"]').classList.remove('listening-boost');
 }
+talkBtn.addEventListener('mousedown', startTalk);
+talkBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startTalk(); }, { passive: false });
+talkBtn.addEventListener('mouseup', stopTalk);
+talkBtn.addEventListener('touchend', stopTalk);
+talkBtn.addEventListener('mouseleave', stopTalk);
 
-function setThinking(label) {
-  waveform.classList.remove('calm');
-  waveform.classList.add('active');
-  responseText.classList.remove('calm');
-  responseText.textContent = label;
-  responseSub.textContent = '';
-  hideViewCard();
+// --- Menu drawer (hamburger) — summoned, never displayed ---
+function openMenu() {
+  document.getElementById('menu-backdrop').classList.add('open');
+  document.getElementById('menu-drawer').classList.add('open');
+  loadPeople();
 }
-
-function showResponse(text) {
-  waveform.classList.remove('active');
-  responseText.textContent = text || 'Got it.';
+function closeMenu() {
+  document.getElementById('menu-backdrop').classList.remove('open');
+  document.getElementById('menu-drawer').classList.remove('open');
 }
+document.getElementById('menu-btn').addEventListener('click', openMenu);
+document.getElementById('menu-backdrop').addEventListener('click', closeMenu);
 
-function hideViewCard() {
-  viewCard.classList.remove('visible');
-  currentPendingId = null;
-  viewDocLink.style.display = 'none';
-  viewStatus.style.display = 'none';
-  viewActions.style.display = 'flex';
-}
-
-// The one structured, non-narrated element on screen — appears only
-// when there's a real guard() confirmation waiting, or a document
-// link, never for an ordinary answer.
-function showPending(itemId) {
-  currentPendingId = itemId;
-  viewCard.classList.add('visible');
-  viewLabel.textContent = 'PENDING CONFIRMATION';
-  viewLabel.classList.remove('done');
-  viewBody.textContent = 'Action #' + itemId + ' needs your confirmation before it\'s recorded.';
-  viewActions.style.display = 'flex';
-  viewStatus.style.display = 'none';
-  viewDocLink.style.display = 'none';
-}
-
-function resolvePending(confirm) {
-  if (currentPendingId === null) return;
-  var itemId = currentPendingId;
-  viewActions.style.display = 'none';
-  viewStatus.style.display = 'block';
-  viewStatus.className = 'view-status';
-  viewStatus.textContent = 'Working...';
-  fetch(OFFICE_API_BASE + '/actions/' + itemId + '/' + (confirm ? 'confirm' : 'reject'), { method: 'POST' })
-    .then(function (res) {
-      if (res.ok) {
-        res.json().catch(function () { return {}; }).then(function (data) {
-          viewLabel.textContent = confirm ? 'CONFIRMED' : 'REJECTED';
-          if (confirm) viewLabel.classList.add('done'); else viewLabel.classList.remove('done');
-          viewStatus.className = 'view-status ' + (confirm ? 'confirmed' : 'rejected');
-          viewStatus.textContent = confirm ? '\u2713 Confirmed' : '\u2715 Rejected';
-          if (confirm && data && data.pdfUrl) {
-            viewDocLink.href = data.pdfUrl;
-            viewDocLink.style.display = 'inline-flex';
-          }
-        });
-      } else {
-        viewStatus.className = 'view-status';
-        viewStatus.textContent = 'Could not reach the Office — try again.';
-        viewActions.style.display = 'flex';
-      }
-    })
-    .catch(function () {
-      viewStatus.className = 'view-status';
-      viewStatus.textContent = 'Could not reach the Office — try again.';
-      viewActions.style.display = 'flex';
-    });
-}
-
-viewConfirm.addEventListener('click', function () { resolvePending(true); });
-viewReject.addEventListener('click', function () { resolvePending(false); });
-
-function handleApiResponse(data) {
-  pushHistory('office', data.message || 'Done.');
-  showResponse(data.message);
-  var pendingId = null;
-  if (typeof data.pendingActionId === 'number') pendingId = data.pendingActionId;
-  else if (typeof data.factPendingActionId === 'number') pendingId = data.factPendingActionId;
-  if (pendingId !== null) {
-    showPending(pendingId);
-  } else {
-    hideViewCard();
-  }
-}
-
-// --- Text path -------------------------------------------------------
-
-function sendText(text) {
-  if (!text || !text.trim()) return;
-  var trimmed = text.trim();
-  pushHistory('user', trimmed);
-  setThinking('Reading that...');
-  fetch(OFFICE_API_BASE + '/messages/text', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: trimmed, history: history })
-  })
-    .then(function (res) {
-      if (res.ok) {
-        res.json().then(handleApiResponse);
-      } else {
-        showResponse('Something went wrong (' + res.status + ').');
-      }
-    })
-    .catch(function () {
-      showResponse('Could not reach the Office — check connection.');
-    });
-}
-
-textToggleBtn.addEventListener('click', function () {
-  var willShow = !textFallback.classList.contains('visible');
-  textFallback.classList.toggle('visible', willShow);
-  if (willShow) textInput.focus();
+document.getElementById('menu-report-pnl').addEventListener('click', () => {
+  window.open(API + '/reports/profit-and-loss/pdf', '_blank');
+});
+document.getElementById('menu-report-aged').addEventListener('click', () => {
+  window.open(API + '/reports/aged-debtors/pdf', '_blank');
 });
 
-textSendBtn.addEventListener('click', function () {
-  var val = textInput.value;
-  textInput.value = '';
-  sendText(val);
+async function loadPeople() {
+  const data = await safeFetch('/debug/characters');
+  const el = document.getElementById('menu-people');
+  const people = data?.characters ?? [];
+  if (!people.length) { el.innerHTML = '<div class="menu-item"><span class="sub">Nobody on file yet</span></div>'; return; }
+  el.innerHTML = people.slice(0, 8).map(p => `
+    <button class="menu-item">${escapeHtml(p.name)}<span class="sub">${escapeHtml(p.relationship ?? 'Contact')}</span></button>
+  `).join('');
+}
+
+// --- History panel (swipe left) — a chronological journal of what
+// was actually said, not a feature list. Real data, not mocked.
+function openHistory() {
+  document.getElementById('history-panel').classList.add('open');
+  loadHistory();
+}
+function closeHistory() {
+  document.getElementById('history-panel').classList.remove('open');
+}
+document.getElementById('history-close').addEventListener('click', closeHistory);
+
+function timeAgo(iso) {
+  const then = new Date(iso.replace(' ', 'T') + 'Z');
+  const diffMin = Math.round((Date.now() - then.getTime()) / 60000);
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  return `${Math.round(diffHr / 24)}d ago`;
+}
+
+async function loadHistory() {
+  const data = await safeFetch('/debug/captures?limit=25');
+  const el = document.getElementById('history-list');
+  const entries = data?.captures ?? [];
+  if (!entries.length) { el.innerHTML = '<div class="sheet-empty">Nothing said yet.</div>'; return; }
+  el.innerHTML = entries.map(c => `
+    <div class="history-entry">
+      <span class="history-time">${timeAgo(c.created_at)}</span>
+      <div class="history-text">${escapeHtml(c.raw_text)}</div>
+    </div>
+  `).join('');
+}
+
+// Real swipe-left detection on the main screen — a gesture, not a
+// button, discovered rather than displayed (Principle 25).
+const mainScreen = document.getElementById('main-screen');
+let touchStartX = null;
+mainScreen.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; }, { passive: true });
+mainScreen.addEventListener('touchend', (e) => {
+  if (touchStartX === null) return;
+  const deltaX = e.changedTouches[0].clientX - touchStartX;
+  if (deltaX < -70) openHistory();
+  touchStartX = null;
+}, { passive: true });
+// Mouse-drag fallback for desktop testing
+let mouseStartX = null;
+mainScreen.addEventListener('mousedown', (e) => { mouseStartX = e.clientX; });
+mainScreen.addEventListener('mouseup', (e) => {
+  if (mouseStartX === null) return;
+  if (e.clientX - mouseStartX < -70) openHistory();
+  mouseStartX = null;
 });
 
-textInput.addEventListener('keydown', function (e) {
-  if (e.key === 'Enter') {
-    var val = textInput.value;
-    textInput.value = '';
-    sendText(val);
-  }
-});
-
-// --- Voice path --------------------------------------------------------
-
-var mediaRecorder = null;
-var audioChunks = [];
-var isRecording = false;
-
-function startRecording() {
-  navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
-    audioChunks = [];
-    mediaRecorder = new MediaRecorder(stream);
-    mediaRecorder.ondataavailable = function (e) { if (e.data.size > 0) audioChunks.push(e.data); };
-    mediaRecorder.onstop = function () {
-      stream.getTracks().forEach(function (t) { t.stop(); });
-      var blob = new Blob(audioChunks, { type: 'audio/webm' });
-      sendAudio(blob);
-    };
-    mediaRecorder.start();
-    isRecording = true;
-    micBtn.classList.add('recording');
-    micLabel.textContent = 'Recording... release to send';
-    waveform.classList.add('active');
-    waveform.classList.remove('calm');
-  }).catch(function () {
-    showResponse('Microphone permission denied.');
-  });
-}
-
-function stopRecording() {
-  if (mediaRecorder && isRecording) {
-    mediaRecorder.stop();
-  }
-  isRecording = false;
-  micBtn.classList.remove('recording');
-  micLabel.textContent = 'Hold to talk';
-}
-
-function sendAudio(blob) {
-  setThinking('Transcribing...');
-  var form = new FormData();
-  form.append('audio', blob, 'note.webm');
-  form.append('history', JSON.stringify(history));
-  fetch(OFFICE_API_BASE + '/files/audio', { method: 'POST', body: form })
-    .then(function (res) {
-      if (res.ok) {
-        res.json().then(function (data) {
-          if (data.transcript && data.transcript.trim()) {
-            pushHistory('user', data.transcript);
-          }
-          handleApiResponse(data);
-        });
-      } else {
-        showResponse('Upload failed (' + res.status + ').');
-      }
-    })
-    .catch(function () {
-      showResponse('Upload failed — check connection.');
-    });
-}
-
-// Hold-to-talk: mouse and touch both, matching the manifesto's
-// "hold to talk, release to send" exactly.
-micBtn.addEventListener('mousedown', function (e) { e.preventDefault(); startRecording(); });
-micBtn.addEventListener('mouseup', function (e) { e.preventDefault(); stopRecording(); });
-micBtn.addEventListener('mouseleave', function () { if (isRecording) stopRecording(); });
-micBtn.addEventListener('touchstart', function (e) { e.preventDefault(); startRecording(); }, { passive: false });
-micBtn.addEventListener('touchend', function (e) { e.preventDefault(); stopRecording(); }, { passive: false });
-
-// --- History drawer ------------------------------------------------
-
-historyOpenBtn.addEventListener('click', function () { historyDrawer.classList.add('open'); });
-historyCloseBtn.addEventListener('click', function () { historyDrawer.classList.remove('open'); });
+loadCounts();
 </script>
-
 </body>
 </html>
