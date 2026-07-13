@@ -9,6 +9,13 @@ export interface Env {
   AI: Ai;
   MEMORY: VectorizeIndex;
   CUSTOMER_NOTES: KVNamespace;
+  // Real feature 2026-07-13 — the minimal, immediate protection layer
+  // for admin routes (export, flush) before the full Google-auth
+  // system exists. A genuine deletion capability, unprotected, would
+  // be a real security exposure the moment it existed — this doesn't
+  // wait for the larger auth build, it's the smallest correct
+  // safeguard available now, checked on every admin request.
+  ADMIN_KEY: string;
 }
 
 export interface Extraction {
