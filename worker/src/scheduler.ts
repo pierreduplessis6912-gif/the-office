@@ -99,9 +99,16 @@ export function nowInBusinessTimezone(): Date {
 // character (a real, non-billed person), resolved by the caller the
 // same way customerId already is — this function just writes the
 // link, no reconciliation logic duplicated here.
+// Real fix 2026-07-13 — customerId is now nullable, a direct
+// consequence of correcting the extraction bug where an installer's
+// name was being forced into customer_name when no real customer was
+// stated. A job with a known installer but no yet-known customer
+// should still be recorded — silently dropping the whole measurement
+// would be a worse outcome than recording it without a customer link
+// yet, exactly the receptacle principle (Principle 22) applied here.
 export async function recordWorkObservation(
   env: Env,
-  customerId: number,
+  customerId: number | null,
   observation: WorkObservationExtraction,
   sourceTranscript: string,
   installerId: number | null = null
