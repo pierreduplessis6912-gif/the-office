@@ -81,17 +81,24 @@ export async function splitIntoTopics(env: Env, transcript: string): Promise<str
               "reminder, a fact about a person, an invoice). Find genuinely SEPARATE topics and split " +
               "them into self-contained segments, each with enough context to stand alone. Do NOT split " +
               "a single continuous thought into pieces just because it's long — only split when the " +
-              "message moves to a genuinely different subject or type of information. If the whole " +
-              "message is about ONE topic, return it as a single segment, unchanged. Rewrite a segment " +
-              "only to carry over context it would otherwise lose by being separated (e.g. an implied " +
-              "subject) — never add information that wasn't actually stated. Return ONLY a JSON array " +
-              "of strings.\n\n" +
+              "message moves to a genuinely different subject or type of information. The word \"and\" " +
+              "does NOT by itself mean a new topic — most sentences use \"and\" to continue the SAME " +
+              "thought. Real bug found live 2026-07-13: \"Sipho is measuring the hospital and theatre " +
+              "one is three by two\" was wrongly split into two pieces at the word \"and\", separating a " +
+              "measurement from the job observation it's actually part of — a room name and its " +
+              "dimensions belong to the SAME observation as who's doing the measuring, never a separate " +
+              "topic, no matter how the sentence is joined. If the whole message is about ONE topic, " +
+              "return it as a single segment, unchanged. Rewrite a segment only to carry over context it " +
+              "would otherwise lose by being separated (e.g. an implied subject) — never add information " +
+              "that wasn't actually stated. Return ONLY a JSON array of strings.\n\n" +
               "Examples:\n" +
               '"create an invoice for Jenny for R3200, Sipho is measuring the hospital and theatre one ' +
               'is three by two, remember to buy dog food, and John has lost his work boots, we need to ' +
               'get him some new work boots" -> ["create an invoice for Jenny for R3200", "Sipho is ' +
-              'measuring the hospital, theatre one is three by two", "remember to buy dog food", "John ' +
-              'has lost his work boots, we need to get him some new work boots"]\n' +
+              'measuring the hospital and theatre one is three by two", "remember to buy dog food", ' +
+              '"John has lost his work boots, we need to get him some new work boots"]\n' +
+              '"Sipho is measuring the hospital and theatre one is three by two" -> ["Sipho is ' +
+              'measuring the hospital and theatre one is three by two"]\n' +
               '"bought glue for R850 at BUCO" -> ["bought glue for R850 at BUCO"]\n' +
               '"Jenny paid R500" -> ["Jenny paid R500"]',
           },
