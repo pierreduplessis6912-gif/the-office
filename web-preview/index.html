@@ -187,6 +187,14 @@
     font-style: italic;
     line-height: 1.5;
   }
+  .utterance.you.live {
+    color: var(--paper);
+    animation: breathe-text 1.8s ease-in-out infinite;
+  }
+  @keyframes breathe-text {
+    0%, 100% { opacity: 0.75; }
+    50% { opacity: 1; }
+  }
   .utterance.office {
     color: var(--paper);
     font-size: 15.5px;
@@ -310,7 +318,6 @@
     width: 100%;
     background: none;
     border: none;
-    border-bottom: 1px solid rgba(245,242,235,0.14);
     color: var(--paper);
     font-family: 'Work Sans', sans-serif;
     font-weight: 300;
@@ -321,8 +328,9 @@
     padding: 0 0 10px;
     min-height: 40px;
     max-height: 110px;
+    transition: color 0.3s ease;
   }
-  .composer textarea:focus { outline: none; border-bottom-color: rgba(232,135,30,0.5); }
+  .composer textarea:focus { outline: none; color: #FDF0DD; }
   .composer-actions {
     display: flex;
     justify-content: center;
@@ -743,24 +751,57 @@ const talkBtn = document.getElementById('talk-btn');
 const talkCaption = document.getElementById('talk-caption');
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognizer = null;
+let finalTranscript = '';
 if (SpeechRecognition) {
   recognizer = new SpeechRecognition();
   recognizer.lang = 'en-ZA';
-  recognizer.interimResults = false;
+  // Real fix: continuous defaults to false, which is exactly why
+  // recognition was stopping after the first brief pause — a few
+  // words in, then done. Holding the button should keep listening for
+  // as long as it's held, not for as long as the browser guesses is
+  // "one utterance."
+  recognizer.continuous = true;
+  // Real fix: interimResults was explicitly false, so nothing showed
+  // until recognition ended entirely. Live, growing text as Peter
+  // actually speaks is the whole point of putting it in the void.
+  recognizer.interimResults = true;
   recognizer.onresult = (e) => {
-    const transcript = e.results[0][0].transcript;
-    openComposer(transcript, 'Heard you say — check it, then send');
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const segment = e.results[i][0].transcript;
+      if (e.results[i].isFinal) finalTranscript += segment + ' ';
+      else interim += segment;
+    }
+    showLiveTranscript((finalTranscript + interim).trim());
   };
   recognizer.onerror = () => {
     talkBtn.classList.remove('recording');
     talkCaption.textContent = 'Hold to talk';
     document.querySelector('.ember-dot[data-dept="tasks"]').classList.remove('listening-boost');
+    const liveEl = document.getElementById('live-transcript');
+    if (liveEl) liveEl.remove();
   };
   recognizer.onend = () => {
     talkBtn.classList.remove('recording');
     talkCaption.textContent = 'Hold to talk';
     document.querySelector('.ember-dot[data-dept="tasks"]').classList.remove('listening-boost');
+    const liveEl = document.getElementById('live-transcript');
+    if (liveEl) liveEl.remove();
+    const heard = finalTranscript.trim();
+    if (heard) openComposer(heard, 'Heard you say — check it, then send');
   };
+}
+
+function showLiveTranscript(text) {
+  let el = document.getElementById('live-transcript');
+  if (!el) {
+    if (quietPrompt.parentElement) quietPrompt.style.display = 'none';
+    el = document.createElement('div');
+    el.id = 'live-transcript';
+    el.className = 'utterance you live';
+    stage.insertBefore(el, composerEl);
+  }
+  el.textContent = text || 'Listening…';
 }
 
 function startTalk() {
@@ -769,6 +810,7 @@ function startTalk() {
     setTimeout(() => talkCaption.textContent = 'Hold to talk', 2200);
     return;
   }
+  finalTranscript = '';
   talkBtn.classList.add('recording');
   talkCaption.textContent = 'Listening…';
   document.querySelector('.ember-dot[data-dept="tasks"]').classList.add('listening-boost');
