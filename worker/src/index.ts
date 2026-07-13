@@ -328,7 +328,7 @@ async function processOneExtraction(
   }
 
   let workObservationResult: { jobScopeId: number; componentCount: number; taskCount: number } | null = null;
-  if (extraction?.intent === "work_observation" && customer) {
+  if (extraction?.intent === "work_observation") {
     const observation = await extractWorkObservation(env, transcript);
     // Real feature 2026-07-12 — the smallest real first domino toward
     // team support: an installer is reconciled as a real character
@@ -339,7 +339,10 @@ async function processOneExtraction(
       const installer = await reconcileCharacter(env, observation.installer_name, "installer");
       installerId = installer?.id ?? null;
     }
-    const recorded = await recordWorkObservation(env, customer.id, observation, transcript, installerId);
+    // Real fix 2026-07-13: no longer gated behind customer being
+    // resolved — a job with a real installer but no yet-known
+    // customer should still be recorded, not silently dropped.
+    const recorded = await recordWorkObservation(env, customer?.id ?? null, observation, transcript, installerId);
     workObservationResult = {
       jobScopeId: recorded.jobScopeId,
       componentCount: observation.components.length,
@@ -500,7 +503,11 @@ async function processOneExtraction(
     const parts: string[] = [];
     if (componentCount > 0) parts.push(`${componentCount} component${componentCount > 1 ? "s" : ""} measured`);
     if (taskCount > 0) parts.push(`${taskCount} task${taskCount > 1 ? "s" : ""} noted`);
-    message = `Job scope #${jobScopeId} recorded for ${customer!.name}${parts.length ? ` — ${parts.join(", ")}` : ""}.`;
+    // Real fix 2026-07-13: customer!.name would throw now that a work
+    // observation can genuinely record without a customer resolved —
+    // caught before shipping, same pattern as the earlier expense-
+    // message fix (character ? ... : "").
+    message = `Job scope #${jobScopeId} recorded${customer ? ` for ${customer.name}` : ""}${parts.length ? ` — ${parts.join(", ")}` : ""}.`;
   } else if (extraction?.intent === "lookup") {
     if (extraction?.query_scope === "business") {
       // No single customer — a business-wide financial question,
@@ -627,13 +634,6 @@ async function processOneExtraction(
 
   return { customer, character, pendingActionId, factPendingActionId, message };
 }
-// Real feature 2026-07-13 — the thin outer wrapper. Logs the raw
-// capture exactly once per incoming message (the receptacle
-// principle: capture happens before understanding, regardless of how
-// many topics turn out to be inside it), then runs the real,
-// unchanged single-item logic once per genuinely separate topic. For
-// the common case (one topic), this behaves identically to the old
-// processTranscript — same one AI extraction call, same one pass
 // through processOneExtraction, same result. The only real difference
 // for a single-topic message is the one extra split-check call.
 async function processTranscript(
