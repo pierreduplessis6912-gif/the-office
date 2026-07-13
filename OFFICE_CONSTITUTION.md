@@ -850,6 +850,52 @@ already covered guessing business facts; this covers guessing the
 *shape* of what was asked, which is a related but genuinely distinct
 kind of guess.
 
+## Principle 25 — The Interface Disappears, the Conversation Is Primary (2026-07-13)
+
+Arrived at the same way most of this document has been — by building the
+wrong thing first, having it corrected against a real reference, and
+naming what survived the correction.
+
+> Every business app today opens with "what do you want to do?" Office
+> opens with "tell me what's happening." The dashboard is not the
+> product. The conversation is the product. Everything else is one
+> tap away, never the default view.
+
+1. *Problem:* the first real UI prototype built for this project led
+   with a card-based dashboard — real live data, real ember counts,
+   genuinely useful, and still the wrong opening move. It said "here's
+   your software." Every CRM, ERP, and field-service app makes the
+   same opening move; it's the default, not a choice.
+2. *How solved:* rebuilt around a single dominant act — hold to talk,
+   or write it down — with the dashboard cards demoted to a sheet one
+   tap away from an ember, never the first thing shown. Restraint
+   itself became the design language, not an afterthought applied to
+   it: no dimmed background when the mic is pressed, no wall of new
+   UI, no waveform (a real addition that was built, then removed,
+   once it was recognized as exactly the "🎤 Recording..." convention
+   this design exists to avoid). Two real signals only when Office is
+   listening — the mic itself igniting, one ember brightening — and
+   nothing more, because everything past those two signals was
+   performing attentiveness rather than demonstrating it.
+3. *Does Office have this problem?* Yes, and it's not finished being
+   solved — it's a discipline to keep defending, not a decision made
+   once. The real risk named directly: the next feature request that
+   wants "just one more indicator" or "a quick animation to show it
+   worked" is the moment this principle actually gets tested, not the
+   moment it was written down.
+4. *What survives regardless of which screen is being designed next?*
+   **Every new piece of UI must earn its way onto this calm surface.
+   The interface's job is to disappear, not to perform. If a feature
+   needs motion, sound, or a badge to prove it happened, ask whether
+   the calm alternative (a color, a single subtle change, silence)
+   would prove it just as well.**
+
+**Status:** ✅ Adopted. This is the actual distinguishing quality this
+product has against every existing CRM, ERP, and field-service app —
+not a feature list, a fundamentally different opening question. Worth
+returning to explicitly every time a new screen or interaction gets
+designed, not treated as settled after one good session.
+
 ## Closing synthesis — where AI actually lives
 
 Seven research entries in, the pattern is no longer a surprise: **every
