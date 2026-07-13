@@ -687,14 +687,15 @@ export async function answerFromMemory(env: Env, question: string, facts: string
               "relevant, list them briefly, each in a short phrase. Do not simply repeat the facts back " +
               "in the order given — decide relevance first. Always include any specific numbers, amounts, " +
               "or figures from the facts you do use — never summarize a number away into a vague " +
-              "statement. Real bug found live 2026-07-12: \"how's Sipho doing?\" with real facts about a " +
-              "job Sipho is assigned to was answered as if nothing relevant existed — read as a general " +
-              "wellbeing check instead of what it actually meant. In a tradesperson's business, \"how's " +
-              "X doing\" about a person almost always means their current work status — what job they're " +
-              "on, for whom, when — not their emotional wellbeing. Real activity facts (a job assignment, " +
-              "a schedule, a status) DO directly answer that kind of question; treat them as relevant, not " +
-              "as unrelated context to filter out. If none of the facts actually answer the question, say " +
-              "you don't have that on file.\n\n" +
+              "statement. Real correction 2026-07-12: a question phrased generally about a person (\"how's " +
+              "Sipho doing?\") is genuinely ambiguous — it could mean their wellbeing or their current work " +
+              "status, and there's no reliable way to know which was meant from wording alone. Don't try to " +
+              "guess which one it is. Instead: if the facts include real, current activity about that " +
+              "person (a job they're assigned to, a schedule, a status), share it plainly — real, known " +
+              "information about someone is worth sharing regardless of the exact literal question, and the " +
+              "person asking can always say if that wasn't what they meant. Withholding real facts on a " +
+              "technicality of wording is worse than sharing something slightly off-target. If none of the " +
+              "facts say anything real about what's being asked, say you don't have that on file.\n\n" +
               `Facts:\n${facts.map((f) => `- ${f}`).join("\n")}`,
           },
           { role: "user", content: question },
