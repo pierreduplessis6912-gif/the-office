@@ -580,6 +580,14 @@ async function processOneExtraction(
       // structured facts (role, skill, license, permit) surface
       // alongside notes and job activity, the same "how's Sipho
       // doing" answer now genuinely knowing more about him.
+      // Real fix 2026-07-13: hrFacts used to be handed to the model
+      // as regular fact-array entries, and the model dropped them
+      // during synthesis for a general question like "how's Sipho
+      // doing" — the exact same relevance-judgment problem Principle
+      // 24 already fixed once. Fixed the same proven way: a real,
+      // known fact about a person is never left to the model's own
+      // judgment about literal relevance — appended deterministically
+      // after synthesis instead.
       const hrFacts = await getCharacterFacts(env, character.id);
       // Real feature 2026-07-12 — the first real answer to "how's
       // Sipho doing": if this character has ever been assigned as an
@@ -592,10 +600,12 @@ async function processOneExtraction(
       const facts = [
         `${character.name} is a known contact.`,
         ...characterFacts,
-        ...hrFacts,
         ...(hasRealInstallerActivity ? installerActivity : []),
       ];
       message = await answerFromMemory(env, transcript, facts);
+      if (hrFacts.length > 0) {
+        message += `\n\n${character.name}'s details: ${hrFacts.join(", ")}.`;
+      }
     } else if (customer) {
       const memoryFacts = await getCustomerNotes(env, customer.id);
       const financialSummary = await getCustomerFinancialSummary(env, customer.id);
@@ -1369,8 +1379,9 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       const found = await findExistingCharacterByName(env, name);
       if (!found) return Response.json({ name, found });
       const characterFacts = await getCharacterNotes(env, found.id);
+      const hrFacts = await getCharacterFacts(env, found.id);
       const installerActivity = await getInstallerActivity(env, found.id);
-      return Response.json({ name, found, characterFacts, installerActivity });
+      return Response.json({ name, found, characterFacts, hrFacts, installerActivity });
     }
 
     if (url.pathname === "/debug/find-customer" && request.method === "GET") {
