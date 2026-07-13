@@ -1440,6 +1440,46 @@ Codemagic — still only proven on the web preview.**
     to testing whether graph-style browsing gives better human insight
     than querying does, not a fair "which should power production"
     comparison — worth naming precisely so it isn't oversold later.
+- **First real UI prototype, built and iterated in-browser (2026-07-13)
+  — deliberately zero Flutter build minutes spent, since almost
+  everything about feel can be designed and tested for free before a
+  single real build runs.** Two real, working HTML prototypes (not
+  static mockups), each fetching live data from the real production
+  API — no mocked data anywhere in either.
+  - **First pass:** a card-dashboard-first design — real ember counts,
+    real docket-style cards for tasks/schedule/finance/expenses. Real,
+    useful, and the wrong opening move — corrected against a real
+    reference screenshot into what became Principle 25.
+  - **Second pass, the one that stuck:** hold-to-talk (real browser
+    speech recognition where supported) and write-it-down (genuinely
+    wired to the live `/messages/text` endpoint, real responses shown)
+    as the dominant, opening act. Small ember dots in the masthead —
+    peripheral, not competing for attention — each behaving like real
+    fire rather than a flat on/off state: irregular flicker for
+    Tasks/Scheduler/Expenses, a slow heavy brighten-and-fade for
+    Finance, a faint warm edge even at rest rather than fully "off."
+    The dashboard demoted to a calm bottom sheet, one tap away from an
+    ember, never the default view.
+  - **A real addition, built then removed**: a waveform appearing
+    while Office listens. Recognized, once actually seen in motion,
+    as exactly the "🎤 Recording..." convention this design exists to
+    avoid — removed in favor of exactly two signals when listening:
+    the mic itself slowly igniting from charcoal to warm glow, and one
+    ember (Tasks) briefly brightening. Nothing more. The backdrop and
+    entrance of the ember sheet softened to match the same restraint
+    — a gentle fade rather than a dark modal-snap, a slower, calmer
+    slide.
+  - **Explicitly pinned for later, not now**: genuine irregularity in
+    the ember flicker — real randomness rather than a repeating
+    keyframe loop, so no two embers, or the same ember twice, ever
+    flicker identically. Worth doing with real care when the time
+    comes, not bolted on now.
+  - **The durable insight, extracted into Principle 25**: this isn't
+    a visual style, it's a different opening question than every
+    existing CRM/ERP/field-service app — "tell me what's happening"
+    instead of "what do you want to do." Worth actively defending as
+    real features get added, not a decision that stays made on its
+    own.
 
 ## UX vision — the Ether, and what it does / doesn't change (2026-07-10)
 
