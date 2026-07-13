@@ -1480,6 +1480,42 @@ Codemagic — still only proven on the web preview.**
     instead of "what do you want to do." Worth actively defending as
     real features get added, not a decision that stays made on its
     own.
+- **Conversational auth and permissions — the first real, well-
+  reasoned answer to the auth gap already named in this document
+  (2026-07-13).** "Auth is still a bare stub" has been on record since
+  the UI work began; this is the first proposal worth taking
+  seriously, split the same deliberate way HR was between what's safe
+  to build and what needs real, careful thought first:
+  - **The login flow itself — genuinely good, low-risk, worth
+    building as proposed.** Real Google sign-in reused directly rather
+    than hand-rolled — "standard shapes first" (Principle 12) applied
+    to authentication specifically. Nobody should build custom auth
+    when a battle-tested, already-familiar flow exists.
+  - **"Evidence-based permissions" needs a precise definition before
+    it's a decision, not just a direction — genuinely the highest-
+    stakes idea proposed so far, more consequential than either the
+    money side or the medical-records question already flagged.**
+    Tonight's HR work drew a hard, deliberate line: describing Sipho
+    as an installer is a low-stakes fact; a real commitment on his
+    behalf needs its own guard()'d confirmation. Granting someone
+    actual system access sits much closer to the second category —
+    if a role description ("Sipho is an installer") were ever allowed
+    to silently imply a permission grant, that's a real security
+    failure, the exact class of mistake guard() exists everywhere
+    else in this system to prevent. A real access grant — "give Sipho
+    login access to the schedule" — needs to be its own explicit,
+    separately confirmed action, never inferred from an HR fact no
+    matter how naturally the words might seem to imply it.
+  - **A real echo of a bug already found tonight, at higher stakes.**
+    The Sipho customer/character collision happened because two real
+    things shared a name with nothing to disambiguate them. Knowing
+    *which* real Google account is "Sipho's" account is the same
+    identity-resolution problem, in a genuinely higher-stakes form —
+    not a given, needs real design.
+  - Pinned, not actioned — worth building once the real second user
+    who needs it actually exists, with the same care the HR split and
+    the multi-intent work were given tonight, not built in the
+    excitement of how well it fits the philosophy.
 
 ## UX vision — the Ether, and what it does / doesn't change (2026-07-10)
 
