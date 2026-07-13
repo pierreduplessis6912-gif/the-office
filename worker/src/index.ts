@@ -1396,7 +1396,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         `SELECT js.id, js.customer_id, c.name as customer_name, js.description, js.scheduled_date_raw,
                 js.scheduled_date, js.installer_id, ch.name as installer_name, js.created_at
          FROM job_scopes js
-         JOIN customers c ON c.id = js.customer_id
+         LEFT JOIN customers c ON c.id = js.customer_id
          LEFT JOIN characters ch ON ch.id = js.installer_id
          ORDER BY js.created_at DESC LIMIT 10`
       ).all();
