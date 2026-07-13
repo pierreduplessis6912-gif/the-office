@@ -1326,6 +1326,17 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ name, found });
     }
 
+    // Real diagnostic 2026-07-13 — the exact live schema for a table,
+    // via SQLite's own authoritative source, before writing any
+    // migration that touches a constraint. Guessing at a schema from
+    // memory of the code that reads it is exactly how a table
+    // recreation migration could silently lose a real column.
+    if (url.pathname === "/debug/table-schema" && request.method === "GET") {
+      const table = url.searchParams.get("table") ?? "";
+      const { results } = await env.OFFICE_DB.prepare(`PRAGMA table_info(${table})`).all();
+      return Response.json({ table, columns: results });
+    }
+
     // One-time schema migration for the new real, queryable date —
     // scheduled_date_raw has always been a free phrase; this is the
     // actual resolved calendar date. Same idempotent ALTER pattern as
