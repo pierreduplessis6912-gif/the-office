@@ -687,8 +687,14 @@ export async function answerFromMemory(env: Env, question: string, facts: string
               "relevant, list them briefly, each in a short phrase. Do not simply repeat the facts back " +
               "in the order given — decide relevance first. Always include any specific numbers, amounts, " +
               "or figures from the facts you do use — never summarize a number away into a vague " +
-              "statement. If none of the facts actually answer the question, say you don't have that on " +
-              "file.\n\n" +
+              "statement. Real bug found live 2026-07-12: \"how's Sipho doing?\" with real facts about a " +
+              "job Sipho is assigned to was answered as if nothing relevant existed — read as a general " +
+              "wellbeing check instead of what it actually meant. In a tradesperson's business, \"how's " +
+              "X doing\" about a person almost always means their current work status — what job they're " +
+              "on, for whom, when — not their emotional wellbeing. Real activity facts (a job assignment, " +
+              "a schedule, a status) DO directly answer that kind of question; treat them as relevant, not " +
+              "as unrelated context to filter out. If none of the facts actually answer the question, say " +
+              "you don't have that on file.\n\n" +
               `Facts:\n${facts.map((f) => `- ${f}`).join("\n")}`,
           },
           { role: "user", content: question },
