@@ -1300,6 +1300,17 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // bug lives in the lookup function itself or downstream in how
     // the result gets used, without going through the whole
     // extraction pipeline.
+    // Real diagnostic 2026-07-13 — seeing exactly what the multi-
+    // intent split produced for a real message, without guessing.
+    if (url.pathname === "/debug/split-topics" && request.method === "POST") {
+      const body = (await request.json()) as { text?: string };
+      if (!body.text) return Response.json({ error: "missing text" }, { status: 400 });
+      const items = await extractMultipleIntents(env, body.text);
+      return Response.json({
+        segments: items.map((i) => ({ segment: i.segment, extraction: i.extraction })),
+      });
+    }
+
     if (url.pathname === "/debug/find-character" && request.method === "GET") {
       const name = url.searchParams.get("name") ?? "";
       const found = await findExistingCharacterByName(env, name);
