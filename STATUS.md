@@ -669,6 +669,72 @@ fixed and testing kept going:**
     live: "how's Sipho doing?" now correctly surfaces his real job
     assignment.
 
+**2026-07-13, real multi-intent processing — the architectural
+response to a real problem named directly: a beta user's first
+message will be exactly as wide as a real conversation, and if
+compound messages can't survive contact with the system, there's no
+point shipping.** `processTranscript` split into `processOneExtraction`
+(the reusable core — internal logic UNCHANGED from the proven single-
+intent version) and a thin outer wrapper that logs the raw capture
+once, splits a message into genuinely separate topics via
+`extractMultipleIntents`, and runs each one through the same
+guard()/record logic that already existed per intent. Deliberately
+built the safe way: `extractMultipleIntents` reuses `extractIntent`
+unchanged on each identified segment rather than duplicating its
+large, carefully-tuned prompt. `ProcessResult` gained `pendingActionIds`
+(a real array — a compound message can hold more than one guard()d
+item) alongside `pendingActionId` for backward compatibility. Seeded
+immediately with a real, compound message (an invoice, a job
+observation, two reminders) and found three real bugs in the process,
+each one only visible because the previous one got fixed:
+34. **A work-observation segment naming only an installer, no separate
+    customer, had the installer's name forced into `customer_name`**
+    since it was the only name available — creating a job scope linked
+    to the wrong entity. Root cause was in `extractIntent`'s own
+    customer_name/character_name distinction, not the split — it would
+    have misfired the same way even in a single, non-split message
+    with this exact phrasing. Fixed with an explicit rule: who's DOING
+    the work is never customer_name, even when no other name exists to
+    fall back to.
+35. **Fixing #34 exposed a real, direct consequence**: `recordWorkObservation`
+    required a non-null `customerId`, so a correctly-resolved "no
+    customer named yet" would have silently dropped the entire
+    measurement. Fixed to record with a null customer link rather than
+    lose it — Principle 22 applied directly. Also caught, before
+    shipping: the message-building code used a `customer!.name` non-
+    null assertion that would have thrown the moment a work
+    observation genuinely had no customer — same pattern as two
+    earlier crashes this session, caught this time before it reached
+    production.
+36. **The split itself over-triggered on the word "and" as a topic
+    boundary**, breaking one continuous work observation ("Sipho is
+    measuring the hospital and theatre one is three by two") into two
+    incomplete fragments — a room's dimensions separated from the job
+    observation they belong to. Fixed with an explicit rule ("and"
+    does not by itself mean a new topic) rather than relying on one
+    example to convey it implicitly, plus a directly matching example.
+37. **A real, confirmed live crash (error 1101)**, traced precisely
+    rather than guessed at: fixing #35 in code wasn't enough, because
+    `job_scopes.customer_id` had a real `NOT NULL` constraint in the
+    live schema that a TypeScript type change alone can't touch.
+    Confirmed via direct schema introspection (`PRAGMA table_info`,
+    added as a real, reusable diagnostic route) rather than
+    reconstructing the schema from memory of the code that reads it.
+    Fixed with a careful, atomic table-recreation migration (SQLite
+    can't relax a NOT NULL constraint via a simple ALTER) — every real
+    column preserved exactly, IDs preserved exactly since
+    `job_scopes.id` is referenced by `scope_components`/`scope_tasks`.
+    **Verified with a real before/after row-by-row comparison**, not
+    just "it deployed successfully" — 7 job scopes before, 7 after,
+    identical IDs, identical data, zero loss.
+
+All four bugs fixed, verified live together in the original compound
+message that surfaced them: a real invoice correctly guard()'d, a
+real job scope correctly linked to the right entity with no crash,
+and the two reminder-shaped segments (already independently verified
+correct — a real task, a real character note) all recorded from one
+message, each in its own correct home.
+
 ## Debug and diagnostic routes
 
 `/debug/list-audio`, `/debug/reprocess`, `/debug/search-memory`,
@@ -732,6 +798,20 @@ not concurrently — real bug found live 2026-07-11: at 17 cases,
 never happened at 11–14. If it ever fails again, check the
 `rawOnFailure` field on failing cases before concluding there's a
 genuine regression.
+
+`/debug/split-topics` (POST `{text}`) — real, direct visibility into
+what the multi-intent split actually produced for a message, needed
+2026-07-13 to diagnose real bugs precisely rather than guess at them
+from a combined response. `/debug/find-character`, `/debug/find-
+customer` (GET `?name=`) — isolating a name-lookup function from the
+whole extraction pipeline, the exact tool that found the real name-
+collision bug (#32) by proving the lookup itself was correct before
+chasing the bug further downstream. `/debug/table-schema` (GET
+`?table=`) — real schema introspection via SQLite's own `PRAGMA
+table_info`, the only reliable way to confirm a real constraint before
+writing a migration that touches it; guessing a schema from memory of
+the code that reads it is exactly how a table-recreation migration
+could silently lose a real column.
 
 ## Free iteration loop
 
