@@ -2,7 +2,7 @@ import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult } from "
 import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractIntent, extractLineItems, extractMultipleIntents, extractScopePricing, extractWorkObservation, rerank, resolveFollowUpEntity, storeUnscopedMemory, transcribe } from "./ai";
 import { findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
-import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyStructuredFact, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
+import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
 import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedDebtorsSummary, getCustomerFinancialSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOutstandingInvoices, getProfitAndLossSummary, getQuotationsSummary, holdForConfirmation, recordExpense, recordInvoice, recordPayment, recordQuotation } from "./finance";
 
 // Second layer of defense against storing questions as facts — never
@@ -367,6 +367,21 @@ async function processOneExtraction(
     factPendingActionId = held.id;
   }
 
+  // Real feature 2026-07-13 — the HR primitive's real recording
+  // wiring, mirroring the customer_fact guard exactly. customer_name
+  // and character_name are mutually exclusive per extraction's own
+  // rule, so this never double-fires alongside the customer_fact
+  // guard above for the same message.
+  if (extraction?.fact_key && extraction?.fact_value && character) {
+    const held = await holdForConfirmation(
+      env,
+      "character_fact",
+      { characterId: character.id, characterName: character.name, key: extraction.fact_key, value: extraction.fact_value },
+      transcript
+    );
+    factPendingActionId = held.id;
+  }
+
   // A personal fragment riding alongside a customer message gets its
   // own life event, independent of whatever happens to the customer
   // part below. This is what stops "remind me to get dog food" from
@@ -561,6 +576,11 @@ async function processOneExtraction(
       }
     } else if (character) {
       const characterFacts = await getCharacterNotes(env, character.id);
+      // Real feature 2026-07-13 — the HR primitive's real payoff:
+      // structured facts (role, skill, license, permit) surface
+      // alongside notes and job activity, the same "how's Sipho
+      // doing" answer now genuinely knowing more about him.
+      const hrFacts = await getCharacterFacts(env, character.id);
       // Real feature 2026-07-12 — the first real answer to "how's
       // Sipho doing": if this character has ever been assigned as an
       // installer on a real job, that activity surfaces here too.
@@ -572,6 +592,7 @@ async function processOneExtraction(
       const facts = [
         `${character.name} is a known contact.`,
         ...characterFacts,
+        ...hrFacts,
         ...(hasRealInstallerActivity ? installerActivity : []),
       ];
       message = await answerFromMemory(env, transcript, facts);
@@ -898,6 +919,38 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         // Already exists — fine, that's what makes this idempotent.
       }
       return Response.json({ status: "ok" });
+    }
+
+    // Real feature 2026-07-13 — the operational HR primitive's real
+    // schema, scoped deliberately: role, skill, qualification,
+    // license, site permit. Medical records and disciplinary history
+    // are explicitly not here — regulated, need real consent/access
+    // thinking first, pinned separately in STATUS.md.
+    if (url.pathname === "/debug/init-character-facts" && request.method === "POST") {
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS character_facts (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          character_id INTEGER NOT NULL,
+          key TEXT NOT NULL,
+          value TEXT NOT NULL,
+          source_transcript TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`
+      ).run();
+      return Response.json({ status: "ok" });
+    }
+
+    if (url.pathname === "/debug/character-facts" && request.method === "GET") {
+      const characterId = url.searchParams.get("characterId");
+      const query = characterId
+        ? env.OFFICE_DB.prepare(
+            "SELECT cf.id, cf.character_id, ch.name as character_name, cf.key, cf.value, cf.created_at FROM character_facts cf JOIN characters ch ON ch.id = cf.character_id WHERE cf.character_id = ? ORDER BY cf.created_at DESC"
+          ).bind(Number(characterId))
+        : env.OFFICE_DB.prepare(
+            "SELECT cf.id, cf.character_id, ch.name as character_name, cf.key, cf.value, cf.created_at FROM character_facts cf JOIN characters ch ON ch.id = cf.character_id ORDER BY cf.created_at DESC LIMIT 30"
+          );
+      const { results } = await query.all();
+      return Response.json({ facts: results });
     }
 
     if (url.pathname === "/debug/expenses" && request.method === "GET") {
@@ -1699,6 +1752,21 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             value: string;
           };
           await applyStructuredFact(env, payload.customerId, payload.key, payload.value, action.source_transcript);
+          await env.OFFICE_DB.prepare(
+            "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+          )
+            .bind(id)
+            .run();
+          return Response.json({ status: "confirmed", key: payload.key, value: payload.value });
+        }
+
+        if (action.type === "character_fact") {
+          const payload = JSON.parse(action.payload) as {
+            characterId: number;
+            key: string;
+            value: string;
+          };
+          await applyCharacterFact(env, payload.characterId, payload.key, payload.value, action.source_transcript);
           await env.OFFICE_DB.prepare(
             "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
           )
