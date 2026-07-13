@@ -1381,7 +1381,18 @@ Codemagic — still only proven on the web preview.**
     person gets written without confirmation. Surfaces in "how's
     Sipho doing" alongside notes and job activity — the answer
     genuinely knows more about him now, the actual first real payoff
-    of this primitive.
+    of this primitive. **Verified live end to end**: "Sipho has a
+    driver's license" → correctly guard()'d → confirmed → written to a
+    real row → "how's Sipho doing?" now genuinely answers with his
+    real job assignment *and* his license, in one honest answer.
+    **One real bug found and fixed in the process, same class as
+    Principle 24**: `getCharacterFacts`' output was first handed to
+    the model as a regular fact-array entry, and got silently dropped
+    during synthesis for a general question — the model judged it
+    "not literally relevant" the same way it once dropped the
+    job-profitability caveat. Fixed the same proven way: never left to
+    the model's own relevance judgment, appended deterministically
+    after synthesis instead.
   - **Medical records and disciplinary history — explicitly NOT part
     of the operational build, pinned separately on purpose.** These
     are regulated (POPIA's "special personal information" in this
