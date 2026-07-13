@@ -189,19 +189,6 @@
   }
   .stage.has-content { justify-content: flex-start; padding-top: 60px; align-items: stretch; }
 
-  .prompt-quiet {
-    text-align: center;
-    color: var(--steel);
-  }
-  .prompt-quiet .glyph {
-    font-family: 'Oswald', sans-serif;
-    font-size: 13px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    opacity: 0.5;
-    font-weight: 400;
-  }
-
   /* Light, floating text — never a solid chat bubble. Office's voice
      drifts into the void rather than announcing itself in a box. */
   .utterance {
@@ -272,21 +259,27 @@
     align-items: center;
     gap: 12px;
   }
-  /* The mic stays exactly centered on screen — the camera sits
-     absolutely positioned to its side rather than sharing flex space
-     with it, so adding a second input mode never shifts the primary
-     one even a pixel. */
+  /* The mic stays exactly centered on screen — both side clusters sit
+     absolutely positioned relative to it rather than sharing flex
+     space, so adding input modes on either side never shifts the
+     primary one even a pixel. Real, weighted symmetry: camera and
+     upload on the left, write on the right. */
   .talk-row {
     position: relative;
     display: flex;
     justify-content: center;
     width: 100%;
   }
-  .camera-btn {
+  .side-icons {
     position: absolute;
-    right: calc(50% + 62px);
     top: 50%;
     transform: translateY(-50%);
+    display: flex;
+    gap: 4px;
+  }
+  .side-icons.left { right: calc(50% + 58px); }
+  .side-icons.right { left: calc(50% + 58px); }
+  .side-btn {
     width: 44px; height: 44px;
     border-radius: 50%;
     border: none;
@@ -296,8 +289,8 @@
     justify-content: center;
     cursor: pointer;
   }
-  .camera-btn svg { width: 20px; height: 20px; fill: none; stroke: var(--steel); stroke-width: 1.7; }
-  .camera-btn:active svg { stroke: var(--ember-amber); transform: scale(0.92); }
+  .side-btn svg { width: 19px; height: 19px; fill: none; stroke: var(--steel); stroke-width: 1.7; }
+  .side-btn:active svg { stroke: var(--ember-amber); transform: scale(0.92); }
   .talk-btn {
     width: 92px; height: 92px;
     border-radius: 50%;
@@ -330,17 +323,6 @@
     letter-spacing: 0.16em;
     text-transform: uppercase;
     color: var(--steel);
-  }
-  .write-link {
-    background: none; border: none;
-    font-family: 'Work Sans', sans-serif;
-    font-style: italic;
-    font-size: 13px;
-    color: var(--steel);
-    cursor: pointer;
-    text-decoration: underline;
-    text-decoration-color: rgba(122,118,109,0.4);
-    padding: 4px;
   }
 
   /* --- The composer — where talk and text converge, living in the
@@ -580,10 +562,6 @@
   <div class="edge-hint" id="edge-hint"></div>
 
   <div class="stage" id="stage">
-    <div class="prompt-quiet" id="quiet-prompt">
-      <div class="glyph">Hold to talk, or write it down</div>
-    </div>
-
     <div class="composer" id="composer">
       <div class="composer-label" id="composer-label">Write it down</div>
       <textarea id="composer-input" placeholder="Tell Office what happened…" rows="2"></textarea>
@@ -596,16 +574,26 @@
 
   <div class="control">
     <div class="talk-row">
-      <button class="camera-btn" id="camera-btn" aria-label="Add a photo">
-        <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-      </button>
+      <div class="side-icons left">
+        <button class="side-btn" id="camera-btn" aria-label="Add a photo">
+          <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </button>
+        <button class="side-btn" id="upload-btn" aria-label="Upload a document">
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        </button>
+      </div>
       <button class="talk-btn idle" id="talk-btn">
         <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M19 11a7 7 0 0 1-14 0"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
       </button>
+      <div class="side-icons right">
+        <button class="side-btn" id="write-toggle" aria-label="Write it down">
+          <svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><line x1="7" y1="11" x2="14" y2="11"/><line x1="7" y1="15" x2="11" y2="15"/></svg>
+        </button>
+      </div>
     </div>
     <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none" />
+    <input type="file" id="doc-input" accept=".pdf,image/*" style="display:none" />
     <div class="talk-caption" id="talk-caption">Hold to talk</div>
-    <button class="write-link" id="write-toggle">or write it down</button>
   </div>
 </div>
 
@@ -730,11 +718,9 @@ document.getElementById('sheet-close').addEventListener('click', closeSheet);
 
 // --- Conversation stage ---
 const stage = document.getElementById('stage');
-const quietPrompt = document.getElementById('quiet-prompt');
 const composerEl = document.getElementById('composer');
 
 function addUtterance(text, who) {
-  if (quietPrompt.parentElement) quietPrompt.remove();
   stage.classList.add('has-content');
   const b = document.createElement('div');
   b.className = 'utterance ' + who;
@@ -784,7 +770,6 @@ const composerInput = document.getElementById('composer-input');
 const composerLabel = document.getElementById('composer-label');
 
 function openComposer(prefill, label) {
-  if (quietPrompt.parentElement) quietPrompt.style.display = 'none';
   composerLabel.textContent = label;
   composerInput.value = prefill ?? '';
   composer.classList.add('active');
@@ -802,9 +787,6 @@ function openComposer(prefill, label) {
 function closeComposer() {
   composer.classList.remove('active');
   composerInput.value = '';
-  if (quietPrompt.parentElement && !stage.classList.contains('has-content')) {
-    quietPrompt.style.display = '';
-  }
 }
 
 document.getElementById('write-toggle').addEventListener('click', () => {
@@ -834,7 +816,6 @@ photoInput.addEventListener('change', async () => {
   photoInput.value = '';
   if (!file) return;
 
-  if (quietPrompt.parentElement) quietPrompt.style.display = 'none';
   stage.classList.add('has-content');
   const thinking = addListening();
 
@@ -845,6 +826,33 @@ photoInput.addEventListener('change', async () => {
     const data = await res.json();
     thinking.remove();
     addUtterance(data.description || 'Photo received.', 'office');
+  } catch (e) {
+    thinking.remove();
+    addUtterance('Could not reach the real Office API right now.', 'office');
+  }
+  loadCounts();
+});
+
+// --- Document upload — real, same peer treatment as photo. Real
+// upload to the real /files/document endpoint (field name "document",
+// confirmed against the actual live route). ---
+const docInput = document.getElementById('doc-input');
+document.getElementById('upload-btn').addEventListener('click', () => docInput.click());
+docInput.addEventListener('change', async () => {
+  const file = docInput.files[0];
+  docInput.value = '';
+  if (!file) return;
+
+  stage.classList.add('has-content');
+  const thinking = addListening();
+
+  try {
+    const form = new FormData();
+    form.append('document', file);
+    const res = await fetch(API + '/files/document', { method: 'POST', body: form });
+    const data = await res.json();
+    thinking.remove();
+    addUtterance(data.description || 'Document received.', 'office');
   } catch (e) {
     thinking.remove();
     addUtterance('Could not reach the real Office API right now.', 'office');
@@ -917,7 +925,6 @@ if (SpeechRecognition) {
 function showLiveTranscript(text) {
   let el = document.getElementById('live-transcript');
   if (!el) {
-    if (quietPrompt.parentElement) quietPrompt.style.display = 'none';
     el = document.createElement('div');
     el.id = 'live-transcript';
     el.className = 'utterance you live';
