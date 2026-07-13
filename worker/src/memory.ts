@@ -62,6 +62,47 @@ export async function applyStructuredFact(
   }
 }
 
+// Real feature 2026-07-13 — the first real piece of the operational
+// HR primitive (pinned in STATUS.md), deliberately scoped to
+// operational facts only — role, skill, qualification, license, site
+// permit. Medical records and disciplinary history are explicitly
+// NOT part of this: those are regulated (POPIA's "special personal
+// information" in this business's real market), need a real consent
+// and access-control answer before any schema decision, and are
+// pinned separately, not folded in because they happened to be
+// mentioned in the same sentence. A genuinely parallel table to
+// customer_facts, not a shared one — characters have real, different
+// keys (role, skill, license) with no address-column special-casing
+// to inherit from the customer version.
+export async function applyCharacterFact(
+  env: Env,
+  characterId: number,
+  key: string,
+  value: string,
+  sourceTranscript: string
+): Promise<void> {
+  const normalizedKey = key.trim().toLowerCase().replace(/\s+/g, "_");
+  try {
+    await env.OFFICE_DB.prepare(
+      "INSERT INTO character_facts (character_id, key, value, source_transcript) VALUES (?, ?, ?, ?)"
+    )
+      .bind(characterId, normalizedKey, value, sourceTranscript)
+      .run();
+  } catch (err) {
+    try {
+      await env.OFFICE_DB.prepare("INSERT INTO memory_errors (customer_id, text, error) VALUES (?, ?, ?)")
+        .bind(
+          null,
+          `structured fact for character ${characterId}: ${normalizedKey}=${value}`,
+          err instanceof Error ? err.message : String(err)
+        )
+        .run();
+    } catch {
+      // Nothing further to do if even the error log fails.
+    }
+  }
+}
+
 // The primary read path for per-customer lookups now. Instant KV
 // read, no async indexing delay — this is what "give me Jenny's
 // address" actually reads from moments after it was said.
@@ -117,6 +158,19 @@ export async function getCharacterNotes(env: Env, characterId: number): Promise<
   } catch {
     return [];
   }
+}
+
+// Real feature 2026-07-13 — the read path for operational HR facts.
+// Real D1 query, not KV — these are structured, queryable facts
+// (role, skill, license), not narrative color the way notes are.
+export async function getCharacterFacts(env: Env, characterId: number): Promise<string[]> {
+  const { results } = await env.OFFICE_DB.prepare(
+    "SELECT key, value FROM character_facts WHERE character_id = ? ORDER BY created_at DESC"
+  )
+    .bind(characterId)
+    .all<{ key: string; value: string }>();
+
+  return results.map((r) => `${r.key.replace(/_/g, " ")}: ${r.value}`);
 }
 
 export async function appendCharacterNote(env: Env, characterId: number, text: string): Promise<void> {
