@@ -1406,6 +1406,40 @@ Codemagic — still only proven on the web preview.**
     and access before a single schema decision gets made, not folded
     in because it happened to be mentioned in the same sentence as
     role and skill.
+- **Obsidian vault export — an experimental, read-only projection of
+  Office memory, explicitly gated on Office being stable and in beta
+  (2026-07-13).** Not for now; pinned exactly as proposed, and
+  genuinely well-bounded from the start rather than needing correction
+  the way some pinned ideas here have:
+  - **D1 stays the single, authoritative source of truth** — Obsidian
+    never participates in execution, never becomes a second write
+    path. Directly Principle 16 (Immutable History) held intact, not
+    a new decision.
+  - **"Deterministic projection" is the right term, and the right
+    constraint** — pure, reproducible code generating the vault, never
+    an AI-narrated summary that could drift from the real data or
+    hallucinate a connection. Principle 1 applied to an export layer.
+  - **Genuinely zero production risk** — read-only, disposable,
+    delete-and-regenerate at will. Real, stated purposes worth
+    building toward when the time comes: A/B testing D1 lookups
+    against graph-style retrieval, visual inspection of memory,
+    markdown-based version/backup.
+  - **Three real design questions to answer when this is actually
+    built, named now so they're not skipped later:** (1) "graph-like"
+    isn't automatic just from exporting to markdown — Obsidian's real
+    power (bidirectional links, the graph view) only happens if the
+    generator deliberately emits real cross-references between a
+    customer's page and their real invoices/jobs/expenses/characters,
+    a real design decision, not a given side-effect. (2) Conversation
+    history has a genuinely different shape than the structured D1
+    data — how raw captures become graph-like markdown (one file per
+    capture? threaded by customer? by day?) is real, undecided design
+    work. (3) Worth being precise about what the A/B test actually
+    validates — D1 is live, exact, transactional; a regenerated vault
+    is a disposable snapshot, stale the moment new data lands. Closer
+    to testing whether graph-style browsing gives better human insight
+    than querying does, not a fair "which should power production"
+    comparison — worth naming precisely so it isn't oversold later.
 
 ## UX vision — the Ether, and what it does / doesn't change (2026-07-10)
 
