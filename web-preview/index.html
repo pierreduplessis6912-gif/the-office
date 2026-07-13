@@ -765,6 +765,17 @@ const talkCaption = document.getElementById('talk-caption');
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognizer = null;
 let finalTranscript = '';
+// Real fix found on real device testing: Android's continuous
+// recognizer doesn't give one clean final result per utterance — it
+// repeatedly marks GROWING PREFIXES of the same ongoing utterance as
+// final ("Sipho", then "Sipho went", then "Sipho went for a walk
+// today"). Summing every result marked final stacked each overlapping
+// prefix on top of the last, producing the exact repeating pattern
+// seen live. The fix: track each result by its position — a new
+// final result at the same position OVERWRITES it rather than
+// appending, so however many times the browser re-finalizes the same
+// segment, only its latest, most complete version survives.
+let finalSegments = [];
 if (SpeechRecognition) {
   recognizer = new SpeechRecognition();
   recognizer.lang = 'en-ZA';
@@ -779,23 +790,18 @@ if (SpeechRecognition) {
   // actually speaks is the whole point of putting it in the void.
   recognizer.interimResults = true;
   recognizer.onresult = (e) => {
-    // Real fix found on real device testing: Android Chrome's
-    // continuous mode does not always cleanly report "only what
-    // changed since resultIndex" the way the spec assumes — it can
-    // re-fire a range already marked final, and blindly trusting that
-    // with += caused the same words to echo, appended again on top of
-    // themselves. Rebuilding from the complete result list every time
-    // is safe regardless of the browser's real, occasionally-quirky
-    // behavior — no accumulation, no double-appending possible.
-    let final = '';
     let interim = '';
     for (let i = 0; i < e.results.length; i++) {
       const segment = e.results[i][0].transcript;
-      if (e.results[i].isFinal) final += segment + ' ';
-      else interim += segment;
+      if (e.results[i].isFinal) {
+        finalSegments[i] = segment; // overwrite this position, never append
+      } else {
+        interim = segment; // only the most recent guess for the in-progress segment matters
+      }
     }
+    const final = finalSegments.filter((s) => s !== undefined).join(' ');
     finalTranscript = final;
-    showLiveTranscript((final + interim).trim());
+    showLiveTranscript((final + ' ' + interim).trim());
   };
   recognizer.onerror = () => {
     talkBtn.classList.remove('recording');
@@ -834,6 +840,7 @@ function startTalk() {
     return;
   }
   finalTranscript = '';
+  finalSegments = [];
   talkBtn.classList.add('recording');
   talkCaption.textContent = 'Listening…';
   document.querySelector('.ember-dot[data-dept="tasks"]').classList.add('listening-boost');
