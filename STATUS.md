@@ -1365,6 +1365,36 @@ Codemagic — still only proven on the web preview.**
     users, and the fastest way to get real users is to actually ship.
     Worth naming explicitly so it reads as the natural conclusion, not
     an abandonment, when it's acted on.
+- **HR as a real primitive, split deliberately (2026-07-13).** Real,
+  correctly-spotted — every future industry has some version of
+  role/skill/qualification for the people working in it, the same way
+  every industry has some version of a customer or a job. Split into
+  two genuinely different weights of decision, not one:
+  - **Operational path — built, real, working.** `character_facts`
+    (parallel to `customer_facts`, not shared — characters have real,
+    different keys with no address-column special-casing to inherit):
+    role, skill, qualification, license, site permit. Extraction
+    extended to recognize structured facts about a character, not
+    just a customer (previously explicitly customer-only in the
+    prompt's own instructions). Same guard()'d discipline as every
+    other structured fact in this system — nothing about a real
+    person gets written without confirmation. Surfaces in "how's
+    Sipho doing" alongside notes and job activity — the answer
+    genuinely knows more about him now, the actual first real payoff
+    of this primitive.
+  - **Medical records and disciplinary history — explicitly NOT part
+    of the operational build, pinned separately on purpose.** These
+    are regulated (POPIA's "special personal information" in this
+    business's real market — health data specifically requires real
+    consent or a specific legal basis before it can even be processed
+    at all; disciplinary records carry real employment-law weight
+    too). Treating this with the same "capture everything, guard()
+    the money" pattern as glue receipts would be a genuine liability,
+    not just an engineering gap — and it's not purely an engineering
+    call to make alone. Needs a real compliance/legal read on consent
+    and access before a single schema decision gets made, not folded
+    in because it happened to be mentioned in the same sentence as
+    role and skill.
 
 ## UX vision — the Ether, and what it does / doesn't change (2026-07-10)
 
