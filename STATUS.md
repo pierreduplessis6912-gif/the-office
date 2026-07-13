@@ -1214,8 +1214,34 @@ Codemagic — still only proven on the web preview.**
     real architectural leap.** Every extraction function today assumes
     one intent per message. A real brain dump needs to split one
     message into several separate intents in a single pass — not a
-    parameter tweak, a genuinely different extraction shape. First
-    real test, 2026-07-12, described below.
+    parameter tweak, a genuinely different extraction shape. **Seeded
+    live 2026-07-12** with a real four-topic message (an expense, a
+    vehicle observation, two separate reminders) — this wasn't
+    theorized, it produced three precise, concrete findings:
+    1. **Nothing is silently destroyed.** The raw capture is preserved
+       exactly as spoken (Principle 22's receptacle holding), verified
+       directly against `/debug/captures`.
+    2. **But non-primary content gets genuinely misattributed**, not
+       just dropped. The model's single winning intent ("expense",
+       touching supplier BUCO) caused the *entire* raw transcript —
+       including "phone the electrician" and "get dog food," which
+       have nothing to do with BUCO — to be filed as a character note
+       under that supplier. Confirmed directly in BUCO's own notes.
+    3. **Genuinely actionable items silently never became tasks.**
+       "Phone the electrician tomorrow" and "get dog food" are as
+       clear as any reminder already handled correctly elsewhere in
+       this system — they just never surfaced as one, because task
+       creation is still gated to when `reminder`/`task_complete` wins
+       as the *primary* intent, not to whether real actionable content
+       exists anywhere in the message.
+    A fourth, structural finding worth naming even though it's not a
+    bug: **"the bakkie's making a grinding noise" has nowhere real to
+    live at all** — no vehicle/equipment concept exists anywhere in
+    this schema. Even a perfect brain-dump splitter would have nothing
+    real to file that specific fact into yet. Not actioned — these
+    findings sharpen the pinned proposal into precise, evidenced
+    requirements rather than speculation, which is exactly what
+    seeding was for.
   - **The forgetfulness insight is the sharpest UX observation in the
     document** — Peter stops trusting the Office not because it
     failed, but because he stopped feeding it. A design problem, not a
