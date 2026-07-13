@@ -31,6 +31,12 @@ export interface ProcessResult {
   extractionRawText: string | null;
   customer: { id: number; name: string; matched: boolean } | null;
   pendingActionId: number | null;
+  // Real feature 2026-07-13 — a compound message can hold more than
+  // one item needing guard() confirmation (e.g. an invoice AND a
+  // separate expense in the same message). pendingActionId above
+  // stays for backward compatibility (the first one, or null); this
+  // is the real, complete list.
+  pendingActionIds: number[];
   factPendingActionId: number | null;
   message: string;
   rewrittenQuery: string;
