@@ -1199,6 +1199,45 @@ Codemagic — still only proven on the web preview.**
     Sipho doing" (departments owning facts about participants
     *within* one business) — related in spirit (both are about the
     right context shaping the right answer), not the same proposal.
+- **Design-session document, 2026-07-12 — Brain Dump Mode, Call Office
+  Mode, team architecture, beta philosophy, forgetfulness design.**
+  Real, substantial thinking, pinned as a coherent whole rather than
+  actioned piecemeal — genuinely varies in how close each piece is to
+  earned:
+  - **The framing insight worth protecting regardless of what gets
+    built:** the Office is becoming a trusted business memory, not
+    just a task executor. Not abstract — this is literally what
+    Principle 24 (2026-07-12) turned out to be about: whether the
+    system's memory can be trusted to answer honestly under real,
+    ambiguous conditions.
+  - **Brain Dump Mode — the most exciting idea here, and the biggest
+    real architectural leap.** Every extraction function today assumes
+    one intent per message. A real brain dump needs to split one
+    message into several separate intents in a single pass — not a
+    parameter tweak, a genuinely different extraction shape. First
+    real test, 2026-07-12, described below.
+  - **The forgetfulness insight is the sharpest UX observation in the
+    document** — Peter stops trusting the Office not because it
+    failed, but because he stopped feeding it. A design problem, not a
+    bug; not solvable by fixing code, needs an actual answer
+    (evening brain dump, "anything else happen today") when it's
+    built.
+  - **Shake-to-report isn't speculative — it's a name for what already
+    happened live tonight.** Every one of the three team-support bugs
+    (2026-07-12) got solved because transcript, extraction, and
+    execution were already attached to the same event and directly
+    inspectable — the exact diagnostic pattern shake-to-report would
+    formalize into a real beta feature.
+  - **Team architecture, Call Office Mode, personality/tone, pricing
+    discovery** — real, reasonable, genuinely unbuilt. Pinned until a
+    real beta user creates the actual pressure to build them.
+  - **The beta philosophy itself ("release reliable, learn from real
+    use") is a genuine evolution of, not a contradiction of, the
+    standard this whole document has held to** — the fastest way to
+    get the real evidence this whole approach depends on is real
+    users, and the fastest way to get real users is to actually ship.
+    Worth naming explicitly so it reads as the natural conclusion, not
+    an abandonment, when it's acted on.
 
 ## UX vision — the Ether, and what it does / doesn't change (2026-07-10)
 
