@@ -105,14 +105,18 @@
     padding: 0;
     cursor: pointer;
   }
+  /* Real shape change: a vertical slit rather than a round dot — the
+     "tiger's eye" look Pierre described wanting back. A circle
+     stretched vertically via unequal width/height with border-radius
+     50% naturally renders as an elongated oval/slit. */
   .dot-core {
-    width: 9px; height: 9px;
+    width: 4px; height: 15px;
     border-radius: 50%;
     background: #2A2620;
     box-shadow: 0 0 2px 0 rgba(232,135,30,0.12);
     transition: transform 0.15s ease;
   }
-  .ember-dot:active .dot-core { transform: scale(0.8); }
+  .ember-dot:active .dot-core { transform: scale(0.85); }
 
   /* Real fire behaves differently per department, not a flat on/off —
      Peter should sense the state of his business before he even reads
@@ -153,6 +157,16 @@
   .ember-dot.lit[data-dept="finance"] { color: var(--ember-red); }
   .ember-dot.lit[data-dept="expenses"] { color: var(--purple); }
   .ember-dot.lit .dot-core { color: inherit; }
+
+  /* Real feature: the flicker's magnitude should grow with how much
+     is actually going on, not stay fixed regardless of count — barely
+     alive with one or two items, genuinely brighter and more awake
+     the more there is to do. Layered as a brightness multiplier on
+     top of the existing flicker animations rather than rewriting
+     them, so every keyframe already tuned stays exactly as designed. */
+  .dot-core.tier-subtle { filter: brightness(0.7); }
+  .dot-core.tier-moderate { filter: brightness(1); }
+  .dot-core.tier-intense { filter: brightness(1.35); }
 
   /* The listening boost — Tasks flickers a little brighter while
      Office is actively paying attention, a small, real signal that
@@ -665,7 +679,17 @@ async function loadCounts() {
 
   const counts = { tasks: openTasks.length, scheduler: scheduledToday.length, finance: outstanding.length, expenses: todaysExpenses.length };
   Object.entries(counts).forEach(([dept, count]) => {
-    document.querySelector(`.ember-dot[data-dept="${dept}"]`).classList.toggle('lit', count > 0);
+    const el = document.querySelector(`.ember-dot[data-dept="${dept}"]`);
+    el.classList.toggle('lit', count > 0);
+    // Real feature: the flicker's magnitude grows with how much is
+    // actually going on. Discrete tiers rather than continuous math —
+    // simpler, and real fire doesn't need infinite precision to read
+    // as "barely alive" versus "genuinely a lot going on."
+    const core = el.querySelector('.dot-core');
+    core.classList.remove('tier-subtle', 'tier-moderate', 'tier-intense');
+    if (count >= 6) core.classList.add('tier-intense');
+    else if (count >= 3) core.classList.add('tier-moderate');
+    else if (count >= 1) core.classList.add('tier-subtle');
   });
 
   dataCache = { openTasks, scheduledToday, outstanding, todaysExpenses };
