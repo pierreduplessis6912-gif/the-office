@@ -805,6 +805,51 @@ smoke test a real contract about one primitive rather than a vague
 already produced `/debug/smoke-test`, just not yet organized per
 primitive the way it will be once real file boundaries exist.
 
+## Principle 24 — Share What's Known, Don't Guess What's Meant (2026-07-12)
+
+Arrived at through a real, multi-layer live debugging session, and
+corrected once mid-flight by a sharper insight before landing on its
+final shape — worth keeping that correction in the record, not just
+the fix.
+
+> "How's Sipho doing?" is genuinely ambiguous — it could mean his
+> wellbeing, or his current work status, and there's no reliable way
+> to know which from wording alone. The right answer isn't to guess
+> which one was meant. It's to share the real, known facts anyway.
+
+1. *Problem:* team support was built, tested, and every layer proved
+   correct in isolation — character resolution, job-installer
+   linking, fact assembly — yet the live question still returned "I
+   don't have that on file." The actual bug lived one layer deeper
+   than any of the data: in `answerFromMemory`'s own judgment of
+   whether real facts "answered" a genuinely ambiguous question.
+2. *How solved, and how the first attempt at solving it was wrong:*
+   the first fix forced one interpretation — "in this context, 'how's
+   X doing' always means work status." That fix worked for this one
+   case and was still a mistake: it silently decided the ambiguity
+   instead of admitting it, and would have confidently answered wrong
+   in the other direction the moment someone genuinely meant
+   wellbeing. Corrected to the actual right shape: never try to guess
+   which interpretation was meant — if real, current facts about the
+   person exist, share them regardless of the literal question, since
+   withholding known information on a technicality of wording is
+   worse than sharing something slightly off-target. The person asking
+   can always say if it wasn't what they meant.
+3. *Does Office have this problem elsewhere?* Almost certainly yes,
+   anywhere a question's literal wording could plausibly point in more
+   than one direction and Office holds real facts along only one of
+   them — not yet audited systematically, worth watching for.
+4. *What survives regardless of the specific question that surfaced
+   it?* **Ambiguity in what a question means is not license to guess
+   — but it's also not a reason to withhold real facts. Share what's
+   actually known; let the person correct course if needed.**
+
+**Status:** ✅ Adopted. A real, durable extension of Principle 1
+("never guess") into answer synthesis specifically — Principle 1
+already covered guessing business facts; this covers guessing the
+*shape* of what was asked, which is a related but genuinely distinct
+kind of guess.
+
 ## Closing synthesis — where AI actually lives
 
 Seven research entries in, the pattern is no longer a surprise: **every
