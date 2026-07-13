@@ -53,7 +53,7 @@
     cursor: pointer;
     width: 40px;
     height: 40px;
-    min-width: 128px;
+    min-width: 88px;
     display: flex;
     align-items: center;
     justify-content: flex-start;
@@ -72,8 +72,8 @@
   }
   .embers {
     display: flex;
-    gap: 2px;
-    min-width: 128px;
+    gap: 1px;
+    min-width: 88px;
     justify-content: flex-end;
   }
   /* A barely-visible hint that something lives to the right — not a
@@ -88,13 +88,15 @@
     border-radius: 3px 0 0 3px;
     pointer-events: none;
   }
-  /* Real fix found on real device testing: the visible dot and the
-     tap target used to be the same 9px element — far below any real
-     touch-target size. Now the dot stays exactly as small and subtle
-     as before; the button around it is a real, thumb-sized hit area,
-     invisible itself. */
+  /* Real fix, twice over: the visible dot and the tap target used to
+     be the same 9px element, far below any real touch-target size —
+     then the first fix widened the whole box, which pushed the dots
+     apart and lost the tight, clustered look. Real touch-target
+     guidance cares most about the VERTICAL dimension for a row like
+     this — so height stays generous (44px) while width stays narrow,
+     letting the dots themselves sit close together again. */
   .ember-dot {
-    width: 30px; height: 40px;
+    width: 20px; height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
