@@ -57,6 +57,77 @@ export async function transcribe(env: Env, audioBuffer: ArrayBuffer): Promise<{ 
 // matching against a list we could never make complete. thinking must
 // stay disabled or Kimi burns its whole token budget on internal
 // reasoning before ever answering; temperature 0 for determinism.
+// Real feature 2026-07-13 — the multi-intent split, built the safe
+// way: rather than duplicate extractIntent's large, carefully-tuned
+// prompt into a parallel "extract many things" version (real risk of
+// the two drifting out of sync on the next bug fix), this is a small,
+// focused new step — find genuinely separate topics, then call the
+// existing, unchanged extractIntent once per segment. Real, honest
+// tradeoff, named directly rather than hidden: this adds one real AI
+// call to every message, even single-topic ones, since the split
+// check has to run before anything else.
+export async function splitIntoTopics(env: Env, transcript: string): Promise<string[]> {
+  try {
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        temperature: 0,
+        chat_template_kwargs: { thinking: false },
+        messages: [
+          {
+            role: "system",
+            content:
+              "A tradesperson sometimes says several genuinely separate things in one message — " +
+              "different topics that each need to be recorded separately (a job note, an expense, a " +
+              "reminder, a fact about a person, an invoice). Find genuinely SEPARATE topics and split " +
+              "them into self-contained segments, each with enough context to stand alone. Do NOT split " +
+              "a single continuous thought into pieces just because it's long — only split when the " +
+              "message moves to a genuinely different subject or type of information. If the whole " +
+              "message is about ONE topic, return it as a single segment, unchanged. Rewrite a segment " +
+              "only to carry over context it would otherwise lose by being separated (e.g. an implied " +
+              "subject) — never add information that wasn't actually stated. Return ONLY a JSON array " +
+              "of strings.\n\n" +
+              "Examples:\n" +
+              '"create an invoice for Jenny for R3200, Sipho is measuring the hospital and theatre one ' +
+              'is three by two, remember to buy dog food, and John has lost his work boots, we need to ' +
+              'get him some new work boots" -> ["create an invoice for Jenny for R3200", "Sipho is ' +
+              'measuring the hospital, theatre one is three by two", "remember to buy dog food", "John ' +
+              'has lost his work boots, we need to get him some new work boots"]\n' +
+              '"bought glue for R850 at BUCO" -> ["bought glue for R850 at BUCO"]\n' +
+              '"Jenny paid R500" -> ["Jenny paid R500"]',
+          },
+          { role: "user", content: transcript },
+        ],
+      })
+    );
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const rawText = r.choices?.[0]?.message?.content ?? "";
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+    if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((s) => typeof s === "string")) {
+      return parsed;
+    }
+    return [transcript];
+  } catch {
+    // Real failure mode kept deliberately safe: if the split itself
+    // fails for any reason, fall back to treating the whole message
+    // as one topic — exactly today's proven behavior, never worse.
+    return [transcript];
+  }
+}
+
+export async function extractMultipleIntents(
+  env: Env,
+  transcript: string
+): Promise<Array<{ segment: string; extraction: Extraction | null; raw: unknown; rawText: string | null }>> {
+  const segments = await splitIntoTopics(env, transcript);
+  const results: Array<{ segment: string; extraction: Extraction | null; raw: unknown; rawText: string | null }> = [];
+  for (const segment of segments) {
+    const result = await extractIntent(env, segment);
+    results.push({ segment, ...result });
+  }
+  return results;
+}
+
 export async function extractIntent(env: Env, transcript: string): Promise<{ extraction: Extraction | null; raw: unknown; rawText: string | null }> {
   let rawText: string | null = null;
   let result: unknown = null;
