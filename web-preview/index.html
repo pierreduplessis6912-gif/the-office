@@ -256,6 +256,32 @@
     align-items: center;
     gap: 12px;
   }
+  /* The mic stays exactly centered on screen — the camera sits
+     absolutely positioned to its side rather than sharing flex space
+     with it, so adding a second input mode never shifts the primary
+     one even a pixel. */
+  .talk-row {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    width: 100%;
+  }
+  .camera-btn {
+    position: absolute;
+    right: calc(50% + 62px);
+    top: 50%;
+    transform: translateY(-50%);
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .camera-btn svg { width: 20px; height: 20px; fill: none; stroke: var(--steel); stroke-width: 1.7; }
+  .camera-btn:active svg { stroke: var(--ember-amber); transform: scale(0.92); }
   .talk-btn {
     width: 92px; height: 92px;
     border-radius: 50%;
@@ -553,9 +579,15 @@
   </div>
 
   <div class="control">
-    <button class="talk-btn idle" id="talk-btn">
-      <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M19 11a7 7 0 0 1-14 0"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
-    </button>
+    <div class="talk-row">
+      <button class="camera-btn" id="camera-btn" aria-label="Add a photo">
+        <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      </button>
+      <button class="talk-btn idle" id="talk-btn">
+        <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M19 11a7 7 0 0 1-14 0"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
+      </button>
+    </div>
+    <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none" />
     <div class="talk-caption" id="talk-caption">Hold to talk</div>
     <button class="write-link" id="write-toggle">or write it down</button>
   </div>
@@ -730,10 +762,16 @@ function openComposer(prefill, label) {
   composerLabel.textContent = label;
   composerInput.value = prefill ?? '';
   composer.classList.add('active');
-  composerInput.focus();
-  // Autogrow to fit real content, transcribed or typed.
-  composerInput.style.height = 'auto';
-  composerInput.style.height = Math.min(composerInput.scrollHeight, 120) + 'px';
+  // Real fix: calling focus() synchronously, right after adding the
+  // class that triggers the CSS transition, meant mobile browsers
+  // sometimes saw the textarea as still effectively zero-height and
+  // refused to focus it — no keyboard, no way to type. Waiting one
+  // frame lets the browser actually lay it out as visible first.
+  requestAnimationFrame(() => {
+    composerInput.focus();
+    composerInput.style.height = 'auto';
+    composerInput.style.height = Math.min(composerInput.scrollHeight, 120) + 'px';
+  });
 }
 function closeComposer() {
   composer.classList.remove('active');
@@ -757,6 +795,35 @@ document.getElementById('composer-send').addEventListener('click', () => {
   if (!text) return;
   closeComposer();
   sendToOffice(text);
+});
+
+// --- Camera — a peer input mode alongside talk and text, not a
+// menu item. Real upload to the real /files/photo endpoint; the
+// device's own camera/gallery picker sheet handles choosing between
+// taking a new photo or picking an existing one. ---
+const photoInput = document.getElementById('photo-input');
+document.getElementById('camera-btn').addEventListener('click', () => photoInput.click());
+photoInput.addEventListener('change', async () => {
+  const file = photoInput.files[0];
+  photoInput.value = '';
+  if (!file) return;
+
+  if (quietPrompt.parentElement) quietPrompt.style.display = 'none';
+  stage.classList.add('has-content');
+  const thinking = addListening();
+
+  try {
+    const form = new FormData();
+    form.append('photo', file);
+    const res = await fetch(API + '/files/photo', { method: 'POST', body: form });
+    const data = await res.json();
+    thinking.remove();
+    addUtterance(data.description || 'Photo received.', 'office');
+  } catch (e) {
+    thinking.remove();
+    addUtterance('Could not reach the real Office API right now.', 'office');
+  }
+  loadCounts();
 });
 
 // --- Hold to talk (real browser speech recognition where available) ---
