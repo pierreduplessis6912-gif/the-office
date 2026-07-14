@@ -899,21 +899,27 @@ designed, not treated as settled after one good session.
 ## Principle 26 — Permission-Aware Answers (2026-07-14)
 
 Arrived at through real back-and-forth refinement of the Membership
-model — not settled in one pass, sharpened twice: once into the
-Membership entity itself, once again into the precise mechanism below.
+model — not settled in one pass, sharpened three times: once into the
+Membership entity itself, once into the fact-construction mechanism,
+once more into its sharpest form below.
 
-> The Office never hides information. It only reveals what the
-> current membership is allowed to know.
+> The Office does not authorize questions. It authorizes knowledge.
 
 1. *Problem:* a conversation-first product cannot gate access the way
    a normal app does — there is no button to hide, and there is no
    Finance tool to grant or deny. Asking "can Sipho access the
-   Finance tool?" is the wrong question — there is no such tool. The
-   correct question is "is Sipho allowed to know this fact?" If
-   Sipho, a member of Zululand Flooring with the Installer role, asks
-   "how much money did we make this month?", the same synthesis that
-   correctly answers Peter has to know it must refuse or redact for
-   Sipho specifically. Permission-awareness has to live inside the
+   Finance tool?" is the wrong question — there is no such tool. So is
+   asking "can Sipho ask this question?" — real speech is infinite and
+   unpredictable; a whitelist of allowed questions is a real,
+   tempting, wrong path that looks like a reasonable reading of
+   "permission-aware" until it's actually attempted. The correct
+   question is "is Sipho allowed to know the information required to
+   answer this?" Any question can be asked; what's scoped is the
+   knowledge available to answer it. If Sipho, a member of Zululand
+   Flooring with the Installer role, asks "how much money did we make
+   this month?", the same synthesis that correctly answers Peter has
+   to know it must refuse or redact for Sipho specifically.
+   Permission-awareness has to live inside the
    reasoning itself, not the UI layer.
 2. *How solved:* Membership — Office × Person × Role — is a real,
    separate, inspectable entity (Principle 25's discipline extended to
@@ -982,6 +988,66 @@ hardest pieces of backend work still ahead, and one of the more real
 differentiators this product has — worth building with the same care
 as everything else that's earned a principle here, not rushed once
 the architecture starts feeling settled.
+
+## Principle 27 — A Network, Not Modules (2026-07-14)
+
+A separate, genuinely new realization from the same conversation that
+produced Principle 26 — not about permissions, about how to think
+about the whole system underneath them.
+
+> Peter doesn't think "I'm opening HR." He thinks "how's Sipho doing?"
+
+1. *Problem:* this whole project has organized its thinking in
+   departments — Finance, HR, Scheduler — and that's been a genuinely
+   useful lens for deciding what belongs in the system (the five-
+   domain lens from early in this document). But a lens for deciding
+   what to build is not the same claim as how the system actually
+   *is*. Sipho exists simultaneously as a character, an installer, a
+   driver, a job owner, a license holder, a conversation participant —
+   he was never inside one module. Thinking in modules risks building
+   walls between facts that Peter never experiences as separate.
+2. *How solved:* not by adopting a graph database — that would be
+   exactly the premature generalization this document has caught and
+   rejected elsewhere. The realization is smaller and more honest than
+   that: the *questions* Office increasingly needs to answer are
+   graph-shaped ("starting from Sipho, what connected information may
+   this Membership legally traverse?") even while the *data* correctly
+   stays relational in D1. A graph mental model, not a graph database.
+   Implementation doesn't change; what changes is remembering, every
+   time a new feature touches an existing entity, that the entity was
+   never siloed in the first place.
+3. *Does Office have this problem?* Already resolving itself in real,
+   organic ways worth naming rather than treating as coincidence — the
+   HR primitive's facts surfacing inside "how's Sipho doing" alongside
+   his notes and job activity, job-cost linking connecting expenses to
+   jobs to customers, are both already the network behaving like a
+   network, built before this principle had a name. The real risk
+   isn't Office failing to be a network — it's future work
+   accidentally re-introducing walls a modular *mental* model would
+   have built by default.
+4. *What survives regardless of which entities get connected next?*
+   **Organize the build in departments if that's the clearest lens for
+   deciding what belongs. Never let that lens become how the system
+   actually connects facts to each other.**
+
+**A direct, real connection worth stating explicitly rather than left
+as two separate ideas:** the Obsidian vault export, already pinned
+earlier tonight as an experimental "does graph browsing give better
+human insight than querying" curiosity, is sharper now than it was —
+the permission-traversal question Principle 26 depends on ("what may
+this Membership see, starting from Sipho") is inherently the same
+graph-shaped question this principle names. Worth remembering that
+connection whenever that export is eventually built, not just as a
+nice visualization, but as a real, honest test of whether the graph
+mental model already being used to reason about permissions holds up
+when actually drawn out.
+
+**Status:** ✅ Adopted as a way of thinking about the system, not a
+schema change — the underlying data model doesn't move to a graph
+database, and nothing about tonight's relational schema needs to be
+revisited because of this. Recorded so future feature work reaches
+for existing connections by default, rather than rebuilding walls a
+modular mental model would create without meaning to.
 
 ## Closing synthesis — where AI actually lives
 
