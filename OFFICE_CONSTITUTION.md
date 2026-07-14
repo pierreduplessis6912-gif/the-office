@@ -899,33 +899,69 @@ designed, not treated as settled after one good session.
 ## Principle 26 — Permission-Aware Answers (2026-07-14)
 
 Arrived at through real back-and-forth refinement of the Membership
-model — not settled in one pass, sharpened by a second, precise
-correction to the first draft.
+model — not settled in one pass, sharpened twice: once into the
+Membership entity itself, once again into the precise mechanism below.
 
 > The Office never hides information. It only reveals what the
 > current membership is allowed to know.
 
 1. *Problem:* a conversation-first product cannot gate access the way
-   a normal app does — there is no button to hide. If Sipho, a member
-   of Zululand Flooring with the Installer role, asks "how much money
-   did we make this month?", the same synthesis that correctly
-   answers Peter has to know it must refuse or redact for Sipho
-   specifically. Permission-awareness has to live inside the
+   a normal app does — there is no button to hide, and there is no
+   Finance tool to grant or deny. Asking "can Sipho access the
+   Finance tool?" is the wrong question — there is no such tool. The
+   correct question is "is Sipho allowed to know this fact?" If
+   Sipho, a member of Zululand Flooring with the Installer role, asks
+   "how much money did we make this month?", the same synthesis that
+   correctly answers Peter has to know it must refuse or redact for
+   Sipho specifically. Permission-awareness has to live inside the
    reasoning itself, not the UI layer.
 2. *How solved:* Membership — Office × Person × Role — is a real,
    separate, inspectable entity (Principle 25's discipline extended to
    identity: nothing about who can see what is ever inferred from an
-   HR fact or a role description). Every answer is generated *for*
-   the person asking, from only the facts their membership permits,
-   never generated in full and filtered afterward. This is not a
-   stylistic preference — it's the same distrust of the model's own
-   judgment that Principle 24 already established, applied one layer
-   earlier: a model that has *seen* the real profit figure and been
-   told not to mention it is one clever follow-up away from leaking
-   it through phrasing. A model whose fact-gathering stage never
-   includes that figure at all for this asker cannot leak what it was
-   never given. The permission check belongs at fact construction,
-   before synthesis, not as a redaction pass on the output.
+   HR fact or a role description). Permissions are **capabilities on
+   facts, not access to screens** — "can know company profit," "can
+   know supplier pricing," "can know payroll," not "Finance menu ✓."
+   Every real fact in this system already has real provenance — where
+   it came from, who created it, what type it is — and that provenance
+   is what a capability check runs against. Every answer is generated
+   *for* the person asking, from only the facts their membership's
+   capabilities permit, never generated in full and filtered
+   afterward. This is not a stylistic preference — it's the same
+   distrust of the model's own judgment that Principle 24 already
+   established, applied one layer earlier: a model that has *seen*
+   the real profit figure and been told not to mention it is one
+   clever follow-up away from leaking it through phrasing. A model
+   whose fact-gathering stage never includes that figure at all for
+   this asker cannot leak what it was never given. The permission
+   check belongs at fact construction, before synthesis, not as a
+   redaction pass on the output — **filter first, then think**. Most
+   AI assistants answer first and try to filter afterward; that order
+   is backwards for anything meant to be trusted with real financial
+   and personal data.
+   - **A real, resolved tension worth stating explicitly, not left
+     ambiguous:** an honest refusal ("I don't have permission to
+     access the company's financial performance — ask the business
+     owner") is more trustworthy than a vague "I don't have that on
+     file," but the model needs *some* signal to phrase that honestly
+     without ever receiving the real value. The fact-gathering stage
+     can include a neutral, valueless marker — "financial performance
+     exists for this business but is restricted for this role" — with
+     no number attached. This preserves both disciplines at once: the
+     real figure never enters the model's context and structurally
+     cannot leak, while the model can still tell the truth about *why*
+     it can't answer, rather than implying the information doesn't
+     exist at all.
+   - **The same question can produce a different, still-truthful
+     answer depending on the membership, not just a binary yes/no
+     gate on the whole question.** "How's the business going?" asked
+     by Sipho and by Peter should both get real, honest answers — just
+     built from different fact sets. Peter might hear real revenue and
+     margin; Sipho might honestly hear "work booked for five weeks,
+     three large projects starting this month" — no turnover, no
+     margin, no bank balance, and still genuinely useful, still
+     genuinely true. This is why the check happens at fact-gathering:
+     the same conversational surface serves every membership something
+     real, just scoped to what that membership can see.
 3. *Does Office have this problem?* Not yet, structurally — no
    permission model exists yet at all. But every synthesis path
    already built (customer lookups, character lookups, business-scope
@@ -935,13 +971,17 @@ correction to the first draft.
 4. *What survives regardless of which specific permission gets
    checked?* **Generate for the asker, not from the business. If a
    fact shouldn't be said, it shouldn't be gathered — never gathered,
-   then hidden.**
+   then hidden. Filter first, then think.**
 
 **Status:** ✅ Adopted as a design principle; not yet implemented (no
 permission model exists yet — pinned in STATUS.md alongside the
 Membership architecture). Recorded now so the discipline is decided
 before the first line of permission-aware code is written, not
-discovered as a fix after the first real leak.
+discovered as a fix after the first real leak. Likely one of the
+hardest pieces of backend work still ahead, and one of the more real
+differentiators this product has — worth building with the same care
+as everything else that's earned a principle here, not rushed once
+the architecture starts feeling settled.
 
 ## Closing synthesis — where AI actually lives
 
