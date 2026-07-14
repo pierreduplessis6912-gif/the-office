@@ -1492,25 +1492,31 @@ Codemagic — still only proven on the web preview.**
     do. A Google identity represents one person, never one business —
     the person can own Offices and separately hold memberships in
     others.
-  - **Membership — Office × Person × Role — is the real entity that
-    answers the earlier concern.** A structured, explicit, inspectable
-    thing that can be created and revoked on its own, never inferred
-    from an HR fact or a role description. This is exactly the
-    separate, guard()-able access grant the earlier concern called
-    for.
-  - **The Sipho example does real work, not just illustration.** Sipho
-    owns his own isolated Office (Sipho Projects) and separately holds
-    a scoped membership in Zululand Flooring as Installer — zero data
-    bleed between them. This extends "isolated instance per business"
-    (rejected shared multi-tenancy three separate times already)
-    rather than compromising it: the only thing that needs to live
-    outside any single Office's isolated database is a small, pure
-    routing directory — which Google accounts hold which memberships
-    in which instances. That's metadata about access, never business
-    data — the same distinction a landlord's keyring makes versus
-    what's actually inside any tenant's apartment. Worth stating
-    explicitly rather than left implicit, since it's what makes this
-    compatible with everything already decided.
+  - **Membership is the real entity that answers the earlier
+    concern** — refined from an earlier, clunkier "Office × Person ×
+    Role" notation into the correct, natural name for what it actually
+    is. A structured, explicit, inspectable thing that can be created
+    and revoked on its own, never inferred from an HR fact or a role
+    description. This is exactly the separate, guard()-able access
+    grant the earlier concern called for.
+  - **The Sipho example does real work, not just illustration — and
+    the deeper insight underneath it is worth stating plainly: nobody
+    belongs to a company anymore, people belong to multiple Offices.**
+    Sipho owns his own isolated Office (Sipho Projects) and separately
+    holds a scoped membership in Zululand Flooring as Installer — zero
+    data bleed between them, exactly like real life, where the same
+    person might work a trade, run a weekend side business, and help
+    with a spouse's business, all at once. This extends "isolated
+    instance per business" (rejected shared multi-tenancy three
+    separate times already) rather than compromising it: the only
+    thing that needs to live outside any single Office's isolated
+    database is a small, pure routing directory — which Google
+    accounts hold which memberships in which instances. That's
+    metadata about access, never business data — the same distinction
+    a landlord's keyring makes versus what's actually inside any
+    tenant's apartment. Worth stating explicitly rather than left
+    implicit, since it's what makes this compatible with everything
+    already decided.
   - **The "Choose Office" pattern is a better, more general answer to
     tonight's own multi-persona need than the earlier "bookmarked URL
     per instance" idea.** One real Google identity, many real
@@ -1519,17 +1525,18 @@ Codemagic — still only proven on the web preview.**
     industries" problem as a first-class product feature (useful for
     real accountants and multi-business owners too), not a dev-only
     workaround.
-  - **One real, substantial piece of scope worth naming honestly, not
-    discovered later: permission enforcement for a conversation-first
-    product is genuinely harder than for a normal app.** A normal
-    SaaS tool hides a button. Office has no buttons to hide — if
-    Sipho asks "how are we doing financially?", the same
-    `answerFromMemory` synthesis that already answers Peter correctly
-    needs to know it must refuse or redact for Sipho specifically.
-    Permission-awareness has to reach into the conversational answer
-    layer itself, not just gate routes — comparable in real scope to
-    the multi-intent work tonight, not a quick addition once login
-    exists.
+  - **Permission enforcement for a conversation-first product is
+    genuinely harder than for a normal app — refined into Principle 26
+    (Permission-Aware Answers).** A normal SaaS tool hides a button.
+    Office has no buttons to hide — if Sipho asks "how are we doing
+    financially?", the same `answerFromMemory` synthesis that already
+    answers Peter correctly needs to know it must refuse or redact for
+    Sipho specifically. The precise, buildable discipline this
+    resolved into: the permission check belongs at fact construction,
+    before synthesis, never as a redaction pass on the output — the
+    same distrust of the model's own judgment Principle 24 already
+    established, applied one layer earlier. A model never given the
+    real profit figure cannot leak what it was never handed.
   - Pinned, not actioned — worth building once the real second user
     who needs it actually exists, with the same care everything else
     tonight was given.
