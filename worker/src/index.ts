@@ -790,9 +790,10 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ status: "ok", service: "office-api" });
     }
 
-    if (url.pathname.startsWith("/auth")) {
-      return new Response("auth: reserved, not yet implemented", { status: 501 });
-    }
+    // Real, complete auth routes are implemented further down
+    // (/auth/google/login, /auth/google/callback, /auth/me,
+    // /auth/logout) — the placeholder that used to catch every
+    // /auth/* path here has been removed; it was shadowing them.
 
     // --- Debug routes. Left in deliberately during this experimentation
     // phase. Strip these before anything resembling real customer data
