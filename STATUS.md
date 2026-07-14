@@ -1480,42 +1480,59 @@ Codemagic — still only proven on the web preview.**
     instead of "what do you want to do." Worth actively defending as
     real features get added, not a decision that stays made on its
     own.
-- **Conversational auth and permissions — the first real, well-
-  reasoned answer to the auth gap already named in this document
-  (2026-07-13).** "Auth is still a bare stub" has been on record since
-  the UI work began; this is the first proposal worth taking
-  seriously, split the same deliberate way HR was between what's safe
-  to build and what needs real, careful thought first:
-  - **The login flow itself — genuinely good, low-risk, worth
-    building as proposed.** Real Google sign-in reused directly rather
-    than hand-rolled — "standard shapes first" (Principle 12) applied
-    to authentication specifically. Nobody should build custom auth
-    when a battle-tested, already-familiar flow exists.
-  - **"Evidence-based permissions" needs a precise definition before
-    it's a decision, not just a direction — genuinely the highest-
-    stakes idea proposed so far, more consequential than either the
-    money side or the medical-records question already flagged.**
-    Tonight's HR work drew a hard, deliberate line: describing Sipho
-    as an installer is a low-stakes fact; a real commitment on his
-    behalf needs its own guard()'d confirmation. Granting someone
-    actual system access sits much closer to the second category —
-    if a role description ("Sipho is an installer") were ever allowed
-    to silently imply a permission grant, that's a real security
-    failure, the exact class of mistake guard() exists everywhere
-    else in this system to prevent. A real access grant — "give Sipho
-    login access to the schedule" — needs to be its own explicit,
-    separately confirmed action, never inferred from an HR fact no
-    matter how naturally the words might seem to imply it.
-  - **A real echo of a bug already found tonight, at higher stakes.**
-    The Sipho customer/character collision happened because two real
-    things shared a name with nothing to disambiguate them. Knowing
-    *which* real Google account is "Sipho's" account is the same
-    identity-resolution problem, in a genuinely higher-stakes form —
-    not a given, needs real design.
+- **Conversational auth and permissions — superseded by a refined,
+  precise Membership-model proposal (2026-07-14).** The 2026-07-13
+  version raised a real concern: "evidence-based permissions" needed
+  a precise definition before it was a decision, since a role
+  description ("Sipho is an installer") must never be allowed to
+  silently imply an access grant. This version genuinely resolves
+  that concern rather than just restating it:
+  - **Auth and authorization cleanly separated — the correct, standard
+    shape.** Google handles who you are; Office handles what you can
+    do. A Google identity represents one person, never one business —
+    the person can own Offices and separately hold memberships in
+    others.
+  - **Membership — Office × Person × Role — is the real entity that
+    answers the earlier concern.** A structured, explicit, inspectable
+    thing that can be created and revoked on its own, never inferred
+    from an HR fact or a role description. This is exactly the
+    separate, guard()-able access grant the earlier concern called
+    for.
+  - **The Sipho example does real work, not just illustration.** Sipho
+    owns his own isolated Office (Sipho Projects) and separately holds
+    a scoped membership in Zululand Flooring as Installer — zero data
+    bleed between them. This extends "isolated instance per business"
+    (rejected shared multi-tenancy three separate times already)
+    rather than compromising it: the only thing that needs to live
+    outside any single Office's isolated database is a small, pure
+    routing directory — which Google accounts hold which memberships
+    in which instances. That's metadata about access, never business
+    data — the same distinction a landlord's keyring makes versus
+    what's actually inside any tenant's apartment. Worth stating
+    explicitly rather than left implicit, since it's what makes this
+    compatible with everything already decided.
+  - **The "Choose Office" pattern is a better, more general answer to
+    tonight's own multi-persona need than the earlier "bookmarked URL
+    per instance" idea.** One real Google identity, many real
+    memberships, a simple picker when more than one exists — solves
+    the exact "log in as different accounts, seed different
+    industries" problem as a first-class product feature (useful for
+    real accountants and multi-business owners too), not a dev-only
+    workaround.
+  - **One real, substantial piece of scope worth naming honestly, not
+    discovered later: permission enforcement for a conversation-first
+    product is genuinely harder than for a normal app.** A normal
+    SaaS tool hides a button. Office has no buttons to hide — if
+    Sipho asks "how are we doing financially?", the same
+    `answerFromMemory` synthesis that already answers Peter correctly
+    needs to know it must refuse or redact for Sipho specifically.
+    Permission-awareness has to reach into the conversational answer
+    layer itself, not just gate routes — comparable in real scope to
+    the multi-intent work tonight, not a quick addition once login
+    exists.
   - Pinned, not actioned — worth building once the real second user
-    who needs it actually exists, with the same care the HR split and
-    the multi-intent work were given tonight, not built in the
-    excitement of how well it fits the philosophy.
+    who needs it actually exists, with the same care everything else
+    tonight was given.
 
 ## UX vision — the Ether, and what it does / doesn't change (2026-07-10)
 
