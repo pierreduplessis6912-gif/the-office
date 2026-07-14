@@ -1630,6 +1630,46 @@ Codemagic — still only proven on the web preview.**
       four real functions on that path suggests a genuine defect —
       most likely a transient AI-call latency spike, not a bug, but
       worth remembering if it recurs.
+- **Heartbeat and Pulse — a real, well-timed concept, explicitly
+  gated on the auth foundation (2026-07-14).** Correctly arrives right
+  as its own prerequisite is nearly cleared — steps 1-4 above are
+  proven live, not just planned, so this isn't premature the way it
+  would have been earlier tonight.
+  - **The real insight, worth taking at face value:** industries don't
+    differ by feature set, they differ by operational heartbeat — the
+    expected sequence work moves through (flooring's lead → measure →
+    quote → material order → install → snag → invoice → payment;
+    courier's pickup → dispatch → deliver → proof → invoice). The
+    Office stays universal; only the rhythm it's tracking changes.
+    This sharpens the earlier multi-industry scoping discussion with
+    better vocabulary — "does this trade's heartbeat fit what the
+    schema's primitives already cover" is a more precise question than
+    the technical framing used at the time.
+  - **A real gap worth naming precisely, so it isn't glossed over
+    later:** tonight's embers are genuinely simpler than "pulse"
+    describes. They show magnitude — how many open tasks exist,
+    scaled by count. Pulse describes something meaningfully further —
+    whether the *current* state is normal or abnormal *for this
+    business's own rhythm*. Three open tasks isn't inherently a
+    disturbance; it's only one if this business typically runs with
+    zero. That needs a real, new capability — tracking what's typical
+    over time and detecting deviation from it — not a reinterpretation
+    of the existing ember code. Correctly not attempted yet.
+  - **Two connections worth drawing explicitly, not left as
+    coincidence:** (1) genuinely related to, but distinct from, the
+    already-pinned Guide concept — Guide learns which *capabilities*
+    to surface from real usage; Heartbeat learns the expected *rhythm*
+    of work and flags deviation from it. Related, not duplicate,
+    stays a separate pin. (2) "Businesses don't have modules, they
+    have rhythms" makes the same structural move as Principle 27, on a
+    different axis — Principle 27 says stop thinking in departments,
+    entities connect to each other (relational); this says stop
+    thinking in departmental snapshots, activity flows through time in
+    an expected sequence (temporal). The same critique of modular
+    thinking, arrived at independently twice in one night.
+  - Concept only, explicitly not for implementation — correctly
+    deferred behind a stable beta, same discipline as everything else
+    held to a real trigger before being built.
 
 ## UX vision — the Ether, and what it does / doesn't change (2026-07-10)
 
