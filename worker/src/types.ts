@@ -16,6 +16,17 @@ export interface Env {
   // wait for the larger auth build, it's the smallest correct
   // safeguard available now, checked on every admin request.
   ADMIN_KEY: string;
+  // Real feature 2026-07-14 — step 1 of the phased auth scope
+  // (Constitution Principles 25-27). Google handles identity; these
+  // are what the Worker needs to verify a real sign-in actually
+  // happened and complete the token exchange.
+  GOOGLE_CLIENT_ID: string;
+  GOOGLE_CLIENT_SECRET: string;
+  // A session needs its own secret, separate from the OAuth client
+  // secret — this one signs the session cookie itself, so a session
+  // can be verified on every subsequent request without re-running
+  // the OAuth dance each time.
+  SESSION_SECRET: string;
 }
 
 export interface Extraction {
