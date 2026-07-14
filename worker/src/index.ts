@@ -1727,6 +1727,23 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       }
     }
 
+    // Real testing tool 2026-07-14 — admin-gated, since minting a
+    // valid session for any email is real access, not a cosmetic
+    // debug convenience. Needed precisely because a real membership
+    // (like the sipho.test placeholder) doesn't necessarily have a
+    // real, controllable Google account to actually sign in with —
+    // this lets that membership's real, restricted behavior be
+    // genuinely verified end to end anyway.
+    if (url.pathname === "/admin/mint-session" && request.method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { google_email?: string };
+      if (!body.google_email) return Response.json({ error: "google_email is required" }, { status: 400 });
+      const sessionToken = await signSession(env, body.google_email);
+      return Response.json(
+        { status: "minted", google_email: body.google_email },
+        { headers: { "Set-Cookie": `office_session=${sessionToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000` } }
+      );
+    }
+
     // Real tables discovered from the actual live schema, never a
     // manually-typed list — the exact discipline that caught the
     // job_scopes migration issue earlier tonight, applied here so a
