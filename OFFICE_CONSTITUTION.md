@@ -896,6 +896,53 @@ not a feature list, a fundamentally different opening question. Worth
 returning to explicitly every time a new screen or interaction gets
 designed, not treated as settled after one good session.
 
+## Principle 26 — Permission-Aware Answers (2026-07-14)
+
+Arrived at through real back-and-forth refinement of the Membership
+model — not settled in one pass, sharpened by a second, precise
+correction to the first draft.
+
+> The Office never hides information. It only reveals what the
+> current membership is allowed to know.
+
+1. *Problem:* a conversation-first product cannot gate access the way
+   a normal app does — there is no button to hide. If Sipho, a member
+   of Zululand Flooring with the Installer role, asks "how much money
+   did we make this month?", the same synthesis that correctly
+   answers Peter has to know it must refuse or redact for Sipho
+   specifically. Permission-awareness has to live inside the
+   reasoning itself, not the UI layer.
+2. *How solved:* Membership — Office × Person × Role — is a real,
+   separate, inspectable entity (Principle 25's discipline extended to
+   identity: nothing about who can see what is ever inferred from an
+   HR fact or a role description). Every answer is generated *for*
+   the person asking, from only the facts their membership permits,
+   never generated in full and filtered afterward. This is not a
+   stylistic preference — it's the same distrust of the model's own
+   judgment that Principle 24 already established, applied one layer
+   earlier: a model that has *seen* the real profit figure and been
+   told not to mention it is one clever follow-up away from leaking
+   it through phrasing. A model whose fact-gathering stage never
+   includes that figure at all for this asker cannot leak what it was
+   never given. The permission check belongs at fact construction,
+   before synthesis, not as a redaction pass on the output.
+3. *Does Office have this problem?* Not yet, structurally — no
+   permission model exists yet at all. But every synthesis path
+   already built (customer lookups, character lookups, business-scope
+   answers) will need this discipline threaded through it the moment
+   Membership exists, and it needs to be the default from the first
+   line of that code, not retrofitted after a real leak is found.
+4. *What survives regardless of which specific permission gets
+   checked?* **Generate for the asker, not from the business. If a
+   fact shouldn't be said, it shouldn't be gathered — never gathered,
+   then hidden.**
+
+**Status:** ✅ Adopted as a design principle; not yet implemented (no
+permission model exists yet — pinned in STATUS.md alongside the
+Membership architecture). Recorded now so the discipline is decided
+before the first line of permission-aware code is written, not
+discovered as a fix after the first real leak.
+
 ## Closing synthesis — where AI actually lives
 
 Seven research entries in, the pattern is no longer a surprise: **every
