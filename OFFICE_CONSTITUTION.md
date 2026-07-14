@@ -979,15 +979,18 @@ once more into its sharpest form below.
    fact shouldn't be said, it shouldn't be gathered — never gathered,
    then hidden. Filter first, then think.**
 
-**Status:** ✅ Adopted as a design principle; not yet implemented (no
-permission model exists yet — pinned in STATUS.md alongside the
-Membership architecture). Recorded now so the discipline is decided
-before the first line of permission-aware code is written, not
-discovered as a fix after the first real leak. Likely one of the
-hardest pieces of backend work still ahead, and one of the more real
-differentiators this product has — worth building with the same care
-as everything else that's earned a principle here, not rushed once
-the architecture starts feeling settled.
+**Status:** ✅ Adopted, and partially implemented and verified live
+(2026-07-14) — the financial lookup path is genuinely permission-aware
+now: `can_know_profit` and `can_know_debtors` gate real facts at
+construction, before synthesis, exactly as designed. Proven with a
+real side-by-side test, same question, same code path, two real
+memberships — Sipho (Installer) received an honest refusal naming the
+restriction; Peter (Owner) received the real, complete figures. Every
+other synthesis path (customer lookups, character lookups, quotations,
+expenses) still runs with full access regardless of who's asking —
+this principle is real and working in one place, not yet threaded
+everywhere it needs to be. See STATUS.md for the precise, current list
+of what remains open.
 
 ## Principle 27 — A Network, Not Modules (2026-07-14)
 
