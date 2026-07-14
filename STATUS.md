@@ -1440,6 +1440,14 @@ Codemagic — still only proven on the web preview.**
     to testing whether graph-style browsing gives better human insight
     than querying does, not a fair "which should power production"
     comparison — worth naming precisely so it isn't oversold later.
+  - **Sharper now than when first pinned (2026-07-14):** Principle 27
+    (A Network, Not Modules) named the same graph-shaped question this
+    export would visualize — "starting from Sipho, what connects to
+    what" is exactly the traversal Principle 26's permission model
+    depends on too. Worth remembering, when this is eventually built,
+    that it's not just a nice visualization — it's a real, honest test
+    of whether the graph mental model already being used to reason
+    about permissions actually holds up when drawn out.
 - **First real UI prototype, built and iterated in-browser (2026-07-13)
   — deliberately zero Flutter build minutes spent, since almost
   everything about feel can be designed and tested for free before a
