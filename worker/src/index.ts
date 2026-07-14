@@ -1480,6 +1480,18 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       }
 
       try {
+        // Real fix found live 2026-07-14: customers failed with a
+        // genuine foreign key constraint violation, because tables
+        // were cleared in whatever order the schema happened to list
+        // them, not dependency order — customers was deleted before
+        // the child rows (invoices, tasks, job_scopes, and more)
+        // still pointing at it, and SQLite correctly refused. Fixed
+        // by disabling foreign key enforcement for the duration of
+        // the flush, rather than maintaining a fragile, hardcoded
+        // dependency order that would silently go stale the next time
+        // a new table gets added.
+        await env.OFFICE_DB.prepare("PRAGMA foreign_keys = OFF").run();
+
         const tables = await getRealTableNames();
         const deletedCounts: Record<string, number | { error: string }> = {};
         for (const table of tables) {
@@ -1491,6 +1503,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             deletedCounts[table] = { error: err instanceof Error ? err.message : String(err) };
           }
         }
+
+        await env.OFFICE_DB.prepare("PRAGMA foreign_keys = ON").run();
 
         // KV has no bulk-clear operation — list every real key, delete
         // each one explicitly.
