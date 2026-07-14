@@ -29,7 +29,8 @@ async function processOneExtraction(
   extraction: Extraction | null,
   history: HistoryTurn[],
   ctx: ExecutionContext,
-  captureId: number | null
+  captureId: number | null,
+  capabilities: string[]
 ): Promise<{
   customer: { id: number; name: string; matched: boolean } | null;
   character: { id: number; name: string; matched: boolean } | null;
@@ -537,7 +538,28 @@ async function processOneExtraction(
       // both fact sets; a topic-specific follow-up gets only what's
       // relevant to it.
       const topic = await classifyBusinessTopic(env, history, transcript);
-      const outstandingFacts = topic === "quotations" || topic === "expenses" ? [] : await getOutstandingInvoices(env);
+      // Real feature 2026-07-14 — step 4 of the phased auth scope
+      // (Constitution Principle 26): the financial lookup, permission-
+      // aware at last, exactly the example used in every design
+      // discussion tonight. Checked here, at fact-gathering, before
+      // synthesis — never generated in full and filtered afterward. A
+      // neutral, valueless marker replaces the real facts when not
+      // permitted, so the model can give an honest "restricted"
+      // answer rather than a misleading "I don't know."
+      const canKnowProfit = capabilities.includes("can_know_profit");
+      const canKnowDebtors = capabilities.includes("can_know_debtors");
+      // Outstanding invoices is literally who owes money — the same
+      // debtors category as the aged breakdown below, gated the same
+      // way. A real gap caught before it shipped: it's easy to gate
+      // the obviously-named "aged debtors" fact and overlook that
+      // "outstanding invoices" is the identical category of
+      // information under a different name.
+      const outstandingFacts =
+        topic === "quotations" || topic === "expenses"
+          ? []
+          : canKnowDebtors
+            ? await getOutstandingInvoices(env)
+            : ["Outstanding balances exist for this business but are restricted for your role."];
       const quotationFacts = topic === "invoices" || topic === "expenses" ? [] : await getQuotationsSummary(env);
       const expenseFacts = topic === "quotations" || topic === "invoices" ? [] : await getExpenseSummary(env);
       // Real feature 2026-07-12: the combined snapshot (reading both
@@ -546,17 +568,23 @@ async function processOneExtraction(
       // invoices, or just expenses shouldn't have the combined
       // position dragged in alongside it, same discipline as every
       // other topic exclusion here.
-      const snapshotFacts = topic === "general" ? await getFinancialSnapshot(env) : [];
+      const snapshotFacts =
+        topic !== "general" ? [] : canKnowProfit ? await getFinancialSnapshot(env) : ["Financial performance data exists for this business but is restricted for your role."];
       // Real feature 2026-07-12 — the final piece: the formal,
       // accrual-based P&L, alongside the cash-basis snapshot above.
       // Genuinely different questions, both real, same "general only"
       // scoping as the snapshot.
-      const pnlFacts = topic === "general" ? await getProfitAndLossSummary(env) : [];
+      const pnlFacts = topic === "general" && canKnowProfit ? await getProfitAndLossSummary(env) : [];
       // Aged debtors is fundamentally about receivables — relevant
       // whenever invoices specifically or the business overall is
       // being asked about, excluded only when the topic is narrowly
       // quotations or expenses.
-      const agedFacts = topic === "quotations" || topic === "expenses" ? [] : await getAgedDebtorsSummary(env);
+      const agedFacts =
+        topic === "quotations" || topic === "expenses"
+          ? []
+          : canKnowDebtors
+            ? await getAgedDebtorsSummary(env)
+            : ["Outstanding balances exist for this business but are restricted for your role."];
       message = await answerFromMemory(env, transcript, [...outstandingFacts, ...quotationFacts, ...expenseFacts, ...snapshotFacts, ...pnlFacts, ...agedFacts]);
       // Real feature 2026-07-12 — the small, real, static piece of
       // Guide (see STATUS.md's pinned entry for the full design and
@@ -570,8 +598,13 @@ async function processOneExtraction(
       // weigh, a guaranteed addendum. Skipped if aging language was
       // already used, so a genuine aged-breakdown request never gets
       // a redundant "you can also see..." tacked onto its own answer.
+      // Real bug caught before shipping: outstandingFacts.length > 0
+      // would trigger even when access is restricted, since the
+      // restriction marker itself is a one-element array — checking
+      // canKnowDebtors explicitly here too, never suggesting a deeper
+      // breakdown of something this membership can't see at all.
       const alreadyAskedForAging = /\b(aged|aging|overdue|breakdown)\b/i.test(transcript);
-      if (outstandingFacts.length > 0 && !alreadyAskedForAging && topic !== "quotations" && topic !== "expenses") {
+      if (canKnowDebtors && outstandingFacts.length > 0 && !alreadyAskedForAging && topic !== "quotations" && topic !== "expenses") {
         message += "\n\nA more detailed aged breakdown is also available if useful.";
       }
     } else if (character) {
@@ -673,7 +706,8 @@ async function processTranscript(
   ctx: ExecutionContext,
   history: HistoryTurn[] = [],
   source: string = "text",
-  r2Key: string | null = null
+  r2Key: string | null = null,
+  capabilities: string[] = ROLE_CAPABILITIES.owner
 ): Promise<ProcessResult> {
   const captureId = await logCapture(env, transcript, source, r2Key);
 
@@ -688,7 +722,7 @@ async function processTranscript(
   }> = [];
 
   for (const item of items) {
-    const outcome = await processOneExtraction(env, item.segment, item.extraction, history, ctx, captureId);
+    const outcome = await processOneExtraction(env, item.segment, item.extraction, history, ctx, captureId, capabilities);
     results.push(outcome);
   }
 
@@ -776,6 +810,54 @@ async function verifySession(env: Env, token: string | null): Promise<{ email: s
     return null; // malformed token — never trust something that fails to parse cleanly
   }
 }
+// Real, deliberately incomplete role-capability map — only Owner and
+// Installer are defined, because those are the only two roles anyone
+// has actually specified a concrete capability list for. Extensible
+// when a real third role is needed, not enumerated in advance for
+// roles nobody has asked for yet (Principle 22). Module scope, shared
+// by the membership debug routes and real capability resolution below
+// — one single source of truth, never duplicated.
+const ROLE_CAPABILITIES: Record<string, string[]> = {
+  owner: [
+    "can_know_profit",
+    "can_know_debtors",
+    "can_know_payroll",
+    "can_know_banking",
+    "can_manage_invoices",
+    "can_know_jobs",
+    "can_know_measurements",
+    "can_know_materials",
+    "can_invite_members",
+    "can_delete_data",
+    "can_manage_settings",
+  ],
+  installer: ["can_know_jobs", "can_know_measurements", "can_capture_voice_notes", "can_know_materials"],
+};
+
+// Real feature 2026-07-14 — step 4 of the phased auth scope
+// (Constitution Principle 26): resolving what the asker's membership
+// actually permits, before any synthesis happens. Real, honest gap
+// documented rather than hidden: no valid session currently defaults
+// to full (owner-equivalent) capabilities, since every existing route
+// and the UI prototype predate real auth and don't send a session
+// cookie yet. Safe for a single-instance system only Peter currently
+// uses; this default MUST be revisited the moment a real second
+// person with genuinely restricted access exists — capability
+// enforcement without a required session is not real enforcement.
+async function resolveCapabilities(request: Request, env: Env): Promise<{ email: string | null; role: string | null; capabilities: string[] }> {
+  const session = await verifySession(env, getCookie(request, "office_session"));
+  if (!session) {
+    return { email: null, role: null, capabilities: ROLE_CAPABILITIES.owner };
+  }
+  const membership = await env.OFFICE_DB.prepare("SELECT role, status FROM memberships WHERE google_email = ?")
+    .bind(session.email)
+    .first<{ role: string; status: string }>();
+  if (!membership || membership.status !== "active") {
+    return { email: session.email, role: null, capabilities: [] };
+  }
+  return { email: session.email, role: membership.role, capabilities: ROLE_CAPABILITIES[membership.role] ?? [] };
+}
+
 function getCookie(request: Request, name: string): string | null {
   const header = request.headers.get("Cookie");
   if (!header) return null;
@@ -1031,31 +1113,6 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       ).run();
       return Response.json({ status: "ok" });
     }
-
-    // Real, deliberately incomplete role-capability map — only Owner
-    // and Installer are defined, because those are the only two roles
-    // anyone has actually specified a concrete capability list for.
-    // Extensible when a real third role is needed, not enumerated in
-    // advance for roles nobody has asked for yet (Principle 22).
-    // Not yet enforced anywhere — this is the schema and the map,
-    // step 4 (permission-aware synthesis) is separate, deliberately
-    // later work.
-    const ROLE_CAPABILITIES: Record<string, string[]> = {
-      owner: [
-        "can_know_profit",
-        "can_know_debtors",
-        "can_know_payroll",
-        "can_know_banking",
-        "can_manage_invoices",
-        "can_know_jobs",
-        "can_know_measurements",
-        "can_know_materials",
-        "can_invite_members",
-        "can_delete_data",
-        "can_manage_settings",
-      ],
-      installer: ["can_know_jobs", "can_know_measurements", "can_capture_voice_notes", "can_know_materials"],
-    };
 
     if (url.pathname === "/debug/memberships" && request.method === "GET") {
       const { results } = await env.OFFICE_DB.prepare("SELECT * FROM memberships ORDER BY created_at DESC").all();
@@ -2483,7 +2540,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         return Response.json({ error: "missing text" }, { status: 400 });
       }
 
-      const processed = await processTranscript(env, text, ctx, history, "text");
+      const { capabilities } = await resolveCapabilities(request, env);
+      const processed = await processTranscript(env, text, ctx, history, "text", null, capabilities);
       return Response.json({ status: "processed", transcript: text, ...processed });
     }
 
