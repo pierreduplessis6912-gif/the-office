@@ -1545,9 +1545,91 @@ Codemagic — still only proven on the web preview.**
     same distrust of the model's own judgment Principle 24 already
     established, applied one layer earlier. A model never given the
     real profit figure cannot leak what it was never handed.
-  - Pinned, not actioned — worth building once the real second user
-    who needs it actually exists, with the same care everything else
-    tonight was given.
+  - **Update 2026-07-14 — no longer just pinned. Steps 1-4 of the
+    phased auth scope are real, built, and verified live**, not just
+    designed:
+    - **Step 1 — real Google OAuth**, fully working end to end:
+      `/auth/google/login` (CSRF-protected via a signed state
+      parameter), `/auth/google/callback` (real token exchange, the ID
+      token verified directly against Google's own tokeninfo endpoint
+      — never trusted on its own — checking `aud` matches this app's
+      real client ID and `email_verified` is true), `/auth/me`,
+      `/auth/logout`. Sessions are signed HMAC-SHA256 tokens (30-day
+      expiry), verified on every request with no server-side session
+      store needed.
+    - **Real bug found and fixed live**: a pre-existing placeholder
+      (`"auth: reserved, not yet implemented"`) was shadowing every
+      real `/auth/*` route from a previous session — found and removed
+      the moment real sign-in returned the old stub instead of
+      reaching Google.
+    - **Step 2 — a real `memberships` table** (Office × Person × Role,
+      one per Google account, matching the Membership architecture
+      exactly) plus a real, deliberately incomplete `ROLE_CAPABILITIES`
+      map — only Owner and Installer defined, since those are the only
+      two roles anyone concretely specified a capability list for
+      (Principle 22 discipline: not enumerated in advance for roles
+      nobody has asked for).
+    - **Step 3 — proven with two genuinely different real
+      memberships** — Peter as Owner (11 real capabilities), a test
+      account as Installer (4 narrower capabilities, correctly
+      excluding profit/payroll/banking/settings) — confirmed via
+      `/debug/memberships` returning the exact, correctly-differentiated
+      capability lists for each.
+    - **Step 4 — Principle 26 implemented for real, on one real path**:
+      the financial lookup (`getFinancialSnapshot`, `getProfitAndLossSummary`
+      gated on `can_know_profit`; `getOutstandingInvoices`,
+      `getAgedDebtorsSummary` gated on `can_know_debtors`). Checked at
+      fact-gathering, before synthesis, exactly as designed — a
+      neutral, valueless marker replaces the real facts when not
+      permitted, never the real number filtered after the fact.
+      **Verified live, side by side, same exact question, same exact
+      code path:** Sipho (Installer) received *"I don't have that on
+      file — the financial performance data and outstanding balances
+      for this business are restricted for your role"* — a real,
+      honest refusal, never having received the real figures at all.
+      Peter (Owner) received the complete, accurate real picture. Real
+      bug caught before shipping in the process: `outstandingFacts`
+      ("who owes us money") is literally the same debtors category as
+      the already-obviously-named `agedFacts` and was almost left
+      ungated — caught and fixed before it went live. A second small
+      bug caught: the aged-breakdown hint checked `outstandingFacts.length
+      > 0`, which would have fired even when access was restricted,
+      since the restriction marker itself is a one-element array —
+      fixed to check the real capability directly.
+    - **A real, admin-gated testing tool** (`/admin/mint-session`) was
+      needed and built to actually verify the Installer path, since
+      the test membership's email isn't a real, controllable Google
+      account — genuinely useful going forward for any future role
+      that needs verifying without a real second Gmail account on
+      hand.
+  - **What's explicitly still open, not done tonight, worth being
+    precise about before picking this up again:**
+    - **The "no session defaults to full access" gap is still real and
+      still temporary** — safe only because Peter is currently the
+      only real user. This must be closed before any real second
+      person with genuinely restricted access uses the live system,
+      not just an admin-minted test session.
+    - **Only the financial lookup path is permission-aware.** Every
+      other synthesis path (customer-scope answers, character-scope
+      HR facts, quotations, expenses) still runs with full access
+      regardless of who's asking — Principle 26 exists as a real,
+      working pattern now, not yet threaded everywhere it needs to be.
+    - **Voice input doesn't resolve real capabilities yet** — the two
+      voice-path callers of `processTranscript` still use the default,
+      unlike `/messages/text` which now resolves the real session.
+    - **Google's brand verification hasn't been submitted** — the
+      consent screen still shows the raw domain instead of "The
+      Office," expected and fine for testing with people who already
+      trust you, a real thing to do before a genuine public beta.
+    - **Choose Office / multi-instance routing (step 5) hasn't been
+      started** — correctly last, since it only matters once a real
+      second instance exists to choose between.
+    - A real, brief, unresolved mystery: the exact same financial
+      query hung twice, then succeeded cleanly on a third attempt with
+      identical code and identical (empty) data. Nothing found in the
+      four real functions on that path suggests a genuine defect —
+      most likely a transient AI-call latency spike, not a bug, but
+      worth remembering if it recurs.
 
 ## UX vision — the Ether, and what it does / doesn't change (2026-07-10)
 
