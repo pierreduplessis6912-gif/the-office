@@ -1464,6 +1464,12 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // character notes, life events), and R2 (every uploaded file) —
     // a genuine, complete flush, not a partial one that leaves real
     // data quietly behind.
+    // Real fix applied before ever running this live 2026-07-14: the
+    // export route's first fix only protected part of its code path
+    // and missed the actual point of failure — applying that lesson
+    // here before flush ever runs for real, since it's irreversible
+    // and a partial, unclear failure state here would be a genuinely
+    // worse outcome than the same class of bug in export was.
     if (url.pathname === "/admin/flush" && request.method === "POST") {
       const body = (await request.json().catch(() => ({}))) as { confirm?: string };
       if (body.confirm !== "DELETE ALL DATA") {
@@ -1473,51 +1479,70 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         );
       }
 
-      const tables = await getRealTableNames();
-      const deletedCounts: Record<string, number | { error: string }> = {};
-      for (const table of tables) {
+      try {
+        const tables = await getRealTableNames();
+        const deletedCounts: Record<string, number | { error: string }> = {};
+        for (const table of tables) {
+          try {
+            const countRow = await env.OFFICE_DB.prepare(`SELECT COUNT(*) as n FROM "${table}"`).first<{ n: number }>();
+            deletedCounts[table] = countRow?.n ?? 0;
+            await env.OFFICE_DB.prepare(`DELETE FROM "${table}"`).run();
+          } catch (err) {
+            deletedCounts[table] = { error: err instanceof Error ? err.message : String(err) };
+          }
+        }
+
+        // KV has no bulk-clear operation — list every real key, delete
+        // each one explicitly.
+        let kvKeysDeleted = 0;
+        let kvError: string | null = null;
         try {
-          const countRow = await env.OFFICE_DB.prepare(`SELECT COUNT(*) as n FROM "${table}"`).first<{ n: number }>();
-          deletedCounts[table] = countRow?.n ?? 0;
-          await env.OFFICE_DB.prepare(`DELETE FROM "${table}"`).run();
+          let cursor: string | undefined;
+          do {
+            const listed = await env.CUSTOMER_NOTES.list({ cursor });
+            for (const key of listed.keys) {
+              await env.CUSTOMER_NOTES.delete(key.name);
+              kvKeysDeleted++;
+            }
+            cursor = listed.list_complete ? undefined : listed.cursor;
+          } while (cursor);
         } catch (err) {
-          deletedCounts[table] = { error: err instanceof Error ? err.message : String(err) };
+          kvError = err instanceof Error ? err.message : String(err);
         }
+
+        // Same for R2 — every real uploaded file, not just the D1
+        // records that reference them.
+        let r2ObjectsDeleted = 0;
+        let r2Error: string | null = null;
+        try {
+          let r2Cursor: string | undefined;
+          do {
+            const listed = await env.OFFICE_VAULT.list({ cursor: r2Cursor });
+            for (const obj of listed.objects) {
+              await env.OFFICE_VAULT.delete(obj.key);
+              r2ObjectsDeleted++;
+            }
+            r2Cursor = listed.truncated ? listed.cursor : undefined;
+          } while (r2Cursor);
+        } catch (err) {
+          r2Error = err instanceof Error ? err.message : String(err);
+        }
+
+        return Response.json({
+          status: "flushed",
+          flushedAt: new Date().toISOString(),
+          d1RowsDeleted: deletedCounts,
+          kvKeysDeleted,
+          kvError,
+          r2ObjectsDeleted,
+          r2Error,
+        });
+      } catch (err) {
+        return Response.json(
+          { error: "flush failed", detail: err instanceof Error ? err.message : String(err) },
+          { status: 500 }
+        );
       }
-
-      // KV has no bulk-clear operation — list every real key, delete
-      // each one explicitly.
-      let kvKeysDeleted = 0;
-      let cursor: string | undefined;
-      do {
-        const listed = await env.CUSTOMER_NOTES.list({ cursor });
-        for (const key of listed.keys) {
-          await env.CUSTOMER_NOTES.delete(key.name);
-          kvKeysDeleted++;
-        }
-        cursor = listed.list_complete ? undefined : listed.cursor;
-      } while (cursor);
-
-      // Same for R2 — every real uploaded file, not just the D1
-      // records that reference them.
-      let r2ObjectsDeleted = 0;
-      let r2Cursor: string | undefined;
-      do {
-        const listed = await env.OFFICE_VAULT.list({ cursor: r2Cursor });
-        for (const obj of listed.objects) {
-          await env.OFFICE_VAULT.delete(obj.key);
-          r2ObjectsDeleted++;
-        }
-        r2Cursor = listed.truncated ? listed.cursor : undefined;
-      } while (r2Cursor);
-
-      return Response.json({
-        status: "flushed",
-        flushedAt: new Date().toISOString(),
-        d1RowsDeleted: deletedCounts,
-        kvKeysDeleted,
-        r2ObjectsDeleted,
-      });
     }
 
     // Real, careful migration 2026-07-13 — relaxing job_scopes.
