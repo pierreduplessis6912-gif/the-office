@@ -1419,19 +1419,31 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // real table is never silently missed from export or flush.
     async function getRealTableNames(): Promise<string[]> {
       const { results } = await env.OFFICE_DB.prepare(
-        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name NOT LIKE 'd1_%'"
       ).all<{ name: string }>();
       return results.map((r) => r.name);
     }
 
     // A genuine safety snapshot before anything irreversible happens
     // — costs nothing to have, even if never needed.
+    // Real fix found live 2026-07-14: the export crashed entirely
+    // (error 1101) the first time it ran. Made resilient per-table —
+    // one problematic table (an internal D1 bookkeeping table with an
+    // unusual name, or anything else genuinely unexpected) can no
+    // longer take down the whole export; it gets a real, visible
+    // error message instead, and the rest of the real data still
+    // comes through. Table identifiers are now properly quoted rather
+    // than trusted as raw SQL interpolation.
     if (url.pathname === "/admin/export" && request.method === "GET") {
       const tables = await getRealTableNames();
-      const snapshot: Record<string, unknown[]> = {};
+      const snapshot: Record<string, unknown[] | { error: string }> = {};
       for (const table of tables) {
-        const { results } = await env.OFFICE_DB.prepare(`SELECT * FROM ${table}`).all();
-        snapshot[table] = results;
+        try {
+          const { results } = await env.OFFICE_DB.prepare(`SELECT * FROM "${table}"`).all();
+          snapshot[table] = results;
+        } catch (err) {
+          snapshot[table] = { error: err instanceof Error ? err.message : String(err) };
+        }
       }
       return Response.json({ exportedAt: new Date().toISOString(), tables: snapshot });
     }
@@ -1454,11 +1466,15 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       }
 
       const tables = await getRealTableNames();
-      const deletedCounts: Record<string, number> = {};
+      const deletedCounts: Record<string, number | { error: string }> = {};
       for (const table of tables) {
-        const countRow = await env.OFFICE_DB.prepare(`SELECT COUNT(*) as n FROM ${table}`).first<{ n: number }>();
-        deletedCounts[table] = countRow?.n ?? 0;
-        await env.OFFICE_DB.prepare(`DELETE FROM ${table}`).run();
+        try {
+          const countRow = await env.OFFICE_DB.prepare(`SELECT COUNT(*) as n FROM "${table}"`).first<{ n: number }>();
+          deletedCounts[table] = countRow?.n ?? 0;
+          await env.OFFICE_DB.prepare(`DELETE FROM "${table}"`).run();
+        } catch (err) {
+          deletedCounts[table] = { error: err instanceof Error ? err.message : String(err) };
+        }
       }
 
       // KV has no bulk-clear operation — list every real key, delete
