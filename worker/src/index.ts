@@ -1426,26 +1426,34 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
 
     // A genuine safety snapshot before anything irreversible happens
     // — costs nothing to have, even if never needed.
-    // Real fix found live 2026-07-14: the export crashed entirely
-    // (error 1101) the first time it ran. Made resilient per-table —
-    // one problematic table (an internal D1 bookkeeping table with an
-    // unusual name, or anything else genuinely unexpected) can no
-    // longer take down the whole export; it gets a real, visible
-    // error message instead, and the rest of the real data still
-    // comes through. Table identifiers are now properly quoted rather
-    // than trusted as raw SQL interpolation.
+    // Real fix found live 2026-07-14, twice over: the first fix only
+    // wrapped the per-table loop in a try/catch, but
+    // getRealTableNames() itself — the very first call, discovering
+    // which tables exist — was completely unprotected. If that
+    // specific query throws for any reason, the whole thing still
+    // crashes exactly as before. Wrapping the entire handler this
+    // time, not just part of it, so a real, visible error comes back
+    // no matter where the actual failure is, instead of another
+    // blind guess at the exact cause.
     if (url.pathname === "/admin/export" && request.method === "GET") {
-      const tables = await getRealTableNames();
-      const snapshot: Record<string, unknown[] | { error: string }> = {};
-      for (const table of tables) {
-        try {
-          const { results } = await env.OFFICE_DB.prepare(`SELECT * FROM "${table}"`).all();
-          snapshot[table] = results;
-        } catch (err) {
-          snapshot[table] = { error: err instanceof Error ? err.message : String(err) };
+      try {
+        const tables = await getRealTableNames();
+        const snapshot: Record<string, unknown[] | { error: string }> = {};
+        for (const table of tables) {
+          try {
+            const { results } = await env.OFFICE_DB.prepare(`SELECT * FROM "${table}"`).all();
+            snapshot[table] = results;
+          } catch (err) {
+            snapshot[table] = { error: err instanceof Error ? err.message : String(err) };
+          }
         }
+        return Response.json({ exportedAt: new Date().toISOString(), tables: snapshot });
+      } catch (err) {
+        return Response.json(
+          { error: "export failed", detail: err instanceof Error ? err.message : String(err) },
+          { status: 500 }
+        );
       }
-      return Response.json({ exportedAt: new Date().toISOString(), tables: snapshot });
     }
 
     // Real, guarded deletion — the same two-factor discipline guard()
