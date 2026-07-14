@@ -832,6 +832,15 @@ const ROLE_CAPABILITIES: Record<string, string[]> = {
     "can_manage_settings",
   ],
   installer: ["can_know_jobs", "can_know_measurements", "can_capture_voice_notes", "can_know_materials"],
+  // Real feature 2026-07-15 — added the moment a real person was
+  // actually named for this role, not enumerated speculatively.
+  // Proposed default, not yet reviewed against a concrete example the
+  // way Owner and Installer were: financial visibility and invoice
+  // management, explicitly excluding operational capabilities (jobs,
+  // measurements) that aren't an accountant's concern, and
+  // administrative ones (invite, delete, settings) that stay
+  // Owner-only regardless of role.
+  accountant: ["can_know_profit", "can_know_debtors", "can_know_payroll", "can_know_banking", "can_manage_invoices", "can_know_materials"],
 };
 
 // Real feature 2026-07-14 — step 4 of the phased auth scope
@@ -1156,6 +1165,17 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           { status: 409 }
         );
       }
+    }
+
+    // Real, needed now: a placeholder email used for early schema
+    // testing needs correcting to a real, working Google account.
+    if (url.pathname === "/debug/delete-membership" && request.method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { google_email?: string };
+      if (!body.google_email) return Response.json({ error: "google_email is required" }, { status: 400 });
+      const result = await env.OFFICE_DB.prepare("DELETE FROM memberships WHERE google_email = ?")
+        .bind(body.google_email)
+        .run();
+      return Response.json({ status: "deleted", google_email: body.google_email, changes: result.meta.changes });
     }
 
     if (url.pathname === "/debug/character-facts" && request.method === "GET") {
