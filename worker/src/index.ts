@@ -721,6 +721,67 @@ async function processTranscript(
   };
 }
 
+// Real feature 2026-07-14 — session signing/verification, step 1 of
+// the phased auth scope (Constitution Principles 25-27). A session
+// needs to be verifiable on every request without re-running the
+// OAuth dance each time, and tamper-evident without needing a server-
+// side session store — a signed token carries its own proof.
+function base64UrlEncode(bytes: ArrayBuffer | Uint8Array): string {
+  const arr = bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes;
+  let str = "";
+  for (const byte of arr) str += String.fromCharCode(byte);
+  return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function base64UrlDecode(str: string): Uint8Array {
+  const padded = str.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((str.length + 3) % 4);
+  const bin = atob(padded);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return arr;
+}
+async function hmacKey(secret: string): Promise<CryptoKey> {
+  return crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [
+    "sign",
+    "verify",
+  ]);
+}
+async function signSession(env: Env, email: string): Promise<string> {
+  const payload = JSON.stringify({ email, exp: Date.now() + 30 * 24 * 60 * 60 * 1000 }); // 30 real days
+  const payloadB64 = base64UrlEncode(new TextEncoder().encode(payload));
+  const key = await hmacKey(env.SESSION_SECRET);
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payloadB64));
+  return `${payloadB64}.${base64UrlEncode(signature)}`;
+}
+async function verifySession(env: Env, token: string | null): Promise<{ email: string } | null> {
+  if (!token) return null;
+  const parts = token.split(".");
+  if (parts.length !== 2) return null;
+  const [payloadB64, sigB64] = parts;
+  try {
+    const key = await hmacKey(env.SESSION_SECRET);
+    const valid = await crypto.subtle.verify(
+      "HMAC",
+      key,
+      base64UrlDecode(sigB64),
+      new TextEncoder().encode(payloadB64)
+    );
+    if (!valid) return null;
+    const payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(payloadB64))) as {
+      email: string;
+      exp: number;
+    };
+    if (Date.now() > payload.exp) return null; // real expiry, not just a signature check
+    return { email: payload.email };
+  } catch {
+    return null; // malformed token — never trust something that fails to parse cleanly
+  }
+}
+function getCookie(request: Request, name: string): string | null {
+  const header = request.headers.get("Cookie");
+  if (!header) return null;
+  const match = header.split(";").map((c) => c.trim()).find((c) => c.startsWith(`${name}=`));
+  return match ? decodeURIComponent(match.slice(name.length + 1)) : null;
+}
 
 async function handleRequest(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
@@ -1488,6 +1549,112 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       const table = url.searchParams.get("table") ?? "";
       const { results } = await env.OFFICE_DB.prepare(`PRAGMA table_info(${table})`).all();
       return Response.json({ table, columns: results });
+    }
+
+    // Real feature 2026-07-14 — step 1 of the phased auth scope
+    // (Constitution Principles 25-27): real Google sign-in on the
+    // existing instance. Google verifies who someone is; this Worker
+    // only ever trusts an ID token it has independently verified with
+    // Google itself, never anything the client claims on its own.
+    if (url.pathname === "/auth/google/login" && request.method === "GET") {
+      const state = base64UrlEncode(crypto.getRandomValues(new Uint8Array(24)));
+      const redirectUri = `${url.origin}/auth/google/callback`;
+      const googleUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+      googleUrl.searchParams.set("client_id", env.GOOGLE_CLIENT_ID);
+      googleUrl.searchParams.set("redirect_uri", redirectUri);
+      googleUrl.searchParams.set("response_type", "code");
+      googleUrl.searchParams.set("scope", "openid email profile");
+      googleUrl.searchParams.set("state", state);
+      return new Response(null, {
+        status: 302,
+        headers: {
+          Location: googleUrl.toString(),
+          // Short-lived, HttpOnly — real CSRF protection, compared
+          // against Google's own returned state on the callback.
+          "Set-Cookie": `oauth_state=${state}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=600`,
+        },
+      });
+    }
+
+    if (url.pathname === "/auth/google/callback" && request.method === "GET") {
+      const code = url.searchParams.get("code");
+      const returnedState = url.searchParams.get("state");
+      const expectedState = getCookie(request, "oauth_state");
+      if (!code || !returnedState || !expectedState || returnedState !== expectedState) {
+        return Response.json({ error: "invalid or missing OAuth state — possible CSRF, or the login link expired" }, { status: 400 });
+      }
+
+      const redirectUri = `${url.origin}/auth/google/callback`;
+      const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          code,
+          client_id: env.GOOGLE_CLIENT_ID,
+          client_secret: env.GOOGLE_CLIENT_SECRET,
+          redirect_uri: redirectUri,
+          grant_type: "authorization_code",
+        }),
+      });
+      if (!tokenRes.ok) {
+        return Response.json({ error: "token exchange with Google failed", detail: await tokenRes.text() }, { status: 502 });
+      }
+      const tokenData = (await tokenRes.json()) as { id_token?: string };
+      if (!tokenData.id_token) {
+        return Response.json({ error: "Google did not return an ID token" }, { status: 502 });
+      }
+
+      // Never trust a decoded JWT payload on its own — verify it
+      // against Google directly, the same distrust-by-default
+      // discipline this system applies everywhere else.
+      const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${tokenData.id_token}`);
+      if (!verifyRes.ok) {
+        return Response.json({ error: "Google could not verify the ID token" }, { status: 502 });
+      }
+      const claims = (await verifyRes.json()) as { email?: string; email_verified?: string; aud?: string };
+      if (claims.aud !== env.GOOGLE_CLIENT_ID) {
+        return Response.json({ error: "token audience mismatch — refusing to trust it" }, { status: 401 });
+      }
+      if (claims.email_verified !== "true" || !claims.email) {
+        return Response.json({ error: "Google account email is not verified" }, { status: 401 });
+      }
+
+      const membership = await env.OFFICE_DB.prepare("SELECT * FROM memberships WHERE google_email = ?")
+        .bind(claims.email)
+        .first<{ id: number; google_email: string; role: string; status: string }>();
+
+      if (!membership || membership.status !== "active") {
+        return Response.json(
+          { error: "no active membership for this Google account", email: claims.email },
+          { status: 403 }
+        );
+      }
+
+      const sessionToken = await signSession(env, claims.email);
+      return Response.json(
+        { status: "signed in", email: claims.email, role: membership.role },
+        {
+          headers: {
+            "Set-Cookie": `office_session=${sessionToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`,
+          },
+        }
+      );
+    }
+
+    if (url.pathname === "/auth/me" && request.method === "GET") {
+      const session = await verifySession(env, getCookie(request, "office_session"));
+      if (!session) return Response.json({ signedIn: false });
+      const membership = await env.OFFICE_DB.prepare("SELECT * FROM memberships WHERE google_email = ?")
+        .bind(session.email)
+        .first<{ role: string; status: string }>();
+      return Response.json({ signedIn: true, email: session.email, role: membership?.role ?? null });
+    }
+
+    if (url.pathname === "/auth/logout" && request.method === "POST") {
+      return new Response(null, {
+        status: 200,
+        headers: { "Set-Cookie": "office_session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0" },
+      });
     }
 
     // Real admin tooling 2026-07-13 — genuine, reusable capability,
