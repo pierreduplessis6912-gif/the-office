@@ -950,6 +950,95 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ status: "ok" });
     }
 
+    // Real feature 2026-07-14 — step 2 of the phased auth scope
+    // (Constitution Principles 25-27): Membership as a real, separate
+    // entity, proven on this single existing instance before any
+    // multi-instance routing exists. One membership per real Google
+    // account per Office (UNIQUE on google_email) — Office x Person x
+    // Role, exactly as designed, nothing inferred from an HR fact.
+    if (url.pathname === "/debug/init-memberships" && request.method === "POST") {
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS memberships (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          google_email TEXT NOT NULL UNIQUE,
+          role TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'active',
+          invited_by TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`
+      ).run();
+      return Response.json({ status: "ok" });
+    }
+
+    // Real, deliberately incomplete role-capability map — only Owner
+    // and Installer are defined, because those are the only two roles
+    // anyone has actually specified a concrete capability list for.
+    // Extensible when a real third role is needed, not enumerated in
+    // advance for roles nobody has asked for yet (Principle 22).
+    // Not yet enforced anywhere — this is the schema and the map,
+    // step 4 (permission-aware synthesis) is separate, deliberately
+    // later work.
+    const ROLE_CAPABILITIES: Record<string, string[]> = {
+      owner: [
+        "can_know_profit",
+        "can_know_debtors",
+        "can_know_payroll",
+        "can_know_banking",
+        "can_manage_invoices",
+        "can_know_jobs",
+        "can_know_measurements",
+        "can_know_materials",
+        "can_invite_members",
+        "can_delete_data",
+        "can_manage_settings",
+      ],
+      installer: ["can_know_jobs", "can_know_measurements", "can_capture_voice_notes", "can_know_materials"],
+    };
+
+    if (url.pathname === "/debug/memberships" && request.method === "GET") {
+      const { results } = await env.OFFICE_DB.prepare("SELECT * FROM memberships ORDER BY created_at DESC").all();
+      const enriched = results.map((m) => ({ ...m, capabilities: ROLE_CAPABILITIES[String(m.role)] ?? [] }));
+      return Response.json({ memberships: enriched });
+    }
+
+    // Real, manual seed route until OAuth exists to create memberships
+    // naturally through a real invite flow. Deliberately simple —
+    // this is scaffolding to prove the schema and role map work, not
+    // the real invite UX (which needs a real signed-in owner to
+    // trigger it, matching the "Invite Sarah as our accountant"
+    // conversational flow already designed, not yet built).
+    if (url.pathname === "/debug/create-membership" && request.method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { google_email?: string; role?: string };
+      if (!body.google_email || !body.role) {
+        return Response.json({ error: "google_email and role are both required" }, { status: 400 });
+      }
+      if (!ROLE_CAPABILITIES[body.role]) {
+        return Response.json(
+          { error: `unknown role "${body.role}" — defined roles are: ${Object.keys(ROLE_CAPABILITIES).join(", ")}` },
+          { status: 400 }
+        );
+      }
+      try {
+        const inserted = await env.OFFICE_DB.prepare(
+          "INSERT INTO memberships (google_email, role) VALUES (?, ?) RETURNING id"
+        )
+          .bind(body.google_email, body.role)
+          .first<{ id: number }>();
+        return Response.json({
+          status: "created",
+          id: inserted!.id,
+          google_email: body.google_email,
+          role: body.role,
+          capabilities: ROLE_CAPABILITIES[body.role],
+        });
+      } catch (err) {
+        return Response.json(
+          { error: err instanceof Error ? err.message : String(err) },
+          { status: 409 }
+        );
+      }
+    }
+
     if (url.pathname === "/debug/character-facts" && request.method === "GET") {
       const characterId = url.searchParams.get("characterId");
       const query = characterId
