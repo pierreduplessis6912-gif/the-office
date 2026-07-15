@@ -1123,6 +1123,24 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ status: "ok" });
     }
 
+    // Real feature 2026-07-15 — Layer 1, Stage 0 (Constitution
+    // Principle 28): the schema for real retry safety. key is the
+    // primary key deliberately — it's what makes a genuine race
+    // between two near-simultaneous requests with the same key safe,
+    // since the database itself rejects the second INSERT rather than
+    // needing an application-level lock.
+    if (url.pathname === "/debug/init-idempotency-keys" && request.method === "POST") {
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS idempotency_keys (
+          key TEXT PRIMARY KEY,
+          status TEXT NOT NULL DEFAULT 'processing',
+          result TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`
+      ).run();
+      return Response.json({ status: "ok" });
+    }
+
     if (url.pathname === "/debug/memberships" && request.method === "GET") {
       const { results } = await env.OFFICE_DB.prepare("SELECT * FROM memberships ORDER BY created_at DESC").all();
       const enriched = results.map((m) => ({ ...m, capabilities: ROLE_CAPABILITIES[String(m.role)] ?? [] }));
@@ -2569,17 +2587,75 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // "Type" mode. Same pipeline, no transcription step needed since
     // the text is already text.
     if (url.pathname === "/messages/text" && request.method === "POST") {
-      const body = (await request.json()) as { text?: string; history?: HistoryTurn[] };
+      const body = (await request.json()) as { text?: string; history?: HistoryTurn[]; idempotency_key?: string };
       const text = body.text?.trim();
       const history = Array.isArray(body.history) ? body.history : [];
+      const idempotencyKey = body.idempotency_key;
 
       if (!text) {
         return Response.json({ error: "missing text" }, { status: 400 });
       }
 
+      // Real fix — Layer 1, Stage 0 (Constitution Principle 28): retry
+      // safety. Found live 2026-07-15 — a request that looked like it
+      // had failed to the client (a blank response) had actually kept
+      // running server-side and written real data; retrying on the
+      // assumption of failure silently duplicated it. Checked before
+      // any real work starts, not after, using a stable key the
+      // caller reuses across a genuine retry of the same action.
+      if (idempotencyKey) {
+        const existing = await env.OFFICE_DB.prepare("SELECT status, result FROM idempotency_keys WHERE key = ?")
+          .bind(idempotencyKey)
+          .first<{ status: string; result: string | null }>();
+        if (existing) {
+          if (existing.status === "completed" && existing.result) {
+            // The exact same result as the original — never
+            // reprocessed, whether this is a genuine retry or a
+            // duplicate request arriving late.
+            return new Response(existing.result, { headers: { "Content-Type": "application/json" } });
+          }
+          // Still processing — either a genuinely concurrent
+          // duplicate, or the original attempt is still running
+          // server-side even though the client gave up on it. Never
+          // start a second copy of the same work.
+          return Response.json(
+            {
+              status: "still_processing",
+              message: "This exact request is already being processed. Wait and check again rather than resubmitting.",
+            },
+            { status: 409 }
+          );
+        }
+        try {
+          // Marked processing BEFORE any real work starts — a
+          // genuinely concurrent request with the same key will fail
+          // this INSERT on the primary key constraint itself, caught
+          // below, rather than both proceeding.
+          await env.OFFICE_DB.prepare("INSERT INTO idempotency_keys (key, status) VALUES (?, 'processing')")
+            .bind(idempotencyKey)
+            .run();
+        } catch {
+          return Response.json(
+            {
+              status: "still_processing",
+              message: "This exact request is already being processed. Wait and check again rather than resubmitting.",
+            },
+            { status: 409 }
+          );
+        }
+      }
+
       const { capabilities } = await resolveCapabilities(request, env);
       const processed = await processTranscript(env, text, ctx, history, "text", null, capabilities);
-      return Response.json({ status: "processed", transcript: text, ...processed });
+      const responseBody = JSON.stringify({ status: "processed", transcript: text, ...processed });
+
+      if (idempotencyKey) {
+        await env.OFFICE_DB.prepare("UPDATE idempotency_keys SET status = 'completed', result = ? WHERE key = ?")
+          .bind(responseBody, idempotencyKey)
+          .run();
+      }
+
+      return new Response(responseBody, { headers: { "Content-Type": "application/json" } });
     }
 
     if (url.pathname.startsWith("/files")) {
