@@ -1670,6 +1670,50 @@ Codemagic — still only proven on the web preview.**
   - Concept only, explicitly not for implementation — correctly
     deferred behind a stable beta, same discipline as everything else
     held to a real trigger before being built.
+- **Institutional Knowledge, Introspection & Business Evolution — a
+  real, well-reasoned philosophy document, deliberately pinned rather
+  than pursued (2026-07-15).** Captured explicitly to prevent losing
+  the thinking, not as a signal to start building it — arrived right
+  as the discipline of "solve for the real Peter, not the ideal one"
+  was being consciously re-committed to, and correctly set aside
+  rather than let that discipline slip.
+  - **The real shape of the idea, worth having on record precisely:**
+    a full cognitive loop (reality → senses → memory → Pulse →
+    introspection → observation → conversation → Peter decides →
+    speech → implementation → reality changes) where Pulse becomes a
+    scheduler for *when* reflection is warranted, not a reaction to
+    every event. Introspection reflects on what's already been
+    learned, looking for emergent conventions, drifted principles, or
+    changed rhythms — never inventing them.
+  - **Discovery is deterministic — the one piece of real, load-bearing
+    engineering discipline in this whole document, worth protecting
+    regardless of when or whether the rest gets built.** A pattern
+    like "Blindquip usually grants 5% off orders of 10+ blinds" must
+    be counted and evidenced in code (26 of 27 occurrences), never
+    invented or inferred by the model — the model only ever explains
+    a pattern that deterministic counting already surfaced. Exactly
+    the same discipline already proven three times this project
+    (Principle 24's deterministic-append pattern), applied to a new,
+    future capability rather than a new idea in itself.
+  - **Principles versus Conventions is a real, useful distinction** —
+    explicit, chosen operating philosophies (80% deposits, PPE
+    requirements) versus discovered, relationship-driven patterns
+    that emerge from repeated behavior and require confirmation
+    before they become real. Both remain fully overridable — Peter
+    creating a 50% deposit quotation against an adopted 80% principle
+    gets asked "is this an intentional exception?", never blocked.
+  - **Provenance — remembering *why* the business changed, not just
+    *what* changed** — is arguably the most durable, generally-useful
+    idea in the document, worth remembering on its own even
+    independent of whether the rest is ever built: a convention's full
+    lineage (what evidence surfaced it, what triggered the surfacing,
+    who confirmed it, when) reconstructable months later when someone
+    asks "why do we do it this way now."
+  - Explicitly not for implementation — the current, real priority
+    remains solving reliability for the actual, present-day Peter, not
+    building institutional-memory capability for a more sophisticated
+    future one. Pinned so the thinking survives without pulling focus
+    from what's actually earned right now.
 
 ## UX vision — the Ether, and what it does / doesn't change (2026-07-10)
 
