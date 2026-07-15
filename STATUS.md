@@ -1714,6 +1714,36 @@ Codemagic — still only proven on the web preview.**
     building institutional-memory capability for a more sophisticated
     future one. Pinned so the thinking survives without pulling focus
     from what's actually earned right now.
+- **A missing primitive found through real reliability testing, not
+  contrived (2026-07-15): a named person who represents an entity has
+  nowhere to live.** A real "day in the life" scenario run through
+  `/debug/split-topics` — a customer meeting (Alphonse, of Squinnies)
+  and a separate supplier follow-up (Leon, of Floornet) — surfaced
+  this cleanly: both named individuals were dropped entirely, only
+  their companies survived extraction. Not a bug — `customers` and
+  `characters` both exist, but neither slot fits "a real person, tied
+  to an organization, distinct from being that organization's stand-in
+  or a fully separate character of their own." A supplier rep, a site
+  foreman, a facilities contact are all this same shape. A real trade
+  business deals with Alphonse specifically, every time — losing the
+  name while keeping the abstract company is losing the actually
+  useful, actionable part.
+  - **Directly, explicitly the thing Principle 27 already named**: a
+    business is a network of connected entities, not siloed records.
+    A contact-at-an-entity relationship is exactly the kind of
+    connection that principle says shouldn't be lost — right now it
+    structurally cannot be captured at all, in either direction.
+  - **A second, related finding from the same test, worth having on
+    record separately:** an explicitly self-hedged number ("I think
+    it's fifty six square meters... I'll have to get the exact
+    measure") has no way to be recorded as provisional rather than
+    certain — the system currently can't distinguish a measurement
+    Peter is sure of from one he's flagged, in his own words, as an
+    estimate pending confirmation.
+  - Not for implementation now — reliability for the current, real
+    Peter stays the priority. Pinned so a genuine, recurring gap found
+    through real testing survives to be addressed deliberately, not
+    forgotten because it surfaced mid-test rather than mid-design.
 
 ## UX vision — the Ether, and what it does / doesn't change (2026-07-10)
 
