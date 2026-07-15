@@ -1052,6 +1052,62 @@ revisited because of this. Recorded so future feature work reaches
 for existing connections by default, rather than rebuilding walls a
 modular mental model would create without meaning to.
 
+## Principle 28 — Truth Before Relationship Before Cognition (2026-07-15)
+
+Discovered directly from real testing, not designed in the abstract —
+a single, genuinely dense real message (a real job, real people, real
+measurements, real rates) surfaced three distinct problems at once,
+and the instinct to solve the most exciting one first had to be
+corrected into the right order.
+
+> Truth must arrive before truth can be related.
+
+1. *Problem:* one real test exposed a silently duplicated write on
+   retry, silently lost measurements (160m², 56m² — stated plainly,
+   captured nowhere), silently lost pricing (R450/m², R120/m²,
+   R1200/m² — same), and a real, genuine architectural insight (one
+   phased job had been recorded as three disconnected job scopes,
+   revealing a missing Project entity). All four surfaced in the same
+   breath. The risk: reaching for the most intellectually interesting
+   one — Project, relationship modeling, Principle 27 made concrete —
+   while the two that actually make the system untrustworthy sit
+   underneath it, unaddressed.
+2. *How solved:* three layers, strict order, each depending on the
+   one before it actually holding:
+   - **Layer 1 — Reliability.** Not architecture — trust. Retry safety
+     (Peter must never wonder "did it save?" — the Office saves once
+     or not at all; a duplicate write silently corrupts memory) and
+     extraction completeness (a deterministic fact heard clearly —
+     an area, a rate — must never disappear before reaching storage).
+     This sits below everything else, without exception.
+   - **Layer 2 — Structure.** Only once truth is reliably captured does
+     "how are these truths connected" become the real question — this
+     is where Project, and Principle 27 made concrete, actually
+     belongs. Relationships between facts that aren't yet trustworthy
+     are relationships between noise.
+   - **Layer 3 — Cognition.** Only once truth is reliable *and*
+     structured can the Office say something like "Phase 2 is
+     underquoted" or "your average rate increased 12%" and have it
+     mean anything. Observation built on unreliable or unstructured
+     truth is confidence without foundation — worse than no
+     observation at all.
+3. *Does Office have this problem?* Yes, proven directly — the same
+   test that inspired the Project-entity insight also proved Layer 1
+   isn't solid yet. The Project idea is real and correctly pinned; it
+   is not yet earned, by this principle's own ordering.
+4. *What survives regardless of which specific layer is being worked
+   on?* **A more exciting problem is never a reason to skip a more
+   foundational one. Solve for what's true before solving for how
+   truths relate, and solve for how truths relate before asking the
+   Office to think about what they mean.**
+
+**Status:** ✅ Adopted, directly from real evidence rather than
+foresight. The real, current instruction this principle produced:
+no further building until Layer 1 — retry safety and extraction
+completeness — is solid. Layer 2 (Project) and Layer 3 (Heartbeat and
+Pulse's "noticing," already gated on its own evidence requirement)
+stay pinned, correctly, until Layer 1 actually holds.
+
 ## Closing synthesis — where AI actually lives
 
 Seven research entries in, the pattern is no longer a surprise: **every
