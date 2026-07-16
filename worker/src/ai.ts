@@ -470,14 +470,24 @@ export async function extractWorkObservation(env: Env, transcript: string): Prom
               "Extract the structure of a tradesperson's job observation. job_description is a short " +
             "summary of the overall job (e.g. 'vinyl flooring installation'). components is every " +
             "distinct named part of the job that was measured or identified — a room, an area, a " +
-            "circuit, a fixture — each with a name and, if stated, width, length, and unit. unit is " +
+            "circuit, a fixture — each with a name and, if stated, EITHER width, length, and unit, OR " +
+            "a direct total area_sqm if the area was given as one whole number rather than a " +
+            "width-by-length breakdown (e.g. \"around a hundred and sixty square meters of carpet " +
+            "tile\" — no width or length was stated, only a total; extract area_sqm: 160, leave width " +
+            "and length null). Never invent a width/length breakdown for a component that was only " +
+            "ever given as a single total area, and never invent a total for one only given as " +
+            "width-by-length — extract exactly the shape that was actually stated, in either direction. " +
+            "unit is " +
             "'mm' or 'm' — recognize which was meant from context and magnitude, never guess randomly: " +
             "numbers like 6600 or 4100 with no stated unit are almost always millimeters (a laser " +
             "measure's native output); numbers like 8, 6, 7, or 5.5 with no stated unit, especially for " +
             "a room or building, are almost always meters. If dimensions were stated with an explicit " +
             "unit, use that. Only extract the number and unit exactly as implied — NEVER convert or " +
-            "calculate anything yourself, that always happens afterward, in code. Set width/length to " +
-            "null if no dimensions were given for that component; never invent dimensions. tasks is " +
+            "calculate anything yourself, that always happens afterward, in code — this applies equally " +
+            "to a direct area_sqm figure, which must be copied exactly as stated, never computed from " +
+            "anything else. Set width/length/area_sqm to " +
+            "null for whichever of these genuinely wasn't given for that component; never invent " +
+            "dimensions or a total. tasks is " +
             "every piece of described work that is NOT a measured component — repair work, screeding, " +
             "moisture testing, skirting removal — each with a description and, if the task was clearly " +
             "said about ONE specific named component (e.g. 'Theatre 2 needs moisture testing'), " +
@@ -490,16 +500,18 @@ export async function extractWorkObservation(env: Env, transcript: string): Prom
             "genuinely different from the customer (who the job is FOR); leave null if no installer was " +
             "named, never guess one. Return ONLY " +
             'JSON: {"job_description": string, "components": [{"name": string, "width": number or ' +
-            'null, "length": number or null, "unit": "mm" or "m" or null}], "tasks": [{"description": ' +
+            'null, "length": number or null, "unit": "mm" or "m" or null, "area_sqm": number or null}], "tasks": [{"description": ' +
             'string, "component_name": string or null}], "scheduled_date_raw": string or null, ' +
             '"installer_name": string or null}\n\n' +
             "Examples:\n" +
             '"I measured the reception area at 6600 by 4100 and the office at 3300 by 3900, we also need repair work and screeding" -> ' +
-            '{"job_description":"vinyl flooring installation","components":[{"name":"reception area","width":6600,"length":4100,"unit":"mm"},{"name":"office","width":3300,"length":3900,"unit":"mm"}],"tasks":[{"description":"repair work","component_name":null},{"description":"screeding","component_name":null}],"scheduled_date_raw":null,"installer_name":null}\n' +
+            '{"job_description":"vinyl flooring installation","components":[{"name":"reception area","width":6600,"length":4100,"unit":"mm","area_sqm":null},{"name":"office","width":3300,"length":3900,"unit":"mm","area_sqm":null}],"tasks":[{"description":"repair work","component_name":null},{"description":"screeding","component_name":null}],"scheduled_date_raw":null,"installer_name":null}\n' +
             '"Theatre 2 is 8 by 6, Theatre 3 is 7 by 5.5, vinyl throughout. Theatre 2 needs moisture testing. Theatre 3 needs skirting removed first." -> ' +
-            '{"job_description":"vinyl flooring installation","components":[{"name":"Theatre 2","width":8,"length":6,"unit":"m"},{"name":"Theatre 3","width":7,"length":5.5,"unit":"m"}],"tasks":[{"description":"moisture testing","component_name":"Theatre 2"},{"description":"skirting removed first","component_name":"Theatre 3"}],"scheduled_date_raw":null,"installer_name":null}\n' +
+            '{"job_description":"vinyl flooring installation","components":[{"name":"Theatre 2","width":8,"length":6,"unit":"m","area_sqm":null},{"name":"Theatre 3","width":7,"length":5.5,"unit":"m","area_sqm":null}],"tasks":[{"description":"moisture testing","component_name":"Theatre 2"},{"description":"skirting removed first","component_name":"Theatre 3"}],"scheduled_date_raw":null,"installer_name":null}\n' +
             '"Sipho is doing Jenny\'s carpet install next Thursday" -> ' +
-            '{"job_description":"carpet installation","components":[],"tasks":[],"scheduled_date_raw":"next Thursday","installer_name":"Sipho"}',
+            '{"job_description":"carpet installation","components":[],"tasks":[],"scheduled_date_raw":"next Thursday","installer_name":"Sipho"}\n' +
+            '"We are looking at around a hundred and sixty square meters of carpet tile downstairs, and fifty six square meters of stretch carpet upstairs" -> ' +
+            '{"job_description":"carpet installation","components":[{"name":"downstairs","width":null,"length":null,"unit":null,"area_sqm":160},{"name":"upstairs","width":null,"length":null,"unit":null,"area_sqm":56}],"tasks":[],"scheduled_date_raw":null,"installer_name":null}',
         },
         { role: "user", content: transcript },
       ],
