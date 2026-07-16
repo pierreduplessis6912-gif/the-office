@@ -81,6 +81,13 @@ export interface WorkComponent {
   width: number | null;
   length: number | null;
   unit: "mm" | "m" | null; // the model's job: recognize the unit; conversion always happens in code
+  // Real fix 2026-07-15 — Layer 1 (Constitution Principle 28): a
+  // directly-stated total area ("160 square meters", no width/length
+  // breakdown) had nowhere to go before this — every prior success
+  // required width-by-length. Extracting the number here is
+  // transcription, not arithmetic — the model never calculates an
+  // area, it only recognizes when one was already stated whole.
+  area_sqm: number | null;
 }
 
 export interface WorkTask {
