@@ -1804,8 +1804,41 @@ Codemagic — still only proven on the web preview.**
     earned to begin, by Principle 28's own ordering** — truth has
     arrived; only now does asking how these truths relate become the
     right next question.
-- **The Patient Prospector — a genuine, valuable aspiration, worth
-  distinguishing carefully from what's actually built (2026-07-15).**
+- **The Patient Prospector, sharpened (2026-07-16) — not an aspiration
+  requiring new mechanism, a real pipeline already proven for money,
+  not yet offered to everything else.** The original framing (below)
+  named a genuine gap; this refinement locates it precisely:
+  Speech → Receptacle → Patient Prospector (LLM) → Candidate Nuggets →
+  Deterministic Validators → Truth → Relationships → Memory.
+  - **The decisive realization: every stage of this already exists for
+    money, tested and proven, not theoretical.** "Candidate Nuggets"
+    is `pending_actions`, already real. "Deterministic Validators" is
+    Peter's own confirm action, already built. The R9,000 quotation
+    from two nights ago is the concrete, working proof of the whole
+    chain — the LLM produced a candidate (rate, area, matched
+    customer), it sat unconsummated as a real row, Peter's
+    confirmation was the validation step, only then did it become
+    Truth. The mechanism isn't missing. It's just narrow.
+  - **The real, precise question this generates: which other kinds of
+    extraction deserve the same candidate-then-validate treatment
+    money already gets, and which genuinely don't need it?** Job
+    scopes, components, and measurements currently skip the candidate
+    stage entirely — written straight to Truth, no validation gate at
+    all. That's exactly why the hedged measurement ("I think it's
+    fifty six... I'll have to get the exact measure") has nowhere to
+    go: there's no provisional state for a component to sit in, the
+    way a quotation already gets to sit in `pending_actions`. Not
+    everything needs this — recreating friction for confident,
+    low-stakes statements would be a real regression — but Peter's own
+    hedge is direct evidence at least some component data belongs
+    there too.
+  - Kept explicitly in the arsenal of yet-to-be-earned architecture —
+    not because the mechanism needs inventing, but because deciding
+    which extractions actually deserve it is real design work, not yet
+    done.
+- **The original Patient Prospector framing, preserved for context —
+  a genuine, valuable aspiration, worth distinguishing carefully from
+  what's actually built (2026-07-15).**
   A week-ending philosophy document reframed extraction: not filtering,
   not boiling, but patiently letting speech settle like sediment,
   swirling rather than immediately carving, until real nuggets of
@@ -1820,16 +1853,6 @@ Codemagic — still only proven on the web preview.**
     receptacle (Principle 22) genuinely embodies "nothing is
     discarded" — that part is real and already true. "Swirling until
     nuggets appear" is not.
-  - **Real, concrete evidence of exactly this gap already exists,
-    found through testing rather than imagined for this document** —
-    the self-hedged measurement pinned two nights earlier ("I think
-    it's fifty six square meters... I'll have to get the exact
-    measure"). That sentence is Peter explicitly saying "this isn't
-    settled yet," and today's system has nowhere to put that except
-    null. A genuine Patient Prospector would hold it as real,
-    provisional sediment — neither discarded nor falsely finalized.
-    Worth treating this as the concrete proof point for the
-    philosophy, not a separate, unrelated finding.
   - **"Context is part of extraction, not added afterwards" is the
     same honest distinction, on a wider claim.** Reconciliation
     (matching a name to an existing customer) happens *after*
