@@ -61,6 +61,64 @@ something is as important as the belief itself.
 
 ---
 
+## Principle index (for a reader who needs to find one fast)
+
+Twenty-eight principles across two eras: 1–18 were each discovered
+by studying one real, existing system (Gmail, an OS, a CRM, search,
+Git, an ERP, a database) and confirming Office either already matched
+its reasoning or needed correcting toward it — grouped below by which
+system prompted each one. 19–28 were each discovered directly, live,
+building and testing Office itself, with no external system as the
+prompt — listed standalone in the order found.
+
+**Genesis — principles discovered building Office itself:**
+- [**1. Deterministic Before AI**](#principle-1-deterministic-before-ai) — If the worker can answer, the AI must never guess.
+- [**2. AI Is a Translator**](#principle-2-ai-is-a-translator) — Human ⇄ Office. Not a decision maker. Not business logic.
+
+**Research 001 — Gmail:**
+- [**3. Nothing Is Lost**](#principle-3-nothing-is-lost) — User actions never permanently destroy business information.
+- [**4. Search Before Browse**](#principle-4-search-before-browse) — Retrieval should begin from intent, not navigation.
+- [**5. Multi-Membership Over Single Parent**](#principle-5-multi-membership-over-single-parent) — A business object should be findable by every real thing it relates to, not filed under just one of them.
+- [**6. Threading Needs a Hard Key**](#principle-6-threading-needs-a-hard-key) — Group related records by a real, structural key — never by inferring relatedness.
+- [**7. Suppression Is Not Completion**](#principle-7-suppression-is-not-completion) — "Handled" and "never again" are different states and shouldn't be collapsed into one.
+
+**Research 002 — Operating Systems:**
+- [**8. Decide and Execute Are Separate Roles**](#principle-8-decide-and-execute-are-separate-roles) — Decide what should happen, and how it gets executed, in two separate places — never conflate classification with action.
+- [**9. Queues Decouple Producer From Consumer**](#principle-9-queues-decouple-producer-from-consumer) — When two steps run at different speeds, decouple them with a real queue rather than forcing the fast one to wait.
+
+**Research 003 — CRM / Salesforce:**
+- [**10. Loose vs. Owned Relationships Are Different Things**](#principle-10-loose-vs-owned-relationships-are-different-things) — Name the difference between "these are related" and "this belongs to that" explicitly in the schema — don't let one generic foreign key pattern quietly stand in for both.
+- [**11. Business Objects Convert Along a Funnel**](#principle-11-business-objects-convert-along-a-funnel) — Model the business relationship's real uncertainty over time — don't force final structure onto an early, unconfirmed stage.
+- [**12. Standard Shapes First, Custom Only When Forced**](#principle-12-standard-shapes-first-custom-only-when-forced) — Reach for what already exists before building something new; require a real, demonstrated gap before adding structure.
+
+**Research 004 — Search (SQLite FTS5):**
+- [**13. Matching and "Did You Mean" Are Different Layers**](#principle-13-matching-and-did-you-mean-are-different-layers) — Keep exact matching and forgiving suggestion in two separate layers, always — never let a matching engine start guessing on its own authority.
+- [**14. Stemming Is Indexing, Not Reasoning**](#principle-14-stemming-is-indexing-not-reasoning) — Word-form normalization belongs in deterministic code, applied uniformly — it is indexing, not a judgment call, even though it looks a little like "understanding" language.
+- [**15. Synonyms Are Data, Not Judgment**](#principle-15-synonyms-are-data-not-judgment) — A synonym mapping is a stored fact to look up, never a similarity judgment made fresh each time.
+
+**Research 005 — Git:**
+- [**16. Immutable History, Mutable Pointers**](#principle-16-immutable-history-mutable-pointers) — The event that caused a change should be permanent; only a small, explicit pointer to "current state" should ever be allowed to move — and even that pointer's history is worth keeping.
+
+**Research 006 — ERP / SAP:**
+- [**17. One Chain, One Source of Truth Per Stage**](#principle-17-one-chain-one-source-of-truth-per-stage) — Once a number is settled at one stage, every later stage references it — it is never recalculated or guessed at again.
+
+**Research 007 — Databases:**
+- [**18. An Index Is a Precomputed Answer**](#principle-18-an-index-is-a-precomputed-answer) — A known, common question deserves a real, precomputed or cheaply-computed path to its answer — never a from-scratch guess.
+
+**Discovered directly, building Office itself:**
+- [**19. Silence Is Success**](#principle-19-silence-is-success-2026-07-11) — The absence of notifications is a positive outcome, not a lack of functionality. An empty screen means the organization is under control — Office achieved something, not that it has nothing to show.
+- [**20. One Office, Many Doors**](#principle-20-one-office-many-doors-2026-07-11) — Any external capability (share-in from WhatsApp, share-out to WhatsApp, a future integration with anything else) is an EXTENSION of Office's own native ingestion and delivery — never a substitute for it, and never something Office's core functionality is allowed to depend on.
+- [**21. Generic Lifecycle, Specific Capability**](#principle-21-generic-lifecycle-specific-capability-2026-07-11) — The lifecycle a piece of work moves through is the generic part. What happens at the execute step never has to be — and often shouldn't be.
+- [**22. Capabilities Emerge From Captured Reality**](#principle-22-capabilities-emerge-from-captured-reality-2026-07-11) — Peter doesn't maintain business systems. He describes reality, once, in his own words. The departments that need that reality read it — he never re-enters the same fact for each one.
+- [**23. A Worker Owns a Primitive**](#principle-23-a-worker-owns-a-primitive-2026-07-12) — A Worker owns a primitive. A file owns an implementation. Lines of code measure complexity, not architecture. When complexity exceeds 2,000 lines, review the architecture — don't just split the file on autopilot, and don't leave it alone either.
+- [**24. Share What's Known, Don't Guess What's Meant**](#principle-24-share-whats-known-dont-guess-whats-meant-2026-07-12) — "How's Sipho doing?" is genuinely ambiguous — it could mean his wellbeing, or his current work status, and there's no reliable way to know which from wording alone. The right answer isn't to guess which one was meant. It's to share the real, known facts anyway.
+- [**25. The Interface Disappears, the Conversation Is Primary**](#principle-25-the-interface-disappears-the-conversation-is-primary-2026-07-13) — Every business app today opens with "what do you want to do?" Office opens with "tell me what's happening." The dashboard is not the product. The conversation is the product. Everything else is one tap away, never the default view.
+- [**26. Permission-Aware Answers**](#principle-26-permission-aware-answers-2026-07-14) — The Office does not authorize questions. It authorizes knowledge.
+- [**27. A Network, Not Modules**](#principle-27-a-network-not-modules-2026-07-14) — Peter doesn't think "I'm opening HR." He thinks "how's Sipho doing?"
+- [**28. Truth Before Relationship Before Cognition**](#principle-28-truth-before-relationship-before-cognition-2026-07-15) — Truth must arrive before truth can be related.
+
+---
+
 ## Genesis — principles discovered building Office itself (2026-07-11)
 
 These weren't borrowed from anywhere. They were forced into existence
