@@ -1102,11 +1102,17 @@ corrected into the right order.
    Office to think about what they mean.**
 
 **Status:** ✅ Adopted, directly from real evidence rather than
-foresight. The real, current instruction this principle produced:
-no further building until Layer 1 — retry safety and extraction
-completeness — is solid. Layer 2 (Project) and Layer 3 (Heartbeat and
-Pulse's "noticing," already gated on its own evidence requirement)
-stay pinned, correctly, until Layer 1 actually holds.
+foresight — and Layer 1 is now genuinely resolved, not just designed.
+Retry safety, direct-area extraction, and pricing attachment (found to
+be a genuinely symmetric gap through real testing, not a one-
+directional one) were each found live, fixed, and proven with real
+evidence — a real R9,000 quotation, correctly calculated, correctly
+recorded, was the final, decisive proof of the whole chain working
+end to end. Real, honest remainders stay open (a self-hedged
+measurement still can't be recorded as provisional) and correctly
+belong to a future pass, not this one. Layer 2 (Project, relationship
+assembly) is now genuinely earned to begin — truth arrived first,
+exactly as this principle required before it was allowed to.
 
 ## Closing synthesis — where AI actually lives
 
