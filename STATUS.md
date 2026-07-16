@@ -1804,6 +1804,49 @@ Codemagic — still only proven on the web preview.**
     earned to begin, by Principle 28's own ordering** — truth has
     arrived; only now does asking how these truths relate become the
     right next question.
+- **The Patient Prospector — a genuine, valuable aspiration, worth
+  distinguishing carefully from what's actually built (2026-07-15).**
+  A week-ending philosophy document reframed extraction: not filtering,
+  not boiling, but patiently letting speech settle like sediment,
+  swirling rather than immediately carving, until real nuggets of
+  truth emerge on their own.
+  - **The precise, important correction: this describes where the
+    system should eventually get to, not where it is.** Everything
+    actually built and tested is fast and immediate, not patient —
+    `splitIntoTopics` carves a message apart in one pass before any
+    deep understanding happens; every extraction function fires once,
+    immediately, on the raw transcript, with no mechanism to hold an
+    ambiguous fragment and let more context resolve it later. The
+    receptacle (Principle 22) genuinely embodies "nothing is
+    discarded" — that part is real and already true. "Swirling until
+    nuggets appear" is not.
+  - **Real, concrete evidence of exactly this gap already exists,
+    found through testing rather than imagined for this document** —
+    the self-hedged measurement pinned two nights earlier ("I think
+    it's fifty six square meters... I'll have to get the exact
+    measure"). That sentence is Peter explicitly saying "this isn't
+    settled yet," and today's system has nowhere to put that except
+    null. A genuine Patient Prospector would hold it as real,
+    provisional sediment — neither discarded nor falsely finalized.
+    Worth treating this as the concrete proof point for the
+    philosophy, not a separate, unrelated finding.
+  - **"Context is part of extraction, not added afterwards" is the
+    same honest distinction, on a wider claim.** Reconciliation
+    (matching a name to an existing customer) happens *after*
+    extraction today; extraction itself doesn't yet draw on
+    accumulated business history, active projects, or prior
+    conversations while actually classifying a sentence. A real,
+    worthwhile target — not yet how the system works.
+  - **The closing line is the truest sentence in the document, and
+    worth taking completely seriously:** "I don't think we're
+    building an AI assistant anymore... I think we're building a
+    business that slowly learns itself." The same realization from
+    earlier this week — that this was always about memory — evolved
+    one step further, now standing on a real, tested foundation
+    (Layer 1) instead of just intuition.
+  - Not for implementation — a real, well-earned philosophy to build
+    toward once it's genuinely earned, in the same order Principle 28
+    already established: truth, then relationship, then this.
 
 ## UX vision — the Ether, and what it does / doesn't change (2026-07-10)
 
