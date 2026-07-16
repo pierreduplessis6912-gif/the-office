@@ -112,7 +112,7 @@ export async function recordWorkObservation(
   observation: WorkObservationExtraction,
   sourceTranscript: string,
   installerId: number | null = null
-): Promise<{ jobScopeId: number }> {
+): Promise<{ jobScopeId: number; computedComponents: Array<{ name: string; area_sqm: number | null }> }> {
   const scheduledDate = resolveScheduledDate(observation.scheduled_date_raw, nowInBusinessTimezone());
   const inserted = await env.OFFICE_DB.prepare(
     "INSERT INTO job_scopes (customer_id, description, scheduled_date_raw, scheduled_date, installer_id, source_transcript) VALUES (?, ?, ?, ?, ?, ?) RETURNING id"
@@ -125,6 +125,11 @@ export async function recordWorkObservation(
   // Maps a component's name back to its real D1 id, so a task naming
   // "Theatre 2" can be linked to the actual row just inserted for it.
   const componentIdByName = new Map<string, number>();
+  // Real feature 2026-07-15 — Layer 1 (Constitution Principle 28):
+  // collected alongside the inserts so a caller can immediately price
+  // this job against its real, just-computed areas — see the return
+  // type above.
+  const computedComponents: Array<{ name: string; area_sqm: number | null }> = [];
 
   for (const component of observation.components) {
     // Unit conversion — the one piece of arithmetic in this whole
@@ -134,7 +139,13 @@ export async function recordWorkObservation(
     const widthMm = component.width != null ? (component.unit === "m" ? component.width * 1000 : component.width) : null;
     const lengthMm =
       component.length != null ? (component.unit === "m" ? component.length * 1000 : component.length) : null;
-    const areaSqm = widthMm != null && lengthMm != null ? (widthMm * lengthMm) / 1_000_000 : null;
+    // Real fix 2026-07-15 — Layer 1 (Constitution Principle 28): a
+    // directly-stated total area (no width/length breakdown given)
+    // used to have nowhere to go and was silently discarded. Used
+    // directly here when width x length isn't available — still zero
+    // arithmetic on the model's part, the number was already stated
+    // whole, this just stops throwing it away.
+    const areaSqm = widthMm != null && lengthMm != null ? (widthMm * lengthMm) / 1_000_000 : component.area_sqm ?? null;
 
     const insertedComponent = await env.OFFICE_DB.prepare(
       "INSERT INTO scope_components (job_scope_id, name, width_mm, length_mm, area_sqm) VALUES (?, ?, ?, ?, ?) RETURNING id"
@@ -143,6 +154,7 @@ export async function recordWorkObservation(
       .first<{ id: number }>();
 
     componentIdByName.set(component.name.toLowerCase(), insertedComponent!.id);
+    computedComponents.push({ name: component.name, area_sqm: areaSqm });
   }
 
   for (const task of observation.tasks) {
@@ -154,7 +166,7 @@ export async function recordWorkObservation(
       .run();
   }
 
-  return { jobScopeId };
+  return { jobScopeId, computedComponents };
 }
 
 // Small, deterministic cleanup — real polish item flagged since the
