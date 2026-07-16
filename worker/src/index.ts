@@ -17,6 +17,45 @@ const QUESTION_STARTERS = [
 ];
 
 
+// Real feature 2026-07-15 — Layer 1 (Constitution Principle 28):
+// factored out so the price_scope path and the new work_observation
+// pricing path (pricing stated in the same breath as the work it
+// describes) share one single implementation, never two copies of
+// the same real-money arithmetic drifting apart from each other.
+function buildQuotationLineItems(
+  pricedItems: Array<{ matched_name: string | null; description: string; pricing_type: "per_sqm" | "flat"; rate: number }>,
+  components: Array<{ name: string; area_sqm: number | null }>
+): LineItemWithTotal[] {
+  return pricedItems.map((item) => {
+    const component = item.matched_name
+      ? components.find((c) => c.name.toLowerCase() === item.matched_name!.toLowerCase())
+      : undefined;
+    // The only real arithmetic in this whole step — rate x real
+    // measured area — always happens here, in code. The model's job
+    // was only ever matching a name and recognizing whether the
+    // stated rate was per-sqm or flat.
+    if (item.pricing_type === "per_sqm" && component?.area_sqm != null) {
+      const lineTotal = Math.round(component.area_sqm * item.rate * 100) / 100;
+      return {
+        description: component.name,
+        note: null,
+        quantity: component.area_sqm,
+        unit: "sqm",
+        unit_price: item.rate,
+        line_total: lineTotal,
+      };
+    }
+    return {
+      description: component?.name ?? item.description,
+      note: null,
+      quantity: 1,
+      unit: null,
+      unit_price: item.rate,
+      line_total: item.rate,
+    };
+  });
+}
+
 // Real feature 2026-07-13 — the reusable core of what used to be the
 // whole of processTranscript, now callable once per item in a
 // multi-intent message instead of once per raw message. Internal
@@ -216,34 +255,7 @@ async function processOneExtraction(
         priceScopeNotFound = true;
       } else {
         const pricedItems = await extractScopePricing(env, transcript, jobScope.components, jobScope.tasks);
-        quotationLineItems = pricedItems.map((item) => {
-          const component = item.matched_name
-            ? jobScope.components.find((c) => c.name.toLowerCase() === item.matched_name!.toLowerCase())
-            : undefined;
-          // The only real arithmetic in this whole step — rate x real
-          // measured area — always happens here, in code. The model's
-          // job was only ever matching a name and recognizing whether
-          // the stated rate was per-sqm or flat.
-          if (item.pricing_type === "per_sqm" && component?.area_sqm != null) {
-            const lineTotal = Math.round(component.area_sqm * item.rate * 100) / 100;
-            return {
-              description: component.name,
-              note: null,
-              quantity: component.area_sqm,
-              unit: "sqm",
-              unit_price: item.rate,
-              line_total: lineTotal,
-            };
-          }
-          return {
-            description: component?.name ?? item.description,
-            note: null,
-            quantity: 1,
-            unit: null,
-            unit_price: item.rate,
-            line_total: item.rate,
-          };
-        });
+        quotationLineItems = buildQuotationLineItems(pricedItems, jobScope.components);
       }
     } else {
       const rawLineItems = await extractLineItems(env, transcript);
@@ -349,6 +361,33 @@ async function processOneExtraction(
       componentCount: observation.components.length,
       taskCount: observation.tasks.length,
     };
+
+    // Real fix 2026-07-15 — Layer 1 (Constitution Principle 28): a
+    // rate stated in the same breath as the work it describes used to
+    // reach nowhere, since work_observation winning as the segment's
+    // top-level intent meant price_scope's extraction never ran at
+    // all — the pricing sat in the transcript but nothing looked for
+    // it. Checked here, immediately, against the real, just-computed
+    // component areas, reusing the exact same, already-proven
+    // extraction and quotation-building logic the price_scope path
+    // already uses below — not a parallel, duplicated implementation.
+    if (customer) {
+      const pricedItems = await extractScopePricing(env, transcript, recorded.computedComponents, observation.tasks);
+      if (pricedItems.length > 0) {
+        const lineItems = buildQuotationLineItems(pricedItems, recorded.computedComponents);
+        const total = lineItems.reduce((sum, item) => sum + item.line_total, 0);
+        if (total > 0) {
+          const cleanDescription = lineItems.map((item) => item.description).join("; ");
+          const held = await holdForConfirmation(
+            env,
+            "quotation",
+            { customerId: customer.id, customerName: customer.name, description: cleanDescription, amount: total, lineItems },
+            transcript
+          );
+          pendingActionId = held.id;
+        }
+      }
+    }
   }
 
   // Holds for confirmation instead of writing immediately. Real
