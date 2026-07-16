@@ -251,11 +251,30 @@ async function processOneExtraction(
       // real component names and areas that exist, never asked to
       // invent structure that isn't already there.
       const jobScope = await findLatestJobScope(env, customer.id);
-      if (!jobScope) {
-        priceScopeNotFound = true;
-      } else {
+      if (jobScope) {
         const pricedItems = await extractScopePricing(env, transcript, jobScope.components, jobScope.tasks);
         quotationLineItems = buildQuotationLineItems(pricedItems, jobScope.components);
+      } else {
+        // Real, symmetric fix 2026-07-16 — Layer 1 (Constitution
+        // Principle 28): found live — the classifier can pick
+        // price_scope OR work_observation for very similarly
+        // structured sentences that state a measurement and a rate
+        // together, and giving up here whenever price_scope happens
+        // to win, with no existing job scope on file, was silently
+        // discarding a measurement sitting right there in the same
+        // message. Checked here now, mirroring the work_observation
+        // path exactly — same recording, same shared pricing helper —
+        // so the outcome converges regardless of which intent the
+        // classifier happened to choose.
+        const observation = await extractWorkObservation(env, transcript);
+        if (observation.components.length > 0 || observation.tasks.length > 0) {
+          const recorded = await recordWorkObservation(env, customer.id, observation, transcript, null);
+          const pricedItems = await extractScopePricing(env, transcript, recorded.computedComponents, observation.tasks);
+          quotationLineItems = buildQuotationLineItems(pricedItems, recorded.computedComponents);
+        }
+        if (quotationLineItems.length === 0) {
+          priceScopeNotFound = true;
+        }
       }
     } else {
       const rawLineItems = await extractLineItems(env, transcript);
