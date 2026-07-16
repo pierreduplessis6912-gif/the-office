@@ -15,6 +15,12 @@ what's deliberately deferred, known bugs and their fixes — see
 [`STATUS.md`](./STATUS.md). Read that before starting any new work;
 it's kept current, the section below is historical.**
 
+**For the *why* behind that state — architectural rationale, rejected
+alternatives, pinned philosophy not yet built, and the complete,
+unabridged bug history — see [`DECISIONS.md`](./DECISIONS.md). Split
+out from `STATUS.md` on 2026-07-17 because it decays far slower and
+was competing with current-state reference for a reader's attention.**
+
 ## Original build order (completed)
 
 1. ~~Shell screen~~ — done.
