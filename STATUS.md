@@ -1744,6 +1744,66 @@ Codemagic — still only proven on the web preview.**
     Peter stays the priority. Pinned so a genuine, recurring gap found
     through real testing survives to be addressed deliberately, not
     forgotten because it surfaced mid-test rather than mid-design.
+- **Layer 1 (Constitution Principle 28) resolved, 2026-07-15/16 — all
+  three real bugs found through genuine testing, fixed, and proven
+  with real evidence, not assumed fixed.** The direct, complete answer
+  to "truth must arrive before truth can be related":
+  - **Retry safety (Stage 0).** A stable, caller-supplied idempotency
+    key, checked before any real work starts. A completed request
+    returns its exact original result again, never reprocessed; a
+    request still mid-flight returns a clear `still_processing` signal
+    rather than starting a second copy of the same work. Proven twice
+    — once on a simple case (four identical calls, one real payment,
+    `id: 5`, confirmed once), and once under genuine, natural load
+    (the same heavy combined scenario that first exposed the bug,
+    correctly refusing to duplicate a still-running attempt rather
+    than silently creating a fourth batch of job scopes).
+  - **Direct-area extraction.** A directly-stated total area ("thirty
+    square meters," no width-by-length breakdown) now has a real path
+    — `WorkComponent.area_sqm`, extracted directly since pulling a
+    number already stated whole is transcription, not arithmetic,
+    never violating the no-LLM-math discipline. Proven live:
+    `area_sqm: 30` recorded correctly, and `area_sqm: 160` in the
+    earlier, denser scenario.
+  - **Pricing attachment — found to be a genuinely symmetric gap, not
+    a one-directional one, through direct testing.** A rate stated in
+    the same breath as the work it describes used to reach nowhere
+    when `work_observation` won as the segment's top-level intent —
+    fixed by calling the same, already-proven `extractScopePricing`
+    immediately against the real, just-computed component areas. But
+    a second, real test — the identical sentence, on a second run —
+    showed the classifier can pick `price_scope` instead for very
+    similarly structured phrasing, and *that* path was separately
+    discarding a measurement sitting in the same message whenever no
+    job scope already existed to price against. Fixed symmetrically:
+    when `price_scope` wins with nothing to price, the same message is
+    now checked for a measurement too, mirroring the work_observation
+    path exactly. Both directions converge to the same, correct
+    result now — proven live: "Measured Jenny's lounge at thirty
+    square meters, we'll fit vinyl at three hundred rand a square
+    meter" correctly produced a real R9,000 quotation (30 × R300,
+    verified against the actual math), a real job scope with the
+    correct area, and a real, confirmed quotation record with a real
+    PDF and share message — the complete chain, working end to end.
+  - A single shared helper (`buildQuotationLineItems`) now backs both
+    the price_scope and work_observation pricing paths — one real
+    implementation of the rate-times-area arithmetic, not two copies
+    silently able to drift apart from each other.
+  - **What's still honestly open, not solved by this pass:** a
+    self-hedged measurement ("I think it's fifty six square meters...
+    I'll have to get the exact measure") still returns null rather
+    than being recorded as provisional — a genuinely different,
+    harder problem than a confidently-stated direct area, correctly
+    not conflated with it. The contact-at-an-entity gap (Alfons,
+    Leon, Wilma) remains completely untouched — correctly Layer 2's
+    concern, not Layer 1's. A minor, unconfirmed variance was also
+    noticed (a task present in one test run, missing in a near-
+    identical repeat) — not chased further, worth remembering if it
+    recurs.
+  - **Layer 2 (Project, relationship assembly) is now genuinely
+    earned to begin, by Principle 28's own ordering** — truth has
+    arrived; only now does asking how these truths relate become the
+    right next question.
 
 ## UX vision — the Ether, and what it does / doesn't change (2026-07-10)
 
