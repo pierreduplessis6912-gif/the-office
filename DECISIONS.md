@@ -1267,6 +1267,80 @@ cost, with zero risk of a silent wrong guess.
   aliases; a reason to design their invalidation rule deliberately
   rather than assume permanence.
 
+## The Succession Asset — a real reframe of what Office ultimately is (2026-07-17)
+
+**The observed problem, real and directly witnessed, not theoretical:**
+South Africa's flooring trade is aging out with no real youth pipeline
+behind it — businesses that don't survive past the founder, closing
+outright rather than transferring. **Why they actually close:** rarely
+the tools, the truck, or the client list. The real asset — pricing
+reasoning, supplier reliability, customer history, the "why we do it
+this way" — lives entirely in one person's head and retires or dies
+with them. Nothing transferable exists to hand over, so the business
+simply ends.
+
+**What Office changes about that, if the capture has genuinely
+happened over years, not just transactions but the reasoning behind
+decisions:** the business stops being a single point of failure. The
+knowledge survives the person. That reframes the product from
+"software to run your business better" into something with real,
+independent stakes of its own — the reason a business still exists
+when its founder no longer can. A succession tool wearing a
+day-to-day assistant's clothes.
+
+**Where this actually belongs — not filed under one existing idea, but
+the convergence of two already on record:** Principle 22 (Capabilities
+Emerge From Captured Reality) explains the *mechanism* — Peter
+describes reality once, in his own words, nothing re-entered. The
+Institutional Knowledge document's **provenance** concept — already
+named there as arguably its most durable, generally-useful idea —
+explains the *payload*: remembering *why* the business changed, not
+just *what*, is precisely the transferable asset a founder's
+retirement would otherwise erase completely. This isn't a new
+principle. It's the highest-stakes expression of two already earned.
+
+**A real, verified correction to the competitive claim, worth stating
+precisely rather than overreaching:** succession planning as a
+category has real, existing players in South Africa — formal
+consultants, structured assessment services, an established academic
+literature independently confirming the exact diagnosis above (tacit,
+person-locked knowledge with no natural transfer mechanism is a real,
+well-documented failure mode, not invented here). "No competition"
+is not quite accurate. What's genuinely uncontested is the
+*mechanism*: every real competitor treats succession as a deliberate,
+effortful process someone actively undertakes — assessments,
+mentoring programs, structured transition plans. Nobody is offering
+knowledge transfer as an incidental byproduct of simply running the
+business through ordinary daily conversation. The sharper, more
+defensible pitch: Office doesn't compete with succession consultants —
+it makes formal succession planning unnecessary for the knowledge-
+transfer problem specifically, because the knowledge was already
+captured years before anyone needed to plan anything.
+
+**Why this is a stronger pitch, not just a different one:** a moat no
+funded competitor can buy (the value only becomes real with years of
+accumulated history — impossible to shortcut with capital or
+engineering speed), a genuine reason for patience rather than a
+constraint on it, and a referral trigger with far more weight than
+convenience — the kind of story that spreads at a retirement or a
+handover, not at the tile counter.
+
+**The discipline this demands — directly the same evidence-before-
+claim standard Principle 28 already applies to architecture, now
+applied to positioning:** don't sell this story yet. No Office has
+survived a real transfer; the claim is unproven by definition until
+one does. Build for "run my business" today, let a real succession
+outcome actually happen, then tell the true story once it's real —
+not before.
+
+**A real, honest caveat worth pinning alongside the rest, not left
+implicit:** this is a powerful *external* narrative — for referrals,
+for founder conviction about long-term value — but Office itself
+should never surface mortality-framing to Peter directly. The product
+stays "software that runs your business better," full stop, from his
+own daily vantage point. The succession story lives outside the
+product, never inside a sentence Office actually says to him.
+
 ## Complete bug archive (full, unabridged history — see STATUS.md's Failure Shapes for the distilled patterns)
 
 **2026-07-08:**
