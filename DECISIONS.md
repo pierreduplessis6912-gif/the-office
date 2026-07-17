@@ -773,6 +773,54 @@ document proposing shared/polymorphic structure with real suspicion.
     thinking in departmental snapshots, activity flows through time in
     an expected sequence (temporal). The same critique of modular
     thinking, arrived at independently twice in one night.
+  - **Sharpened significantly, 2026-07-17 — deviation-from-expectation
+    is another mode of Pulse, not a new subsystem.** Real, granular
+    examples surfaced the refinement: a courier's rate jumping from
+    R150 to R250, a material's cost drifting from R250 to R400, a
+    delivered color not matching what was approved, a job quietly
+    stretching from one day to three. None of these are errors —
+    every one violates an expectation that already exists, built from
+    years of accumulated, mostly-subconscious experience. Briefly
+    named an "Attention Engine" before the framing was corrected —
+    rightly rejected, since that name implies a new service, a new
+    database, a new moving part, when the actual mechanism is
+    identical to Pulse's original one at a smaller grain: accumulate
+    real values for something → establish what's normal
+    deterministically → compare a new value against it → stay silent
+    unless it materially deviates. Genuinely the same shape, just
+    applied to a specific attribute (a supplier's usual rate, a
+    material's usual cost) rather than the business's overall rhythm
+    — a real generalization, not two ideas sharing a name.
+  - **One real precision the original framing didn't spell out, worth
+    stating explicitly before this is ever built:** "materially
+    deviated" has to be a deterministic computation — a genuine
+    statistical threshold over real historical values — never an AI
+    judgment call about what feels like a meaningful change. The exact
+    same line Principle 1 and Principle 24 already draw everywhere
+    else in this system, applied here too. The model's role stays
+    strictly limited to narrating an observation already computed in
+    code, never deciding whether one exists.
+  - **Connects to Principle 28 by already fitting its existing
+    structure, not by needing new language added to it.** "Expectation"
+    is a specific kind of relationship — many instances of the same
+    fact-type related to each other across time — which is Layer 2.
+    "An observation that reality deviated" is a specific kind of
+    cognition — noticing, explicitly not deciding — which is Layer 3.
+    Stronger to show the principle was already general enough to cover
+    this than to extend its wording for a case it already handled.
+  - **A real, deliberate distinction from the Patient Prospector's
+    "Candidate Nuggets" stage, worth keeping separate rather than
+    letting two similar-sounding ideas merge into one.** That pipeline
+    holds a single *fact* awaiting confirmation before it becomes
+    truth. This holds a *pattern* awaiting enough accumulated evidence
+    before it becomes a trustworthy baseline at all — genuinely
+    different mechanisms, both refusing to assert too early, related
+    in spirit only.
+  - **Why this still correctly isn't built:** needs more than Layer 1
+    being reliable — it needs real historical *volume* for any given
+    attribute before a baseline is statistically meaningful at all, a
+    single data point can't establish an expectation. Layer 1's
+    reliability is necessary but not sufficient on its own.
   - Concept only, explicitly not for implementation — correctly
     deferred behind a stable beta, same discipline as everything else
     held to a real trigger before being built.
