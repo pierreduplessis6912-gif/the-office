@@ -349,7 +349,7 @@ about, not any name appearing anywhere in the exchange.
 
 ## Failure shapes (distilled from 38 real bugs — full instances archived in DECISIONS.md)
 
-Six patterns account for the real majority of bugs found this project, each recurring independently rather than appearing once:
+Seven patterns account for the real majority of bugs found this project, six recurring independently, one found once but general enough to watch for:
 
 1. **Relevance-filtering silently drops real facts.** `answerFromMemory`'s own "be relevant, be brief" instruction has repeatedly judged a real, correct fact as not worth including — a caveat, a second fact alongside a first, a whole answer to an ambiguous question. Recurred four separate times (bugs 26, 28, 31, 33). **Fix pattern, proven every time:** never trust the model's judgment about what to include — append anything that must survive deterministically, in code, after synthesis.
 2. **Subject-attribution: extraction fixates on an incidentally-mentioned name over the real subject.** "ProSupply was late delivering tiles for Jenny's job" is about ProSupply, not Jenny — three related bugs (11, 12, 13) all came from the same root confusion between "who's mentioned" and "who this is fundamentally about." **Fix:** the extraction prompt must ask "who or what is this sentence reporting on," not just which names appear.
@@ -357,6 +357,7 @@ Six patterns account for the real majority of bugs found this project, each recu
 4. **A guard or exclusion condition gated on the wrong scope.** Reminder/task_complete content leaking into a customer's own notes because an exclusion only covered some intents, not all (16, 18); the execution register firing on scope conditions it should have respected (22, 25). **Fix:** when a new intent or field is added, every existing code path it could now touch needs auditing, not just the primary one it was built for.
 5. **AI asked to perform judgment or matching that should be deterministic.** The foundational discovery of this whole project (bugs 20, 24, arguably 7) — resolving which task, which entity, which record was meant is a matching problem, not a language problem, and asking a model to guess invites exactly the ambiguity a system of record can't afford. See Constitution Principle 24 ("The Execution Ladder").
 6. **Code assumptions diverging from live schema/infrastructure reality.** A TypeScript type change doesn't touch a live `NOT NULL` constraint (37); an `INNER JOIN` silently hides real rows with a `NULL` foreign key from a debug view (38). **Fix:** verify against the actual live system (`PRAGMA table_info`, a direct query) before assuming — never reconstruct reality from memory of the code that reads it.
+7. **A parallel storage channel duplicates data without inheriting the gating applied to its primary channel.** Found live 2026-07-17, extending Principle 26: `getCustomerFinancialSummary` was correctly gated behind `can_know_debtors`, but the same financial fact was *also* being duplicated verbatim into an entirely separate, ungated customer note by a completely different code path — proven directly when an Installer session, correctly refused the structured summary, received the identical fact anyway from the note. **Fix:** when gating any data, every path that could independently surface the same underlying fact needs the same gate, not just the one being actively worked on — a genuinely new pattern, distinct from the six above, worth watching for whenever a second representation of the same fact exists anywhere in the system.
 
 Real, significant one-off findings worth keeping in view even though they haven't recurred: a silent unit-conversion error was off by a factor of a million with total confidence (bug 9) — raw numbers and units are now always reported separately, conversion always happens in code, never asked of the model. Concurrent AI calls via `Promise.all` tripped Workers AI's own capacity ceiling at real scale (21) — regression suites run sequentially now. Open-ended prose generation had no natural stopping point under `thinking: true` and looped indefinitely (14) — replaced with closed-form extraction wherever a specific answer, not an essay, was actually needed.
 
@@ -454,16 +455,33 @@ Codemagic — still only proven on the web preview.**
 
 ## Known gaps, deliberately deferred (named on purpose, not forgotten)
 
-- **Auth is real now, not a stub — but Principle 26 (permission-aware
-  answers) is only threaded through the financial lookup path.**
-  Every other synthesis path (customer lookups, character lookups,
-  quotations, expenses) still runs with full access regardless of
-  which real membership is asking — proven correct in one place,
-  not yet extended everywhere it needs to be. No session still
-  defaults to full (Owner-equivalent) access, safe only because Peter
-  remains the sole real user today. CORS remains wide open, no rate
-  limiting exists — low urgency for a genuinely single-user system,
-  the same underlying gap as the above, not a separate one.
+- **Auth is real, and Principle 26 (permission-aware answers) is now
+  threaded broadly, not just the financial lookup — reads and writes
+  both, proven live 2026-07-17.** Reads: customer-scope lookups
+  (financial summary gated by `can_know_debtors`, job profitability by
+  `can_know_profit`), character-scope lookups (installer/job activity
+  gated by `can_know_jobs`, which Accountant deliberately lacks), and
+  business-scope quotations/expenses (`can_manage_invoices` /
+  `can_know_materials`). Writes: creating a payment, expense, invoice,
+  quotation, or converting a quote to invoice now all require
+  `can_manage_invoices` — proven with real evidence both directions,
+  Installer honestly refused, Owner unaffected. **A real, second-order
+  leak was found and fixed along the way**, not assumed away: narrative
+  customer/character notes were duplicating the raw transcript of
+  every financial message regardless of role, completely bypassing
+  every structural gate — proven directly when an Installer session,
+  correctly refused the structured financial summary, was handed the
+  identical fact anyway from a note. Fixed by excluding any intent with
+  its own structured storage from the raw-note fallback. **What's
+  still genuinely open:** HR facts (role, skill, license) and
+  customer/character identity facts (address, phone) remain ungated on
+  both read and write — no established capability line exists for
+  either yet, and inventing one speculatively would violate Principle
+  22's own discipline. No session still defaults to full
+  (Owner-equivalent) access, safe only because Peter remains the sole
+  real user today. CORS remains wide open, no rate limiting exists —
+  low urgency for a genuinely single-user system, the same underlying
+  gap as the above, not a separate one.
 - **Single instance only.** This is explicitly one Office per business
   entity; a second real entity means a second, genuinely isolated
   Office instance, not a schema change. Zululand Flooring's own real
