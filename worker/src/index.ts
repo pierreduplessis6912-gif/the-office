@@ -2515,8 +2515,13 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         transcribe(env, audioBuffer),
       ]);
 
+      // Real feature 2026-07-17 — extending Principle 26 to the last
+      // real, live entry point that didn't have it: voice upload was
+      // still using the default (full-access) capabilities, unlike
+      // /messages/text, which already resolves the real session.
+      const { capabilities: voiceCapabilities } = await resolveCapabilities(request, env);
       const processed = transcript
-        ? await processTranscript(env, transcript, ctx, history, "voice", key)
+        ? await processTranscript(env, transcript, ctx, history, "voice", key, voiceCapabilities)
         : {
             extraction: null,
             extractionRaw: null,
