@@ -1779,3 +1779,30 @@ would have surfaced from a single pass of "does this work now?" —
 only from checking the actual, specific thing each fix was supposed
 to produce, every time.
 
+**2026-07-17:**
+39. **A parallel storage channel bypassed a gate applied to its
+    primary channel.** Found while directly, live-testing the freshly-
+    extended customer-scope permission gate with three real sessions —
+    Owner, Installer, Accountant, each asking "what does Jenny owe?"
+    Installer correctly received the honest refusal for the structured
+    financial summary ("Jenny's financial balance exists but is
+    restricted for your role") — then, in the very same response,
+    received the identical fact anyway: "Jenny paid R500," verbatim,
+    from a completely separate code path. `getCustomerFinancialSummary`
+    was correctly gated behind `can_know_debtors`; the raw-transcript
+    customer-note fallback (`appendCustomerNote`), which fires for any
+    non-question, non-personal-errand message about a customer, was
+    gated by nothing at all — it had been silently duplicating every
+    payment, invoice, quotation, and priced job into an ungated note
+    since the fallback was first built, entirely independent of the
+    structured tables that were later given real permission gates.
+    Fixed by excluding any intent with its own real structured storage
+    (payment, expense, invoice, quotation, price_scope,
+    work_observation) from the raw-note fallback — it now only fires
+    for genuinely narrative facts with no other structured home,
+    exactly its original purpose. Verified with a brand-new customer
+    (no pre-existing note to leak from): Installer received only the
+    honest restriction, nothing else. Real, decisive proof, and the
+    same discipline as always — the leak was found by testing the real
+    thing, not assumed fixed once the primary gate was in place.
+
