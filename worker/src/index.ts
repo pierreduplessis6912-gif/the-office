@@ -486,7 +486,27 @@ async function processOneExtraction(
   // because her job happened to be the reminder's trigger.
   const isQuestion = extraction?.intent === "lookup" || looksLikeAQuestion(transcript);
   const isPersonalErrand = extraction?.intent === "reminder" || extraction?.intent === "task_complete";
-  if (!isQuestion && !isPersonalErrand) {
+  // Real fix found live 2026-07-17, via direct testing (Constitution
+  // Principle 26): any intent with real, structured storage of its
+  // own — payment, invoice, quotation, price_scope, expense,
+  // work_observation — was also having its raw transcript duplicated
+  // into this ungated note, purely redundant since the real data is
+  // already properly captured elsewhere, and a genuine leak, since
+  // that duplicate note bypassed every capability gate entirely.
+  // Proven directly: an Installer session was correctly refused the
+  // structured financial summary, then handed the same fact anyway —
+  // "Jenny paid R500" — verbatim from this exact note. The fallback
+  // now only fires for genuinely narrative facts that have no other
+  // structured home to live in.
+  const hasStructuredHomeAlready = [
+    "payment",
+    "invoice",
+    "quotation",
+    "price_scope",
+    "expense",
+    "work_observation",
+  ].includes(extraction?.intent ?? "");
+  if (!isQuestion && !isPersonalErrand && !hasStructuredHomeAlready) {
     if (customer) {
       ctx.waitUntil(appendCustomerNote(env, customer.id, transcript));
     } else if (character) {
