@@ -1341,6 +1341,104 @@ stays "software that runs your business better," full stop, from his
 own daily vantage point. The succession story lives outside the
 product, never inside a sentence Office actually says to him.
 
+## Go-to-market strategy, sequencing, and product gaps surfaced through real conversation (2026-07-19)
+
+Not an architecture session — a strategy conversation, from a separate
+chat, about who this is actually for and what earns priority once real
+users are about to exist. Pinned for the same reason as the Patient
+Prospector and Institutional Knowledge documents: real, worthwhile
+thinking, mostly not being built yet.
+
+**One correction worth making before this is taken at face value: the
+document's own claim that Principle 26 covers "just the financial
+lookup" is already out of date relative to the same night's real
+work.** By the time this was written, reads were already gated across
+customer-scope, character-scope, and business-scope quotations and
+expenses, and writes were gated for the first time too (payment,
+expense, invoice, quotation, convert_quote, all behind
+`can_manage_invoices`) — see the entries above this one. Doesn't change
+the document's real point (permission-awareness needs to be *complete*
+before "Teams" is a real, sellable tier, not just started), but the
+distance still remaining is smaller than the document implies.
+
+**Verified, not assumed: the "no due/scheduled time on tasks" claim
+still holds** — confirmed directly against the live code, unlike two
+other claims found stale in this same document earlier tonight. Worth
+noting precisely, since a document making several claims about current
+state deserves the same scrutiny as any other — this one earned its
+place in the ranking.
+
+**The tiers being one product, not three, and Enterprise being
+genuinely different (real per-tenant infrastructure, not a bigger
+plan)** is a real, precise architectural claim, directly consistent
+with the isolated-instance-per-business principle already settled
+multiple times in this project — not a new decision, an application of
+one already made.
+
+**The Excel/paper-not-Pastel positioning is a real, sharp finding,
+and it connects directly to the Succession Asset entry above rather
+than standing alone.** Together they describe the same shape of
+wedge from two angles: don't compete with Pastel on features (a fight
+on its home turf, not yet winnable), don't compete with succession
+consultants on formality (the mechanism is uncontested) — compete on
+being the thing that correctly captures what already happens, with
+zero added friction, which neither alternative was ever designed to
+do.
+
+**A real, concrete, currently-missing feature surfaced here, sharper
+than the earlier Succession Asset pin named it:** there is no actual
+ownership-transfer flow. Changing who holds owner-equivalent access on
+a real business, while preserving its full history, isn't a real
+product capability yet — only a blunt, debug-level delete-then-recreate
+of a membership row. Worth building deliberately before succession is
+ever sold as a promise rather than implied, exactly as this document
+says.
+
+**The vent-channel idea is worth taking seriously, and its own
+internal caution is exactly right, not a footnote to soften later.** A
+raw, personnel-sensitive rant ("that rep is USELESS again") must never
+surface verbatim to another session or a successor — only a counted,
+graduated pattern should ever become shared business memory. This is
+correctly named as a subtler instance of the subject-attribution
+failure-shape (pattern 2 in STATUS.md, recurred three times already,
+not a new problem class) — and it's the same reasoning already proven
+for Blindquip-style deterministic discovery: a single instance stays
+low-confidence by construction, a real pattern doesn't, and nothing
+about a rant's emotional intensity should be allowed to substitute for
+real, counted repetition.
+
+**Bulk historical ingestion sharpens something already true rather
+than introducing something new**: volume solves recurrence and
+proportion questions (what's normal, what's a supplier's real share)
+on day one instead of over years, but it does not and cannot solve
+*rationale* — only the live vent habit, accumulated and counted over
+real time, can ever answer "why do we buy from Floornet instead of
+Belgotex." Two different problems, both real, neither substitutes for
+the other. Directly connects to the `unpdf` finding surfaced the same
+session — a shoebox of scanned paper runs straight into exactly that
+gap.
+
+**The ranked feature candidates are a real, useful list, not a
+commitment** — due/scheduled time on tasks, pack-size/cut-list
+arithmetic (rightly called the highest-leverage of the untouched
+ideas, since it produces real structured data as a side effect of
+normal use rather than requiring anyone to narrate reasoning), receipt
+capture and a vehicle logbook, bulk import, and contact-at-an-entity
+(already pinned above, reordered here for its direct dependency
+relationship with rep-reputation tracking).
+
+**The one real adjustment this document makes to the discipline
+itself, worth stating plainly:** everything built so far was built for
+and tested by a single patient user against his own live system.
+That's about to meet an audience with no patience for architectural
+correctness and no context for why something is deliberately unbuilt.
+The discipline doesn't get abandoned — but the bar for what's allowed
+to jump the queue now has an external judge, not just Peter, and
+low-blast-radius utility (due dates, cut lists) is correctly named as
+what should move faster than reflective, institutional-memory features
+(rep reputation, succession tooling) — which can safely stay pinned
+for years without hurting anyone.
+
 ## Complete bug archive (full, unabridged history — see STATUS.md's Failure Shapes for the distilled patterns)
 
 **2026-07-08:**
