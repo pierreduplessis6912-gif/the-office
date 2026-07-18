@@ -67,6 +67,16 @@ export interface LineItemExtraction {
   quantity: number;
   unit: string | null;
   unit_price: number;
+  // Real feature 2026-07-17 — deliberately deferred until basic
+  // multi-line totaling was proven, which it now is (a real R9,000
+  // quotation, correctly calculated, confirmed live). A stated
+  // discount rate, extracted directly since recognizing "10% off"
+  // already said aloud is transcription, not arithmetic — the actual
+  // discounted total is always computed afterward, in code, never by
+  // the model. Optional, not required — line items built by other
+  // paths (the price_scope/work_observation pricing flow) have no
+  // discount concept at all and shouldn't be forced to set one.
+  discount_percent?: number | null;
 }
 
 export interface ScopePricingItem {
