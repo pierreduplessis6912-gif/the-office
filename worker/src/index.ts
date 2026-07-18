@@ -618,8 +618,20 @@ async function processOneExtraction(
           : canKnowDebtors
             ? await getOutstandingInvoices(env)
             : ["Outstanding balances exist for this business but are restricted for your role."];
-      const quotationFacts = topic === "invoices" || topic === "expenses" ? [] : await getQuotationsSummary(env);
-      const expenseFacts = topic === "quotations" || topic === "invoices" ? [] : await getExpenseSummary(env);
+      const canManageInvoicesHere = capabilities.includes("can_manage_invoices");
+      const canKnowMaterialsHere = capabilities.includes("can_know_materials");
+      const quotationFacts =
+        topic === "invoices" || topic === "expenses"
+          ? []
+          : canManageInvoicesHere
+            ? await getQuotationsSummary(env)
+            : ["Quotation activity exists for this business but is restricted for your role."];
+      const expenseFacts =
+        topic === "quotations" || topic === "invoices"
+          ? []
+          : canKnowMaterialsHere
+            ? await getExpenseSummary(env)
+            : ["Expense activity exists for this business but is restricted for your role."];
       // Real feature 2026-07-12: the combined snapshot (reading both
       // revenue and expenses) only for genuinely general questions —
       // a topic-specific follow-up about just quotations, just
@@ -680,18 +692,28 @@ async function processOneExtraction(
       // judgment about literal relevance — appended deterministically
       // after synthesis instead.
       const hrFacts = await getCharacterFacts(env, character.id);
+      // Real feature 2026-07-17 — extending Principle 26: job and
+      // installer activity gated behind can_know_jobs, which owner
+      // and installer both have but accountant deliberately doesn't.
+      // HR facts (role, skill, license) stay ungated for now — no
+      // established capability line exists for HR visibility
+      // specifically, and inventing one speculatively here would
+      // violate Principle 22's own discipline of not enumerating
+      // capabilities nobody has concretely needed yet.
+      const canKnowJobsHere = capabilities.includes("can_know_jobs");
       // Real feature 2026-07-12 — the first real answer to "how's
       // Sipho doing": if this character has ever been assigned as an
       // installer on a real job, that activity surfaces here too.
       // Real, honestly scoped — only jobs assigned and their real
       // scheduled dates, not completion status or margin, since
       // neither is tracked yet.
-      const installerActivity = await getInstallerActivity(env, character.id);
+      const installerActivity = canKnowJobsHere ? await getInstallerActivity(env, character.id) : [];
       const hasRealInstallerActivity = installerActivity[0] !== "No jobs assigned to this person yet.";
       const facts = [
         `${character.name} is a known contact.`,
         ...characterFacts,
         ...(hasRealInstallerActivity ? installerActivity : []),
+        ...(!canKnowJobsHere ? [`${character.name}'s job activity exists but is restricted for your role.`] : []),
       ];
       message = await answerFromMemory(env, transcript, facts);
       if (hrFacts.length > 0) {
@@ -699,7 +721,16 @@ async function processOneExtraction(
       }
     } else if (customer) {
       const memoryFacts = await getCustomerNotes(env, customer.id);
-      const financialSummary = await getCustomerFinancialSummary(env, customer.id);
+      // Real feature 2026-07-17 — extending Principle 26 to the
+      // customer-scope lookup, the most direct analog to the already-
+      // fixed business-wide financial lookup: same sensitivity
+      // (money, profitability), just scoped to one customer instead
+      // of the whole business. Same neutral-marker pattern — an
+      // honest refusal naming what's restricted, never a silent
+      // omission that reads as "I don't know."
+      const canKnowDebtorsHere = capabilities.includes("can_know_debtors");
+      const canKnowProfitHere = capabilities.includes("can_know_profit");
+      const financialSummary = canKnowDebtorsHere ? await getCustomerFinancialSummary(env, customer.id) : null;
       // Real feature 2026-07-12 — the real payoff of job-cost linking:
       // if any expenses were ever explicitly linked to this customer's
       // job, this surfaces real profitability alongside the balance.
@@ -707,11 +738,13 @@ async function processOneExtraction(
       // after synthesis, never handed to the model as a droppable
       // fact — it was reliably stripped out twice in a row when it
       // was.
-      const profitability = await getJobProfitability(env, customer.id);
+      const profitability = canKnowProfitHere ? await getJobProfitability(env, customer.id) : null;
       const facts = [
         `${customer.name} is a known customer.`,
         ...(financialSummary ? [`${customer.name}: ${financialSummary}`] : []),
+        ...(!canKnowDebtorsHere ? [`${customer.name}'s financial balance exists but is restricted for your role.`] : []),
         ...(profitability ? [`Job profitability for ${customer.name}: ${profitability.fact}`] : []),
+        ...(!canKnowProfitHere ? [`Job profitability for ${customer.name} exists but is restricted for your role.`] : []),
         ...memoryFacts,
       ];
       message = await answerFromMemory(env, transcript, facts);
