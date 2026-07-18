@@ -92,9 +92,9 @@ export async function recordInvoice(
 
   for (const item of lineItems) {
     await env.OFFICE_DB.prepare(
-      "INSERT INTO line_items (invoice_id, description, note, quantity, unit, unit_price, line_total) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO line_items (invoice_id, description, note, quantity, unit, unit_price, line_total, discount_percent) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
     )
-      .bind(invoiceId, item.description, item.note, item.quantity, item.unit, item.unit_price, item.line_total)
+      .bind(invoiceId, item.description, item.note, item.quantity, item.unit, item.unit_price, item.line_total, item.discount_percent ?? null)
       .run();
   }
 
@@ -119,9 +119,9 @@ export async function recordQuotation(
 
   for (const item of lineItems) {
     await env.OFFICE_DB.prepare(
-      "INSERT INTO line_items (quotation_id, description, note, quantity, unit, unit_price, line_total) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO line_items (quotation_id, description, note, quantity, unit, unit_price, line_total, discount_percent) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
     )
-      .bind(quotationId, item.description, item.note, item.quantity, item.unit, item.unit_price, item.line_total)
+      .bind(quotationId, item.description, item.note, item.quantity, item.unit, item.unit_price, item.line_total, item.discount_percent ?? null)
       .run();
   }
 
@@ -731,10 +731,10 @@ export async function generateDocumentPdf(env: Env, id: number, kind: "invoice" 
   }
 
   const { results: lineItems } = await env.OFFICE_DB.prepare(
-    `SELECT description, quantity, unit_price, line_total FROM line_items WHERE ${lineItemColumn} = ?`
+    `SELECT description, quantity, unit_price, line_total, discount_percent FROM line_items WHERE ${lineItemColumn} = ?`
   )
     .bind(id)
-    .all<{ description: string; quantity: number; unit_price: number; line_total: number }>();
+    .all<{ description: string; quantity: number; unit_price: number; line_total: number; discount_percent: number | null }>();
 
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([595.28, 841.89]); // A4
@@ -799,7 +799,13 @@ export async function generateDocumentPdf(env: Env, id: number, kind: "invoice" 
 
   let subtotal = 0;
   for (const item of lineItems) {
-    page.drawText(item.description, { x: left, y, size: 10, font, maxWidth: 270 });
+    // Real feature 2026-07-17: shown as a clear annotation next to
+    // the description rather than a new column, to avoid reworking
+    // the whole layout's fixed column positions for what's still a
+    // relatively rare case.
+    const descriptionWithDiscount =
+      item.discount_percent != null ? `${item.description} (${item.discount_percent}% off)` : item.description;
+    page.drawText(descriptionWithDiscount, { x: left, y, size: 10, font, maxWidth: 270 });
     page.drawText(String(item.quantity), { x: 340, y, size: 10, font });
     page.drawText(`R${item.unit_price.toLocaleString()}`, { x: 400, y, size: 10, font });
     page.drawText(`R${item.line_total.toLocaleString()}`, { x: 480, y, size: 10, font });
