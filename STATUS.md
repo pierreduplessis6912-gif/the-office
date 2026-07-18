@@ -514,12 +514,13 @@ Codemagic — still only proven on the web preview.**
   native "doors" this pivot depends on already exist independently of
   WhatsApp — file upload (`/files/document`), photo capture
   (`/files/photo`), and document display (the real quotation/invoice
-  PDF routes). What's still missing: the actual Share Sheet
-  in/out wiring on the Android side (native, not backend — out of
-  scope for backend-only work), and a real "prepare a WhatsApp-ready
-  message" generator for a confirmed quotation/invoice (backend,
-  genuinely missing — the confirm response returns the raw record and
-  `pdfUrl` today, not the actual text a human would send).
+  PDF routes). **Correcting a stale claim found 2026-07-17:** the
+  WhatsApp-ready message generator is not missing — `buildDocumentResponse`
+  already produces a real `shareMessage` on every quotation and invoice
+  confirmation, verified directly in the code across all three confirm
+  paths. What's genuinely still missing is only the Android-side Share
+  Sheet in/out wiring itself (native, out of scope for backend-only
+  work).
 - **GPS/location customer detection:** proven *possible* — D1
   genuinely supports the trig functions needed for real Haversine
   distance math (verified live), and TenderLogix already has
