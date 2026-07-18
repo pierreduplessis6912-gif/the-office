@@ -39,9 +39,13 @@ archived bug history behind that conclusion.
   separate deployment is designed (a real GitHub Actions provisioning
   workflow, `wrangler`-based) but not yet built; this remains the
   current sandbox, used for continued testing.
-- Retry safety exists only on `/messages/text` — the two voice-input
-  callers of `processTranscript` still use the default, unprotected
-  path.
+- **Principle 26 now covers the real, live voice-upload endpoint too**
+  (2026-07-17) — `resolveCapabilities` wired in, matching
+  `/messages/text` exactly. `/debug/reprocess` deliberately left on
+  the default — a debugging tool, not a real production entry point.
+  **Retry safety is a separate, different concern, and it's still
+  genuinely open for voice input** — neither voice-upload route
+  accepts an idempotency key yet, unlike `/messages/text`.
 
 **Constitution principles cited below, indexed for a reader who only
 has this file:** 1 (deterministic-first), 2 (low-stakes AI judgment is
@@ -526,10 +530,16 @@ Codemagic — still only proven on the web preview.**
   distance math (verified live), and TenderLogix already has
   substantial, reusable Google Places integration — but raw-GPS-to-
   address reverse geocoding specifically is not built anywhere yet.
-- **Invoice line items:** no `discount_percent` field yet (deliberately
-  deferred — prove basic multi-line totaling first, which is now
-  proven). No per-invoice VAT override (only a business-wide toggle
-  exists). No retention field.
+- **Invoice line items now support a real, deterministic per-line
+  discount** (2026-07-17) — `discount_percent`, extracted directly
+  (transcription, not arithmetic), the actual discounted total always
+  computed in code. Proven live end to end: a stated "10 percent off"
+  on an R8000 line item produced a real, correctly-calculated R7,200
+  quotation, verified directly against the raw stored payload, not
+  just the summary message. Shown on generated PDFs as a clear
+  annotation next to the description. Still genuinely missing: no
+  per-invoice VAT override (only a business-wide toggle exists), no
+  retention field.
 - **PDF:** text-only, no business logo embedded yet.
 - **Weekly/periodic briefing:** deliberately NOT built as a
   cron-generated pre-computed snapshot — identified as unearned
