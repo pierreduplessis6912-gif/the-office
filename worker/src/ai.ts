@@ -87,7 +87,13 @@ export async function splitIntoTopics(env: Env, transcript: string): Promise<str
               "one is three by two\" was wrongly split into two pieces at the word \"and\", separating a " +
               "measurement from the job observation it's actually part of — a room name and its " +
               "dimensions belong to the SAME observation as who's doing the measuring, never a separate " +
-              "topic, no matter how the sentence is joined. If the whole message is about ONE topic, " +
+              "topic, no matter how the sentence is joined. A clause using a pronoun (\"that\", \"it\", " +
+              "\"this\") to refer back to something just stated is NEVER its own topic either — it's a " +
+              "continuation of the thing it refers to, always kept in the same segment. Real bug found " +
+              "live 2026-07-17: \"Quote for Jenny — supply and fit vinyl for R8000, give her 10 percent " +
+              "off that\" was wrongly split at the comma, separating a discount from the exact price it " +
+              "modifies — \"that\" refers directly to the R8000 quote just stated, so the whole thing " +
+              "stays one segment, never two. If the whole message is about ONE topic, " +
               "return it as a single segment, unchanged. Rewrite a segment only to carry over context it " +
               "would otherwise lose by being separated (e.g. an implied subject) — never add information " +
               "that wasn't actually stated. Return ONLY a JSON array of strings.\n\n" +
@@ -100,7 +106,9 @@ export async function splitIntoTopics(env: Env, transcript: string): Promise<str
               '"Sipho is measuring the hospital and theatre one is three by two" -> ["Sipho is ' +
               'measuring the hospital and theatre one is three by two"]\n' +
               '"bought glue for R850 at BUCO" -> ["bought glue for R850 at BUCO"]\n' +
-              '"Jenny paid R500" -> ["Jenny paid R500"]',
+              '"Jenny paid R500" -> ["Jenny paid R500"]\n' +
+              '"Quote for Jenny - supply and fit vinyl for R8000, give her 10 percent off that" -> ' +
+              '["Quote for Jenny - supply and fit vinyl for R8000, give her 10 percent off that"]',
           },
           { role: "user", content: transcript },
         ],
