@@ -1806,3 +1806,28 @@ to produce, every time.
     same discipline as always — the leak was found by testing the real
     thing, not assumed fixed once the primary gate was in place.
 
+40. **A pronoun-continuation clause wrongly treated as its own topic.**
+    Found while testing the newly-built line-item discount feature —
+    "Quote for Jenny - supply and fit vinyl for R8000, give her 10
+    percent off that" produced a real quotation for the full R8000,
+    the discount silently missing. Checking the actual stored
+    `source_transcript` on the pending action revealed why: the
+    discount clause was never part of it at all. `splitIntoTopics`
+    had separated "give her 10 percent off that" into its own segment,
+    which classified as a generic "note" and vanished with no
+    connection to the quotation it was meant to modify — the pending
+    action's own stored payload was the direct evidence, not a guess.
+    The same underlying shape as bug #36 (over-splitting on "and"),
+    but a different linguistic trigger: a pronoun ("that") referring
+    directly back to something just stated is exactly as strong a
+    continuation signal as "and," and the splitter had no rule
+    covering it. Fixed with an explicit rule and a real worked example
+    in the splitting prompt. Verified twice — `/debug/split-topics`
+    directly confirmed the clause now stays attached, and the full
+    end-to-end flow produced a correct R7,200 quotation, itself
+    verified against the raw stored `discount_percent` and
+    `line_total` on the pending action, not just the summary message.
+    The discount feature itself was correct throughout; it simply
+    never received the information it needed until segmentation was
+    fixed first.
+
