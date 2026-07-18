@@ -305,7 +305,12 @@ async function processOneExtraction(
       // the model. Same discipline as every rand figure all day.
       quotationLineItems = rawLineItems.map((item) => ({
         ...item,
-        line_total: item.quantity * item.unit_price,
+        // Real feature 2026-07-17 (Constitution Principle 1): a
+        // stated discount is applied here, deterministically — the
+        // only arithmetic happening is a real percentage reduction on
+        // a real, already-known subtotal, never asked of the model.
+        line_total:
+          item.quantity * item.unit_price * (1 - (item.discount_percent ?? 0) / 100),
       }));
     }
 
@@ -1278,6 +1283,20 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ status: "ok" });
     }
 
+    // Real feature 2026-07-17 (Constitution Principle 28's own
+    // sequencing) — deliberately deferred until basic multi-line
+    // totaling was proven correct, which it now is. SQLite has no
+    // ADD COLUMN IF NOT EXISTS, so this is wrapped to stay safe to
+    // re-run rather than fail if it's ever called twice.
+    if (url.pathname === "/debug/init-discount-column" && request.method === "POST") {
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE line_items ADD COLUMN discount_percent REAL").run();
+        return Response.json({ status: "ok", added: true });
+      } catch (err) {
+        return Response.json({ status: "ok", added: false, note: "column likely already exists", detail: err instanceof Error ? err.message : String(err) });
+      }
+    }
+
     if (url.pathname === "/debug/memberships" && request.method === "GET") {
       const { results } = await env.OFFICE_DB.prepare("SELECT * FROM memberships ORDER BY created_at DESC").all();
       const enriched = results.map((m) => ({ ...m, capabilities: ROLE_CAPABILITIES[String(m.role)] ?? [] }));
@@ -2181,7 +2200,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       const enriched = await Promise.all(
         (quotes as Array<{ id: number }>).map(async (quote) => {
           const { results: lineItems } = await env.OFFICE_DB.prepare(
-            "SELECT description, note, quantity, unit, unit_price, line_total FROM line_items WHERE quotation_id = ?"
+            "SELECT description, note, quantity, unit, unit_price, line_total, discount_percent FROM line_items WHERE quotation_id = ?"
           )
             .bind(quote.id)
             .all();
@@ -2200,7 +2219,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       const enriched = await Promise.all(
         (invoices as Array<{ id: number }>).map(async (invoice) => {
           const { results: lineItems } = await env.OFFICE_DB.prepare(
-            "SELECT description, note, quantity, unit, unit_price, line_total FROM line_items WHERE invoice_id = ?"
+            "SELECT description, note, quantity, unit, unit_price, line_total, discount_percent FROM line_items WHERE invoice_id = ?"
           )
             .bind(invoice.id)
             .all();
