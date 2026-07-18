@@ -535,16 +535,21 @@ Codemagic — still only proven on the web preview.**
   cron-generated pre-computed snapshot — identified as unearned
   complexity. The "smallest honest version" (on-demand personal/
   business lookup, computed live) is what exists.
-- **Tasks have no link to a real customer or character** — pure text,
-  no FK, unlike `captures` which got exactly this fix 2026-07-11. Named
-  live by the ember-bar UX design: a `[Call]` action button on a task
-  ("call Sarah about invoice") needs a real phone number to call, which
-  means the task needs a real link to Sarah's actual record. Not built
-  — the ember bar itself only shows real counts and a real list today,
-  no per-item actions yet.
+- **Correcting a significant stale claim found 2026-07-17: tasks
+  already have a real link to customer/character, fully built and
+  working end to end, not missing.** `createTask` accepts and stores
+  real `customer_id`/`character_id` (same one-of-the-two-never-both
+  pattern already proven for `captures`), populated with the real,
+  reconciled IDs at creation time — verified directly in the code, not
+  assumed. `getOpenTasks` returns both fields on read. What's
+  genuinely still missing, and the only real gap here: the ember bar's
+  own UI only shows counts and a plain list today — no per-item
+  `[Call]` action exists to actually *use* the link that's already
+  there. The backend prerequisite this action needs has existed since
+  2026-07-11; only the UI action itself was ever missing.
 - **Tasks have no due/scheduled time at all**, only open/done. A
   `[Reschedule]` action on a task needs exactly the due-time concept
-  the full scheduler (pinned, not built — see Pinned Ideas) would add.
+  the full scheduler (pinned, not built — see DECISIONS.md) would add.
   Deliberately not smuggled in early just to make one ember-bar button
   real.
 - **No weather integration** — a completely new kind of gap versus
