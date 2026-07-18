@@ -192,6 +192,29 @@ async function processOneExtraction(
     ctx.waitUntil(updateCaptureHint(env, captureId, hint, customer?.id ?? null, character?.id ?? null));
   }
 
+  // Real feature 2026-07-17 — extending Principle 26 to the write
+  // side, not just reads. Everything gated so far this session
+  // controlled who can SEE existing financial data; nothing yet
+  // controlled who can CREATE it. can_manage_invoices already exists
+  // specifically to distinguish who manages financial documents
+  // (Owner and Accountant have it, Installer doesn't) — the natural,
+  // already-established capability to gate this with, not a new
+  // policy invented on the spot. A restricted role gets an honest,
+  // clear refusal instead of silently being allowed to trigger a real
+  // financial write that only Peter's own confirmation happens to
+  // catch later.
+  const canManageInvoicesForWrites = capabilities.includes("can_manage_invoices");
+  const FINANCIAL_WRITE_INTENTS = ["payment", "expense", "invoice", "quotation", "price_scope", "convert_quote"];
+  if (FINANCIAL_WRITE_INTENTS.includes(extraction?.intent ?? "") && !canManageInvoicesForWrites) {
+    return {
+      customer,
+      character,
+      pendingActionId: null,
+      factPendingActionId: null,
+      message: "Recording payments, invoices, quotations, or expenses isn't available for your role — let someone with that permission know.",
+    };
+  }
+
   if (extraction?.intent === "payment" && customer) {
     const held = await holdForConfirmation(
       env,
@@ -390,7 +413,10 @@ async function processOneExtraction(
     // component areas, reusing the exact same, already-proven
     // extraction and quotation-building logic the price_scope path
     // already uses below — not a parallel, duplicated implementation.
-    if (customer) {
+    // Gated the same as every other financial write: the measurement
+    // itself still records regardless of role, but the nested
+    // quotation this pricing produces requires can_manage_invoices.
+    if (customer && canManageInvoicesForWrites) {
       const pricedItems = await extractScopePricing(env, transcript, recorded.computedComponents, observation.tasks);
       if (pricedItems.length > 0) {
         const lineItems = buildQuotationLineItems(pricedItems, recorded.computedComponents);
