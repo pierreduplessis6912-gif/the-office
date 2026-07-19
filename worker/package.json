@@ -4,6 +4,6 @@
   "dependencies": {
     "pdf-lib": "^1.17.1",
     "libphonenumber-js": "^1.11.9",
-    "unpdf": "^1.6.2"
+    "pdfjs-serverless": "^1.2.3"
   }
 }
