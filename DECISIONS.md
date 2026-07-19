@@ -2148,12 +2148,37 @@ foundation is real would be building relationship on top of truth that
 doesn't exist yet, precisely what Principle 28 already named as the
 wrong order.
 
+**Real correction, made the same session, on the record rather than
+silently fixed:** point 1 below originally framed job-material remnants
+as a rare edge case worth explicitly excluding. A real, concrete
+example corrected that — a PO for 50m² vinyl, a 100m² roll of underlay,
+and 10 lengths of skirting, against a real invoice for 50m² vinyl,
+50m² underlay, and 8 skirtings. That excess (50m² underlay, 2
+skirting lengths) isn't a rare remainder — it's a near-certain,
+structural byproduct of how ordering actually works: materials come in
+fixed pack sizes (a full roll, a bundle of lengths), and a specific
+job's real need almost never matches that round quantity exactly.
+"Job-specific material is fully consumed by the job it's ordered for"
+was the wrong assumption underneath the original design above — the
+excess has to live somewhere, meaning it becomes real stock the moment
+a PO's ordered quantity is reconciled against what a job's real
+invoice/usage actually consumed. **This is the same real phenomenon
+already named, from a different angle, in the go-to-market document's
+ranked feature candidates** — "pack-size rounding arithmetic and cut
+lists" was already called the single highest-leverage untouched idea
+there, precisely because it forces this exact structured data (roll
+width, wastage, pack efficiency) into the system as a byproduct of
+normal ordering, not something anyone narrates on purpose. Two
+separate threads finding the same real thing from different
+directions — worth trusting precisely because it wasn't found once.
+
 **Real, open questions, deliberately not decided here:**
-1. Does job-specific material ever produce a real remnant worth
-   tracking (an offcut of carpet from one job usable on a smaller
-   future one)? Genuinely harder and lower-value than consumables
-   tracking — worth deciding explicitly to exclude, not silently
-   scope-creeping into it later.
+1. Given the correction above, job-specific material *does* need a
+   real remnant-tracking path — not excluded, but the real mechanics
+   (how a PO's ordered quantity minus an invoice's actual consumed
+   quantity becomes a genuine stock increment, tied back to which pack
+   size it came from) are a real design task of their own, not yet
+   worked out here.
 2. Does a stocktake variance ever become a Heartbeat/Pulse observation
    (unexplained shrinkage worth flagging), the same open question
    already named for PO/GRN discrepancies above? Same answer likely
