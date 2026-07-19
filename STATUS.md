@@ -541,7 +541,22 @@ Codemagic — still only proven on the web preview.**
   annotation next to the description. Still genuinely missing: no
   per-invoice VAT override (only a business-wide toggle exists), no
   retention field.
-- **PDF:** text-only, no business logo embedded yet.
+- **PDF text extraction is now real and proven live** (2026-07-19) —
+  `pdfjs-serverless`, real text pulled directly out of a real PDF
+  (Office's own generated quotation, round-tripped: downloaded,
+  re-uploaded, extracted correctly). A real, live runtime failure was
+  found and fixed along the way: `unpdf`'s own convenience wrapper
+  type-checked and bundled cleanly but failed at actual runtime with a
+  bundle-resolution error — a genuinely runtime-only failure no local
+  verification could have caught. Fixed by switching to the lower-
+  level, zero-dependency package `unpdf` itself wraps, avoiding
+  whatever dynamic resolution step was failing. A genuine parse
+  failure and a scanned PDF with no real text layer are handled as two
+  distinct, honest outcomes. **PDF generation itself:** still
+  text-only, no business logo embedded yet — and the extraction test
+  incidentally surfaced a small, separate, real gap: generated PDFs
+  currently show "[Business name not set]" since no business name is
+  configured anywhere yet.
 - **Weekly/periodic briefing:** deliberately NOT built as a
   cron-generated pre-computed snapshot — identified as unearned
   complexity. The "smallest honest version" (on-demand personal/
