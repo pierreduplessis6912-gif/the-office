@@ -1929,3 +1929,24 @@ to produce, every time.
     never received the information it needed until segmentation was
     fixed first.
 
+41. **A third-party dependency type-checked and bundled cleanly, then
+    failed at actual runtime.** Building PDF text extraction: `unpdf`
+    installed cleanly, its real API was verified directly (installed
+    locally, inspected the actual type definitions rather than
+    guessed), and `tsc` found zero errors. Deployed successfully.
+    Uploading a real PDF failed anyway — "Serverless PDF.js bundle
+    could not be resolved: TypeError: Object.defineProperty called on
+    non-object" — a failure specific to `unpdf`'s own internal dynamic
+    resolution of which PDF.js build to use, only reachable at actual
+    runtime inside the real Workers sandbox, invisible to local
+    type-checking or bundling. Fixed by switching to `pdfjs-serverless`
+    directly — the lower-level, zero-dependency package `unpdf` itself
+    wraps — avoiding whatever dynamic resolution step was failing.
+    Verified live: real, correct text extracted from a real PDF
+    (Office's own generated quotation, round-tripped through upload
+    and extraction). The same underlying principle as bug 37/38
+    (verify against live reality, don't assume from what compiles) —
+    applied here to a third-party dependency's actual runtime behavior
+    rather than the project's own schema, a genuinely broader instance
+    of the same failure shape.
+
