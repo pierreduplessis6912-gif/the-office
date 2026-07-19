@@ -2220,24 +2220,48 @@ third-party visualization platform, and the button on the page calls
 
 **Sharper still: both Finfloor and Azura actively encourage flooring
 *contractors* — not just their own retail sites — to embed their
-licensed visualizer on the contractor's own website.** This isn't just
-"manufacturers license rather than build" (already a strong signal on
-its own) — it's active downstream distribution to exactly the kind of
-business this project is built for. A real, practical, near-term
-opportunity worth acting on independent of anything here: Zululand
-Flooring likely already qualifies for one of these, free or near-free,
-through its existing supplier relationships.
+licensed visualizer on the contractor's own website.** A real,
+practical, near-term opportunity worth acting on independent of
+anything here: Zululand Flooring likely already qualifies for one of
+these, free or near-free, through its existing supplier relationships.
 
-**The real, evidence-based conclusion for Office, replacing the earlier
-speculative one:** there's no real gap here for Office to fill, not
-even as an integration. The tool a contractor's customer would use
-already exists, is already free or near-free to the contractor, and is
-already tied to the specific products that contractor actually sells
-through their supplier relationship. Building or integrating a
-visualizer into Office would be solving an already-solved problem —
-exactly what Principle 12 already warns against. Office stays
-disciplined about what it actually is: a trusted record of what
-happened, not a customer-facing image generator competing with tools
-that are already good at that specific job and already reach the
-people who'd use them.
+**A real correction to the reasoning, made the same session — the
+original conclusion had the wrong justification underneath it.** The
+actual point being made wasn't "contractors already have their own
+websites to embed this on." Many don't — a real, common case, not an
+edge one. The actual goal is sharper on-site decisions, standing in the
+customer's room, with no website involved on either side. That's a
+different, better question, and it changes what's worth checking.
 
+**Checked directly, honestly, rather than assumed either way: no
+confirmed evidence exists that Roomvo (or similar platforms) offers a
+real API for a third-party *app* to integrate with directly.** Their
+actual integrations are website/e-commerce platforms (Shopify,
+Magento) — their product is fundamentally a website-embed tool, not an
+API-first service for someone else's app to call. Worth being honest
+about this as a real limitation rather than assuming integration is
+possible just because the capability exists somewhere.
+
+**But the underlying goal doesn't need that API at all — a much
+simpler answer already exists.** Finfloor's and Azura's visualizers are
+public web tools. A contractor standing in a customer's room, with no
+website of their own, can simply open `finfloor.co.za` or `azura.co.za`
+directly in a phone's browser and use the real, working visualizer
+immediately. No integration, no API, no building required. The "no
+website" problem was never actually a blocker for the on-site case —
+it would only have been one if the visualizer only lived embedded on
+some other contractor's own site, which isn't how these tools actually
+work.
+
+**The real, evidence-based conclusion for Office, and the honest reason
+behind it — not the one first written:** not "no gap because everyone
+has a website," but "no gap because the supplier's own public tool
+already serves exactly the on-site, standing-in-the-room case, on the
+same phone Office already lives on, and no confirmed path exists to
+fold that capability into Office even if it seemed worth attempting."
+Building a visualizer from scratch would still be solving an
+already-solved problem — exactly what Principle 12 warns against.
+Office stays disciplined about what it actually is: a trusted record of
+what happened, not a customer-facing image generator competing with
+tools that already reach the people who'd use them, on the device
+they'd already be using them from.
