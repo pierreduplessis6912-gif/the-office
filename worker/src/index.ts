@@ -4,7 +4,7 @@ import { findExistingCharacterByName, findExistingCustomerByName, findExistingEn
 import { completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
 import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedDebtorsSummary, getCustomerFinancialSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOutstandingInvoices, getProfitAndLossSummary, getQuotationsSummary, holdForConfirmation, recordExpense, recordInvoice, recordPayment, recordQuotation } from "./finance";
-import { extractText } from "unpdf";
+import { resolvePDFJS } from "pdfjs-serverless";
 
 // Second layer of defense against storing questions as facts — never
 // trust intent classification alone for this, since it's been
@@ -2595,20 +2595,28 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         const base64 = arrayBufferToBase64(docBuffer);
         description = await describeImage(env, base64, mimeType);
       } else if (isPdf) {
-        // Real feature 2026-07-19 — the "not yet extracted" placeholder
-        // this replaces was honest at the time; unpdf (verified
-        // directly, confirmed working in Cloudflare Workers via
-        // Cloudflare's own official documentation using this exact
-        // library for this exact use case) closes the gap. Two
-        // genuinely different failure modes handled distinctly: a
-        // real parse failure (corrupted file) versus a PDF that
-        // parses fine but has no real text layer at all (a scanned
-        // document with no OCR) — the second isn't an error, it's an
-        // honest, different limitation worth naming precisely rather
-        // than reporting as a generic failure.
+        // Real feature 2026-07-19 — replacing unpdf's own wrapper,
+        // which failed at runtime with "Serverless PDF.js bundle
+        // could not be resolved" despite type-checking and bundling
+        // cleanly — a genuinely runtime-only failure that local
+        // type-checking couldn't have caught. Using pdfjs-serverless
+        // directly instead, the lower-level package unpdf itself
+        // wraps, avoiding whatever dynamic resolution step inside
+        // unpdf's own layer was failing. Two genuinely different
+        // failure modes handled distinctly: a real parse failure
+        // (corrupted file) versus a PDF that parses fine but has no
+        // real text layer at all (a scanned document with no OCR).
         try {
-          const { text } = await extractText(docBuffer, { mergePages: true });
-          const trimmed = text.trim();
+          const { getDocument } = await resolvePDFJS();
+          const doc = await getDocument({ data: new Uint8Array(docBuffer) }).promise;
+          const pageTexts: string[] = [];
+          for (let i = 1; i <= doc.numPages; i++) {
+            const page = await doc.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map((item) => ("str" in item ? item.str : "")).join(" ");
+            pageTexts.push(pageText);
+          }
+          const trimmed = pageTexts.join("\n").trim();
           description =
             trimmed.length > 0
               ? trimmed
