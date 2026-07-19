@@ -21,6 +21,12 @@ unabridged bug history — see [`DECISIONS.md`](./DECISIONS.md). Split
 out from `STATUS.md` on 2026-07-17 because it decays far slower and
 was competing with current-state reference for a reader's attention.**
 
+**For a real, grounded map of what the system actually does — by
+department, with real inputs and outputs for each — see
+[`FEATURES.md`](./FEATURES.md). Framed explicitly as a lens for
+reading, not a claim about internal architecture (see Constitution
+Principle 27).**
+
 ## Original build order (completed)
 
 1. ~~Shell screen~~ — done.
