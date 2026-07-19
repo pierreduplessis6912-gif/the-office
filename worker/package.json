@@ -3,6 +3,7 @@
   "private": true,
   "dependencies": {
     "pdf-lib": "^1.17.1",
-    "libphonenumber-js": "^1.11.9"
+    "libphonenumber-js": "^1.11.9",
+    "unpdf": "^1.6.2"
   }
 }
