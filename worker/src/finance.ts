@@ -9,7 +9,18 @@ import type { Env, LineItemExtraction, LineItemWithTotal } from "./types";
 import { setSelection } from "./identity";
 import { classifyExpenseCategory } from "./ai";
 
-
+// Real fix found live 2026-07-19, testing reports against real data
+// (Constitution Principle 28's own discipline, applied to presentation
+// rather than calculation): a negative amount was rendering as
+// "R-500" — the minus sign landing after the currency symbol, reading
+// like a typo, not a real credit. Every currency figure on every
+// generated PDF goes through this one helper now, so a negative value
+// anywhere always reads correctly, not just wherever this was first
+// found.
+function formatRand(amount: number): string {
+  const sign = amount < 0 ? "-" : "";
+  return `${sign}R${Math.abs(amount).toLocaleString()}`;
+}
 
 // The actual real ground-truth write. Only ever called from the
 // confirm endpoint — never directly from the message pipeline. That's
@@ -656,7 +667,7 @@ export async function generateShareMessage(
   const businessName = business?.trading_as ?? business?.name ?? "us";
   const firstName = customerName.trim().split(/\s+/)[0];
   const label = kind === "invoice" ? "invoice" : "quote";
-  return `Hi ${firstName}, here's your ${label} from ${businessName} — R${amount.toLocaleString()}. View it here: ${pdfUrl}`;
+  return `Hi ${firstName}, here's your ${label} from ${businessName} — ${formatRand(amount)}. View it here: ${pdfUrl}`;
 }
 
 // Principle 21's explicitly-legitimate exception, not a step toward
@@ -683,7 +694,7 @@ export async function buildDocumentResponse(
 ): Promise<{ pdfUrl: string; shareMessage: string | null }> {
   const pdfUrl = `${origin}/${kind}s/${documentId}/pdf`;
   const shareMessage = customerName ? await generateShareMessage(env, kind, customerName, amount, pdfUrl) : null;
-  const label = customerName ? `${kind} for ${customerName} (R${amount.toLocaleString()})` : `${kind} (R${amount.toLocaleString()})`;
+  const label = customerName ? `${kind} for ${customerName} (${formatRand(amount)})` : `${kind} (${formatRand(amount)})`;
   await setSelection(env, kind, documentId, label);
   return { pdfUrl, shareMessage };
 }
@@ -807,8 +818,8 @@ export async function generateDocumentPdf(env: Env, id: number, kind: "invoice" 
       item.discount_percent != null ? `${item.description} (${item.discount_percent}% off)` : item.description;
     page.drawText(descriptionWithDiscount, { x: left, y, size: 10, font, maxWidth: 270 });
     page.drawText(String(item.quantity), { x: 340, y, size: 10, font });
-    page.drawText(`R${item.unit_price.toLocaleString()}`, { x: 400, y, size: 10, font });
-    page.drawText(`R${item.line_total.toLocaleString()}`, { x: 480, y, size: 10, font });
+    page.drawText(`${formatRand(item.unit_price)}`, { x: 400, y, size: 10, font });
+    page.drawText(`${formatRand(item.line_total)}`, { x: 480, y, size: 10, font });
     subtotal += item.line_total;
     y -= 22;
   }
@@ -817,7 +828,7 @@ export async function generateDocumentPdf(env: Env, id: number, kind: "invoice" 
   page.drawLine({ start: { x: 380, y: y + 12 }, end: { x: 545, y: y + 12 }, thickness: 0.5, color: grey });
 
   page.drawText("SUBTOTAL", { x: 400, y, size: 10, font: bold });
-  page.drawText(`R${subtotal.toLocaleString()}`, { x: 480, y, size: 10, font });
+  page.drawText(`${formatRand(subtotal)}`, { x: 480, y, size: 10, font });
   y -= 16;
 
   let vatAmount = 0;
@@ -949,16 +960,23 @@ export async function generateStatementPdf(env: Env, customerId: number): Promis
     const signedAmount = line.type === "invoice" ? line.amount : -line.amount;
     page.drawText(dateOnly, { x: left, y, size: 9, font });
     page.drawText(line.description, { x: 130, y, size: 9, font, maxWidth: 280 });
-    page.drawText(`R${signedAmount.toLocaleString()}`, { x: 420, y, size: 9, font });
-    page.drawText(`R${line.runningBalance.toLocaleString()}`, { x: 490, y, size: 9, font, color: black });
+    page.drawText(`${formatRand(signedAmount)}`, { x: 420, y, size: 9, font });
+    page.drawText(`${formatRand(line.runningBalance)}`, { x: 490, y, size: 9, font, color: black });
     y -= 20;
   }
 
   y -= 10;
   page.drawLine({ start: { x: 420, y: y + 12 }, end: { x: 545, y: y + 12 }, thickness: 0.5, color: grey });
   const closingBalance = lines.length > 0 ? lines[lines.length - 1].runningBalance : 0;
-  page.drawText("BALANCE DUE", { x: 420, y, size: 11, font: bold });
-  page.drawText(`R${closingBalance.toLocaleString()}`, { x: 490, y, size: 11, font: bold, color: black });
+  // Real fix found live 2026-07-19, testing this report against real
+  // data: "BALANCE DUE" is nonsensical when the figure is negative —
+  // a customer can't be "due" a negative amount. When payments exceed
+  // invoiced amounts, that's a real credit, stated plainly, showing
+  // the absolute value rather than a confusing negative under a label
+  // that assumes the opposite case.
+  const isCredit = closingBalance < 0;
+  page.drawText(isCredit ? "CREDIT BALANCE" : "BALANCE DUE", { x: 420, y, size: 11, font: bold });
+  page.drawText(`${formatRand(Math.abs(closingBalance))}`, { x: 490, y, size: 11, font: bold, color: black });
 
   return await pdfDoc.save();
 }
@@ -1033,11 +1051,11 @@ export async function generateAgedDebtorsPdf(env: Env): Promise<Uint8Array> {
       drawHeader();
     }
     page.drawText(row.customerName, { x: left, y, size: 9, font, maxWidth: 175 });
-    page.drawText(`R${row.current.toLocaleString()}`, { x: 230, y, size: 9, font });
-    page.drawText(`R${row.days30.toLocaleString()}`, { x: 300, y, size: 9, font });
-    page.drawText(`R${row.days60.toLocaleString()}`, { x: 360, y, size: 9, font });
-    page.drawText(`R${row.days90Plus.toLocaleString()}`, { x: 420, y, size: 9, font });
-    page.drawText(`R${row.total.toLocaleString()}`, { x: 480, y, size: 9, font: bold, color: black });
+    page.drawText(`${formatRand(row.current)}`, { x: 230, y, size: 9, font });
+    page.drawText(`${formatRand(row.days30)}`, { x: 300, y, size: 9, font });
+    page.drawText(`${formatRand(row.days60)}`, { x: 360, y, size: 9, font });
+    page.drawText(`${formatRand(row.days90Plus)}`, { x: 420, y, size: 9, font });
+    page.drawText(`${formatRand(row.total)}`, { x: 480, y, size: 9, font: bold, color: black });
     y -= 20;
 
     totals.current += row.current;
@@ -1050,11 +1068,11 @@ export async function generateAgedDebtorsPdf(env: Env): Promise<Uint8Array> {
   y -= 8;
   page.drawLine({ start: { x: left, y: y + 12 }, end: { x: 545, y: y + 12 }, thickness: 0.5, color: grey });
   page.drawText("TOTAL", { x: left, y, size: 10, font: bold });
-  page.drawText(`R${totals.current.toLocaleString()}`, { x: 230, y, size: 10, font: bold });
-  page.drawText(`R${totals.days30.toLocaleString()}`, { x: 300, y, size: 10, font: bold });
-  page.drawText(`R${totals.days60.toLocaleString()}`, { x: 360, y, size: 10, font: bold });
-  page.drawText(`R${totals.days90Plus.toLocaleString()}`, { x: 420, y, size: 10, font: bold });
-  page.drawText(`R${totals.total.toLocaleString()}`, { x: 480, y, size: 10, font: bold, color: black });
+  page.drawText(`${formatRand(totals.current)}`, { x: 230, y, size: 10, font: bold });
+  page.drawText(`${formatRand(totals.days30)}`, { x: 300, y, size: 10, font: bold });
+  page.drawText(`${formatRand(totals.days60)}`, { x: 360, y, size: 10, font: bold });
+  page.drawText(`${formatRand(totals.days90Plus)}`, { x: 420, y, size: 10, font: bold });
+  page.drawText(`${formatRand(totals.total)}`, { x: 480, y, size: 10, font: bold, color: black });
 
   return await pdfDoc.save();
 }
@@ -1099,7 +1117,7 @@ export async function generateProfitAndLossPdf(env: Env): Promise<Uint8Array> {
 
   const row = (label: string, amount: number, boldRow = false) => {
     page.drawText(label, { x: left, y, size: 11, font: boldRow ? bold : font });
-    page.drawText(`R${amount.toLocaleString()}`, { x: 480, y, size: 11, font: boldRow ? bold : font, color: black });
+    page.drawText(`${formatRand(amount)}`, { x: 480, y, size: 11, font: boldRow ? bold : font, color: black });
     y -= 20;
   };
 
@@ -1120,7 +1138,7 @@ export async function generateProfitAndLossPdf(env: Env): Promise<Uint8Array> {
   y -= 20;
   for (const [category, amount] of Object.entries(report.categoryBreakdown)) {
     page.drawText(category, { x: left, y, size: 10, font });
-    page.drawText(`R${amount.toLocaleString()}`, { x: 480, y, size: 10, font });
+    page.drawText(`${formatRand(amount)}`, { x: 480, y, size: 10, font });
     y -= 18;
   }
 
