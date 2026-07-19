@@ -2265,3 +2265,46 @@ Office stays disciplined about what it actually is: a trusted record of
 what happened, not a customer-facing image generator competing with
 tools that already reach the people who'd use them, on the device
 they'd already be using them from.
+
+**A real correction to this whole conclusion, made in the same
+session — the actual concern was sharper than "no website exists,"
+and it changes the answer.** The real point: showing a customer a
+supplier's own branded visualizer in the room, mid-sale, hands them
+the exact name of the supplier — a genuine disintermediation risk, not
+a small one. A customer who now knows precisely which brand and which
+product can shop that around to another installer, or go directly to
+the supplier. "Just open the supplier's site" doesn't solve this; it
+actively creates it.
+
+**Real, new evidence found the same session that reopens this
+properly, rather than leaving the earlier conclusion standing
+uncorrected:** Cloudflare Workers AI — the exact infrastructure this
+project already runs on for transcription and vision-description — has
+real, documented image-editing models, callable the identical way
+every other AI call in this codebase already works (`env.AI.run(...)`).
+Stable Diffusion Inpainting takes a photo, a mask marking a specific
+region, and a prompt, and edits just that region. FLUX.2 unifies
+generation and editing with multi-reference support — plausibly
+capable of taking a room photo and a separate photo of the actual
+flooring product, and compositing them together. This would happen
+entirely within Office's own infrastructure — no supplier website, no
+branding, no name ever shown to the customer. Not rebuilding Roomvo's
+platform; a much narrower, specific thing — one photo in, one photo
+out.
+
+**Real, honest uncertainty, not overclaimed:** the model existing and
+being callable is a different claim from it producing genuinely
+convincing results for this specific case. Realistic floor replacement
+— correct perspective, correct lighting, correct shadow — is a
+genuinely hard computer-vision problem, and this hasn't been
+prototyped or tested. A real, promising, technically-grounded avenue,
+not a proven solution.
+
+**Where this leaves the question:** not closed. The earlier "no gap to
+fill" conclusion was reasoning from the wrong justification and is
+superseded by this — a real, unbranded, in-app visualization may be
+genuinely achievable using infrastructure already proven elsewhere in
+this project, protecting exactly the supplier relationship a contractor
+depends on. Worth a real prototype — a masked room photo, a product
+texture, one actual generation call — before deciding anything further,
+the same evidence-before-commitment discipline as everything else here.
