@@ -1950,3 +1950,148 @@ to produce, every time.
     rather than the project's own schema, a genuinely broader instance
     of the same failure shape.
 
+## Purchase Orders, Goods Received Notes, and Supplier Invoices — a real, three-way design for implementation (2026-07-19)
+
+**The problem this closes, and why it's not a fresh idea in isolation.**
+Everything built so far tracks money flowing *in* — quotations,
+invoices, payments. Nothing structured tracks money and materials
+flowing *out*, to suppliers. This is precisely the missing data behind
+something already pinned: the Heartbeat/Pulse refinement used "a
+delivery arrives short" as a worked example of reality deviating from
+expectation, but nothing exists today to ever detect that, because
+nothing records what was ordered, what actually arrived, or what a
+supplier actually billed for it. This document is that missing
+foundation, designed properly rather than smuggled in as a side effect
+of something else.
+
+**Correcting my own earlier suggestion, on the record:** proposed
+collapsing receipt and billing into one event ("the tiles arrived,
+R380 a sqm, 20 short, all in one breath"). That's real and worth
+supporting as a *shortcut* for the common, honest case — but a genuine
+three-way structure is the correct default, not an oversimplification
+worth keeping. A supplier's formal invoice frequently arrives
+separately from the delivery, sometimes weeks later, and needs
+reconciling against both what was ordered and what actually showed up
+— standard accounts-payable practice, not enterprise complexity nobody
+asked for.
+
+### The three stages, and what each one actually is
+
+1. **Purchase Order (PO)** — a real commitment, not yet a transaction.
+   Peter tells the system he's ordering something; nothing financial
+   happens yet. "Order 160 sqm of carpet tile from Floornet at R380 a
+   square meter." Attaches to a supplier (`characters`, same as every
+   other supplier relationship already built), not `customers` — a PO
+   is the mirror image of a Quotation, Peter → Supplier instead of
+   Peter → Customer.
+
+2. **Goods Received Note (GRN)** — the delivery actually arriving,
+   recorded as a distinct, separate event. "The Floornet delivery
+   arrived, but it was only 140 sqm." Reconciled against the *open* PO
+   it fulfills — a PO can have multiple GRNs against it (partial
+   deliveries over time), and its status advances as GRNs accumulate.
+   A GRN is about physical quantity received, not price — the
+   supplier's invoice may not exist yet at this point.
+
+3. **Supplier Invoice** — the supplier's own formal bill, a genuinely
+   separate document from the GRN, arriving on its own timeline. "Got
+   Floornet's invoice, 140 sqm at R390 a square meter." This is where
+   real money moves — confirming a supplier invoice creates a real
+   expense, the same way confirming a customer invoice already creates
+   real revenue. Reconciliation happens here, deterministically: billed
+   quantity checked against received quantity (from the GRN), billed
+   price checked against expected price (from the PO). Any real
+   discrepancy is a computed fact, never an AI judgment call —
+   Principle 1 and Principle 24's discipline, applied to money leaving
+   the business the same way it's already applied to money arriving.
+
+**The shortcut worth keeping for the honest, common case:** if Peter
+narrates receipt and billing together in one breath, the system should
+recognize this and create a GRN and Supplier Invoice together in a
+single confirmed action, rather than forcing an artificial two-step
+conversation. The three-stage *data model* stays real either way; the
+*conversational* path can legitimately collapse two of the three steps
+when that's genuinely how it happened.
+
+### Real data model
+
+- **`purchase_orders`** — id, character_id (supplier), description,
+  status (draft/partially_received/received/cancelled), created_at,
+  source_transcript. Same guard()/pending-action lifecycle already
+  proven for quotations — a candidate PO held for confirmation before
+  it's real.
+- **`po_line_items`** — id, purchase_order_id, description,
+  quantity_ordered, unit, unit_price_expected.
+- **`goods_received_notes`** — id, purchase_order_id, received_date,
+  source_transcript, created_at.
+- **`grn_line_items`** — id, grn_id, po_line_item_id,
+  quantity_received. Linked back to the specific PO line item it's
+  fulfilling, not just the PO as a whole — a real delivery can be
+  short on one material and correct on another in the same shipment.
+- **`supplier_invoices`** — id, character_id (supplier),
+  purchase_order_id, description, amount, status, source_transcript,
+  created_at, supplier_reference (the supplier's own invoice number,
+  when given — genuinely useful for later disputes, never invented if
+  not stated).
+- **`supplier_invoice_line_items`** — id, supplier_invoice_id,
+  po_line_item_id, quantity_billed, unit_price_billed, line_total.
+
+**Deliberately not replacing the existing, simple expense flow.** A
+quick, informal purchase ("bought glue for R850 at BUCO") has no PO,
+no GRN, no formal supplier relationship worth tracking — it stays
+exactly as `expenses` already handles it. This system is for the
+*formal*, ongoing supplier relationships (bulk material orders) that
+genuinely have a real order-to-delivery-to-billing lifecycle worth
+tracking. Confirming a supplier invoice creates a real `expenses` row
+too, same as today, just with real provenance attached (linked back to
+its PO and GRN) — richer, not a parallel, competing system.
+
+### Deterministic reconciliation — the actual point of building this
+
+The whole value of a three-stage model is the two comparisons it makes
+possible, both computed in code, never asked of the model:
+
+- **Quantity variance**: `quantity_billed` (or `quantity_received`)
+  against `quantity_ordered`. 140 vs 160 ordered is a real, computed
+  12.5% shortage — a fact, stated plainly, not an AI's impression that
+  "it seems a bit short."
+- **Price variance**: `unit_price_billed` against
+  `unit_price_expected`. R390 vs R380 expected is a real, computed
+  R10/sqm variance — again, arithmetic in code, the model's only job
+  is recognizing the numbers actually stated.
+
+Both variances become real, stored facts on the supplier invoice
+record itself — visible on request, and exactly the kind of structured
+signal the Heartbeat/Pulse refinement needs before "a delivery arrived
+short" can ever become a real, live observation rather than a
+hypothetical example in a pinned document.
+
+### Real, open design questions — deliberately not decided here, worth deciding before code, same discipline as everything else
+
+1. **Does a PO need its own confirmation step, or can it sit as loose
+   intent until goods arrive?** Leaning toward keeping the PO itself
+   lightweight — the real, consequential confirmation is the GRN and
+   Supplier Invoice, since that's where money and stock actually move.
+   A PO existing without ever needing Peter's explicit sign-off might
+   be the right call, but this is a real decision, not a default.
+2. **Does a real, computed discrepancy automatically become a
+   Heartbeat/Pulse observation, or just a stored fact Peter can ask
+   about?** Given Pulse's own gate (not earned until real accumulated
+   volume exists), the honest answer is: store the discrepancy as real
+   data now, let it become an observation only once that mechanism is
+   actually built — not before.
+3. **Partial GRNs against one PO — how does "received" status actually
+   resolve?** A PO with three line items, two fully received and one
+   still outstanding, needs a real, defined status model, not an
+   assumed one.
+4. **What happens when a supplier invoice references *no* PO at all**
+   (a genuinely ad-hoc supplier bill, no formal order ever placed)?
+   Should this be rejected, or accepted as a standalone supplier
+   invoice with no reconciliation possible? Real businesses do
+   sometimes get billed for things they never formally ordered.
+
+**Explicitly not for implementation now** — a real, substantial design,
+deserving the same weight as Layer 2's own pending design pass, not a
+same-session build. Pinned so the thinking survives intact until it's
+genuinely its turn.
+
