@@ -2205,3 +2205,39 @@ themselves are behind nothing but their own design being finished.
 Pinned in the same breath it was thought through, not built ahead of
 what it depends on.
 
+## Room visualizers — a real, evidence-based answer, not a speculative one (2026-07-19)
+
+**The open question, closed with actual research rather than left as a
+guess.** Discussing what "The Office" should and shouldn't cover
+raised whether a room/floor visualizer belongs in scope. Checked
+directly rather than assumed: Belgotex has no visualizer anywhere on
+its site. Azura has a real "Room Visualizer / Floor Visualiser / Rug
+Visualiser." Finfloor has one too — and fetching the actual page
+directly (not just a search summary) revealed the decisive detail: it
+isn't custom-built. The page literally announces launching Roomvo, a
+third-party visualization platform, and the button on the page calls
+`roomvo.startStandaloneVisualizer()` directly.
+
+**Sharper still: both Finfloor and Azura actively encourage flooring
+*contractors* — not just their own retail sites — to embed their
+licensed visualizer on the contractor's own website.** This isn't just
+"manufacturers license rather than build" (already a strong signal on
+its own) — it's active downstream distribution to exactly the kind of
+business this project is built for. A real, practical, near-term
+opportunity worth acting on independent of anything here: Zululand
+Flooring likely already qualifies for one of these, free or near-free,
+through its existing supplier relationships.
+
+**The real, evidence-based conclusion for Office, replacing the earlier
+speculative one:** there's no real gap here for Office to fill, not
+even as an integration. The tool a contractor's customer would use
+already exists, is already free or near-free to the contractor, and is
+already tied to the specific products that contractor actually sells
+through their supplier relationship. Building or integrating a
+visualizer into Office would be solving an already-solved problem —
+exactly what Principle 12 already warns against. Office stays
+disciplined about what it actually is: a trusted record of what
+happened, not a customer-facing image generator competing with tools
+that are already good at that specific job and already reach the
+people who'd use them.
+
