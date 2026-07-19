@@ -2178,7 +2178,21 @@ directions — worth trusting precisely because it wasn't found once.
    (how a PO's ordered quantity minus an invoice's actual consumed
    quantity becomes a genuine stock increment, tied back to which pack
    size it came from) are a real design task of their own, not yet
-   worked out here.
+   worked out here. **A real requirement this surfaces:** `stock_items`
+   needs product-code specificity, not just a loose material name —
+   "ERP308 skirting" is a specific supplier profile, genuinely
+   different from another profile like ERP205, not a variant of one
+   generic "skirting" item. Without a real product-code/reference
+   field, two different remnants would incorrectly merge into one
+   count. **And the actual business value worth stating plainly, not
+   left implicit:** the whole point is a real, accurate answer to "how
+   many lengths of ERP308 do we have?" directly preventing an
+   unnecessary order — the same conversational-query discipline
+   already proven everywhere else (Principle 24: AI recognizes which
+   product is being asked about, deterministic code returns the real,
+   current quantity, never a guess or a recollection). This is the
+   concrete case for why remnant tracking is worth building at all, not
+   just an interesting capability sitting alongside everything else.
 2. Does a stocktake variance ever become a Heartbeat/Pulse observation
    (unexplained shrinkage worth flagging), the same open question
    already named for PO/GRN discrepancies above? Same answer likely
