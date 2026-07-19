@@ -4,6 +4,7 @@ import { findExistingCharacterByName, findExistingCustomerByName, findExistingEn
 import { completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
 import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedDebtorsSummary, getCustomerFinancialSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOutstandingInvoices, getProfitAndLossSummary, getQuotationsSummary, holdForConfirmation, recordExpense, recordInvoice, recordPayment, recordQuotation } from "./finance";
+import { extractText } from "unpdf";
 
 // Second layer of defense against storing questions as facts — never
 // trust intent classification alone for this, since it's been
@@ -2594,10 +2595,27 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         const base64 = arrayBufferToBase64(docBuffer);
         description = await describeImage(env, base64, mimeType);
       } else if (isPdf) {
-        // Honest placeholder — the file itself is safely stored and
-        // fully retrievable (r2Key on the capture, same as any
-        // photo), it just isn't searchable by content yet.
-        description = `PDF document uploaded (${document.name || "untitled"}, ${docBuffer.byteLength} bytes) — text content not yet extracted.`;
+        // Real feature 2026-07-19 — the "not yet extracted" placeholder
+        // this replaces was honest at the time; unpdf (verified
+        // directly, confirmed working in Cloudflare Workers via
+        // Cloudflare's own official documentation using this exact
+        // library for this exact use case) closes the gap. Two
+        // genuinely different failure modes handled distinctly: a
+        // real parse failure (corrupted file) versus a PDF that
+        // parses fine but has no real text layer at all (a scanned
+        // document with no OCR) — the second isn't an error, it's an
+        // honest, different limitation worth naming precisely rather
+        // than reporting as a generic failure.
+        try {
+          const { text } = await extractText(docBuffer, { mergePages: true });
+          const trimmed = text.trim();
+          description =
+            trimmed.length > 0
+              ? trimmed
+              : `PDF document uploaded (${document.name || "untitled"}) — no extractable text layer found (likely a scanned document with no OCR).`;
+        } catch (err) {
+          description = `PDF document uploaded (${document.name || "untitled"}, ${docBuffer.byteLength} bytes) — text extraction failed: ${err instanceof Error ? err.message : String(err)}.`;
+        }
       } else {
         description = `File uploaded (${document.name || "untitled"}, ${mimeType}, ${docBuffer.byteLength} bytes).`;
       }
