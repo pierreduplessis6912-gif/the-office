@@ -2095,3 +2095,74 @@ deserving the same weight as Layer 2's own pending design pass, not a
 same-session build. Pinned so the thinking survives intact until it's
 genuinely its turn.
 
+## Consumables stock and stocktakes — a narrower, more honest scope than "inventory" (2026-07-19)
+
+**The real question worth asking plainly before designing anything:
+does a flooring contractor actually need inventory, in the traditional
+sense?** Mostly, no. Carpet, tile, vinyl — the bulk of material —
+gets ordered *per job*, arrives, gets installed, and is fully consumed
+by the PO/GRN system above. That's not inventory. A full SKU-based
+warehouse system with reorder points and stock locations would be
+real over-engineering for a business that doesn't hold generic stock
+waiting for the next sale — exactly the enterprise-completeness
+Principle 12 already warns against building for a business that never
+asked for it.
+
+**What's genuinely real, and the only part worth designing for now:
+consumables.** Glue, screed, adhesive, trims, small tools — bought in
+bulk, drawn down gradually across many jobs, worth a real, running
+quantity on hand. A meaningfully narrower scope than "inventory," and
+the honest one.
+
+### The design
+
+- **`stock_items`** — id, name, unit, quantity_on_hand (a real,
+  deterministically-maintained running total, never estimated),
+  reorder_threshold (optional, for a future low-stock observation, not
+  built yet), created_at.
+- **Incremented** by a confirmed GRN for a genuinely generic,
+  non-job-specific material (screed, glue) — distinct from job-specific
+  materials (carpet, tile) ordered via the same PO/GRN system, which
+  are consumed by that one job and never touch stock at all.
+- **Decremented** by recorded usage — a new, real intent ("used 5
+  liters of glue on Jenny's job") linking a stock drawdown to the real
+  job it was consumed on, the same subject-attribution discipline
+  already proven (Principle 24) applied to a new case: who or what
+  this sentence is actually about.
+- **`stocktakes`** — id, conducted_date, source_transcript. A real
+  event: a physical count.
+- **`stocktake_lines`** — id, stocktake_id, stock_item_id,
+  quantity_counted, quantity_expected (captured at the time, from the
+  system's own running total), variance (computed deterministically —
+  counted minus expected, never an AI's impression of "seems about
+  right"). The exact same reconciliation philosophy as PO/GRN/Supplier
+  Invoice above, one layer further: a real discrepancy between what
+  the system believes and what's physically true, stated as a fact,
+  not judged.
+
+**A real, honest dependency, not an arbitrary sequencing choice: this
+needs PO/GRN to exist and be genuinely proven with real usage before
+it means anything.** Quantity on hand is only ever as trustworthy as
+the GRN data feeding it — building stock tracking before that
+foundation is real would be building relationship on top of truth that
+doesn't exist yet, precisely what Principle 28 already named as the
+wrong order.
+
+**Real, open questions, deliberately not decided here:**
+1. Does job-specific material ever produce a real remnant worth
+   tracking (an offcut of carpet from one job usable on a smaller
+   future one)? Genuinely harder and lower-value than consumables
+   tracking — worth deciding explicitly to exclude, not silently
+   scope-creeping into it later.
+2. Does a stocktake variance ever become a Heartbeat/Pulse observation
+   (unexplained shrinkage worth flagging), the same open question
+   already named for PO/GRN discrepancies above? Same answer likely
+   applies: store the real variance now, let it become an observation
+   once that mechanism actually exists.
+
+**Explicitly not for implementation now**, and explicitly third in a
+real, honest dependency chain — behind PO/GRN/Supplier Invoice, which
+themselves are behind nothing but their own design being finished.
+Pinned in the same breath it was thought through, not built ahead of
+what it depends on.
+
