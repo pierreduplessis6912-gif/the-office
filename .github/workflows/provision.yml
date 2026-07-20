@@ -71,7 +71,15 @@ jobs:
         run: |
           OUTPUT=$(wrangler kv namespace create "${SLUG}_notes" 2>&1)
           echo "$OUTPUT"
-          KV_ID=$(echo "$OUTPUT" | grep -oE 'id = "[0-9a-f]+"' | grep -oE '[0-9a-f]+' | head -1)
+          # Real fix found live 2026-07-19 — the actual wrangler
+          # version in use (4.86.0) outputs JSON ("id": "...") by
+          # default, not the older TOML-style (id = "...") this regex
+          # was originally anchored to. Fixed the same robust way D1's
+          # own parsing already worked: extract the 32-character hex
+          # ID shape directly, ignoring whatever syntax surrounds it,
+          # so it doesn't matter which output format any future
+          # wrangler version defaults to.
+          KV_ID=$(echo "$OUTPUT" | grep -i '"id"' | grep -oE '[0-9a-f]{32}' | head -1)
           if [ -z "$KV_ID" ]; then
             echo "::error::Could not parse a KV namespace ID from wrangler's output."
             exit 1
