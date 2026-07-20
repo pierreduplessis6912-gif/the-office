@@ -65,11 +65,21 @@ jobs:
       - name: Create D1 database (safe to re-run)
         id: d1
         run: |
-          EXISTING=$(wrangler d1 list --json | python3 -c "
+          # Real fix 2026-07-20, found live: relying on wrangler CLI's
+          # --json support is fragile — it doesn't behave consistently
+          # across every subcommand and version (a real, separate
+          # failure on kv namespace list --json proved this in the
+          # same session). The raw Cloudflare API is more reliable and
+          # consistently documented — this exact endpoint is the one
+          # already proven working, used directly during the manual
+          # cleanup of this workflow's first failed run.
+          RESPONSE=$(curl -s "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database?name=${SLUG}-db" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+          EXISTING=$(echo "$RESPONSE" | python3 -c "
           import json, sys
           data = json.load(sys.stdin)
-          match = next((d for d in data if d['name'] == '${SLUG}-db'), None)
-          print(match['uuid'] if match else '')
+          results = data.get('result', [])
+          print(results[0]['uuid'] if results else '')
           ")
           if [ -n "$EXISTING" ]; then
             echo "Real database already exists from a previous run — reusing it, not creating a duplicate."
@@ -88,10 +98,18 @@ jobs:
       - name: Create KV namespace (safe to re-run)
         id: kv
         run: |
-          EXISTING=$(wrangler kv namespace list --json | python3 -c "
+          # Same real fix — raw API instead of wrangler's list --json,
+          # which just failed live with "Unknown argument: json" for
+          # this specific subcommand. This endpoint doesn't support a
+          # server-side name filter the way D1's does, so the full
+          # list is fetched and filtered here instead.
+          RESPONSE=$(curl -s "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces?per_page=100" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+          EXISTING=$(echo "$RESPONSE" | python3 -c "
           import json, sys
           data = json.load(sys.stdin)
-          match = next((d for d in data if d['title'] == '${SLUG}_notes'), None)
+          results = data.get('result', [])
+          match = next((n for n in results if n['title'] == '${SLUG}_notes'), None)
           print(match['id'] if match else '')
           ")
           if [ -n "$EXISTING" ]; then
