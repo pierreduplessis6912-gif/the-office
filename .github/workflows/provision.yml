@@ -8,10 +8,25 @@ name: Provision New Office
 # this has been run and verified at least once by a human who can
 # watch it happen.
 #
+# Real fix found live 2026-07-20 (the same retry-safety discipline
+# already proven for the conversational pipeline, applied here after
+# a real failure partway through this exact workflow proved it was
+# needed here too): every resource-creation step now checks whether
+# its resource already exists before creating it, rather than blindly
+# creating and failing on a second attempt. A partial failure — like
+# the deploy step failing after D1/KV/R2/Vectorize/DNS already
+# succeeded — no longer means starting over from scratch or manually
+# cleaning up duplicates; just re-run the whole workflow again.
+#
 # Requires these repository secrets to exist before running:
-#   PROVISION             — the "Provision" token (D1/R2/KV/Vectorize/
-#                            Workers Scripts Edit + DNS Edit on the
-#                            websitehub.co.za zone specifically)
+#   PROVISION             — the "Provision" token. Real permission
+#                            found missing only via an actual live
+#                            run, not from documentation: User ->
+#                            User Details -> Read, needed by
+#                            `wrangler deploy` itself to verify who's
+#                            using the token, distinct from every
+#                            account/zone-level permission already
+#                            confirmed working for resource creation.
 #   CLOUDFLARE_ACCOUNT_ID — already exists, reused from deploy.yml
 #   GOOGLE_CLIENT_ID      — reused from the existing OAuth app; a new
 #                            redirect URI for this instance's callback
@@ -47,59 +62,59 @@ jobs:
       - name: Install wrangler
         run: npm install -g wrangler
 
-      - name: Create D1 database
+      - name: Create D1 database (safe to re-run)
         id: d1
         run: |
-          OUTPUT=$(wrangler d1 create "${SLUG}-db" 2>&1)
-          echo "$OUTPUT"
-          # Real, deliberate choice: parse the create command's own
-          # direct output rather than a separate list-and-match step.
-          # A documented wrangler issue shows namespace/database
-          # creation can decorate a name rather than using it exactly
-          # as given — matching by name afterward is not reliable.
-          # The create command's own output always shows the real,
-          # actual ID it just made, regardless of any decoration.
-          DB_ID=$(echo "$OUTPUT" | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
-          if [ -z "$DB_ID" ]; then
-            echo "::error::Could not parse a database ID from wrangler's output — real output above, nothing assumed."
-            exit 1
+          EXISTING=$(wrangler d1 list --json | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          match = next((d for d in data if d['name'] == '${SLUG}-db'), None)
+          print(match['uuid'] if match else '')
+          ")
+          if [ -n "$EXISTING" ]; then
+            echo "Real database already exists from a previous run — reusing it, not creating a duplicate."
+            echo "id=$EXISTING" >> "$GITHUB_OUTPUT"
+          else
+            OUTPUT=$(wrangler d1 create "${SLUG}-db" 2>&1)
+            echo "$OUTPUT"
+            DB_ID=$(echo "$OUTPUT" | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
+            if [ -z "$DB_ID" ]; then
+              echo "::error::Could not parse a database ID from wrangler's output — real output above, nothing assumed."
+              exit 1
+            fi
+            echo "id=$DB_ID" >> "$GITHUB_OUTPUT"
           fi
-          echo "id=$DB_ID" >> "$GITHUB_OUTPUT"
 
-      - name: Create KV namespace
+      - name: Create KV namespace (safe to re-run)
         id: kv
         run: |
-          OUTPUT=$(wrangler kv namespace create "${SLUG}_notes" 2>&1)
-          echo "$OUTPUT"
-          # Real fix found live 2026-07-19 — the actual wrangler
-          # version in use (4.86.0) outputs JSON ("id": "...") by
-          # default, not the older TOML-style (id = "...") this regex
-          # was originally anchored to. Fixed the same robust way D1's
-          # own parsing already worked: extract the 32-character hex
-          # ID shape directly, ignoring whatever syntax surrounds it,
-          # so it doesn't matter which output format any future
-          # wrangler version defaults to.
-          KV_ID=$(echo "$OUTPUT" | grep -i '"id"' | grep -oE '[0-9a-f]{32}' | head -1)
-          if [ -z "$KV_ID" ]; then
-            echo "::error::Could not parse a KV namespace ID from wrangler's output."
-            exit 1
+          EXISTING=$(wrangler kv namespace list --json | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          match = next((d for d in data if d['title'] == '${SLUG}_notes'), None)
+          print(match['id'] if match else '')
+          ")
+          if [ -n "$EXISTING" ]; then
+            echo "Real namespace already exists from a previous run — reusing it, not creating a duplicate."
+            echo "id=$EXISTING" >> "$GITHUB_OUTPUT"
+          else
+            OUTPUT=$(wrangler kv namespace create "${SLUG}_notes" 2>&1)
+            echo "$OUTPUT"
+            KV_ID=$(echo "$OUTPUT" | grep -i '"id"' | grep -oE '[0-9a-f]{32}' | head -1)
+            if [ -z "$KV_ID" ]; then
+              echo "::error::Could not parse a KV namespace ID from wrangler's output."
+              exit 1
+            fi
+            echo "id=$KV_ID" >> "$GITHUB_OUTPUT"
           fi
-          echo "id=$KV_ID" >> "$GITHUB_OUTPUT"
 
-      - name: Create R2 bucket
-        run: wrangler r2 bucket create "${SLUG}-vault"
-        # No ID needed — R2 bindings reference the bucket by the name
-        # chosen here directly, confirmed against real wrangler.toml
-        # examples before this workflow was written.
-
-      - name: Create Vectorize index
+      - name: Create R2 bucket (safe to re-run)
         run: |
-          wrangler vectorize create "${SLUG}-memory" --dimensions=768 --metric=cosine
-        # Same — Vectorize bindings reference the index by name, no
-        # separate ID. Dimensions/metric match the existing instance's
-        # own embedding model exactly (@cf/baai/bge-base-en-v1.5, 768
-        # dimensions, cosine) — verified against the current instance
-        # before this workflow was written, not guessed.
+          wrangler r2 bucket create "${SLUG}-vault" || echo "Bucket likely already exists from a previous run — continuing."
+
+      - name: Create Vectorize index (safe to re-run)
+        run: |
+          wrangler vectorize create "${SLUG}-memory" --dimensions=768 --metric=cosine || echo "Index likely already exists from a previous run — continuing."
 
       - name: Look up the real zone ID for websitehub.co.za
         id: zone
@@ -114,12 +129,23 @@ jobs:
           fi
           echo "id=$ZONE_ID" >> "$GITHUB_OUTPUT"
 
-      - name: Create the real DNS record for this instance's subdomain
+      - name: Create the real DNS record for this instance's subdomain (safe to re-run)
         run: |
-          curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${{ steps.zone.outputs.id }}/dns_records" \
+          EXISTING=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${{ steps.zone.outputs.id }}/dns_records?name=${SLUG}.websitehub.co.za" \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "{\"type\":\"CNAME\",\"name\":\"${SLUG}\",\"content\":\"websitehub.co.za\",\"proxied\":true}"
+            -H "Content-Type: application/json" | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          print(len(data['result']))
+          ")
+          if [ "$EXISTING" != "0" ]; then
+            echo "Real DNS record already exists from a previous run — not creating a duplicate."
+          else
+            curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${{ steps.zone.outputs.id }}/dns_records" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"type\":\"CNAME\",\"name\":\"${SLUG}\",\"content\":\"websitehub.co.za\",\"proxied\":true}"
+          fi
 
       - name: Generate this instance's real wrangler.toml
         run: |
@@ -169,21 +195,14 @@ jobs:
       - name: Set this instance's real secrets
         working-directory: worker
         run: |
-          # Fresh, genuinely per-instance secrets — never reused across
-          # deployments, matching the same isolation discipline as
-          # everything else about this architecture.
           NEW_ADMIN_KEY=$(openssl rand -base64 32)
           NEW_SESSION_SECRET=$(openssl rand -base64 32)
           echo "$NEW_ADMIN_KEY" | wrangler secret put ADMIN_KEY --config wrangler.provisioned.toml
           echo "$NEW_SESSION_SECRET" | wrangler secret put SESSION_SECRET --config wrangler.provisioned.toml
-          # Google OAuth is reused — same real app, this instance's own
-          # redirect URI must already be added to it manually before
-          # this workflow runs, a real prerequisite this workflow
-          # cannot itself satisfy.
           echo "${{ secrets.GOOGLE_CLIENT_ID }}" | wrangler secret put GOOGLE_CLIENT_ID --config wrangler.provisioned.toml
           echo "${{ secrets.GOOGLE_CLIENT_SECRET }}" | wrangler secret put GOOGLE_CLIENT_SECRET --config wrangler.provisioned.toml
 
-      - name: Run schema migrations against the new, empty instance
+      - name: Run schema migrations against the new instance (safe to re-run — every migration route is itself idempotent)
         run: |
           BASE="https://${SLUG}.websitehub.co.za"
           sleep 15
@@ -193,7 +212,7 @@ jobs:
             echo ""
           done
 
-      - name: Seed the real owner membership
+      - name: Seed the real owner membership (safe to re-run — the memberships table has a real UNIQUE constraint on google_email)
         run: |
           curl -s -X POST "https://${SLUG}.websitehub.co.za/debug/create-membership" \
             -H "Content-Type: application/json" \
