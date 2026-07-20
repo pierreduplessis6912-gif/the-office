@@ -35,10 +35,16 @@ archived bug history behind that conclusion.
   safe only because Peter is currently the sole real user; must be
   closed before a real second person with genuinely restricted access
   uses the live system.
-- **Single instance only** — Zululand Flooring's own, genuinely
-  separate deployment is designed (a real GitHub Actions provisioning
-  workflow, `wrangler`-based) but not yet built; this remains the
-  current sandbox, used for continued testing.
+- **No longer single-instance — a real, second, genuinely isolated
+  Office exists** (2026-07-20). Zululand Flooring now has its own
+  separate D1, R2, KV, Vectorize, domain, and secrets — created
+  entirely by the DIY provisioning workflow, not by hand, and verified
+  live: `/health`, `/debug/smoke-test`, and the real Owner membership
+  all confirmed correct on the new instance independently. The
+  original sandbox remains the current one, still used for continued
+  testing; Zululand Flooring is the first real business instance. See
+  DECISIONS.md for the full arc, including four real bugs found only
+  by actually running the pipeline live.
 - **Principle 26 now covers the real, live voice-upload endpoint too**
   (2026-07-17) — `resolveCapabilities` wired in, matching
   `/messages/text` exactly. `/debug/reprocess` deliberately left on
@@ -487,18 +493,13 @@ Codemagic — still only proven on the web preview.**
   real user today. CORS remains wide open, no rate limiting exists —
   low urgency for a genuinely single-user system, the same underlying
   gap as the above, not a separate one.
-- **Single instance only.** This is explicitly one Office per business
-  entity; a second real entity means a second, genuinely isolated
-  Office instance, not a schema change. Zululand Flooring's own real
-  deployment is fully designed (a GitHub Actions provisioning
-  workflow, `wrangler`-based resource creation) but not yet built —
-  see DECISIONS.md for the real, costed plan.
-- **PDF text extraction is not built.** `/files/document` (2026-07-11)
-  stores a real PDF reliably and correctly — verified live with a real
-  file — but doesn't read its contents. No PDF-parsing capability
-  exists in this environment; `pdf-lib` (already a dependency) is a
-  generation/manipulation library, not a text-extraction one. Named
-  honestly rather than pretended solved.
+- **No longer single instance.** This was explicitly one Office per
+  business entity with no exception; a second real entity meant a
+  second, genuinely isolated Office instance, not a schema change —
+  now proven true, not just designed. Zululand Flooring's own real,
+  separate instance exists, created by the DIY provisioning workflow
+  and verified live. See DECISIONS.md for the full arc, including four
+  real bugs found only by actually running the pipeline.
 - **`captures` real FK backfill.** `customer_id`/`character_id` (added
   2026-07-11) are correctly populated for every NEW capture from here
   on, verified live via a real clean join (`?customerId=1`). Every
