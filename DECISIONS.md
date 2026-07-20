@@ -1950,6 +1950,60 @@ to produce, every time.
     rather than the project's own schema, a genuinely broader instance
     of the same failure shape.
 
+**2026-07-20 — the first real, live provisioning run, Zululand
+Flooring's own genuinely isolated instance:**
+
+42. **A resource-creation command's own output format didn't match
+    what the parsing regex was written against.** The KV namespace
+    creation step's ID-extraction regex was anchored to the older,
+    TOML-style output (`id = "..."`); the actual wrangler version in
+    use (4.86.0) outputs JSON (`"id": "..."`) by default. Found live —
+    the KV namespace was genuinely created successfully, but the
+    workflow failed anyway because it couldn't read back the ID it
+    needed for the next step. Fixed the same robust way D1's own
+    parsing already worked: extract the ID by its real shape (32 hex
+    characters) rather than depending on any particular surrounding
+    syntax, so it doesn't matter which format a given wrangler version
+    defaults to.
+43. **`wrangler deploy` needs a real permission no documentation
+    checked surfaced: User → User Details → Read.** Every account- and
+    zone-level permission already confirmed correct (D1, R2, KV,
+    Vectorize, Workers Scripts, DNS) still wasn't enough — deploy
+    itself needs to verify who's using the token, a genuinely separate
+    permission category (user-level, not account or zone-scoped) from
+    everything already researched. Found only by an actual failed
+    deploy; the error message itself named the missing permission
+    precisely.
+44. **`wrangler kv namespace list --json` failed outright: "Unknown
+    argument: json."** The same `--json` flag confirmed working for
+    `wrangler d1 list` (and used successfully elsewhere in this same
+    workflow) isn't supported by every wrangler subcommand — a real,
+    undocumented inconsistency across the CLI, not a single bug so
+    much as evidence the CLI's own flag support can't be assumed
+    uniform. Fixed by moving both the D1 and KV existence-checks off
+    wrangler's CLI list output entirely, onto the raw Cloudflare REST
+    API directly — the same, more reliable pattern already proven
+    working elsewhere in this exact workflow (the zone lookup, the DNS
+    record check), now applied consistently rather than mixed with a
+    CLI dependency that had just proven unreliable.
+45. **Binding a deployed Worker to its actual URL route needs its own,
+    separate zone-level permission: Zone → Workers Routes → Edit.**
+    The script itself deployed successfully — real, visible upload
+    confirmation, correct bindings shown — and only then failed,
+    specifically on the request to attach the route. A different
+    permission from DNS:Edit, even though both are scoped to the same
+    zone; confirmed against Cloudflare's own official Workers
+    documentation, not guessed, once the precise, real error pointed
+    at what was missing.
+
+**All four found only by actually running the pipeline, never by
+research alone** — the same discipline this whole bug archive has run
+on from its very first entry, now proven true for infrastructure, not
+just conversational extraction. Verified fully working, end to end,
+immediately after: `/health`, `/debug/smoke-test`, and the real,
+correctly-seeded Owner membership all confirmed independently on the
+new, genuinely separate instance.
+
 ## Purchase Orders, Goods Received Notes, and Supplier Invoices — a real, three-way design for implementation (2026-07-19)
 
 **The problem this closes, and why it's not a fresh idea in isolation.**
