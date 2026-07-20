@@ -9,7 +9,7 @@ name: Provision New Office
 # watch it happen.
 #
 # Requires these repository secrets to exist before running:
-#   PROVISION_API_TOKEN   — the "Provision" token (D1/R2/KV/Vectorize/
+#   PROVISION             — the "Provision" token (D1/R2/KV/Vectorize/
 #                            Workers Scripts Edit + DNS Edit on the
 #                            websitehub.co.za zone specifically)
 #   CLOUDFLARE_ACCOUNT_ID — already exists, reused from deploy.yml
@@ -34,7 +34,7 @@ jobs:
   provision:
     runs-on: ubuntu-latest
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.PROVISION_API_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.PROVISION }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       SLUG: ${{ github.event.inputs.business_slug }}
     steps:
