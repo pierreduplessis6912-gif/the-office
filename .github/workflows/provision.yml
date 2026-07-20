@@ -1,0 +1,196 @@
+name: Provision New Office
+
+# Real feature 2026-07-19 — the DIY multi-instance provisioning
+# pipeline, first real run intended for Zululand Flooring's own
+# genuinely separate deployment. Manually triggered on purpose
+# (workflow_dispatch) — this creates real, billable cloud resources
+# and a real DNS record, not something to fire automatically until
+# this has been run and verified at least once by a human who can
+# watch it happen.
+#
+# Requires these repository secrets to exist before running:
+#   PROVISION_API_TOKEN   — the "Provision" token (D1/R2/KV/Vectorize/
+#                            Workers Scripts Edit + DNS Edit on the
+#                            websitehub.co.za zone specifically)
+#   CLOUDFLARE_ACCOUNT_ID — already exists, reused from deploy.yml
+#   GOOGLE_CLIENT_ID      — reused from the existing OAuth app; a new
+#                            redirect URI for this instance's callback
+#                            must be added to that same Google Cloud
+#                            OAuth client manually, first — this
+#                            workflow cannot do that part
+#   GOOGLE_CLIENT_SECRET  — same OAuth app, reused
+
+on:
+  workflow_dispatch:
+    inputs:
+      business_slug:
+        description: "URL-safe slug (e.g. zululand-flooring) — used for every resource name and the subdomain itself"
+        required: true
+      owner_email:
+        description: "The real Google account email for this business's Owner"
+        required: true
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.PROVISION_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      SLUG: ${{ github.event.inputs.business_slug }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install wrangler
+        run: npm install -g wrangler
+
+      - name: Create D1 database
+        id: d1
+        run: |
+          OUTPUT=$(wrangler d1 create "${SLUG}-db" 2>&1)
+          echo "$OUTPUT"
+          # Real, deliberate choice: parse the create command's own
+          # direct output rather than a separate list-and-match step.
+          # A documented wrangler issue shows namespace/database
+          # creation can decorate a name rather than using it exactly
+          # as given — matching by name afterward is not reliable.
+          # The create command's own output always shows the real,
+          # actual ID it just made, regardless of any decoration.
+          DB_ID=$(echo "$OUTPUT" | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
+          if [ -z "$DB_ID" ]; then
+            echo "::error::Could not parse a database ID from wrangler's output — real output above, nothing assumed."
+            exit 1
+          fi
+          echo "id=$DB_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Create KV namespace
+        id: kv
+        run: |
+          OUTPUT=$(wrangler kv namespace create "${SLUG}_notes" 2>&1)
+          echo "$OUTPUT"
+          KV_ID=$(echo "$OUTPUT" | grep -oE 'id = "[0-9a-f]+"' | grep -oE '[0-9a-f]+' | head -1)
+          if [ -z "$KV_ID" ]; then
+            echo "::error::Could not parse a KV namespace ID from wrangler's output."
+            exit 1
+          fi
+          echo "id=$KV_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Create R2 bucket
+        run: wrangler r2 bucket create "${SLUG}-vault"
+        # No ID needed — R2 bindings reference the bucket by the name
+        # chosen here directly, confirmed against real wrangler.toml
+        # examples before this workflow was written.
+
+      - name: Create Vectorize index
+        run: |
+          wrangler vectorize create "${SLUG}-memory" --dimensions=768 --metric=cosine
+        # Same — Vectorize bindings reference the index by name, no
+        # separate ID. Dimensions/metric match the existing instance's
+        # own embedding model exactly (@cf/baai/bge-base-en-v1.5, 768
+        # dimensions, cosine) — verified against the current instance
+        # before this workflow was written, not guessed.
+
+      - name: Look up the real zone ID for websitehub.co.za
+        id: zone
+        run: |
+          RESPONSE=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=websitehub.co.za" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json")
+          ZONE_ID=$(echo "$RESPONSE" | python3 -c "import json,sys; print(json.load(sys.stdin)['result'][0]['id'])")
+          if [ -z "$ZONE_ID" ]; then
+            echo "::error::Could not find the zone ID for websitehub.co.za. Real response: $RESPONSE"
+            exit 1
+          fi
+          echo "id=$ZONE_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Create the real DNS record for this instance's subdomain
+        run: |
+          curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${{ steps.zone.outputs.id }}/dns_records" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"type\":\"CNAME\",\"name\":\"${SLUG}\",\"content\":\"websitehub.co.za\",\"proxied\":true}"
+
+      - name: Generate this instance's real wrangler.toml
+        run: |
+          cat > worker/wrangler.provisioned.toml << EOF
+          name = "${SLUG}-api"
+          main = "src/index.ts"
+          compatibility_date = "2026-07-01"
+
+          [ai]
+          binding = "AI"
+
+          [[d1_databases]]
+          binding = "OFFICE_DB"
+          database_name = "${SLUG}-db"
+          database_id = "${{ steps.d1.outputs.id }}"
+
+          [[r2_buckets]]
+          binding = "OFFICE_VAULT"
+          bucket_name = "${SLUG}-vault"
+
+          [[vectorize]]
+          binding = "MEMORY"
+          index_name = "${SLUG}-memory"
+
+          [[kv_namespaces]]
+          binding = "CUSTOMER_NOTES"
+          id = "${{ steps.kv.outputs.id }}"
+
+          [vars]
+          ENVIRONMENT = "production"
+
+          [[routes]]
+          pattern = "${SLUG}.websitehub.co.za/*"
+          zone_name = "websitehub.co.za"
+
+          [triggers]
+          crons = ["0 * * * *"]
+          EOF
+          cat worker/wrangler.provisioned.toml
+
+      - name: Deploy this instance's Worker
+        working-directory: worker
+        run: |
+          npm install
+          wrangler deploy --config wrangler.provisioned.toml
+
+      - name: Set this instance's real secrets
+        working-directory: worker
+        run: |
+          # Fresh, genuinely per-instance secrets — never reused across
+          # deployments, matching the same isolation discipline as
+          # everything else about this architecture.
+          NEW_ADMIN_KEY=$(openssl rand -base64 32)
+          NEW_SESSION_SECRET=$(openssl rand -base64 32)
+          echo "$NEW_ADMIN_KEY" | wrangler secret put ADMIN_KEY --config wrangler.provisioned.toml
+          echo "$NEW_SESSION_SECRET" | wrangler secret put SESSION_SECRET --config wrangler.provisioned.toml
+          # Google OAuth is reused — same real app, this instance's own
+          # redirect URI must already be added to it manually before
+          # this workflow runs, a real prerequisite this workflow
+          # cannot itself satisfy.
+          echo "${{ secrets.GOOGLE_CLIENT_ID }}" | wrangler secret put GOOGLE_CLIENT_ID --config wrangler.provisioned.toml
+          echo "${{ secrets.GOOGLE_CLIENT_SECRET }}" | wrangler secret put GOOGLE_CLIENT_SECRET --config wrangler.provisioned.toml
+
+      - name: Run schema migrations against the new, empty instance
+        run: |
+          BASE="https://${SLUG}.websitehub.co.za"
+          sleep 15
+          for route in init-memberships init-idempotency-keys init-discount-column; do
+            echo "Running /debug/$route"
+            curl -s -X POST "$BASE/debug/$route"
+            echo ""
+          done
+
+      - name: Seed the real owner membership
+        run: |
+          curl -s -X POST "https://${SLUG}.websitehub.co.za/debug/create-membership" \
+            -H "Content-Type: application/json" \
+            -d "{\"google_email\": \"${{ github.event.inputs.owner_email }}\", \"role\": \"owner\"}"
+
+      - name: Real, honest summary of what still needs a human
+        run: |
+          echo "::notice::Provisioning complete for ${SLUG}. Real, remaining manual steps: (1) add https://${SLUG}.websitehub.co.za/auth/google/callback as an authorized redirect URI on the existing Google OAuth client, (2) add ${{ github.event.inputs.owner_email }} as a test user if the OAuth app is still in Testing mode, (3) verify /debug/smoke-test passes on the new instance before real use."
