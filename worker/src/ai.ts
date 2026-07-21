@@ -273,7 +273,12 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             'fact_key "vat_exempt" and fact_value "true". This is a real, structural fact about the ' +
             'customer, never a one-off discount on a single quotation (that stays deposit_percent or a ' +
             'discount within a line item) — only extract vat_exempt for a real, standing billing status, ' +
-            "not a single job's price adjustment. For structured " +
+            "not a single job's price adjustment. For a customer's real retention rate specifically — a " +
+            'percentage withheld from every invoice for the life of a contract, e.g. "this contract has a ' +
+            '10% retention" or "we hold back 5% retention on this one" — use fact_key ' +
+            '"retention_percent" and fact_value as the plain stated number (e.g. "10"), never a ' +
+            "worked-out rand amount. Same distinction as vat_exempt — a real, standing rate for the whole " +
+            "contract, never a one-off adjustment to a single invoice. For structured " +
             "attributes about a character specifically — a role, a skill, a qualification, a license, a " +
             "site permit — use a clear snake_case key (e.g. \"role\", \"skill\", \"license\", " +
             '"site_permit"). For anything else genuinely specific to this trade or job (e.g. a circuit ' +
@@ -314,6 +319,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             '"bought glue for R850 at BUCO for Jenny\'s job" -> {"customer_name":"Jenny","character_name":"BUCO","character_relationship":"supplier","intent":"expense","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"Sipho has a driver\'s license" -> {"customer_name":null,"character_name":"Sipho","character_relationship":"installer","intent":"note","amount":null,"fact_key":"license","fact_value":"driver\'s license","personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"we don\'t charge Jenny VAT" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"note","amount":null,"fact_key":"vat_exempt","fact_value":"true","personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
+            '"this contract has a 10% retention" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"note","amount":null,"fact_key":"retention_percent","fact_value":"10","personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"picked up my wife from work, she\'s annoyed about the kitchen guy not showing" -> {"customer_name":null,"character_name":"wife","character_relationship":"wife","intent":"note","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"how is my wife doing?" -> {"customer_name":null,"character_name":"wife","character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"character","deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"heading to jenny\'s job now, remind me to get dog food after" -> {"customer_name":"jenny","character_name":null,"character_relationship":null,"intent":"reminder","amount":null,"fact_key":null,"fact_value":null,"personal_note":"remind me to get dog food after","query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
