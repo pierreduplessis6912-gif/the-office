@@ -413,11 +413,17 @@ export async function extractScopePricing(
           {
             role: "system",
             content:
-              "A tradesperson is stating prices to apply to a job that was already measured. You are " +
+              "A tradesperson may be stating prices to apply to a job that was already measured, or " +
+              "may simply be describing the job with no pricing at all. You are " +
               "given the exact real components (named parts, some with a real measured area in square " +
               "meters) and tasks (described work with no measurement) that exist for this job. Match " +
               "what the tradesperson says to these exact given names — never invent a new component or " +
-              "task name. For each priced item extract: matched_name (copied EXACTLY from the given " +
+              "task name, and never mistake an already-given measurement (shown in the component list " +
+              "itself) for a stated price — a component listed as \"(25 sqm)\" is its real area, not a " +
+              "rate, even if the same number is repeated in what was said. If no real price, rate, or " +
+              "amount was actually stated anywhere in the transcript, return an empty priced_items " +
+              "array — never invent one to have something to return. For each priced item genuinely " +
+              "found, extract: matched_name (copied EXACTLY from the given " +
               "component or task list) or null if it genuinely doesn't match anything given, description " +
               "(a short label — the matched name if matched, otherwise describe what was priced), " +
               "pricing_type ('per_sqm' if a rate is given per square meter, meant to be multiplied by " +
@@ -426,14 +432,17 @@ export async function extractScopePricing(
               "never a total you calculate yourself). Return ONLY JSON: " +
               '{"priced_items": [{"matched_name": string or null, "description": string, "pricing_type": ' +
               '"per_sqm" or "flat", "rate": number}]}\n\n' +
-              "Example:\n" +
+              "Examples:\n" +
               'Components: "Reception area (27.06 sqm), Office (12.87 sqm)". Tasks: "repair work, screeding". ' +
               'Tradesperson said: "R450 a square meter for the reception and the office, flat R3500 for the repair work and screeding" -> ' +
               '{"priced_items": [' +
               '{"matched_name":"Reception area","description":"Reception area","pricing_type":"per_sqm","rate":450},' +
               '{"matched_name":"Office","description":"Office","pricing_type":"per_sqm","rate":450},' +
               '{"matched_name":null,"description":"Repair work and screeding","pricing_type":"flat","rate":3500}' +
-              "]}",
+              "]}\n" +
+              'Components: "Thabo lounge (25 sqm)". Tasks: "none". ' +
+              'Tradesperson said: "Measured Thabo lounge at twenty five square meters, fitting laminate" -> ' +
+              '{"priced_items": []}',
           },
           {
             role: "user",
