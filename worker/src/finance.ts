@@ -752,7 +752,7 @@ export async function generateDocumentPdf(env: Env, id: number, kind: "invoice" 
   const retentionColumn = kind === "invoice" ? ", d.retention_amount" : ", NULL as retention_amount";
 
   const doc = await env.OFFICE_DB.prepare(
-    `SELECT d.id, d.description, d.status, d.created_at, c.name as customer_name, c.address as customer_address, c.vat_exempt${retentionColumn} FROM ${table} d JOIN customers c ON c.id = d.customer_id WHERE d.id = ?`
+    `SELECT d.id, d.description, d.status, d.created_at, d.amount, c.name as customer_name, c.address as customer_address, c.vat_exempt${retentionColumn} FROM ${table} d JOIN customers c ON c.id = d.customer_id WHERE d.id = ?`
   )
     .bind(id)
     .first<{
@@ -760,6 +760,7 @@ export async function generateDocumentPdf(env: Env, id: number, kind: "invoice" 
       description: string;
       status: string;
       created_at: string;
+      amount: number;
       customer_name: string;
       customer_address: string | null;
       vat_exempt: number | null;
@@ -850,6 +851,23 @@ export async function generateDocumentPdf(env: Env, id: number, kind: "invoice" 
     page.drawText(`${formatRand(item.unit_price)}`, { x: 400, y, size: 10, font });
     page.drawText(`${formatRand(item.line_total)}`, { x: 480, y, size: 10, font });
     subtotal += item.line_total;
+    y -= 22;
+  }
+
+  // Real fix 2026-07-21 — a serious, pre-existing bug surfaced by
+  // retention testing: a flat, single-amount document (no itemized
+  // breakdown, e.g. "invoice Jenny for R3200") had no line items at
+  // all, and subtotal — computed purely by summing them — silently
+  // showed R0 regardless of the document's real, stored amount. Every
+  // flat invoice or quotation has shown this wrong figure since before
+  // today; nobody had generated and actually read one closely enough
+  // to notice, since every prior real test used line-item-based
+  // pricing. Falls back to the document's own real, stored amount as
+  // a single implicit line when no real line items exist.
+  if (lineItems.length === 0 && doc.amount > 0) {
+    page.drawText(doc.description, { x: left, y, size: 10, font, maxWidth: 270 });
+    page.drawText(`${formatRand(doc.amount)}`, { x: 480, y, size: 10, font });
+    subtotal = doc.amount;
     y -= 22;
   }
 
