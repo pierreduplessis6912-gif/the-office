@@ -1332,6 +1332,76 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       }
     }
 
+    // Real fix 2026-07-21 — closing a real gap found incidentally
+    // during PDF extraction testing: every PDF generator has always
+    // expected a real business_profile row (id=1), and none ever
+    // existed — every generated document silently showed "[Business
+    // name not set]" instead. No route existed anywhere to actually
+    // set it. A real UPSERT, keyed on the fixed singleton id every
+    // other query already assumes.
+    if (url.pathname === "/debug/business-profile" && request.method === "GET") {
+      const profile = await env.OFFICE_DB.prepare("SELECT * FROM business_profile WHERE id = 1").first();
+      return Response.json({ profile: profile ?? null });
+    }
+
+    if (url.pathname === "/debug/business-profile" && request.method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as {
+        name?: string;
+        trading_as?: string;
+        vat_no?: string;
+        address?: string;
+        phone?: string;
+        email?: string;
+        banking_details?: string;
+        vat_registered?: boolean;
+        vat_rate?: number;
+      };
+      if (!body.name) {
+        return Response.json({ error: "name is required" }, { status: 400 });
+      }
+      // Real safety net: business_profile has no tracked CREATE
+      // statement anywhere in this codebase (same situation as
+      // line_items) — this makes the route work correctly whether or
+      // not the table already exists from an earlier manual migration.
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS business_profile (
+          id INTEGER PRIMARY KEY,
+          name TEXT,
+          trading_as TEXT,
+          vat_no TEXT,
+          address TEXT,
+          phone TEXT,
+          email TEXT,
+          banking_details TEXT,
+          vat_registered INTEGER NOT NULL DEFAULT 0,
+          vat_rate REAL NOT NULL DEFAULT 15
+        )`
+      ).run();
+      await env.OFFICE_DB.prepare(
+        `INSERT INTO business_profile (id, name, trading_as, vat_no, address, phone, email, banking_details, vat_registered, vat_rate)
+         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           name = excluded.name, trading_as = excluded.trading_as, vat_no = excluded.vat_no,
+           address = excluded.address, phone = excluded.phone, email = excluded.email,
+           banking_details = excluded.banking_details, vat_registered = excluded.vat_registered,
+           vat_rate = excluded.vat_rate`
+      )
+        .bind(
+          body.name,
+          body.trading_as ?? null,
+          body.vat_no ?? null,
+          body.address ?? null,
+          body.phone ?? null,
+          body.email ?? null,
+          body.banking_details ?? null,
+          body.vat_registered ? 1 : 0,
+          body.vat_rate ?? 15
+        )
+        .run();
+      const saved = await env.OFFICE_DB.prepare("SELECT * FROM business_profile WHERE id = 1").first();
+      return Response.json({ status: "saved", profile: saved });
+    }
+
     if (url.pathname === "/debug/memberships" && request.method === "GET") {
       const { results } = await env.OFFICE_DB.prepare("SELECT * FROM memberships ORDER BY created_at DESC").all();
       const enriched = results.map((m) => ({ ...m, capabilities: ROLE_CAPABILITIES[String(m.role)] ?? [] }));
