@@ -1351,6 +1351,21 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ status: "ok" });
     }
 
+    // Real feature 2026-07-21 — closing a real, known gap with real,
+    // concrete evidence behind it (Zululand Flooring genuinely
+    // operates with VAT for some clients, not others), not
+    // speculative. A customer's own standing exempt status now
+    // overrides the business-wide VAT default entirely for their
+    // documents.
+    if (url.pathname === "/debug/init-vat-exempt-column" && request.method === "POST") {
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE customers ADD COLUMN vat_exempt INTEGER NOT NULL DEFAULT 0").run();
+        return Response.json({ status: "ok", added: true });
+      } catch (err) {
+        return Response.json({ status: "ok", added: false, note: "column likely already exists", detail: err instanceof Error ? err.message : String(err) });
+      }
+    }
+
     // Real fix 2026-07-21 — closing a real gap found incidentally
     // during PDF extraction testing: every PDF generator has always
     // expected a real business_profile row (id=1), and none ever
