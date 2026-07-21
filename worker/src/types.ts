@@ -176,3 +176,24 @@ export interface GoodsReceivedExtraction {
   supplier_name: string | null;
   line_items: GoodsReceivedLineItem[];
 }
+
+// Real feature 2026-07-21 — Supplier Invoices, the third and final
+// stage of the real, three-way design pinned in DECISIONS.md. This is
+// where real money moves, and where both real reconciliations this
+// whole arc was built for actually happen: quantity billed against
+// quantity received, and price billed against price expected. Unlike
+// PO and GRN, this stage also needs to work from a real, uploaded
+// document's text (a PDF or a photo of a paper invoice), not just a
+// spoken transcript — supplier invoices very often arrive that way,
+// not narrated.
+export interface SupplierInvoiceLineItem {
+  matched_description: string | null;
+  quantity_billed: number;
+  unit_price_billed: number | null;
+}
+
+export interface SupplierInvoiceExtraction {
+  supplier_name: string | null;
+  supplier_reference: string | null;
+  line_items: SupplierInvoiceLineItem[];
+}
