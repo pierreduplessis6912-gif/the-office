@@ -202,6 +202,80 @@ export async function findLatestOpenPurchaseOrder(
   return result ?? null;
 }
 
+// Real, needed by the caller to give extractGoodsReceived the real,
+// given line items to match against — the same reason extractScopePricing
+// needs the real components/tasks list passed in.
+export async function getPurchaseOrderLineItems(
+  env: Env,
+  purchaseOrderId: number
+): Promise<Array<{ id: number; description: string; quantity_ordered: number; unit: string | null }>> {
+  const { results } = await env.OFFICE_DB.prepare(
+    "SELECT id, description, quantity_ordered, unit FROM po_line_items WHERE purchase_order_id = ?"
+  )
+    .bind(purchaseOrderId)
+    .all<{ id: number; description: string; quantity_ordered: number; unit: string | null }>();
+  return results ?? [];
+}
+
+// Real feature 2026-07-21 — Goods Received Notes, the second stage
+// of the real, three-way design pinned in DECISIONS.md. Guard()'d —
+// unlike the PO itself, this is where real stock actually changes
+// hands, matching the original design's own distinction. The real
+// point of this whole arc: a quantity variance, computed here,
+// deterministically, in code — never an AI's impression of "seems
+// about right."
+export async function recordGoodsReceived(
+  env: Env,
+  purchaseOrderId: number,
+  supplierId: number | null,
+  sourceTranscript: string,
+  lineItems: Array<{ matched_description: string | null; quantity_received: number }>
+): Promise<{ grnId: number; variances: Array<{ description: string; ordered: number; received: number; variance: number }> }> {
+  const poLineItems = await getPurchaseOrderLineItems(env, purchaseOrderId);
+
+  const inserted = await env.OFFICE_DB.prepare(
+    "INSERT INTO goods_received_notes (purchase_order_id, supplier_id, source_transcript) VALUES (?, ?, ?) RETURNING id"
+  )
+    .bind(purchaseOrderId, supplierId, sourceTranscript)
+    .first<{ id: number }>();
+
+  const grnId = inserted!.id;
+  const variances: Array<{ description: string; ordered: number; received: number; variance: number }> = [];
+
+  for (const item of lineItems) {
+    const matchedPoLine = item.matched_description
+      ? poLineItems.find((p) => p.description.toLowerCase() === item.matched_description!.toLowerCase())
+      : null;
+    const orderedQty = matchedPoLine?.quantity_ordered ?? null;
+    // The real, deterministic point of this whole feature — a
+    // quantity variance, computed here, in code, never asked of the
+    // model.
+    const variance = orderedQty != null ? item.quantity_received - orderedQty : null;
+    await env.OFFICE_DB.prepare(
+      "INSERT INTO grn_line_items (grn_id, po_line_item_id, description, quantity_received, quantity_ordered, variance) VALUES (?, ?, ?, ?, ?, ?)"
+    )
+      .bind(
+        grnId,
+        matchedPoLine?.id ?? null,
+        matchedPoLine?.description ?? item.matched_description ?? "unmatched item",
+        item.quantity_received,
+        orderedQty,
+        variance
+      )
+      .run();
+    if (orderedQty != null && variance != null) {
+      variances.push({
+        description: matchedPoLine!.description,
+        ordered: orderedQty,
+        received: item.quantity_received,
+        variance,
+      });
+    }
+  }
+
+  return { grnId, variances };
+}
+
 // No reference-number system exists yet — with one customer generally
 // having at most one open quote at a time, "their most recent
 // not-yet-converted quote" is honest and sufficient for now. A real
