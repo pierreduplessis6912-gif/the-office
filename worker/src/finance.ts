@@ -208,12 +208,12 @@ export async function findLatestOpenPurchaseOrder(
 export async function getPurchaseOrderLineItems(
   env: Env,
   purchaseOrderId: number
-): Promise<Array<{ id: number; description: string; quantity_ordered: number; unit: string | null }>> {
+): Promise<Array<{ id: number; description: string; quantity_ordered: number; unit: string | null; unit_price_expected: number | null }>> {
   const { results } = await env.OFFICE_DB.prepare(
-    "SELECT id, description, quantity_ordered, unit FROM po_line_items WHERE purchase_order_id = ?"
+    "SELECT id, description, quantity_ordered, unit, unit_price_expected FROM po_line_items WHERE purchase_order_id = ?"
   )
     .bind(purchaseOrderId)
-    .all<{ id: number; description: string; quantity_ordered: number; unit: string | null }>();
+    .all<{ id: number; description: string; quantity_ordered: number; unit: string | null; unit_price_expected: number | null }>();
   return results ?? [];
 }
 
