@@ -111,13 +111,21 @@ export async function recordWorkObservation(
   customerId: number | null,
   observation: WorkObservationExtraction,
   sourceTranscript: string,
-  installerId: number | null = null
+  installerId: number | null = null,
+  captureId: number | null = null
 ): Promise<{ jobScopeId: number; computedComponents: Array<{ name: string; area_sqm: number | null }> }> {
   const scheduledDate = resolveScheduledDate(observation.scheduled_date_raw, nowInBusinessTimezone());
+  // Real feature 2026-07-20 (Layer 2 / Project design, verified via the
+  // Fable 5 design pass): capture_id is the real, deterministic
+  // same-breath signal that turned out not to actually exist in stored
+  // data despite being available throughout the processing pipeline —
+  // stored here now, the concrete first step toward genuine Project
+  // assembly, not the whole design, just the honest prerequisite for
+  // it to become buildable at all.
   const inserted = await env.OFFICE_DB.prepare(
-    "INSERT INTO job_scopes (customer_id, description, scheduled_date_raw, scheduled_date, installer_id, source_transcript) VALUES (?, ?, ?, ?, ?, ?) RETURNING id"
+    "INSERT INTO job_scopes (customer_id, description, scheduled_date_raw, scheduled_date, installer_id, source_transcript, capture_id) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id"
   )
-    .bind(customerId, observation.job_description, observation.scheduled_date_raw, scheduledDate, installerId, sourceTranscript)
+    .bind(customerId, observation.job_description, observation.scheduled_date_raw, scheduledDate, installerId, sourceTranscript, captureId)
     .first<{ id: number }>();
 
   const jobScopeId = inserted!.id;
