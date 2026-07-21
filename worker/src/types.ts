@@ -33,7 +33,7 @@ export interface Extraction {
   customer_name: string | null;
   character_name: string | null;
   character_relationship: string | null;
-  intent: "payment" | "invoice" | "quotation" | "convert_quote" | "price_scope" | "work_observation" | "lookup" | "reminder" | "task_complete" | "expense" | "note" | "other";
+  intent: "payment" | "invoice" | "quotation" | "convert_quote" | "price_scope" | "work_observation" | "lookup" | "reminder" | "task_complete" | "expense" | "note" | "purchase_order" | "goods_received" | "supplier_invoice" | "other";
   amount: number | null;
   fact_key: string | null;
   fact_value: string | null;
@@ -46,6 +46,24 @@ export interface Extraction {
   // never resolved into an actual date by the model, the same
   // discipline already proven for job_scopes.scheduled_date_raw.
   due_date_raw: string | null;
+}
+
+// Real feature 2026-07-21 — Purchase Orders, Goods Received Notes,
+// and Supplier Invoices, built incrementally starting with POs, per
+// the real, three-way design already pinned in DECISIONS.md. A PO is
+// a real commitment, not yet a transaction — the mirror image of a
+// Quotation, Peter → Supplier instead of Peter → Customer.
+export interface PurchaseOrderLineItem {
+  description: string;
+  quantity_ordered: number;
+  unit: string | null;
+  unit_price_expected: number | null;
+}
+
+export interface PurchaseOrderExtraction {
+  supplier_name: string | null;
+  description: string;
+  line_items: PurchaseOrderLineItem[];
 }
 
 export interface ProcessResult {
