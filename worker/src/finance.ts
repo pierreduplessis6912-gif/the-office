@@ -276,6 +276,115 @@ export async function recordGoodsReceived(
   return { grnId, variances };
 }
 
+// Real feature 2026-07-21 — Supplier Invoices, the third and final
+// stage of the real, three-way design pinned in DECISIONS.md. This is
+// where real money moves, and where both real reconciliations this
+// whole arc exists for actually happen — quantity billed against
+// quantity ordered, and price billed against price expected, both
+// computed here, in code, never asked of the model. Creates a real
+// expense on confirmation, linked back to the supplier, the same way
+// every other real cost in this project is recorded.
+export async function recordSupplierInvoice(
+  env: Env,
+  purchaseOrderId: number | null,
+  supplierId: number | null,
+  supplierReference: string | null,
+  sourceTranscript: string,
+  lineItems: Array<{ matched_description: string | null; quantity_billed: number; unit_price_billed: number | null }>
+): Promise<{
+  supplierInvoiceId: number;
+  totalAmount: number;
+  expenseId: number;
+  variances: Array<{ description: string; quantityVariance: number | null; priceVariance: number | null }>;
+}> {
+  const poLineItems = purchaseOrderId ? await getPurchaseOrderLineItems(env, purchaseOrderId) : [];
+
+  let totalAmount = 0;
+  const resolvedLineItems: Array<{
+    poLineItemId: number | null;
+    description: string;
+    quantityBilled: number;
+    unitPriceBilled: number | null;
+    quantityVariance: number | null;
+    priceVariance: number | null;
+    lineTotal: number;
+  }> = [];
+
+  for (const item of lineItems) {
+    const matchedPoLine = item.matched_description
+      ? poLineItems.find((p) => p.description.toLowerCase() === item.matched_description!.toLowerCase())
+      : null;
+    // Real, deterministic reconciliation — the actual point of this
+    // whole feature. A billed quantity checked against what was
+    // ordered; a billed price checked against what was expected.
+    const quantityVariance = matchedPoLine ? item.quantity_billed - matchedPoLine.quantity_ordered : null;
+    const priceVariance =
+      matchedPoLine && item.unit_price_billed != null && matchedPoLine.unit_price_expected != null
+        ? item.unit_price_billed - matchedPoLine.unit_price_expected
+        : null;
+    // Real, effective rate for computing a genuine total even when a
+    // specific line has no billed price — falls back to the PO's
+    // expected rate, never invents one from nothing.
+    const effectiveRate = item.unit_price_billed ?? matchedPoLine?.unit_price_expected ?? 0;
+    const lineTotal = item.quantity_billed * effectiveRate;
+    totalAmount += lineTotal;
+    resolvedLineItems.push({
+      poLineItemId: matchedPoLine?.id ?? null,
+      description: matchedPoLine?.description ?? item.matched_description ?? "unmatched item",
+      quantityBilled: item.quantity_billed,
+      unitPriceBilled: item.unit_price_billed,
+      quantityVariance,
+      priceVariance,
+      lineTotal,
+    });
+  }
+
+  const insertedInvoice = await env.OFFICE_DB.prepare(
+    "INSERT INTO supplier_invoices (purchase_order_id, supplier_id, supplier_reference, amount, source_transcript) VALUES (?, ?, ?, ?, ?) RETURNING id"
+  )
+    .bind(purchaseOrderId, supplierId, supplierReference, totalAmount, sourceTranscript)
+    .first<{ id: number }>();
+
+  const supplierInvoiceId = insertedInvoice!.id;
+
+  for (const item of resolvedLineItems) {
+    await env.OFFICE_DB.prepare(
+      "INSERT INTO supplier_invoice_line_items (supplier_invoice_id, po_line_item_id, description, quantity_billed, unit_price_billed, quantity_variance, price_variance, line_total) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    )
+      .bind(
+        supplierInvoiceId,
+        item.poLineItemId,
+        item.description,
+        item.quantityBilled,
+        item.unitPriceBilled,
+        item.quantityVariance,
+        item.priceVariance,
+        item.lineTotal
+      )
+      .run();
+  }
+
+  // Real expense created here, on confirmation - the same real cost
+  // recording every other supplier payment in this project already
+  // goes through, not a parallel, competing system.
+  const expense = await recordExpense(
+    env,
+    supplierId,
+    totalAmount,
+    supplierReference ? `Supplier invoice ${supplierReference}` : "Supplier invoice",
+    sourceTranscript
+  );
+
+  return {
+    supplierInvoiceId,
+    totalAmount,
+    expenseId: expense.id,
+    variances: resolvedLineItems
+      .filter((i) => i.quantityVariance != null || i.priceVariance != null)
+      .map((i) => ({ description: i.description, quantityVariance: i.quantityVariance, priceVariance: i.priceVariance })),
+  };
+}
+
 // No reference-number system exists yet — with one customer generally
 // having at most one open quote at a time, "their most recent
 // not-yet-converted quote" is honest and sufficient for now. A real
