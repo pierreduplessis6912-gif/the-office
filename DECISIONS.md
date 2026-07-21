@@ -2004,6 +2004,56 @@ immediately after: `/health`, `/debug/smoke-test`, and the real,
 correctly-seeded Owner membership all confirmed independently on the
 new, genuinely separate instance.
 
+**2026-07-21 — found while testing the very first item on a routine
+follow-up list, the most serious bug this project has found:**
+
+46. **The model fabricated a real quotation from a message that never
+    stated a price at all.** "Measured Thabo lounge at twenty five
+    square meters, fitting laminate" — no rand figure, no rate, no
+    price language anywhere — produced a real, held-for-confirmation
+    quotation for R625 (25 sqm × a fabricated R25/sqm rate). Traced to
+    `extractScopePricing`'s own system prompt, which opened with "a
+    tradesperson is stating prices to apply to a job that was already
+    measured" — a presumption, baked into the very first sentence,
+    that a price exists to be found. The prompt also echoes each
+    component's real, already-known area back to the model as context
+    (`"Thabo lounge (25 sqm)"`) — and on this message, the model
+    mistook that already-given area for a stated rate, since the same
+    number ("twenty five") appeared in the transcript too. Every other
+    failure shape in this archive is about a real, stated fact being
+    dropped, misattributed, or misrouted — this is the first found in
+    the opposite direction: a fact that was never stated at all,
+    invented instead. Given this touches real money and a real,
+    confirmable action, it's the most serious bug found this project,
+    not just a new pattern.
+    - **Fixed in two layers, deliberately not relying on the prompt
+      alone.** The primary, load-bearing fix: a real, deterministic
+      gate (`transcriptMentionsPricing`) checks the transcript itself
+      for actual price language — "rand," "R" followed by a digit,
+      "price," "rate," "cost," "charge," "quote," "discount," or "per
+      sq/square/m2/metre/meter" — before the pricing extraction is
+      ever called at all, on both call sites that could reach it. The
+      model is never asked to judge whether a price exists; a
+      deterministic check decides that first, matching the exact
+      discipline already proven everywhere else in this project. The
+      secondary fix: the prompt itself now explicitly states a price
+      may not exist at all, includes an instruction that finding
+      nothing means returning an empty result rather than inventing
+      one, and — critically — includes a real, negative worked example
+      showing the exact failure case (the Thabo transcript) correctly
+      producing `{"priced_items": []}`. A prompt that never shows what
+      "nothing found" looks like implicitly teaches a model that
+      finding something is always the expected, correct outcome.
+    - **Verified on both sides, not just the failure case.** The exact
+      failure transcript, re-run after the fix, correctly produced only
+      a job scope, no quotation, `pendingActionId: null`. A genuine,
+      correctly-priced case ("twenty square meters... at two hundred
+      rand a square meter," a fresh customer to avoid an unrelated
+      job-scope-matching ambiguity from the first retest) correctly
+      produced a real R4,000 quotation — proving the fix closed the
+      hallucination without breaking the real, legitimate case it
+      needs to keep working.
+
 ## Purchase Orders, Goods Received Notes, and Supplier Invoices — a real, three-way design for implementation (2026-07-19)
 
 **The problem this closes, and why it's not a fresh idea in isolation.**
