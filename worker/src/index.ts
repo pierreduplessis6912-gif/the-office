@@ -57,6 +57,22 @@ function buildQuotationLineItems(
   });
 }
 
+// Real fix 2026-07-21 — a serious bug found live: extractScopePricing
+// was being called unconditionally on every work_observation message,
+// and hallucinated a real R625 quotation from a message that only
+// stated an area ("twenty five square meters"), never a price — the
+// model mistook the area, already given back to it in the component
+// list, for a stated rate. Fixed with a real, deterministic gate: the
+// pricing extraction is never even attempted unless the transcript
+// itself contains real price language. Deliberately inclusive rather
+// than narrow — an unnecessary check costs nothing; a missed real
+// price silently dropped is the failure mode that actually matters.
+function transcriptMentionsPricing(transcript: string): boolean {
+  return /\brand\b|\bR\s?\d|\bprice\b|\brate\b|\bcost\b|\bcharge\b|\bquote\b|\bdiscount\b|per\s+(sq|square|m2|metre|meter)/i.test(
+    transcript
+  );
+}
+
 // Real feature 2026-07-13 — the reusable core of what used to be the
 // whole of processTranscript, now callable once per item in a
 // multi-intent message instead of once per raw message. Internal
@@ -293,8 +309,10 @@ async function processOneExtraction(
         const observation = await extractWorkObservation(env, transcript);
         if (observation.components.length > 0 || observation.tasks.length > 0) {
           const recorded = await recordWorkObservation(env, customer.id, observation, transcript, null, captureId);
-          const pricedItems = await extractScopePricing(env, transcript, recorded.computedComponents, observation.tasks);
-          quotationLineItems = buildQuotationLineItems(pricedItems, recorded.computedComponents);
+          if (transcriptMentionsPricing(transcript)) {
+            const pricedItems = await extractScopePricing(env, transcript, recorded.computedComponents, observation.tasks);
+            quotationLineItems = buildQuotationLineItems(pricedItems, recorded.computedComponents);
+          }
         }
         if (quotationLineItems.length === 0) {
           priceScopeNotFound = true;
@@ -422,7 +440,7 @@ async function processOneExtraction(
     // Gated the same as every other financial write: the measurement
     // itself still records regardless of role, but the nested
     // quotation this pricing produces requires can_manage_invoices.
-    if (customer && canManageInvoicesForWrites) {
+    if (customer && canManageInvoicesForWrites && transcriptMentionsPricing(transcript)) {
       const pricedItems = await extractScopePricing(env, transcript, recorded.computedComponents, observation.tasks);
       if (pricedItems.length > 0) {
         const lineItems = buildQuotationLineItems(pricedItems, recorded.computedComponents);
