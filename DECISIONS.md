@@ -2362,3 +2362,83 @@ this project, protecting exactly the supplier relationship a contractor
 depends on. Worth a real prototype — a masked room photo, a product
 texture, one actual generation call — before deciding anything further,
 the same evidence-before-commitment discipline as everything else here.
+
+## Layer 2 (Project) — a real design pass with Claude Fable 5, verified rather than accepted (2026-07-20)
+
+**A genuinely productive use of a one-time premium credit, and the
+right way to spend a limited one — one focused pass, not spread thin.**
+A separate Fable 5 session was briefed with the real Calypso Centre
+evidence and pointed at the actual repo. The result was checked line by
+line against the live schema before being trusted, the same discipline
+applied to every claim in this project regardless of source.
+
+**What held up, verified directly, worth keeping:**
+- **The proximity-in-time rejection is correct, and it's the sharpest
+  point in the whole design.** A tunable day-window as a matching
+  signal is a guess wearing code's clothing, not a real deterministic
+  one — the same standing discipline already proven everywhere else,
+  correctly applied here rather than relaxed for convenience.
+- **"`job_scopes` has no site column" — confirmed exactly** against the
+  real, live schema (`id, customer_id, description, scheduled_date_raw,
+  source_transcript, created_at, scheduled_date, installer_id`).
+  "Same site" as a matching signal genuinely isn't implementable
+  without a real schema addition first.
+- **A real, embarrassing correction to this project's own Constitution
+  citation, confirmed accurate:** Principle 24's real title is "Share
+  What's Known, Don't Guess What's Meant," not "The Execution Ladder"
+  — that's a separate, related document living in this file, not in
+  `OFFICE_CONSTITUTION.md` at all. A real error in an earlier brief,
+  caught by a fresh reader actually checking the source rather than
+  trusting a paraphrase.
+- **Reusing the existing rung-based resolution (Principle 24) for
+  cross-capture project attachment** — a named handle matches directly;
+  exactly one open candidate auto-attaches; two or more asks rather
+  than guesses; zero leaves the scope standalone — is a sound,
+  minimal-new-mechanism design, consistent with how every other
+  ambiguous-match problem in this project has already been solved.
+
+**What didn't hold up — the central, load-bearing claim, corrected with
+real evidence rather than taken on faith:** "co-birth (same capture ∧
+same customer) is a fact the receptacle recorded" was checked directly
+and is not accurate. `captureId` genuinely exists and flows through the
+processing pipeline as a real parameter — but it is only ever used to
+update the `captures` table's own hint and text. It is never passed
+into `recordWorkObservation`, and `job_scopes` has no `capture_id`
+column at all. The infrastructure to capture this signal is real and
+close — one parameter away — but the signal itself does not exist in
+stored data today. "Already exists and is being ignored" was the wrong
+framing; "doesn't exist yet, genuinely cheap to add" is the honest one.
+A second, related claim in the same design — "quotations reach the
+project through edges that already exist" — has the identical problem:
+`quotations` has no `job_scope_id` column, confirmed directly against
+the real INSERT statement. The connection to a job scope is looked up
+once at creation time and never persisted; there is no existing edge to
+traverse.
+
+**What this means for the design's own "one table, one column"
+footprint claim: understated, not wrong in spirit.** The real footprint
+is closer to a `projects` table, `project_id` on `job_scopes`, *plus* a
+new `capture_id` on `job_scopes` (to make same-breath detection
+possible at all), *plus* either a real edge from quotations/invoices
+back to their job scope, or an honest acceptance that those documents
+only ever reach a project transitively and imprecisely, not directly.
+
+**On contact-at-entity staying genuinely separate from Project:** the
+design's case (different evidence, different structural problem) is
+sound in its core logic, though one supporting detail was imprecise —
+Alfons *was* named in direct connection with the Calypso site (as the
+building's owner) in the same real test that motivated Project, so
+"Calypso contains no named site contact" overstated the separation
+slightly. Doesn't change the underlying conclusion — a person's
+relationship to an organization and a job's relationship to other job
+phases remain genuinely different kinds of gaps — but worth the
+correction on record rather than repeating an overstated version of a
+correct conclusion.
+
+**Explicitly not for implementation now** — a real, sharpened design,
+not a finished one. The next real step is deciding whether to actually
+add `capture_id` to `job_scopes` and thread it through
+`recordWorkObservation`, which would make same-breath project assembly
+genuinely buildable rather than theoretically clean. Pinned so this
+verified, corrected version — not the original, partially-inaccurate
+one — is what survives.
