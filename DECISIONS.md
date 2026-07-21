@@ -2555,3 +2555,95 @@ turn: snag lists (smallest, most immediately useful) and the lead stage
 warranty tracking and the payroll/banking gap correctly last, since
 neither has real, pressing evidence behind it yet, only the honest
 observation that the permission model already implies them.
+
+## Purchase Orders, Goods Received Notes, and Supplier Invoices — the design is now real and built (2026-07-21)
+
+The full three-way design pinned earlier is no longer just a design.
+Built incrementally over one real session, tested with real, predicted-
+in-advance numbers at every stage — the same discipline that's proven
+correct for everything else in this project, applied here to the
+largest single feature built in one sitting so far.
+
+**Purchase Orders** — unguarded, matching the exact precedent already
+established for job scopes (a real commitment, not yet a transaction).
+Proven live with the original design's own worked example, verbatim: a
+real PO for 50m² vinyl, a 100m² roll of underlay, and 10 lengths of
+skirting from Floornet, extracted with all three quantities and units
+correct, and — critically — `unit_price_expected: null` on every line,
+since no price was ever stated. The same hallucination discipline
+proven earlier in the session (bug 46) held correctly here too, on the
+very first real test.
+
+**Goods Received Notes** — guard()'d, matching the original design's
+own distinction that this is where real stock changes hands. Proven
+live with the exact shortage scenario that motivated the whole PO/GRN
+design in the first place: 50 vinyl delivered clean, underlay short by
+50, skirting short by 2 — every number matching the original design
+conversation's own worked example exactly. The real, deterministic
+variance computation (never asked of the model) is the actual point of
+this stage, and it worked correctly on the first real test.
+
+**Supplier Invoices** — the third and final stage, where real money
+moves and both real reconciliations (quantity and price) exist for a
+reason. Tested three separate ways, since a supplier invoice
+genuinely arrives three different ways in real life:
+
+1. **Spoken aloud** — "got Floornet's invoice INV-4471, 50 sqm vinyl at
+   R180, 50 sqm underlay at R35, 8 lengths of skirting at R120" —
+   correctly computed a real R11,710 total and created a real expense.
+   Price variance came back null for every line, correctly — the
+   original PO never had an expected price stated, so there was
+   nothing to compare against, an honest outcome not a bug.
+2. **A real, uploaded PDF** — a genuine test invoice generated and
+   uploaded, extracted via the exact same `pdfjs-serverless` text
+   extraction already proven earlier the same session, correctly
+   identifying a real shortage (30 ordered, 28 billed) from a real
+   document's actual text.
+3. **A real photographed invoice** — the same test invoice rendered to
+   a real JPEG and uploaded as a photo. A genuinely different
+   technical path (vision description, not text extraction) — and a
+   real, honest finding along the way: an initial test photo was
+   cropped too narrow, cutting off the line-item table entirely. The
+   vision model correctly reported no amounts were visible in what it
+   was actually shown, and the system correctly produced **no**
+   supplier invoice action at all rather than a false or empty one —
+   the exact same safety discipline that fixed bug 46, holding
+   correctly under a genuinely different failure mode this time,
+   proven rather than assumed. Once the crop was corrected, the vision
+   description preserved every real figure precisely — "28 sqm,
+   R220.00, R6160.00" — and the full pipeline worked identically to
+   the PDF path.
+
+**A real bug found and fixed live**: the confirm step for the first
+real supplier invoice failed with `no such table: supplier_invoices` —
+the schema migration had been listed but never actually run before the
+confirm was attempted. Verified the pending action was still safely
+intact (nothing had been written before the failure), ran the real
+migration, and the retry succeeded cleanly — a real, live demonstration
+that a failed confirm attempt genuinely doesn't corrupt or lose
+anything, matching the same retry-safety discipline already proven
+elsewhere in this project.
+
+**Document ingestion — the real design decision made this session,
+worth recording precisely**: rather than inventing a new upload
+parameter, supplier-invoice extraction from an uploaded PDF or photo
+reuses the exact same caption-to-supplier-character reconciliation
+already proven for `/files/document` and `/files/photo` — if the
+caption names a supplier with a real, open PO, the document's own real,
+extracted text (never the caption) is run through the identical
+extraction and guard()'d confirmation as the spoken path. One
+mechanism, three real entry points, not three separate systems.
+
+**Real, honest limitations, named rather than hidden:**
+- A PO is never marked "closed" or "fully billed" — `findLatestOpenPurchaseOrder`
+  finds the most recent PO for a supplier regardless of whether it's
+  already been fully reconciled. Real, live evidence of this: the
+  second and third Supplier Invoice tests both matched against the
+  same PO. Not incorrect, just a real gap worth closing once there's
+  evidence it causes real confusion.
+- Vision-based extraction was proven precise on one clear, well-lit,
+  sharp test image. A genuinely blurry or poorly-lit real photo of a
+  paper invoice is a real, different test this session didn't cover —
+  worth remembering before assuming this generalizes to every real
+  photo a phone camera produces in the field.
+
