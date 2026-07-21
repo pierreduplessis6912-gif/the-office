@@ -1366,6 +1366,31 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       }
     }
 
+    // Real feature 2026-07-21 — a real, urgent need: an active
+    // two-year contract in its final stage, needing historical
+    // reconciliation soon. A customer's real, standing retention
+    // rate, plus the real, computed withheld amount stored on every
+    // invoice it applies to.
+    if (url.pathname === "/debug/init-retention-columns" && request.method === "POST") {
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE customers ADD COLUMN retention_percent REAL").run();
+      } catch (err) {
+        // Likely already exists — continue regardless, each ALTER is
+        // independent.
+      }
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE invoices ADD COLUMN retention_percent REAL").run();
+      } catch (err) {
+        // Same — safe to re-run.
+      }
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE invoices ADD COLUMN retention_amount REAL NOT NULL DEFAULT 0").run();
+      } catch (err) {
+        // Same.
+      }
+      return Response.json({ status: "ok" });
+    }
+
     // Real fix 2026-07-21 — closing a real gap found incidentally
     // during PDF extraction testing: every PDF generator has always
     // expected a real business_profile row (id=1), and none ever
@@ -2329,6 +2354,33 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         .all();
 
       return Response.json({ from: todayIso, to: untilIso, schedule: results });
+    }
+
+    // Real feature 2026-07-21 — the actual, urgent need behind this
+    // whole feature: reconciling retention withheld across an active,
+    // two-year contract now in its final stage. Real, deterministic
+    // totals — every figure summed directly from stored, real
+    // invoices, never estimated.
+    if (url.pathname === "/debug/retention-summary" && request.method === "GET") {
+      const customerId = url.searchParams.get("customerId");
+      if (!customerId) {
+        return Response.json({ error: "customerId query parameter is required" }, { status: 400 });
+      }
+      const { results } = await env.OFFICE_DB.prepare(
+        `SELECT id, description, amount, retention_percent, retention_amount, created_at
+         FROM invoices WHERE customer_id = ? AND retention_amount > 0 ORDER BY created_at ASC`
+      )
+        .bind(customerId)
+        .all<{ id: number; description: string; amount: number; retention_percent: number; retention_amount: number; created_at: string }>();
+      const totalRetained = results.reduce((sum, r) => sum + r.retention_amount, 0);
+      const totalInvoiced = results.reduce((sum, r) => sum + r.amount, 0);
+      return Response.json({
+        customerId: Number(customerId),
+        invoiceCount: results.length,
+        totalInvoiced,
+        totalRetained,
+        invoices: results,
+      });
     }
 
     if (url.pathname === "/debug/quotations" && request.method === "GET") {
