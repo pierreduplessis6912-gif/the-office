@@ -11,6 +11,7 @@ import type {
   ScopePricingItem,
   WorkObservationExtraction,
   PurchaseOrderExtraction,
+  GoodsReceivedExtraction,
   HistoryTurn,
 } from "./types";
 
@@ -486,6 +487,70 @@ export async function extractScopePricing(
     return parsed.priced_items ?? [];
   } catch {
     return [];
+  }
+}
+
+// Real feature 2026-07-21 — Goods Received Notes, the second stage of
+// the real, three-way PO/GRN/Supplier Invoice design pinned in
+// DECISIONS.md. Closely modeled on extractScopePricing's proven
+// matched-name pattern — the model's only job is recognizing which
+// given PO line item a real, delivered quantity belongs to, never
+// inventing a match or a quantity that wasn't actually stated.
+export async function extractGoodsReceived(
+  env: Env,
+  transcript: string,
+  poLineItems: Array<{ description: string; quantity_ordered: number; unit: string | null }>
+): Promise<GoodsReceivedExtraction> {
+  const empty: GoodsReceivedExtraction = { supplier_name: null, line_items: [] };
+  try {
+    const lineItemList =
+      poLineItems.map((i) => `${i.description} (ordered: ${i.quantity_ordered}${i.unit ? " " + i.unit : ""})`).join(", ") || "none";
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        temperature: 0,
+        chat_template_kwargs: { thinking: false },
+        messages: [
+          {
+            role: "system",
+            content:
+              "A delivery has arrived against a real, already-placed order. You are given the exact " +
+              "real line items that were ordered (with the quantity ordered for each). Match what was " +
+              "actually delivered to these exact given items — never invent a new item that wasn't in " +
+              "the given order. supplier_name is who the delivery is from, exactly as named, or null if " +
+              "not stated. For each item genuinely received, extract: matched_description (copied " +
+              "EXACTLY from the given order line item) or null if it genuinely doesn't match anything " +
+              "given, and quantity_received (the plain number actually delivered — this is very often " +
+              "different from what was ordered; a real shortage or an exact match are both real, valid " +
+              "outcomes, extract exactly what was said, never assume it matches the ordered quantity). " +
+              "Return ONLY JSON: " +
+              '{"supplier_name": string or null, "line_items": [{"matched_description": string or null, ' +
+              '"quantity_received": number}]}\n\n' +
+              "Example:\n" +
+              'Ordered: "Vinyl (ordered: 50 sqm), Underlay (ordered: 100 sqm), Skirting (ordered: 10 length)". ' +
+              'Delivery: "the Floornet delivery arrived, 50 square meters of vinyl, but the underlay was only 50 square meters, and only 8 lengths of skirting" -> ' +
+              '{"supplier_name":"Floornet","line_items":[' +
+              '{"matched_description":"Vinyl","quantity_received":50},' +
+              '{"matched_description":"Underlay","quantity_received":50},' +
+              '{"matched_description":"Skirting","quantity_received":8}' +
+              "]}",
+          },
+          {
+            role: "user",
+            content: `Ordered: ${lineItemList}.\n\nDelivery: "${transcript}"`,
+          },
+        ],
+      })
+    );
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const rawText = r.choices?.[0]?.message?.content ?? "";
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned) as GoodsReceivedExtraction;
+    return {
+      supplier_name: parsed.supplier_name ?? null,
+      line_items: parsed.line_items ?? [],
+    };
+  } catch {
+    return empty;
   }
 }
 
