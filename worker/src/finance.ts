@@ -725,7 +725,7 @@ export async function generateDocumentPdf(env: Env, id: number, kind: "invoice" 
   const lineItemColumn = kind === "invoice" ? "invoice_id" : "quotation_id";
 
   const doc = await env.OFFICE_DB.prepare(
-    `SELECT d.id, d.description, d.status, d.created_at, c.name as customer_name, c.address as customer_address FROM ${table} d JOIN customers c ON c.id = d.customer_id WHERE d.id = ?`
+    `SELECT d.id, d.description, d.status, d.created_at, c.name as customer_name, c.address as customer_address, c.vat_exempt FROM ${table} d JOIN customers c ON c.id = d.customer_id WHERE d.id = ?`
   )
     .bind(id)
     .first<{
@@ -735,6 +735,7 @@ export async function generateDocumentPdf(env: Env, id: number, kind: "invoice" 
       created_at: string;
       customer_name: string;
       customer_address: string | null;
+      vat_exempt: number | null;
     }>();
 
   if (!doc) {
@@ -832,10 +833,19 @@ export async function generateDocumentPdf(env: Env, id: number, kind: "invoice" 
   y -= 16;
 
   let vatAmount = 0;
-  if (business?.vat_registered) {
+  // Real feature 2026-07-21 - a customer's real, standing vat_exempt
+  // status overrides the business-wide default entirely for their own
+  // documents - concrete, real evidence behind this one: Zululand
+  // Flooring genuinely operates with VAT for some clients, not others.
+  const customerIsExempt = doc.vat_exempt === 1;
+  if (business?.vat_registered && !customerIsExempt) {
     vatAmount = subtotal * ((business.vat_rate ?? 15) / 100);
     page.drawText(`VAT (${business.vat_rate}%)`, { x: 400, y, size: 10, font });
-    page.drawText(`R${vatAmount.toFixed(2)}`, { x: 480, y, size: 10, font });
+    // Real fix, caught while adding this feature: this line used
+    // .toFixed(2) directly rather than the formatRand helper already
+    // proven for every other currency figure - missed by the earlier
+    // fix since that regex only matched .toLocaleString() patterns.
+    page.drawText(`${formatRand(vatAmount)}`, { x: 480, y, size: 10, font });
     y -= 16;
   }
 
