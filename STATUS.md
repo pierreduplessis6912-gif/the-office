@@ -501,6 +501,20 @@ Codemagic — still only proven on the web preview.**
   separate instance exists, created by the DIY provisioning workflow
   and verified live. See DECISIONS.md for the full arc, including four
   real bugs found only by actually running the pipeline.
+- **Purchase Orders, Goods Received Notes, and Supplier Invoices are
+  real and built — not just the pinned design anymore** (2026-07-21).
+  All three stages proven live with real, predicted-in-advance
+  numbers: a real PO (three real materials, zero invented pricing
+  since none was stated), a real GRN detecting an exact shortage
+  (underlay -50, skirting -2, matching the original design's own
+  worked example precisely), and a real Supplier Invoice tested
+  across all three ways one can actually arrive — spoken aloud, a real
+  uploaded PDF, and a real photographed invoice — each one correctly
+  computing quantity and price variance in code and creating a real
+  expense on confirmation. See DECISIONS.md for the complete arc,
+  including a real safety-discipline success (a too-narrow test photo
+  correctly produced *no* fabricated action rather than a false one)
+  and the real bugs found along the way.
 - **`captures` real FK backfill.** `customer_id`/`character_id` (added
   2026-07-11) are correctly populated for every NEW capture from here
   on, verified live via a real clean join (`?customerId=1`). Every
