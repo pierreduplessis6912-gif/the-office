@@ -41,6 +41,11 @@ export interface Extraction {
   query_scope: "customer" | "personal" | "business" | "character" | null;
   deposit_percent: number | null;
   scope_document_type: "quotation" | "invoice" | null;
+  // Real feature 2026-07-21 - a real, stated due time for a reminder
+  // ("remind me by Friday", "tomorrow"), extracted exactly as said -
+  // never resolved into an actual date by the model, the same
+  // discipline already proven for job_scopes.scheduled_date_raw.
+  due_date_raw: string | null;
 }
 
 export interface ProcessResult {
