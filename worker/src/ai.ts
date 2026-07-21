@@ -10,6 +10,7 @@ import type {
   LineItemExtraction,
   ScopePricingItem,
   WorkObservationExtraction,
+  PurchaseOrderExtraction,
   HistoryTurn,
 } from "./types";
 
@@ -565,6 +566,68 @@ export async function extractWorkObservation(env: Env, transcript: string): Prom
       tasks: parsed.tasks ?? [],
       scheduled_date_raw: parsed.scheduled_date_raw ?? null,
       installer_name: parsed.installer_name ?? null,
+    };
+  } catch {
+    return empty;
+  }
+}
+
+// Real feature 2026-07-21 — Purchase Orders, built incrementally per
+// the real, three-way design already pinned in DECISIONS.md. Closely
+// modeled on extractWorkObservation's proven structure, applied to the
+// mirror-image case: Peter → Supplier, not Peter → Customer. A PO is
+// a real commitment, not yet a transaction — no money has moved, no
+// goods have arrived — so this extraction never asks about receipt or
+// billing, only what was ordered.
+export async function extractPurchaseOrder(env: Env, transcript: string): Promise<PurchaseOrderExtraction> {
+  const empty: PurchaseOrderExtraction = { supplier_name: null, description: transcript, line_items: [] };
+  try {
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        temperature: 0,
+        chat_template_kwargs: { thinking: false },
+        messages: [
+          {
+            role: "system",
+            content:
+              "Extract a real order a tradesperson is placing with a supplier — not yet delivered, not " +
+              "yet billed, just what's being ordered. supplier_name is who the order is being placed " +
+              "with, exactly as named (e.g. 'Floornet', 'BUCO') — null if genuinely not named. " +
+              "description is a short summary of the overall order (e.g. 'carpet tile and underlay for " +
+              "the Calypso job'). line_items is every distinct material or product being ordered, each " +
+              "with: description (what's being ordered), quantity_ordered (a plain number), unit (e.g. " +
+              "'sqm', 'roll', 'length', 'each', or null if not stated), and unit_price_expected (the rate " +
+              "or price PER UNIT if one was actually stated for this item, or null if no price was " +
+              "mentioned — an order is often placed with no price discussed at all, and that's a real, " +
+              "valid case, never invent one). Extract numbers exactly as stated — never calculate a total " +
+              "yourself, that always happens afterward, in code. Return ONLY JSON: " +
+              '{"supplier_name": string or null, "description": string, "line_items": [{"description": ' +
+              'string, "quantity_ordered": number, "unit": string or null, "unit_price_expected": number ' +
+              "or null}]}\n\n" +
+              "Examples:\n" +
+              '"order 50 square meters of vinyl, a hundred square meter roll of underlay, and 10 lengths of skirting from Floornet" -> ' +
+              '{"supplier_name":"Floornet","description":"Vinyl, underlay, and skirting","line_items":[' +
+              '{"description":"Vinyl","quantity_ordered":50,"unit":"sqm","unit_price_expected":null},' +
+              '{"description":"Underlay","quantity_ordered":100,"unit":"sqm","unit_price_expected":null},' +
+              '{"description":"Skirting","quantity_ordered":10,"unit":"length","unit_price_expected":null}' +
+              "]}\n" +
+              '"order 160 square meters of carpet tile from Floornet at R380 a square meter" -> ' +
+              '{"supplier_name":"Floornet","description":"Carpet tile","line_items":[' +
+              '{"description":"Carpet tile","quantity_ordered":160,"unit":"sqm","unit_price_expected":380}' +
+              "]}",
+          },
+          { role: "user", content: transcript },
+        ],
+      })
+    );
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const rawText = r.choices?.[0]?.message?.content ?? "";
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned) as PurchaseOrderExtraction;
+    return {
+      supplier_name: parsed.supplier_name ?? null,
+      description: parsed.description || transcript,
+      line_items: parsed.line_items ?? [],
     };
   } catch {
     return empty;
