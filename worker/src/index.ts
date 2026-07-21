@@ -1,9 +1,9 @@
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult } from "./types";
-import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractIntent, extractLineItems, extractMultipleIntents, extractScopePricing, extractWorkObservation, rerank, resolveFollowUpEntity, storeUnscopedMemory, transcribe } from "./ai";
+import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractIntent, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractWorkObservation, rerank, resolveFollowUpEntity, storeUnscopedMemory, transcribe } from "./ai";
 import { findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
-import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedDebtorsSummary, getCustomerFinancialSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOutstandingInvoices, getProfitAndLossSummary, getQuotationsSummary, holdForConfirmation, recordExpense, recordInvoice, recordPayment, recordQuotation } from "./finance";
+import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedDebtorsSummary, getCustomerFinancialSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOutstandingInvoices, getProfitAndLossSummary, getQuotationsSummary, holdForConfirmation, recordExpense, recordInvoice, recordPayment, recordPurchaseOrder, recordQuotation } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 
 // Second layer of defense against storing questions as facts — never
@@ -266,6 +266,24 @@ async function processOneExtraction(
       transcript
     );
     pendingActionId = held.id;
+  }
+
+  // Real feature 2026-07-21 — Purchase Orders, built incrementally
+  // per the real, three-way design pinned in DECISIONS.md.
+  // Deliberately unguarded, the same precedent already established
+  // for job scopes — a real commitment, not yet a transaction.
+  let purchaseOrderResult: { purchaseOrderId: number; lineItemCount: number } | null = null;
+  let purchaseOrderNoSupplier = false;
+  if (extraction?.intent === "purchase_order") {
+    if (character) {
+      const poExtraction = await extractPurchaseOrder(env, transcript);
+      const recorded = await recordPurchaseOrder(env, character.id, poExtraction.description, transcript, poExtraction.line_items);
+      purchaseOrderResult = { purchaseOrderId: recorded.purchaseOrderId, lineItemCount: poExtraction.line_items.length };
+    } else {
+      // Honest, not silent — the same discipline as every other
+      // recognized-but-nothing-to-act-on case in this project.
+      purchaseOrderNoSupplier = true;
+    }
   }
 
   if (extraction?.intent === "invoice" && customer && extraction.amount) {
@@ -609,6 +627,12 @@ async function processOneExtraction(
     // component/task or produced a positive total — say so rather
     // than silently doing nothing.
     message = `Found a job scope for ${customer!.name}, but couldn't match any priced item to it — try naming the component or task exactly as measured.`;
+  } else if (extraction?.intent === "purchase_order" && purchaseOrderResult) {
+    message = `Purchase order #${purchaseOrderResult.purchaseOrderId} recorded for ${character!.name} — ${purchaseOrderResult.lineItemCount} item(s).`;
+  } else if (extraction?.intent === "purchase_order" && purchaseOrderNoSupplier) {
+    // Honest, not silent — the same discipline as every other
+    // recognized-but-nothing-to-act-on case in this project.
+    message = "Recognized a purchase order, but no supplier was named — try naming who it's from.";
   } else if (pendingActionId && extraction?.intent === "convert_quote" && convertQuoteFound) {
     const { total, depositAmount, remainingBalance, quotationId } = convertQuoteFound;
     const depositNote = extraction.deposit_percent
@@ -1389,6 +1413,55 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         // Same.
       }
       return Response.json({ status: "ok" });
+    }
+
+    // Real feature 2026-07-21 — Purchase Orders, the first stage of
+    // the real, three-way PO/GRN/Supplier Invoice design already
+    // pinned in DECISIONS.md, built incrementally. supplier_id
+    // references characters (suppliers), never customers — the same
+    // isolation already proven for every other supplier relationship
+    // in this project.
+    if (url.pathname === "/debug/init-purchase-orders" && request.method === "POST") {
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS purchase_orders (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          supplier_id INTEGER,
+          description TEXT NOT NULL,
+          source_transcript TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`
+      ).run();
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS po_line_items (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          purchase_order_id INTEGER NOT NULL,
+          description TEXT NOT NULL,
+          quantity_ordered REAL NOT NULL,
+          unit TEXT,
+          unit_price_expected REAL
+        )`
+      ).run();
+      return Response.json({ status: "ok" });
+    }
+
+    if (url.pathname === "/debug/purchase-orders" && request.method === "GET") {
+      const { results: orders } = await env.OFFICE_DB.prepare(
+        `SELECT po.id, po.supplier_id, ch.name as supplier_name, po.description, po.created_at
+         FROM purchase_orders po
+         LEFT JOIN characters ch ON ch.id = po.supplier_id
+         ORDER BY po.created_at DESC LIMIT 10`
+      ).all();
+      const enriched = await Promise.all(
+        (orders as Array<{ id: number }>).map(async (order) => {
+          const { results: lineItems } = await env.OFFICE_DB.prepare(
+            "SELECT id, description, quantity_ordered, unit, unit_price_expected FROM po_line_items WHERE purchase_order_id = ?"
+          )
+            .bind(order.id)
+            .all();
+          return { ...order, lineItems };
+        })
+      );
+      return Response.json({ purchaseOrders: enriched });
     }
 
     // Real fix 2026-07-21 — closing a real gap found incidentally
