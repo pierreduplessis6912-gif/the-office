@@ -2492,3 +2492,66 @@ add `capture_id` to `job_scopes` and thread it through
 genuinely buildable rather than theoretically clean. Pinned so this
 verified, corrected version — not the original, partially-inaccurate
 one — is what survives.
+
+## Real, unpinned gaps found surveying the complete flooring contractor lifecycle (2026-07-21)
+
+Found while deliberately walking the full lead-to-warranty lifecycle of
+a real flooring job, looking for what's missing even from everything
+already built or pinned. Four real, distinct gaps, none built, none
+previously written down anywhere.
+
+**The lead/enquiry stage has no home at all.** Everything built so far
+assumes a customer and a quotation exist together — there's no concept
+of "someone enquired, hasn't been quoted yet." A real business has a
+stage before that, and losing it means losing real signal: no way to
+answer "how many enquiries turned into quotes," no way to distinguish
+"genuinely interested, not yet priced" from "quoted and gone quiet."
+Quotation win-rate — floated once already as a candidate feature — has
+no foundation to stand on without this. Real shape, roughly: a `leads`
+table (a name/contact, what they're interested in, a source, a status
+— enquired/quoted/won/lost), converting into a real customer and
+quotation once it's priced, not duplicating that data.
+
+**Snag lists don't exist anywhere — a real, standard, industry concept,
+not an edge case.** After an install, defects get found — a gap at a
+skirting joint, a seam that lifted, a colour that doesn't quite match.
+Real flooring businesses track these as their own thing, with their own
+resolution status, separate from the original job scope that's already
+"done." Genuinely absent from every document written tonight, including
+the ones that went deep on job scopes specifically. Real shape,
+roughly: a `snags` table linked to a `job_scope_id`, a description, a
+status (open/resolved), maybe a resolved-by-installer reference — small,
+bounded, and directly useful the same day it's said aloud ("there's a
+gap at the skirting in Jenny's lounge").
+
+**Warranty and guarantee tracking has no home.** "This carpet carries a
+10-year wear warranty" is a real, common promise a flooring business
+makes, and needs to be answerable for, potentially years later, by
+someone who wasn't in the room when it was said. Nothing captures this
+today — not on an invoice, not as a customer fact, nowhere. Real shape,
+roughly: attached to the invoice or job scope it applies to, a real
+term and a real start date, queryable the way any other structured fact
+already is.
+
+**Payroll and bank reconciliation are permission names with no feature
+behind them — the sharpest, most concrete finding here.**
+`can_know_payroll` and `can_know_banking` both exist in the real,
+live `ROLE_CAPABILITIES` map, granted to Owner and Accountant — but
+there is no payroll data model and no bank-feed or reconciliation
+concept anywhere in this project. The permission system is quietly
+assuming two features that were never actually designed, let alone
+built. Not urgent to build either — but worth naming precisely, since a
+capability that gates nothing real is a different kind of gap than a
+missing feature: it's a promise the permission model is already
+making on the product's behalf.
+
+**Explicitly not designed in full here, deliberately** — each of these
+is a real, separate design task on the same scale as PO/GRN or
+consumables stock, not something to rush through in one pass just
+because they were all found in the same lifecycle walk. Pinned so the
+real evidence for each survives, in the order they'd likely earn their
+turn: snag lists (smallest, most immediately useful) and the lead stage
+(foundational to win-rate and several already-pinned ideas) first;
+warranty tracking and the payroll/banking gap correctly last, since
+neither has real, pressing evidence behind it yet, only the honest
+observation that the permission model already implies them.
