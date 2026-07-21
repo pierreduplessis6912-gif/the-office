@@ -292,7 +292,7 @@ async function processOneExtraction(
         // classifier happened to choose.
         const observation = await extractWorkObservation(env, transcript);
         if (observation.components.length > 0 || observation.tasks.length > 0) {
-          const recorded = await recordWorkObservation(env, customer.id, observation, transcript, null);
+          const recorded = await recordWorkObservation(env, customer.id, observation, transcript, null, captureId);
           const pricedItems = await extractScopePricing(env, transcript, recorded.computedComponents, observation.tasks);
           quotationLineItems = buildQuotationLineItems(pricedItems, recorded.computedComponents);
         }
@@ -403,7 +403,7 @@ async function processOneExtraction(
     // Real fix 2026-07-13: no longer gated behind customer being
     // resolved — a job with a real installer but no yet-known
     // customer should still be recorded, not silently dropped.
-    const recorded = await recordWorkObservation(env, customer?.id ?? null, observation, transcript, installerId);
+    const recorded = await recordWorkObservation(env, customer?.id ?? null, observation, transcript, installerId, captureId);
     workObservationResult = {
       jobScopeId: recorded.jobScopeId,
       componentCount: observation.components.length,
@@ -1298,6 +1298,22 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       }
     }
 
+    // Real feature 2026-07-20 (Layer 2 / Project design, verified via
+    // the Fable 5 design pass): the concrete first step toward
+    // same-breath Project assembly — a real, deterministic signal that
+    // turned out not to exist in stored data despite the
+    // infrastructure (captureId) already flowing through the whole
+    // processing pipeline. This is the honest prerequisite, not the
+    // whole design.
+    if (url.pathname === "/debug/init-capture-id-column" && request.method === "POST") {
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE job_scopes ADD COLUMN capture_id INTEGER").run();
+        return Response.json({ status: "ok", added: true });
+      } catch (err) {
+        return Response.json({ status: "ok", added: false, note: "column likely already exists", detail: err instanceof Error ? err.message : String(err) });
+      }
+    }
+
     if (url.pathname === "/debug/memberships" && request.method === "GET") {
       const { results } = await env.OFFICE_DB.prepare("SELECT * FROM memberships ORDER BY created_at DESC").all();
       const enriched = results.map((m) => ({ ...m, capabilities: ROLE_CAPABILITIES[String(m.role)] ?? [] }));
@@ -2142,7 +2158,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     if (url.pathname === "/debug/job-scopes" && request.method === "GET") {
       const { results: scopes } = await env.OFFICE_DB.prepare(
         `SELECT js.id, js.customer_id, c.name as customer_name, js.description, js.scheduled_date_raw,
-                js.scheduled_date, js.installer_id, ch.name as installer_name, js.created_at
+                js.scheduled_date, js.installer_id, ch.name as installer_name, js.created_at, js.capture_id
          FROM job_scopes js
          LEFT JOIN customers c ON c.id = js.customer_id
          LEFT JOIN characters ch ON ch.id = js.installer_id
