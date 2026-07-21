@@ -259,6 +259,13 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             "distinct, separate event from placing the order, and distinct from an invoice or expense " +
             "since no billing is described, only physical receipt. Same character_name convention — the " +
             'supplier goes in character_name with character_relationship "supplier". ' +
+            'intent is "supplier_invoice" if the message describes a supplier\'s real bill arriving for ' +
+            'an already-placed, formal order — "got Floornet\'s invoice" or "Floornet billed us for that ' +
+            'delivery" — a genuinely different case from expense, which is for an informal, one-off ' +
+            "purchase with no real PO/GRN trail behind it. If it's clearly billing against a real order " +
+            "already placed with this supplier, prefer supplier_invoice; if it's a simple, standalone " +
+            'purchase (e.g. "bought glue for R850 at BUCO"), it stays expense. Same character_name ' +
+            'convention — the supplier goes in character_name with character_relationship "supplier". ' +
             'intent is "task_complete" if the message reports a personal errand or reminder as DONE — ' +
             '"got the dog food", "picked up the kids", "phoned my mother" — past tense, something ' +
             'finished, not a new request. This includes bare, pronoun-only completions with no concrete ' +
@@ -333,6 +340,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             '"bought glue for R850 at BUCO" -> {"customer_name":null,"character_name":"BUCO","character_relationship":"supplier","intent":"expense","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"order 160 square meters of carpet tile from Floornet at R380 a square meter" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"purchase_order","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"the Floornet delivery arrived, but the underlay was short" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"goods_received","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
+            '"got Floornet\'s invoice for that delivery" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"supplier_invoice","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"bought glue for R850 at BUCO for Jenny\'s job" -> {"customer_name":"Jenny","character_name":"BUCO","character_relationship":"supplier","intent":"expense","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"Sipho has a driver\'s license" -> {"customer_name":null,"character_name":"Sipho","character_relationship":"installer","intent":"note","amount":null,"fact_key":"license","fact_value":"driver\'s license","personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"we don\'t charge Jenny VAT" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"note","amount":null,"fact_key":"vat_exempt","fact_value":"true","personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
@@ -353,7 +361,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             "Return ONLY JSON, no markdown, no explanation: " +
             '{"customer_name": string or null, "character_name": string or null, "character_relationship": ' +
             'string or null, "intent": "payment" or "invoice" or "quotation" or "convert_quote" or ' +
-            '"price_scope" or "work_observation" or "lookup" or "reminder" or "task_complete" or "expense" or "note" or "purchase_order" or "goods_received" or "other", "amount": number or null, ' +
+            '"price_scope" or "work_observation" or "lookup" or "reminder" or "task_complete" or "expense" or "note" or "purchase_order" or "goods_received" or "supplier_invoice" or "other", "amount": number or null, ' +
             '"fact_key": string or null, "fact_value": string or null, "personal_note": string or null, ' +
             '"query_scope": "customer" or "character" or "personal" or "business" or null, "deposit_percent": ' +
             'number or null, "scope_document_type": "quotation" or "invoice" or null, "due_date_raw": ' +
