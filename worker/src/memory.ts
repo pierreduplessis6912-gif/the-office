@@ -46,6 +46,23 @@ export async function applyStructuredFact(
       return;
     }
 
+    // Real feature 2026-07-21 — a real, urgent need: an active
+    // two-year contract in its final stage, needing historical
+    // reconciliation soon. A retention rate is agreed once for the
+    // life of a contract, the same standing-fact shape as
+    // vat_exempt — a real number parsed deterministically from
+    // whatever was stated ("10%", "10", "ten percent"), never trusted
+    // as free text.
+    if (normalizedKey === "retention_percent") {
+      const parsed = parseFloat(value.replace(/[^0-9.]/g, ""));
+      if (!isNaN(parsed)) {
+        await env.OFFICE_DB.prepare("UPDATE customers SET retention_percent = ? WHERE id = ?")
+          .bind(parsed, customerId)
+          .run();
+      }
+      return;
+    }
+
     // Real normalization, always in code — never left to the model's
     // own formatting. Defaults to South Africa since that's the
     // business's actual market; a number already carrying a country
