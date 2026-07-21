@@ -512,7 +512,7 @@ async function processOneExtraction(
   // to the full transcript when the reminder was never mixed with
   // anything else to begin with.
   if (extraction?.intent === "reminder") {
-    ctx.waitUntil(createTask(env, extraction.personal_note ?? transcript, customer?.id ?? null, character?.id ?? null));
+    ctx.waitUntil(createTask(env, extraction.personal_note ?? transcript, customer?.id ?? null, character?.id ?? null, extraction.due_date_raw));
   }
 
   // Store the ORIGINAL words, not the rewritten version — the
@@ -1330,6 +1330,25 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       } catch (err) {
         return Response.json({ status: "ok", added: false, note: "column likely already exists", detail: err instanceof Error ? err.message : String(err) });
       }
+    }
+
+    // Real feature 2026-07-21 — closing a real, verified gap: tasks
+    // only ever had open/done, no due time at all. Same
+    // scheduled_date_raw/scheduled_date pattern already proven for
+    // job_scopes, reused here rather than inventing a new one.
+    if (url.pathname === "/debug/init-task-due-date-columns" && request.method === "POST") {
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE tasks ADD COLUMN due_date_raw TEXT").run();
+      } catch (err) {
+        // Likely already exists — continue to the second column
+        // regardless, since each ALTER is independent.
+      }
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE tasks ADD COLUMN due_date TEXT").run();
+      } catch (err) {
+        // Same — safe to re-run.
+      }
+      return Response.json({ status: "ok" });
     }
 
     // Real fix 2026-07-21 — closing a real gap found incidentally
