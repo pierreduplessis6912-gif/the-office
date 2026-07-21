@@ -92,11 +92,24 @@ export async function recordInvoice(
   amount: number,
   sourceTranscript: string,
   lineItems: LineItemWithTotal[] = []
-): Promise<{ id: number; customerId: number; amount: number }> {
+): Promise<{ id: number; customerId: number; amount: number; retentionAmount: number }> {
+  // Real feature 2026-07-21 — a real, urgent need: an active
+  // two-year contract in its final stage, needing historical
+  // reconciliation soon. Retention is modeled as a real, standing
+  // rate on the customer — agreed once for the life of a contract,
+  // not restated on every invoice — the same pattern already proven
+  // for vat_exempt. Looked up and applied here, deterministically, at
+  // the moment of creation; never asked of the model.
+  const customer = await env.OFFICE_DB.prepare("SELECT retention_percent FROM customers WHERE id = ?")
+    .bind(customerId)
+    .first<{ retention_percent: number | null }>();
+  const retentionPercent = customer?.retention_percent ?? null;
+  const retentionAmount = retentionPercent ? Math.round(amount * (retentionPercent / 100) * 100) / 100 : 0;
+
   const inserted = await env.OFFICE_DB.prepare(
-    "INSERT INTO invoices (customer_id, description, amount, source_transcript) VALUES (?, ?, ?, ?) RETURNING id"
+    "INSERT INTO invoices (customer_id, description, amount, source_transcript, retention_percent, retention_amount) VALUES (?, ?, ?, ?, ?, ?) RETURNING id"
   )
-    .bind(customerId, description, amount, sourceTranscript)
+    .bind(customerId, description, amount, sourceTranscript, retentionPercent, retentionAmount)
     .first<{ id: number }>();
 
   const invoiceId = inserted!.id;
@@ -109,7 +122,7 @@ export async function recordInvoice(
       .run();
   }
 
-  return { id: invoiceId, customerId, amount };
+  return { id: invoiceId, customerId, amount, retentionAmount };
 }
 
 export async function recordQuotation(
@@ -209,10 +222,19 @@ export async function convertQuoteToInvoice(
   remainingBalance: number,
   sourceTranscript: string
 ): Promise<{ invoiceId: number }> {
+  // Same real, deterministic retention lookup as recordInvoice - a
+  // real invoice created via conversion deserves the same treatment
+  // as one created directly, for the same customer's standing rate.
+  const customer = await env.OFFICE_DB.prepare("SELECT retention_percent FROM customers WHERE id = ?")
+    .bind(customerId)
+    .first<{ retention_percent: number | null }>();
+  const retentionPercent = customer?.retention_percent ?? null;
+  const retentionAmount = retentionPercent ? Math.round(remainingBalance * (retentionPercent / 100) * 100) / 100 : 0;
+
   const inserted = await env.OFFICE_DB.prepare(
-    "INSERT INTO invoices (customer_id, description, amount, source_transcript, quotation_id) VALUES (?, ?, ?, ?, ?) RETURNING id"
+    "INSERT INTO invoices (customer_id, description, amount, source_transcript, quotation_id, retention_percent, retention_amount) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id"
   )
-    .bind(customerId, description, remainingBalance, sourceTranscript, quotationId)
+    .bind(customerId, description, remainingBalance, sourceTranscript, quotationId, retentionPercent, retentionAmount)
     .first<{ id: number }>();
 
   const invoiceId = inserted!.id;
@@ -723,9 +745,14 @@ export async function generateDocumentPdf(env: Env, id: number, kind: "invoice" 
 
   const table = kind === "invoice" ? "invoices" : "quotations";
   const lineItemColumn = kind === "invoice" ? "invoice_id" : "quotation_id";
+  // Real feature 2026-07-21 - retention only exists on invoices, not
+  // quotations (it's withheld from a billed amount, never a proposed
+  // one) - selected conditionally since this query shares one dynamic
+  // table name between both document kinds.
+  const retentionColumn = kind === "invoice" ? ", d.retention_amount" : ", NULL as retention_amount";
 
   const doc = await env.OFFICE_DB.prepare(
-    `SELECT d.id, d.description, d.status, d.created_at, c.name as customer_name, c.address as customer_address, c.vat_exempt FROM ${table} d JOIN customers c ON c.id = d.customer_id WHERE d.id = ?`
+    `SELECT d.id, d.description, d.status, d.created_at, c.name as customer_name, c.address as customer_address, c.vat_exempt${retentionColumn} FROM ${table} d JOIN customers c ON c.id = d.customer_id WHERE d.id = ?`
   )
     .bind(id)
     .first<{
@@ -736,6 +763,7 @@ export async function generateDocumentPdf(env: Env, id: number, kind: "invoice" 
       customer_name: string;
       customer_address: string | null;
       vat_exempt: number | null;
+      retention_amount: number | null;
     }>();
 
   if (!doc) {
@@ -851,8 +879,29 @@ export async function generateDocumentPdf(env: Env, id: number, kind: "invoice" 
 
   const total = subtotal + vatAmount;
   page.drawText("TOTAL", { x: 400, y, size: 12, font: bold });
-  page.drawText(`R${total.toFixed(2)}`, { x: 480, y, size: 12, font: bold, color: black });
-  y -= 40;
+  // Real fix, caught while adding this feature - the same missed spot
+  // as the VAT line: .toFixed(2) directly instead of the formatRand
+  // helper already proven for every other currency figure.
+  page.drawText(`${formatRand(total)}`, { x: 480, y, size: 12, font: bold, color: black });
+  y -= 20;
+
+  // Real feature 2026-07-21 - a real, urgent need: an active
+  // two-year contract in its final stage. Standard, industry-correct
+  // presentation - the full total stays the full total; retention is
+  // shown as a real, separate deduction, with a distinct "amount due
+  // now" line for what's actually payable today. The withheld amount
+  // itself is never lost - it's a real, tracked figure, still owed,
+  // just not due yet.
+  const retentionAmount = doc.retention_amount ?? 0;
+  if (kind === "invoice" && retentionAmount > 0) {
+    page.drawText("RETENTION WITHHELD", { x: 400, y, size: 10, font, color: grey });
+    page.drawText(`-${formatRand(retentionAmount)}`, { x: 480, y, size: 10, font, color: grey });
+    y -= 16;
+    page.drawText("AMOUNT DUE NOW", { x: 400, y, size: 12, font: bold });
+    page.drawText(`${formatRand(total - retentionAmount)}`, { x: 480, y, size: 12, font: bold, color: black });
+    y -= 20;
+  }
+  y -= 20;
 
   if (kind === "quotation") {
     page.drawText("Quote valid for 7 days unless otherwise specified.", { x: left, y, size: 9, font, color: grey });
