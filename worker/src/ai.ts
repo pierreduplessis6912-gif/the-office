@@ -12,6 +12,7 @@ import type {
   WorkObservationExtraction,
   PurchaseOrderExtraction,
   GoodsReceivedExtraction,
+  SupplierInvoiceExtraction,
   HistoryTurn,
 } from "./types";
 
@@ -553,6 +554,94 @@ export async function extractGoodsReceived(
     const parsed = JSON.parse(cleaned) as GoodsReceivedExtraction;
     return {
       supplier_name: parsed.supplier_name ?? null,
+      line_items: parsed.line_items ?? [],
+    };
+  } catch {
+    return empty;
+  }
+}
+
+// Real feature 2026-07-21 — Supplier Invoices, the third and final
+// stage of the real, three-way design pinned in DECISIONS.md.
+// Designed to work from either a spoken transcript OR a real,
+// uploaded document's extracted text (a PDF or a photo of a paper
+// invoice) — the same "text" parameter serves both, since the
+// extraction task is identical either way: recognize what's actually
+// billed. Carefully incorporates the exact lesson from a real bug
+// found earlier this same session (a fabricated quotation from a
+// message that only stated a measurement) — an explicit instruction
+// and a real negative example, so a document with no clear price for
+// an item is never filled in with an invented one.
+export async function extractSupplierInvoice(
+  env: Env,
+  text: string,
+  poLineItems: Array<{ description: string; quantity_ordered: number; unit: string | null; unit_price_expected: number | null }>
+): Promise<SupplierInvoiceExtraction> {
+  const empty: SupplierInvoiceExtraction = { supplier_name: null, supplier_reference: null, line_items: [] };
+  try {
+    const lineItemList =
+      poLineItems
+        .map(
+          (i) =>
+            `${i.description} (ordered: ${i.quantity_ordered}${i.unit ? " " + i.unit : ""}${
+              i.unit_price_expected != null ? `, expected rate: R${i.unit_price_expected}` : ""
+            })`
+        )
+        .join(", ") || "none";
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        temperature: 0,
+        chat_template_kwargs: { thinking: false },
+        messages: [
+          {
+            role: "system",
+            content:
+              "A supplier's real bill has arrived for a real, already-placed order — either spoken " +
+              "aloud, or read from an uploaded invoice document. You are given the exact real line " +
+              "items that were ordered (with the quantity and, if known, the expected rate for each). " +
+              "Match what's actually being billed to these exact given items — never invent a new item " +
+              "that wasn't in the given order. supplier_name is who the bill is from, exactly as named, " +
+              "or null if not stated. supplier_reference is the supplier's own invoice number, if one is " +
+              "genuinely given (e.g. 'INV-4471'), or null — never invent one. For each item genuinely " +
+              "billed, extract: matched_description (copied EXACTLY from the given order line item) or " +
+              "null if it genuinely doesn't match anything given, quantity_billed (the plain number " +
+              "actually billed — often different from what was ordered, extract exactly what was stated " +
+              "or written, never assume it matches), and unit_price_billed (the real rate actually " +
+              "billed for this item, ONLY if a real price is genuinely stated or written for it — null " +
+              "if no price is given for that specific item, even if a rate was expected. NEVER invent or " +
+              "assume a price from a quantity, a total, or an expected rate shown above — those are " +
+              "context only, not something to copy as if it were stated.) Return ONLY JSON: " +
+              '{"supplier_name": string or null, "supplier_reference": string or null, "line_items": ' +
+              '[{"matched_description": string or null, "quantity_billed": number, "unit_price_billed": ' +
+              "number or null}]}\n\n" +
+              "Examples:\n" +
+              'Ordered: "Vinyl (ordered: 50 sqm), Underlay (ordered: 100 sqm, expected rate: R30), Skirting (ordered: 10 length)". ' +
+              'Bill: "Floornet invoice INV-4471: 50 sqm vinyl at R180 a square meter, 50 sqm underlay at R35 a square meter, 8 lengths of skirting at R120 each" -> ' +
+              '{"supplier_name":"Floornet","supplier_reference":"INV-4471","line_items":[' +
+              '{"matched_description":"Vinyl","quantity_billed":50,"unit_price_billed":180},' +
+              '{"matched_description":"Underlay","quantity_billed":50,"unit_price_billed":35},' +
+              '{"matched_description":"Skirting","quantity_billed":8,"unit_price_billed":120}' +
+              "]}\n" +
+              'Ordered: "Carpet tile (ordered: 160 sqm)". ' +
+              'Bill: "got Floornet\'s delivery, 160 square meters of carpet tile" (no price mentioned anywhere) -> ' +
+              '{"supplier_name":"Floornet","supplier_reference":null,"line_items":[' +
+              '{"matched_description":"Carpet tile","quantity_billed":160,"unit_price_billed":null}' +
+              "]}",
+          },
+          {
+            role: "user",
+            content: `Ordered: ${lineItemList}.\n\nBill: "${text}"`,
+          },
+        ],
+      })
+    );
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const rawText = r.choices?.[0]?.message?.content ?? "";
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned) as SupplierInvoiceExtraction;
+    return {
+      supplier_name: parsed.supplier_name ?? null,
+      supplier_reference: parsed.supplier_reference ?? null,
       line_items: parsed.line_items ?? [],
     };
   } catch {
