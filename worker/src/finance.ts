@@ -5,7 +5,7 @@
 // downstream of the same records.
 
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import type { Env, LineItemExtraction, LineItemWithTotal } from "./types";
+import type { Env, LineItemExtraction, LineItemWithTotal, PurchaseOrderLineItem } from "./types";
 import { setSelection } from "./identity";
 import { classifyExpenseCategory } from "./ai";
 
@@ -150,6 +150,56 @@ export async function recordQuotation(
   }
 
   return { id: quotationId, customerId, amount };
+}
+
+// Real feature 2026-07-21 — Purchase Orders, built incrementally per
+// the real, three-way design pinned in DECISIONS.md. Deliberately
+// unguarded — a PO is a real commitment, not yet a transaction, no
+// money has moved and no goods have arrived — the exact same
+// precedent already established for job scopes (a mistake here is
+// cheap to correct, unlike money). The consequential confirmations in
+// this arc are the Goods Received Note and the Supplier Invoice,
+// still to come.
+export async function recordPurchaseOrder(
+  env: Env,
+  supplierId: number | null,
+  description: string,
+  sourceTranscript: string,
+  lineItems: PurchaseOrderLineItem[]
+): Promise<{ purchaseOrderId: number }> {
+  const inserted = await env.OFFICE_DB.prepare(
+    "INSERT INTO purchase_orders (supplier_id, description, source_transcript) VALUES (?, ?, ?) RETURNING id"
+  )
+    .bind(supplierId, description, sourceTranscript)
+    .first<{ id: number }>();
+
+  const purchaseOrderId = inserted!.id;
+
+  for (const item of lineItems) {
+    await env.OFFICE_DB.prepare(
+      "INSERT INTO po_line_items (purchase_order_id, description, quantity_ordered, unit, unit_price_expected) VALUES (?, ?, ?, ?, ?)"
+    )
+      .bind(purchaseOrderId, item.description, item.quantity_ordered, item.unit, item.unit_price_expected)
+      .run();
+  }
+
+  return { purchaseOrderId };
+}
+
+// The mirror image of findLatestJobScope, for the same reason: a GRN
+// or Supplier Invoice referring back to "the order" needs a real way
+// to find which one, without asking Peter to repeat a PO number he
+// likely never wrote down anywhere.
+export async function findLatestOpenPurchaseOrder(
+  env: Env,
+  supplierId: number
+): Promise<{ id: number; description: string } | null> {
+  const result = await env.OFFICE_DB.prepare(
+    "SELECT id, description FROM purchase_orders WHERE supplier_id = ? ORDER BY created_at DESC LIMIT 1"
+  )
+    .bind(supplierId)
+    .first<{ id: number; description: string }>();
+  return result ?? null;
 }
 
 // No reference-number system exists yet — with one customer generally
