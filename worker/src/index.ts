@@ -1,9 +1,9 @@
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult } from "./types";
-import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractGoodsReceived, extractIntent, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractWorkObservation, rerank, resolveFollowUpEntity, storeUnscopedMemory, transcribe } from "./ai";
+import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractGoodsReceived, extractIntent, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSupplierInvoice, extractWorkObservation, rerank, resolveFollowUpEntity, storeUnscopedMemory, transcribe } from "./ai";
 import { findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
-import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedDebtorsSummary, getCustomerFinancialSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOutstandingInvoices, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, holdForConfirmation, recordExpense, recordGoodsReceived, recordInvoice, recordPayment, recordPurchaseOrder, recordQuotation } from "./finance";
+import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedDebtorsSummary, getCustomerFinancialSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOutstandingInvoices, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, holdForConfirmation, recordExpense, recordGoodsReceived, recordInvoice, recordPayment, recordPurchaseOrder, recordQuotation, recordSupplierInvoice } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 
 // Second layer of defense against storing questions as facts — never
@@ -316,6 +316,40 @@ async function processOneExtraction(
       }
     } else {
       goodsReceivedNoSupplier = true;
+    }
+  }
+
+  // Real feature 2026-07-21 — Supplier Invoices, the third and final
+  // stage. This is where real money moves, guard()'d the same as
+  // every other financial write in this project.
+  let supplierInvoiceNoSupplier = false;
+  let supplierInvoiceNoOpenPo = false;
+  let supplierInvoiceSupplierName: string | null = null;
+  if (extraction?.intent === "supplier_invoice") {
+    if (character) {
+      const openPo = await findLatestOpenPurchaseOrder(env, character.id);
+      if (openPo) {
+        const poLineItems = await getPurchaseOrderLineItems(env, openPo.id);
+        const siExtraction = await extractSupplierInvoice(env, transcript, poLineItems);
+        const held = await holdForConfirmation(
+          env,
+          "supplier_invoice",
+          {
+            purchaseOrderId: openPo.id,
+            supplierId: character.id,
+            supplierName: character.name,
+            supplierReference: siExtraction.supplier_reference,
+            lineItems: siExtraction.line_items,
+          },
+          transcript
+        );
+        pendingActionId = held.id;
+        supplierInvoiceSupplierName = character.name;
+      } else {
+        supplierInvoiceNoOpenPo = true;
+      }
+    } else {
+      supplierInvoiceNoSupplier = true;
     }
   }
 
@@ -672,6 +706,12 @@ async function processOneExtraction(
     message = "Recognized a delivery, but no supplier was named — try naming who it's from.";
   } else if (extraction?.intent === "goods_received" && goodsReceivedNoOpenPo) {
     message = `I don't have an open purchase order on file for ${character!.name} to match this delivery against.`;
+  } else if (pendingActionId && extraction?.intent === "supplier_invoice" && supplierInvoiceSupplierName) {
+    message = `Supplier invoice noted from ${supplierInvoiceSupplierName} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
+  } else if (extraction?.intent === "supplier_invoice" && supplierInvoiceNoSupplier) {
+    message = "Recognized a supplier invoice, but no supplier was named — try naming who it's from.";
+  } else if (extraction?.intent === "supplier_invoice" && supplierInvoiceNoOpenPo) {
+    message = `I don't have an open purchase order on file for ${character!.name} to bill this invoice against.`;
   } else if (pendingActionId && extraction?.intent === "convert_quote" && convertQuoteFound) {
     const { total, depositAmount, remainingBalance, quotationId } = convertQuoteFound;
     const depositNote = extraction.deposit_percent
@@ -1548,6 +1588,57 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         })
       );
       return Response.json({ goodsReceivedNotes: enriched });
+    }
+
+    // Real feature 2026-07-21 — Supplier Invoices, the third and
+    // final stage of the real, three-way PO/GRN/Supplier Invoice
+    // design pinned in DECISIONS.md.
+    if (url.pathname === "/debug/init-supplier-invoices" && request.method === "POST") {
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS supplier_invoices (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          purchase_order_id INTEGER,
+          supplier_id INTEGER,
+          supplier_reference TEXT,
+          amount REAL NOT NULL,
+          source_transcript TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`
+      ).run();
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS supplier_invoice_line_items (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          supplier_invoice_id INTEGER NOT NULL,
+          po_line_item_id INTEGER,
+          description TEXT NOT NULL,
+          quantity_billed REAL NOT NULL,
+          unit_price_billed REAL,
+          quantity_variance REAL,
+          price_variance REAL,
+          line_total REAL NOT NULL
+        )`
+      ).run();
+      return Response.json({ status: "ok" });
+    }
+
+    if (url.pathname === "/debug/supplier-invoices" && request.method === "GET") {
+      const { results: invoices } = await env.OFFICE_DB.prepare(
+        `SELECT si.id, si.purchase_order_id, si.supplier_id, ch.name as supplier_name, si.supplier_reference, si.amount, si.created_at
+         FROM supplier_invoices si
+         LEFT JOIN characters ch ON ch.id = si.supplier_id
+         ORDER BY si.created_at DESC LIMIT 10`
+      ).all();
+      const enriched = await Promise.all(
+        (invoices as Array<{ id: number }>).map(async (invoice) => {
+          const { results: lineItems } = await env.OFFICE_DB.prepare(
+            "SELECT id, description, quantity_billed, unit_price_billed, quantity_variance, price_variance, line_total FROM supplier_invoice_line_items WHERE supplier_invoice_id = ?"
+          )
+            .bind(invoice.id)
+            .all();
+          return { ...invoice, lineItems };
+        })
+      );
+      return Response.json({ supplierInvoices: enriched });
     }
 
     // Real fix 2026-07-21 — closing a real gap found incidentally
@@ -2717,6 +2808,36 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           return Response.json({ status: "confirmed", goodsReceived: recorded });
         }
 
+        // Real feature 2026-07-21 — Supplier Invoices, the third and
+        // final stage of the real, three-way PO/GRN/Supplier Invoice
+        // design pinned in DECISIONS.md. Creates a real expense here,
+        // on confirmation, and returns both real, computed
+        // reconciliations — quantity and price — directly, not buried
+        // in a debug route.
+        if (action.type === "supplier_invoice") {
+          const payload = JSON.parse(action.payload) as {
+            purchaseOrderId: number | null;
+            supplierId: number | null;
+            supplierName?: string;
+            supplierReference: string | null;
+            lineItems: Array<{ matched_description: string | null; quantity_billed: number; unit_price_billed: number | null }>;
+          };
+          const recorded = await recordSupplierInvoice(
+            env,
+            payload.purchaseOrderId,
+            payload.supplierId,
+            payload.supplierReference,
+            action.source_transcript,
+            payload.lineItems
+          );
+          await env.OFFICE_DB.prepare(
+            "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+          )
+            .bind(id)
+            .run();
+          return Response.json({ status: "confirmed", supplierInvoice: recorded });
+        }
+
         if (action.type === "invoice") {
           const payload = JSON.parse(action.payload) as {
             customerId: number;
@@ -3034,7 +3155,38 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         }
       }
 
-      return Response.json({ status: "stored", key, captureId, description, subjectHint });
+      // Real feature 2026-07-21 — Supplier Invoices, real document
+      // ingestion. A supplier invoice very often arrives as a real
+      // PDF, not narrated — the caption naming the supplier is the
+      // same trigger already proven above; if that supplier has a
+      // real, open PO, the document's own real, extracted text (not
+      // the caption) is run through the exact same extraction and
+      // guard()'d confirmation as the spoken path.
+      let supplierInvoiceAction: { pendingActionId: number; supplierName: string } | null = null;
+      if (subjectCharacterId) {
+        const openPo = await findLatestOpenPurchaseOrder(env, subjectCharacterId);
+        if (openPo) {
+          const poLineItems = await getPurchaseOrderLineItems(env, openPo.id);
+          const siExtraction = await extractSupplierInvoice(env, description, poLineItems);
+          if (siExtraction.line_items.length > 0) {
+            const held = await holdForConfirmation(
+              env,
+              "supplier_invoice",
+              {
+                purchaseOrderId: openPo.id,
+                supplierId: subjectCharacterId,
+                supplierName: subjectHint,
+                supplierReference: siExtraction.supplier_reference,
+                lineItems: siExtraction.line_items,
+              },
+              rawText
+            );
+            supplierInvoiceAction = { pendingActionId: held.id, supplierName: subjectHint ?? "supplier" };
+          }
+        }
+      }
+
+      return Response.json({ status: "stored", key, captureId, description, subjectHint, supplierInvoiceAction });
     }
 
     if (url.pathname === "/files/photo" && request.method === "POST") {
@@ -3088,7 +3240,34 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         }
       }
 
-      return Response.json({ status: "stored", key, captureId, description, subjectHint });
+      // Real feature 2026-07-21 — Supplier Invoices, real document
+      // ingestion. A photo of a paper invoice is just as real a case
+      // as an uploaded PDF — same trigger, same guard()'d confirmation.
+      let supplierInvoiceAction: { pendingActionId: number; supplierName: string } | null = null;
+      if (subjectCharacterId) {
+        const openPo = await findLatestOpenPurchaseOrder(env, subjectCharacterId);
+        if (openPo) {
+          const poLineItems = await getPurchaseOrderLineItems(env, openPo.id);
+          const siExtraction = await extractSupplierInvoice(env, description, poLineItems);
+          if (siExtraction.line_items.length > 0) {
+            const held = await holdForConfirmation(
+              env,
+              "supplier_invoice",
+              {
+                purchaseOrderId: openPo.id,
+                supplierId: subjectCharacterId,
+                supplierName: subjectHint,
+                supplierReference: siExtraction.supplier_reference,
+                lineItems: siExtraction.line_items,
+              },
+              rawText
+            );
+            supplierInvoiceAction = { pendingActionId: held.id, supplierName: subjectHint ?? "supplier" };
+          }
+        }
+      }
+
+      return Response.json({ status: "stored", key, captureId, description, subjectHint, supplierInvoiceAction });
     }
 
     // Real, permanent production routes — not debug — behind each
