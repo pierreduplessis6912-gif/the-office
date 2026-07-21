@@ -1,9 +1,9 @@
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult } from "./types";
-import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractIntent, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractWorkObservation, rerank, resolveFollowUpEntity, storeUnscopedMemory, transcribe } from "./ai";
+import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractGoodsReceived, extractIntent, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractWorkObservation, rerank, resolveFollowUpEntity, storeUnscopedMemory, transcribe } from "./ai";
 import { findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
-import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedDebtorsSummary, getCustomerFinancialSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOutstandingInvoices, getProfitAndLossSummary, getQuotationsSummary, holdForConfirmation, recordExpense, recordInvoice, recordPayment, recordPurchaseOrder, recordQuotation } from "./finance";
+import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedDebtorsSummary, getCustomerFinancialSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOutstandingInvoices, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, holdForConfirmation, recordExpense, recordGoodsReceived, recordInvoice, recordPayment, recordPurchaseOrder, recordQuotation } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 
 // Second layer of defense against storing questions as facts — never
@@ -283,6 +283,39 @@ async function processOneExtraction(
       // Honest, not silent — the same discipline as every other
       // recognized-but-nothing-to-act-on case in this project.
       purchaseOrderNoSupplier = true;
+    }
+  }
+
+  // Real feature 2026-07-21 — Goods Received Notes, the second stage.
+  // Guard()'d, matching the original design's own distinction — real
+  // stock changes hands here, unlike the PO itself.
+  let goodsReceivedNoSupplier = false;
+  let goodsReceivedNoOpenPo = false;
+  let goodsReceivedSupplierName: string | null = null;
+  if (extraction?.intent === "goods_received") {
+    if (character) {
+      const openPo = await findLatestOpenPurchaseOrder(env, character.id);
+      if (openPo) {
+        const poLineItems = await getPurchaseOrderLineItems(env, openPo.id);
+        const grnExtraction = await extractGoodsReceived(env, transcript, poLineItems);
+        const held = await holdForConfirmation(
+          env,
+          "goods_received",
+          {
+            purchaseOrderId: openPo.id,
+            supplierId: character.id,
+            supplierName: character.name,
+            lineItems: grnExtraction.line_items,
+          },
+          transcript
+        );
+        pendingActionId = held.id;
+        goodsReceivedSupplierName = character.name;
+      } else {
+        goodsReceivedNoOpenPo = true;
+      }
+    } else {
+      goodsReceivedNoSupplier = true;
     }
   }
 
@@ -633,6 +666,12 @@ async function processOneExtraction(
     // Honest, not silent — the same discipline as every other
     // recognized-but-nothing-to-act-on case in this project.
     message = "Recognized a purchase order, but no supplier was named — try naming who it's from.";
+  } else if (pendingActionId && extraction?.intent === "goods_received" && goodsReceivedSupplierName) {
+    message = `Delivery noted from ${goodsReceivedSupplierName} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
+  } else if (extraction?.intent === "goods_received" && goodsReceivedNoSupplier) {
+    message = "Recognized a delivery, but no supplier was named — try naming who it's from.";
+  } else if (extraction?.intent === "goods_received" && goodsReceivedNoOpenPo) {
+    message = `I don't have an open purchase order on file for ${character!.name} to match this delivery against.`;
   } else if (pendingActionId && extraction?.intent === "convert_quote" && convertQuoteFound) {
     const { total, depositAmount, remainingBalance, quotationId } = convertQuoteFound;
     const depositNote = extraction.deposit_percent
@@ -1462,6 +1501,53 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         })
       );
       return Response.json({ purchaseOrders: enriched });
+    }
+
+    // Real feature 2026-07-21 — Goods Received Notes, the second
+    // stage of the real, three-way PO/GRN/Supplier Invoice design
+    // pinned in DECISIONS.md.
+    if (url.pathname === "/debug/init-goods-received" && request.method === "POST") {
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS goods_received_notes (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          purchase_order_id INTEGER NOT NULL,
+          supplier_id INTEGER,
+          source_transcript TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`
+      ).run();
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS grn_line_items (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          grn_id INTEGER NOT NULL,
+          po_line_item_id INTEGER,
+          description TEXT NOT NULL,
+          quantity_received REAL NOT NULL,
+          quantity_ordered REAL,
+          variance REAL
+        )`
+      ).run();
+      return Response.json({ status: "ok" });
+    }
+
+    if (url.pathname === "/debug/goods-received" && request.method === "GET") {
+      const { results: grns } = await env.OFFICE_DB.prepare(
+        `SELECT g.id, g.purchase_order_id, g.supplier_id, ch.name as supplier_name, g.created_at
+         FROM goods_received_notes g
+         LEFT JOIN characters ch ON ch.id = g.supplier_id
+         ORDER BY g.created_at DESC LIMIT 10`
+      ).all();
+      const enriched = await Promise.all(
+        (grns as Array<{ id: number }>).map(async (grn) => {
+          const { results: lineItems } = await env.OFFICE_DB.prepare(
+            "SELECT id, description, quantity_received, quantity_ordered, variance FROM grn_line_items WHERE grn_id = ?"
+          )
+            .bind(grn.id)
+            .all();
+          return { ...grn, lineItems };
+        })
+      );
+      return Response.json({ goodsReceivedNotes: enriched });
     }
 
     // Real fix 2026-07-21 — closing a real gap found incidentally
@@ -2601,6 +2687,34 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             .bind(id)
             .run();
           return Response.json({ status: "confirmed", expense });
+        }
+
+        // Real feature 2026-07-21 — Goods Received Notes, the second
+        // stage of the real, three-way PO/GRN/Supplier Invoice design
+        // pinned in DECISIONS.md. The real point of confirming this:
+        // a real, deterministic quantity variance, computed in
+        // recordGoodsReceived, returned here so Peter sees it
+        // immediately, not buried in a debug route.
+        if (action.type === "goods_received") {
+          const payload = JSON.parse(action.payload) as {
+            purchaseOrderId: number;
+            supplierId: number | null;
+            supplierName?: string;
+            lineItems: Array<{ matched_description: string | null; quantity_received: number }>;
+          };
+          const recorded = await recordGoodsReceived(
+            env,
+            payload.purchaseOrderId,
+            payload.supplierId,
+            action.source_transcript,
+            payload.lineItems
+          );
+          await env.OFFICE_DB.prepare(
+            "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+          )
+            .bind(id)
+            .run();
+          return Response.json({ status: "confirmed", goodsReceived: recorded });
         }
 
         if (action.type === "invoice") {
