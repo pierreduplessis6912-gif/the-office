@@ -158,3 +158,21 @@ export interface HistoryTurn {
   role: "user" | "office";
   text: string;
 }
+
+// Real feature 2026-07-21 — Goods Received Notes, the second stage of
+// the real, three-way PO/GRN/Supplier Invoice design pinned in
+// DECISIONS.md. A GRN is a distinct, separate event from the PO it
+// fulfills — the delivery actually arriving, reconciled against real,
+// already-ordered quantities. Reuses the same matched_name pattern
+// already proven for extractScopePricing — the model's only job is
+// recognizing which given PO line item a delivered quantity belongs
+// to, never inventing one.
+export interface GoodsReceivedLineItem {
+  matched_description: string | null;
+  quantity_received: number;
+}
+
+export interface GoodsReceivedExtraction {
+  supplier_name: string | null;
+  line_items: GoodsReceivedLineItem[];
+}
