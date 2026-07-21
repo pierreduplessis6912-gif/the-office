@@ -29,6 +29,23 @@ export async function applyStructuredFact(
       return;
     }
 
+    // Real feature 2026-07-21 — a real, financially consequential
+    // fact (Zululand Flooring genuinely operates with VAT for some
+    // clients and without for others) deserves a real, structured
+    // column, the same discipline already proven for address — not a
+    // loose EAV entry that every future invoice/quotation would need
+    // to separately look up and parse. Deliberately narrow value
+    // recognition — only real, unambiguous affirmatives count as
+    // exempt; anything else defaults to charged, the safer default
+    // when the stated value is unclear.
+    if (normalizedKey === "vat_exempt") {
+      const isExempt = /^(true|yes|exempt|no vat)$/i.test(value.trim());
+      await env.OFFICE_DB.prepare("UPDATE customers SET vat_exempt = ? WHERE id = ?")
+        .bind(isExempt ? 1 : 0, customerId)
+        .run();
+      return;
+    }
+
     // Real normalization, always in code — never left to the model's
     // own formatting. Defaults to South Africa since that's the
     // business's actual market; a number already carrying a country
