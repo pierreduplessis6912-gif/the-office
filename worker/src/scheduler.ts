@@ -217,19 +217,28 @@ export async function createTask(
   env: Env,
   description: string,
   customerId: number | null = null,
-  characterId: number | null = null
+  characterId: number | null = null,
+  dueDateRaw: string | null = null
 ): Promise<void> {
-  await env.OFFICE_DB.prepare("INSERT INTO tasks (description, done, customer_id, character_id) VALUES (?, 0, ?, ?)")
-    .bind(cleanTaskDescription(description), customerId, characterId)
+  // Real feature 2026-07-21 — a real, stated due time now has
+  // somewhere to go, reusing the exact same resolveScheduledDate
+  // function already proven correct for job_scopes.scheduled_date —
+  // the model's job was only ever recognizing the phrase, resolving
+  // it into an actual date always happens here, in code.
+  const dueDate = resolveScheduledDate(dueDateRaw, nowInBusinessTimezone());
+  await env.OFFICE_DB.prepare(
+    "INSERT INTO tasks (description, done, customer_id, character_id, due_date_raw, due_date) VALUES (?, 0, ?, ?, ?, ?)"
+  )
+    .bind(cleanTaskDescription(description), customerId, characterId, dueDateRaw, dueDate)
     .run();
 }
 
 export async function getOpenTasks(
   env: Env
-): Promise<Array<{ id: number; description: string; customer_id: number | null; character_id: number | null }>> {
+): Promise<Array<{ id: number; description: string; customer_id: number | null; character_id: number | null; due_date_raw: string | null; due_date: string | null }>> {
   const { results } = await env.OFFICE_DB.prepare(
-    "SELECT id, description, customer_id, character_id FROM tasks WHERE done = 0 ORDER BY created_at DESC"
-  ).all<{ id: number; description: string; customer_id: number | null; character_id: number | null }>();
+    "SELECT id, description, customer_id, character_id, due_date_raw, due_date FROM tasks WHERE done = 0 ORDER BY due_date IS NULL, due_date ASC, created_at DESC"
+  ).all<{ id: number; description: string; customer_id: number | null; character_id: number | null; due_date_raw: string | null; due_date: string | null }>();
   return results ?? [];
 }
 
