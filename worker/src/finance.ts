@@ -229,14 +229,20 @@ export async function recordGoodsReceived(
   purchaseOrderId: number,
   supplierId: number | null,
   sourceTranscript: string,
-  lineItems: Array<{ matched_description: string | null; quantity_received: number }>
+  lineItems: Array<{ matched_description: string | null; quantity_received: number }>,
+  recordedByEmail: string | null = null
 ): Promise<{ grnId: number; variances: Array<{ description: string; ordered: number; received: number; variance: number }> }> {
   const poLineItems = await getPurchaseOrderLineItems(env, purchaseOrderId);
 
+  // Real design decision 2026-07-21 — GRN capture stays open to
+  // literally anyone in the organisation, on purpose: an installer on
+  // site or a warehouse clerk, quantity-only, no money involved.
+  // What makes this safe isn't restriction, it's accountability — who
+  // actually recorded it is now a real, permanent fact.
   const inserted = await env.OFFICE_DB.prepare(
-    "INSERT INTO goods_received_notes (purchase_order_id, supplier_id, source_transcript) VALUES (?, ?, ?) RETURNING id"
+    "INSERT INTO goods_received_notes (purchase_order_id, supplier_id, source_transcript, recorded_by) VALUES (?, ?, ?, ?) RETURNING id"
   )
-    .bind(purchaseOrderId, supplierId, sourceTranscript)
+    .bind(purchaseOrderId, supplierId, sourceTranscript, recordedByEmail)
     .first<{ id: number }>();
 
   const grnId = inserted!.id;
