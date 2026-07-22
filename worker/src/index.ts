@@ -1537,7 +1537,33 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           )
             .bind(order.id)
             .all();
-          return { ...order, lineItems };
+          // Real feature 2026-07-21 — the document-completeness
+          // status pinned earlier tonight, built directly from that
+          // design: computed live from real counts, the same
+          // "compute on read" discipline already chosen for
+          // partial-GRN status, not a new pattern. A delivery note
+          // and a supplier invoice genuinely arrive separately far
+          // more often than together — this status is the real,
+          // visible answer to "which one, if either, are we still
+          // waiting on."
+          const grnCount = await env.OFFICE_DB.prepare(
+            "SELECT COUNT(*) as count FROM goods_received_notes WHERE purchase_order_id = ?"
+          )
+            .bind(order.id)
+            .first<{ count: number }>();
+          const invoiceCount = await env.OFFICE_DB.prepare(
+            "SELECT COUNT(*) as count FROM supplier_invoices WHERE purchase_order_id = ?"
+          )
+            .bind(order.id)
+            .first<{ count: number }>();
+          const hasDeliveryNote = (grnCount?.count ?? 0) > 0;
+          const hasSupplierInvoice = (invoiceCount?.count ?? 0) > 0;
+          const documentStatus = hasSupplierInvoice
+            ? "closed"
+            : hasDeliveryNote
+            ? "delivery note received, awaiting invoice"
+            : "ordered, awaiting delivery";
+          return { ...order, documentStatus, hasDeliveryNote, hasSupplierInvoice, lineItems };
         })
       );
       return Response.json({ purchaseOrders: enriched });
