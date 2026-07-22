@@ -2883,3 +2883,43 @@ path every single message in this project runs through; a change at
 this scale deserves to be specced properly first, not rushed at the
 end of a long session. Pinned precisely so the real distinction (a
 checkable fact, not a language problem) survives intact.
+
+## Layer 2 (Project) — same-breath assembly, proven working with real data (2026-07-22)
+
+**The first real success of Layer 2**, built the same night as the
+capture_id prerequisite that made it possible at all. A real, phased
+job for one customer — "measured Thabo downstairs at forty square
+meters for screed, remind me to order more screed, and Thabo upstairs
+is twenty five square meters for carpet" — correctly split into three
+segments (screed observation, an unrelated reminder, carpet
+observation), and the two job scopes born from the same real message
+were automatically, deterministically grouped into one real project.
+No AI judgment involved in the grouping itself — a real, computed fact
+(same capture, same customer) the receptacle already had.
+
+**A real bug found and fixed on the way there, worth being honest
+about its actual scope.** The first attempt at this test failed —
+zero projects created — and Layer 2's own logic was correctly
+suspected first, then correctly ruled out: both job scopes shared the
+same real `capture_id`, confirming the grouping mechanism's own
+precondition-check worked exactly as designed. The real failure was
+upstream — the second job scope's customer reconciliation had silently
+failed, because the model misclassified "Thabo upstairs is twenty five
+square meters for carpet" as an installer assignment rather than a
+customer measurement, confusing "is" as a linking verb (describing a
+measurement) with "is" as an action verb (describing installer work).
+Fixed with a precise rule and the exact real failing case as a
+worked example — a real, honest, narrow fix for one phrasing, not a
+general solution, exactly as named in the identity-collision pin
+above.
+
+**Worth stating plainly what this proves and what it doesn't.** This
+confirms the same-breath assembly *mechanism* is sound — the
+deterministic check, the project creation, the multi-row update, all
+worked correctly on the first real, correctly-classified attempt.
+It does not mean the upstream classification problem is solved in
+general — the cross-role identity collision design pinned above this
+entry is the real, scalable answer to that, still not built. Same-breath
+assembly and cross-capture attachment (the harder half of Layer 2,
+still deferred pending a real answer to "what makes a project open")
+remain two separate pieces of work.
