@@ -301,7 +301,12 @@ export async function recordSupplierInvoice(
   supplierInvoiceId: number;
   totalAmount: number;
   expenseId: number;
-  variances: Array<{ description: string; quantityVariance: number | null; priceVariance: number | null }>;
+  variances: Array<{
+    description: string;
+    quantityVariance: number | null;
+    quantityVarianceVsOrdered: number | null;
+    priceVariance: number | null;
+  }>;
 }> {
   const poLineItems = purchaseOrderId ? await getPurchaseOrderLineItems(env, purchaseOrderId) : [];
 
@@ -312,6 +317,7 @@ export async function recordSupplierInvoice(
     quantityBilled: number;
     unitPriceBilled: number | null;
     quantityVariance: number | null;
+    quantityVarianceVsOrdered: number | null;
     priceVariance: number | null;
     lineTotal: number;
   }> = [];
@@ -320,10 +326,37 @@ export async function recordSupplierInvoice(
     const matchedPoLine = item.matched_description
       ? poLineItems.find((p) => p.description.toLowerCase() === item.matched_description!.toLowerCase())
       : null;
-    // Real, deterministic reconciliation — the actual point of this
-    // whole feature. A billed quantity checked against what was
-    // ordered; a billed price checked against what was expected.
-    const quantityVariance = matchedPoLine ? item.quantity_billed - matchedPoLine.quantity_ordered : null;
+    // Real fix 2026-07-22, per the design refinement pinned the same
+    // night: the primary quantity check is against what was actually
+    // RECEIVED (the GRN), not just what was ordered (the PO). If a
+    // supplier delivers 28 but bills for the 30 ordered, comparing
+    // only against the PO shows zero variance and misses the real
+    // problem — comparing against the GRN catches it. Summed across
+    // every GRN line item for this PO line, since a real delivery can
+    // arrive in more than one shipment. Falls back to the PO
+    // comparison only when no GRN exists for this line at all (the
+    // invoice arrived with no delivery note on file yet) - an honest,
+    // different case, not silently treated the same.
+    let totalReceived: number | null = null;
+    if (matchedPoLine) {
+      const received = await env.OFFICE_DB.prepare(
+        "SELECT COALESCE(SUM(quantity_received), 0) as total FROM grn_line_items WHERE po_line_item_id = ?"
+      )
+        .bind(matchedPoLine.id)
+        .first<{ total: number }>();
+      // A real GRN might exist for this PO with zero rows matching
+      // THIS specific line item — treated as "no GRN data for this
+      // line" (null), not "received zero" (0), which would wrongly
+      // flag every unbilled line as a full shortage.
+      const hasAnyGrnForThisLine = await env.OFFICE_DB.prepare(
+        "SELECT COUNT(*) as count FROM grn_line_items WHERE po_line_item_id = ?"
+      )
+        .bind(matchedPoLine.id)
+        .first<{ count: number }>();
+      totalReceived = (hasAnyGrnForThisLine?.count ?? 0) > 0 ? received?.total ?? 0 : null;
+    }
+    const quantityVarianceVsOrdered = matchedPoLine ? item.quantity_billed - matchedPoLine.quantity_ordered : null;
+    const quantityVariance = totalReceived != null ? item.quantity_billed - totalReceived : quantityVarianceVsOrdered;
     const priceVariance =
       matchedPoLine && item.unit_price_billed != null && matchedPoLine.unit_price_expected != null
         ? item.unit_price_billed - matchedPoLine.unit_price_expected
@@ -340,6 +373,7 @@ export async function recordSupplierInvoice(
       quantityBilled: item.quantity_billed,
       unitPriceBilled: item.unit_price_billed,
       quantityVariance,
+      quantityVarianceVsOrdered,
       priceVariance,
       lineTotal,
     });
@@ -387,7 +421,12 @@ export async function recordSupplierInvoice(
     expenseId: expense.id,
     variances: resolvedLineItems
       .filter((i) => i.quantityVariance != null || i.priceVariance != null)
-      .map((i) => ({ description: i.description, quantityVariance: i.quantityVariance, priceVariance: i.priceVariance })),
+      .map((i) => ({
+        description: i.description,
+        quantityVariance: i.quantityVariance,
+        quantityVarianceVsOrdered: i.quantityVarianceVsOrdered,
+        priceVariance: i.priceVariance,
+      })),
   };
 }
 
