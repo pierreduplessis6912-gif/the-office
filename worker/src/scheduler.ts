@@ -174,6 +174,49 @@ export async function recordWorkObservation(
       .run();
   }
 
+  // Real feature 2026-07-22 — Layer 2 (Project), same-breath
+  // assembly. The first, fully-specified piece of the real, three-way
+  // design pinned in DECISIONS.md — no remaining design ambiguity,
+  // unlike cross-capture attachment, deliberately deferred pending a
+  // real answer to "what makes a project open." Co-birth (same
+  // capture, same customer) is a real, deterministic fact the
+  // receptacle already recorded — transcription, not matching, so
+  // this runs automatically, never asked of the model.
+  if (captureId !== null && customerId !== null) {
+    const { results: siblings } = await env.OFFICE_DB.prepare(
+      "SELECT id, project_id FROM job_scopes WHERE capture_id = ? AND customer_id = ? AND id != ?"
+    )
+      .bind(captureId, customerId, jobScopeId)
+      .all<{ id: number; project_id: number | null }>();
+
+    if (siblings.length > 0) {
+      const existingProjectId = siblings.find((s) => s.project_id !== null)?.project_id ?? null;
+      if (existingProjectId !== null) {
+        // A real sibling from this same capture already has a real
+        // project — attach this new job scope to the same one.
+        await env.OFFICE_DB.prepare("UPDATE job_scopes SET project_id = ? WHERE id = ?")
+          .bind(existingProjectId, jobScopeId)
+          .run();
+      } else {
+        // No sibling has a project yet — a real one is created here,
+        // and every job scope genuinely born from this same breath,
+        // including this new one, gets attached to it in one update.
+        const project = await env.OFFICE_DB.prepare(
+          "INSERT INTO projects (customer_id, description, source_transcript) VALUES (?, ?, ?) RETURNING id"
+        )
+          .bind(customerId, observation.job_description, sourceTranscript)
+          .first<{ id: number }>();
+        const projectId = project!.id;
+        const siblingIds = siblings.map((s) => s.id);
+        siblingIds.push(jobScopeId);
+        const placeholders = siblingIds.map(() => "?").join(",");
+        await env.OFFICE_DB.prepare(`UPDATE job_scopes SET project_id = ? WHERE id IN (${placeholders})`)
+          .bind(projectId, ...siblingIds)
+          .run();
+      }
+    }
+  }
+
   return { jobScopeId, computedComponents };
 }
 
