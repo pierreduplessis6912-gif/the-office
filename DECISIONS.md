@@ -2749,3 +2749,75 @@ pieces resolved:**
 
 All three verified with real, predicted-in-advance numbers before
 being trusted, the same discipline as everything else in this project.
+
+## Variance disposition — what happens after a discrepancy is found (2026-07-22)
+
+**The real gap this closes.** Everything built so far *detects* a
+variance (a real, computed number) but does nothing with it — no
+reason, no resolution, no evidence trail. A real business needs the
+next step: why did this happen, and how does it actually get closed
+out.
+
+**Three real, distinct reason codes, genuinely different problems, not
+one problem with three names:**
+- **Short delivered** — a genuine quantity shortfall. Already
+  computed today via the GRN-based reconciliation just built; this
+  reason code is the missing label on a number that already exists.
+- **Incorrectly dispatched** — the wrong item, or wrong specification,
+  sent entirely. A different *kind* of problem from a quantity
+  mismatch — worth being precise that this might not even match a PO
+  line by description the way a real shortage does (it's not "less of
+  the right thing," it's "the wrong thing"), so it may need its own
+  detection path rather than reusing the existing matched_description
+  logic as-is.
+- **Damaged** — right item, right quantity, physically unusable. A
+  genuinely new dimension neither quantity nor price variance
+  currently captures at all — a delivery can show zero variance on
+  both and still be a real, damaged-goods problem.
+
+**Two real resolution paths, not just a note:**
+- **Back order** — the shortfall remains genuinely owed, expected
+  later. The PO line stays meaningfully open past what "closed" (per
+  the document-completeness status just built) currently means.
+- **Credit** — the supplier formally writes it off; what's actually
+  owed is reduced, a real adjustment against the eventual expense, not
+  just an annotation.
+
+**A real evidence requirement for damaged goods specifically**: a real
+photo (the same upload path already proven for GRN and Supplier
+Invoice ingestion), plus what's being called an "endorsement" — the
+physical delivery note itself gets annotated and signed at the point
+of receipt, with Office capturing that annotation via the same photo,
+not a separate mechanism. Worth deciding whether "incorrectly
+dispatched" carries the same evidence requirement — a real, open
+question, not assumed either way.
+
+**Real, open design questions, deliberately not answered here:**
+1. Where does a disposition actually live — a new field on
+   `grn_line_items` itself, or a genuinely separate table (a
+   discrepancy can arguably have its own lifecycle: raised, evidenced,
+   resolved)? Leaning toward separate, given the evidence and
+   resolution-tracking needs described above don't fit cleanly as
+   columns on an existing row.
+2. Does raising a disposition need its own guard()'d confirmation, the
+   same as GRN and Supplier Invoice, or does it inherit the
+   confirmation of whichever stage it's raised against? Given a credit
+   resolution is a real financial adjustment, it likely needs the same
+   discipline as every other financial write in this project — worth
+   a real, deliberate answer, not a default.
+3. Does a "back order" disposition need a real, new PO-like record of
+   its own (the remaining, still-owed quantity, trackable through its
+   own delivery), or does it just keep the original PO line's
+   "closed" status honestly deferred until the shortfall actually
+   arrives?
+4. Who can raise a disposition — the same "open to anyone, traceable"
+   answer already settled for GRN capture itself, or does a credit
+   resolution specifically need the same financial-write gate as
+   Supplier Invoice, since it's the one path here that touches money?
+
+**Explicitly not built tonight** — a real, substantial new layer,
+deserving the same design-first discipline as PO/GRN/Supplier Invoice
+itself got, not a rushed addition at the end of a long session. Pinned
+precisely so the real distinctions (three different reason codes, two
+different resolution paths, one real evidence requirement) survive
+intact until this is actually specced and built.
