@@ -1435,6 +1435,49 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       }
     }
 
+    // Real feature 2026-07-22 — Layer 2 (Project), same-breath
+    // assembly. The first, fully-specified piece of the design pinned
+    // in DECISIONS.md, built directly on the Fable 5 design pass
+    // (verified and corrected the same night) and tonight's own
+    // capture_id prerequisite.
+    if (url.pathname === "/debug/init-projects" && request.method === "POST") {
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS projects (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          customer_id INTEGER,
+          description TEXT,
+          source_transcript TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`
+      ).run();
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE job_scopes ADD COLUMN project_id INTEGER").run();
+      } catch (err) {
+        // Likely already exists — safe to re-run.
+      }
+      return Response.json({ status: "ok" });
+    }
+
+    if (url.pathname === "/debug/projects" && request.method === "GET") {
+      const { results: projects } = await env.OFFICE_DB.prepare(
+        `SELECT p.id, p.customer_id, c.name as customer_name, p.description, p.created_at
+         FROM projects p
+         LEFT JOIN customers c ON c.id = p.customer_id
+         ORDER BY p.created_at DESC LIMIT 10`
+      ).all();
+      const enriched = await Promise.all(
+        (projects as Array<{ id: number }>).map(async (project) => {
+          const { results: jobScopes } = await env.OFFICE_DB.prepare(
+            "SELECT id, description, capture_id, created_at FROM job_scopes WHERE project_id = ?"
+          )
+            .bind(project.id)
+            .all();
+          return { ...project, jobScopes };
+        })
+      );
+      return Response.json({ projects: enriched });
+    }
+
     // Real feature 2026-07-21 — closing a real, verified gap: tasks
     // only ever had open/done, no due time at all. Same
     // scheduled_date_raw/scheduled_date pattern already proven for
