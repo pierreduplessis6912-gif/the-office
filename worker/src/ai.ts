@@ -176,7 +176,15 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             "customer_name since it was the only name available, creating a job record linked to the " +
             "wrong entity. The person DOING or PERFORMING work (measuring, installing, delivering, " +
             "fetching) is character_name (relationship \"installer\" or \"staff\"), never customer_name — " +
-            "even when no other name is mentioned at all. customer_name is only ever who the job is FOR " +
+            "even when no other name is mentioned at all. A real, subtle distinction found live " +
+            "2026-07-22, worth being precise about: \"is\" describing a MEASUREMENT (\"[name]'s [room] is " +
+            "[a size]\") is not the same as \"is\" describing an ACTION (\"[name] is measuring/installing " +
+            "[something]\") — only the second is an installer performing work. \"Thabo upstairs is twenty " +
+            "five square meters for carpet\" states a measurement of Thabo's own space; Thabo isn't doing " +
+            "anything here, he's the customer whose room this is, exactly as he was in the very first " +
+            "sentence describing this same job. Never let the surface word \"is\" alone decide this — read " +
+            "whether the name is performing an action or simply owning the space being described. " +
+            "customer_name is only ever who the job is FOR " +
             "or who gets billed; if that's genuinely not named in the message, leave customer_name null " +
             "rather than substituting whichever name happens to be available. " +
             "character_relationship is the stated relationship if given (e.g. \"wife\", \"nanny\", " +
@@ -354,6 +362,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             '"we completed Jenny\'s installation, she paid an 80% deposit, convert the quote to an invoice for the remaining balance" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"convert_quote","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":80,"scope_document_type":null,"due_date_raw":null}\n' +
             '"Dwayne is a new customer, I measured the reception area at 6600 by 4100, we also need repair work" -> {"customer_name":"Dwayne","character_name":null,"character_relationship":null,"intent":"work_observation","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"Sipho is measuring the hospital and theatre one is three by two" -> {"customer_name":null,"character_name":"Sipho","character_relationship":"installer","intent":"work_observation","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
+            '"Thabo upstairs is twenty five square meters for carpet" -> {"customer_name":"Thabo","character_name":null,"character_relationship":null,"intent":"work_observation","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"price up Dwayne\'s job, R450 a square meter for the reception area and office, flat R3500 for the repair work" -> {"customer_name":"Dwayne","character_name":null,"character_relationship":null,"intent":"price_scope","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":"quotation","due_date_raw":null}\n' +
             '"invoice out Dwayne\'s job, R450 a square meter for the reception area and office, the job\'s already done" -> {"customer_name":"Dwayne","character_name":null,"character_relationship":null,"intent":"price_scope","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":"invoice","due_date_raw":null}\n' +
             '"ProSupply was late delivering the tiles for Jenny\'s job back in March, held us up by four days" -> {"customer_name":null,"character_name":"ProSupply","character_relationship":"supplier","intent":"note","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
