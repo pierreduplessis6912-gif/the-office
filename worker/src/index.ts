@@ -1570,9 +1570,23 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ status: "ok" });
     }
 
+    // Real feature 2026-07-21 — a separate migration since the table
+    // already exists from earlier tonight; CREATE TABLE IF NOT EXISTS
+    // alone won't add a new column to a table that's already there.
+    // Real design decision: who actually recorded a delivery is now a
+    // real, permanent, traceable fact.
+    if (url.pathname === "/debug/init-grn-recorded-by" && request.method === "POST") {
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE goods_received_notes ADD COLUMN recorded_by TEXT").run();
+        return Response.json({ status: "ok", added: true });
+      } catch (err) {
+        return Response.json({ status: "ok", added: false, note: "column likely already exists", detail: err instanceof Error ? err.message : String(err) });
+      }
+    }
+
     if (url.pathname === "/debug/goods-received" && request.method === "GET") {
       const { results: grns } = await env.OFFICE_DB.prepare(
-        `SELECT g.id, g.purchase_order_id, g.supplier_id, ch.name as supplier_name, g.created_at
+        `SELECT g.id, g.purchase_order_id, g.supplier_id, ch.name as supplier_name, g.recorded_by, g.created_at
          FROM goods_received_notes g
          LEFT JOIN characters ch ON ch.id = g.supplier_id
          ORDER BY g.created_at DESC LIMIT 10`
@@ -2793,12 +2807,18 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             supplierName?: string;
             lineItems: Array<{ matched_description: string | null; quantity_received: number }>;
           };
+          // Real design decision 2026-07-21 — GRN capture stays open
+          // to anyone in the organisation on purpose (quantity-only,
+          // no money involved), but who actually recorded it is a
+          // real, permanent fact, not an anonymous action.
+          const { email: recordedByEmail } = await resolveCapabilities(request, env);
           const recorded = await recordGoodsReceived(
             env,
             payload.purchaseOrderId,
             payload.supplierId,
             action.source_transcript,
-            payload.lineItems
+            payload.lineItems,
+            recordedByEmail
           );
           await env.OFFICE_DB.prepare(
             "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
