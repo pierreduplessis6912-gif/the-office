@@ -2647,43 +2647,71 @@ mechanism, three real entry points, not three separate systems.
   worth remembering before assuming this generalizes to every real
   photo a phone camera produces in the field.
 
-## A real refinement to PO/GRN/Supplier Invoice, given directly by Pierre the same night (2026-07-21)
+## A real refinement to PO/GRN/Supplier Invoice, given directly by Pierre the same night, sharpened on a second pass (2026-07-21)
 
-**The real scenario this closes.** Goods don't always go to a
-warehouse with a receiving clerk who reconciles a formal GRN at the
-moment of delivery — they sometimes go straight to site, where only a
-delivery note (a POD) is captured. The supplier's actual invoice then
-arrives separately, sometimes much later, on its own billing cycle.
-This means "PO → GRN → Supplier Invoice" isn't three interchangeable
-steps that happen close together — a PO can sit for a real, extended
-period with a delivery note on file and no invoice yet, and that gap
-itself needs to be visible, not just assumed away.
+**Superseding the first version of this pin** — Pierre gave a more
+precise second pass on the same thinking; this version replaces it
+rather than sitting alongside a vaguer draft.
 
-**The real design need: a document-completeness status on the PO
-itself**, tracking whether a delivery note has been received and
-whether a supplier invoice has been received — closing the PO only
-once both are present. This directly closes a limitation already named
-in this same night's own write-up: "a PO is never marked closed or
-fully billed." Leaning toward computing this status live rather than
-storing it (has any GRN been recorded for this PO? has any Supplier
-Invoice?), matching the same "compute on read" discipline already
-chosen for partial-GRN status in the original design — real,
-consistent with a decision already made, not a new pattern.
+**The real scenario, stated precisely: GRN capture is a two-person
+job, not an Office-only one.** Whoever physically receives the goods —
+an installer on site, or a clerk at the warehouse — signs the real,
+physical delivery note, then photographs it and uploads it. Office's
+role there is purely to capture what was actually signed for, using
+the exact photo-upload path already built and proven tonight. Goods
+delivered straight to site, with no warehouse and no receiving clerk
+involved at all, are the normal case this needs to serve, not an edge
+case.
 
-**A second, arguably more important refinement this same scenario
-surfaced, worth building alongside the status field, not separately:**
-Supplier Invoice reconciliation currently compares what's billed
-against what was *ordered* (the PO) — never against what was actually
-*received* (the GRN). Pierre's own scenario shows precisely why that's
-the weaker comparison: if a supplier delivers 28 units but bills for
-the full 30 ordered, comparing against the PO shows zero variance and
-misses the real problem entirely. The GRN is the more honest source of
-truth for "what did we actually get," and the invoice should be
-checked against *that* — with the PO comparison kept as a secondary,
-"did this ever match what was agreed" check, not the primary one.
+**A real, explicit division of what each stage reconciles, confirmed
+directly, not left implicit:**
+- **The delivery note (GRN) is quantity-only, always.** Confirms the
+  existing design correctly, and rules out ever conflating it with
+  pricing.
+- **The Supplier Invoice is fundamentally a pricing exercise**, married
+  against the PO. Quantity is a real, secondary check there — and per
+  the reconciliation refinement below, that secondary check should
+  compare against the GRN's real received quantity, not the PO's
+  ordered quantity.
+
+**The real design need this whole conversation was building toward: a
+document-completeness status on the PO**, tracking whether a delivery
+note has been received and whether a supplier invoice has been
+received — closing the PO only once both are present. Confirmed
+explicitly: the two documents sometimes arrive together, in which case
+both reconciliations can happen in one motion — but they often arrive
+separately, and when they do, the PO needs a real, visible intermediate
+state ("delivery note received, awaiting invoice"), not just two
+independent events that happen to share a purchase_order_id with
+nothing tracking the gap between them. This directly closes a
+limitation already named in this same night's own write-up: "a PO is
+never marked closed or fully billed." Leaning toward computing this
+status live rather than storing it, matching the same "compute on
+read" discipline already chosen for partial-GRN status in the original
+design.
+
+**The reconciliation refinement, unchanged from the first pass and
+still real:** Supplier Invoice reconciliation currently compares what's
+billed against what was *ordered* (the PO) — never against what was
+actually *received* (the GRN). If a supplier delivers 28 units but
+bills for the full 30 ordered, comparing against the PO shows zero
+variance and misses the real problem entirely. The GRN is the more
+honest source of truth for "what did we actually get."
+
+**A real, open question this second pass surfaced, not yet answered:**
+GRN recording was built tonight with no capability check at all — any
+authenticated session can currently record one. That happens to
+already match what's being described here (an installer needs to be
+able to do this, not just Peter), but it was an omission, not a
+deliberate decision. Worth a real answer before this gets built
+further: should recording a GRN require any specific capability, or is
+"any authenticated session can capture a delivery note" the genuinely
+correct, intentional behavior — given it only ever touches quantity,
+never money?
 
 **Explicitly not built tonight** — a real, precise design captured at
 the moment it was given, correctly deferred to tomorrow's "tidy up
 loose ends" pass rather than rushed through at the end of a long
-session. The two pieces (document status, GRN-based reconciliation)
-are related and worth building together, not as two separate passes.
+session. The three pieces (document status, GRN-based reconciliation,
+the GRN permission question) are related and worth resolving together,
+not as separate passes.
