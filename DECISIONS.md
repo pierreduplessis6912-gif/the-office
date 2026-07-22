@@ -2821,3 +2821,65 @@ itself got, not a rushed addition at the end of a long session. Pinned
 precisely so the real distinctions (three different reason codes, two
 different resolution paths, one real evidence requirement) survive
 intact until this is actually specced and built.
+
+## Cross-role identity collision — a real, deterministic alternative to teaching every ambiguous phrasing (2026-07-22)
+
+**The real problem this replaces, named honestly.** Fixing the "Thabo
+upstairs is twenty five square meters" misclassification (below) by
+adding a rule and an example is a real fix for that one phrasing, but
+not a real fix for the underlying class of problem — natural language
+has effectively unlimited variation, and no number of examples ever
+converges. Pierre named this directly, and correctly.
+
+**The actual, precise fix: this was never a language-understanding
+problem. It's a missing, checkable fact.** Thabo already has an
+established identity in this system — a real character, an installer.
+The question was never "is this sentence ambiguous," it's "does this
+message's role assignment for this name conflict with what's already
+on file." That's not something to ask a model to judge better. It's a
+direct database lookup, exactly the same "code decides, model only
+transcribes" discipline already proven everywhere else in this
+project.
+
+**The real, sharp distinction Pierre's own examples draw, worth
+building exactly as stated:**
+- **"Thabo measure X" / "Thabo is installing Y"** — the extracted role
+  (installer, performing work) matches Thabo's already-established
+  role. No collision. Stays completely frictionless — this is the
+  common case, and it must never gain friction from this fix.
+- **"Thabo paid R5000" / "schedule a meeting with Thabo about
+  pricing"** — the extraction would place Thabo in a customer-shaped
+  role (paying, being quoted), but the only "Thabo" on file is a
+  character. A real, checkable mismatch: this name has an established
+  identity in one table, and this specific message is trying to use it
+  in the other. Reuses the exact same "ask when genuinely ambiguous"
+  rung already proven throughout this project (Principle 24's Ladder)
+  — not a new mechanism, an application of one already trusted.
+
+**The real mechanic**: before reconciling a newly-extracted
+customer_name or character_name, check the *other* table for the same
+name too. If it matches nothing there, proceed exactly as today —
+zero added friction for the overwhelming majority of real messages. If
+it matches an existing record in the other table, that's a real,
+detected collision — hold it and ask, rather than either silently
+creating a duplicate identity or silently misassigning the role.
+
+**Real, open questions, deliberately not answered here:**
+1. What does "ask" actually look like mechanically — a new
+   pending-action type requiring a real yes/no answer before anything
+   else about the message gets written, or something lighter?
+2. If Peter confirms "yes, same Thabo," does the original message get
+   reprocessed automatically with the corrected role, or does he need
+   to restate it? Reprocessing is more seamless but touches more of the
+   pipeline; restating is simpler to build but real friction on an
+   already-rare case.
+3. Exact-name matching only, or does this need fuzzy matching (a
+   nickname, a spelling variant)? Exact-match-only is the safer,
+   simpler start — a fuzzy match risks flagging collisions that were
+   never real ones.
+
+**Explicitly not built tonight** — this touches the core reconciliation
+path every single message in this project runs through; a change at
+this scale deserves to be specced properly first, not rushed at the
+end of a long session. Pinned precisely so the real distinction (a
+checkable fact, not a language problem) survives intact.
