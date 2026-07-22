@@ -2715,3 +2715,37 @@ loose ends" pass rather than rushed through at the end of a long
 session. The three pieces (document status, GRN-based reconciliation,
 the GRN permission question) are related and worth resolving together,
 not as separate passes.
+
+**Built and proven the same night, sooner than "tomorrow" — all three
+pieces resolved:**
+
+1. **GRN permission question, resolved**: GRN capture stays
+   deliberately open to anyone in the organisation — no capability
+   gate — since it only ever touches quantity, never money. What makes
+   it safe is accountability, not restriction: `recorded_by` now
+   captures the real, confirming user's actual identity, verified live
+   (`pierreduplessis6912@gmail.com` on a real, confirmed delivery). A
+   first test showed `null`, correctly — that was a genuine mistake in
+   the test command itself (no session cookie sent), not the feature;
+   the retest with the cookie included proved it works exactly as
+   designed.
+
+2. **Document-completeness status, built**: a real, computed status on
+   every PO — "ordered, awaiting delivery" → "delivery note received,
+   awaiting invoice" → "closed" — verified live through the full,
+   real transition on one real PO, in order, exactly as designed.
+
+3. **GRN-based reconciliation, built and proven with Pierre's own
+   exact scenario**: ordered 20m² of grout, delivered only 15m²,
+   billed for the full 20m² ordered. The old comparison
+   (`quantityVarianceVsOrdered: 0`) shows exactly the blind spot this
+   was built to close — billed matches ordered, so nothing looks
+   wrong. The new, primary comparison against what was actually
+   received (`quantityVariance: 5`) catches the real problem
+   precisely. Both figures are kept and returned together, deliberately
+   — the old comparison isn't discarded, it's demoted to a secondary
+   check, exactly as the design specified, and seeing both side by
+   side is itself the proof the fix does what it was meant to do.
+
+All three verified with real, predicted-in-advance numbers before
+being trusted, the same discipline as everything else in this project.
