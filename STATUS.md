@@ -511,10 +511,27 @@ Codemagic — still only proven on the web preview.**
   across all three ways one can actually arrive — spoken aloud, a real
   uploaded PDF, and a real photographed invoice — each one correctly
   computing quantity and price variance in code and creating a real
-  expense on confirmation. See DECISIONS.md for the complete arc,
-  including a real safety-discipline success (a too-narrow test photo
-  correctly produced *no* fabricated action rather than a false one)
-  and the real bugs found along the way.
+  expense on confirmation. Since then: GRN capture is now genuinely
+  traceable (who actually recorded it, verified live), every PO has a
+  real, computed document-completeness status (ordered → delivery note
+  received → closed, verified through its own full transition), and
+  Supplier Invoice reconciliation now compares against what was
+  actually *received* (the GRN), not just what was ordered — proven
+  with Pierre's own exact scenario (20 ordered, 15 received, 20
+  billed; the old comparison shows zero, the new one correctly catches
+  a real 5-unit discrepancy). See DECISIONS.md for the complete arc.
+- **Layer 2 (Project) has its first real, working piece** (2026-07-22)
+  — same-breath assembly, built directly on the capture_id
+  prerequisite added the night before. Two real job scopes, born from
+  one real message describing a phased job, correctly and
+  automatically grouped into one real project — the exact Calypso
+  Centre scenario that started this whole design arc, now proven with
+  real data. Cross-capture attachment (a new message, days later,
+  matching an existing project) remains deliberately deferred, pending
+  a real answer to "what makes a project open." See DECISIONS.md for
+  the real bug found and fixed along the way — a subtle classification
+  ambiguity, and the broader, more scalable identity-collision design
+  it surfaced, pinned separately rather than built at this hour.
 - **`captures` real FK backfill.** `customer_id`/`character_id` (added
   2026-07-11) are correctly populated for every NEW capture from here
   on, verified live via a real clean join (`?customerId=1`). Every
