@@ -482,7 +482,7 @@ export async function findLatestJobScope(
   id: number;
   description: string;
   components: Array<{ id: number; name: string; area_sqm: number | null }>;
-  tasks: Array<{ id: number; description: string }>;
+  tasks: Array<{ id: number; description: string; component_id: number | null }>;
 } | null> {
   const { results: candidates } = await env.OFFICE_DB.prepare(
     "SELECT id, description FROM job_scopes WHERE customer_id = ? ORDER BY created_at DESC"
@@ -550,10 +550,10 @@ export async function findLatestJobScope(
     .all<{ id: number; name: string; area_sqm: number | null }>();
 
   const { results: tasks } = await env.OFFICE_DB.prepare(
-    "SELECT id, description FROM scope_tasks WHERE job_scope_id = ?"
+    "SELECT id, description, component_id FROM scope_tasks WHERE job_scope_id = ?"
   )
     .bind(scope.id)
-    .all<{ id: number; description: string }>();
+    .all<{ id: number; description: string; component_id: number | null }>();
 
   return { id: scope.id, description: scope.description, components: components ?? [], tasks: tasks ?? [] };
 }
