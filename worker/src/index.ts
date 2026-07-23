@@ -25,12 +25,25 @@ const QUESTION_STARTERS = [
 // the same real-money arithmetic drifting apart from each other.
 function buildQuotationLineItems(
   pricedItems: Array<{ matched_name: string | null; description: string; pricing_type: "per_sqm" | "flat"; rate: number }>,
-  components: Array<{ name: string; area_sqm: number | null }>
+  components: Array<{ name: string; area_sqm: number | null }>,
+  tasks: Array<{ description: string; component_name: string | null }> = []
 ): LineItemWithTotal[] {
   return pricedItems.map((item) => {
-    const component = item.matched_name
+    let component = item.matched_name
       ? components.find((c) => c.name.toLowerCase() === item.matched_name!.toLowerCase())
       : undefined;
+    // Real fix 2026-07-22, found live: a per-sqm rate matched against
+    // a task name (e.g. "screed") has nowhere to price against
+    // directly — a task itself has no area, only its linked
+    // component does. Resolved here, deterministically, by following
+    // the task's own real link back to the component it belongs to —
+    // never asked of the model, which only ever matched a name.
+    if (!component && item.matched_name) {
+      const matchedTask = tasks.find((t) => t.description.toLowerCase() === item.matched_name!.toLowerCase());
+      if (matchedTask?.component_name) {
+        component = components.find((c) => c.name.toLowerCase() === matchedTask.component_name!.toLowerCase());
+      }
+    }
     // The only real arithmetic in this whole step — rate x real
     // measured area — always happens here, in code. The model's job
     // was only ever matching a name and recognizing whether the
@@ -38,7 +51,7 @@ function buildQuotationLineItems(
     if (item.pricing_type === "per_sqm" && component?.area_sqm != null) {
       const lineTotal = Math.round(component.area_sqm * item.rate * 100) / 100;
       return {
-        description: component.name,
+        description: item.description,
         note: null,
         quantity: component.area_sqm,
         unit: "sqm",
@@ -386,7 +399,11 @@ async function processOneExtraction(
       const jobScope = await findLatestJobScope(env, customer.id, transcript);
       if (jobScope) {
         const pricedItems = await extractScopePricing(env, transcript, jobScope.components, jobScope.tasks);
-        quotationLineItems = buildQuotationLineItems(pricedItems, jobScope.components);
+        const tasksWithComponentNames = jobScope.tasks.map((t) => ({
+          description: t.description,
+          component_name: t.component_id != null ? jobScope.components.find((c) => c.id === t.component_id)?.name ?? null : null,
+        }));
+        quotationLineItems = buildQuotationLineItems(pricedItems, jobScope.components, tasksWithComponentNames);
         jobScopeIdForPricing = jobScope.id;
       } else {
         // Real, symmetric fix 2026-07-16 — Layer 1 (Constitution
@@ -406,7 +423,7 @@ async function processOneExtraction(
           jobScopeIdForPricing = recorded.jobScopeId;
           if (transcriptMentionsPricing(transcript)) {
             const pricedItems = await extractScopePricing(env, transcript, recorded.computedComponents, observation.tasks);
-            quotationLineItems = buildQuotationLineItems(pricedItems, recorded.computedComponents);
+            quotationLineItems = buildQuotationLineItems(pricedItems, recorded.computedComponents, recorded.computedTasks);
           }
         }
         if (quotationLineItems.length === 0) {
@@ -539,7 +556,7 @@ async function processOneExtraction(
     if (customer && canManageInvoicesForWrites && transcriptMentionsPricing(transcript)) {
       const pricedItems = await extractScopePricing(env, transcript, recorded.computedComponents, observation.tasks);
       if (pricedItems.length > 0) {
-        const lineItems = buildQuotationLineItems(pricedItems, recorded.computedComponents);
+        const lineItems = buildQuotationLineItems(pricedItems, recorded.computedComponents, recorded.computedTasks);
         const total = lineItems.reduce((sum, item) => sum + item.line_total, 0);
         if (total > 0) {
           const cleanDescription = lineItems.map((item) => item.description).join("; ");
