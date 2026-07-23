@@ -383,7 +383,7 @@ async function processOneExtraction(
       // real, already-measured job — extraction is only ever told the
       // real component names and areas that exist, never asked to
       // invent structure that isn't already there.
-      const jobScope = await findLatestJobScope(env, customer.id);
+      const jobScope = await findLatestJobScope(env, customer.id, transcript);
       if (jobScope) {
         const pricedItems = await extractScopePricing(env, transcript, jobScope.components, jobScope.tasks);
         quotationLineItems = buildQuotationLineItems(pricedItems, jobScope.components);
