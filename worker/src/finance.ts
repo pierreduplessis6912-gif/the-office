@@ -462,21 +462,73 @@ export async function findLatestOpenQuotation(
 // at most one open, unpriced job at a time. Returns the real
 // components and tasks so extractScopePricing has real names to match
 // spoken rates against, never invented ones.
+// Real fix 2026-07-22 — found live via Layer 2 testing: once a
+// customer genuinely has multiple job scopes (now that same-breath
+// assembly correctly groups them), "the customer's most recent job
+// scope" stopped being a safe assumption. Peter asked to price the
+// screed job specifically; this silently matched the carpet job
+// instead, since it happened to be newer — a real, wrong quotation
+// would have gone out. Fixed by matching against what was actually
+// named in the transcript first (a real, deterministic substring
+// check against each job scope's own description, component names,
+// and task descriptions — never an AI judgment call), falling back to
+// "most recent" only when nothing in the transcript matches any real,
+// existing job scope at all.
 export async function findLatestJobScope(
   env: Env,
-  customerId: number
+  customerId: number,
+  transcript: string = ""
 ): Promise<{
   id: number;
   description: string;
   components: Array<{ id: number; name: string; area_sqm: number | null }>;
   tasks: Array<{ id: number; description: string }>;
 } | null> {
-  const scope = await env.OFFICE_DB.prepare(
-    "SELECT id, description FROM job_scopes WHERE customer_id = ? ORDER BY created_at DESC LIMIT 1"
+  const { results: candidates } = await env.OFFICE_DB.prepare(
+    "SELECT id, description FROM job_scopes WHERE customer_id = ? ORDER BY created_at DESC"
   )
     .bind(customerId)
-    .first<{ id: number; description: string }>();
-  if (!scope) return null;
+    .all<{ id: number; description: string }>();
+
+  if (!candidates || candidates.length === 0) return null;
+
+  let scope: { id: number; description: string } | undefined;
+
+  if (candidates.length > 1 && transcript) {
+    const lowerTranscript = transcript.toLowerCase();
+    for (const candidate of candidates) {
+      const { results: candidateComponents } = await env.OFFICE_DB.prepare(
+        "SELECT name FROM scope_components WHERE job_scope_id = ?"
+      )
+        .bind(candidate.id)
+        .all<{ name: string }>();
+      const { results: candidateTasks } = await env.OFFICE_DB.prepare(
+        "SELECT description FROM scope_tasks WHERE job_scope_id = ?"
+      )
+        .bind(candidate.id)
+        .all<{ description: string }>();
+      const realWords = [
+        candidate.description,
+        ...(candidateComponents ?? []).map((c) => c.name),
+        ...(candidateTasks ?? []).map((t) => t.description),
+      ]
+        .join(" ")
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((w) => w.length > 3); // skip short, generic words that would over-match
+      if (realWords.some((word) => lowerTranscript.includes(word))) {
+        scope = candidate;
+        break;
+      }
+    }
+  }
+
+  // Falls back to the original, existing behavior — most recent —
+  // only when nothing in the transcript actually matched a real job
+  // scope, preserving every case this already worked correctly for.
+  if (!scope) {
+    scope = candidates[0];
+  }
 
   const { results: components } = await env.OFFICE_DB.prepare(
     "SELECT id, name, area_sqm FROM scope_components WHERE job_scope_id = ?"
