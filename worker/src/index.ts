@@ -364,6 +364,14 @@ async function processOneExtraction(
   }
 
   let quotationLineItems: LineItemWithTotal[] = [];
+  // Real feature 2026-07-22 — Layer 2 (Project), linking quotations
+  // and invoices back to the real job scope they're actually priced
+  // from. This is the missing edge the Fable 5 design review correctly
+  // identified in tonight's own pinned document — a quotation reaching
+  // its project only ever through a lookup at creation time, never a
+  // persisted one. Captured here, at the one real point pricing
+  // actually happens, from both paths that produce it.
+  let jobScopeIdForPricing: number | null = null;
   // price_scope found a customer but no recorded job_scope to price —
   // tracked separately so the message branch below can say so
   // honestly, the same pattern as convertQuoteFound/convertQuoteToInvoice
@@ -379,6 +387,7 @@ async function processOneExtraction(
       if (jobScope) {
         const pricedItems = await extractScopePricing(env, transcript, jobScope.components, jobScope.tasks);
         quotationLineItems = buildQuotationLineItems(pricedItems, jobScope.components);
+        jobScopeIdForPricing = jobScope.id;
       } else {
         // Real, symmetric fix 2026-07-16 — Layer 1 (Constitution
         // Principle 28): found live — the classifier can pick
@@ -394,6 +403,7 @@ async function processOneExtraction(
         const observation = await extractWorkObservation(env, transcript);
         if (observation.components.length > 0 || observation.tasks.length > 0) {
           const recorded = await recordWorkObservation(env, customer.id, observation, transcript, null, captureId);
+          jobScopeIdForPricing = recorded.jobScopeId;
           if (transcriptMentionsPricing(transcript)) {
             const pricedItems = await extractScopePricing(env, transcript, recorded.computedComponents, observation.tasks);
             quotationLineItems = buildQuotationLineItems(pricedItems, recorded.computedComponents);
@@ -452,6 +462,7 @@ async function processOneExtraction(
           description: cleanDescription,
           amount: total,
           lineItems: quotationLineItems,
+          jobScopeId: jobScopeIdForPricing,
         },
         transcript
       );
@@ -535,7 +546,7 @@ async function processOneExtraction(
           const held = await holdForConfirmation(
             env,
             "quotation",
-            { customerId: customer.id, customerName: customer.name, description: cleanDescription, amount: total, lineItems },
+            { customerId: customer.id, customerName: customer.name, description: cleanDescription, amount: total, lineItems, jobScopeId: recorded.jobScopeId },
             transcript
           );
           pendingActionId = held.id;
@@ -1458,6 +1469,24 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ status: "ok" });
     }
 
+    // Real feature 2026-07-22 — Layer 2 (Project): the real, missing
+    // link back to the job scope a quotation or invoice was actually
+    // priced from, closing the exact gap the Fable 5 design review
+    // correctly identified in the Layer 2 design pin.
+    if (url.pathname === "/debug/init-job-scope-links" && request.method === "POST") {
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE quotations ADD COLUMN job_scope_id INTEGER").run();
+      } catch (err) {
+        // Likely already exists — safe to re-run.
+      }
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE invoices ADD COLUMN job_scope_id INTEGER").run();
+      } catch (err) {
+        // Same.
+      }
+      return Response.json({ status: "ok" });
+    }
+
     if (url.pathname === "/debug/projects" && request.method === "GET") {
       const { results: projects } = await env.OFFICE_DB.prepare(
         `SELECT p.id, p.customer_id, c.name as customer_name, p.description, p.created_at
@@ -1472,7 +1501,31 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           )
             .bind(project.id)
             .all();
-          return { ...project, jobScopes };
+          // Real, deterministic total — every quotation and invoice
+          // linked, through its real job_scope_id, to a job scope that
+          // belongs to this project. The actual point of this whole
+          // feature: a project can now show its real, total quoted
+          // and invoiced value, not just a label on some measurements.
+          const totalQuoted = await env.OFFICE_DB.prepare(
+            `SELECT COALESCE(SUM(q.amount), 0) as total FROM quotations q
+             JOIN job_scopes js ON js.id = q.job_scope_id
+             WHERE js.project_id = ?`
+          )
+            .bind(project.id)
+            .first<{ total: number }>();
+          const totalInvoiced = await env.OFFICE_DB.prepare(
+            `SELECT COALESCE(SUM(i.amount), 0) as total FROM invoices i
+             JOIN job_scopes js ON js.id = i.job_scope_id
+             WHERE js.project_id = ?`
+          )
+            .bind(project.id)
+            .first<{ total: number }>();
+          return {
+            ...project,
+            totalQuoted: totalQuoted?.total ?? 0,
+            totalInvoiced: totalInvoiced?.total ?? 0,
+            jobScopes,
+          };
         })
       );
       return Response.json({ projects: enriched });
@@ -2934,6 +2987,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             description: string;
             amount: number;
             lineItems?: LineItemWithTotal[];
+            jobScopeId?: number | null;
           };
           const invoice = await recordInvoice(
             env,
@@ -2941,7 +2995,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             payload.description,
             payload.amount,
             action.source_transcript,
-            payload.lineItems ?? []
+            payload.lineItems ?? [],
+            payload.jobScopeId ?? null
           );
           await env.OFFICE_DB.prepare(
             "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
@@ -2966,6 +3021,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             description: string;
             amount: number;
             lineItems?: LineItemWithTotal[];
+            jobScopeId?: number | null;
           };
           const quotation = await recordQuotation(
             env,
@@ -2973,7 +3029,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             payload.description,
             payload.amount,
             action.source_transcript,
-            payload.lineItems ?? []
+            payload.lineItems ?? [],
+            payload.jobScopeId ?? null
           );
           await env.OFFICE_DB.prepare(
             "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
