@@ -495,6 +495,19 @@ export async function findLatestJobScope(
   let scope: { id: number; description: string } | undefined;
 
   if (candidates.length > 1 && transcript) {
+    // Real fix, found live: the customer's own name is a real word
+    // that would otherwise "match" every one of their job scopes
+    // equally, since components are routinely named with the
+    // customer's name as a prefix ("Thabo downstairs", "Thabo
+    // upstairs") — an artifact of how components get named, not a
+    // real distinguishing signal. Excluded here so only genuinely
+    // distinguishing words (like "screed" vs "carpet") ever decide a
+    // match.
+    const customer = await env.OFFICE_DB.prepare("SELECT name FROM customers WHERE id = ?")
+      .bind(customerId)
+      .first<{ name: string }>();
+    const customerNameLower = customer?.name?.toLowerCase() ?? "";
+
     const lowerTranscript = transcript.toLowerCase();
     for (const candidate of candidates) {
       const { results: candidateComponents } = await env.OFFICE_DB.prepare(
@@ -515,7 +528,7 @@ export async function findLatestJobScope(
         .join(" ")
         .toLowerCase()
         .split(/\s+/)
-        .filter((w) => w.length > 3); // skip short, generic words that would over-match
+        .filter((w) => w.length > 3 && w !== customerNameLower); // skip short, generic words, and the customer's own name
       if (realWords.some((word) => lowerTranscript.includes(word))) {
         scope = candidate;
         break;
