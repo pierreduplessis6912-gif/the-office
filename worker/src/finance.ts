@@ -91,7 +91,8 @@ export async function recordInvoice(
   description: string,
   amount: number,
   sourceTranscript: string,
-  lineItems: LineItemWithTotal[] = []
+  lineItems: LineItemWithTotal[] = [],
+  jobScopeId: number | null = null
 ): Promise<{ id: number; customerId: number; amount: number; retentionAmount: number }> {
   // Real feature 2026-07-21 — a real, urgent need: an active
   // two-year contract in its final stage, needing historical
@@ -106,10 +107,13 @@ export async function recordInvoice(
   const retentionPercent = customer?.retention_percent ?? null;
   const retentionAmount = retentionPercent ? Math.round(amount * (retentionPercent / 100) * 100) / 100 : 0;
 
+  // Real feature 2026-07-22 — Layer 2 (Project): the real, missing
+  // link back to the job scope this invoice was actually priced from,
+  // per the design pinned in DECISIONS.md.
   const inserted = await env.OFFICE_DB.prepare(
-    "INSERT INTO invoices (customer_id, description, amount, source_transcript, retention_percent, retention_amount) VALUES (?, ?, ?, ?, ?, ?) RETURNING id"
+    "INSERT INTO invoices (customer_id, description, amount, source_transcript, retention_percent, retention_amount, job_scope_id) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id"
   )
-    .bind(customerId, description, amount, sourceTranscript, retentionPercent, retentionAmount)
+    .bind(customerId, description, amount, sourceTranscript, retentionPercent, retentionAmount, jobScopeId)
     .first<{ id: number }>();
 
   const invoiceId = inserted!.id;
@@ -131,12 +135,16 @@ export async function recordQuotation(
   description: string,
   amount: number,
   sourceTranscript: string,
-  lineItems: LineItemWithTotal[] = []
+  lineItems: LineItemWithTotal[] = [],
+  jobScopeId: number | null = null
 ): Promise<{ id: number; customerId: number; amount: number }> {
+  // Real feature 2026-07-22 — Layer 2 (Project): the real, missing
+  // link back to the job scope this quotation was actually priced
+  // from, per the design pinned in DECISIONS.md.
   const inserted = await env.OFFICE_DB.prepare(
-    "INSERT INTO quotations (customer_id, description, amount, source_transcript) VALUES (?, ?, ?, ?) RETURNING id"
+    "INSERT INTO quotations (customer_id, description, amount, source_transcript, job_scope_id) VALUES (?, ?, ?, ?, ?) RETURNING id"
   )
-    .bind(customerId, description, amount, sourceTranscript)
+    .bind(customerId, description, amount, sourceTranscript, jobScopeId)
     .first<{ id: number }>();
 
   const quotationId = inserted!.id;
