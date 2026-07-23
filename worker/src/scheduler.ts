@@ -113,7 +113,11 @@ export async function recordWorkObservation(
   sourceTranscript: string,
   installerId: number | null = null,
   captureId: number | null = null
-): Promise<{ jobScopeId: number; computedComponents: Array<{ name: string; area_sqm: number | null }> }> {
+): Promise<{
+  jobScopeId: number;
+  computedComponents: Array<{ name: string; area_sqm: number | null }>;
+  computedTasks: Array<{ description: string; component_name: string | null }>;
+}> {
   const scheduledDate = resolveScheduledDate(observation.scheduled_date_raw, nowInBusinessTimezone());
   // Real feature 2026-07-20 (Layer 2 / Project design, verified via the
   // Fable 5 design pass): capture_id is the real, deterministic
@@ -165,6 +169,15 @@ export async function recordWorkObservation(
     computedComponents.push({ name: component.name, area_sqm: areaSqm });
   }
 
+  // Real fix 2026-07-22 — found live: a task's rate (e.g. "R80 a
+  // square meter" for "screed") had nowhere to inherit a real area
+  // from, since a task itself has no area_sqm — only its linked
+  // component does. Captured here, by name, so a caller pricing this
+  // job can correctly resolve a task-matched rate to its real,
+  // linked component's area, the same fix already made for the
+  // findLatestJobScope path.
+  const computedTasks: Array<{ description: string; component_name: string | null }> = [];
+
   for (const task of observation.tasks) {
     const componentId = task.component_name ? componentIdByName.get(task.component_name.toLowerCase()) ?? null : null;
     await env.OFFICE_DB.prepare(
@@ -172,6 +185,7 @@ export async function recordWorkObservation(
     )
       .bind(jobScopeId, task.description, componentId)
       .run();
+    computedTasks.push({ description: task.description, component_name: task.component_name ?? null });
   }
 
   // Real feature 2026-07-22 — Layer 2 (Project), same-breath
@@ -217,7 +231,7 @@ export async function recordWorkObservation(
     }
   }
 
-  return { jobScopeId, computedComponents };
+  return { jobScopeId, computedComponents, computedTasks };
 }
 
 // Small, deterministic cleanup — real polish item flagged since the
