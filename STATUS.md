@@ -520,18 +520,22 @@ Codemagic — still only proven on the web preview.**
   with Pierre's own exact scenario (20 ordered, 15 received, 20
   billed; the old comparison shows zero, the new one correctly catches
   a real 5-unit discrepancy). See DECISIONS.md for the complete arc.
-- **Layer 2 (Project) has its first real, working piece** (2026-07-22)
-  — same-breath assembly, built directly on the capture_id
-  prerequisite added the night before. Two real job scopes, born from
-  one real message describing a phased job, correctly and
+- **Layer 2 (Project) now has two real, working pieces** (2026-07-22)
+  — same-breath assembly, and quotations/invoices genuinely linked
+  back to the job scope they're priced from. Two real job scopes, born
+  from one real message describing a phased job, correctly and
   automatically grouped into one real project — the exact Calypso
   Centre scenario that started this whole design arc, now proven with
-  real data. Cross-capture attachment (a new message, days later,
-  matching an existing project) remains deliberately deferred, pending
-  a real answer to "what makes a project open." See DECISIONS.md for
-  the real bug found and fixed along the way — a subtle classification
-  ambiguity, and the broader, more scalable identity-collision design
-  it surfaced, pinned separately rather than built at this hour.
+  real data. A project now shows a real, computed total quoted and
+  invoiced value, verified live (a real R3,200 quotation, correctly
+  priced against the right job scope, correctly reflected in the
+  project's own total) — closing the exact gap the Fable 5 design
+  review identified in the original pin. Three real, distinct bugs
+  found and fixed proving this — see DECISIONS.md for the full,
+  honest account, including two fix attempts that didn't work before
+  the third one did. Cross-capture attachment (a new message, days
+  later, matching an existing project) and the broader identity-
+  collision design remain deliberately deferred.
 - **`captures` real FK backfill.** `customer_id`/`character_id` (added
   2026-07-11) are correctly populated for every NEW capture from here
   on, verified live via a real clean join (`?customerId=1`). Every
