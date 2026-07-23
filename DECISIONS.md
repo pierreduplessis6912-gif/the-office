@@ -2923,3 +2923,62 @@ entry is the real, scalable answer to that, still not built. Same-breath
 assembly and cross-capture attachment (the harder half of Layer 2,
 still deferred pending a real answer to "what makes a project open")
 remain two separate pieces of work.
+
+## Layer 2 (Project) — job_scope_id linking, and three real bugs found on the way to proving it (2026-07-22)
+
+**The real feature**: quotations and invoices now carry a real
+`job_scope_id`, captured at the one real point pricing actually
+happens — closing the exact gap the Fable 5 design review correctly
+identified in the original Layer 2 pin ("quotations reach the project
+through edges that already exist" was checked and found false; those
+edges never persisted anywhere). A project can now show a real,
+computed `totalQuoted` and `totalInvoiced`, summed via a real join
+through `job_scopes.project_id` — the actual point of grouping phases
+together in the first place, not just a label on some measurements.
+
+**Three real, distinct bugs found and fixed on the single test that
+proved this** — worth recording honestly as three separate failures,
+not one:
+
+1. **Wrong job scope matched.** Pricing "Thabo's screed job" matched
+   against the *carpet* job scope instead, because `findLatestJobScope`
+   picked whichever was most recently created, ignoring what was
+   actually named. Exposed only because Layer 2 now lets one customer
+   genuinely have multiple job scopes — before, "most recent" rarely
+   mattered.
+2. **The fix for #1 didn't work on its first attempt, and the reason
+   was real and worth naming.** Matching against real words from each
+   candidate job scope's description/components/tasks seemed right,
+   but the customer's own name ("Thabo") is present in every
+   component name for that customer ("Thabo downstairs", "Thabo
+   upstairs") — an artifact of how components get named, not a real
+   distinguishing signal. It matched everything equally, so the most
+   recent candidate kept winning regardless. Fixed by excluding the
+   customer's own name from the matching words.
+3. **A task's rate had nowhere to inherit a real area from.** Once
+   matching correctly found the *right* job scope, pricing still came
+   back wrong — R80 flat instead of R3,200. "Screed" is a task, not a
+   component, and a task has no `area_sqm` of its own; only the
+   component it's linked to does. `buildQuotationLineItems` only ever
+   checked components directly, never followed a task's real link back
+   to its component. Fixed by resolving a task-matched rate through its
+   real, linked component — applied consistently across all three real
+   call sites, not just the one the bug was found on.
+
+**Verified completely, end to end, not just the final number**: the
+real payload (`description: "screed"`, `quantity: 40`, `unit_price:
+80`, `line_total: 3200`, `jobScopeId: 24`) confirmed correct before
+confirming; the confirmed quotation correct; and — the real proof this
+whole arc mattered — Project #1's own `totalQuoted` correctly showing
+3200 immediately after, computed live through the real join, not
+asserted.
+
+**Worth naming plainly**: this is the same discipline as every other
+real fix in this project, just under real, sustained pressure — the
+first fix attempt for bug #1 was believed correct and deployed, then
+proven wrong on retest; the second attempt for the same bug was also
+believed correct, then proven wrong again by a *different* bug (#3)
+hiding behind the first. Each retest was treated as the real test it
+was, not a formality — the discipline held under three consecutive
+failures on the same scenario, which is a harder thing to prove than
+succeeding on the first try.
