@@ -2982,3 +2982,36 @@ hiding behind the first. Each retest was treated as the real test it
 was, not a formality — the discipline held under three consecutive
 failures on the same scenario, which is a harder thing to prove than
 succeeding on the first try.
+
+## Layer 2 (Project) — the third real piece: queryable in conversation (2026-07-22)
+
+**The real feature**: a project's real, grouped phases and its real,
+computed total quoted and invoiced value now surface in ordinary
+conversation, gated behind `can_know_jobs` — the same precedent
+already established for installer job activity, since a project is
+fundamentally the same kind of job information, seen from the
+customer's side. Closes the real gap between "correct in a debug
+route" and "actually useful to Peter" — everything built earlier
+tonight (same-breath assembly, job_scope_id linking) only had any real
+value once it could actually answer a question asked the way Peter
+would really ask it.
+
+**Verified with a real, natural, unpolished question — not a
+carefully-worded test case**: "hows Thabo job going" (no capital,
+no punctuation, no "please tell me about") produced: *"Project 'carpet
+installation': phases are screed installation and carpet installation;
+total quoted so far R3200; total invoiced so far R0."* Both real
+phases named correctly, the real R3,200 quoted figure correct
+(matching the exact quotation confirmed earlier the same session), R0
+invoiced correctly reflecting that nothing has been invoiced yet — not
+a rounding coincidence, the actual, current truth.
+
+**This closes the full arc of tonight's Layer 2 work — three real
+pieces, each proven independently, now working together**: same-breath
+assembly (job scopes group into a real project), job_scope_id linking
+(quotations and invoices attach to the real phase they were priced
+from, rolling up into real project totals), and conversational
+visibility (the whole thing is actually askable, not just correct).
+Cross-capture attachment and the broader identity-collision design
+remain the two real, deliberately deferred pieces — both still pending
+real answers to open questions, not rushed defaults.
