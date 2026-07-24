@@ -3,7 +3,7 @@ import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeI
 import { findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
-import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOpenDiscrepanciesForSupplier, getOutstandingInvoices, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, holdForConfirmation, recordExpense, recordGoodsReceived, recordInvoice, recordPayment, recordPurchaseOrder, recordQuotation, recordSupplierInvoice, recordVarianceDisposition } from "./finance";
+import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOpenDiscrepanciesForSupplier, getOutstandingInvoices, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, holdForConfirmation, recordExpense, recordGoodsReceived, recordInvoice, recordPayment, recordPurchaseOrder, recordQuotation, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 
 // Second layer of defense against storing questions as facts — never
@@ -280,6 +280,25 @@ async function processOneExtraction(
       transcript
     );
     pendingActionId = held.id;
+  }
+
+  // Real feature 2026-07-24 — the real prerequisite for Aged
+  // Creditors, guard()d the same as every other real financial write.
+  // Built in certain anticipation of a real, recurring need (a
+  // monthly supplier statement), not speculative completeness.
+  let supplierPaymentNoSupplier = false;
+  if (extraction?.intent === "supplier_payment" && extraction.amount) {
+    if (character) {
+      const held = await holdForConfirmation(
+        env,
+        "supplier_payment",
+        { characterId: character.id, characterName: character.name, amount: extraction.amount },
+        transcript
+      );
+      pendingActionId = held.id;
+    } else {
+      supplierPaymentNoSupplier = true;
+    }
   }
 
   // Real feature 2026-07-21 — Purchase Orders, built incrementally
@@ -833,6 +852,12 @@ async function processOneExtraction(
     // Given its own branch here, same as task_complete and
     // convert_quote before it.
     message = `Expense noted${character ? ` for ${character.name}` : ""}${extraction.amount ? ` of R${extraction.amount}` : ""} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
+  } else if (extraction?.intent === "supplier_payment" && pendingActionId) {
+    // Same real crash risk as expense above — character-keyed, not
+    // customer-keyed, so this needs its own branch too.
+    message = `Supplier payment noted for ${character!.name} of R${extraction.amount} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
+  } else if (extraction?.intent === "supplier_payment" && supplierPaymentNoSupplier) {
+    message = "Recognized a supplier payment, but no supplier was named — try naming who it's to.";
   } else if (pendingActionId) {
     // price_scope's actual destination document depends on
     // scope_document_type, decided the same tense-based way as the
@@ -933,7 +958,19 @@ async function processOneExtraction(
           : canKnowDebtors
             ? await getAgedDebtorsSummary(env)
             : ["Outstanding balances exist for this business but are restricted for your role."];
-      message = await answerFromMemory(env, transcript, [...outstandingFacts, ...quotationFacts, ...expenseFacts, ...snapshotFacts, ...pnlFacts, ...agedFacts]);
+      // Real feature 2026-07-24 — Aged Creditors, the real mirror of
+      // Aged Debtors for the supplier side of money, built in certain
+      // anticipation of a real, recurring need (a monthly supplier
+      // statement). Gated behind canKnowMaterialsHere, the same
+      // capability already used for expense data — this is the same
+      // real domain (supplier money), not receivables.
+      const creditorFacts =
+        topic === "quotations" || topic === "invoices"
+          ? []
+          : canKnowMaterialsHere
+            ? await getAgedCreditorsSummary(env)
+            : ["Outstanding supplier balances exist for this business but are restricted for your role."];
+      message = await answerFromMemory(env, transcript, [...outstandingFacts, ...quotationFacts, ...expenseFacts, ...snapshotFacts, ...pnlFacts, ...agedFacts, ...creditorFacts]);
       // Real feature 2026-07-12 — the small, real, static piece of
       // Guide (see STATUS.md's pinned entry for the full design and
       // what's deliberately NOT built yet: dissatisfaction-detection,
@@ -1860,6 +1897,29 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
          ORDER BY vd.created_at DESC LIMIT 10`
       ).all();
       return Response.json({ varianceDispositions: results });
+    }
+
+    // Real feature 2026-07-24 — the real prerequisite for Aged
+    // Creditors, mirroring the payments table exactly, just for
+    // suppliers. Built in certain anticipation of a real, recurring
+    // need (a monthly supplier statement), not speculative
+    // completeness.
+    if (url.pathname === "/debug/init-supplier-payments" && request.method === "POST") {
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS supplier_payments (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          character_id INTEGER NOT NULL,
+          amount REAL,
+          source_transcript TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`
+      ).run();
+      return Response.json({ status: "ok" });
+    }
+
+    if (url.pathname === "/debug/aged-creditors" && request.method === "GET") {
+      const rows = await getAgedCreditorsReport(env);
+      return Response.json({ agedCreditors: rows });
     }
 
     if (url.pathname === "/debug/goods-received" && request.method === "GET") {
@@ -3070,6 +3130,24 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             .bind(id)
             .run();
           return Response.json({ status: "confirmed", expense });
+        }
+
+        // Real feature 2026-07-24 — the real prerequisite for Aged
+        // Creditors, mirroring the real, guard()d payment write
+        // exactly, just for the supplier side of money moving.
+        if (action.type === "supplier_payment") {
+          const payload = JSON.parse(action.payload) as {
+            characterId: number;
+            characterName?: string;
+            amount: number | null;
+          };
+          const supplierPayment = await recordSupplierPayment(env, payload.characterId, payload.amount, action.source_transcript);
+          await env.OFFICE_DB.prepare(
+            "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+          )
+            .bind(id)
+            .run();
+          return Response.json({ status: "confirmed", supplierPayment });
         }
 
         // Real feature 2026-07-21 — Goods Received Notes, the second
