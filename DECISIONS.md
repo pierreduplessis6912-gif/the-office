@@ -3199,3 +3199,38 @@ feature, not a partial one with an asterisk. The remaining, real gaps
 (the two deferred Ladder rungs, the broader identity-collision design,
 job completion, warranty, snags) are honestly named, not hidden, and
 correctly left for their own turn.
+
+## Layer 2 (Project) — connecting real scheduling data, a missing connection rather than a missing mechanism (2026-07-24)
+
+**Pierre's real observation**: throughout the entire Layer 2 arc — same-
+breath assembly, job_scope_id linking, conversational visibility,
+cross-capture attachment — nothing had touched scheduling. "Fifteen
+square meters, hallway, Thabo, next Friday" had no way to actually
+register anywhere meaningful.
+
+**Verified before building anything, rather than assumed either way**:
+a real test ("measured Thabo hallway at fifteen square meters for
+laminate, doing it next Friday") showed the extraction and storage
+mechanism had been working correctly the entire time —
+`scheduled_date_raw: "next Friday"`, `scheduled_date: "2026-07-31"`,
+correctly resolved. Every Layer 2 test tonight had simply used plain
+measurement phrases with no scheduling language, so this had never
+been exercised. The real gap was never a missing capture mechanism —
+it was a missing connection between data that already existed and the
+Layer 2 features that should have been surfacing it.
+
+**Closed additively, in two places**: `getCustomerProjectSummary` now
+shows each phase's real scheduled date when one exists, so a real
+question like "hows Thabo job going" can answer with real, useful
+timing, not just financial totals. The scheduler ember (a real,
+permanent production route, not a debug one) now also returns real
+project context (`project_id`, `project_description`) alongside its
+existing fields — added without changing the existing response shape,
+so nothing that already consumes this route breaks.
+
+**A real, live operational note, not a code issue**: the deploy for
+this change hung on the "Deploy to Cloudflare Workers" step for
+several minutes — every step before it succeeded cleanly — then
+completed successfully on its own. A genuine, transient delay, not a
+build problem; worth remembering if a future deploy seems stuck rather
+than immediately assuming something broke.
