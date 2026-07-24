@@ -1019,11 +1019,17 @@ export async function getCustomerProjectSummary(env: Env, customerId: number): P
 
   const facts: string[] = [];
   for (const project of projects) {
+    // Real feature 2026-07-24 — the real, missing connection Pierre
+    // pointed out directly: scheduled_date has always been captured
+    // correctly on every job scope (verified live tonight), but
+    // nothing in Layer 2 ever surfaced it. Each phase now shows its
+    // real scheduled date when one exists, closing the gap between
+    // "captured" and "actually useful."
     const { results: jobScopes } = await env.OFFICE_DB.prepare(
-      "SELECT description FROM job_scopes WHERE project_id = ?"
+      "SELECT description, scheduled_date FROM job_scopes WHERE project_id = ?"
     )
       .bind(project.id)
-      .all<{ description: string }>();
+      .all<{ description: string; scheduled_date: string | null }>();
     const totalQuoted = await env.OFFICE_DB.prepare(
       `SELECT COALESCE(SUM(q.amount), 0) as total FROM quotations q
        JOIN job_scopes js ON js.id = q.job_scope_id
@@ -1038,7 +1044,9 @@ export async function getCustomerProjectSummary(env: Env, customerId: number): P
     )
       .bind(project.id)
       .first<{ total: number }>();
-    const phases = (jobScopes ?? []).map((js) => js.description).join(", ");
+    const phases = (jobScopes ?? [])
+      .map((js) => (js.scheduled_date ? `${js.description} (scheduled ${js.scheduled_date})` : js.description))
+      .join(", ");
     facts.push(
       `Project "${project.description ?? "untitled"}" — phases: ${phases || "none recorded"}. Total quoted so far: R${totalQuoted?.total ?? 0}. Total invoiced so far: R${totalInvoiced?.total ?? 0}.`
     );
