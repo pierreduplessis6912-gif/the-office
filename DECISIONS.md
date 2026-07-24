@@ -3022,17 +3022,45 @@ real answers to open questions, not rushed defaults.
 "Peter says it's done" — was too simple, and Pierre corrected it
 directly: completion is a real, documented event, not a sentence. A
 signed completion certificate, care/maintenance instructions for the
-installed product, and warranty documentation are the real artifacts
-that constitute a job being genuinely finished.
+installed product, and warranty documentation are real artifacts worth
+capturing for the jobs where they genuinely matter.
+
+**A real, important self-correction, on the same thread, worth
+recording precisely rather than folding in silently: the certificate
+must never become a required gate.** Pierre caught this directly —
+making a signed completion certificate a prerequisite for a job ever
+being marked closed risks exactly the enterprise-completeness a
+business never asked for, the same trap Principle 12 already exists to
+guard against. **The actual, simpler, and arguably more honest
+definition: a job is closed when it's paid in full and nobody's
+complaining.** For the overwhelming majority of real jobs, that isn't
+a proxy for completion — it *is* completion, in the only sense that
+matters day to day. Skipping the formal paperwork must never block
+this simpler, real signal from doing its job. The certificate,
+warranty, and care documentation remain real and worth capturing —
+as optional, additional documentation for jobs where it genuinely
+matters (larger contracts, formal warranties), never as a gate.
+
+**A real, practical consequence of this correction, worth naming
+explicitly: it likely unblocks "what makes a project open" sooner than
+the fuller completion design does.** "Paid in full, no open complaint"
+is already computable directly from real, existing data — invoices and
+payments already in the system — without needing to build a whole new
+certificate-capture feature first. The richer completion design (the
+artifacts, warranty, snags, the debtors-confidence connection) remains
+real and worth building for the jobs that need it, but the *simple*
+default this correction reveals may be sufficient, on its own, to
+answer the question that started this whole thread.
 
 **The real, valuable discovery this makes: three ideas that looked
 separate were never actually separate.** Warranty tracking was already
 named as a real gap earlier tonight ("a real, common promise a
 flooring business makes... nothing captures this today") — but it
-isn't a standalone feature. It's part of what completion means. Snag
-lists were also already named as a real gap ("after an install,
-defects get found... real businesses track these as their own thing")
-— and a real, honest question follows immediately: can a job be signed
+isn't a standalone feature. It's part of what completion means for the
+jobs where it applies. Snag lists were also already named as a real
+gap ("after an install, defects get found... real businesses track
+these as their own thing") — and a real, honest question follows
+immediately: can a job be signed
 off while snags are still open? Project closing, warranty tracking,
 and snag resolution are one coherent lifecycle stage, not three
 disconnected ideas that each happened to get named on different
