@@ -27,6 +27,12 @@ department, with real inputs and outputs for each — see
 reading, not a claim about internal architecture (see Constitution
 Principle 27).**
 
+**For a real, structured, per-concept register of what creates, reads,
+and depends on core concepts that have more than one real code path
+touching them — see [`ATLAS.md`](./ATLAS.md). Read a concept's entry
+before changing anything about it; kept current in the same commit as
+any change to a real creation path, not updated later.**
+
 ## Original build order (completed)
 
 1. ~~Shell screen~~ — done.
