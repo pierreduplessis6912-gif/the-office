@@ -582,10 +582,20 @@ export async function convertQuoteToInvoice(
   const retentionPercent = customer?.retention_percent ?? null;
   const retentionAmount = retentionPercent ? Math.round(remainingBalance * (retentionPercent / 100) * 100) / 100 : 0;
 
+  // Real fix 2026-07-24 — found live via the job-completion test: a
+  // converted invoice never carried forward the source quotation's
+  // real job_scope_id, so it silently dropped out of a project's real
+  // totals the moment it was converted, even though the quotation
+  // itself was correctly linked. Copied forward here, deterministically.
+  const sourceQuotation = await env.OFFICE_DB.prepare("SELECT job_scope_id FROM quotations WHERE id = ?")
+    .bind(quotationId)
+    .first<{ job_scope_id: number | null }>();
+  const jobScopeId = sourceQuotation?.job_scope_id ?? null;
+
   const inserted = await env.OFFICE_DB.prepare(
-    "INSERT INTO invoices (customer_id, description, amount, source_transcript, quotation_id, retention_percent, retention_amount) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id"
+    "INSERT INTO invoices (customer_id, description, amount, source_transcript, quotation_id, retention_percent, retention_amount, job_scope_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id"
   )
-    .bind(customerId, description, remainingBalance, sourceTranscript, quotationId, retentionPercent, retentionAmount)
+    .bind(customerId, description, remainingBalance, sourceTranscript, quotationId, retentionPercent, retentionAmount, jobScopeId)
     .first<{ id: number }>();
 
   const invoiceId = inserted!.id;
