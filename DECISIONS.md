@@ -3380,3 +3380,29 @@ next step, kept apart on purpose so "naming why" and "actually
 adjusting the money" don't get conflated into one change, matching the
 same one-domino-at-a-time discipline as every other multi-stage
 feature built tonight.
+
+## Variance Disposition — complete, both halves proven with real data (2026-07-24)
+
+**The real feature, finished**: a credit resolution with a real,
+stated amount now creates the real financial write-off it implies — a
+negative expense against the supplier, reducing what's actually owed
+— guard()'d, since real money moves. Raising a plain reason (or a back
+order with no amount) stays exactly as it was: immediate, unguarded,
+traceable.
+
+**Verified live, end to end, on a real, previously-untouched
+discrepancy**: "the skirting shortage on Floornet, Floornet is
+crediting us R500 for it" — held for confirmation (`pendingActionId:
+67`, correctly not immediate this time), confirmed, and produced a
+real, exact expense: `amount: -500, description: "Credit for Skirting
+(short_delivered)"`, correctly linked to Floornet. The original
+underlay disposition (back order, no amount) sits alongside it in the
+same debug view, both correctly traced to the real confirming user.
+
+**This closes the full Variance Disposition arc** — real ERP research
+done before finalizing reason codes, four real, open design questions
+answered deliberately rather than defaulted, a real type-error bug
+caught by tsc before deployment and fixed by threading a real
+identity parameter through two functions (the same pattern the Atlas
+now has a real, seeded entry for), and both resolution paths — back
+order and credit — proven with real money and real data, not asserted.
