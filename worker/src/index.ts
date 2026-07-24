@@ -1515,6 +1515,25 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ status: "ok" });
     }
 
+    // Real fix 2026-07-24 — found live: an invoice created via
+    // convertQuoteToInvoice before this fix never carried forward its
+    // source quotation's real job_scope_id, so it silently dropped
+    // out of a project's real totals. A real, safe backfill — only
+    // touches invoices genuinely missing the link but able to
+    // recover it from their own quotation, idempotent and safe to
+    // re-run.
+    if (url.pathname === "/debug/backfill-invoice-job-scope" && request.method === "POST") {
+      const result = await env.OFFICE_DB.prepare(
+        `UPDATE invoices SET job_scope_id = (
+           SELECT job_scope_id FROM quotations WHERE quotations.id = invoices.quotation_id
+         )
+         WHERE invoices.job_scope_id IS NULL
+           AND invoices.quotation_id IS NOT NULL
+           AND (SELECT job_scope_id FROM quotations WHERE quotations.id = invoices.quotation_id) IS NOT NULL`
+      ).run();
+      return Response.json({ status: "ok", changes: result.meta.changes });
+    }
+
     if (url.pathname === "/debug/projects" && request.method === "GET") {
       const { results: projects } = await env.OFFICE_DB.prepare(
         `SELECT p.id, p.customer_id, c.name as customer_name, p.description, p.created_at
