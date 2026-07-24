@@ -3,7 +3,7 @@ import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeI
 import { findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
-import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedDebtorsSummary, getCustomerFinancialSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOutstandingInvoices, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, holdForConfirmation, recordExpense, recordGoodsReceived, recordInvoice, recordPayment, recordPurchaseOrder, recordQuotation, recordSupplierInvoice } from "./finance";
+import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOutstandingInvoices, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, holdForConfirmation, recordExpense, recordGoodsReceived, recordInvoice, recordPayment, recordPurchaseOrder, recordQuotation, recordSupplierInvoice } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 
 // Second layer of defense against storing questions as facts — never
@@ -940,12 +940,23 @@ async function processOneExtraction(
       // fact — it was reliably stripped out twice in a row when it
       // was.
       const profitability = canKnowProfitHere ? await getJobProfitability(env, customer.id) : null;
+      // Real feature 2026-07-22 — Layer 2 (Project) becomes queryable
+      // in conversation, the actual point of building same-breath
+      // assembly and job_scope_id linking earlier tonight, not just
+      // something that lives in a debug route. Gated behind
+      // can_know_jobs, the same precedent already established for
+      // installer job activity in the character branch above — a
+      // project is fundamentally the same kind of job information,
+      // seen from the customer's side instead.
+      const canKnowJobsForCustomer = capabilities.includes("can_know_jobs");
+      const projectFacts = canKnowJobsForCustomer ? await getCustomerProjectSummary(env, customer.id) : [];
       const facts = [
         `${customer.name} is a known customer.`,
         ...(financialSummary ? [`${customer.name}: ${financialSummary}`] : []),
         ...(!canKnowDebtorsHere ? [`${customer.name}'s financial balance exists but is restricted for your role.`] : []),
         ...(profitability ? [`Job profitability for ${customer.name}: ${profitability.fact}`] : []),
         ...(!canKnowProfitHere ? [`Job profitability for ${customer.name} exists but is restricted for your role.`] : []),
+        ...projectFacts,
         ...memoryFacts,
       ];
       message = await answerFromMemory(env, transcript, facts);
