@@ -3434,3 +3434,43 @@ before this arc was built.
 **Explicitly not built tonight** — both are real, named, and worth
 real design attention on their own terms, not folded into whatever
 else is in progress at the moment they're raised.
+
+## Aged Creditors — built, with a real Principle 12 refinement and a real bug found live (2026-07-24)
+
+**A real, valuable refinement to Principle 12, given directly by
+Pierre, worth recording precisely.** The initial instinct was to treat
+supplier-payment tracking as unearned speculation and offer a smaller,
+honestly-scoped alternative instead. Pierre corrected this directly: a
+supplier statement arriving monthly isn't speculative, it's a certain,
+recurring, real-world event for any business with active supplier
+relationships — which this one already has. The real distinction
+Principle 12 actually protects against is speculative enterprise
+completeness, not building ahead of a certain, predictable need.
+"Building in certain anticipation" of something that will definitely
+happen is a genuinely different thing from guessing at a maybe, even
+though both involve building before an explicit request.
+
+**The real feature, built on that basis**: `supplier_payments`,
+mirroring customer payments exactly — the real prerequisite Aged
+Debtors already had and Aged Creditors was missing. `getAgedCreditorsSummary`
+mirrors the debtors side precisely, gated behind the same
+`can_know_materials` capability already used for expense data, since
+this is the same real domain (supplier money), not receivables.
+
+**A real bug found on the very first live test, worth recording
+honestly**: R25,930 instead of the correct R25,430 — a real R500
+credit (from Variance Disposition's own credit resolution, a negative
+expense) was silently dropped entirely. The exact cause: the loop
+reused Aged Debtors' `if (owed <= 0) continue` check, correct there
+(a fully-paid invoice has nothing left to age) but never designed for
+a negative bill existing at all — Aged Debtors never has one, so this
+scenario genuinely never arose on that side. Fixed by folding real
+credits into the same payment pool, applied FIFO oldest-first, the
+same convention already proven for real payments — not a new
+mechanism, an extension of one already trusted.
+
+**Verified completely, end to end, with real money moving three real
+ways**: R25,930 gross expenses, correctly netted to R25,430 after the
+real credit, correctly reduced to R15,430 after a real R10,000 payment
+— every step proven against the exact predicted number before moving
+to the next, not asserted.
