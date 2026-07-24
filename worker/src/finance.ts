@@ -290,6 +290,57 @@ export async function recordGoodsReceived(
   return { grnId, variances };
 }
 
+// Real feature 2026-07-24 — Variance Disposition, what happens after
+// a real, computed GRN discrepancy is found. Needed by the caller to
+// give extractVarianceDisposition the real, known discrepancies to
+// match against — the same reason extractGoodsReceived and
+// extractSupplierInvoice need the real, given line items passed in.
+// Only real, unresolved discrepancies (a non-zero variance with no
+// disposition raised yet) are ever returned.
+export async function getOpenDiscrepanciesForSupplier(
+  env: Env,
+  supplierId: number
+): Promise<Array<{ grnLineItemId: number; description: string; variance: number }>> {
+  const { results } = await env.OFFICE_DB.prepare(
+    `SELECT gli.id, gli.description, gli.variance
+     FROM grn_line_items gli
+     JOIN goods_received_notes grn ON grn.id = gli.grn_id
+     LEFT JOIN variance_dispositions vd ON vd.grn_line_item_id = gli.id
+     WHERE grn.supplier_id = ? AND gli.variance IS NOT NULL AND gli.variance != 0 AND vd.id IS NULL
+     ORDER BY grn.created_at DESC`
+  )
+    .bind(supplierId)
+    .all<{ id: number; description: string; variance: number }>();
+  return (results ?? []).map((r) => ({ grnLineItemId: r.id, description: r.description, variance: r.variance }));
+}
+
+// Real feature 2026-07-24 — Variance Disposition, the real, first
+// piece: raising a reason. Deliberately unguarded but traceable,
+// matching GRN's own precedent exactly — naming why a discrepancy
+// happened is documentation, not money moving. Records the real
+// reason, resolution, and any stated credit amount as data. The
+// actual financial write-off this credit_amount implies (a real
+// expense reduction against what's owed to the supplier) is
+// deliberately deferred as its own, separate next step — not built
+// here, so as not to conflate "naming why" with "actually adjusting
+// the money," matching the scoped, one-domino-at-a-time discipline
+// already proven for every other multi-stage feature tonight.
+export async function recordVarianceDisposition(
+  env: Env,
+  grnLineItemId: number,
+  reason: string | null,
+  resolution: string | null,
+  creditAmount: number | null,
+  recordedByEmail: string | null = null
+): Promise<{ dispositionId: number }> {
+  const inserted = await env.OFFICE_DB.prepare(
+    "INSERT INTO variance_dispositions (grn_line_item_id, reason, resolution, credit_amount, recorded_by) VALUES (?, ?, ?, ?, ?) RETURNING id"
+  )
+    .bind(grnLineItemId, reason, resolution, creditAmount, recordedByEmail)
+    .first<{ id: number }>();
+  return { dispositionId: inserted!.id };
+}
+
 // Real feature 2026-07-21 — Supplier Invoices, the third and final
 // stage of the real, three-way design pinned in DECISIONS.md. This is
 // where real money moves, and where both real reconciliations this
