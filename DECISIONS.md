@@ -3122,10 +3122,11 @@ identically regardless of whether real money is sitting behind it.
 3. Does "project open" (needed to resolve cross-capture attachment,
    the reason this whole thread started) simply mean "no completion
    event recorded yet," or does it need finer states (in progress,
-   snagging, awaiting sign-off)? Strengthened by the answer above —
-   since snags happen after completion and don't reopen a project,
-   "open until a real completion event exists" is likely sufficient on
-   its own, with no separate "snagging" state needed at all.
+   snagging, awaiting sign-off)? Sharpened further by the bureaucracy
+   correction above — the simplest real answer may just be "a real,
+   outstanding balance exists on this project's invoices," computable
+   right now from data already in the system, not waiting on any part
+   of the fuller completion design to be built first.
 4. Where does ongoing maintenance actually live once captured — a real
    recurring reminder (reusing the due-date mechanism already built for
    tasks), or just a stored fact Peter can ask about later?
