@@ -3271,3 +3271,51 @@ check against yet, since snags don't exist as a system. This is
 honestly a partial build of the full definition, not the whole thing —
 the financial half, which is the one immediately useful and buildable
 right now.
+
+## The Atlas idea — what got built tonight, and two real, deliberately unearned levels beyond it (2026-07-24)
+
+**What's real and built**: `ATLAS.md`, a structured, per-concept
+register (created by, reads, must always contain, known historical
+bugs) for concepts with more than one real code path — seeded honestly
+with two real, evidenced entries (Invoice, Job Scope), not invented
+ones. Grew directly out of a real, live discussion about why diagnosis
+keeps getting faster while completeness (finding *every* place a fix
+needs to apply) doesn't automatically improve with experience — this
+document exists to make that harder discipline faster to start, not to
+replace the real grep across the codebase that actually verifies it.
+
+**Two real, further ideas surfaced in the same conversation, correctly
+recognized as not yet earned:**
+
+1. **The Office querying its own atlas at runtime, as something it
+   trusts and reasons from, not just something read before editing.**
+   The real, honest tension worth naming: the atlas's own first
+   real-world test — the `convertQuoteToInvoice` bug — is proof this
+   is genuinely hard even with real discipline applied; two of three
+   invoice-creation paths were fixed correctly and the third was still
+   missed on the first pass. A manually-maintained document has the
+   same failure mode as any other documentation — it goes stale the
+   moment a new path is added and the entry isn't updated — and a
+   *wrong* map that's *trusted* is worse than no map, since it creates
+   false confidence rather than appropriate caution. The real,
+   unresolved question isn't "should this exist," it's whether it can
+   be maintained by hand at all, or needs to be derived from the
+   actual code rather than written about it — genuinely unanswered,
+   not defaulted either way.
+2. **A business-facing version — Peter asking "what happens if I
+   change courier" and getting a real, structured answer about
+   dependencies, prices, and history.** A real, exciting parallel to
+   Pulse (one watches relationships, one watches time), but gated by
+   the exact same real, honest limitation already pinned for Pulse
+   itself: it needs real, accumulated business volume it hasn't earned
+   yet. A courier-dependency atlas for one supplier relationship isn't
+   a real system tonight, it's a guess with better formatting.
+
+**On naming a new Constitution principle for this** — a real, good
+instinct, deliberately not acted on yet. Every existing Principle in
+this project emerged from lived building experience, not from a
+proposal, however sound. Held as a strong, real candidate — something
+like "every important truth should know where it comes from, where it
+goes, and what depends on it" — to earn its number once the Atlas has
+actually been built on, consulted, and proven useful a few real times,
+not before.
