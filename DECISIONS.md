@@ -2774,6 +2774,30 @@ one problem with three names:**
   genuinely new dimension neither quantity nor price variance
   currently captures at all — a delivery can show zero variance on
   both and still be a real, damaged-goods problem.
+- **Over-receipt** — added after real research into established ERP
+  reason-code taxonomy (below); a real, distinct case none of the
+  above three actually names, even though the existing GRN variance
+  math already computes it (a positive number with no label for what
+  it means).
+
+**Real ERP research, done deliberately before finalizing these codes
+from scratch — a genuine validation, not just new vocabulary.** SAP's
+own goods-receipt/invoice matching splits discrepancies the exact same
+way this design already does — quantity variance at the goods-receipt
+stage, price variance at the invoice stage — real, external
+confirmation the GRN-for-quantity, Supplier-Invoice-for-price
+architectural split was the right one, not a coincidence to dismiss.
+Oracle's retail invoice-matching system has a real, established reason-
+code taxonomy worth comparing directly: Cost Discrepancy, Quantity
+Discrepancy, Tax Discrepancy, Credit Note Tax Discrepancy, **RTV
+Chargeback** (Return-to-Vendor), Allowance Discrepancy. Mapped against
+what's pinned here: short delivered ≈ Quantity Discrepancy;
+incorrectly dispatched ≈ mis-pick (the industry term, though
+"incorrectly dispatched" is honestly the clearer, plainer wording for
+the same real thing); damaged ≈ RTV Chargeback — a real, established
+term worth adopting directly for the "damaged → credit" resolution
+path, rather than inventing new language for something the industry
+already names precisely.
 
 **Two real resolution paths, not just a note:**
 - **Back order** — the shortfall remains genuinely owed, expected
