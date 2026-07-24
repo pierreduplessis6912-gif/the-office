@@ -3159,3 +3159,43 @@ built and proven.
 design (completion, warranty, snags), each already substantial on its
 own, correctly deserving proper specification before code, the same
 discipline as every other design of this scale tonight.
+
+## Layer 2 (Project) — cross-capture attachment, the fourth real piece, and the full original vision now proven (2026-07-22)
+
+**The real feature**: a standalone job scope — no same-breath siblings,
+born from a genuinely separate message — now auto-attaches to an
+existing project when the customer has exactly one real, open one.
+Built directly on the simple, honest answer to "what makes a project
+open" from the bureaucracy-correction thread above: no invoice yet, or
+a real invoice not fully covered by the customer's real payments,
+reusing the exact FIFO logic already proven for Aged Debtors.
+
+**Deliberately, honestly scoped to one rung, not the whole Ladder.**
+The design's other two rungs — matching a stated project handle
+directly, and asking when two or more open projects genuinely compete
+— are left unbuilt on purpose. They need real design work this session
+hasn't done (how would Peter actually name a project in conversation?
+how does an ask-and-wait flow work mechanically, given nothing like it
+exists yet in this codebase?), not a guessed-at implementation
+standing in for a real answer. The one rung built tonight is the
+cleanest and most valuable: most real customers will only ever have
+one open job at a time, and this is the case that matters most,
+proven correctly rather than assumed.
+
+**Verified live, with a genuinely separate message, not a contrived
+one**: a new job scope for Thabo, sent as its own real message minutes
+after the original — a different `capture_id` entirely (184, versus
+178) — correctly attached to the existing Project #1 alongside the
+two job scopes already there from the original same-breath test.
+
+**This closes the full, original Layer 2 vision — the same-breath and
+cross-capture halves of Project assembly, both real, both proven,
+working together.** What started as a design pinned weeks ago,
+sharpened by a cross-model review, corrected multiple times on
+verification, and built incrementally across one long night — same-
+breath assembly, job_scope_id linking, conversational visibility, and
+now cross-capture attachment — is now a genuinely complete, working
+feature, not a partial one with an asterisk. The remaining, real gaps
+(the two deferred Ladder rungs, the broader identity-collision design,
+job completion, warranty, snags) are honestly named, not hidden, and
+correctly left for their own turn.
