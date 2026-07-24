@@ -1027,13 +1027,25 @@ export async function getAgedCreditorsReport(env: Env): Promise<AgedCreditorRow[
       .bind(supplier.id)
       .first<{ total: number }>();
 
-    let remainingPayment = paidRow?.total ?? 0;
+    // Real fix 2026-07-24, found live: a credit (a negative expense,
+    // e.g. Variance Disposition's own credit resolution) is a real
+    // reduction in what's owed — the same real effect as a payment,
+    // just recorded on the expense side rather than a separate table.
+    // Folded into the same payment pool here, applied FIFO
+    // oldest-first, the same convention already proven for real
+    // payments — never skipped the way the debtors-side check would
+    // have done, since Aged Debtors never has a negative invoice to
+    // begin with and this exact scenario never arose there.
+    const creditTotal = expenseRows.filter((e) => e.amount < 0).reduce((sum, e) => sum - e.amount, 0);
+    const realExpenses = expenseRows.filter((e) => e.amount >= 0);
+
+    let remainingPayment = (paidRow?.total ?? 0) + creditTotal;
     let current = 0;
     let days30 = 0;
     let days60 = 0;
     let days90Plus = 0;
 
-    for (const exp of expenseRows) {
+    for (const exp of realExpenses) {
       let owed = exp.amount;
       if (remainingPayment > 0) {
         const applied = Math.min(remainingPayment, owed);
