@@ -3458,9 +3458,19 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       const pad = (n: number) => String(n).padStart(2, "0");
       const now = nowInBusinessTimezone();
       const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      // Real feature 2026-07-24 — connecting the scheduler ember to
+      // real project context, the missing link Pierre pointed out
+      // directly: scheduling has always been captured correctly on
+      // every job scope, but nothing in Layer 2 ever touched it.
+      // Added additively — project_id/project_description are new
+      // fields alongside the existing ones, so any existing consumer
+      // of this route keeps working exactly as before.
       const { results } = await env.OFFICE_DB.prepare(
-        `SELECT js.id, js.description, c.name as customer_name FROM job_scopes js
-         JOIN customers c ON c.id = js.customer_id WHERE js.scheduled_date = ?`
+        `SELECT js.id, js.description, c.name as customer_name, js.project_id, p.description as project_description
+         FROM job_scopes js
+         JOIN customers c ON c.id = js.customer_id
+         LEFT JOIN projects p ON p.id = js.project_id
+         WHERE js.scheduled_date = ?`
       )
         .bind(today)
         .all();
