@@ -917,6 +917,67 @@ export async function getCustomerFinancialSummary(env: Env, customerId: number):
 // number itself, not extraneous context to weigh and possibly drop —
 // split apart so the caller can append it deterministically, same
 // fix pattern as the aged-debtors capability hint.
+
+// Real feature 2026-07-22 — Layer 2 (Project), cross-capture
+// attachment. The real, simple answer to "what makes a project open,"
+// following Pierre's own bureaucracy correction: paid in full, no
+// open complaint, is what actually constitutes completion for most
+// real jobs — not a formal certificate. A project is open if it has
+// no real invoice yet at all, or has one that isn't yet fully covered
+// by the customer's real payments. Reuses the exact same FIFO
+// allocation logic already proven for Aged Debtors (oldest invoice
+// paid first — the standard, defensible convention whenever payments
+// aren't explicitly tied to a specific invoice), applied across the
+// customer's real invoices to determine which ones remain genuinely
+// unpaid, then checked per-project.
+export async function getOpenProjectsForCustomer(
+  env: Env,
+  customerId: number
+): Promise<Array<{ id: number; description: string | null }>> {
+  const { results: projects } = await env.OFFICE_DB.prepare(
+    "SELECT id, description FROM projects WHERE customer_id = ? ORDER BY created_at DESC"
+  )
+    .bind(customerId)
+    .all<{ id: number; description: string | null }>();
+
+  if (!projects || projects.length === 0) return [];
+
+  const { results: invoices } = await env.OFFICE_DB.prepare(
+    `SELECT i.amount, i.created_at, js.project_id
+     FROM invoices i
+     LEFT JOIN job_scopes js ON js.id = i.job_scope_id
+     WHERE i.customer_id = ?
+     ORDER BY i.created_at ASC`
+  )
+    .bind(customerId)
+    .all<{ amount: number; created_at: string; project_id: number | null }>();
+
+  const paidRow = await env.OFFICE_DB.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE customer_id = ?")
+    .bind(customerId)
+    .first<{ total: number }>();
+
+  let remainingPayment = paidRow?.total ?? 0;
+  const unpaidProjectIds = new Set<number>();
+  const projectIdsWithAnyInvoice = new Set<number>();
+
+  for (const inv of invoices ?? []) {
+    if (inv.project_id != null) projectIdsWithAnyInvoice.add(inv.project_id);
+    let owed = inv.amount;
+    if (remainingPayment > 0) {
+      const applied = Math.min(remainingPayment, owed);
+      owed -= applied;
+      remainingPayment -= applied;
+    }
+    if (owed > 0 && inv.project_id != null) {
+      unpaidProjectIds.add(inv.project_id);
+    }
+  }
+
+  return projects.filter(
+    (p) => !projectIdsWithAnyInvoice.has(p.id) || unpaidProjectIds.has(p.id)
+  );
+}
+
 export async function getJobProfitability(
   env: Env,
   customerId: number
