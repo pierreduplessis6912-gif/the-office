@@ -3109,6 +3109,23 @@ identically regardless of whether real money is sitting behind it.
    own description), but worth a real, deliberate answer rather than an
    assumed default.
 
+**A real, valuable connection to something already built tonight,
+worth naming explicitly: completion status feeds directly into
+collections confidence.** Right now, an outstanding invoice on the
+Aged Debtors report is just a number owed, with no way to distinguish
+a purely financial chase from a balance that might genuinely still be
+in question over unfinished or disputed work. Once completion is real,
+"closed" becomes a trustworthy signal specifically for this: a debtors
+clerk (or Peter himself) looking at a closed job's outstanding balance
+can act with real confidence — a signed certificate exists, the work
+itself isn't in dispute, this is purely collections. A job *without*
+that status is genuinely different — the balance might be legitimately
+held up by an unresolved completion issue (the "issue noted at
+signing" case above), not just a slow payer, and shouldn't be chased
+the same way. Worth a real flag on the Aged Debtors report itself once
+completion exists — not a new report, an enrichment of the one already
+built and proven.
+
 **Explicitly not built tonight** — this is now a real, three-part
 design (completion, warranty, snags), each already substantial on its
 own, correctly deserving proper specification before code, the same
