@@ -3234,3 +3234,40 @@ several minutes — every step before it succeeded cleanly — then
 completed successfully on its own. A genuine, transient delay, not a
 build problem; worth remembering if a future deploy seems stuck rather
 than immediately assuming something broke.
+
+## Job completion — the simple, financial half is now real and built (2026-07-24)
+
+**The real feature**: every project now shows a real, computed status
+— "open" or "closed (paid in full)" — following the bureaucracy
+correction's actual, honest default rather than a formal certificate
+requirement. Reuses the exact same, already-proven FIFO logic from
+`getOpenProjectsForCustomer` (built for cross-capture attachment), not
+a new, parallel computation of the same real fact.
+
+**A real bug found and fixed on the way to proving it, worth recording
+precisely**: `convertQuoteToInvoice` — the quote-to-invoice conversion
+path — never carried forward the source quotation's real
+`job_scope_id`, so a converted invoice silently dropped out of a
+project's real totals even though the quotation itself was correctly
+linked (`recordInvoice` and `recordQuotation` had both been fixed
+earlier tonight; this third, real path was missed). Fixed by copying
+the link forward deterministically, plus a real, safe, idempotent
+backfill for any invoice already created via conversion before the
+fix. This is the exact shape of gap the "map" pinned below exists to
+catch earlier next time — a real concept (job_scope_id must be true of
+every invoice) with more than one real creation path, and only two of
+the three were checked on the first pass.
+
+**Verified on both real sides, not just the happy path**: Thabo's
+project correctly showed "open" while R2,400 remained genuinely
+outstanding (R800 paid against a R3,200 invoice), and correctly
+flipped to "closed (paid in full)" the moment the real, remaining
+balance was actually paid — proven with real money moving through the
+system, not asserted.
+
+**Complaint-tracking remains real and deliberately unbuilt** — the
+"no open complaint" half of the original definition has nothing to
+check against yet, since snags don't exist as a system. This is
+honestly a partial build of the full definition, not the whole thing —
+the financial half, which is the one immediately useful and buildable
+right now.
