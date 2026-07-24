@@ -13,6 +13,7 @@ import type {
   PurchaseOrderExtraction,
   GoodsReceivedExtraction,
   SupplierInvoiceExtraction,
+  VarianceDispositionExtraction,
   HistoryTurn,
 } from "./types";
 
@@ -274,6 +275,13 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             "already placed with this supplier, prefer supplier_invoice; if it's a simple, standalone " +
             'purchase (e.g. "bought glue for R850 at BUCO"), it stays expense. Same character_name ' +
             'convention — the supplier goes in character_name with character_relationship "supplier". ' +
+            'intent is "variance_disposition" if the message discusses WHY a real, already-known ' +
+            'delivery shortage or discrepancy happened, or how it gets resolved — "the underlay ' +
+            'shortage, that\'s a back order" or "the vinyl arrived damaged, Floornet is crediting us for ' +
+            'it". A genuinely different case from goods_received itself (which is the delivery event ' +
+            'arriving), this is the follow-up conversation about a discrepancy already on file. Same ' +
+            'character_name convention — the supplier goes in character_name with character_relationship ' +
+            '"supplier". ' +
             'intent is "task_complete" if the message reports a personal errand or reminder as DONE — ' +
             '"got the dog food", "picked up the kids", "phoned my mother" — past tense, something ' +
             'finished, not a new request. This includes bare, pronoun-only completions with no concrete ' +
@@ -349,6 +357,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             '"order 160 square meters of carpet tile from Floornet at R380 a square meter" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"purchase_order","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"the Floornet delivery arrived, but the underlay was short" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"goods_received","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"got Floornet\'s invoice for that delivery" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"supplier_invoice","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
+            '"the underlay shortage on Floornet, that\'s a back order" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"variance_disposition","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"bought glue for R850 at BUCO for Jenny\'s job" -> {"customer_name":"Jenny","character_name":"BUCO","character_relationship":"supplier","intent":"expense","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"Sipho has a driver\'s license" -> {"customer_name":null,"character_name":"Sipho","character_relationship":"installer","intent":"note","amount":null,"fact_key":"license","fact_value":"driver\'s license","personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"we don\'t charge Jenny VAT" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"note","amount":null,"fact_key":"vat_exempt","fact_value":"true","personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
@@ -370,7 +379,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             "Return ONLY JSON, no markdown, no explanation: " +
             '{"customer_name": string or null, "character_name": string or null, "character_relationship": ' +
             'string or null, "intent": "payment" or "invoice" or "quotation" or "convert_quote" or ' +
-            '"price_scope" or "work_observation" or "lookup" or "reminder" or "task_complete" or "expense" or "note" or "purchase_order" or "goods_received" or "supplier_invoice" or "other", "amount": number or null, ' +
+            '"price_scope" or "work_observation" or "lookup" or "reminder" or "task_complete" or "expense" or "note" or "purchase_order" or "goods_received" or "supplier_invoice" or "variance_disposition" or "other", "amount": number or null, ' +
             '"fact_key": string or null, "fact_value": string or null, "personal_note": string or null, ' +
             '"query_scope": "customer" or "character" or "personal" or "business" or null, "deposit_percent": ' +
             'number or null, "scope_document_type": "quotation" or "invoice" or null, "due_date_raw": ' +
@@ -660,6 +669,80 @@ export async function extractSupplierInvoice(
       supplier_name: parsed.supplier_name ?? null,
       supplier_reference: parsed.supplier_reference ?? null,
       line_items: parsed.line_items ?? [],
+    };
+  } catch {
+    return empty;
+  }
+}
+
+// Real feature 2026-07-24 — Variance Disposition, what happens after a
+// real, computed GRN discrepancy is found. Reason codes validated
+// against real ERP research before being finalized — see DECISIONS.md.
+// The model's only real job here is recognizing which given, real
+// discrepancy is being discussed and what reason/resolution was
+// actually stated — never inventing a reason, and never inventing a
+// credit amount that wasn't actually said, the same discipline already
+// proven for every other real figure in this project.
+export async function extractVarianceDisposition(
+  env: Env,
+  transcript: string,
+  discrepancies: Array<{ description: string; variance: number }>
+): Promise<VarianceDispositionExtraction> {
+  const empty: VarianceDispositionExtraction = {
+    matched_description: null,
+    reason: null,
+    resolution: null,
+    credit_amount: null,
+  };
+  try {
+    const discrepancyList =
+      discrepancies.map((d) => `${d.description} (variance: ${d.variance > 0 ? "+" : ""}${d.variance})`).join(", ") || "none";
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        temperature: 0,
+        chat_template_kwargs: { thinking: false },
+        messages: [
+          {
+            role: "system",
+            content:
+              "A real, already-known delivery discrepancy is being discussed — you are given the exact " +
+              "real items with a real variance already computed for each (a negative number is a " +
+              "shortage, a positive number is an overage). Your only job is recognizing which one is " +
+              "being discussed, and what reason and resolution were actually stated. " +
+              "matched_description must be copied EXACTLY from the given list, or null if it genuinely " +
+              "doesn't match anything given. reason is exactly one of \"short_delivered\", " +
+              '"incorrectly_dispatched", "damaged", "over_receipt", or null if genuinely not stated — ' +
+              "never guess a reason from the variance number alone; a shortage could be short delivered " +
+              "OR incorrectly dispatched OR the wrong item entirely, only extract what was actually " +
+              "said. resolution is exactly one of \"back_order\", \"credit\", or null if not stated. " +
+              "credit_amount is a real rand number ONLY if a specific credit amount was actually stated " +
+              "— null otherwise, never calculated or assumed from the variance. Return ONLY JSON: " +
+              '{"matched_description": string or null, "reason": string or null, "resolution": string ' +
+              'or null, "credit_amount": number or null}\n\n' +
+              "Examples:\n" +
+              'Discrepancies: "Underlay (variance: -50)". ' +
+              'Message: "the underlay shortage on Floornet, that\'s a back order" -> ' +
+              '{"matched_description":"Underlay","reason":"short_delivered","resolution":"back_order","credit_amount":null}\n' +
+              'Discrepancies: "Vinyl (variance: 0)". ' +
+              'Message: "the vinyl arrived damaged, Floornet is crediting us R900 for it" -> ' +
+              '{"matched_description":"Vinyl","reason":"damaged","resolution":"credit","credit_amount":900}',
+          },
+          {
+            role: "user",
+            content: `Known discrepancies: ${discrepancyList}.\n\nMessage: "${transcript}"`,
+          },
+        ],
+      })
+    );
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const rawText = r.choices?.[0]?.message?.content ?? "";
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned) as VarianceDispositionExtraction;
+    return {
+      matched_description: parsed.matched_description ?? null,
+      reason: parsed.reason ?? null,
+      resolution: parsed.resolution ?? null,
+      credit_amount: parsed.credit_amount ?? null,
     };
   } catch {
     return empty;
