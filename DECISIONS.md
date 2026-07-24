@@ -3044,20 +3044,41 @@ proven tonight for Supplier Invoice ingestion — a real photo of a
 signed completion certificate, a photo of warranty documentation — is
 the natural, consistent mechanism here too, not a new one.
 
+**Question 2, resolved directly, not left open — snags happen *after*
+completion and never block it.** The real sequence: a job is signed
+off complete first; snags get raised afterward, as their own separate,
+ongoing process. Their existence, even unresolved, never keeps a
+project from being "closed" — they're tracked and prioritized for
+reputational reasons (fix them fast, since a slow snag response is what
+actually damages standing with a customer), not as a formal gate on
+completion.
+
+**A real, valuable connection this reveals, worth building alongside
+snags rather than as an afterthought: snags and retention are often the
+same real mechanism, from two different angles.** A snag with a real
+retention arrangement behind it (built and proven earlier tonight) is
+naturally the real trigger for releasing that retained amount —
+resolving the snag is what the withheld money was actually waiting for.
+A snag with no retention behind it is just a standalone quality issue,
+tracked and resolved quickly, with no financial mechanism attached at
+all. Worth a real, explicit link from a snag record to the customer's
+retention arrangement when one exists, rather than treating every snag
+identically regardless of whether real money is sitting behind it.
+
 **Real, open questions, deliberately not answered here:**
 1. Is every one of these artifacts mandatory for completion, or is the
    certificate the one real requirement, with warranty and maintenance
    information optional depending on the job (a simple repair likely
    has no warranty to capture at all)?
-2. Does an open snag genuinely block completion, or can a job be
-   signed off with snags still outstanding, tracked separately? A real
-   business-logic decision, not a default to assume either way.
+2. ~~Does an open snag genuinely block completion~~ — resolved above:
+   no, snags happen after completion and never block it.
 3. Does "project open" (needed to resolve cross-capture attachment,
    the reason this whole thread started) simply mean "no completion
    event recorded yet," or does it need finer states (in progress,
-   snagging, awaiting sign-off)? The simplest real answer — open until
-   a real completion event exists — may be sufficient to unblock
-   cross-capture attachment without needing every state resolved first.
+   snagging, awaiting sign-off)? Strengthened by the answer above —
+   since snags happen after completion and don't reopen a project,
+   "open until a real completion event exists" is likely sufficient on
+   its own, with no separate "snagging" state needed at all.
 4. Where does ongoing maintenance actually live once captured — a real
    recurring reminder (reusing the due-date mechanism already built for
    tasks), or just a stored fact Peter can ask about later?
