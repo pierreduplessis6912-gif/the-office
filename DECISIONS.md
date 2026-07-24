@@ -3406,3 +3406,31 @@ caught by tsc before deployment and fixed by threading a real
 identity parameter through two functions (the same pattern the Atlas
 now has a real, seeded entry for), and both resolution paths — back
 order and credit — proven with real money and real data, not asserted.
+
+## Two real ideas from the ERP research thread, pinned rather than built mid-stream (2026-07-24)
+
+**A deliberate practice, not a one-off**: periodically revisit the
+existing "idea tank" — pinned designs deferred not because they were
+weak, but because the infrastructure they depended on didn't exist
+yet. Consumables stock was explicitly pinned as "sequenced after
+PO/GRN" — and PO/GRN is now real and proven. The same reasoning likely
+applies to other pinned items once their real prerequisite exists.
+This deserves its own, deliberate pass — not squeezed in as an
+afterthought to whatever else is being built — to see what can now
+slot in reliably that couldn't before.
+
+**GRN-informed pricing**: real, dated cost history now exists — every
+GRN and Supplier Invoice records what a material actually cost, per
+supplier, over time — that didn't exist before tonight's PO/GRN/
+Supplier Invoice arc. This makes a genuinely new capability possible:
+not replacing Peter's own pricing judgment, but grounding it with a
+real fact he could ask for, or be shown, when pricing a job using a
+material with real purchase history — "the last real price paid for
+vinyl from Floornet was R180/sqm." A real, different kind of pricing
+support than exists today, reliable now specifically because real
+cost history exists to draw from — it wouldn't have been reliable
+before this arc was built.
+
+**Explicitly not built tonight** — both are real, named, and worth
+real design attention on their own terms, not folded into whatever
+else is in progress at the moment they're raised.
