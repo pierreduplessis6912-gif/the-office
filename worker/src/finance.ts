@@ -1017,8 +1017,19 @@ export async function getCustomerProjectSummary(env: Env, customerId: number): P
 
   if (!projects || projects.length === 0) return [];
 
+  // Real feature 2026-07-24 — job completion, the simple, honest
+  // default per the bureaucracy correction pinned earlier: paid in
+  // full, no open complaint. Complaint-tracking doesn't exist yet
+  // (snags remain a real, pinned, unbuilt design), so this covers the
+  // financial half only for now — reuses the exact same, already-
+  // proven FIFO check from getOpenProjectsForCustomer, never a
+  // separate, parallel computation of the same real fact.
+  const openProjects = await getOpenProjectsForCustomer(env, customerId);
+  const openProjectIds = new Set(openProjects.map((p) => p.id));
+
   const facts: string[] = [];
   for (const project of projects) {
+    const status = openProjectIds.has(project.id) ? "open" : "closed (paid in full)";
     // Real feature 2026-07-24 — the real, missing connection Pierre
     // pointed out directly: scheduled_date has always been captured
     // correctly on every job scope (verified live tonight), but
@@ -1048,7 +1059,7 @@ export async function getCustomerProjectSummary(env: Env, customerId: number): P
       .map((js) => (js.scheduled_date ? `${js.description} (scheduled ${js.scheduled_date})` : js.description))
       .join(", ");
     facts.push(
-      `Project "${project.description ?? "untitled"}" — phases: ${phases || "none recorded"}. Total quoted so far: R${totalQuoted?.total ?? 0}. Total invoiced so far: R${totalInvoiced?.total ?? 0}.`
+      `Project "${project.description ?? "untitled"}" — status: ${status}. Phases: ${phases || "none recorded"}. Total quoted so far: R${totalQuoted?.total ?? 0}. Total invoiced so far: R${totalInvoiced?.total ?? 0}.`
     );
   }
   return facts;
