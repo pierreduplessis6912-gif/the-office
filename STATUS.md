@@ -540,6 +540,23 @@ Codemagic — still only proven on the web preview.**
   snags), and its connection to Aged Debtors collections confidence
   all remain real, deliberately deferred pieces — see DECISIONS.md for
   the complete arc.
+- **Aged Creditors is real and built** (2026-07-24) — the real mirror
+  of Aged Debtors for the supplier side of money, including its own
+  real prerequisite (`supplier_payments`, mirroring customer payments
+  exactly). Built following a real, direct refinement to Principle 12:
+  a supplier statement arriving monthly is a certain, recurring event,
+  not speculative completeness — "building in certain anticipation" of
+  something guaranteed to happen is genuinely different from guessing
+  at a maybe. A real bug found on the first live test (a credit —
+  Variance Disposition's own negative expense — silently dropped by a
+  check that never accounted for a negative bill existing) was found
+  and fixed the same session. Verified end to end with real money
+  moving three ways: gross expenses, netted against a real credit,
+  reduced by a real payment — every number matching the exact
+  prediction before moving to the next. See DECISIONS.md for the full
+  arc, including the wider ERP-research thread (supplier statement
+  reconciliation, GRN-informed pricing, and a deliberate practice of
+  periodically revisiting the pinned idea tank) that led here.
 - **`captures` real FK backfill.** `customer_id`/`character_id` (added
   2026-07-11) are correctly populated for every NEW capture from here
   on, verified live via a real clean join (`?customerId=1`). Every
