@@ -41,6 +41,28 @@ export async function recordPayment(
   return { id: inserted!.id, customerId, amount };
 }
 
+// Real feature 2026-07-24 — the real prerequisite for a reliable Aged
+// Creditors report, mirroring recordPayment exactly. Built in certain
+// anticipation of a real, recurring need — a supplier statement
+// arrives every month, for every active supplier relationship, a
+// guaranteed event, not a speculative one — distinct from unearned
+// enterprise completeness. Same guard() discipline as every other
+// real financial write.
+export async function recordSupplierPayment(
+  env: Env,
+  characterId: number,
+  amount: number | null,
+  sourceTranscript: string
+): Promise<{ id: number; characterId: number; amount: number | null }> {
+  const inserted = await env.OFFICE_DB.prepare(
+    "INSERT INTO supplier_payments (character_id, amount, source_transcript) VALUES (?, ?, ?) RETURNING id"
+  )
+    .bind(characterId, amount, sourceTranscript)
+    .first<{ id: number }>();
+
+  return { id: inserted!.id, characterId, amount };
+}
+
 // Real feature 2026-07-11 — the first concrete piece of the expense
 // side of the accounting-capability roadmap pinned in STATUS.md.
 // Deliberately the smallest possible first domino, same discipline as
@@ -965,6 +987,102 @@ export async function getAgedDebtorsSummary(env: Env): Promise<string[]> {
   );
 
   return [summary, ...perCustomer];
+}
+
+export interface AgedCreditorRow {
+  supplierId: number;
+  supplierName: string;
+  current: number;
+  days30: number;
+  days60: number;
+  days90Plus: number;
+  total: number;
+}
+
+// Real feature 2026-07-24 — Aged Creditors, the real prerequisite
+// (supplier_payments) now in place. Mirrors getAgedDebtorsReport
+// exactly — real expenses played oldest-first against real supplier
+// payments, the same FIFO convention already proven, applied to the
+// opposite direction of money. Built in certain anticipation of a
+// real, recurring need (a monthly supplier statement), not
+// speculative completeness.
+export async function getAgedCreditorsReport(env: Env): Promise<AgedCreditorRow[]> {
+  const { results: suppliers } = await env.OFFICE_DB.prepare(
+    "SELECT DISTINCT ch.id, ch.name FROM characters ch JOIN expenses e ON e.character_id = ch.id"
+  ).all<{ id: number; name: string }>();
+
+  const now = Date.now();
+  const rows: AgedCreditorRow[] = [];
+
+  for (const supplier of suppliers) {
+    const { results: expenseRows } = await env.OFFICE_DB.prepare(
+      "SELECT amount, created_at FROM expenses WHERE character_id = ? ORDER BY created_at ASC"
+    )
+      .bind(supplier.id)
+      .all<{ amount: number; created_at: string }>();
+
+    const paidRow = await env.OFFICE_DB.prepare(
+      "SELECT COALESCE(SUM(amount), 0) as total FROM supplier_payments WHERE character_id = ?"
+    )
+      .bind(supplier.id)
+      .first<{ total: number }>();
+
+    let remainingPayment = paidRow?.total ?? 0;
+    let current = 0;
+    let days30 = 0;
+    let days60 = 0;
+    let days90Plus = 0;
+
+    for (const exp of expenseRows) {
+      let owed = exp.amount;
+      if (remainingPayment > 0) {
+        const applied = Math.min(remainingPayment, owed);
+        owed -= applied;
+        remainingPayment -= applied;
+      }
+      if (owed <= 0) continue;
+
+      const ageDays = Math.floor((now - new Date(exp.created_at).getTime()) / 86400000);
+      if (ageDays <= 30) current += owed;
+      else if (ageDays <= 60) days30 += owed;
+      else if (ageDays <= 90) days60 += owed;
+      else days90Plus += owed;
+    }
+
+    const total = current + days30 + days60 + days90Plus;
+    if (total > 0) {
+      rows.push({ supplierId: supplier.id, supplierName: supplier.name, current, days30, days60, days90Plus, total });
+    }
+  }
+
+  return rows.sort((a, b) => b.total - a.total);
+}
+
+export async function getAgedCreditorsSummary(env: Env): Promise<string[]> {
+  const rows = await getAgedCreditorsReport(env);
+  if (rows.length === 0) return ["No outstanding creditors on file."];
+
+  const totals = rows.reduce(
+    (acc, r) => ({
+      current: acc.current + r.current,
+      days30: acc.days30 + r.days30,
+      days60: acc.days60 + r.days60,
+      days90Plus: acc.days90Plus + r.days90Plus,
+    }),
+    { current: 0, days30: 0, days60: 0, days90Plus: 0 }
+  );
+
+  const summary =
+    `Aged creditors: current R${totals.current}, 30-60 days R${totals.days30}, ` +
+    `60-90 days R${totals.days60}, 90+ days R${totals.days90Plus}. ` +
+    `Payments are allocated oldest-expense-first (FIFO), since payments aren't linked to a specific expense.`;
+
+  const perSupplier = rows.map(
+    (r) =>
+      `${r.supplierName}: R${r.total} total outstanding (current R${r.current}, 30-60d R${r.days30}, 60-90d R${r.days60}, 90+d R${r.days90Plus}).`
+  );
+
+  return [summary, ...perSupplier];
 }
 
 // The real fix for "what's Sarah's balance" answering wrong — a
