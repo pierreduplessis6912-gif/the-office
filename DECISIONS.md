@@ -3044,14 +3044,31 @@ proven tonight for Supplier Invoice ingestion — a real photo of a
 signed completion certificate, a photo of warranty documentation — is
 the natural, consistent mechanism here too, not a new one.
 
-**Question 2, resolved directly, not left open — snags happen *after*
-completion and never block it.** The real sequence: a job is signed
-off complete first; snags get raised afterward, as their own separate,
-ongoing process. Their existence, even unresolved, never keeps a
-project from being "closed" — they're tracked and prioritized for
-reputational reasons (fix them fast, since a slow snag response is what
-actually damages standing with a customer), not as a formal gate on
-completion.
+**Question 2, resolved directly, not left open — but sharpened on a
+second pass, since the first answer was too simple.** The real,
+deterministic factor isn't "snag vs. no snag" — it's *when* an issue is
+raised relative to the sign-off itself:
+
+- **An issue noted *at* the moment of signing** is a real, direct hold
+  on the outstanding balance — the customer signs the certificate but
+  flags the problem right there, and withholds what's due until it's
+  fixed. This is genuinely different from a formal retention
+  arrangement (a pre-agreed percentage withheld on every job,
+  regardless of any actual issue) — this is ad hoc, triggered by a
+  real, noted problem at the exact moment of sign-off, tied to that
+  one invoice.
+- **A clean sign-off, balance already due, then a problem discovered
+  later** — the money question is already settled by the time this
+  happens, and stays settled. What follows is a purely separate
+  classification decision: does this rise to a real warranty claim (the
+  warranty terms actually cover it), or is it just a minor snag to fix
+  quickly? Either way, it never reopens a balance already due.
+
+The project's "closed" status itself is unaffected either way — the
+certificate is signed either way, completion is real either way. The
+real difference is only ever on the financial side: whether the
+outstanding balance is genuinely held open by something noted at
+signing, or already settled and untouched by whatever surfaces later.
 
 **A real, valuable connection this reveals, worth building alongside
 snags rather than as an afterthought: snags and retention are often the
@@ -3071,7 +3088,9 @@ identically regardless of whether real money is sitting behind it.
    information optional depending on the job (a simple repair likely
    has no warranty to capture at all)?
 2. ~~Does an open snag genuinely block completion~~ — resolved above:
-   no, snags happen after completion and never block it.
+   no, completion is unaffected either way. The real distinction is
+   financial, not statutory — an issue noted at signing holds the
+   balance; one discovered after a clean sign-off doesn't.
 3. Does "project open" (needed to resolve cross-capture attachment,
    the reason this whole thread started) simply mean "no completion
    event recorded yet," or does it need finer states (in progress,
@@ -3082,6 +3101,13 @@ identically regardless of whether real money is sitting behind it.
 4. Where does ongoing maintenance actually live once captured — a real
    recurring reminder (reusing the due-date mechanism already built for
    tasks), or just a stored fact Peter can ask about later?
+5. What actually distinguishes a warranty claim from a minor snag, for
+   an issue discovered after a clean sign-off? Both are quality issues
+   found later, but one is real enough to invoke formal warranty terms
+   and one is a quick fix — likely a real, human judgment Peter makes
+   at the moment he notices it (not something to infer from the issue's
+   own description), but worth a real, deliberate answer rather than an
+   assumed default.
 
 **Explicitly not built tonight** — this is now a real, three-part
 design (completion, warranty, snags), each already substantial on its
