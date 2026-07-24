@@ -1,9 +1,9 @@
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult } from "./types";
-import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractGoodsReceived, extractIntent, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSupplierInvoice, extractWorkObservation, rerank, resolveFollowUpEntity, storeUnscopedMemory, transcribe } from "./ai";
+import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractGoodsReceived, extractIntent, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSupplierInvoice, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, storeUnscopedMemory, transcribe } from "./ai";
 import { findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
-import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOutstandingInvoices, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, holdForConfirmation, recordExpense, recordGoodsReceived, recordInvoice, recordPayment, recordPurchaseOrder, recordQuotation, recordSupplierInvoice } from "./finance";
+import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOpenDiscrepanciesForSupplier, getOutstandingInvoices, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, holdForConfirmation, recordExpense, recordGoodsReceived, recordInvoice, recordPayment, recordPurchaseOrder, recordQuotation, recordSupplierInvoice, recordVarianceDisposition } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 
 // Second layer of defense against storing questions as facts — never
@@ -99,7 +99,8 @@ async function processOneExtraction(
   history: HistoryTurn[],
   ctx: ExecutionContext,
   captureId: number | null,
-  capabilities: string[]
+  capabilities: string[],
+  recordingUserEmail: string | null = null
 ): Promise<{
   customer: { id: number; name: string; matched: boolean } | null;
   character: { id: number; name: string; matched: boolean } | null;
@@ -363,6 +364,52 @@ async function processOneExtraction(
       }
     } else {
       supplierInvoiceNoSupplier = true;
+    }
+  }
+
+  // Real feature 2026-07-24 — Variance Disposition, the real, first
+  // piece: raising a reason. Deliberately unguarded but traceable,
+  // matching GRN's own precedent exactly — naming why a discrepancy
+  // happened is documentation, not money moving, so there's no
+  // separate confirm step here; the recording user's identity is
+  // resolved directly, the same way the GRN confirm handler does it.
+  let dispositionNoSupplier = false;
+  let dispositionNoOpenDiscrepancy = false;
+  let dispositionResult: { dispositionId: number; description: string; reason: string | null; resolution: string | null } | null = null;
+  if (extraction?.intent === "variance_disposition") {
+    if (character) {
+      const discrepancies = await getOpenDiscrepanciesForSupplier(env, character.id);
+      if (discrepancies.length > 0) {
+        const vdExtraction = await extractVarianceDisposition(env, transcript, discrepancies);
+        const matched = vdExtraction.matched_description
+          ? discrepancies.find((d) => d.description.toLowerCase() === vdExtraction.matched_description!.toLowerCase())
+          : discrepancies.length === 1
+          ? discrepancies[0]
+          : null;
+        if (matched) {
+          const recordedByEmail = recordingUserEmail;
+          const recorded = await recordVarianceDisposition(
+            env,
+            matched.grnLineItemId,
+            vdExtraction.reason,
+            vdExtraction.resolution,
+            vdExtraction.credit_amount,
+            recordedByEmail
+          );
+          dispositionResult = {
+            dispositionId: recorded.dispositionId,
+            description: matched.description,
+            reason: vdExtraction.reason,
+            resolution: vdExtraction.resolution,
+          };
+        } else {
+          dispositionNoOpenDiscrepancy = true;
+        }
+      } else {
+        dispositionNoOpenDiscrepancy = true;
+      }
+    } else {
+      dispositionNoSupplier = true;
     }
   }
 
@@ -740,6 +787,14 @@ async function processOneExtraction(
     message = "Recognized a supplier invoice, but no supplier was named — try naming who it's from.";
   } else if (extraction?.intent === "supplier_invoice" && supplierInvoiceNoOpenPo) {
     message = `I don't have an open purchase order on file for ${character!.name} to bill this invoice against.`;
+  } else if (extraction?.intent === "variance_disposition" && dispositionResult) {
+    const reasonText = dispositionResult.reason ? dispositionResult.reason.replace(/_/g, " ") : "no reason stated";
+    const resolutionText = dispositionResult.resolution ? `, resolution: ${dispositionResult.resolution.replace(/_/g, " ")}` : "";
+    message = `Noted for ${dispositionResult.description} — ${reasonText}${resolutionText}.`;
+  } else if (extraction?.intent === "variance_disposition" && dispositionNoSupplier) {
+    message = "Recognized a discrepancy discussion, but no supplier was named — try naming who it's from.";
+  } else if (extraction?.intent === "variance_disposition" && dispositionNoOpenDiscrepancy) {
+    message = `I don't have an open, unresolved discrepancy on file for ${character!.name} to attach this to.`;
   } else if (pendingActionId && extraction?.intent === "convert_quote" && convertQuoteFound) {
     const { total, depositAmount, remainingBalance, quotationId } = convertQuoteFound;
     const depositNote = extraction.deposit_percent
@@ -1010,7 +1065,8 @@ async function processTranscript(
   history: HistoryTurn[] = [],
   source: string = "text",
   r2Key: string | null = null,
-  capabilities: string[] = ROLE_CAPABILITIES.owner
+  capabilities: string[] = ROLE_CAPABILITIES.owner,
+  recordingUserEmail: string | null = null
 ): Promise<ProcessResult> {
   const captureId = await logCapture(env, transcript, source, r2Key);
 
@@ -1025,7 +1081,7 @@ async function processTranscript(
   }> = [];
 
   for (const item of items) {
-    const outcome = await processOneExtraction(env, item.segment, item.extraction, history, ctx, captureId, capabilities);
+    const outcome = await processOneExtraction(env, item.segment, item.extraction, history, ctx, captureId, capabilities, recordingUserEmail);
     results.push(outcome);
   }
 
@@ -1751,6 +1807,37 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       } catch (err) {
         return Response.json({ status: "ok", added: false, note: "column likely already exists", detail: err instanceof Error ? err.message : String(err) });
       }
+    }
+
+    // Real feature 2026-07-24 — Variance Disposition, the real, first
+    // piece of the design pinned in DECISIONS.md, reason codes
+    // validated against real ERP research before being finalized.
+    if (url.pathname === "/debug/init-variance-dispositions" && request.method === "POST") {
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS variance_dispositions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          grn_line_item_id INTEGER NOT NULL,
+          reason TEXT,
+          resolution TEXT,
+          credit_amount REAL,
+          recorded_by TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`
+      ).run();
+      return Response.json({ status: "ok" });
+    }
+
+    if (url.pathname === "/debug/variance-dispositions" && request.method === "GET") {
+      const { results } = await env.OFFICE_DB.prepare(
+        `SELECT vd.id, vd.reason, vd.resolution, vd.credit_amount, vd.recorded_by, vd.created_at,
+                gli.description, gli.variance, ch.name as supplier_name
+         FROM variance_dispositions vd
+         JOIN grn_line_items gli ON gli.id = vd.grn_line_item_id
+         JOIN goods_received_notes grn ON grn.id = gli.grn_id
+         LEFT JOIN characters ch ON ch.id = grn.supplier_id
+         ORDER BY vd.created_at DESC LIMIT 10`
+      ).all();
+      return Response.json({ varianceDispositions: results });
     }
 
     if (url.pathname === "/debug/goods-received" && request.method === "GET") {
@@ -3230,9 +3317,9 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       // real, live entry point that didn't have it: voice upload was
       // still using the default (full-access) capabilities, unlike
       // /messages/text, which already resolves the real session.
-      const { capabilities: voiceCapabilities } = await resolveCapabilities(request, env);
+      const { capabilities: voiceCapabilities, email: voiceEmail } = await resolveCapabilities(request, env);
       const processed = transcript
-        ? await processTranscript(env, transcript, ctx, history, "voice", key, voiceCapabilities)
+        ? await processTranscript(env, transcript, ctx, history, "voice", key, voiceCapabilities, voiceEmail)
         : {
             extraction: null,
             extractionRaw: null,
@@ -3591,8 +3678,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         }
       }
 
-      const { capabilities } = await resolveCapabilities(request, env);
-      const processed = await processTranscript(env, text, ctx, history, "text", null, capabilities);
+      const { capabilities, email: textEmail } = await resolveCapabilities(request, env);
+      const processed = await processTranscript(env, text, ctx, history, "text", null, capabilities, textEmail);
       const responseBody = JSON.stringify({ status: "processed", transcript: text, ...processed });
 
       if (idempotencyKey) {
