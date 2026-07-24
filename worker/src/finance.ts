@@ -939,6 +939,52 @@ export async function getJobProfitability(
   };
 }
 
+// Real feature 2026-07-22 — Layer 2 (Project), the actual point of
+// building same-breath assembly and job_scope_id linking earlier
+// tonight: a customer's real, grouped project, with its real, computed
+// total quoted and invoiced value, surfaced in conversation rather
+// than only living in a debug route. Every figure summed directly
+// from real, stored quotations and invoices via the real
+// job_scope_id -> project_id join — never estimated, never asked of
+// the model.
+export async function getCustomerProjectSummary(env: Env, customerId: number): Promise<string[]> {
+  const { results: projects } = await env.OFFICE_DB.prepare(
+    "SELECT id, description FROM projects WHERE customer_id = ? ORDER BY created_at DESC"
+  )
+    .bind(customerId)
+    .all<{ id: number; description: string | null }>();
+
+  if (!projects || projects.length === 0) return [];
+
+  const facts: string[] = [];
+  for (const project of projects) {
+    const { results: jobScopes } = await env.OFFICE_DB.prepare(
+      "SELECT description FROM job_scopes WHERE project_id = ?"
+    )
+      .bind(project.id)
+      .all<{ description: string }>();
+    const totalQuoted = await env.OFFICE_DB.prepare(
+      `SELECT COALESCE(SUM(q.amount), 0) as total FROM quotations q
+       JOIN job_scopes js ON js.id = q.job_scope_id
+       WHERE js.project_id = ?`
+    )
+      .bind(project.id)
+      .first<{ total: number }>();
+    const totalInvoiced = await env.OFFICE_DB.prepare(
+      `SELECT COALESCE(SUM(i.amount), 0) as total FROM invoices i
+       JOIN job_scopes js ON js.id = i.job_scope_id
+       WHERE js.project_id = ?`
+    )
+      .bind(project.id)
+      .first<{ total: number }>();
+    const phases = (jobScopes ?? []).map((js) => js.description).join(", ");
+    facts.push(
+      `Project "${project.description ?? "untitled"}" — phases: ${phases || "none recorded"}. Total quoted so far: R${totalQuoted?.total ?? 0}. Total invoiced so far: R${totalInvoiced?.total ?? 0}.`
+    );
+  }
+  return facts;
+}
+
 export interface StatementLine {
   date: string;
   type: "invoice" | "payment";
