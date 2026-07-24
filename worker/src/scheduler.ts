@@ -6,6 +6,7 @@
 // territory.
 
 import type { Env, WorkObservationExtraction } from "./types";
+import { getOpenProjectsForCustomer } from "./finance";
 
 
 // Unguarded, deliberately — same reasoning already applied to
@@ -228,6 +229,28 @@ export async function recordWorkObservation(
           .bind(projectId, ...siblingIds)
           .run();
       }
+    } else {
+      // Real feature 2026-07-22 — Layer 2 (Project), cross-capture
+      // attachment. This job scope is standalone within its own
+      // capture — the second real question: does it belong to an
+      // existing project from an earlier, separate message? Reuses
+      // the exact same rung-based resolution already proven
+      // throughout this project (Principle 24's Ladder) — never a new
+      // mechanism. Deliberately scoped tonight to only the cleanest,
+      // most valuable rung: exactly one real, open project auto-
+      // attaches. The "named handle" and "ask when two or more" rungs
+      // are honestly left unbuilt — they need real design work this
+      // session hasn't done (how would Peter actually name a
+      // project? how does an ask-and-wait flow work mechanically?),
+      // not a guess standing in for an answer.
+      const openProjects = await getOpenProjectsForCustomer(env, customerId);
+      if (openProjects.length === 1) {
+        await env.OFFICE_DB.prepare("UPDATE job_scopes SET project_id = ? WHERE id = ?")
+          .bind(openProjects[0].id, jobScopeId)
+          .run();
+      }
+      // Two or more open projects, or zero — stays standalone,
+      // honestly, rather than guessing which one this belongs to.
     }
   }
 
