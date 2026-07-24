@@ -520,22 +520,17 @@ Codemagic — still only proven on the web preview.**
   with Pierre's own exact scenario (20 ordered, 15 received, 20
   billed; the old comparison shows zero, the new one correctly catches
   a real 5-unit discrepancy). See DECISIONS.md for the complete arc.
-- **Layer 2 (Project) now has two real, working pieces** (2026-07-22)
-  — same-breath assembly, and quotations/invoices genuinely linked
-  back to the job scope they're priced from. Two real job scopes, born
-  from one real message describing a phased job, correctly and
-  automatically grouped into one real project — the exact Calypso
-  Centre scenario that started this whole design arc, now proven with
-  real data. A project now shows a real, computed total quoted and
-  invoiced value, verified live (a real R3,200 quotation, correctly
-  priced against the right job scope, correctly reflected in the
-  project's own total) — closing the exact gap the Fable 5 design
-  review identified in the original pin. Three real, distinct bugs
-  found and fixed proving this — see DECISIONS.md for the full,
-  honest account, including two fix attempts that didn't work before
-  the third one did. Cross-capture attachment (a new message, days
-  later, matching an existing project) and the broader identity-
-  collision design remain deliberately deferred.
+- **Layer 2 (Project) now has three real, working pieces** (2026-07-22)
+  — same-breath assembly, job_scope_id linking, and conversational
+  visibility. A real, natural, unpolished question ("hows Thabo job
+  going," no capitals, no punctuation) produced a real, correct,
+  computed answer naming both real phases and the real R3,200 quoted
+  so far. Closes the gap between "correct in a debug route" and
+  "actually useful" — everything built earlier the same night only had
+  real value once it could answer a question asked the way Peter would
+  really ask it. Cross-capture attachment (a new message, days later,
+  matching an existing project) and the broader identity-collision
+  design remain the two real, deliberately deferred pieces.
 - **`captures` real FK backfill.** `customer_id`/`character_id` (added
   2026-07-11) are correctly populated for every NEW capture from here
   on, verified live via a real clean join (`?customerId=1`). Every
