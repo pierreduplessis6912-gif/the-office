@@ -332,13 +332,44 @@ export async function recordVarianceDisposition(
   resolution: string | null,
   creditAmount: number | null,
   recordedByEmail: string | null = null
-): Promise<{ dispositionId: number }> {
+): Promise<{ dispositionId: number; expenseId: number | null }> {
   const inserted = await env.OFFICE_DB.prepare(
     "INSERT INTO variance_dispositions (grn_line_item_id, reason, resolution, credit_amount, recorded_by) VALUES (?, ?, ?, ?, ?) RETURNING id"
   )
     .bind(grnLineItemId, reason, resolution, creditAmount, recordedByEmail)
     .first<{ id: number }>();
-  return { dispositionId: inserted!.id };
+  const dispositionId = inserted!.id;
+
+  // Real feature 2026-07-24 — the real, second half of Variance
+  // Disposition, deliberately built as its own step after the first
+  // was proven: a "credit" resolution with a real, stated amount now
+  // creates the real financial write-off it implies — a negative
+  // expense against the same supplier, reducing what's actually owed
+  // to them, the exact same deterministic reasoning already proven
+  // for every other real rand figure in this project.
+  let expenseId: number | null = null;
+  if (resolution === "credit" && creditAmount != null && creditAmount > 0) {
+    const chain = await env.OFFICE_DB.prepare(
+      `SELECT gli.description, grn.supplier_id
+       FROM grn_line_items gli
+       JOIN goods_received_notes grn ON grn.id = gli.grn_id
+       WHERE gli.id = ?`
+    )
+      .bind(grnLineItemId)
+      .first<{ description: string; supplier_id: number | null }>();
+    if (chain?.supplier_id != null) {
+      const expense = await recordExpense(
+        env,
+        chain.supplier_id,
+        -creditAmount,
+        `Credit for ${chain.description} (${reason ?? "discrepancy"})`,
+        `variance disposition #${dispositionId}`
+      );
+      expenseId = expense.id;
+    }
+  }
+
+  return { dispositionId, expenseId };
 }
 
 // Real feature 2026-07-21 — Supplier Invoices, the third and final
