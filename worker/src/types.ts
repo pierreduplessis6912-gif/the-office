@@ -33,7 +33,7 @@ export interface Extraction {
   customer_name: string | null;
   character_name: string | null;
   character_relationship: string | null;
-  intent: "payment" | "invoice" | "quotation" | "convert_quote" | "price_scope" | "work_observation" | "lookup" | "reminder" | "task_complete" | "expense" | "note" | "purchase_order" | "goods_received" | "supplier_invoice" | "other";
+  intent: "payment" | "invoice" | "quotation" | "convert_quote" | "price_scope" | "work_observation" | "lookup" | "reminder" | "task_complete" | "expense" | "note" | "purchase_order" | "goods_received" | "supplier_invoice" | "variance_disposition" | "other";
   amount: number | null;
   fact_key: string | null;
   fact_value: string | null;
@@ -196,4 +196,18 @@ export interface SupplierInvoiceExtraction {
   supplier_name: string | null;
   supplier_reference: string | null;
   line_items: SupplierInvoiceLineItem[];
+}
+
+// Real feature 2026-07-24 — Variance Disposition, what happens after a
+// real, computed GRN discrepancy is found. Reason codes validated
+// against real ERP research (SAP's own quantity/price split, Oracle's
+// established reason-code taxonomy) before being finalized. Two
+// genuinely different resolution paths, not one problem with two
+// names — back order (still owed, expected later) and credit (a real
+// financial write-off).
+export interface VarianceDispositionExtraction {
+  matched_description: string | null;
+  reason: "short_delivered" | "incorrectly_dispatched" | "damaged" | "over_receipt" | null;
+  resolution: "back_order" | "credit" | null;
+  credit_amount: number | null;
 }
