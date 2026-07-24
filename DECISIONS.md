@@ -3474,3 +3474,55 @@ ways**: R25,930 gross expenses, correctly netted to R25,430 after the
 real credit, correctly reduced to R15,430 after a real R10,000 payment
 — every step proven against the exact predicted number before moving
 to the next, not asserted.
+
+## Office scales by scope, not by product — an architectural direction, given by Pierre (2026-07-24)
+
+**The core claim, and why it's recorded as an already-true property,
+not a future goal.** One Office, one reasoning architecture, identical
+capabilities regardless of who's using it or how large the business
+behind it is. This isn't aspirational — it's already real, proven
+today by how permissions actually work: Sipho and Peter run through
+the exact same code path right now, and the only thing that differs
+between them is what capabilities their real membership carries and
+what reality has actually been populated for them to query. Nothing
+about the architecture itself would need to change to add a third
+membership, a hundredth customer, or a more elaborate permission
+structure — it would only mean more reality poured into the same
+shape. The unifying pattern behind every real query this system
+answers, at any scale — "has Eagle Express raised their courier
+rate," "why did laminate margins fall," "why is one branch
+outperforming another" — is the same cognitive operation: observe
+reality, compare against expectation, explain the deviation. This is
+also not a new idea introduced here — it's the same real pattern
+already named twice tonight in different clothes: Pulse (watching time
+for deviations) and the Atlas (watching relationships for ripples).
+Office is not software for a specific industry; it's a reasoning
+architecture, and flooring is simply the first domain rich enough to
+prove it under real operational pressure.
+
+**The genuinely speculative extension, kept explicitly separate and
+gated.** A nested hierarchy of Offices — branch, regional, national,
+each aggregating the layer below it, permissions handled the same way
+throughout (a regional manager is simply a character within each
+branch Office, no separate "corporate mode" needed) — is real,
+sound reasoning about *if* a second organizational layer ever exists.
+It is not a description of anything true today. Zululand Flooring has
+no branches, no regions, no national structure — one owner, one
+installer crew, a handful of active suppliers. This is precisely the
+shape Principle 12 exists to catch: a real, well-reasoned design for a
+scale of business that hasn't been shown to exist yet, and it stays
+gated behind real evidence that a second, actual organizational layer
+exists and needs it — not built, not scaffolded, correctly recorded as
+*why* the architecture should hold up if that day comes.
+
+**One real, precise distinction worth being careful about, since it
+touches something already explicitly settled**: isolated-instance-per-
+business was proposed and correctly rejected as multi-tenancy three
+separate times in this project's own history, each time by an
+AI-generated document. This direction is a genuinely different shape —
+each branch stays a fully isolated instance, with a separate
+aggregation layer sitting *above* already-separate instances, not one
+shared instance across tenants — but it's worth stating that
+distinction explicitly rather than letting the two ideas blur, given
+one of them has a real history of being correctly rejected in this
+exact project.
