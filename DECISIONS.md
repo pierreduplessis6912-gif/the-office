@@ -3343,3 +3343,40 @@ like "every important truth should know where it comes from, where it
 goes, and what depends on it" — to earn its number once the Atlas has
 actually been built on, consulted, and proven useful a few real times,
 not before.
+
+## Variance Disposition — the first real piece is built and proven (2026-07-24)
+
+**The real feature**: raising a reason and resolution against a real,
+already-computed GRN discrepancy — reason codes and resolution paths
+validated against real ERP research earlier the same night. Reuses
+GRN's own precedent exactly: unguarded but traceable, since naming why
+a discrepancy happened is documentation, not money moving.
+
+**A real bug found and fixed on the way, worth recording precisely,
+and the Atlas's own first real vindication**: the initial
+implementation tried to resolve the recording user's identity via
+`resolveCapabilities(request, env)` inside `processOneExtraction` —
+but `request` was never in scope there; that function only ever
+receives a pre-resolved `capabilities` array. Caught by `tsc` before
+deployment, not live. Fixed by threading a real `email` parameter
+through `processTranscript` and `processOneExtraction`, the exact same
+way `capabilities` already is — and while fixing it, found that the
+voice-upload path had never been passing its own resolved email
+through either, a second, real gap closed in the same pass rather than
+left for later.
+
+**Verified live with a real, existing discrepancy, not a fabricated
+one**: "the underlay shortage on Floornet, that's a back order" —
+correctly matched against the real -50 underlay variance from GRN
+testing earlier the same night, recorded as `reason: short_delivered`,
+`resolution: back_order`, and — the real proof of the traceability fix
+— `recorded_by: pierreduplessis6912@gmail.com`, not null.
+
+**Deliberately, honestly scoped to raising a reason, not resolving
+money yet.** The "credit" resolution path currently just stores a
+stated `credit_amount` as data — it does not yet create a real expense
+reduction against what's owed to the supplier. That's a real, separate
+next step, kept apart on purpose so "naming why" and "actually
+adjusting the money" don't get conflated into one change, matching the
+same one-domino-at-a-time discipline as every other multi-stage
+feature built tonight.
