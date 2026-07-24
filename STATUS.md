@@ -520,17 +520,26 @@ Codemagic — still only proven on the web preview.**
   with Pierre's own exact scenario (20 ordered, 15 received, 20
   billed; the old comparison shows zero, the new one correctly catches
   a real 5-unit discrepancy). See DECISIONS.md for the complete arc.
-- **Layer 2 (Project) now has three real, working pieces** (2026-07-22)
-  — same-breath assembly, job_scope_id linking, and conversational
-  visibility. A real, natural, unpolished question ("hows Thabo job
+- **Layer 2 (Project) now has four real, working pieces — the full
+  original vision, complete** (2026-07-22) — same-breath assembly,
+  job_scope_id linking, conversational visibility, and cross-capture
+  attachment. A real, natural, unpolished question ("hows Thabo job
   going," no capitals, no punctuation) produced a real, correct,
   computed answer naming both real phases and the real R3,200 quoted
-  so far. Closes the gap between "correct in a debug route" and
-  "actually useful" — everything built earlier the same night only had
-  real value once it could answer a question asked the way Peter would
-  really ask it. Cross-capture attachment (a new message, days later,
-  matching an existing project) and the broader identity-collision
-  design remain the two real, deliberately deferred pieces.
+  so far. A genuinely separate message, minutes later, with a
+  different real `capture_id`, correctly auto-attached to the same
+  existing project — the answer to "what makes a project open" (paid
+  in full, no open complaint — deliberately kept simple, not a
+  bureaucratic certificate requirement) making this real and buildable
+  at last. Deliberately scoped to the one cleanest rung of the
+  Execution Ladder (exactly one open project auto-attaches); matching
+  a stated project handle and asking when two or more genuinely
+  compete remain honestly unbuilt, needing real design work this
+  session hasn't done. The broader identity-collision design, job
+  completion (a real, three-part design — completion, warranty,
+  snags), and its connection to Aged Debtors collections confidence
+  all remain real, deliberately deferred pieces — see DECISIONS.md for
+  the complete arc.
 - **`captures` real FK backfill.** `customer_id`/`character_id` (added
   2026-07-11) are correctly populated for every NEW capture from here
   on, verified live via a real clean join (`?customerId=1`). Every
