@@ -3015,3 +3015,54 @@ visibility (the whole thing is actually askable, not just correct).
 Cross-capture attachment and the broader identity-collision design
 remain the two real, deliberately deferred pieces — both still pending
 real answers to open questions, not rushed defaults.
+
+## Job completion — a real, documented event, connecting three previously separate ideas (2026-07-22)
+
+**What this replaces.** The earlier proposal for closing a project —
+"Peter says it's done" — was too simple, and Pierre corrected it
+directly: completion is a real, documented event, not a sentence. A
+signed completion certificate, care/maintenance instructions for the
+installed product, and warranty documentation are the real artifacts
+that constitute a job being genuinely finished.
+
+**The real, valuable discovery this makes: three ideas that looked
+separate were never actually separate.** Warranty tracking was already
+named as a real gap earlier tonight ("a real, common promise a
+flooring business makes... nothing captures this today") — but it
+isn't a standalone feature. It's part of what completion means. Snag
+lists were also already named as a real gap ("after an install,
+defects get found... real businesses track these as their own thing")
+— and a real, honest question follows immediately: can a job be signed
+off while snags are still open? Project closing, warranty tracking,
+and snag resolution are one coherent lifecycle stage, not three
+disconnected ideas that each happened to get named on different
+nights.
+
+**How capture likely works, reusing what's already proven rather than
+inventing something new**: the same photo/document upload path already
+proven tonight for Supplier Invoice ingestion — a real photo of a
+signed completion certificate, a photo of warranty documentation — is
+the natural, consistent mechanism here too, not a new one.
+
+**Real, open questions, deliberately not answered here:**
+1. Is every one of these artifacts mandatory for completion, or is the
+   certificate the one real requirement, with warranty and maintenance
+   information optional depending on the job (a simple repair likely
+   has no warranty to capture at all)?
+2. Does an open snag genuinely block completion, or can a job be
+   signed off with snags still outstanding, tracked separately? A real
+   business-logic decision, not a default to assume either way.
+3. Does "project open" (needed to resolve cross-capture attachment,
+   the reason this whole thread started) simply mean "no completion
+   event recorded yet," or does it need finer states (in progress,
+   snagging, awaiting sign-off)? The simplest real answer — open until
+   a real completion event exists — may be sufficient to unblock
+   cross-capture attachment without needing every state resolved first.
+4. Where does ongoing maintenance actually live once captured — a real
+   recurring reminder (reusing the due-date mechanism already built for
+   tasks), or just a stored fact Peter can ask about later?
+
+**Explicitly not built tonight** — this is now a real, three-part
+design (completion, warranty, snags), each already substantial on its
+own, correctly deserving proper specification before code, the same
+discipline as every other design of this scale tonight.
