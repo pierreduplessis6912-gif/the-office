@@ -367,15 +367,17 @@ async function processOneExtraction(
     }
   }
 
-  // Real feature 2026-07-24 — Variance Disposition, the real, first
-  // piece: raising a reason. Deliberately unguarded but traceable,
-  // matching GRN's own precedent exactly — naming why a discrepancy
-  // happened is documentation, not money moving, so there's no
-  // separate confirm step here; the recording user's identity is
-  // resolved directly, the same way the GRN confirm handler does it.
+  // Real feature 2026-07-24 — Variance Disposition. Raising a reason
+  // stays deliberately unguarded but traceable, matching GRN's own
+  // precedent — naming why a discrepancy happened is documentation,
+  // not money moving. A "credit" resolution with a real, stated
+  // amount is different — real money is about to move, so it holds
+  // for confirmation instead, the same discipline as every other
+  // financial write in this project.
   let dispositionNoSupplier = false;
   let dispositionNoOpenDiscrepancy = false;
   let dispositionResult: { dispositionId: number; description: string; reason: string | null; resolution: string | null } | null = null;
+  let dispositionPendingSupplierName: string | null = null;
   if (extraction?.intent === "variance_disposition") {
     if (character) {
       const discrepancies = await getOpenDiscrepanciesForSupplier(env, character.id);
@@ -387,21 +389,39 @@ async function processOneExtraction(
           ? discrepancies[0]
           : null;
         if (matched) {
-          const recordedByEmail = recordingUserEmail;
-          const recorded = await recordVarianceDisposition(
-            env,
-            matched.grnLineItemId,
-            vdExtraction.reason,
-            vdExtraction.resolution,
-            vdExtraction.credit_amount,
-            recordedByEmail
-          );
-          dispositionResult = {
-            dispositionId: recorded.dispositionId,
-            description: matched.description,
-            reason: vdExtraction.reason,
-            resolution: vdExtraction.resolution,
-          };
+          const isRealCredit = vdExtraction.resolution === "credit" && vdExtraction.credit_amount != null && vdExtraction.credit_amount > 0;
+          if (isRealCredit) {
+            const held = await holdForConfirmation(
+              env,
+              "variance_disposition",
+              {
+                grnLineItemId: matched.grnLineItemId,
+                description: matched.description,
+                reason: vdExtraction.reason,
+                resolution: vdExtraction.resolution,
+                creditAmount: vdExtraction.credit_amount,
+              },
+              transcript
+            );
+            pendingActionId = held.id;
+            dispositionPendingSupplierName = character.name;
+          } else {
+            const recordedByEmail = recordingUserEmail;
+            const recorded = await recordVarianceDisposition(
+              env,
+              matched.grnLineItemId,
+              vdExtraction.reason,
+              vdExtraction.resolution,
+              vdExtraction.credit_amount,
+              recordedByEmail
+            );
+            dispositionResult = {
+              dispositionId: recorded.dispositionId,
+              description: matched.description,
+              reason: vdExtraction.reason,
+              resolution: vdExtraction.resolution,
+            };
+          }
         } else {
           dispositionNoOpenDiscrepancy = true;
         }
@@ -787,6 +807,8 @@ async function processOneExtraction(
     message = "Recognized a supplier invoice, but no supplier was named — try naming who it's from.";
   } else if (extraction?.intent === "supplier_invoice" && supplierInvoiceNoOpenPo) {
     message = `I don't have an open purchase order on file for ${character!.name} to bill this invoice against.`;
+  } else if (pendingActionId && extraction?.intent === "variance_disposition" && dispositionPendingSupplierName) {
+    message = `Credit noted for ${dispositionPendingSupplierName} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
   } else if (extraction?.intent === "variance_disposition" && dispositionResult) {
     const reasonText = dispositionResult.reason ? dispositionResult.reason.replace(/_/g, " ") : "no reason stated";
     const resolutionText = dispositionResult.resolution ? `, resolution: ${dispositionResult.resolution.replace(/_/g, " ")}` : "";
@@ -3112,6 +3134,36 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             .bind(id)
             .run();
           return Response.json({ status: "confirmed", supplierInvoice: recorded });
+        }
+
+        // Real feature 2026-07-24 — Variance Disposition, the real,
+        // second half: a credit resolution's real financial write-off,
+        // confirmed here since real money is moving. The confirming
+        // user's identity is resolved directly here — the real,
+        // guarded moment this matters, unlike raising a plain reason.
+        if (action.type === "variance_disposition") {
+          const payload = JSON.parse(action.payload) as {
+            grnLineItemId: number;
+            description: string;
+            reason: string | null;
+            resolution: string | null;
+            creditAmount: number | null;
+          };
+          const { email: confirmedByEmail } = await resolveCapabilities(request, env);
+          const recorded = await recordVarianceDisposition(
+            env,
+            payload.grnLineItemId,
+            payload.reason,
+            payload.resolution,
+            payload.creditAmount,
+            confirmedByEmail
+          );
+          await env.OFFICE_DB.prepare(
+            "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+          )
+            .bind(id)
+            .run();
+          return Response.json({ status: "confirmed", disposition: recorded });
         }
 
         if (action.type === "invoice") {
