@@ -841,8 +841,10 @@ export async function extractStockUsage(
             role: "system",
             content:
               "A tradesperson is reporting real stock being used up on a job. You are given the exact " +
-              "real stock items already being tracked. matched_item_name must be copied EXACTLY from the " +
-              "given list, or null if it genuinely doesn't match anything given. quantity_used is the " +
+              "real stock items already being tracked, shown as \"name (unit)\". matched_item_name must " +
+              "be ONLY the bare name itself, copied exactly — never include the unit or its parentheses. " +
+              "For a given item shown as \"screed (bags)\", matched_item_name is \"screed\", never \"screed " +
+              "(bags)\". Or null if it genuinely doesn't match anything given. quantity_used is the " +
               "real, plain number actually stated, never invented. job_customer_name is the real customer " +
               "or job this was used on, if stated, or null. Return ONLY JSON: " +
               '{"matched_item_name": string or null, "quantity_used": number or null, "job_customer_name": ' +
@@ -891,9 +893,11 @@ export async function extractStocktake(
             role: "system",
             content:
               "A tradesperson is reporting a real, physical stock count. You are given the exact real " +
-              "stock items already being tracked. matched_item_name must be copied EXACTLY from the given " +
-              "list, or null if it genuinely doesn't match anything given. quantity_counted is the real, " +
-              "plain number actually counted, never calculated or assumed. Return ONLY JSON: " +
+              "stock items already being tracked, shown as \"name (unit)\". matched_item_name must be " +
+              "ONLY the bare name itself, copied exactly — never include the unit or its parentheses. For " +
+              "a given item shown as \"screed (bags)\", matched_item_name is \"screed\", never \"screed " +
+              "(bags)\". Or null if it genuinely doesn't match anything given. quantity_counted is the " +
+              "real, plain number actually counted, never calculated or assumed. Return ONLY JSON: " +
               '{"matched_item_name": string or null, "quantity_counted": number or null}\n\n' +
               "Example:\n" +
               'Tracked items: "screed (bags)". Message: "counted 15 bags of screed" -> ' +
