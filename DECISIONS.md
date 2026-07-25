@@ -3852,3 +3852,65 @@ through real expenses, a real credit, and a real payment). The system
 correctly extracted the stated R15,000 — never invented, never
 recalculated from the statement's other figures — and correctly
 computed the real difference: `-430`, exactly as designed.
+
+## Chain automation — a real, new architectural direction, given by Pierre (2026-07-25)
+
+**The real observation, and why it's genuinely new rather than a
+restatement of what's already built.** Every real stage of the full
+lead-to-invoice lifecycle now exists and works — lead, measurement,
+quote, ordering, receiving, invoicing, snags, all proven tonight. But
+every single transition between them requires Peter to narrate it into
+existence — "order the materials," "the delivery arrived," "convert
+the quote." The system is entirely reactive: Peter speaks, The Office
+responds. It never, on its own, notices that a real state change just
+happened and that a real, obvious next action follows from it.
+
+**What's actually missing is the connective tissue, not more stages.**
+A real trigger layer — something that watches for a real state
+transition (a quote accepted and deposited, stock arriving) and
+proposes the next real action as a pending item for Peter to review
+and release, rather than waiting to be told. Not a bigger version of
+`holdForConfirmation` — that mechanism is already exactly right, proven
+all night. What's missing is the trigger itself: the thing that
+decides *when* a new pending action should be drafted in the first
+place, on the system's own initiative.
+
+**A real, valuable connection worth naming precisely: this is the
+same real pattern as Pulse/Heartbeat, applied to workflow progression
+instead of anomaly detection.** Observe reality, compare against
+expectation, surface something worth acting on — the exact shape
+already pinned and deliberately gated behind real accumulated volume.
+This isn't a ninth, unrelated idea sitting apart from that one; it's
+the same architectural shape pointed at a different real question.
+Worth remembering that connection when either one is picked up, since
+solving the general "notice a state change, propose the next action"
+problem well would likely serve both at once.
+
+**Deliberately, explicitly excluded from this direction, per Pierre's
+own instruction: the customer-facing acceptance channel.** Everything
+built tonight assumes Peter is the one talking to The Office. A
+customer accepting a quote and paying a deposit without Peter relaying
+it is a genuinely different kind of input this system has never
+received — the first time an external party, not Peter, would trigger
+something directly. That's a real, separate, harder design question
+(a customer portal, a signed link, some new channel entirely) and
+stays out of scope here. The real, honest default for now: Peter still
+relays "she accepted" as one real fact, the same way he relays
+everything else — chain automation begins from that point forward,
+not before it.
+
+**A real, honest gap that would remain even with this trigger layer
+built, worth naming precisely rather than glossed over**: job-specific
+stock. Consumables (screed, glue) have real, running quantities today,
+checked automatically on delivery. A named, job-specific product like
+"Kronos Swiss Lucerne 3x4" is never tracked as stock at all — it's
+ordered and consumed per job. "Stock levels checked" as a real,
+automated trigger needs a genuinely different tracking shape for
+job-specific materials than exists today — connects directly to the
+job-specific remnant-tracking question already left open in the
+Consumables Stock design.
+
+**Not built here, deliberately** — a real, substantial architectural
+direction on the same scale as Pulse itself, correctly pinned rather
+than rushed into, given how many of tonight's own already-proven
+mechanisms it would need to touch and reuse correctly.
