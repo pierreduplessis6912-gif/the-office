@@ -6,7 +6,6 @@
 // territory.
 
 import type { Env, WorkObservationExtraction } from "./types";
-import { getOpenProjectsForCustomer, holdForConfirmation } from "./finance";
 
 
 // Unguarded, deliberately — same reasoning already applied to
@@ -118,9 +117,7 @@ export async function recordWorkObservation(
   jobScopeId: number;
   computedComponents: Array<{ name: string; area_sqm: number | null }>;
   computedTasks: Array<{ description: string; component_name: string | null }>;
-  pendingProjectChoice: { pendingActionId: number; candidates: string[] } | null;
 }> {
-  let pendingProjectChoice: { pendingActionId: number; candidates: string[] } | null = null;
   const scheduledDate = resolveScheduledDate(observation.scheduled_date_raw, nowInBusinessTimezone());
   // Real feature 2026-07-20 (Layer 2 / Project design, verified via the
   // Fable 5 design pass): capture_id is the real, deterministic
@@ -231,44 +228,26 @@ export async function recordWorkObservation(
           .bind(projectId, ...siblingIds)
           .run();
       }
-    } else {
-      // Real feature 2026-07-25 — Layer 2 (Project), the second
-      // deferred Ladder rung: asking when two or more open projects
-      // genuinely compete for the same standalone job scope. Reuses
-      // the exact same hold-for-confirmation mechanism just proven
-      // for Identity Collision, rather than inventing a new one —
-      // the real, load-bearing reason this rung was left unbuilt
-      // before ("how does an ask-and-wait flow work mechanically")
-      // now has a real, working answer elsewhere in this codebase.
-      // The "named handle" rung remains honestly deferred — projects
-      // still have no real naming convention Peter could use in
-      // conversation.
-      const openProjects = await getOpenProjectsForCustomer(env, customerId);
-      if (openProjects.length === 1) {
-        await env.OFFICE_DB.prepare("UPDATE job_scopes SET project_id = ? WHERE id = ?")
-          .bind(openProjects[0].id, jobScopeId)
-          .run();
-      } else if (openProjects.length >= 2) {
-        const held = await holdForConfirmation(
-          env,
-          "project_ambiguity",
-          {
-            jobScopeId,
-            candidates: openProjects.map((p) => ({ id: p.id, description: p.description })),
-          },
-          sourceTranscript
-        );
-        pendingProjectChoice = {
-          pendingActionId: held.id,
-          candidates: openProjects.map((p) => p.description ?? "untitled"),
-        };
-      }
-      // Zero open projects — stays standalone, honestly, since there
-      // is genuinely nothing to attach to yet.
     }
+    // Real fix 2026-07-25, found live: cross-capture attachment used
+    // to live here too, but this function only ever sees one segment
+    // at a time — it genuinely cannot tell "this is a standalone
+    // message" apart from "this is the first segment of a
+    // multi-segment message whose sibling hasn't been created yet."
+    // A real, live test proved this: the second segment of a message
+    // with no siblings yet found exactly one open project and
+    // attached to it, only for its real sibling to arrive moments
+    // later and correctly join it there instead — silently merging
+    // two genuinely separate jobs into one. Cross-capture attachment
+    // is deliberately no longer decided here at all — it now runs as
+    // its own, separate step, only after every segment of the whole
+    // message has been processed and same-breath assembly has had its
+    // full, complete chance to run first. A job scope with no
+    // siblings simply stays project_id null here, undecided, not
+    // standalone by default.
   }
 
-  return { jobScopeId, computedComponents, computedTasks, pendingProjectChoice };
+  return { jobScopeId, computedComponents, computedTasks };
 }
 
 // Small, deterministic cleanup — real polish item flagged since the
