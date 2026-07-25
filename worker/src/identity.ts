@@ -40,6 +40,46 @@ export function looksLikeAQuestion(text: string): boolean {
   return QUESTION_STARTERS.some((starter) => trimmed.startsWith(starter));
 }
 
+// Real feature 2026-07-25 — Identity Collision, the real, deterministic
+// alternative to teaching the model every possible ambiguous phrasing,
+// given directly by Pierre earlier in this project. This was never a
+// language-understanding problem — Thabo already has an established
+// identity in one table; the question is only ever whether this
+// message's role assignment for that name conflicts with what's
+// already on file. A direct database lookup, not a model judgment
+// call, the same "code decides, model only transcribes" discipline
+// already proven everywhere else in this project. Only checks for an
+// EXACT name match — a real, deliberate choice, safer and simpler
+// than fuzzy matching, which risks flagging collisions that were
+// never real ones. Only fires when the name doesn't already exist in
+// its own, intended table — a real, repeat match there (the common,
+// frictionless case — "Thabo measure X" when Thabo is already a known
+// installer) is never a collision at all.
+export async function checkCrossRoleCollision(
+  env: Env,
+  name: string,
+  intendedRole: "customer" | "character"
+): Promise<{ id: number; name: string; existingRole: "customer" | "character" } | null> {
+  const ownTable = intendedRole === "customer" ? "customers" : "characters";
+  const otherTable = intendedRole === "customer" ? "characters" : "customers";
+
+  const existsInOwnTable = await env.OFFICE_DB.prepare(`SELECT id FROM ${ownTable} WHERE name = ? COLLATE NOCASE`)
+    .bind(name)
+    .first();
+  if (existsInOwnTable) return null;
+
+  const collision = await env.OFFICE_DB.prepare(`SELECT id, name FROM ${otherTable} WHERE name = ? COLLATE NOCASE`)
+    .bind(name)
+    .first<{ id: number; name: string }>();
+  if (!collision) return null;
+
+  return {
+    id: collision.id,
+    name: collision.name,
+    existingRole: intendedRole === "customer" ? "character" : "customer",
+  };
+}
+
 export async function reconcileCustomer(env: Env, spokenName: string): Promise<{ id: number; name: string; matched: boolean } | null> {
   if (!looksLikeAName(spokenName)) {
     return null;
