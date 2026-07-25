@@ -1,9 +1,9 @@
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult } from "./types";
-import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractGoodsReceived, extractIntent, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, storeUnscopedMemory, transcribe } from "./ai";
+import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, storeUnscopedMemory, transcribe } from "./ai";
 import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
-import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenSnagsForCustomer, getOutstandingInvoices, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, recordExpense, recordGoodsReceived, recordInvoice, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
+import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingInvoices, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 
 // Second layer of defense against storing questions as facts — never
@@ -129,6 +129,14 @@ async function processOneExtraction(
       if (found) {
         customer = { id: found.id, name: found.name, matched: true };
       }
+    } else if (extraction.intent === "raise_lead" || extraction.intent === "lose_lead") {
+      // Real feature 2026-07-25 — the lead/enquiry stage's real point:
+      // this name is a lead, not yet a customer, and must never
+      // trigger reconcileCustomer or the identity collision check —
+      // doing so would immediately create a real customer record for
+      // someone who hasn't been quoted yet, the exact duplication the
+      // whole design exists to avoid. Handled entirely separately,
+      // below, against the real leads table instead.
     } else {
       // Real feature 2026-07-25 — Identity Collision, given directly
       // by Pierre. A real, deterministic check — before ever
@@ -604,6 +612,51 @@ async function processOneExtraction(
     }
   }
 
+  // Real feature 2026-07-25 — the lead/enquiry stage, the fourth real
+  // gap named from the full lead-to-warranty lifecycle walk.
+  // Deliberately unguarded but traceable, matching every other
+  // quality/status note in this project. customer stays null here on
+  // purpose (see the exclusion above) — extraction.customer_name is
+  // used directly, since this name is a real lead, not yet a
+  // customer.
+  let leadResult: { id: number; name: string } | null = null;
+  let leadNoName = false;
+  if (extraction?.intent === "raise_lead") {
+    if (extraction.customer_name) {
+      const lead = await extractLead(env, transcript);
+      if (lead.name) {
+        const recorded = await recordLead(env, lead.name, lead.interest, lead.source);
+        leadResult = { id: recorded.id, name: lead.name };
+      } else {
+        leadNoName = true;
+      }
+    } else {
+      leadNoName = true;
+    }
+  }
+
+  let leadLostResult: { name: string } | null = null;
+  let leadLostNoMatch = false;
+  if (extraction?.intent === "lose_lead") {
+    const openLeads = await getOpenLeads(env);
+    if (openLeads.length > 0) {
+      const res = await extractLeadLost(env, transcript, openLeads);
+      const matched = res.matched_name
+        ? openLeads.find((l) => l.name.toLowerCase() === res.matched_name!.toLowerCase())
+        : openLeads.length === 1
+        ? openLeads[0]
+        : null;
+      if (matched) {
+        await markLeadLost(env, matched.id);
+        leadLostResult = { name: matched.name };
+      } else {
+        leadLostNoMatch = true;
+      }
+    } else {
+      leadLostNoMatch = true;
+    }
+  }
+
   if (extraction?.intent === "invoice" && customer && extraction.amount) {
     const held = await holdForConfirmation(
       env,
@@ -1016,6 +1069,14 @@ async function processOneExtraction(
     message = `I don't have an open snag on file for ${customer!.name} to match this to.`;
   } else if (extraction?.intent === "resolve_snag" && snagNoCustomer) {
     message = "Recognized a snag resolution, but no customer was named — try naming whose job this is.";
+  } else if (extraction?.intent === "raise_lead" && leadResult) {
+    message = `Lead #${leadResult.id} noted for ${leadResult.name}.`;
+  } else if (extraction?.intent === "raise_lead" && leadNoName) {
+    message = "Recognized a new enquiry, but couldn't make out who it's from — try naming them.";
+  } else if (extraction?.intent === "lose_lead" && leadLostResult) {
+    message = `Marked the ${leadLostResult.name} enquiry as lost.`;
+  } else if (extraction?.intent === "lose_lead" && leadLostNoMatch) {
+    message = "I don't have an open enquiry on file to match this to.";
   } else if (pendingActionId && extraction?.intent === "convert_quote" && convertQuoteFound) {
     const { total, depositAmount, remainingBalance, quotationId } = convertQuoteFound;
     const depositNote = extraction.deposit_percent
@@ -2236,6 +2297,30 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
          ORDER BY sn.created_at DESC LIMIT 10`
       ).all();
       return Response.json({ snags: results });
+    }
+
+    // Real feature 2026-07-25 — the lead/enquiry stage, the fourth
+    // real gap named from the full lead-to-warranty lifecycle walk.
+    if (url.pathname === "/debug/init-leads" && request.method === "POST") {
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS leads (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          interest TEXT,
+          source TEXT,
+          status TEXT NOT NULL DEFAULT 'enquired',
+          customer_id INTEGER,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`
+      ).run();
+      return Response.json({ status: "ok" });
+    }
+
+    if (url.pathname === "/debug/leads" && request.method === "GET") {
+      const { results } = await env.OFFICE_DB.prepare(
+        "SELECT id, name, interest, source, status, customer_id, created_at FROM leads ORDER BY created_at DESC LIMIT 10"
+      ).all();
+      return Response.json({ leads: results });
     }
 
     // Real feature 2026-07-24 — the real prerequisite for Aged
