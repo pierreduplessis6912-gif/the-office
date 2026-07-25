@@ -2204,6 +2204,16 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
 
     // Real feature 2026-07-25 — Snags, the smallest, most immediately
     // useful piece of the job-completion/warranty/snags design.
+    if (url.pathname.match(/^\/debug\/pending-action\/\d+$/) && request.method === "GET") {
+      const id = Number(url.pathname.split("/")[3]);
+      const action = await env.OFFICE_DB.prepare(
+        "SELECT id, type, payload, source_transcript, status FROM pending_actions WHERE id = ?"
+      )
+        .bind(id)
+        .first();
+      return Response.json({ action });
+    }
+
     if (url.pathname === "/debug/init-snags" && request.method === "POST") {
       await env.OFFICE_DB.prepare(
         `CREATE TABLE IF NOT EXISTS snags (
