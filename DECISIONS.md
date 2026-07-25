@@ -3575,3 +3575,50 @@ example name never previously associated with either role in this
 prompt, rather than reinforcing the same bias with a seventh Floornet
 example. Verified correct on both directions after the fix, and on a
 real, full message-processing test, not just the raw extraction.
+
+## Layer 2 — the ask-when-2-plus rung, a real structural bug found live, and a real architectural fix (2026-07-25)
+
+**The real feature attempted first**: the second deferred Layer 2
+Ladder rung — asking when two or more open projects genuinely compete
+for a standalone job scope — reusing the exact hold-for-confirmation
+mechanism just proven for Identity Collision. Built directly inside
+`recordWorkObservation`, mirroring where same-breath assembly already
+lived.
+
+**A real, live bug found on the very first test, and a precise,
+honest diagnosis of why it happened.** A customer with two genuinely
+separate, already-existing open projects had a new, multi-segment
+message sent — and instead of correctly asking which project the new
+job belonged to, both segments silently merged into one of the
+existing projects. The exact cause: `recordWorkObservation` only ever
+sees one segment of a message at a time. The first segment of the new
+message had no same-breath sibling yet — its own sibling, from the
+same message, hadn't been created yet — so it fell through to
+cross-capture attachment, found exactly one open project, and
+attached. Its real sibling then arrived moments later, found the first
+segment as a same-breath match with a project already assigned, and
+joined it there too — silently merging two genuinely separate jobs
+into one project that had nothing to do with either of them. The
+earlier successful test (Thabo) had worked only by coincidence — he
+had zero pre-existing open projects at the time, so the first
+segment's cross-capture check correctly found nothing.
+
+**The real, structural fix, not a patch.** Cross-capture attachment
+was removed from `recordWorkObservation` entirely — it cannot be
+decided correctly one segment at a time. A new function,
+`resolveCrossCaptureAttachment`, holds the exact same logic (one open
+project attaches, two or more asks, zero stays standalone) but is now
+called only once, in `processTranscript`, after every real segment of
+the whole message has been processed and same-breath assembly has
+already had its full, complete chance to group whatever it's going to
+group. Only job scopes still genuinely undecided (`project_id` null)
+at that point get resolved.
+
+**Verified completely, end to end, with a fresh customer and real
+data**: two genuinely separate open projects created correctly (same-
+breath assembly proven still intact), a third, standalone message
+correctly triggering the real question — "This customer has 2 open
+projects (laminate flooring installation, tile installation) — which
+one is job scope #37?" — confirmed with a real, chosen project id, and
+the final state checked directly: the chosen project correctly gained
+the new job scope, the other project completely untouched.
