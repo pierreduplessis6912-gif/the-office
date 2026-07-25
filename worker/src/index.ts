@@ -3,7 +3,7 @@ import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeI
 import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
-import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOpenDiscrepanciesForSupplier, getOutstandingInvoices, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, holdForConfirmation, recordExpense, recordGoodsReceived, recordInvoice, recordPayment, recordPurchaseOrder, recordQuotation, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition } from "./finance";
+import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOpenDiscrepanciesForSupplier, getOutstandingInvoices, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, holdForConfirmation, recordExpense, recordGoodsReceived, recordInvoice, recordPayment, recordPurchaseOrder, recordQuotation, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, resolveCrossCaptureAttachment } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 
 // Second layer of defense against storing questions as facts — never
@@ -107,6 +107,7 @@ async function processOneExtraction(
   pendingActionId: number | null;
   factPendingActionId: number | null;
   message: string;
+  jobScopeIdForProjectResolution: number | null;
 }> {
   let customer: { id: number; name: string; matched: boolean } | null = null;
   let character: { id: number; name: string; matched: boolean } | null = null;
@@ -150,6 +151,7 @@ async function processOneExtraction(
           pendingActionId: held.id,
           factPendingActionId: null,
           message: `${collision.name} is already on file as a ${collision.existingRole} — is this the same ${collision.name}, now acting as a customer too, or did you mean someone else? (action #${held.id})`,
+          jobScopeIdForProjectResolution: null,
         };
       }
       customer = await reconcileCustomer(env, extraction.customer_name);
@@ -177,6 +179,7 @@ async function processOneExtraction(
           pendingActionId: held.id,
           factPendingActionId: null,
           message: `${collision.name} is already on file as a ${collision.existingRole} — is this the same ${collision.name}, now acting as a ${extraction.character_relationship ?? "character"} too, or did you mean someone else? (action #${held.id})`,
+          jobScopeIdForProjectResolution: null,
         };
       }
       character = await reconcileCharacter(env, extraction.character_name, extraction.character_relationship);
@@ -282,6 +285,7 @@ async function processOneExtraction(
       pendingActionId: null,
       factPendingActionId: null,
       message: "Recording payments, invoices, quotations, or expenses isn't available for your role — let someone with that permission know.",
+      jobScopeIdForProjectResolution: null,
     };
   }
 
@@ -644,7 +648,7 @@ async function processOneExtraction(
     }
   }
 
-  let workObservationResult: { jobScopeId: number; componentCount: number; taskCount: number; pendingProjectChoice: { pendingActionId: number; candidates: string[] } | null } | null = null;
+  let workObservationResult: { jobScopeId: number; componentCount: number; taskCount: number } | null = null;
   if (extraction?.intent === "work_observation") {
     const observation = await extractWorkObservation(env, transcript);
     // Real feature 2026-07-12 — the smallest real first domino toward
@@ -664,7 +668,6 @@ async function processOneExtraction(
       jobScopeId: recorded.jobScopeId,
       componentCount: observation.components.length,
       taskCount: observation.tasks.length,
-      pendingProjectChoice: recorded.pendingProjectChoice,
     };
 
     // Real fix 2026-07-15 — Layer 1 (Constitution Principle 28): a
@@ -916,7 +919,7 @@ async function processOneExtraction(
         : "";
     message = `${kind} noted for ${customer!.name}${displayAmount ? ` of R${displayAmount}` : ""}${lineItemNote} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
   } else if (workObservationResult) {
-    const { jobScopeId, componentCount, taskCount, pendingProjectChoice } = workObservationResult;
+    const { jobScopeId, componentCount, taskCount } = workObservationResult;
     const parts: string[] = [];
     if (componentCount > 0) parts.push(`${componentCount} component${componentCount > 1 ? "s" : ""} measured`);
     if (taskCount > 0) parts.push(`${taskCount} task${taskCount > 1 ? "s" : ""} noted`);
@@ -925,12 +928,11 @@ async function processOneExtraction(
     // caught before shipping, same pattern as the earlier expense-
     // message fix (character ? ... : "").
     message = `Job scope #${jobScopeId} recorded${customer ? ` for ${customer.name}` : ""}${parts.length ? ` — ${parts.join(", ")}` : ""}.`;
-    // Real feature 2026-07-25 — Layer 2 (Project), the ask-when-2-plus
-    // rung. More than one real, open project genuinely competes for
-    // this job scope — asked directly, rather than guessed.
-    if (pendingProjectChoice) {
-      message += ` ${customer ? customer.name : "This customer"} has ${pendingProjectChoice.candidates.length} open projects (${pendingProjectChoice.candidates.join(", ")}) — which one is this? (action #${pendingProjectChoice.pendingActionId})`;
-    }
+    // Real fix 2026-07-25 — cross-capture attachment (Layer 2's
+    // ask-when-2-plus rung) is no longer decided per-segment here; it
+    // runs as its own, separate step in processTranscript, only after
+    // every segment of the whole message has been processed and
+    // same-breath assembly has had its full, complete chance to run.
   } else if (extraction?.intent === "lookup") {
     if (extraction?.query_scope === "business") {
       // No single customer — a business-wide financial question,
@@ -1159,7 +1161,14 @@ async function processOneExtraction(
     message += ` ${extraction!.fact_key} noted (${extraction!.fact_value}) — needs your confirmation (action #${factPendingActionId}) before it's saved.`;
   }
 
-  return { customer, character, pendingActionId, factPendingActionId, message };
+  return {
+    customer,
+    character,
+    pendingActionId,
+    factPendingActionId,
+    message,
+    jobScopeIdForProjectResolution: workObservationResult?.jobScopeId ?? jobScopeIdForPricing ?? null,
+  };
 }
 // through processOneExtraction, same result. The only real difference
 // for a single-topic message is the one extra split-check call.
@@ -1183,11 +1192,46 @@ async function processTranscript(
     pendingActionId: number | null;
     factPendingActionId: number | null;
     message: string;
+    jobScopeIdForProjectResolution: number | null;
   }> = [];
 
   for (const item of items) {
     const outcome = await processOneExtraction(env, item.segment, item.extraction, history, ctx, captureId, capabilities, recordingUserEmail);
     results.push(outcome);
+  }
+
+  // Real fix 2026-07-25, found live — Layer 2's cross-capture
+  // attachment (the ask-when-2-plus rung included) is deliberately
+  // resolved here, only now that every real segment of this whole
+  // message has been processed and same-breath assembly has already
+  // had its full, complete chance to group whatever it's going to
+  // group. Doing this per-segment, inside recordWorkObservation
+  // itself, was the real bug: the first segment of a multi-segment
+  // message could find an open project and attach to it before its
+  // own real sibling — which should have formed a brand new project
+  // together with it — ever existed to correct that. Only job scopes
+  // that are still genuinely undecided (project_id null) at this
+  // point get resolved; anything same-breath assembly already handled
+  // is left untouched.
+  const jobScopeIdsToResolve = [
+    ...new Set(results.map((r) => r.jobScopeIdForProjectResolution).filter((id): id is number => id !== null)),
+  ];
+  const projectResolutionMessages: string[] = [];
+  const projectResolutionActionIds: number[] = [];
+  for (const jsId of jobScopeIdsToResolve) {
+    const scope = await env.OFFICE_DB.prepare("SELECT project_id, customer_id FROM job_scopes WHERE id = ?")
+      .bind(jsId)
+      .first<{ project_id: number | null; customer_id: number | null }>();
+    if (scope && scope.project_id === null && scope.customer_id !== null) {
+      const resolved = await resolveCrossCaptureAttachment(env, jsId, scope.customer_id);
+      if (resolved.pendingProjectChoice) {
+        const { pendingActionId: ppId, candidates } = resolved.pendingProjectChoice;
+        projectResolutionMessages.push(
+          `This customer has ${candidates.length} open projects (${candidates.join(", ")}) — which one is job scope #${jsId}? (action #${ppId})`
+        );
+        projectResolutionActionIds.push(ppId);
+      }
+    }
   }
 
   // Real, deterministic merge — never another AI call to summarize,
@@ -1196,11 +1240,15 @@ async function processTranscript(
   // own message already says the real, complete thing that happened
   // to it; multiple segments just get joined, not resynthesized.
   const message =
-    results.length === 1
+    (results.length === 1
       ? results[0].message
-      : results.map((r) => `- ${r.message}`).join("\n");
+      : results.map((r) => `- ${r.message}`).join("\n")) +
+    (projectResolutionMessages.length > 0 ? "\n" + projectResolutionMessages.join("\n") : "");
 
-  const pendingActionIds = results.map((r) => r.pendingActionId).filter((id): id is number => id !== null);
+  const pendingActionIds = [
+    ...results.map((r) => r.pendingActionId).filter((id): id is number => id !== null),
+    ...projectResolutionActionIds,
+  ];
   const factPendingActionIds = results.map((r) => r.factPendingActionId).filter((id): id is number => id !== null);
   const primary = results[0];
 
