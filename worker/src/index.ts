@@ -212,7 +212,9 @@ async function processOneExtraction(
   // as before); "business" is now only eligible when there's real
   // history to justify treating it as a possible follow-up.
   const scopeCouldBeEntity =
-    extraction?.query_scope !== "personal" && !(extraction?.query_scope === "business" && history.length === 0);
+    extraction?.query_scope !== "personal" &&
+    extraction?.query_scope !== "material_price" &&
+    !(extraction?.query_scope === "business" && history.length === 0);
   if (extraction?.intent === "lookup" && !customer && !character && scopeCouldBeEntity) {
     // Register first — rung 1 of the Execution Ladder, zero AI calls.
     // Peter's own words already established this selection on a prior
