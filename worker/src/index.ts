@@ -3,7 +3,7 @@ import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeI
 import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
-import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOpenDiscrepanciesForSupplier, getOutstandingInvoices, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, recordExpense, recordGoodsReceived, recordInvoice, recordPayment, recordPurchaseOrder, recordQuotation, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment } from "./finance";
+import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOutstandingInvoices, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, recordExpense, recordGoodsReceived, recordInvoice, recordPayment, recordPurchaseOrder, recordQuotation, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 
 // Second layer of defense against storing questions as facts — never
@@ -1006,7 +1006,18 @@ async function processOneExtraction(
     // every segment of the whole message has been processed and
     // same-breath assembly has had its full, complete chance to run.
   } else if (extraction?.intent === "lookup") {
-    if (extraction?.query_scope === "business") {
+    // Real feature 2026-07-25 — GRN-informed pricing. A real,
+    // historical fact, answered directly from real supplier invoice
+    // data — never a suggested rate, never replacing Peter's own
+    // pricing judgment.
+    if (extraction?.query_scope === "material_price" && extraction.fact_value) {
+      const priceInfo = await getLastPricePaid(env, extraction.fact_value);
+      if (priceInfo) {
+        message = `The last real price paid for ${priceInfo.description} was R${priceInfo.unitPrice}${priceInfo.supplierName ? ` (from ${priceInfo.supplierName}` : ""}${priceInfo.supplierName ? `, ${priceInfo.date.split(" ")[0]})` : `, ${priceInfo.date.split(" ")[0]}`}.`;
+      } else {
+        message = `No real supplier invoice on file yet mentions "${extraction.fact_value}" — nothing to base a price on.`;
+      }
+    } else if (extraction?.query_scope === "business") {
       // No single customer — a business-wide financial question,
       // answered from real SQL aggregates, not a guess from a
       // sentence. Real bug found live 2026-07-10: including both
