@@ -1,9 +1,9 @@
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult } from "./types";
-import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, storeUnscopedMemory, transcribe } from "./ai";
+import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractSupplierStatement, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, storeUnscopedMemory, transcribe } from "./ai";
 import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
-import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingInvoices, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
+import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 
 // Second layer of defense against storing questions as facts — never
@@ -4041,11 +4041,13 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       let subjectHint: string | null = null;
       let subjectCustomerId: number | null = null;
       let subjectCharacterId: number | null = null;
+      let captionIntent: string | null = null;
       let rawText = description;
       if (typeof caption === "string" && caption.trim().length > 0) {
         const captionText = caption.trim();
         rawText = `${captionText}\n\n[Document: ${description}]`;
         const { extraction } = await extractIntent(env, captionText);
+        captionIntent = extraction?.intent ?? null;
         if (extraction?.customer_name) {
           const customer = await reconcileCustomer(env, extraction.customer_name);
           subjectHint = customer?.name ?? null;
@@ -4085,7 +4087,26 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       // moving, traceable rather than gated).
       let supplierInvoiceAction: { pendingActionId: number; supplierName: string } | null = null;
       let goodsReceivedAction: { grnId: number; supplierName: string } | null = null;
-      if (subjectCharacterId) {
+      let supplierStatementAction: { supplierName: string; claimedBalance: number; realBalance: number; difference: number } | null = null;
+      if (subjectCharacterId && captionIntent === "supplier_statement") {
+        // Real feature 2026-07-25 — Supplier Statement Reconciliation,
+        // the real, buildable version of the original ERP research
+        // example. A statement covers the whole real account, not one
+        // delivery — genuinely no single PO to check against, unlike
+        // supplier_invoice and GRN above. Compares the real, claimed
+        // closing balance directly against the real, internal
+        // outstanding balance already computed for Aged Creditors.
+        const stmtExtraction = await extractSupplierStatement(env, description);
+        if (stmtExtraction.claimed_closing_balance != null) {
+          const realBalance = await getOutstandingBalanceForSupplier(env, subjectCharacterId);
+          supplierStatementAction = {
+            supplierName: subjectHint ?? "supplier",
+            claimedBalance: stmtExtraction.claimed_closing_balance,
+            realBalance,
+            difference: Math.round((stmtExtraction.claimed_closing_balance - realBalance) * 100) / 100,
+          };
+        }
+      } else if (subjectCharacterId) {
         const openPo = await findLatestOpenPurchaseOrder(env, subjectCharacterId);
         if (openPo) {
           const poLineItems = await getPurchaseOrderLineItems(env, openPo.id);
@@ -4121,7 +4142,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         }
       }
 
-      return Response.json({ status: "stored", key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction });
+      return Response.json({ status: "stored", key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction });
     }
 
     if (url.pathname === "/files/photo" && request.method === "POST") {
@@ -4152,11 +4173,13 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       let subjectHint: string | null = null;
       let subjectCustomerId: number | null = null;
       let subjectCharacterId: number | null = null;
+      let captionIntent: string | null = null;
       let rawText = description;
       if (typeof caption === "string" && caption.trim().length > 0) {
         const captionText = caption.trim();
         rawText = `${captionText}\n\n[Photo description: ${description}]`;
         const { extraction } = await extractIntent(env, captionText);
+        captionIntent = extraction?.intent ?? null;
         if (extraction?.customer_name) {
           const customer = await reconcileCustomer(env, extraction.customer_name);
           subjectHint = customer?.name ?? null;
@@ -4187,7 +4210,26 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       // recorded directly, matching GRN's own precedent exactly.
       let supplierInvoiceAction: { pendingActionId: number; supplierName: string } | null = null;
       let goodsReceivedAction: { grnId: number; supplierName: string } | null = null;
-      if (subjectCharacterId) {
+      let supplierStatementAction: { supplierName: string; claimedBalance: number; realBalance: number; difference: number } | null = null;
+      if (subjectCharacterId && captionIntent === "supplier_statement") {
+        // Real feature 2026-07-25 — Supplier Statement Reconciliation,
+        // the real, buildable version of the original ERP research
+        // example. A statement covers the whole real account, not one
+        // delivery — genuinely no single PO to check against, unlike
+        // supplier_invoice and GRN above. Compares the real, claimed
+        // closing balance directly against the real, internal
+        // outstanding balance already computed for Aged Creditors.
+        const stmtExtraction = await extractSupplierStatement(env, description);
+        if (stmtExtraction.claimed_closing_balance != null) {
+          const realBalance = await getOutstandingBalanceForSupplier(env, subjectCharacterId);
+          supplierStatementAction = {
+            supplierName: subjectHint ?? "supplier",
+            claimedBalance: stmtExtraction.claimed_closing_balance,
+            realBalance,
+            difference: Math.round((stmtExtraction.claimed_closing_balance - realBalance) * 100) / 100,
+          };
+        }
+      } else if (subjectCharacterId) {
         const openPo = await findLatestOpenPurchaseOrder(env, subjectCharacterId);
         if (openPo) {
           const poLineItems = await getPurchaseOrderLineItems(env, openPo.id);
@@ -4223,7 +4265,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         }
       }
 
-      return Response.json({ status: "stored", key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction });
+      return Response.json({ status: "stored", key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction });
     }
 
     // Real, permanent production routes — not debug — behind each
