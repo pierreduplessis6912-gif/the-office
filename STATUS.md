@@ -557,6 +557,22 @@ Codemagic — still only proven on the web preview.**
   arc, including the wider ERP-research thread (supplier statement
   reconciliation, GRN-informed pricing, and a deliberate practice of
   periodically revisiting the pinned idea tank) that led here.
+- **Identity Collision is real and built** (2026-07-25) — a real,
+  deterministic check before a new customer or character record would
+  ever be silently created, given directly by Pierre weeks earlier.
+  Verified live: "Floornet paid us R500" correctly held for
+  confirmation (Floornet already existed only as a supplier),
+  correctly created a real, new, separate customer record on
+  confirmation, and correctly fell through to the normal payment flow.
+  A real, honest gap the same test surfaced — lookups bypass the
+  collision check entirely, since they're deliberately read-only — got
+  a real, precise fix: teaching the extraction to read the actual
+  direction of a money-owed question ("X owes us" vs "we owe X")
+  rather than a name's usual role, tried and proven correct before
+  reaching for a more expensive dual-table lookup mechanism. Traced a
+  real bias in the process — "Floornet" had been used as a supplier
+  example six times in the same prompt — and fixed it with a
+  deliberately fresh, neutral example name rather than reinforcing it.
 - **`captures` real FK backfill.** `customer_id`/`character_id` (added
   2026-07-11) are correctly populated for every NEW capture from here
   on, verified live via a real clean join (`?customerId=1`). Every
