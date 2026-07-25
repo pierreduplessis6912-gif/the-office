@@ -3526,3 +3526,52 @@ shared instance across tenants — but it's worth stating that
 distinction explicitly rather than letting the two ideas blur, given
 one of them has a real history of being correctly rejected in this
 exact project.
+
+## Identity Collision — built, tested, and a real lookup-side gap found and fixed the cheap way first (2026-07-25)
+
+**The real feature, given directly by Pierre weeks earlier and built
+here**: before a new customer or character record would ever be
+silently created, `checkCrossRoleCollision` checks the exact same name
+against the *other* table — a direct, deterministic database lookup,
+never a model judgment call. If the name doesn't already exist in its
+own, intended table, and does exist in the other, that's a real,
+detected collision. Only fires on exact name matches, and only when a
+new record would otherwise be created — the common, frictionless case
+(a known installer referred to as an installer) is completely
+untouched.
+
+**Confirmation creates a real, new record, then reprocesses the
+original extraction** — an installer can genuinely also become a real
+customer, as two separate, real records. Reprocessing naturally
+doesn't re-trigger the collision, since the name now exists in its own
+table — the exact same `reconcileCustomer`/`reconcileCharacter` logic
+just finds it normally from there. `captureId` is preserved through
+reprocessing so same-breath assembly context isn't lost.
+
+**Verified live on the first real test**: "Floornet paid us R500" —
+Floornet already existed only as a supplier character — correctly
+held for confirmation, correctly created a real, new, separate customer
+record (id 19) on confirmation, and correctly fell through to the
+normal payment flow from there.
+
+**A real, honest gap this same test surfaced, and a real, precise fix
+found for it — the cheap fix, tried before the expensive one, exactly
+as planned.** The collision check only ever runs on writes; a lookup
+like "does Floornet owe us anything" bypassed it entirely and
+resolved straight to the supplier, since lookups are deliberately
+read-only and were never meant to create anything. Pierre's own
+correction here was the right one: rather than building an expensive
+"check both tables on every lookup" mechanism, the real, natural
+direction of the question — "X owes us" versus "we owe X" — should
+already disambiguate on its own, the same way a real person would
+never confuse the two. The first test of that theory showed it wasn't
+actually true yet, though — both phrasings resolved to the supplier
+regardless of direction. Traced to a real, specific bias: "Floornet"
+had been used as a supplier example six separate times throughout this
+same prompt, and the model was very likely pattern-matching the name
+itself rather than reading the sentence's actual direction. Fixed with
+a real, explicit rule, and — deliberately — a fresh, neutral worked
+example name never previously associated with either role in this
+prompt, rather than reinforcing the same bias with a seventh Floornet
+example. Verified correct on both directions after the fix, and on a
+real, full message-processing test, not just the raw extraction.
