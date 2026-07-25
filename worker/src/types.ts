@@ -33,7 +33,7 @@ export interface Extraction {
   customer_name: string | null;
   character_name: string | null;
   character_relationship: string | null;
-  intent: "payment" | "invoice" | "quotation" | "convert_quote" | "price_scope" | "work_observation" | "lookup" | "reminder" | "task_complete" | "expense" | "note" | "purchase_order" | "goods_received" | "supplier_invoice" | "variance_disposition" | "supplier_payment" | "register_stock_item" | "stock_usage" | "stocktake" | "other";
+  intent: "payment" | "invoice" | "quotation" | "convert_quote" | "price_scope" | "work_observation" | "lookup" | "reminder" | "task_complete" | "expense" | "note" | "purchase_order" | "goods_received" | "supplier_invoice" | "variance_disposition" | "supplier_payment" | "register_stock_item" | "stock_usage" | "stocktake" | "raise_snag" | "resolve_snag" | "other";
   amount: number | null;
   fact_key: string | null;
   fact_value: string | null;
@@ -232,4 +232,18 @@ export interface StockUsageExtraction {
 export interface StocktakeExtraction {
   matched_item_name: string | null;
   quantity_counted: number | null;
+}
+
+// Real feature 2026-07-25 — Snags, the smallest, most immediately
+// useful piece of the job-completion/warranty/snags design, built
+// first per the design's own sequencing guidance. Deliberately
+// bounded: raises and resolves a real quality issue against a real
+// job, and surfaces a real, informational connection to retention
+// when one exists — never automatically triggers a financial write.
+export interface SnagExtraction {
+  description: string | null;
+}
+
+export interface SnagResolutionExtraction {
+  matched_description: string | null;
 }
