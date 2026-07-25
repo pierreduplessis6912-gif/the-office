@@ -573,6 +573,24 @@ Codemagic — still only proven on the web preview.**
   real bias in the process — "Floornet" had been used as a supplier
   example six times in the same prompt — and fixed it with a
   deliberately fresh, neutral example name rather than reinforcing it.
+- **Layer 2's ask-when-2-plus rung is real and built** (2026-07-25) —
+  reusing the same hold-for-confirmation mechanism just proven for
+  Identity Collision. A real, live bug was found on the first test:
+  cross-capture attachment used to be decided inside
+  `recordWorkObservation`, which only ever sees one segment of a
+  message at a time — the first segment of a multi-segment message
+  could silently attach to an existing project before its own real
+  sibling (from the same message) ever existed to correctly form a
+  new project with it instead. Fixed with a real, structural
+  restructuring — cross-capture attachment now runs as its own,
+  separate step in `processTranscript`, only after every segment of
+  the whole message has been processed and same-breath assembly has
+  already had its full, complete chance to run. Verified end to end
+  with a fresh customer, two real, separate open projects, and a real,
+  confirmed choice — the chosen project correctly gained the new job
+  scope, the other left completely untouched. The named-handle rung
+  remains honestly deferred, since projects still have no real naming
+  convention Peter could use in conversation.
 - **`captures` real FK backfill.** `customer_id`/`character_id` (added
   2026-07-11) are correctly populated for every NEW capture from here
   on, verified live via a real clean join (`?customerId=1`). Every
