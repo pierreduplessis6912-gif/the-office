@@ -682,6 +682,69 @@ export async function getLastPricePaid(
   };
 }
 
+// Real feature 2026-07-25 — Snags, the smallest, most immediately
+// useful piece of the job-completion/warranty/snags design. Raising
+// and resolving stays deliberately unguarded but traceable — a
+// quality note, not money moving, matching GRN's own precedent.
+export async function recordSnag(env: Env, customerId: number, description: string): Promise<{ id: number }> {
+  const inserted = await env.OFFICE_DB.prepare(
+    "INSERT INTO snags (customer_id, description, status) VALUES (?, ?, 'open') RETURNING id"
+  )
+    .bind(customerId, description)
+    .first<{ id: number }>();
+  return { id: inserted!.id };
+}
+
+export async function getOpenSnagsForCustomer(env: Env, customerId: number): Promise<Array<{ id: number; description: string }>> {
+  const { results } = await env.OFFICE_DB.prepare(
+    "SELECT id, description FROM snags WHERE customer_id = ? AND status = 'open'"
+  )
+    .bind(customerId)
+    .all<{ id: number; description: string }>();
+  return results ?? [];
+}
+
+// Real feature 2026-07-25 — resolving a snag, and surfacing the real,
+// valuable connection to retention as an informational fact only —
+// never an automatic financial write. If this customer has a real
+// retention arrangement and this was genuinely the last open snag,
+// that's worth telling Peter directly, so he can decide to release it
+// himself, the same real, deliberate action every other financial
+// write in this project already requires.
+export async function resolveSnag(
+  env: Env,
+  snagId: number,
+  customerId: number
+): Promise<{ retentionReleasable: boolean; retentionAmount: number | null }> {
+  await env.OFFICE_DB.prepare("UPDATE snags SET status = 'resolved', resolved_at = datetime('now') WHERE id = ?")
+    .bind(snagId)
+    .run();
+
+  const remainingOpen = await env.OFFICE_DB.prepare(
+    "SELECT COUNT(*) as count FROM snags WHERE customer_id = ? AND status = 'open'"
+  )
+    .bind(customerId)
+    .first<{ count: number }>();
+
+  const customer = await env.OFFICE_DB.prepare("SELECT retention_percent FROM customers WHERE id = ?")
+    .bind(customerId)
+    .first<{ retention_percent: number | null }>();
+
+  const noOpenSnagsLeft = (remainingOpen?.count ?? 0) === 0;
+  const hasRetention = customer?.retention_percent != null && customer.retention_percent > 0;
+
+  if (noOpenSnagsLeft && hasRetention) {
+    const retentionTotal = await env.OFFICE_DB.prepare(
+      "SELECT COALESCE(SUM(retention_amount), 0) as total FROM invoices WHERE customer_id = ?"
+    )
+      .bind(customerId)
+      .first<{ total: number }>();
+    return { retentionReleasable: true, retentionAmount: retentionTotal?.total ?? null };
+  }
+
+  return { retentionReleasable: false, retentionAmount: null };
+}
+
 // No reference-number system exists yet — with one customer generally
 // having at most one open quote at a time, "their most recent
 // not-yet-converted quote" is honest and sufficient for now. A real
