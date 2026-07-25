@@ -644,6 +644,44 @@ export async function recordSupplierInvoice(
   };
 }
 
+// Real feature 2026-07-25 — GRN-informed pricing, pinned earlier the
+// same night as a real opportunity unlocked by the PO/GRN/Supplier
+// Invoice arc: real, dated material cost history now exists that
+// never did before. Grounds Peter's own pricing judgment with a real
+// fact he can ask for — never replaces it, never suggests a rate on
+// its own. A partial, case-insensitive match against real supplier
+// invoice line items, most recent first — the same deterministic
+// lookup discipline as every other real query in this project.
+export async function getLastPricePaid(
+  env: Env,
+  materialName: string,
+  supplierId: number | null = null
+): Promise<{ description: string; unitPrice: number; supplierName: string | null; date: string } | null> {
+  const supplierFilter = supplierId != null ? "AND si.supplier_id = ?" : "";
+  const bindings: (string | number)[] = [`%${materialName}%`];
+  if (supplierId != null) bindings.push(supplierId);
+
+  const row = await env.OFFICE_DB.prepare(
+    `SELECT sili.description, sili.unit_price_billed, ch.name as supplier_name, si.created_at
+     FROM supplier_invoice_line_items sili
+     JOIN supplier_invoices si ON si.id = sili.supplier_invoice_id
+     LEFT JOIN characters ch ON ch.id = si.supplier_id
+     WHERE sili.description LIKE ? COLLATE NOCASE AND sili.unit_price_billed IS NOT NULL ${supplierFilter}
+     ORDER BY si.created_at DESC
+     LIMIT 1`
+  )
+    .bind(...bindings)
+    .first<{ description: string; unit_price_billed: number; supplier_name: string | null; created_at: string }>();
+
+  if (!row) return null;
+  return {
+    description: row.description,
+    unitPrice: row.unit_price_billed,
+    supplierName: row.supplier_name,
+    date: row.created_at,
+  };
+}
+
 // No reference-number system exists yet — with one customer generally
 // having at most one open quote at a time, "their most recent
 // not-yet-converted quote" is honest and sufficient for now. A real
