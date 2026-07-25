@@ -3821,3 +3821,34 @@ was raised and explicitly marked lost, correctly left with
 `customer_id: null` since he was never quoted — the real, honest
 distinction between "never converted" and "converted then lost"
 that the status field exists to capture.
+
+## Supplier Statement Reconciliation — the real, buildable version of the original ERP example, built and proven (2026-07-25)
+
+**The real feature, deliberately bounded**: rather than attempting
+complex, fuzzy matching against every individual historical line on a
+real supplier statement, this extracts only the one real, stated fact
+that actually matters — the claimed closing balance — and compares it
+directly against the real, internal outstanding balance already
+computed for Aged Creditors. The smallest real domino that answers the
+actual question this whole ERP-research thread started with.
+
+**Reused, not duplicated**: `getOutstandingBalanceForSupplier` calls
+`getAgedCreditorsReport` directly and finds the matching row, rather
+than reimplementing its FIFO logic a second time — the exact
+parallel-implementation risk the Atlas exists to catch, avoided by
+construction rather than by remembering to check.
+
+**A real, careful distinction from supplier_invoice**, gated on the
+caption's own real intent rather than requiring an open PO — a
+statement covers a whole real account across a whole period, not one
+specific delivery, so the existing per-PO reconciliation path was
+never the right one to reuse here.
+
+**Verified live with a real, generated test document carrying a
+deliberate, honest discrepancy**: a real PDF statement claiming a
+closing balance of R15,000, against Floornet's real, internal
+outstanding balance of R15,430 (itself already proven earlier tonight
+through real expenses, a real credit, and a real payment). The system
+correctly extracted the stated R15,000 — never invented, never
+recalculated from the statement's other figures — and correctly
+computed the real difference: `-430`, exactly as designed.
