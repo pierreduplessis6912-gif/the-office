@@ -1346,6 +1346,18 @@ export async function getAgedCreditorsReport(env: Env): Promise<AgedCreditorRow[
   return rows.sort((a, b) => b.total - a.total);
 }
 
+// Real feature 2026-07-25 — Supplier Statement Reconciliation, the
+// real prerequisite: a real, internal outstanding balance for one
+// specific supplier, to compare against a real, claimed statement
+// balance. Reuses getAgedCreditorsReport's own, already-proven output
+// rather than duplicating its FIFO logic — the exact same real fact,
+// just for one supplier instead of all of them.
+export async function getOutstandingBalanceForSupplier(env: Env, supplierId: number): Promise<number> {
+  const rows = await getAgedCreditorsReport(env);
+  const row = rows.find((r) => r.supplierId === supplierId);
+  return row?.total ?? 0;
+}
+
 export async function getAgedCreditorsSummary(env: Env): Promise<string[]> {
   const rows = await getAgedCreditorsReport(env);
   if (rows.length === 0) return ["No outstanding creditors on file."];
