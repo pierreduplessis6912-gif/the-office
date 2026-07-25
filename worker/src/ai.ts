@@ -188,6 +188,16 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             "customer_name is only ever who the job is FOR " +
             "or who gets billed; if that's genuinely not named in the message, leave customer_name null " +
             "rather than substituting whichever name happens to be available. " +
+            "A real, subtle distinction found live 2026-07-25, worth being precise about: for a lookup " +
+            "asking about money owed, the DIRECTION of the owing decides customer_name vs character_name " +
+            "— never a name's own, more familiar role from earlier in the conversation or from habit. " +
+            '"does [name] owe us anything" or "what does [name] owe" means money coming IN — that\'s ' +
+            "customer_name, even if that exact name has usually been a supplier in other messages. " +
+            '"how much do we owe [name]" or "what do we owe [name]" means money going OUT — that\'s ' +
+            "character_name with character_relationship \"supplier\", even if that exact name has usually " +
+            "been a customer elsewhere. The sentence's own direction always wins over a name's usual " +
+            "role — a name can genuinely be both a customer and a supplier, and only the real, current " +
+            "sentence says which one this specific question is about. " +
             "character_relationship is the stated relationship if given (e.g. \"wife\", \"nanny\", " +
             '"son", "supplier", "subcontractor"), or a reasonable short label inferred from context ' +
             '(e.g. "supplier" for a company the tradesperson clearly buys materials from), or null if ' +
@@ -356,6 +366,8 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             '"what do I need to do today?" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"personal","deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"who owes me money?" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"business","deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"what does Jenny owe?" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"customer","deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
+            '"does Delta Hardware owe us anything" -> {"customer_name":"Delta Hardware","character_name":null,"character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"customer","deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
+            '"how much do we owe Delta Hardware" -> {"customer_name":null,"character_name":"Delta Hardware","character_relationship":"supplier","intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"character","deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"the total invoice for the carpets is R39000" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"invoice","amount":39000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"we quoted Jenny R39000 for the carpets" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"quotation","amount":39000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"Jenny paid R850" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"payment","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
