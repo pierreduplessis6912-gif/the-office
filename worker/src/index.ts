@@ -644,7 +644,7 @@ async function processOneExtraction(
     }
   }
 
-  let workObservationResult: { jobScopeId: number; componentCount: number; taskCount: number } | null = null;
+  let workObservationResult: { jobScopeId: number; componentCount: number; taskCount: number; pendingProjectChoice: { pendingActionId: number; candidates: string[] } | null } | null = null;
   if (extraction?.intent === "work_observation") {
     const observation = await extractWorkObservation(env, transcript);
     // Real feature 2026-07-12 — the smallest real first domino toward
@@ -664,6 +664,7 @@ async function processOneExtraction(
       jobScopeId: recorded.jobScopeId,
       componentCount: observation.components.length,
       taskCount: observation.tasks.length,
+      pendingProjectChoice: recorded.pendingProjectChoice,
     };
 
     // Real fix 2026-07-15 — Layer 1 (Constitution Principle 28): a
@@ -915,7 +916,7 @@ async function processOneExtraction(
         : "";
     message = `${kind} noted for ${customer!.name}${displayAmount ? ` of R${displayAmount}` : ""}${lineItemNote} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
   } else if (workObservationResult) {
-    const { jobScopeId, componentCount, taskCount } = workObservationResult;
+    const { jobScopeId, componentCount, taskCount, pendingProjectChoice } = workObservationResult;
     const parts: string[] = [];
     if (componentCount > 0) parts.push(`${componentCount} component${componentCount > 1 ? "s" : ""} measured`);
     if (taskCount > 0) parts.push(`${taskCount} task${taskCount > 1 ? "s" : ""} noted`);
@@ -924,6 +925,12 @@ async function processOneExtraction(
     // caught before shipping, same pattern as the earlier expense-
     // message fix (character ? ... : "").
     message = `Job scope #${jobScopeId} recorded${customer ? ` for ${customer.name}` : ""}${parts.length ? ` — ${parts.join(", ")}` : ""}.`;
+    // Real feature 2026-07-25 — Layer 2 (Project), the ask-when-2-plus
+    // rung. More than one real, open project genuinely competes for
+    // this job scope — asked directly, rather than guessed.
+    if (pendingProjectChoice) {
+      message += ` ${customer ? customer.name : "This customer"} has ${pendingProjectChoice.candidates.length} open projects (${pendingProjectChoice.candidates.join(", ")}) — which one is this? (action #${pendingProjectChoice.pendingActionId})`;
+    }
   } else if (extraction?.intent === "lookup") {
     if (extraction?.query_scope === "business") {
       // No single customer — a business-wide financial question,
@@ -3176,6 +3183,38 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             reprocessEmail
           );
           return Response.json({ status: "confirmed", ...outcome });
+        }
+
+        // Real feature 2026-07-25 — Layer 2 (Project), the
+        // ask-when-2-plus rung. Unlike every other confirmation in
+        // this project, this one genuinely needs a choice among
+        // several real options, not a simple yes — the real project
+        // id must be given in the request body.
+        if (action.type === "project_ambiguity") {
+          const payload = JSON.parse(action.payload) as {
+            jobScopeId: number;
+            candidates: Array<{ id: number; description: string | null }>;
+          };
+          const body = (await request.json().catch(() => ({}))) as { projectId?: number };
+          const chosen = payload.candidates.find((c) => c.id === body.projectId);
+          if (!chosen) {
+            return Response.json(
+              {
+                error: "a real projectId matching one of the candidates must be given",
+                candidates: payload.candidates,
+              },
+              { status: 400 }
+            );
+          }
+          await env.OFFICE_DB.prepare("UPDATE job_scopes SET project_id = ? WHERE id = ?")
+            .bind(chosen.id, payload.jobScopeId)
+            .run();
+          await env.OFFICE_DB.prepare(
+            "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+          )
+            .bind(id)
+            .run();
+          return Response.json({ status: "confirmed", jobScopeId: payload.jobScopeId, attachedToProject: chosen });
         }
 
         if (action.type === "payment") {
