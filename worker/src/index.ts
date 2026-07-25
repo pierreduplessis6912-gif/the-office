@@ -3986,13 +3986,27 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       // real, open PO, the document's own real, extracted text (not
       // the caption) is run through the exact same extraction and
       // guard()'d confirmation as the spoken path.
+      // Real fix 2026-07-25, found live via a genuinely poor-quality
+      // real photo test: this always assumed a photographed supplier
+      // document was an invoice. A real delivery note has no pricing
+      // at all — extractSupplierInvoice correctly refused to invent a
+      // price (every unit_price_billed came back null), but the
+      // result still got held as a real "supplier_invoice" action,
+      // which would have created an invalid expense if confirmed.
+      // Checked here now: if every matched line item has no real
+      // price at all, this is a delivery note, not an invoice — GRN
+      // is the correct, real path, unguarded and recorded directly,
+      // matching GRN's own precedent exactly (quantity-only, no money
+      // moving, traceable rather than gated).
       let supplierInvoiceAction: { pendingActionId: number; supplierName: string } | null = null;
+      let goodsReceivedAction: { grnId: number; supplierName: string } | null = null;
       if (subjectCharacterId) {
         const openPo = await findLatestOpenPurchaseOrder(env, subjectCharacterId);
         if (openPo) {
           const poLineItems = await getPurchaseOrderLineItems(env, openPo.id);
           const siExtraction = await extractSupplierInvoice(env, description, poLineItems);
-          if (siExtraction.line_items.length > 0) {
+          const hasRealPricing = siExtraction.line_items.some((li) => li.unit_price_billed != null);
+          if (siExtraction.line_items.length > 0 && hasRealPricing) {
             const held = await holdForConfirmation(
               env,
               "supplier_invoice",
@@ -4006,11 +4020,23 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
               rawText
             );
             supplierInvoiceAction = { pendingActionId: held.id, supplierName: subjectHint ?? "supplier" };
+          } else {
+            const grnExtraction = await extractGoodsReceived(env, description, poLineItems);
+            if (grnExtraction.line_items.length > 0) {
+              const recorded = await recordGoodsReceived(
+                env,
+                openPo.id,
+                subjectCharacterId,
+                rawText,
+                grnExtraction.line_items
+              );
+              goodsReceivedAction = { grnId: recorded.grnId, supplierName: subjectHint ?? "supplier" };
+            }
           }
         }
       }
 
-      return Response.json({ status: "stored", key, captureId, description, subjectHint, supplierInvoiceAction });
+      return Response.json({ status: "stored", key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction });
     }
 
     if (url.pathname === "/files/photo" && request.method === "POST") {
@@ -4067,13 +4093,22 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       // Real feature 2026-07-21 — Supplier Invoices, real document
       // ingestion. A photo of a paper invoice is just as real a case
       // as an uploaded PDF — same trigger, same guard()'d confirmation.
+      // Real fix 2026-07-25, found live via a genuinely poor-quality
+      // real photo test: a real delivery note has no pricing at all,
+      // and this always assumed a photographed supplier document was
+      // an invoice. Checked here now: no real, non-null pricing on
+      // any matched line item means this is a delivery note, not an
+      // invoice — GRN is the correct, real path, unguarded and
+      // recorded directly, matching GRN's own precedent exactly.
       let supplierInvoiceAction: { pendingActionId: number; supplierName: string } | null = null;
+      let goodsReceivedAction: { grnId: number; supplierName: string } | null = null;
       if (subjectCharacterId) {
         const openPo = await findLatestOpenPurchaseOrder(env, subjectCharacterId);
         if (openPo) {
           const poLineItems = await getPurchaseOrderLineItems(env, openPo.id);
           const siExtraction = await extractSupplierInvoice(env, description, poLineItems);
-          if (siExtraction.line_items.length > 0) {
+          const hasRealPricing = siExtraction.line_items.some((li) => li.unit_price_billed != null);
+          if (siExtraction.line_items.length > 0 && hasRealPricing) {
             const held = await holdForConfirmation(
               env,
               "supplier_invoice",
@@ -4087,11 +4122,23 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
               rawText
             );
             supplierInvoiceAction = { pendingActionId: held.id, supplierName: subjectHint ?? "supplier" };
+          } else {
+            const grnExtraction = await extractGoodsReceived(env, description, poLineItems);
+            if (grnExtraction.line_items.length > 0) {
+              const recorded = await recordGoodsReceived(
+                env,
+                openPo.id,
+                subjectCharacterId,
+                rawText,
+                grnExtraction.line_items
+              );
+              goodsReceivedAction = { grnId: recorded.grnId, supplierName: subjectHint ?? "supplier" };
+            }
           }
         }
       }
 
-      return Response.json({ status: "stored", key, captureId, description, subjectHint, supplierInvoiceAction });
+      return Response.json({ status: "stored", key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction });
     }
 
     // Real, permanent production routes — not debug — behind each
