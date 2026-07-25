@@ -19,6 +19,8 @@ import type {
   StocktakeExtraction,
   SnagExtraction,
   SnagResolutionExtraction,
+  LeadExtraction,
+  LeadLostExtraction,
   HistoryTurn,
 } from "./types";
 
@@ -320,6 +322,13 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             'intent is "resolve_snag" if the message reports a real, already-known quality issue as now ' +
             'FIXED — "fixed the loose seam" or "sorted the gap in the skirting". Use customer_name for ' +
             "whose job this is, if stated. " +
+            'intent is "raise_lead" if the message reports a real, new enquiry — someone interested, not ' +
+            'yet quoted or an established customer — "Sipho enquired about carpet for his lounge" or "got ' +
+            'a new enquiry from Thabo about tiling". Use customer_name for the enquirer\'s real name, even ' +
+            "though they're not yet a formal customer. " +
+            'intent is "lose_lead" if the message reports a real, already-known enquiry as lost — they ' +
+            'decided not to go ahead — "lost the Sipho enquiry" or "Thabo decided not to go ahead". Use ' +
+            "customer_name for whose enquiry this is. " +
             'intent is "task_complete" if the message reports a personal errand or reminder as DONE — ' +
             '"got the dog food", "picked up the kids", "phoned my mother" — past tense, something ' +
             'finished, not a new request. This includes bare, pronoun-only completions with no concrete ' +
@@ -410,6 +419,8 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             '"counted 15 bags of screed" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"stocktake","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"Jenny\'s carpet has a loose seam near the door" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"raise_snag","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"fixed the loose seam on Jenny\'s carpet" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"resolve_snag","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
+            '"Sipho enquired about carpet for his lounge" -> {"customer_name":"Sipho","character_name":null,"character_relationship":null,"intent":"raise_lead","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
+            '"lost the Sipho enquiry" -> {"customer_name":"Sipho","character_name":null,"character_relationship":null,"intent":"lose_lead","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"bought glue for R850 at BUCO for Jenny\'s job" -> {"customer_name":"Jenny","character_name":"BUCO","character_relationship":"supplier","intent":"expense","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"Sipho has a driver\'s license" -> {"customer_name":null,"character_name":"Sipho","character_relationship":"installer","intent":"note","amount":null,"fact_key":"license","fact_value":"driver\'s license","personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"we don\'t charge Jenny VAT" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"note","amount":null,"fact_key":"vat_exempt","fact_value":"true","personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
@@ -431,7 +442,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             "Return ONLY JSON, no markdown, no explanation: " +
             '{"customer_name": string or null, "character_name": string or null, "character_relationship": ' +
             'string or null, "intent": "payment" or "invoice" or "quotation" or "convert_quote" or ' +
-            '"price_scope" or "work_observation" or "lookup" or "reminder" or "task_complete" or "expense" or "note" or "purchase_order" or "goods_received" or "supplier_invoice" or "variance_disposition" or "supplier_payment" or "register_stock_item" or "stock_usage" or "stocktake" or "raise_snag" or "resolve_snag" or "other", "amount": number or null, ' +
+            '"price_scope" or "work_observation" or "lookup" or "reminder" or "task_complete" or "expense" or "note" or "purchase_order" or "goods_received" or "supplier_invoice" or "variance_disposition" or "supplier_payment" or "register_stock_item" or "stock_usage" or "stocktake" or "raise_snag" or "resolve_snag" or "raise_lead" or "lose_lead" or "other", "amount": number or null, ' +
             '"fact_key": string or null, "fact_value": string or null, "personal_note": string or null, ' +
             '"query_scope": "customer" or "character" or "personal" or "business" or null, "deposit_percent": ' +
             'number or null, "scope_document_type": "quotation" or "invoice" or null, "due_date_raw": ' +
@@ -1006,6 +1017,85 @@ export async function extractSnagResolution(
     const cleaned = rawText.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(cleaned) as SnagResolutionExtraction;
     return { matched_description: parsed.matched_description ?? null };
+  } catch {
+    return empty;
+  }
+}
+
+// Real feature 2026-07-25 — the lead/enquiry stage. Raising a lead is
+// a real, deliberate report of a real enquiry — the model's only job
+// is capturing the real name, interest, and source actually stated,
+// never inventing or embellishing any of them.
+export async function extractLead(env: Env, transcript: string): Promise<LeadExtraction> {
+  const empty: LeadExtraction = { name: null, interest: null, source: null };
+  try {
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        temperature: 0,
+        chat_template_kwargs: { thinking: false },
+        messages: [
+          {
+            role: "system",
+            content:
+              "A tradesperson is reporting a real, new enquiry — someone interested, not yet quoted. " +
+              "name is the real person's name. interest is what they're real interested in (e.g. " +
+              '"carpet for the lounge"), or null if genuinely not stated. source is how they found the ' +
+              'business (e.g. "walk-in", "referral", "phone"), or null if genuinely not stated. Return ' +
+              'ONLY JSON: {"name": string or null, "interest": string or null, "source": string or ' +
+              "null}\n\n" +
+              "Example:\n" +
+              '"Sipho enquired about carpet for his lounge, he found us through a referral" -> ' +
+              '{"name":"Sipho","interest":"carpet for his lounge","source":"referral"}',
+          },
+          { role: "user", content: transcript },
+        ],
+      })
+    );
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const rawText = r.choices?.[0]?.message?.content ?? "";
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned) as LeadExtraction;
+    return { name: parsed.name ?? null, interest: parsed.interest ?? null, source: parsed.source ?? null };
+  } catch {
+    return empty;
+  }
+}
+
+// Real feature 2026-07-25 — the lead/enquiry stage, marking one lost.
+// Matched against the real, given list of open leads — never a name
+// the model invents on its own.
+export async function extractLeadLost(
+  env: Env,
+  transcript: string,
+  openLeads: Array<{ name: string }>
+): Promise<LeadLostExtraction> {
+  const empty: LeadLostExtraction = { matched_name: null };
+  try {
+    const leadList = openLeads.map((l) => l.name).join(", ") || "none";
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        temperature: 0,
+        chat_template_kwargs: { thinking: false },
+        messages: [
+          {
+            role: "system",
+            content:
+              "A tradesperson is reporting a real, open lead as lost — they decided not to go ahead. " +
+              "You are given the exact real, open leads. matched_name must be copied EXACTLY from the " +
+              "given list, or null if it genuinely doesn't match anything given. Return ONLY JSON: " +
+              '{"matched_name": string or null}\n\n' +
+              "Example:\n" +
+              'Open leads: "Sipho". Message: "lost the Sipho enquiry" -> {"matched_name":"Sipho"}',
+          },
+          { role: "user", content: `Open leads: ${leadList}.\n\nMessage: "${transcript}"` },
+        ],
+      })
+    );
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const rawText = r.choices?.[0]?.message?.content ?? "";
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned) as LeadLostExtraction;
+    return { matched_name: parsed.matched_name ?? null };
   } catch {
     return empty;
   }
