@@ -17,6 +17,8 @@ import type {
   StockItemRegistrationExtraction,
   StockUsageExtraction,
   StocktakeExtraction,
+  SnagExtraction,
+  SnagResolutionExtraction,
   HistoryTurn,
 } from "./types";
 
@@ -311,6 +313,13 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             'expense). ' +
             'intent is "stocktake" if the message reports a real, physical stock count — "counted 15 ' +
             'bags of screed" or "stocktake: we have 8 tubes of glue left". ' +
+            'intent is "raise_snag" if the message reports a real, new quality issue found on a job — ' +
+            '"Jenny\'s carpet has a loose seam" or "there\'s a gap in the skirting at Thabo\'s place". A ' +
+            "real, new problem being noted, not one already known and now fixed. Use customer_name for " +
+            "whose job this is. " +
+            'intent is "resolve_snag" if the message reports a real, already-known quality issue as now ' +
+            'FIXED — "fixed the loose seam" or "sorted the gap in the skirting". Use customer_name for ' +
+            "whose job this is, if stated. " +
             'intent is "task_complete" if the message reports a personal errand or reminder as DONE — ' +
             '"got the dog food", "picked up the kids", "phoned my mother" — past tense, something ' +
             'finished, not a new request. This includes bare, pronoun-only completions with no concrete ' +
@@ -399,6 +408,8 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             '"track screed as stock" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"register_stock_item","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"used 5 bags of screed on Jenny\'s job" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"stock_usage","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"counted 15 bags of screed" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"stocktake","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
+            '"Jenny\'s carpet has a loose seam near the door" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"raise_snag","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
+            '"fixed the loose seam on Jenny\'s carpet" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"resolve_snag","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"bought glue for R850 at BUCO for Jenny\'s job" -> {"customer_name":"Jenny","character_name":"BUCO","character_relationship":"supplier","intent":"expense","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"Sipho has a driver\'s license" -> {"customer_name":null,"character_name":"Sipho","character_relationship":"installer","intent":"note","amount":null,"fact_key":"license","fact_value":"driver\'s license","personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"we don\'t charge Jenny VAT" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"note","amount":null,"fact_key":"vat_exempt","fact_value":"true","personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
@@ -420,7 +431,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             "Return ONLY JSON, no markdown, no explanation: " +
             '{"customer_name": string or null, "character_name": string or null, "character_relationship": ' +
             'string or null, "intent": "payment" or "invoice" or "quotation" or "convert_quote" or ' +
-            '"price_scope" or "work_observation" or "lookup" or "reminder" or "task_complete" or "expense" or "note" or "purchase_order" or "goods_received" or "supplier_invoice" or "variance_disposition" or "supplier_payment" or "register_stock_item" or "stock_usage" or "stocktake" or "other", "amount": number or null, ' +
+            '"price_scope" or "work_observation" or "lookup" or "reminder" or "task_complete" or "expense" or "note" or "purchase_order" or "goods_received" or "supplier_invoice" or "variance_disposition" or "supplier_payment" or "register_stock_item" or "stock_usage" or "stocktake" or "raise_snag" or "resolve_snag" or "other", "amount": number or null, ' +
             '"fact_key": string or null, "fact_value": string or null, "personal_note": string or null, ' +
             '"query_scope": "customer" or "character" or "personal" or "business" or null, "deposit_percent": ' +
             'number or null, "scope_document_type": "quotation" or "invoice" or null, "due_date_raw": ' +
@@ -918,6 +929,83 @@ export async function extractStocktake(
     const cleaned = rawText.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(cleaned) as StocktakeExtraction;
     return { matched_item_name: parsed.matched_item_name ?? null, quantity_counted: parsed.quantity_counted ?? null };
+  } catch {
+    return empty;
+  }
+}
+
+// Real feature 2026-07-25 — Snags, the smallest, most immediately
+// useful piece of the job-completion/warranty/snags design. Raising a
+// snag is a real, deliberate report of a real quality issue — the
+// model's only job is capturing the real description stated, never
+// inventing or embellishing it.
+export async function extractSnag(env: Env, transcript: string): Promise<SnagExtraction> {
+  const empty: SnagExtraction = { description: null };
+  try {
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        temperature: 0,
+        chat_template_kwargs: { thinking: false },
+        messages: [
+          {
+            role: "system",
+            content:
+              "A tradesperson is reporting a real, physical quality issue found on a job — a snag. " +
+              "description is the real issue, exactly as described, never embellished or interpreted. " +
+              'Return ONLY JSON: {"description": string or null}\n\n' +
+              "Example:\n" +
+              '"Jenny\'s carpet has a loose seam near the door" -> {"description":"loose seam near the door"}',
+          },
+          { role: "user", content: transcript },
+        ],
+      })
+    );
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const rawText = r.choices?.[0]?.message?.content ?? "";
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned) as SnagExtraction;
+    return { description: parsed.description ?? null };
+  } catch {
+    return empty;
+  }
+}
+
+// Real feature 2026-07-25 — Snags, resolving one. Matched against the
+// real, given list of open snags for this customer — never a
+// description the model invents on its own.
+export async function extractSnagResolution(
+  env: Env,
+  transcript: string,
+  openSnags: Array<{ description: string }>
+): Promise<SnagResolutionExtraction> {
+  const empty: SnagResolutionExtraction = { matched_description: null };
+  try {
+    const snagList = openSnags.map((s) => s.description).join(", ") || "none";
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        temperature: 0,
+        chat_template_kwargs: { thinking: false },
+        messages: [
+          {
+            role: "system",
+            content:
+              "A tradesperson is reporting a real, open snag as fixed. You are given the exact real, " +
+              "open snags for this customer. matched_description must be copied EXACTLY from the given " +
+              "list, or null if it genuinely doesn't match anything given. Return ONLY JSON: " +
+              '{"matched_description": string or null}\n\n' +
+              "Example:\n" +
+              'Open snags: "loose seam near the door". Message: "fixed the loose seam" -> ' +
+              '{"matched_description":"loose seam near the door"}',
+          },
+          { role: "user", content: `Open snags: ${snagList}.\n\nMessage: "${transcript}"` },
+        ],
+      })
+    );
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const rawText = r.choices?.[0]?.message?.content ?? "";
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned) as SnagResolutionExtraction;
+    return { matched_description: parsed.matched_description ?? null };
   } catch {
     return empty;
   }
