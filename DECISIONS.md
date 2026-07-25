@@ -3701,3 +3701,44 @@ for Vinyl was R180 (from Floornet, 2026-07-21)" — a real number
 pulled from an actual supplier invoice recorded hours earlier the same
 session, correctly beating out even this project's own imprecise
 memory of what that number was.
+
+## Snags — the smallest, most immediately useful piece of the job-completion/warranty/snags design, built and proven end to end (2026-07-25)
+
+**The real feature**: raising and resolving a real quality issue
+against a real customer's job, deliberately unguarded but traceable —
+matching GRN's own precedent exactly, since this is a quality note,
+never money moving directly. Built first, per the original design's
+own sequencing guidance ("snag lists — smallest, most immediately
+useful"), ahead of warranty tracking and the harder open questions
+still left pinned.
+
+**The real, valuable connection to retention, surfaced honestly as
+information only, never as an automatic financial write.** Resolving
+a snag checks whether it was genuinely the last open one for that
+customer, and whether a real retention arrangement exists — if both
+are true, Peter is told directly that a real amount may now be
+releasable, so he can decide to release it himself, the same
+deliberate action every other financial write in this project already
+requires.
+
+**Verified live, and a real, honest distinction found along the way
+that could easily have been mistaken for a bug.** The first resolution
+test showed "a real retention of R0 may now be releasable" — which
+looked wrong at first, but was actually correct: `retention_amount` is
+computed and stored on each invoice at the moment it's created,
+reflecting what was genuinely withheld then, not recalculated
+retroactively. Jenny's existing invoices were created hours before her
+retention arrangement was set up in this same test, so they correctly
+show R0 — nothing was ever withheld on them. Confirmed by creating a
+fresh invoice after setting her real 10% retention (correctly showing
+`retentionAmount: 200`), then raising and resolving a third snag —
+this time correctly showing "a real retention of R200 may now be
+releasable," proving the connection works exactly as designed once a
+real retention arrangement genuinely existed at invoice time.
+
+**Deliberately, honestly scoped** — warranty tracking, the "when is an
+issue noted relative to sign-off" financial distinction, and the
+remaining open design questions (mandatory vs. optional artifacts,
+maintenance reminders, warranty-vs-snag classification) remain exactly
+where the original pin left them: real, named, and correctly
+sequenced for later.
