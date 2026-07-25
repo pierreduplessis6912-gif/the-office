@@ -366,7 +366,12 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             "tradesperson's own day, week, tasks, or schedule with no customer or character named. " +
             '"business" if it is a business-wide question with no single customer named — asking about ' +
             "money owed across customers, totals, counts, or anything spanning more than one customer " +
-            '(e.g. "who owes me money", "how many customers do I have"). If intent is not lookup, set ' +
+            '(e.g. "who owes me money", "how many customers do I have"). "material_price" if the ' +
+            'question asks what was actually paid for a real material in the past — "what did we last ' +
+            'pay for vinyl" or "what\'s the last price on screed" — never a request for a new quote or ' +
+            "estimate, only a real, historical fact being asked for. Set fact_value to the real material " +
+            'name being asked about (e.g. "vinyl") when query_scope is "material_price" — fact_key stays ' +
+            "null in this case, since nothing is being set, only asked about. If intent is not lookup, set " +
             "query_scope to null. " +
             'deposit_percent: ONLY set when intent is "convert_quote" — if a deposit percentage already ' +
             'paid was stated (e.g. "80% deposit"), extract it as a plain number (80, not 0.8). Null if no ' +
@@ -381,6 +386,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             '"what does Jenny owe?" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"customer","deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"does Delta Hardware owe us anything" -> {"customer_name":"Delta Hardware","character_name":null,"character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"customer","deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"how much do we owe Delta Hardware" -> {"customer_name":null,"character_name":"Delta Hardware","character_relationship":"supplier","intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"character","deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
+            '"what did we last pay for vinyl" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":"vinyl","personal_note":null,"query_scope":"material_price","deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"the total invoice for the carpets is R39000" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"invoice","amount":39000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"we quoted Jenny R39000 for the carpets" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"quotation","amount":39000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"Jenny paid R850" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"payment","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
