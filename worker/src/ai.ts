@@ -14,6 +14,9 @@ import type {
   GoodsReceivedExtraction,
   SupplierInvoiceExtraction,
   VarianceDispositionExtraction,
+  StockItemRegistrationExtraction,
+  StockUsageExtraction,
+  StocktakeExtraction,
   HistoryTurn,
 } from "./types";
 
@@ -298,6 +301,16 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             'arriving), this is the follow-up conversation about a discrepancy already on file. Same ' +
             'character_name convention — the supplier goes in character_name with character_relationship ' +
             '"supplier". ' +
+            'intent is "register_stock_item" if the message describes starting to track a real, ' +
+            'consumable material as running stock — "track screed as stock" or "start tracking glue, we ' +
+            'buy it in tubes". A real, deliberate, one-time setup action, never inferred on its own from ' +
+            "a material simply being mentioned elsewhere. " +
+            'intent is "stock_usage" if the message reports real, tracked stock being used up — "used 5 ' +
+            'bags of screed on Jenny\'s job" or "used two tubes of glue today". Only ever about a ' +
+            "material that's already being tracked as stock, never a new, one-off purchase (that stays " +
+            'expense). ' +
+            'intent is "stocktake" if the message reports a real, physical stock count — "counted 15 ' +
+            'bags of screed" or "stocktake: we have 8 tubes of glue left". ' +
             'intent is "task_complete" if the message reports a personal errand or reminder as DONE — ' +
             '"got the dog food", "picked up the kids", "phoned my mother" — past tense, something ' +
             'finished, not a new request. This includes bare, pronoun-only completions with no concrete ' +
@@ -377,6 +390,9 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             '"the Floornet delivery arrived, but the underlay was short" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"goods_received","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"got Floornet\'s invoice for that delivery" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"supplier_invoice","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"the underlay shortage on Floornet, that\'s a back order" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"variance_disposition","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
+            '"track screed as stock" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"register_stock_item","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
+            '"used 5 bags of screed on Jenny\'s job" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"stock_usage","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
+            '"counted 15 bags of screed" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"stocktake","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"bought glue for R850 at BUCO for Jenny\'s job" -> {"customer_name":"Jenny","character_name":"BUCO","character_relationship":"supplier","intent":"expense","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"Sipho has a driver\'s license" -> {"customer_name":null,"character_name":"Sipho","character_relationship":"installer","intent":"note","amount":null,"fact_key":"license","fact_value":"driver\'s license","personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"we don\'t charge Jenny VAT" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"note","amount":null,"fact_key":"vat_exempt","fact_value":"true","personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
@@ -398,7 +414,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             "Return ONLY JSON, no markdown, no explanation: " +
             '{"customer_name": string or null, "character_name": string or null, "character_relationship": ' +
             'string or null, "intent": "payment" or "invoice" or "quotation" or "convert_quote" or ' +
-            '"price_scope" or "work_observation" or "lookup" or "reminder" or "task_complete" or "expense" or "note" or "purchase_order" or "goods_received" or "supplier_invoice" or "variance_disposition" or "supplier_payment" or "other", "amount": number or null, ' +
+            '"price_scope" or "work_observation" or "lookup" or "reminder" or "task_complete" or "expense" or "note" or "purchase_order" or "goods_received" or "supplier_invoice" or "variance_disposition" or "supplier_payment" or "register_stock_item" or "stock_usage" or "stocktake" or "other", "amount": number or null, ' +
             '"fact_key": string or null, "fact_value": string or null, "personal_note": string or null, ' +
             '"query_scope": "customer" or "character" or "personal" or "business" or null, "deposit_percent": ' +
             'number or null, "scope_document_type": "quotation" or "invoice" or null, "due_date_raw": ' +
@@ -763,6 +779,135 @@ export async function extractVarianceDisposition(
       resolution: parsed.resolution ?? null,
       credit_amount: parsed.credit_amount ?? null,
     };
+  } catch {
+    return empty;
+  }
+}
+
+// Real feature 2026-07-25 — Consumables Stock, the idea-tank review's
+// first real, unlocked item. Registering a stock item is a real,
+// deliberate, opt-in action — the model's only job is recognizing
+// what real name and unit were actually stated, never deciding on its
+// own that a material "sounds generic enough" to track.
+export async function extractStockItemRegistration(env: Env, transcript: string): Promise<StockItemRegistrationExtraction> {
+  const empty: StockItemRegistrationExtraction = { name: null, unit: null };
+  try {
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        temperature: 0,
+        chat_template_kwargs: { thinking: false },
+        messages: [
+          {
+            role: "system",
+            content:
+              "A tradesperson is registering a real, consumable material to track as running stock — glue, " +
+              "screed, adhesive, small tools. name is the material's real name, exactly as stated. unit is " +
+              "the real unit it's measured in (e.g. \"liters\", \"bags\", \"tubes\"), or null if genuinely " +
+              "not stated. Return ONLY JSON: {\"name\": string or null, \"unit\": string or null}\n\n" +
+              "Example:\n" +
+              '"track screed as stock, we buy it in bags" -> {"name":"screed","unit":"bags"}',
+          },
+          { role: "user", content: transcript },
+        ],
+      })
+    );
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const rawText = r.choices?.[0]?.message?.content ?? "";
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned) as StockItemRegistrationExtraction;
+    return { name: parsed.name ?? null, unit: parsed.unit ?? null };
+  } catch {
+    return empty;
+  }
+}
+
+// Real feature 2026-07-25 — Consumables Stock, decrementing by real,
+// recorded usage. Matched against the real, given list of tracked
+// stock items — never a name the model invents on its own.
+export async function extractStockUsage(
+  env: Env,
+  transcript: string,
+  stockItems: Array<{ name: string; unit: string | null }>
+): Promise<StockUsageExtraction> {
+  const empty: StockUsageExtraction = { matched_item_name: null, quantity_used: null, job_customer_name: null };
+  try {
+    const itemList = stockItems.map((i) => `${i.name}${i.unit ? ` (${i.unit})` : ""}`).join(", ") || "none";
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        temperature: 0,
+        chat_template_kwargs: { thinking: false },
+        messages: [
+          {
+            role: "system",
+            content:
+              "A tradesperson is reporting real stock being used up on a job. You are given the exact " +
+              "real stock items already being tracked. matched_item_name must be copied EXACTLY from the " +
+              "given list, or null if it genuinely doesn't match anything given. quantity_used is the " +
+              "real, plain number actually stated, never invented. job_customer_name is the real customer " +
+              "or job this was used on, if stated, or null. Return ONLY JSON: " +
+              '{"matched_item_name": string or null, "quantity_used": number or null, "job_customer_name": ' +
+              "string or null}\n\n" +
+              "Example:\n" +
+              'Tracked items: "screed (bags)". Message: "used 5 bags of screed on Jenny\'s job" -> ' +
+              '{"matched_item_name":"screed","quantity_used":5,"job_customer_name":"Jenny"}',
+          },
+          { role: "user", content: `Tracked items: ${itemList}.\n\nMessage: "${transcript}"` },
+        ],
+      })
+    );
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const rawText = r.choices?.[0]?.message?.content ?? "";
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned) as StockUsageExtraction;
+    return {
+      matched_item_name: parsed.matched_item_name ?? null,
+      quantity_used: parsed.quantity_used ?? null,
+      job_customer_name: parsed.job_customer_name ?? null,
+    };
+  } catch {
+    return empty;
+  }
+}
+
+// Real feature 2026-07-25 — Consumables Stock, a real, physical
+// stocktake. The exact same reconciliation philosophy as PO/GRN/
+// Supplier Invoice — a real, computed variance stated as a fact, not
+// judged; the model's only job is recognizing which real, tracked
+// item and what real count was actually stated.
+export async function extractStocktake(
+  env: Env,
+  transcript: string,
+  stockItems: Array<{ name: string; unit: string | null }>
+): Promise<StocktakeExtraction> {
+  const empty: StocktakeExtraction = { matched_item_name: null, quantity_counted: null };
+  try {
+    const itemList = stockItems.map((i) => `${i.name}${i.unit ? ` (${i.unit})` : ""}`).join(", ") || "none";
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        temperature: 0,
+        chat_template_kwargs: { thinking: false },
+        messages: [
+          {
+            role: "system",
+            content:
+              "A tradesperson is reporting a real, physical stock count. You are given the exact real " +
+              "stock items already being tracked. matched_item_name must be copied EXACTLY from the given " +
+              "list, or null if it genuinely doesn't match anything given. quantity_counted is the real, " +
+              "plain number actually counted, never calculated or assumed. Return ONLY JSON: " +
+              '{"matched_item_name": string or null, "quantity_counted": number or null}\n\n' +
+              "Example:\n" +
+              'Tracked items: "screed (bags)". Message: "counted 15 bags of screed" -> ' +
+              '{"matched_item_name":"screed","quantity_counted":15}',
+          },
+          { role: "user", content: `Tracked items: ${itemList}.\n\nMessage: "${transcript}"` },
+        ],
+      })
+    );
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const rawText = r.choices?.[0]?.message?.content ?? "";
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned) as StocktakeExtraction;
+    return { matched_item_name: parsed.matched_item_name ?? null, quantity_counted: parsed.quantity_counted ?? null };
   } catch {
     return empty;
   }
