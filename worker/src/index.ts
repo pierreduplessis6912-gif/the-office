@@ -1,6 +1,6 @@
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult } from "./types";
 import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractGoodsReceived, extractIntent, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSupplierInvoice, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, storeUnscopedMemory, transcribe } from "./ai";
-import { findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
+import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
 import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOpenDiscrepanciesForSupplier, getOutstandingInvoices, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, holdForConfirmation, recordExpense, recordGoodsReceived, recordInvoice, recordPayment, recordPurchaseOrder, recordQuotation, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition } from "./finance";
@@ -129,6 +129,29 @@ async function processOneExtraction(
         customer = { id: found.id, name: found.name, matched: true };
       }
     } else {
+      // Real feature 2026-07-25 — Identity Collision, given directly
+      // by Pierre. A real, deterministic check — before ever
+      // silently creating a new customer, verify this exact name
+      // isn't already a known character (an installer, a supplier)
+      // under a genuinely conflicting role. Only fires here, since
+      // this is the one place a wrongly-assigned identity could
+      // actually get created.
+      const collision = await checkCrossRoleCollision(env, extraction.customer_name, "customer");
+      if (collision) {
+        const held = await holdForConfirmation(
+          env,
+          "identity_collision",
+          { name: extraction.customer_name, intendedRole: "customer", extraction, transcript, captureId },
+          transcript
+        );
+        return {
+          customer: null,
+          character: null,
+          pendingActionId: held.id,
+          factPendingActionId: null,
+          message: `${collision.name} is already on file as a ${collision.existingRole} — is this the same ${collision.name}, now acting as a customer too, or did you mean someone else? (action #${held.id})`,
+        };
+      }
       customer = await reconcileCustomer(env, extraction.customer_name);
     }
   }
@@ -140,6 +163,22 @@ async function processOneExtraction(
         character = { id: found.id, name: found.name, matched: true };
       }
     } else {
+      const collision = await checkCrossRoleCollision(env, extraction.character_name, "character");
+      if (collision) {
+        const held = await holdForConfirmation(
+          env,
+          "identity_collision",
+          { name: extraction.character_name, intendedRole: "character", extraction, transcript, captureId },
+          transcript
+        );
+        return {
+          customer: null,
+          character: null,
+          pendingActionId: held.id,
+          factPendingActionId: null,
+          message: `${collision.name} is already on file as a ${collision.existingRole} — is this the same ${collision.name}, now acting as a ${extraction.character_relationship ?? "character"} too, or did you mean someone else? (action #${held.id})`,
+        };
+      }
       character = await reconcileCharacter(env, extraction.character_name, extraction.character_relationship);
     }
   }
@@ -3094,6 +3133,49 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         if (!action) return Response.json({ error: "no such pending action" }, { status: 404 });
         if (action.status !== "pending") {
           return Response.json({ error: `action already ${action.status}` }, { status: 409 });
+        }
+
+        if (action.type === "identity_collision") {
+          const payload = JSON.parse(action.payload) as {
+            name: string;
+            intendedRole: "customer" | "character";
+            extraction: Extraction;
+            transcript: string;
+            captureId: number | null;
+          };
+          // Real feature 2026-07-25 — Identity Collision, given
+          // directly by Pierre. Confirming means the name genuinely
+          // needs a real, new record in its intended table — an
+          // installer can also, separately, become a real customer.
+          // Creating that record here means the original extraction
+          // can simply be reprocessed: the collision check naturally
+          // won't fire a second time, since the name now exists in
+          // its own, intended table, and reconcileCustomer/
+          // reconcileCharacter finds it normally from here on.
+          if (payload.intendedRole === "customer") {
+            await env.OFFICE_DB.prepare("INSERT INTO customers (name) VALUES (?)").bind(payload.name).run();
+          } else {
+            await env.OFFICE_DB.prepare("INSERT INTO characters (name, relationship) VALUES (?, ?)")
+              .bind(payload.name, payload.extraction.character_relationship ?? null)
+              .run();
+          }
+          await env.OFFICE_DB.prepare(
+            "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+          )
+            .bind(id)
+            .run();
+          const { capabilities: reprocessCapabilities, email: reprocessEmail } = await resolveCapabilities(request, env);
+          const outcome = await processOneExtraction(
+            env,
+            payload.transcript,
+            payload.extraction,
+            [],
+            ctx,
+            payload.captureId,
+            reprocessCapabilities,
+            reprocessEmail
+          );
+          return Response.json({ status: "confirmed", ...outcome });
         }
 
         if (action.type === "payment") {
