@@ -1,9 +1,9 @@
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult } from "./types";
-import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractGoodsReceived, extractIntent, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, storeUnscopedMemory, transcribe } from "./ai";
+import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractGoodsReceived, extractIntent, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, storeUnscopedMemory, transcribe } from "./ai";
 import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
-import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOutstandingInvoices, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, recordExpense, recordGoodsReceived, recordInvoice, recordPayment, recordPurchaseOrder, recordQuotation, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment } from "./finance";
+import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenSnagsForCustomer, getOutstandingInvoices, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, recordExpense, recordGoodsReceived, recordInvoice, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 
 // Second layer of defense against storing questions as facts — never
@@ -556,6 +556,54 @@ async function processOneExtraction(
     }
   }
 
+  // Real feature 2026-07-25 — Snags, the smallest, most immediately
+  // useful piece of the job-completion/warranty/snags design.
+  // Deliberately unguarded but traceable, matching GRN's own
+  // precedent — a quality note, not money moving.
+  let snagResult: { id: number; description: string } | null = null;
+  let snagNoCustomer = false;
+  if (extraction?.intent === "raise_snag") {
+    if (customer) {
+      const snag = await extractSnag(env, transcript);
+      if (snag.description) {
+        const recorded = await recordSnag(env, customer.id, snag.description);
+        snagResult = { id: recorded.id, description: snag.description };
+      }
+    } else {
+      snagNoCustomer = true;
+    }
+  }
+
+  let snagResolutionResult: { description: string; retentionReleasable: boolean; retentionAmount: number | null } | null = null;
+  let snagResolutionNoMatch = false;
+  if (extraction?.intent === "resolve_snag") {
+    if (customer) {
+      const openSnags = await getOpenSnagsForCustomer(env, customer.id);
+      if (openSnags.length > 0) {
+        const res = await extractSnagResolution(env, transcript, openSnags);
+        const matched = res.matched_description
+          ? openSnags.find((s) => s.description.toLowerCase() === res.matched_description!.toLowerCase())
+          : openSnags.length === 1
+          ? openSnags[0]
+          : null;
+        if (matched) {
+          const resolved = await resolveSnag(env, matched.id, customer.id);
+          snagResolutionResult = {
+            description: matched.description,
+            retentionReleasable: resolved.retentionReleasable,
+            retentionAmount: resolved.retentionAmount,
+          };
+        } else {
+          snagResolutionNoMatch = true;
+        }
+      } else {
+        snagResolutionNoMatch = true;
+      }
+    } else {
+      snagNoCustomer = true;
+    }
+  }
+
   if (extraction?.intent === "invoice" && customer && extraction.amount) {
     const held = await holdForConfirmation(
       env,
@@ -953,6 +1001,21 @@ async function processOneExtraction(
     message = `Stocktake recorded for ${stocktakeResult.itemName}: counted ${stocktakeResult.quantityCounted}, ${varianceText}.`;
   } else if (extraction?.intent === "stocktake" && stocktakeNoMatch) {
     message = "Recognized a stocktake, but couldn't match it to anything currently being tracked — try naming the exact item, or track it first.";
+  } else if (extraction?.intent === "raise_snag" && snagResult) {
+    message = `Snag #${snagResult.id} noted for ${customer!.name}: ${snagResult.description}.`;
+  } else if (extraction?.intent === "raise_snag" && snagNoCustomer) {
+    message = "Recognized a snag, but no customer was named — try naming whose job this is.";
+  } else if (extraction?.intent === "raise_snag") {
+    message = "Recognized a snag report, but couldn't make out the actual issue — try describing it.";
+  } else if (extraction?.intent === "resolve_snag" && snagResolutionResult) {
+    const retentionNote = snagResolutionResult.retentionReleasable
+      ? ` All snags resolved — a real retention of R${snagResolutionResult.retentionAmount} may now be releasable for ${customer!.name}.`
+      : "";
+    message = `Snag resolved for ${customer!.name}: ${snagResolutionResult.description}.${retentionNote}`;
+  } else if (extraction?.intent === "resolve_snag" && snagResolutionNoMatch) {
+    message = `I don't have an open snag on file for ${customer!.name} to match this to.`;
+  } else if (extraction?.intent === "resolve_snag" && snagNoCustomer) {
+    message = "Recognized a snag resolution, but no customer was named — try naming whose job this is.";
   } else if (pendingActionId && extraction?.intent === "convert_quote" && convertQuoteFound) {
     const { total, depositAmount, remainingBalance, quotationId } = convertQuoteFound;
     const depositNote = extraction.deposit_percent
@@ -2137,6 +2200,32 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
          ORDER BY st.created_at DESC LIMIT 10`
       ).all();
       return Response.json({ stocktakes: results });
+    }
+
+    // Real feature 2026-07-25 — Snags, the smallest, most immediately
+    // useful piece of the job-completion/warranty/snags design.
+    if (url.pathname === "/debug/init-snags" && request.method === "POST") {
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS snags (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          customer_id INTEGER NOT NULL,
+          description TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'open',
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          resolved_at TEXT
+        )`
+      ).run();
+      return Response.json({ status: "ok" });
+    }
+
+    if (url.pathname === "/debug/snags" && request.method === "GET") {
+      const { results } = await env.OFFICE_DB.prepare(
+        `SELECT sn.id, sn.description, sn.status, sn.created_at, sn.resolved_at, c.name as customer_name
+         FROM snags sn
+         JOIN customers c ON c.id = sn.customer_id
+         ORDER BY sn.created_at DESC LIMIT 10`
+      ).all();
+      return Response.json({ snags: results });
     }
 
     // Real feature 2026-07-24 — the real prerequisite for Aged
