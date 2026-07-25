@@ -6,7 +6,7 @@
 // territory.
 
 import type { Env, WorkObservationExtraction } from "./types";
-import { getOpenProjectsForCustomer } from "./finance";
+import { getOpenProjectsForCustomer, holdForConfirmation } from "./finance";
 
 
 // Unguarded, deliberately — same reasoning already applied to
@@ -118,7 +118,9 @@ export async function recordWorkObservation(
   jobScopeId: number;
   computedComponents: Array<{ name: string; area_sqm: number | null }>;
   computedTasks: Array<{ description: string; component_name: string | null }>;
+  pendingProjectChoice: { pendingActionId: number; candidates: string[] } | null;
 }> {
+  let pendingProjectChoice: { pendingActionId: number; candidates: string[] } | null = null;
   const scheduledDate = resolveScheduledDate(observation.scheduled_date_raw, nowInBusinessTimezone());
   // Real feature 2026-07-20 (Layer 2 / Project design, verified via the
   // Fable 5 design pass): capture_id is the real, deterministic
@@ -230,31 +232,43 @@ export async function recordWorkObservation(
           .run();
       }
     } else {
-      // Real feature 2026-07-22 — Layer 2 (Project), cross-capture
-      // attachment. This job scope is standalone within its own
-      // capture — the second real question: does it belong to an
-      // existing project from an earlier, separate message? Reuses
-      // the exact same rung-based resolution already proven
-      // throughout this project (Principle 24's Ladder) — never a new
-      // mechanism. Deliberately scoped tonight to only the cleanest,
-      // most valuable rung: exactly one real, open project auto-
-      // attaches. The "named handle" and "ask when two or more" rungs
-      // are honestly left unbuilt — they need real design work this
-      // session hasn't done (how would Peter actually name a
-      // project? how does an ask-and-wait flow work mechanically?),
-      // not a guess standing in for an answer.
+      // Real feature 2026-07-25 — Layer 2 (Project), the second
+      // deferred Ladder rung: asking when two or more open projects
+      // genuinely compete for the same standalone job scope. Reuses
+      // the exact same hold-for-confirmation mechanism just proven
+      // for Identity Collision, rather than inventing a new one —
+      // the real, load-bearing reason this rung was left unbuilt
+      // before ("how does an ask-and-wait flow work mechanically")
+      // now has a real, working answer elsewhere in this codebase.
+      // The "named handle" rung remains honestly deferred — projects
+      // still have no real naming convention Peter could use in
+      // conversation.
       const openProjects = await getOpenProjectsForCustomer(env, customerId);
       if (openProjects.length === 1) {
         await env.OFFICE_DB.prepare("UPDATE job_scopes SET project_id = ? WHERE id = ?")
           .bind(openProjects[0].id, jobScopeId)
           .run();
+      } else if (openProjects.length >= 2) {
+        const held = await holdForConfirmation(
+          env,
+          "project_ambiguity",
+          {
+            jobScopeId,
+            candidates: openProjects.map((p) => ({ id: p.id, description: p.description })),
+          },
+          sourceTranscript
+        );
+        pendingProjectChoice = {
+          pendingActionId: held.id,
+          candidates: openProjects.map((p) => p.description ?? "untitled"),
+        };
       }
-      // Two or more open projects, or zero — stays standalone,
-      // honestly, rather than guessing which one this belongs to.
+      // Zero open projects — stays standalone, honestly, since there
+      // is genuinely nothing to attach to yet.
     }
   }
 
-  return { jobScopeId, computedComponents, computedTasks };
+  return { jobScopeId, computedComponents, computedTasks, pendingProjectChoice };
 }
 
 // Small, deterministic cleanup — real polish item flagged since the
