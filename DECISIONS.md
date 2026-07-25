@@ -3790,3 +3790,34 @@ re-uploaded after the fix**: `supplierInvoiceAction: null`,
 `goodsReceivedAction: {grnId: 6}` — and the real, stored GRN data
 confirmed exactly right: `quantity_received: 3.1, quantity_ordered:
 3.1, variance: 0`, matching the physical document precisely.
+
+## The lead/enquiry stage — built and proven end to end, both real lifecycle paths (2026-07-25)
+
+**The real feature**: raising a real, new enquiry — name, interest,
+source — deliberately unguarded but traceable. Converts into a real
+customer and quotation once priced, exactly as originally pinned, by
+hooking directly into the already-proven `recordQuotation` and
+`convertQuoteToInvoice` paths rather than inventing a separate
+mechanism — the real point of the whole design.
+
+**A real, careful exclusion, worth recording precisely.** Raising or
+losing a lead deliberately never touches `reconcileCustomer` or the
+identity-collision check at all — the name stays purely in the real
+`leads` table until genuinely quoted. Getting this right mattered:
+without it, every new enquiry would have silently created a real
+customer record on day one, the exact duplication this whole design
+exists to prevent.
+
+**Verified live across both real lifecycle paths, with a genuine,
+unplanned collision along the way that proved two features working
+together correctly.** Sipho's enquiry raised cleanly (`customer: null`,
+confirming the exclusion held). Quoting him then correctly triggered
+Identity Collision — he turned out to already be a known installer
+character from earlier tonight — confirmed as a real, new customer,
+and the lead automatically transitioned to `status: "quoted",
+customer_id: 23`. Converting that quote to an invoice then correctly
+transitioned it to `status: "won"`. A second, separate lead (Themba)
+was raised and explicitly marked lost, correctly left with
+`customer_id: null` since he was never quoted — the real, honest
+distinction between "never converted" and "converted then lost"
+that the status field exists to capture.
