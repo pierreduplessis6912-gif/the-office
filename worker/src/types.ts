@@ -33,7 +33,7 @@ export interface Extraction {
   customer_name: string | null;
   character_name: string | null;
   character_relationship: string | null;
-  intent: "payment" | "invoice" | "quotation" | "convert_quote" | "price_scope" | "work_observation" | "lookup" | "reminder" | "task_complete" | "expense" | "note" | "purchase_order" | "goods_received" | "supplier_invoice" | "variance_disposition" | "supplier_payment" | "other";
+  intent: "payment" | "invoice" | "quotation" | "convert_quote" | "price_scope" | "work_observation" | "lookup" | "reminder" | "task_complete" | "expense" | "note" | "purchase_order" | "goods_received" | "supplier_invoice" | "variance_disposition" | "supplier_payment" | "register_stock_item" | "stock_usage" | "stocktake" | "other";
   amount: number | null;
   fact_key: string | null;
   fact_value: string | null;
@@ -210,4 +210,26 @@ export interface VarianceDispositionExtraction {
   reason: "short_delivered" | "incorrectly_dispatched" | "damaged" | "over_receipt" | null;
   resolution: "back_order" | "credit" | null;
   credit_amount: number | null;
+}
+
+// Real feature 2026-07-25 — Consumables Stock, the idea-tank review's
+// first real, unlocked item, sequenced explicitly after PO/GRN in the
+// original design and built now that PO/GRN is real and proven.
+// Deliberately opt-in — a material only ever becomes a tracked stock
+// item because Peter said so, never guessed by matching a name
+// against a list of "generic-sounding" materials.
+export interface StockItemRegistrationExtraction {
+  name: string | null;
+  unit: string | null;
+}
+
+export interface StockUsageExtraction {
+  matched_item_name: string | null;
+  quantity_used: number | null;
+  job_customer_name: string | null;
+}
+
+export interface StocktakeExtraction {
+  matched_item_name: string | null;
+  quantity_counted: number | null;
 }
