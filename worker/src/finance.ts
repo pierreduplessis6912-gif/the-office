@@ -1200,6 +1200,53 @@ export async function getOpenProjectsForCustomer(
   );
 }
 
+// Real fix 2026-07-25, found live: cross-capture attachment used to
+// live inside recordWorkObservation, which only ever sees one segment
+// of a message at a time — it genuinely couldn't tell "this job scope
+// is standalone" apart from "this is the first segment of a
+// multi-segment message whose real sibling hasn't been created yet."
+// A real, live test proved this wrong: two genuinely separate jobs
+// silently merged into one, because the first segment found exactly
+// one open project before its own sibling ever existed to correct it.
+// This now runs as its own, separate step — called only after every
+// segment of the whole message has been processed and same-breath
+// assembly has already had its full, complete chance to group
+// whatever it's going to group. Only ever called for a job scope that
+// is still genuinely undecided (project_id null) at that point.
+export async function resolveCrossCaptureAttachment(
+  env: Env,
+  jobScopeId: number,
+  customerId: number
+): Promise<{ pendingProjectChoice: { pendingActionId: number; candidates: string[] } | null }> {
+  const openProjects = await getOpenProjectsForCustomer(env, customerId);
+  if (openProjects.length === 1) {
+    await env.OFFICE_DB.prepare("UPDATE job_scopes SET project_id = ? WHERE id = ?")
+      .bind(openProjects[0].id, jobScopeId)
+      .run();
+    return { pendingProjectChoice: null };
+  }
+  if (openProjects.length >= 2) {
+    const held = await holdForConfirmation(
+      env,
+      "project_ambiguity",
+      {
+        jobScopeId,
+        candidates: openProjects.map((p) => ({ id: p.id, description: p.description })),
+      },
+      `resolving project attachment for job scope #${jobScopeId}`
+    );
+    return {
+      pendingProjectChoice: {
+        pendingActionId: held.id,
+        candidates: openProjects.map((p) => p.description ?? "untitled"),
+      },
+    };
+  }
+  // Zero open projects — stays standalone, honestly, since there is
+  // genuinely nothing to attach to yet.
+  return { pendingProjectChoice: null };
+}
+
 export async function getJobProfitability(
   env: Env,
   customerId: number
