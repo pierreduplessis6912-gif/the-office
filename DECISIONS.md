@@ -3742,3 +3742,51 @@ remaining open design questions (mandatory vs. optional artifacts,
 maintenance reminders, warranty-vs-snag classification) remain exactly
 where the original pin left them: real, named, and correctly
 sequenced for later.
+
+## A genuinely poor-quality real photo, and a real, significant bug it found (2026-07-25)
+
+**The real test**: an actual, physical delivery note from a brand-new
+supplier (Belgotex, never mentioned before tonight), photographed on
+Pierre's own phone — genuinely blurry, shot at an angle, partially
+obscured by a dark object, real ambient lighting. Not a clean, staged
+test image.
+
+**The critical, actionable data proved reliable across repeated real
+extraction — the peripheral data honestly didn't.** Item number,
+description, ordered/delivered quantities, and the supplier's own name
+came back identical and correct on two separate real vision passes
+against the same photo. The one detail that genuinely varied was the
+street address — "80 Commercia Road," then "80 Comrie Road" on a
+second pass, neither matching this project's own reading of "20
+Chesterfield Road" from the same image. A real, honest finding worth
+keeping in mind going forward: vision extraction on a genuinely poor
+image can be unreliable on details that never touch any real business
+logic, while staying reliable on the fields that actually drive real
+decisions.
+
+**The real, significant bug this test found, worth recording
+precisely.** This document is a real delivery note — no pricing
+anywhere on it at all. The existing photo/document ingestion logic had
+only ever been built and tested against real supplier invoices, and
+unconditionally assumed every photographed supplier document was one.
+`extractSupplierInvoice` correctly refused to invent a price — every
+matched line item came back with `unit_price_billed: null`, exactly as
+it should for a document with no price on it — but the result still
+got held as a real, guard()'d "supplier_invoice" pending action, which
+would have created an invalid expense with no real basis had it been
+confirmed. Caught before confirming anything, by inspecting the real,
+raw pending-action payload directly rather than assuming either way.
+
+**The real fix**: both `/files/photo` and `/files/document` now check
+whether any matched line item has real, non-null pricing before
+deciding. None does — a genuine delivery note — and the document is
+now correctly routed through real GRN extraction and recorded directly,
+unguarded, matching GRN's own precedent exactly (quantity-only, no
+money moving). Real pricing on at least one item still correctly takes
+the existing, guard()'d supplier-invoice path.
+
+**Verified completely, end to end, with the same real photo
+re-uploaded after the fix**: `supplierInvoiceAction: null`,
+`goodsReceivedAction: {grnId: 6}` — and the real, stored GRN data
+confirmed exactly right: `quantity_received: 3.1, quantity_ordered:
+3.1, variance: 0`, matching the physical document precisely.
