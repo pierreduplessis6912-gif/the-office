@@ -3666,3 +3666,38 @@ tracking (the "50m² underlay excess" case, requiring real product-code
 specificity and PO-vs-invoice reconciliation mechanics) remains its
 own, separate, harder design task, exactly as the original pin left
 it. This build is the core, simple consumables model only.
+
+## GRN-informed pricing — built, and a real, subtle bug found in an existing, general-purpose check (2026-07-25)
+
+**The real feature**: a real, historical question — "what did we last
+pay for vinyl" — answered directly from real supplier invoice data,
+most recent first. Grounds Peter's own pricing judgment with a real
+fact he can ask for; never suggests a rate, never replaces his own
+decision.
+
+**A real, subtle bug found on the very first live test, worth
+recording precisely — a new query type colliding with an existing,
+general-purpose mechanism it was never designed to know about.** The
+extraction was correct — `query_scope: "material_price"`, the material
+name correctly captured — but the answer came from a completely
+different path: Jenny's own facts, not the real price data. The cause:
+the "sticky selection" register (Principle 24's Execution Ladder,
+rung 1) resolves a lookup with no named customer against whichever
+customer was last discussed — a real, valuable mechanism for genuine
+follow-ups ("show me the quote" after "show me Jenny"). Its own
+exclusion list only ever accounted for `"personal"` and conditionally
+`"business"` — it had no way to know a brand new query_scope
+(`"material_price"`) had been added elsewhere in the same project, and
+correctly-but-blindly treated it as "could be an entity follow-up,"
+silently overwriting `query_scope` to `"customer"` and pulling in the
+last-selected customer. Fixed by adding `"material_price"` to the same
+exclusion list `"personal"` already sits in — a real, small fix, but
+the kind of gap that only ever surfaces by adding a genuinely new case
+and testing it against the whole system, not just the code written for
+it.
+
+**Verified live, with real, dated data**: "The last real price paid
+for Vinyl was R180 (from Floornet, 2026-07-21)" — a real number
+pulled from an actual supplier invoice recorded hours earlier the same
+session, correctly beating out even this project's own imprecise
+memory of what that number was.
