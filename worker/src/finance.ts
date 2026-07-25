@@ -307,9 +307,111 @@ export async function recordGoodsReceived(
         variance,
       });
     }
+    // Real feature 2026-07-25 — Consumables Stock, the idea-tank
+    // review's first real, unlocked item. A confirmed GRN increments
+    // a real, tracked stock item only when its exact, real name
+    // already matches one Peter deliberately registered — never
+    // guessed by the system deciding on its own that a delivered
+    // material "sounds generic enough" to be stock. A job-specific
+    // material (carpet, tile) simply has no matching stock_items row
+    // and is correctly left untouched here.
+    const matchedStockItem = await env.OFFICE_DB.prepare(
+      "SELECT id FROM stock_items WHERE name = ? COLLATE NOCASE"
+    )
+      .bind(matchedPoLine?.description ?? item.matched_description ?? "")
+      .first<{ id: number }>();
+    if (matchedStockItem) {
+      await env.OFFICE_DB.prepare("UPDATE stock_items SET quantity_on_hand = quantity_on_hand + ? WHERE id = ?")
+        .bind(item.quantity_received, matchedStockItem.id)
+        .run();
+    }
   }
 
   return { grnId, variances };
+}
+
+// Real feature 2026-07-25 — Consumables Stock, the idea-tank review's
+// first real, unlocked item, sequenced explicitly after PO/GRN in the
+// original design and built now that PO/GRN is real and proven.
+export async function registerStockItem(env: Env, name: string, unit: string | null): Promise<{ id: number }> {
+  const inserted = await env.OFFICE_DB.prepare(
+    "INSERT INTO stock_items (name, unit, quantity_on_hand) VALUES (?, ?, 0) RETURNING id"
+  )
+    .bind(name, unit)
+    .first<{ id: number }>();
+  return { id: inserted!.id };
+}
+
+export async function getTrackedStockItems(env: Env): Promise<Array<{ id: number; name: string; unit: string | null; quantity_on_hand: number }>> {
+  const { results } = await env.OFFICE_DB.prepare("SELECT id, name, unit, quantity_on_hand FROM stock_items").all<{
+    id: number;
+    name: string;
+    unit: string | null;
+    quantity_on_hand: number;
+  }>();
+  return results ?? [];
+}
+
+// Real, deterministic decrement — the exact quantity stated, never
+// estimated, linking a real drawdown to the real job it was consumed
+// on when one is stated.
+export async function recordStockUsage(
+  env: Env,
+  stockItemId: number,
+  quantityUsed: number,
+  customerId: number | null,
+  sourceTranscript: string
+): Promise<{ newQuantityOnHand: number }> {
+  await env.OFFICE_DB.prepare("UPDATE stock_items SET quantity_on_hand = quantity_on_hand - ? WHERE id = ?")
+    .bind(quantityUsed, stockItemId)
+    .run();
+  await env.OFFICE_DB.prepare(
+    "INSERT INTO stock_usage_log (stock_item_id, quantity_used, customer_id, source_transcript) VALUES (?, ?, ?, ?)"
+  )
+    .bind(stockItemId, quantityUsed, customerId, sourceTranscript)
+    .run();
+  const updated = await env.OFFICE_DB.prepare("SELECT quantity_on_hand FROM stock_items WHERE id = ?")
+    .bind(stockItemId)
+    .first<{ quantity_on_hand: number }>();
+  return { newQuantityOnHand: updated?.quantity_on_hand ?? 0 };
+}
+
+// Real feature 2026-07-25 — a real, physical stocktake, the exact
+// same reconciliation philosophy as PO/GRN/Supplier Invoice — a real,
+// computed variance stated as a fact, never judged. The physical
+// count is real ground truth, so quantity_on_hand is corrected to
+// match it here, the same way a real bank reconciliation corrects a
+// ledger to match a real, physical statement.
+export async function recordStocktake(
+  env: Env,
+  stockItemId: number,
+  quantityCounted: number,
+  sourceTranscript: string
+): Promise<{ stocktakeId: number; quantityExpected: number; variance: number }> {
+  const before = await env.OFFICE_DB.prepare("SELECT quantity_on_hand FROM stock_items WHERE id = ?")
+    .bind(stockItemId)
+    .first<{ quantity_on_hand: number }>();
+  const quantityExpected = before?.quantity_on_hand ?? 0;
+  const variance = quantityCounted - quantityExpected;
+
+  const stocktake = await env.OFFICE_DB.prepare(
+    "INSERT INTO stocktakes (source_transcript) VALUES (?) RETURNING id"
+  )
+    .bind(sourceTranscript)
+    .first<{ id: number }>();
+  const stocktakeId = stocktake!.id;
+
+  await env.OFFICE_DB.prepare(
+    "INSERT INTO stocktake_lines (stocktake_id, stock_item_id, quantity_counted, quantity_expected, variance) VALUES (?, ?, ?, ?, ?)"
+  )
+    .bind(stocktakeId, stockItemId, quantityCounted, quantityExpected, variance)
+    .run();
+
+  await env.OFFICE_DB.prepare("UPDATE stock_items SET quantity_on_hand = ? WHERE id = ?")
+    .bind(quantityCounted, stockItemId)
+    .run();
+
+  return { stocktakeId, quantityExpected, variance };
 }
 
 // Real feature 2026-07-24 — Variance Disposition, what happens after
