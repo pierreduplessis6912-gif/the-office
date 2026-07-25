@@ -3622,3 +3622,47 @@ projects (laminate flooring installation, tile installation) — which
 one is job scope #37?" — confirmed with a real, chosen project id, and
 the final state checked directly: the chosen project correctly gained
 the new job scope, the other project completely untouched.
+
+## Consumables Stock — the idea-tank review's first real, unlocked item, built and proven end to end (2026-07-25)
+
+**The real feature**: registration (a real, deliberate, opt-in action —
+never guessed which materials count as consumables), a real hook
+inside GRN confirmation that increments a tracked stock item's real
+running total only when its exact name already matches one Peter
+registered, real usage decrementing it, and real stocktakes correcting
+it to match physical ground truth — the same reconciliation philosophy
+as PO/GRN/Supplier Invoice, one layer further.
+
+**Built specifically because tonight's idea-tank review found it —
+this is the concrete proof the practice works.** Consumables Stock was
+explicitly pinned weeks earlier as "sequenced after PO/GRN," deferred
+not because the design was weak but because its real prerequisite
+didn't exist yet. PO/GRN is now real and proven, so this was the
+correct next thing to build, not a guess about what might be useful.
+
+**A real bug found on the very first live test, worth recording
+precisely.** "Used 5 bags of screed on Jenny's job" correctly
+recognized the intent but failed to match against screed — a stock
+item that definitely existed and was definitely being tracked. The
+real cause: the given item list was formatted as "screed (bags)," and
+the prompt's instruction to copy the match "exactly from the given
+list" was genuinely ambiguous about whether that meant the whole
+display string or just the bare name. The model very likely copied
+the full string, which could never match against the bare `name`
+field the matching code actually compared against. Fixed in both
+`extractStockUsage` and `extractStocktake` with an explicit rule and a
+concrete example distinguishing the two.
+
+**Verified completely, end to end, with one real material carried
+through the whole lifecycle**: registered screed as stock, ordered and
+received 20 bags via a real PO/GRN (confirmed `quantity_on_hand: 20`),
+used 5 on a real job (confirmed 15 remaining), and ran a real
+stocktake counting 14 — correctly computing `variance: -1` against the
+expected 15, and correctly correcting `quantity_on_hand` down to 14 to
+match physical reality.
+
+**Deliberately, honestly scoped** — job-specific material remnant
+tracking (the "50m² underlay excess" case, requiring real product-code
+specificity and PO-vs-invoice reconciliation mechanics) remains its
+own, separate, harder design task, exactly as the original pin left
+it. This build is the core, simple consumables model only.
