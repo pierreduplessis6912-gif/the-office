@@ -179,6 +179,17 @@ export async function recordQuotation(
       .run();
   }
 
+  // Real feature 2026-07-25 — the lead/enquiry stage's real point:
+  // converting into a real customer and quotation once priced. A
+  // safe no-op when no matching open lead exists for this exact
+  // name — the common, unrelated case for most real quotations.
+  const customerRow = await env.OFFICE_DB.prepare("SELECT name FROM customers WHERE id = ?")
+    .bind(customerId)
+    .first<{ name: string }>();
+  if (customerRow?.name) {
+    await transitionLeadToQuoted(env, customerRow.name, customerId);
+  }
+
   return { id: quotationId, customerId, amount };
 }
 
@@ -745,6 +756,62 @@ export async function resolveSnag(
   return { retentionReleasable: false, retentionAmount: null };
 }
 
+// Real feature 2026-07-25 — the lead/enquiry stage, the fourth real
+// gap named from the full lead-to-warranty lifecycle walk. Raising
+// stays deliberately unguarded but traceable — a real note about
+// interest, not money moving.
+export async function recordLead(
+  env: Env,
+  name: string,
+  interest: string | null,
+  source: string | null
+): Promise<{ id: number }> {
+  const inserted = await env.OFFICE_DB.prepare(
+    "INSERT INTO leads (name, interest, source, status) VALUES (?, ?, ?, 'enquired') RETURNING id"
+  )
+    .bind(name, interest, source)
+    .first<{ id: number }>();
+  return { id: inserted!.id };
+}
+
+export async function getOpenLeads(env: Env): Promise<Array<{ id: number; name: string }>> {
+  const { results } = await env.OFFICE_DB.prepare(
+    "SELECT id, name FROM leads WHERE status IN ('enquired', 'quoted')"
+  ).all<{ id: number; name: string }>();
+  return results ?? [];
+}
+
+export async function markLeadLost(env: Env, leadId: number): Promise<void> {
+  await env.OFFICE_DB.prepare("UPDATE leads SET status = 'lost' WHERE id = ?").bind(leadId).run();
+}
+
+// Real feature 2026-07-25 — the automatic "quoted" transition, the
+// real point of this whole design: converts into a real customer and
+// quotation once priced, reusing existing machinery rather than
+// duplicating data. Called from the same, already-proven quotation-
+// recording path — never a separate mechanism. Only ever matches an
+// exact name still genuinely enquired (not already quoted, won, or
+// lost), so a second, unrelated quotation for the same name later
+// doesn't incorrectly re-trigger this.
+export async function transitionLeadToQuoted(env: Env, customerName: string, customerId: number): Promise<void> {
+  await env.OFFICE_DB.prepare(
+    "UPDATE leads SET status = 'quoted', customer_id = ? WHERE name = ? COLLATE NOCASE AND status = 'enquired'"
+  )
+    .bind(customerId, customerName)
+    .run();
+}
+
+// Real feature 2026-07-25 — the automatic "won" transition, hooked
+// into the same, already-proven quote-to-invoice conversion — the
+// real moment a job is actually won, not a separate, new decision.
+export async function transitionLeadToWon(env: Env, customerId: number): Promise<void> {
+  await env.OFFICE_DB.prepare(
+    "UPDATE leads SET status = 'won' WHERE customer_id = ? AND status = 'quoted'"
+  )
+    .bind(customerId)
+    .run();
+}
+
 // No reference-number system exists yet — with one customer generally
 // having at most one open quote at a time, "their most recent
 // not-yet-converted quote" is honest and sufficient for now. A real
@@ -914,6 +981,12 @@ export async function convertQuoteToInvoice(
     .run();
 
   await env.OFFICE_DB.prepare("UPDATE quotations SET status = 'converted' WHERE id = ?").bind(quotationId).run();
+
+  // Real feature 2026-07-25 — the lead/enquiry stage's "won"
+  // transition, hooked into the same, already-proven quote-to-invoice
+  // conversion — the real moment a job is actually won. A safe
+  // no-op when no matching quoted lead exists for this customer.
+  await transitionLeadToWon(env, customerId);
 
   return { invoiceId };
 }
