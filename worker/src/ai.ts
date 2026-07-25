@@ -21,6 +21,7 @@ import type {
   SnagResolutionExtraction,
   LeadExtraction,
   LeadLostExtraction,
+  SupplierStatementExtraction,
   HistoryTurn,
 } from "./types";
 
@@ -329,6 +330,12 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             'intent is "lose_lead" if the message reports a real, already-known enquiry as lost — they ' +
             'decided not to go ahead — "lost the Sipho enquiry" or "Thabo decided not to go ahead". Use ' +
             "customer_name for whose enquiry this is. " +
+            'intent is "supplier_statement" if the message describes a supplier\'s real, periodic ' +
+            'account statement arriving — "Floornet sent their monthly statement" or "got Floornet\'s ' +
+            'statement" — a genuinely different case from supplier_invoice, which is a single, specific ' +
+            'delivery being billed. A statement covers the whole real account, not one delivery. Same ' +
+            'character_name convention — the supplier goes in character_name with character_relationship ' +
+            '"supplier". ' +
             'intent is "task_complete" if the message reports a personal errand or reminder as DONE — ' +
             '"got the dog food", "picked up the kids", "phoned my mother" — past tense, something ' +
             'finished, not a new request. This includes bare, pronoun-only completions with no concrete ' +
@@ -421,6 +428,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             '"fixed the loose seam on Jenny\'s carpet" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"resolve_snag","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"Sipho enquired about carpet for his lounge" -> {"customer_name":"Sipho","character_name":null,"character_relationship":null,"intent":"raise_lead","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"lost the Sipho enquiry" -> {"customer_name":"Sipho","character_name":null,"character_relationship":null,"intent":"lose_lead","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
+            '"got Floornet\'s statement" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"supplier_statement","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"bought glue for R850 at BUCO for Jenny\'s job" -> {"customer_name":"Jenny","character_name":"BUCO","character_relationship":"supplier","intent":"expense","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"Sipho has a driver\'s license" -> {"customer_name":null,"character_name":"Sipho","character_relationship":"installer","intent":"note","amount":null,"fact_key":"license","fact_value":"driver\'s license","personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"we don\'t charge Jenny VAT" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"note","amount":null,"fact_key":"vat_exempt","fact_value":"true","personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
@@ -442,7 +450,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             "Return ONLY JSON, no markdown, no explanation: " +
             '{"customer_name": string or null, "character_name": string or null, "character_relationship": ' +
             'string or null, "intent": "payment" or "invoice" or "quotation" or "convert_quote" or ' +
-            '"price_scope" or "work_observation" or "lookup" or "reminder" or "task_complete" or "expense" or "note" or "purchase_order" or "goods_received" or "supplier_invoice" or "variance_disposition" or "supplier_payment" or "register_stock_item" or "stock_usage" or "stocktake" or "raise_snag" or "resolve_snag" or "raise_lead" or "lose_lead" or "other", "amount": number or null, ' +
+            '"price_scope" or "work_observation" or "lookup" or "reminder" or "task_complete" or "expense" or "note" or "purchase_order" or "goods_received" or "supplier_invoice" or "variance_disposition" or "supplier_payment" or "register_stock_item" or "stock_usage" or "stocktake" or "raise_snag" or "resolve_snag" or "raise_lead" or "lose_lead" or "supplier_statement" or "other", "amount": number or null, ' +
             '"fact_key": string or null, "fact_value": string or null, "personal_note": string or null, ' +
             '"query_scope": "customer" or "character" or "personal" or "business" or null, "deposit_percent": ' +
             'number or null, "scope_document_type": "quotation" or "invoice" or null, "due_date_raw": ' +
@@ -1096,6 +1104,43 @@ export async function extractLeadLost(
     const cleaned = rawText.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(cleaned) as LeadLostExtraction;
     return { matched_name: parsed.matched_name ?? null };
+  } catch {
+    return empty;
+  }
+}
+
+// Real feature 2026-07-25 — Supplier Statement Reconciliation, the
+// real, buildable version of the original ERP research example.
+// Deliberately bounded: extracts only the real, claimed closing
+// balance a supplier states on their own statement — never invented,
+// never calculated from anything else, exactly what they wrote.
+export async function extractSupplierStatement(env: Env, documentText: string): Promise<SupplierStatementExtraction> {
+  const empty: SupplierStatementExtraction = { claimed_closing_balance: null };
+  try {
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        temperature: 0,
+        chat_template_kwargs: { thinking: false },
+        messages: [
+          {
+            role: "system",
+            content:
+              "A supplier's real monthly statement is given. Find the real, stated closing balance — the " +
+              "total amount they claim is owed as of this statement, exactly as written, never " +
+              "calculated from other figures on the page. Return ONLY JSON: " +
+              '{"claimed_closing_balance": number or null}\n\n' +
+              "Example:\n" +
+              '"...Closing Balance: R15,430.00" -> {"claimed_closing_balance":15430}',
+          },
+          { role: "user", content: documentText },
+        ],
+      })
+    );
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const rawText = r.choices?.[0]?.message?.content ?? "";
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned) as SupplierStatementExtraction;
+    return { claimed_closing_balance: parsed.claimed_closing_balance ?? null };
   } catch {
     return empty;
   }
