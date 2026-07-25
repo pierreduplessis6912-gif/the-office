@@ -38,7 +38,7 @@ export interface Extraction {
   fact_key: string | null;
   fact_value: string | null;
   personal_note: string | null;
-  query_scope: "customer" | "personal" | "business" | "character" | null;
+  query_scope: "customer" | "personal" | "business" | "character" | "material_price" | null;
   deposit_percent: number | null;
   scope_document_type: "quotation" | "invoice" | null;
   // Real feature 2026-07-21 - a real, stated due time for a reminder
