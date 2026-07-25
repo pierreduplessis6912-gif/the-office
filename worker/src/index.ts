@@ -1,9 +1,9 @@
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult } from "./types";
-import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractGoodsReceived, extractIntent, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSupplierInvoice, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, storeUnscopedMemory, transcribe } from "./ai";
+import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractGoodsReceived, extractIntent, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, storeUnscopedMemory, transcribe } from "./ai";
 import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
-import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOpenDiscrepanciesForSupplier, getOutstandingInvoices, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, holdForConfirmation, recordExpense, recordGoodsReceived, recordInvoice, recordPayment, recordPurchaseOrder, recordQuotation, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, resolveCrossCaptureAttachment } from "./finance";
+import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getOpenDiscrepanciesForSupplier, getOutstandingInvoices, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, recordExpense, recordGoodsReceived, recordInvoice, recordPayment, recordPurchaseOrder, recordQuotation, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 
 // Second layer of defense against storing questions as facts — never
@@ -495,6 +495,65 @@ async function processOneExtraction(
     }
   }
 
+  // Real feature 2026-07-25 — Consumables Stock, the idea-tank
+  // review's first real, unlocked item. All three intents here stay
+  // deliberately unguarded — quantity-only, no money moving, matching
+  // GRN's own precedent exactly.
+  let stockRegistrationResult: { id: number; name: string; unit: string | null } | null = null;
+  if (extraction?.intent === "register_stock_item") {
+    const reg = await extractStockItemRegistration(env, transcript);
+    if (reg.name) {
+      const recorded = await registerStockItem(env, reg.name, reg.unit);
+      stockRegistrationResult = { id: recorded.id, name: reg.name, unit: reg.unit };
+    }
+  }
+
+  let stockUsageResult: { itemName: string; quantityUsed: number; newQuantityOnHand: number } | null = null;
+  let stockUsageNoMatch = false;
+  if (extraction?.intent === "stock_usage") {
+    const trackedItems = await getTrackedStockItems(env);
+    if (trackedItems.length > 0) {
+      const usage = await extractStockUsage(env, transcript, trackedItems);
+      const matchedItem = usage.matched_item_name
+        ? trackedItems.find((i) => i.name.toLowerCase() === usage.matched_item_name!.toLowerCase())
+        : null;
+      if (matchedItem && usage.quantity_used != null) {
+        const usageCustomerId = usage.job_customer_name ? (await reconcileCustomer(env, usage.job_customer_name))?.id ?? null : null;
+        const recorded = await recordStockUsage(env, matchedItem.id, usage.quantity_used, usageCustomerId, transcript);
+        stockUsageResult = { itemName: matchedItem.name, quantityUsed: usage.quantity_used, newQuantityOnHand: recorded.newQuantityOnHand };
+      } else {
+        stockUsageNoMatch = true;
+      }
+    } else {
+      stockUsageNoMatch = true;
+    }
+  }
+
+  let stocktakeResult: { itemName: string; quantityCounted: number; quantityExpected: number; variance: number } | null = null;
+  let stocktakeNoMatch = false;
+  if (extraction?.intent === "stocktake") {
+    const trackedItems = await getTrackedStockItems(env);
+    if (trackedItems.length > 0) {
+      const st = await extractStocktake(env, transcript, trackedItems);
+      const matchedItem = st.matched_item_name
+        ? trackedItems.find((i) => i.name.toLowerCase() === st.matched_item_name!.toLowerCase())
+        : null;
+      if (matchedItem && st.quantity_counted != null) {
+        const recorded = await recordStocktake(env, matchedItem.id, st.quantity_counted, transcript);
+        stocktakeResult = {
+          itemName: matchedItem.name,
+          quantityCounted: st.quantity_counted,
+          quantityExpected: recorded.quantityExpected,
+          variance: recorded.variance,
+        };
+      } else {
+        stocktakeNoMatch = true;
+      }
+    } else {
+      stocktakeNoMatch = true;
+    }
+  }
+
   if (extraction?.intent === "invoice" && customer && extraction.amount) {
     const held = await holdForConfirmation(
       env,
@@ -879,6 +938,19 @@ async function processOneExtraction(
     message = "Recognized a discrepancy discussion, but no supplier was named — try naming who it's from.";
   } else if (extraction?.intent === "variance_disposition" && dispositionNoOpenDiscrepancy) {
     message = `I don't have an open, unresolved discrepancy on file for ${character!.name} to attach this to.`;
+  } else if (extraction?.intent === "register_stock_item" && stockRegistrationResult) {
+    message = `Now tracking ${stockRegistrationResult.name}${stockRegistrationResult.unit ? ` (${stockRegistrationResult.unit})` : ""} as real, running stock.`;
+  } else if (extraction?.intent === "register_stock_item") {
+    message = "Recognized a request to start tracking stock, but no real material name was given — try naming it.";
+  } else if (extraction?.intent === "stock_usage" && stockUsageResult) {
+    message = `Recorded ${stockUsageResult.quantityUsed} used of ${stockUsageResult.itemName} — ${stockUsageResult.newQuantityOnHand} remaining.`;
+  } else if (extraction?.intent === "stock_usage" && stockUsageNoMatch) {
+    message = "Recognized real stock usage, but couldn't match it to anything currently being tracked — try naming the exact item, or track it first.";
+  } else if (extraction?.intent === "stocktake" && stocktakeResult) {
+    const varianceText = stocktakeResult.variance === 0 ? "matches exactly, no variance" : `variance ${stocktakeResult.variance > 0 ? "+" : ""}${stocktakeResult.variance} vs the expected ${stocktakeResult.quantityExpected}`;
+    message = `Stocktake recorded for ${stocktakeResult.itemName}: counted ${stocktakeResult.quantityCounted}, ${varianceText}.`;
+  } else if (extraction?.intent === "stocktake" && stocktakeNoMatch) {
+    message = "Recognized a stocktake, but couldn't match it to anything currently being tracked — try naming the exact item, or track it first.";
   } else if (pendingActionId && extraction?.intent === "convert_quote" && convertQuoteFound) {
     const { total, depositAmount, remainingBalance, quotationId } = convertQuoteFound;
     const depositNote = extraction.deposit_percent
@@ -1991,6 +2063,67 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
          ORDER BY vd.created_at DESC LIMIT 10`
       ).all();
       return Response.json({ varianceDispositions: results });
+    }
+
+    // Real feature 2026-07-25 — Consumables Stock, the idea-tank
+    // review's first real, unlocked item, sequenced explicitly after
+    // PO/GRN in the original design and built now that PO/GRN is real
+    // and proven.
+    if (url.pathname === "/debug/init-stock" && request.method === "POST") {
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS stock_items (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          unit TEXT,
+          quantity_on_hand REAL NOT NULL DEFAULT 0,
+          reorder_threshold REAL,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`
+      ).run();
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS stock_usage_log (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          stock_item_id INTEGER NOT NULL,
+          quantity_used REAL NOT NULL,
+          customer_id INTEGER,
+          source_transcript TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`
+      ).run();
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS stocktakes (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          source_transcript TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`
+      ).run();
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS stocktake_lines (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          stocktake_id INTEGER NOT NULL,
+          stock_item_id INTEGER NOT NULL,
+          quantity_counted REAL NOT NULL,
+          quantity_expected REAL NOT NULL,
+          variance REAL NOT NULL
+        )`
+      ).run();
+      return Response.json({ status: "ok" });
+    }
+
+    if (url.pathname === "/debug/stock-items" && request.method === "GET") {
+      const items = await getTrackedStockItems(env);
+      return Response.json({ stockItems: items });
+    }
+
+    if (url.pathname === "/debug/stocktakes" && request.method === "GET") {
+      const { results } = await env.OFFICE_DB.prepare(
+        `SELECT stl.id, stl.quantity_counted, stl.quantity_expected, stl.variance, si.name, si.unit, st.created_at
+         FROM stocktake_lines stl
+         JOIN stock_items si ON si.id = stl.stock_item_id
+         JOIN stocktakes st ON st.id = stl.stocktake_id
+         ORDER BY st.created_at DESC LIMIT 10`
+      ).all();
+      return Response.json({ stocktakes: results });
     }
 
     // Real feature 2026-07-24 — the real prerequisite for Aged
