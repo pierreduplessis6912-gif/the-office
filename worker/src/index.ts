@@ -2503,6 +2503,18 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // ingested tonight — no new mechanism, just a new, dedicated use
     // of one already working.
     if (url.pathname === "/business-profile/logo" && request.method === "POST") {
+      // Real fix, found live: the ALTER TABLE migration for this
+      // column lived only inside the separate /debug/business-profile
+      // route, which was never called again after the schema change —
+      // the column genuinely didn't exist yet here, causing a real
+      // SQL error on the UPDATE below. Run here too, idempotent and
+      // safe to re-run, so this route never depends on another one
+      // having been called first.
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE business_profile ADD COLUMN logo_r2_key TEXT").run();
+      } catch (err) {
+        // Column likely already exists — safe to re-run.
+      }
       const formData = await request.formData();
       const logo = formData.get("logo");
       if (!(logo instanceof File)) {
@@ -2513,7 +2525,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       const extension = mimeType.includes("jpeg") || mimeType.includes("jpg") ? "jpg" : "png";
       const key = `logos/business-logo-${Date.now()}.${extension}`;
       await env.OFFICE_VAULT.put(key, logoBuffer, { httpMetadata: { contentType: mimeType } });
-      await env.OFFICE_DB.prepare("UPDATE business_profile SET logo_r2_key = ? WHERE id = 1").bind(key).run();
+      await env.OFFICE_DB.prepare(
+        "INSERT INTO business_profile (id, logo_r2_key) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET logo_r2_key = excluded.logo_r2_key"
+      )
+        .bind(key)
+        .run();
       return Response.json({ status: "saved", logoKey: key });
     }
 
