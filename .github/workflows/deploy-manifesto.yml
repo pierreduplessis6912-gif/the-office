@@ -1,0 +1,28 @@
+name: Deploy manifesto prototype
+
+# A small, disposable static HTML/CSS/JS prototype used to iterate on
+# UX direction independently of the real Flutter app. Deployed to its
+# OWN, distinct Cloudflare Pages project — deliberately never the same
+# project as deploy-web-preview.yml, which builds and deploys the real
+# app/lib/main.dart. These two must never target the same project
+# name again; that collision once silently replaced the real app
+# preview with this prototype for several days without anyone noticing.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web-preview/**"
+      - ".github/workflows/deploy-manifesto.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy web-preview --project-name=the-office-manifesto
