@@ -3914,3 +3914,49 @@ Consumables Stock design.
 direction on the same scale as Pulse itself, correctly pinned rather
 than rushed into, given how many of tonight's own already-proven
 mechanisms it would need to touch and reuse correctly.
+
+## Corporate Stationary — the grounded core, and a real, significant bug found at the very center of the Worker (2026-07-25)
+
+**The real, grounded core, deliberately scoped**: a real business logo,
+captured via photo upload rather than typed in by hand, reusing the
+exact R2 storage pattern already proven throughout tonight. Fonts,
+color schemes, and marketing material were deliberately left pinned,
+not built — no real, demonstrated need behind them yet, the same
+discipline Principle 12 already exists to enforce.
+
+**Three real bugs found and fixed in sequence, each one revealing the
+next — worth recording precisely, since the last one is genuinely
+significant.**
+
+1. The `ALTER TABLE` migration for the new column lived only inside
+   the separate, existing `/debug/business-profile` route, never
+   called again after the schema change — the column genuinely didn't
+   exist yet, causing a real SQL error on upload. Fixed by running the
+   migration directly inside the new route too.
+2. Retrieving the logo returned a real 200 status with a genuine
+   0-byte body, even though a direct R2 HEAD check confirmed the
+   stored object had the correct real size. Fixed by reading the full
+   buffer before returning it, rather than streaming `object.body`
+   directly.
+3. **The real, significant one**: the same 0-byte result persisted
+   even after that fix, with response headers (including a correct
+   `Content-Length`) showing the right data was present. Traced to the
+   CORS wrapper — the one function that wraps *every single response*
+   this Worker has ever returned — which itself streamed
+   `response.body` directly, silently truncating the body a second
+   time, one level above the route-level fix. This had never surfaced
+   before because every prior response in this Worker's entire history
+   has been JSON; this logo route was the first binary response ever
+   produced. Fixed at that one, central point instead — the correct,
+   permanent fix, rather than working around it per-route.
+
+**Verified decisively, and honestly, using two different tools rather
+than trusting one.** `curl` continued reporting a 0-byte body even
+after the real, root-cause fix was deployed and confirmed clean on
+regression — traced to a client-side quirk in this specific `curl`
+build, not the server. Settled definitively by opening the URL
+directly in a real phone browser: the correct image displayed, with
+the browser's own title bar confirming the exact real dimensions
+(400×150) of the uploaded file. A good, concrete reminder that a
+single tool reporting a failure isn't always proof of one — worth
+checking with an independent method before concluding.
