@@ -157,6 +157,7 @@ class _OfficeHomeState extends State<OfficeHome> {
   final _imagePicker = ImagePicker();
 
   bool _isRecording = false;
+  bool _isWriteMode = false;
   int _idCounter = 0;
 
   // Real feature 2026-07-26 — empty by default, no hardcoded seed
@@ -592,10 +593,19 @@ class _OfficeHomeState extends State<OfficeHome> {
             _Composer(
               controller: _textController,
               isRecording: _isRecording,
-              onSend: _sendText,
+              isWriteMode: _isWriteMode,
+              onSend: () {
+                _sendText();
+                setState(() => _isWriteMode = false);
+              },
               onMicTap: _toggleRecording,
               onCameraTap: _pickAndSendPhoto,
               onDocumentTap: _pickAndSendDocument,
+              onToggleWriteMode: () => setState(() => _isWriteMode = !_isWriteMode),
+              onDiscard: () {
+                _textController.clear();
+                setState(() => _isWriteMode = false);
+              },
             ),
           ],
         ),
@@ -760,7 +770,15 @@ class _OfficeDrawer extends StatelessWidget {
 
 // The five real embers — small, peripheral dots in the masthead, never
 // competing for attention (Constitution Principle 25). Wired to real,
-// live backend data; tapping one opens a real detail sheet.
+// live backend data; tapping one opens a real detail sheet. Real,
+// tested values carried forward from the manifesto's own actual
+// refinement history (found via its real commit log, not guessed):
+// a 20x44 tap target (height matters most for touch targets in a row
+// like this, width stays narrow so the dots still cluster close), and
+// an elongated 4x15 slit rather than a round dot — "the tiger's-eye
+// look."
+const _emberUnlit = Color(0xFF2A2620);
+
 class _EmberRow extends StatelessWidget {
   final EmberCounts embers;
   final void Function(String emberId) onEmberTap;
@@ -768,17 +786,14 @@ class _EmberRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Row(
-        children: [
-          _Ember(color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks')),
-          _Ember(color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler')),
-          _Ember(color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance')),
-          _Ember(color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers')),
-          _Ember(color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending')),
-        ],
-      ),
+    return Row(
+      children: [
+        _Ember(color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks')),
+        _Ember(color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler')),
+        _Ember(color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance')),
+        _Ember(color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers')),
+        _Ember(color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending')),
+      ],
     );
   }
 }
@@ -791,24 +806,40 @@ class _Ember extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // A faint warm edge even at rest rather than fully "off" — real
-    // magnitude shown by real opacity, not a flat on/off state.
-    final lit = count > 0;
+    // Real, tested tiers, exact thresholds carried forward from the
+    // manifesto's own real JS logic — never a flat lit/unlit, real
+    // magnitude shown as real brightness.
+    final double brightness;
+    final Color core;
+    if (count >= 6) {
+      brightness = 1.35;
+      core = color;
+    } else if (count >= 3) {
+      brightness = 1.0;
+      core = color;
+    } else if (count >= 1) {
+      brightness = 0.7;
+      core = color;
+    } else {
+      brightness = 1.0;
+      core = _emberUnlit;
+    }
     return InkWell(
       onTap: onTap,
-      customBorder: const CircleBorder(),
-      // Real tap target widened well beyond the tiny 8px visual dot —
-      // found live that "tapping and nothing happening" partly meant
-      // a target too small to reliably hit, not just a missing
-      // handler.
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 8),
-        child: Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: color.withOpacity(lit ? 0.9 : 0.25),
+      child: SizedBox(
+        width: 20,
+        height: 44,
+        child: Center(
+          child: Container(
+            width: 4,
+            height: 15,
+            decoration: BoxDecoration(
+              color: count > 0 ? Color.lerp(core, Colors.white, (brightness - 1).clamp(0, 1) * 0.4) ?? core : core,
+              borderRadius: BorderRadius.circular(2),
+              boxShadow: count > 0
+                  ? [BoxShadow(color: color.withOpacity(0.5), blurRadius: 6 * brightness, spreadRadius: 1)]
+                  : null,
+            ),
           ),
         ),
       ),
@@ -823,18 +854,24 @@ class _Ember extends StatelessWidget {
 class _Composer extends StatelessWidget {
   final TextEditingController controller;
   final bool isRecording;
+  final bool isWriteMode;
   final VoidCallback onSend;
   final VoidCallback onMicTap;
   final VoidCallback onCameraTap;
   final VoidCallback onDocumentTap;
+  final VoidCallback onToggleWriteMode;
+  final VoidCallback onDiscard;
 
   const _Composer({
     required this.controller,
     required this.isRecording,
+    required this.isWriteMode,
     required this.onSend,
     required this.onMicTap,
     required this.onCameraTap,
     required this.onDocumentTap,
+    required this.onToggleWriteMode,
+    required this.onDiscard,
   });
 
   @override
@@ -842,58 +879,74 @@ class _Composer extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(8, 10, 12, 10),
-        decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: Color(0x33F5F2EB), width: 1)),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+        // Real, tested design carried forward from the manifesto's own
+        // history: no permanent text field, no hint text ("once the
+        // icons are self-explanatory, instructional text was redundant
+        // clutter competing with the void's own emptiness"). Talk mode
+        // is the real, default state; write mode is a genuine, distinct
+        // mode switched into, not a field sitting there all along.
+        child: isWriteMode ? _buildWriteMode() : _buildTalkRow(),
+      ),
+    );
+  }
+
+  Widget _buildTalkRow() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
           children: [
-            IconButton(
-              iconSize: 22,
-              icon: const Icon(Icons.camera_alt_outlined),
-              color: _muted,
-              onPressed: onCameraTap,
-            ),
-            IconButton(
-              iconSize: 22,
-              icon: const Icon(Icons.attach_file),
-              color: _muted,
-              onPressed: onDocumentTap,
-            ),
-            IconButton(
-              iconSize: 26,
-              icon: Icon(isRecording ? Icons.stop_circle : Icons.mic_none),
-              color: isRecording ? _stampRed : _officeAccent,
-              onPressed: onMicTap,
-            ),
-            Expanded(
-              child: TextField(
-                controller: controller,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => onSend(),
-                style: GoogleFonts.workSans(fontSize: 15.5, color: _paper),
-                decoration: InputDecoration(
-                  hintText: 'Write it down, or tap the mic...',
-                  hintStyle: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic, fontSize: 14.5),
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                  border: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0x55F5F2EB))),
-                  enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0x55F5F2EB))),
-                  focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: _officeAccent, width: 1.5)),
-                ),
-              ),
-            ),
-            const SizedBox(width: 4),
-            IconButton(
-              iconSize: 24,
-              icon: const Icon(Icons.arrow_upward),
-              color: _officeAccent,
-              onPressed: onSend,
-            ),
+            IconButton(icon: const Icon(Icons.camera_alt_outlined), color: _muted, onPressed: onCameraTap),
+            IconButton(icon: const Icon(Icons.attach_file), color: _muted, onPressed: onDocumentTap),
           ],
         ),
-      ),
+        IconButton(
+          iconSize: 34,
+          icon: Icon(isRecording ? Icons.stop_circle : Icons.mic_none),
+          color: isRecording ? _stampRed : _officeAccent,
+          onPressed: onMicTap,
+        ),
+        IconButton(icon: const Icon(Icons.edit_outlined), color: _muted, onPressed: onToggleWriteMode),
+      ],
+    );
+  }
+
+  Widget _buildWriteMode() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'WRITE IT DOWN',
+          style: GoogleFonts.ibmPlexMono(color: _muted, fontSize: 11, letterSpacing: 1.4, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 6),
+        // Real, tested fix: no visible border at all — "even a subtle
+        // line read as input-field chrome against an otherwise
+        // line-free void."
+        TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 3,
+          minLines: 2,
+          style: GoogleFonts.workSans(fontSize: 15.5, color: _paper),
+          decoration: const InputDecoration(
+            border: InputBorder.none,
+            isDense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            TextButton(onPressed: onDiscard, child: Text('DISCARD', style: GoogleFonts.ibmPlexMono(color: _muted, fontSize: 12, letterSpacing: 1))),
+            const SizedBox(width: 8),
+            TextButton(onPressed: onSend, child: Text('SEND', style: GoogleFonts.ibmPlexMono(color: _officeAccent, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1))),
+          ],
+        ),
+      ],
     );
   }
 }
