@@ -163,12 +163,66 @@ class _OfficeHomeState extends State<OfficeHome> {
   Timer? _statusTimer;
 
   @override
+  void initState() {
+    super.initState();
+    _loadEmberCounts();
+  }
+
+  @override
   void dispose() {
     _recorder.dispose();
     _textController.dispose();
     _scrollController.dispose();
     _statusTimer?.cancel();
     super.dispose();
+  }
+
+  // Real feature 2026-07-26 — the five embers wired to real, live
+  // backend data. Fetched on startup and refreshed after every real
+  // action, mirroring the manifesto prototype's own proven pattern.
+  // Each ember reports a real, deterministic magnitude — never
+  // editorializes, never asserts urgency (DECISIONS.md — "Peter must
+  // guide"). Failures are silently ignored per-route rather than
+  // shown as an error; a stale or missing count is a minor cosmetic
+  // gap, not something worth interrupting Peter over.
+  Future<void> _loadEmberCounts() async {
+    Future<void> safeFetch(String path, void Function(Map<String, dynamic>) onData) async {
+      try {
+        final response = await http.get(Uri.parse('$officeApiBase$path'));
+        if (response.statusCode == 200) {
+          onData(jsonDecode(response.body) as Map<String, dynamic>);
+        }
+      } catch (_) {
+        // Real, deliberate no-op — a stale ember count is a minor
+        // cosmetic gap, not worth interrupting Peter with an error.
+      }
+    }
+
+    await Future.wait([
+      safeFetch('/embers/tasks', (data) {
+        final tasks = (data['tasks'] as List?)?.length ?? 0;
+        final snags = data['openSnagsCount'] as int? ?? 0;
+        setState(() => _embers.tasks = tasks + snags);
+      }),
+      safeFetch('/embers/scheduler', (data) {
+        final scheduled = (data['scheduledToday'] as List?)?.length ?? 0;
+        final projects = data['projectsCount'] as int? ?? 0;
+        setState(() => _embers.scheduler = scheduled + projects);
+      }),
+      safeFetch('/embers/finance', (data) {
+        final outstanding = (data['outstanding'] as List?)?.length ?? 0;
+        setState(() => _embers.finance = outstanding);
+      }),
+      safeFetch('/embers/suppliers', (data) {
+        final expenses = (data['todaysExpenses'] as List?)?.length ?? 0;
+        final creditors = (data['agedCreditors'] as List?)?.length ?? 0;
+        setState(() => _embers.suppliers = expenses + creditors);
+      }),
+      safeFetch('/embers/pending', (data) {
+        final pending = (data['pending'] as List?)?.length ?? 0;
+        setState(() => _embers.pending = pending);
+      }),
+    ]);
   }
 
   String _newId() => 'msg-${_idCounter++}';
@@ -269,6 +323,7 @@ class _OfficeHomeState extends State<OfficeHome> {
           text: data['message'] as String? ?? 'Done.',
           pendingItems: _extractPendingItems(data),
         );
+        _loadEmberCounts();
       } else {
         _updateMessage(statusId, role: MessageRole.office, text: 'Something went wrong (${response.statusCode}).');
       }
@@ -343,6 +398,7 @@ class _OfficeHomeState extends State<OfficeHome> {
           text: data['message'] as String? ?? 'Done.',
           pendingItems: _extractPendingItems(data),
         );
+        _loadEmberCounts();
       } else {
         _updateMessage(statusId, role: MessageRole.office, text: 'Upload failed (${response.statusCode}).');
       }
@@ -426,6 +482,7 @@ class _OfficeHomeState extends State<OfficeHome> {
           message = 'Stored — nothing real to reconcile it against yet.';
         }
         _updateMessage(statusId, role: MessageRole.office, text: message, pendingItems: pendingItems);
+        _loadEmberCounts();
       } else {
         _updateMessage(statusId, role: MessageRole.office, text: 'Upload failed (${response.statusCode}).');
       }
@@ -469,7 +526,9 @@ class _OfficeHomeState extends State<OfficeHome> {
                 : PendingStatus.pending;
         _messages[msgIndex].pendingItems[itemIndex].pdfUrl = pdfUrl;
       });
-      if (response.statusCode != 200) {
+      if (response.statusCode == 200) {
+        _loadEmberCounts();
+      } else {
         _addMessage(MessageRole.office, 'Could not ${confirm ? "confirm" : "reject"} that — try again.');
       }
     } catch (_) {
