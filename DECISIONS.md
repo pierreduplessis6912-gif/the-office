@@ -3960,3 +3960,97 @@ the browser's own title bar confirming the exact real dimensions
 (400×150) of the uploaded file. A good, concrete reminder that a
 single tool reporting a failure isn't always proof of one — worth
 checking with an independent method before concluding.
+
+## The Flutter rebuild — marrying the proven backend logic with the real, intended manifesto design (2026-07-26)
+
+**A real, significant mix-up found and fixed first, before any of
+this could safely start.** The web-preview deploy workflow had been
+silently repointed, in an earlier part of this same session, from a
+genuine `flutter build web` of `main.dart` to a static HTML manifesto
+prototype — meaning every "web preview" screenshot for a stretch of
+this session was showing a different artifact than believed. Found
+by checking the actual workflow file's real history rather than
+trusting either account, fixed by restoring the genuine Flutter
+build and giving the manifesto its own, permanently separate
+workflow and Cloudflare Pages project so this collision can't
+recur.
+
+**Reading the real, documented ember history before touching any
+code.** Rather than treat the manifesto's four embers (tasks,
+scheduler, finance, expenses) as a fixed given, `DECISIONS.md` was
+searched directly and found to hold a real, dated design journey —
+an earlier 2026-07-10 "notification embers" concept (actions-needed,
+reports-ready, calendar, to-do) that was genuinely superseded three
+days later once real, in-browser building happened, settling on
+magnitude-based counts per business domain instead. The core,
+durable principle survived every iteration: embers report a real,
+deterministic count, never editorialize, never assert urgency —
+"Peter must guide."
+
+**Broadened to five embers, decided deliberately rather than
+defaulted into**: Tasks folds in Snags (both a real, open thing to
+do). Scheduler folds in Projects (a project is just grouped job
+scopes). Finance stays customer-side. Suppliers broadens the old
+Expenses ember to cover everything money-going-out — informal
+expenses, POs, GRN, supplier invoices/payments, Aged Creditors,
+Consumables Stock. Pending is genuinely new — the real, direct
+fulfillment of the original 2026-07-10 "actions needed" concept,
+proposed once, never wired into a UI until now.
+
+**A real, comprehensive UI capability map built and pushed**
+(`UI_MAP.md`) — every backend capability from `FEATURES.md` (itself
+brought current first, since it had gone stale relative to
+everything built earlier tonight) paired with its real or intended
+home in the app, honestly naming genuinely open placement questions
+rather than deciding them alone.
+
+**Design inspiration drawn deliberately from this very chat
+interface** — the hamburger drawer for navigating existing data
+(Reports & Documents, People, and History folded in together, since
+the manifesto's own separate swipe-right history gesture had two
+real, named problems: a handle that blended invisibly into the
+background, and chat bubbles the whole rebuild was already moving
+away from) — and the three-dot menu for meta, account-level actions
+(Account, Settings, Help) that were never real ember or business-data
+concerns.
+
+**History resolved as a real, deliberately simple ledger, not a
+richer feature** — reasoned through directly: conversational lookup
+already answers the specific "what did X pay" questions history
+might otherwise serve, so a plain, chronological input/output log,
+minimally built, is the right shape — expected to matter less over
+time as trust in conversational answers grows, the same way
+comfort tools naturally recede once their reason for existing fades.
+Deliberately not over-invested in for exactly that reason.
+
+**Two real steps of the agreed, sequenced rebuild built and proven
+live, end to end, via real screenshots — not just claimed from a
+green build status.** Visual shell: dark theme (the real, confirmed
+manifesto palette), the five embers in the masthead, the hamburger
+drawer and three-dot menu, an empty-by-default stage (no hardcoded
+seed message — Principle 25, "empty screen is relief"), and real
+camera/document upload wired to `/files/photo` and `/files/document`
+— the single most significant functional gap named in `UI_MAP.md`,
+closed. Real data wiring: two extended and two genuinely new backend
+`/embers/*` routes, fetched on startup and after every real action,
+verified against real, live counts (7 tasks, 4 projects, 1 supplier
+owed, 11 real pending actions accumulated across the whole session).
+
+**A real gap found only by Pierre actually testing it, not by
+review** — tapping an ember did nothing, since the visual dot had
+never been wired for interaction at all (a later step in the
+original sequence). Built immediately rather than deferred further,
+reusing the ember data already cached to compute the counts rather
+than a separate fetch — verified live: tapping Pending correctly
+opened a real sheet listing the actual, accumulated pending actions
+from the whole session (#75 supplier_invoice, six real quotations,
+a payment, two facts).
+
+**All of this preserves, unmodified, every proven mechanism from the
+original Flutter build** — confirm/reject via the real
+`pendingActionId`/`factPendingActionId` fields, conversation-history
+sending for pronoun resolution, and the record-and-upload voice flow
+(deliberately kept over the manifesto's live browser speech
+recognition, which doesn't carry over to a native build). Porting
+these was never in question — only the visual and interaction layer
+around them changed.
