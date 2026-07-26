@@ -2544,7 +2544,13 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       if (!object) {
         return Response.json({ error: "logo file missing from storage" }, { status: 404 });
       }
-      return new Response(object.body, {
+      // Real fix, found live: streaming object.body directly returned
+      // a real 200 status with a genuine 0-byte body, even though the
+      // real, stored R2 object itself had a real, correct size and
+      // content type (confirmed via a real HEAD check). Reading the
+      // full buffer first is the known, safer pattern here.
+      const buffer = await object.arrayBuffer();
+      return new Response(buffer, {
         headers: { "Content-Type": object.httpMetadata?.contentType ?? "image/png" },
       });
     }
