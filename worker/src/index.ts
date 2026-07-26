@@ -2459,9 +2459,18 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           email TEXT,
           banking_details TEXT,
           vat_registered INTEGER NOT NULL DEFAULT 0,
-          vat_rate REAL NOT NULL DEFAULT 15
+          vat_rate REAL NOT NULL DEFAULT 15,
+          logo_r2_key TEXT
         )`
       ).run();
+      // Real migration 2026-07-25 — business_profile already exists
+      // with real data, so CREATE TABLE IF NOT EXISTS alone would
+      // never add this new column to it.
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE business_profile ADD COLUMN logo_r2_key TEXT").run();
+      } catch (err) {
+        // Column likely already exists — safe to re-run.
+      }
       await env.OFFICE_DB.prepare(
         `INSERT INTO business_profile (id, name, trading_as, vat_no, address, phone, email, banking_details, vat_registered, vat_rate)
          VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -2485,6 +2494,43 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         .run();
       const saved = await env.OFFICE_DB.prepare("SELECT * FROM business_profile WHERE id = 1").first();
       return Response.json({ status: "saved", profile: saved });
+    }
+
+    // Real feature 2026-07-25 — Corporate Stationary, the grounded
+    // core: a real business logo, captured via photo upload during
+    // onboarding rather than typed in by hand. Reuses the exact same
+    // R2 storage pattern already proven for every other photo
+    // ingested tonight — no new mechanism, just a new, dedicated use
+    // of one already working.
+    if (url.pathname === "/business-profile/logo" && request.method === "POST") {
+      const formData = await request.formData();
+      const logo = formData.get("logo");
+      if (!(logo instanceof File)) {
+        return Response.json({ error: "missing logo file" }, { status: 400 });
+      }
+      const logoBuffer = await logo.arrayBuffer();
+      const mimeType = logo.type || "image/png";
+      const extension = mimeType.includes("jpeg") || mimeType.includes("jpg") ? "jpg" : "png";
+      const key = `logos/business-logo-${Date.now()}.${extension}`;
+      await env.OFFICE_VAULT.put(key, logoBuffer, { httpMetadata: { contentType: mimeType } });
+      await env.OFFICE_DB.prepare("UPDATE business_profile SET logo_r2_key = ? WHERE id = 1").bind(key).run();
+      return Response.json({ status: "saved", logoKey: key });
+    }
+
+    if (url.pathname === "/business-profile/logo" && request.method === "GET") {
+      const profile = await env.OFFICE_DB.prepare("SELECT logo_r2_key FROM business_profile WHERE id = 1").first<{
+        logo_r2_key: string | null;
+      }>();
+      if (!profile?.logo_r2_key) {
+        return Response.json({ error: "no logo on file" }, { status: 404 });
+      }
+      const object = await env.OFFICE_VAULT.get(profile.logo_r2_key);
+      if (!object) {
+        return Response.json({ error: "logo file missing from storage" }, { status: 404 });
+      }
+      return new Response(object.body, {
+        headers: { "Content-Type": object.httpMetadata?.contentType ?? "image/png" },
+      });
     }
 
     if (url.pathname === "/debug/memberships" && request.method === "GET") {
