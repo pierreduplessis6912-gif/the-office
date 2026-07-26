@@ -191,10 +191,15 @@ class _OfficeHomeState extends State<OfficeHome> {
         final response = await http.get(Uri.parse('$officeApiBase$path'));
         if (response.statusCode == 200) {
           onData(jsonDecode(response.body) as Map<String, dynamic>);
+        } else {
+          // Temporary diagnostic, visible in the app itself since
+          // browser devtools aren't easily accessible from a phone —
+          // surfaces the real, actual cause rather than silently
+          // swallowing it.
+          _addMessage(MessageRole.status, 'EMBER $path FAILED: ${response.statusCode}');
         }
-      } catch (_) {
-        // Real, deliberate no-op — a stale ember count is a minor
-        // cosmetic gap, not worth interrupting Peter with an error.
+      } catch (e) {
+        _addMessage(MessageRole.status, 'EMBER $path ERROR: $e');
       }
     }
 
