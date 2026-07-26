@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -13,18 +15,37 @@ import 'package:url_launcher/url_launcher.dart';
 /// Changing this one line is the entire cost of a future domain swap.
 const officeApiBase = 'https://office.websitehub.co.za';
 
-// Design tokens. Grounded in the actual subject — an invoice book and
-// a work order, not a generic messaging app — rather than Material's
-// auto-derived defaults. See design plan: aged ledger paper, ballpoint
-// ink, workwear pine (the Office), leather brown (Peter), stamp red
-// reserved for anything still waiting on a decision.
-const _paper = Color(0xFFF2ECDC);
-const _ink = Color(0xFF2B2620);
-const _officeAccent = Color(0xFF1F4B3F);
-const _userAccent = Color(0xFF6B4A2B);
-const _stampRed = Color(0xFFB23A2E);
+// Design tokens. Real, marrying two proven design threads rather than
+// picking one: the "aged ledger" line-based rendering from the first
+// Flutter build (no chat bubbles, ever), now on the dark, charcoal
+// palette from the July manifesto prototype — the real, intended
+// visual direction confirmed directly, not a stylistic guess. Five
+// embers (real magnitude counts, never editorializing — see
+// DECISIONS.md, "Peter must guide") replace the four from the
+// original prototype, broadened to cover tonight's real, additional
+// capabilities without growing the masthead further.
+const _charcoal = Color(0xFF17140F);
+const _paper = Color(0xFFF5F2EB);
 const _muted = Color(0xFF8A8172);
-const _confirmedGreen = Color(0xFF2F6B4F);
+const _officeAccent = Color(0xFF6FAF8F);
+const _userAccent = Color(0xFFD9A868);
+const _stampRed = Color(0xFFE0665A);
+const _confirmedGreen = Color(0xFF6FAF8F);
+
+// The five embers — real, deterministic magnitude, never urgency or
+// judgment. Tasks folds in Snags (both a real, open "thing to do").
+// Scheduler folds in Projects (a project is just grouped job scopes).
+// Finance stays customer-side (receivables). Suppliers is Expenses,
+// broadened to cover everything money-going-out (POs, GRN, supplier
+// invoices/payments, Aged Creditors, Consumables Stock). Pending is
+// new — the real, direct fulfillment of the original 2026-07-10
+// "actions needed" ember concept, never actually wired into a UI
+// until now.
+const _emberAmber = Color(0xFFE8871E); // Tasks + Snags
+const _emberBlue = Color(0xFF4A7FC1); // Scheduler + Projects
+const _emberRed = Color(0xFFC4432B); // Finance
+const _emberPurple = Color(0xFF7A5FB8); // Suppliers
+const _emberSage = Color(0xFF5C7A5C); // Pending
 
 void main() => runApp(const OfficeApp());
 
@@ -33,31 +54,36 @@ class OfficeApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final base = ThemeData.light();
+    final base = ThemeData.dark();
     return MaterialApp(
       title: 'The Office',
       theme: ThemeData(
         useMaterial3: true,
-        scaffoldBackgroundColor: _paper,
+        scaffoldBackgroundColor: _charcoal,
         colorScheme: ColorScheme.fromSeed(
           seedColor: _officeAccent,
-          brightness: Brightness.light,
-        ).copyWith(surface: _paper),
+          brightness: Brightness.dark,
+        ).copyWith(surface: _charcoal),
         textTheme: GoogleFonts.workSansTextTheme(base.textTheme).apply(
-          bodyColor: _ink,
-          displayColor: _ink,
+          bodyColor: _paper,
+          displayColor: _paper,
         ),
         appBarTheme: AppBarTheme(
-          backgroundColor: _paper,
-          foregroundColor: _ink,
+          backgroundColor: _charcoal,
+          foregroundColor: _paper,
           elevation: 0,
           scrolledUnderElevation: 0,
           titleTextStyle: GoogleFonts.ibmPlexMono(
-            color: _ink,
+            color: _paper,
             fontWeight: FontWeight.w600,
             fontSize: 19,
             letterSpacing: 1.8,
           ),
+        ),
+        drawerTheme: const DrawerThemeData(backgroundColor: _charcoal),
+        popupMenuTheme: PopupMenuThemeData(
+          color: _charcoal,
+          textStyle: GoogleFonts.workSans(color: _paper, fontSize: 14),
         ),
       ),
       home: const OfficeHome(),
@@ -97,6 +123,19 @@ class ChatMessage {
   }) : pendingItems = pendingItems ?? [];
 }
 
+// The five real ember counts. Static, placeholder zeros for now — the
+// real backend wiring (loadCounts, one endpoint per ember) is the
+// deliberate next step, kept separate so this shell can be verified
+// on its own first.
+class EmberCounts {
+  int tasks;
+  int scheduler;
+  int finance;
+  int suppliers;
+  int pending;
+  EmberCounts({this.tasks = 0, this.scheduler = 0, this.finance = 0, this.suppliers = 0, this.pending = 0});
+}
+
 class OfficeHome extends StatefulWidget {
   const OfficeHome({super.key});
 
@@ -108,13 +147,18 @@ class _OfficeHomeState extends State<OfficeHome> {
   final _recorder = AudioRecorder();
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
+  final _imagePicker = ImagePicker();
 
   bool _isRecording = false;
   int _idCounter = 0;
 
-  final List<ChatMessage> _messages = [
-    ChatMessage(id: 'seed-1', role: MessageRole.office, text: 'Morning Peter — talk or type, whichever is easier.'),
-  ];
+  // Real feature 2026-07-26 — empty by default, no hardcoded seed
+  // message. "Empty screen is relief" (Constitution Principle 25) —
+  // the app should start genuinely empty, not with a pre-written
+  // greeting standing in for it.
+  final List<ChatMessage> _messages = [];
+
+  final EmberCounts _embers = EmberCounts();
 
   Timer? _statusTimer;
 
@@ -314,6 +358,83 @@ class _OfficeHomeState extends State<OfficeHome> {
     }
   }
 
+  // --- Photo & document upload (real feature 2026-07-26) --------------
+  //
+  // The single most significant gap named in UI_MAP.md: every other
+  // real ingestion path (GRN reconciliation, supplier invoices,
+  // supplier statements, the logo capture built earlier tonight)
+  // depended on this, and until now nothing in the app could reach
+  // it at all. Mirrors the exact real request shape already proven
+  // live tonight via curl — a multipart "photo"/"document" field —
+  // never a new backend contract, just the first real client for one
+  // that already existed.
+
+  Future<void> _pickAndSendPhoto() async {
+    final XFile? picked = await _imagePicker.pickImage(source: ImageSource.camera, imageQuality: 85);
+    if (picked == null) return;
+    await _uploadFile(path: picked.path, endpoint: 'photo', fieldName: 'photo', label: '📷 Photo');
+  }
+
+  Future<void> _pickAndSendDocument() async {
+    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
+    final path = result?.files.single.path;
+    if (path == null) return;
+    await _uploadFile(path: path, endpoint: 'document', fieldName: 'document', label: '📄 Document');
+  }
+
+  Future<void> _uploadFile({
+    required String path,
+    required String endpoint,
+    required String fieldName,
+    required String label,
+  }) async {
+    _addMessage(MessageRole.user, label);
+    final statusId = _addMessage(MessageRole.status, 'Uploading...');
+    _startStatusCycle(statusId, ['Uploading...', 'Reading it...', 'Checking who this is for...']);
+
+    try {
+      final uri = Uri.parse('$officeApiBase/files/$endpoint');
+      final request = http.MultipartRequest('POST', uri);
+      request.files.add(await http.MultipartFile.fromPath(fieldName, path));
+      final streamed = await request.send();
+      final response = await http.Response.fromStream(streamed);
+      _stopStatusCycle();
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        // Real, honest surfacing of whichever real action the
+        // ingestion pipeline actually produced — a supplier invoice
+        // held for confirmation, a GRN recorded directly, a real
+        // statement comparison, or none of those if there's genuinely
+        // nothing real to reconcile against yet.
+        final supplierInvoiceAction = data['supplierInvoiceAction'] as Map<String, dynamic>?;
+        final goodsReceivedAction = data['goodsReceivedAction'] as Map<String, dynamic>?;
+        final supplierStatementAction = data['supplierStatementAction'] as Map<String, dynamic>?;
+        String message;
+        List<PendingItem> pendingItems = [];
+        if (supplierInvoiceAction != null) {
+          final id = supplierInvoiceAction['pendingActionId'];
+          message = 'Supplier invoice noted — needs your confirmation.';
+          if (id is int) pendingItems = [PendingItem(id: id)];
+        } else if (goodsReceivedAction != null) {
+          message = 'Delivery recorded (GRN #${goodsReceivedAction['grnId']}).';
+        } else if (supplierStatementAction != null) {
+          final claimed = supplierStatementAction['claimedBalance'];
+          final real = supplierStatementAction['realBalance'];
+          message = 'Statement compared — they claim R$claimed, our records show R$real.';
+        } else {
+          message = 'Stored — nothing real to reconcile it against yet.';
+        }
+        _updateMessage(statusId, role: MessageRole.office, text: message, pendingItems: pendingItems);
+      } else {
+        _updateMessage(statusId, role: MessageRole.office, text: 'Upload failed (${response.statusCode}).');
+      }
+    } catch (_) {
+      _stopStatusCycle();
+      _updateMessage(statusId, role: MessageRole.office, text: 'Upload failed — check connection.');
+    }
+  }
+
   // --- Guard() actions — the actual point of today's build ----------
 
   Future<void> _resolvePendingItem(String messageId, int itemId, bool confirm) async {
@@ -360,7 +481,17 @@ class _OfficeHomeState extends State<OfficeHome> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('THE OFFICE')),
+      appBar: AppBar(
+        title: const Text('THE OFFICE'),
+        actions: [
+          _EmberRow(embers: _embers),
+          IconButton(
+            icon: const Icon(Icons.more_vert),
+            onPressed: () => _showMoreMenu(context),
+          ),
+        ],
+      ),
+      drawer: const _OfficeDrawer(),
       body: SafeArea(
         child: Column(
           children: [
@@ -381,6 +512,202 @@ class _OfficeHomeState extends State<OfficeHome> {
               isRecording: _isRecording,
               onSend: _sendText,
               onMicTap: _toggleRecording,
+              onCameraTap: _pickAndSendPhoto,
+              onDocumentTap: _pickAndSendDocument,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // The three-dot menu — real, meta, account-level actions, not
+  // business data. Mirrors this very interface's own convention
+  // rather than inventing a new one. Login/settings/tutorials are
+  // real, named destinations in UI_MAP.md — placeholder for now,
+  // real wiring is a deliberate, separate next step.
+  void _showMoreMenu(BuildContext context) {
+    showMenu(
+      context: context,
+      position: const RelativeRect.fromLTRB(1000, 60, 0, 0),
+      color: _charcoal,
+      items: [
+        const PopupMenuItem(value: 'account', child: Text('Account')),
+        const PopupMenuItem(value: 'settings', child: Text('Settings')),
+        const PopupMenuItem(value: 'help', child: Text('Help & tutorials')),
+      ],
+    );
+  }
+}
+
+// The hamburger drawer — real navigation into existing data, mirroring
+// this very interface's own sidebar. Reports & Documents and People
+// were real, proven in the manifesto prototype; History joins them
+// here rather than staying its own separate, poorly-discoverable
+// swipe gesture (a real, named problem with the prior design — the
+// handle blended into the background and the log itself used chat
+// bubbles, which this whole rebuild deliberately moves away from).
+// All three placeholder for now — real wiring is a deliberate,
+// separate next step from this visual shell.
+class _OfficeDrawer extends StatelessWidget {
+  const _OfficeDrawer();
+
+  @override
+  Widget build(BuildContext context) {
+    return Drawer(
+      backgroundColor: _charcoal,
+      child: SafeArea(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Text(
+                'THE OFFICE',
+                style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 16, letterSpacing: 1.6, fontWeight: FontWeight.w600),
+              ),
+            ),
+            _drawerItem(Icons.description_outlined, 'Reports & Documents'),
+            _drawerItem(Icons.people_outline, 'People'),
+            _drawerItem(Icons.history, 'History'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _drawerItem(IconData icon, String label) {
+    return ListTile(
+      leading: Icon(icon, color: _muted),
+      title: Text(label, style: GoogleFonts.workSans(color: _paper, fontSize: 15)),
+      onTap: () {},
+    );
+  }
+}
+
+// The five real embers — small, peripheral dots in the masthead, never
+// competing for attention (Constitution Principle 25). Static for now;
+// wiring these to real, live backend counts is the deliberate next
+// step after this visual shell is verified.
+class _EmberRow extends StatelessWidget {
+  final EmberCounts embers;
+  const _EmberRow({required this.embers});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        children: [
+          _Ember(color: _emberAmber, count: embers.tasks),
+          _Ember(color: _emberBlue, count: embers.scheduler),
+          _Ember(color: _emberRed, count: embers.finance),
+          _Ember(color: _emberPurple, count: embers.suppliers),
+          _Ember(color: _emberSage, count: embers.pending),
+        ],
+      ),
+    );
+  }
+}
+
+class _Ember extends StatelessWidget {
+  final Color color;
+  final int count;
+  const _Ember({required this.color, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    // A faint warm edge even at rest rather than fully "off" — real
+    // magnitude shown by real opacity, not a flat on/off state.
+    final lit = count > 0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: color.withOpacity(lit ? 0.9 : 0.25),
+        ),
+      ),
+    );
+  }
+}
+
+// Bottom-anchored, thumb-reachable composer — talk and write converge
+// on the same real send path. Camera and document buttons added
+// 2026-07-26, real, direct upload to /files/photo and /files/document
+// — the single most significant gap this rebuild exists to close.
+class _Composer extends StatelessWidget {
+  final TextEditingController controller;
+  final bool isRecording;
+  final VoidCallback onSend;
+  final VoidCallback onMicTap;
+  final VoidCallback onCameraTap;
+  final VoidCallback onDocumentTap;
+
+  const _Composer({
+    required this.controller,
+    required this.isRecording,
+    required this.onSend,
+    required this.onMicTap,
+    required this.onCameraTap,
+    required this.onDocumentTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(8, 10, 12, 10),
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: Color(0x33F5F2EB), width: 1)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            IconButton(
+              iconSize: 22,
+              icon: const Icon(Icons.camera_alt_outlined),
+              color: _muted,
+              onPressed: onCameraTap,
+            ),
+            IconButton(
+              iconSize: 22,
+              icon: const Icon(Icons.attach_file),
+              color: _muted,
+              onPressed: onDocumentTap,
+            ),
+            IconButton(
+              iconSize: 26,
+              icon: Icon(isRecording ? Icons.stop_circle : Icons.mic_none),
+              color: isRecording ? _stampRed : _officeAccent,
+              onPressed: onMicTap,
+            ),
+            Expanded(
+              child: TextField(
+                controller: controller,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => onSend(),
+                style: GoogleFonts.workSans(fontSize: 15.5, color: _paper),
+                decoration: InputDecoration(
+                  hintText: 'Write it down, or tap the mic...',
+                  hintStyle: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic, fontSize: 14.5),
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  border: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0x55F5F2EB))),
+                  enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0x55F5F2EB))),
+                  focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: _officeAccent, width: 1.5)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            IconButton(
+              iconSize: 24,
+              icon: const Icon(Icons.arrow_upward),
+              color: _officeAccent,
+              onPressed: onSend,
             ),
           ],
         ),
@@ -442,7 +769,7 @@ class _MessageLine extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   message.text,
-                  style: GoogleFonts.workSans(fontSize: 15.5, color: _ink, height: 1.35),
+                  style: GoogleFonts.workSans(fontSize: 15.5, color: _paper, height: 1.35),
                 ),
               ],
             ),
@@ -508,7 +835,7 @@ class _MessageLine extends StatelessWidget {
                 const SizedBox(height: 5),
                 Text(
                   message.text,
-                  style: GoogleFonts.workSans(fontSize: 14, color: _ink, height: 1.3),
+                  style: GoogleFonts.workSans(fontSize: 14, color: _paper, height: 1.3),
                 ),
                 const SizedBox(height: 10),
                 ...message.pendingItems.map(_buildActionRow),
@@ -604,72 +931,6 @@ class _MessageLine extends StatelessWidget {
         child: Text(
           label.toUpperCase(),
           style: GoogleFonts.ibmPlexMono(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1, color: color),
-        ),
-      ),
-    );
-  }
-}
-
-// Bottom-anchored, thumb-reachable, and styled as "write on the line"
-// rather than a filled rounded pill — an underline, not chrome, to
-// stay consistent with the ledger metaphor instead of borrowing a
-// generic messaging-app composer.
-class _Composer extends StatelessWidget {
-  final TextEditingController controller;
-  final bool isRecording;
-  final VoidCallback onSend;
-  final VoidCallback onMicTap;
-
-  const _Composer({
-    required this.controller,
-    required this.isRecording,
-    required this.onSend,
-    required this.onMicTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-        decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: Color(0x332B2620), width: 1)),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            IconButton(
-              iconSize: 26,
-              icon: Icon(isRecording ? Icons.stop_circle : Icons.mic_none),
-              color: isRecording ? _stampRed : _officeAccent,
-              onPressed: onMicTap,
-            ),
-            Expanded(
-              child: TextField(
-                controller: controller,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => onSend(),
-                style: GoogleFonts.workSans(fontSize: 15.5, color: _ink),
-                decoration: InputDecoration(
-                  hintText: 'Write it down, or tap the mic...',
-                  hintStyle: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic, fontSize: 14.5),
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                  border: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0x552B2620))),
-                  enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0x552B2620))),
-                  focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: _officeAccent, width: 1.5)),
-                ),
-              ),
-            ),
-            const SizedBox(width: 4),
-            IconButton(
-              iconSize: 24,
-              icon: const Icon(Icons.arrow_upward),
-              color: _officeAccent,
-              onPressed: onSend,
-            ),
-          ],
         ),
       ),
     );
