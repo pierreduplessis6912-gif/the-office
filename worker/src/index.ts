@@ -4359,7 +4359,13 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // in this project yet — deliberately not stubbed.
     if (url.pathname === "/embers/tasks" && request.method === "GET") {
       const openTasks = await getOpenTasks(env);
-      return Response.json({ tasks: openTasks });
+      // Real feature 2026-07-26 — Tasks folds in Snags per the agreed
+      // five-ember scheme (both a real, open thing to do), broadened
+      // without adding a sixth ember to the masthead.
+      const snagCountRow = await env.OFFICE_DB.prepare(
+        "SELECT COUNT(*) as count FROM snags WHERE status = 'open'"
+      ).first<{ count: number }>();
+      return Response.json({ tasks: openTasks, openSnagsCount: snagCountRow?.count ?? 0 });
     }
 
     if (url.pathname === "/embers/scheduler" && request.method === "GET") {
@@ -4382,7 +4388,15 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       )
         .bind(today)
         .all();
-      return Response.json({ scheduledToday: results });
+      // Real feature 2026-07-26 — Scheduler folds in Projects per the
+      // agreed five-ember scheme, since a project is just grouped job
+      // scopes, the same underlying entity. No real "open/closed"
+      // status exists on projects themselves yet, so this is honestly
+      // a simple, total count for now rather than an invented status.
+      const projectCountRow = await env.OFFICE_DB.prepare("SELECT COUNT(*) as count FROM projects").first<{
+        count: number;
+      }>();
+      return Response.json({ scheduledToday: results, projectsCount: projectCountRow?.count ?? 0 });
     }
 
     if (url.pathname === "/embers/finance" && request.method === "GET") {
@@ -4417,6 +4431,40 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         .bind(today)
         .all();
       return Response.json({ todaysExpenses: results });
+    }
+
+    // Real feature 2026-07-26 — Suppliers, broadening Expenses per the
+    // agreed five-ember scheme to cover everything money-going-out:
+    // today's real expenses plus the real, aged-creditors outstanding
+    // balance, mirroring Finance exactly on the opposite direction of
+    // money.
+    if (url.pathname === "/embers/suppliers" && request.method === "GET") {
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const now = nowInBusinessTimezone();
+      const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      const { results: todaysExpenses } = await env.OFFICE_DB.prepare(
+        `SELECT e.id, e.amount, e.description, e.category, c.name as supplier_name, e.created_at
+         FROM expenses e LEFT JOIN characters c ON c.id = e.character_id
+         WHERE date(e.created_at) = ?
+         ORDER BY e.created_at DESC`
+      )
+        .bind(today)
+        .all();
+      const agedCreditors = await getAgedCreditorsReport(env);
+      return Response.json({ todaysExpenses, agedCreditors });
+    }
+
+    // Real feature 2026-07-26 — Pending, a genuinely new ember: the
+    // real, direct fulfillment of the original 2026-07-10 "actions
+    // needed" ember concept (DECISIONS.md) — proposed then, never
+    // actually wired into a UI until now. A real, deterministic count
+    // of every guard()-held action genuinely still awaiting Peter's
+    // own confirm or reject, across every domain.
+    if (url.pathname === "/embers/pending" && request.method === "GET") {
+      const { results } = await env.OFFICE_DB.prepare(
+        "SELECT id, type, source_transcript, created_at FROM pending_actions WHERE status = 'pending' ORDER BY created_at DESC"
+      ).all();
+      return Response.json({ pending: results });
     }
 
     // "Type" mode. Same pipeline, no transcription step needed since
