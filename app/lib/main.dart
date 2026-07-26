@@ -123,16 +123,23 @@ class ChatMessage {
   }) : pendingItems = pendingItems ?? [];
 }
 
-// The five real ember counts. Static, placeholder zeros for now — the
-// real backend wiring (loadCounts, one endpoint per ember) is the
-// deliberate next step, kept separate so this shell can be verified
-// on its own first.
+// The five real ember counts, plus the real, raw docket data behind
+// each one — cached here so tapping an ember shows real detail
+// without a separate round trip, since it was already fetched to
+// compute the count in the first place.
 class EmberCounts {
   int tasks;
   int scheduler;
   int finance;
   int suppliers;
   int pending;
+  List<dynamic> tasksData = [];
+  List<dynamic> snagsData = [];
+  List<dynamic> schedulerData = [];
+  List<dynamic> financeData = [];
+  List<dynamic> expensesData = [];
+  List<dynamic> creditorsData = [];
+  List<dynamic> pendingData = [];
   EmberCounts({this.tasks = 0, this.scheduler = 0, this.finance = 0, this.suppliers = 0, this.pending = 0});
 }
 
@@ -205,27 +212,43 @@ class _OfficeHomeState extends State<OfficeHome> {
 
     await Future.wait([
       safeFetch('/embers/tasks', (data) {
-        final tasks = (data['tasks'] as List?)?.length ?? 0;
+        final tasksList = data['tasks'] as List? ?? [];
         final snags = data['openSnagsCount'] as int? ?? 0;
-        setState(() => _embers.tasks = tasks + snags);
+        setState(() {
+          _embers.tasksData = tasksList;
+          _embers.tasks = tasksList.length + snags;
+        });
       }),
       safeFetch('/embers/scheduler', (data) {
-        final scheduled = (data['scheduledToday'] as List?)?.length ?? 0;
+        final scheduledList = data['scheduledToday'] as List? ?? [];
         final projects = data['projectsCount'] as int? ?? 0;
-        setState(() => _embers.scheduler = scheduled + projects);
+        setState(() {
+          _embers.schedulerData = scheduledList;
+          _embers.scheduler = scheduledList.length + projects;
+        });
       }),
       safeFetch('/embers/finance', (data) {
-        final outstanding = (data['outstanding'] as List?)?.length ?? 0;
-        setState(() => _embers.finance = outstanding);
+        final outstandingList = data['outstanding'] as List? ?? [];
+        setState(() {
+          _embers.financeData = outstandingList;
+          _embers.finance = outstandingList.length;
+        });
       }),
       safeFetch('/embers/suppliers', (data) {
-        final expenses = (data['todaysExpenses'] as List?)?.length ?? 0;
-        final creditors = (data['agedCreditors'] as List?)?.length ?? 0;
-        setState(() => _embers.suppliers = expenses + creditors);
+        final expensesList = data['todaysExpenses'] as List? ?? [];
+        final creditorsList = data['agedCreditors'] as List? ?? [];
+        setState(() {
+          _embers.expensesData = expensesList;
+          _embers.creditorsData = creditorsList;
+          _embers.suppliers = expensesList.length + creditorsList.length;
+        });
       }),
       safeFetch('/embers/pending', (data) {
-        final pending = (data['pending'] as List?)?.length ?? 0;
-        setState(() => _embers.pending = pending);
+        final pendingList = data['pending'] as List? ?? [];
+        setState(() {
+          _embers.pendingData = pendingList;
+          _embers.pending = pendingList.length;
+        });
       }),
     ]);
   }
@@ -548,7 +571,7 @@ class _OfficeHomeState extends State<OfficeHome> {
       appBar: AppBar(
         title: const Text('THE OFFICE'),
         actions: [
-          _EmberRow(embers: _embers),
+          _EmberRow(embers: _embers, onEmberTap: _showEmberSheet),
           IconButton(
             icon: const Icon(Icons.more_vert),
             onPressed: () => _showMoreMenu(context),
@@ -602,6 +625,97 @@ class _OfficeHomeState extends State<OfficeHome> {
       ],
     );
   }
+
+  // Real feature 2026-07-26 — the ember detail sheet, found missing
+  // live when Pierre tapped an ember and nothing happened. Shows the
+  // real, already-cached docket data for that domain — no separate
+  // fetch, since it was already retrieved to compute the count.
+  void _showEmberSheet(String emberId) {
+    late String title;
+    late List<Widget> cards;
+
+    switch (emberId) {
+      case 'tasks':
+        title = 'TASKS';
+        cards = _embers.tasksData
+            .map((t) => _docketCard((t as Map<String, dynamic>)['description']?.toString() ?? 'Task'))
+            .toList();
+        break;
+      case 'scheduler':
+        title = 'SCHEDULER';
+        cards = _embers.schedulerData.map((j) {
+          final job = j as Map<String, dynamic>;
+          return _docketCard('${job['customer_name'] ?? ''} — ${job['description'] ?? ''}');
+        }).toList();
+        break;
+      case 'finance':
+        title = 'FINANCE';
+        cards = _embers.financeData.map((c) {
+          final row = c as Map<String, dynamic>;
+          final outstanding = (row['invoiced'] as num? ?? 0) - (row['paid'] as num? ?? 0);
+          return _docketCard('${row['name']} — R$outstanding outstanding');
+        }).toList();
+        break;
+      case 'suppliers':
+        title = 'SUPPLIERS';
+        cards = [
+          ..._embers.expensesData.map((e) {
+            final row = e as Map<String, dynamic>;
+            return _docketCard('${row['description'] ?? 'Expense'} — R${row['amount']}');
+          }),
+          ..._embers.creditorsData.map((c) {
+            final row = c as Map<String, dynamic>;
+            return _docketCard('${row['supplierName'] ?? row['name'] ?? 'Supplier'} — R${row['total']} owed');
+          }),
+        ];
+        break;
+      case 'pending':
+        title = 'PENDING';
+        cards = _embers.pendingData.map((p) {
+          final row = p as Map<String, dynamic>;
+          return _docketCard('#${row['id']} — ${row['type'] ?? 'action'}');
+        }).toList();
+        break;
+      default:
+        title = '';
+        cards = [];
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _charcoal,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6),
+              ),
+              const SizedBox(height: 12),
+              if (cards.isEmpty)
+                Text('Nothing real here right now.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic))
+              else
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.5),
+                  child: ListView(shrinkWrap: true, children: cards),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _docketCard(String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Text(text, style: GoogleFonts.workSans(color: _paper, fontSize: 14.5)),
+    );
+  }
 }
 
 // The hamburger drawer — real navigation into existing data, mirroring
@@ -650,12 +764,12 @@ class _OfficeDrawer extends StatelessWidget {
 }
 
 // The five real embers — small, peripheral dots in the masthead, never
-// competing for attention (Constitution Principle 25). Static for now;
-// wiring these to real, live backend counts is the deliberate next
-// step after this visual shell is verified.
+// competing for attention (Constitution Principle 25). Wired to real,
+// live backend data; tapping one opens a real detail sheet.
 class _EmberRow extends StatelessWidget {
   final EmberCounts embers;
-  const _EmberRow({required this.embers});
+  final void Function(String emberId) onEmberTap;
+  const _EmberRow({required this.embers, required this.onEmberTap});
 
   @override
   Widget build(BuildContext context) {
@@ -663,11 +777,11 @@ class _EmberRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
         children: [
-          _Ember(color: _emberAmber, count: embers.tasks),
-          _Ember(color: _emberBlue, count: embers.scheduler),
-          _Ember(color: _emberRed, count: embers.finance),
-          _Ember(color: _emberPurple, count: embers.suppliers),
-          _Ember(color: _emberSage, count: embers.pending),
+          _Ember(color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks')),
+          _Ember(color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler')),
+          _Ember(color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance')),
+          _Ember(color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers')),
+          _Ember(color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending')),
         ],
       ),
     );
@@ -677,21 +791,30 @@ class _EmberRow extends StatelessWidget {
 class _Ember extends StatelessWidget {
   final Color color;
   final int count;
-  const _Ember({required this.color, required this.count});
+  final VoidCallback onTap;
+  const _Ember({required this.color, required this.count, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     // A faint warm edge even at rest rather than fully "off" — real
     // magnitude shown by real opacity, not a flat on/off state.
     final lit = count > 0;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 3),
-      child: Container(
-        width: 8,
-        height: 8,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: color.withOpacity(lit ? 0.9 : 0.25),
+    return InkWell(
+      onTap: onTap,
+      customBorder: const CircleBorder(),
+      // Real tap target widened well beyond the tiny 8px visual dot —
+      // found live that "tapping and nothing happening" partly meant
+      // a target too small to reliably hit, not just a missing
+      // handler.
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 8),
+        child: Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color.withOpacity(lit ? 0.9 : 0.25),
+          ),
         ),
       ),
     );
