@@ -276,21 +276,224 @@ an invented number, always grounded in something actually retrieved.
 
 ---
 
+## Suppliers & Procurement (Purchase Orders, Deliveries, Supplier Bills)
+
+**What it is:** the mirror image of Quotations/Invoicing — Peter →
+Supplier instead of Peter → Customer — with real, deterministic
+reconciliation as the actual point of building it, not just record-
+keeping.
+
+**Inputs:**
+- Ordering: *"order 20 bags of screed from Floornet."*
+- A delivery arriving: *"the Floornet screed delivery arrived, all 20
+  bags"* — or a real, photographed delivery note, caption naming the
+  supplier.
+- A supplier's bill: *"got Floornet's invoice INV-4471"* — spoken, or a
+  real, uploaded PDF/photo of the actual invoice.
+- Settling a balance: *"paid Floornet R5000 off their account."*
+
+**Outputs:**
+- A real purchase order, unguarded (a commitment being placed, not
+  money moving yet).
+- A real Goods Received Note — quantity received compared against
+  quantity ordered, a real variance computed in code, unguarded but
+  traceable (who recorded it).
+- A real Supplier Invoice — quantity billed compared against quantity
+  *received* (not just ordered), and price billed compared against
+  price expected — both real, deterministic reconciliations, guard()'d
+  since real money moves. Real document/photo ingestion correctly
+  distinguishes an actual invoice (has pricing) from a genuine delivery
+  note (none at all) rather than assuming every photographed supplier
+  document is a bill.
+- A real, computed document-completeness status per order — "ordered,
+  awaiting delivery" → "delivery note received, awaiting invoice" →
+  "closed."
+- **Aged Creditors** — the real mirror of Aged Debtors for the
+  supplier side, real expenses played against real supplier payments
+  and real credits, oldest-first.
+
+---
+
+## Variance Disposition
+
+**What it is:** what happens after a real GRN discrepancy is found —
+why it happened, and how it gets resolved. Reason codes validated
+against real ERP research (short delivered, incorrectly dispatched,
+damaged, over-receipt) rather than invented.
+
+**Inputs:**
+- Naming a reason: *"the underlay shortage on Floornet, that's a back
+  order."*
+- Resolving with a credit: *"the vinyl arrived damaged, Floornet is
+  crediting us R500 for it."*
+
+**Outputs:**
+- Raising a reason is unguarded but traceable — documentation, not
+  money moving.
+- A credit resolution with a real, stated amount is guard()'d and
+  creates a real, negative expense against the supplier — the actual
+  financial write-off it implies.
+
+---
+
+## Consumables Stock
+
+**What it is:** a deliberately narrow scope — real, running quantities
+for genuinely generic materials (screed, glue), never full inventory
+and never job-specific product tracking.
+
+**Inputs:**
+- Starting to track one: *"track screed as stock, we buy it in bags."*
+- Real usage: *"used 5 bags of screed on Jenny's job."*
+- A real, physical count: *"counted 14 bags of screed."*
+
+**Outputs:**
+- A confirmed GRN automatically increments a tracked item's real
+  running total — only when its exact name already matches one Peter
+  deliberately registered, never guessed from a delivered material's
+  name.
+- A real stocktake computes a real variance against the system's
+  belief, and corrects the running total to match physical truth —
+  the same reconciliation philosophy as PO/GRN/Supplier Invoice, one
+  layer further.
+
+---
+
+## Snags
+
+**What it is:** a real, physical quality issue found on a job, and its
+resolution — the smallest, most immediately useful piece of the
+lead-to-warranty lifecycle.
+
+**Inputs:**
+- *"Jenny's carpet has a loose seam near the door."*
+- *"fixed the loose seam on Jenny's carpet."*
+
+**Outputs:**
+- Raising and resolving both unguarded but traceable — a quality
+  note, not money moving.
+- Resolving one surfaces a real, honest connection to retention —
+  if it was genuinely the last open snag and a real retention
+  arrangement exists, Peter is told a real amount may now be
+  releasable, never an automatic financial write.
+
+---
+
+## Leads & Enquiries
+
+**What it is:** someone interested, not yet a customer — converts into
+a real customer and quotation once priced, rather than duplicating
+that data.
+
+**Inputs:**
+- *"Sipho enquired about carpet for his lounge, he found us through a
+  referral."*
+- *"lost the Sipho enquiry."*
+
+**Outputs:**
+- A real lead record — status enquired → quoted → won/lost.
+- The quoted and won transitions happen automatically, hooked directly
+  into the already-real quotation and quote-to-invoice paths — never a
+  separate, duplicate mechanism.
+- A lead's name deliberately never touches customer reconciliation
+  until it's genuinely quoted — raising or losing one can never
+  silently create a real customer record.
+
+---
+
+## Supplier Statement Reconciliation
+
+**What it is:** the real, buildable version of comparing a supplier's
+own claimed account balance against Office's real, internal one —
+deliberately scoped to the one fact that actually matters, not
+complex, fuzzy line-by-line matching.
+
+**Inputs:** a real, uploaded supplier statement (PDF or photo), caption
+naming the supplier.
+
+**Outputs:** the real, claimed closing balance extracted from the
+document, compared directly against the real, internal outstanding
+balance already computed for Aged Creditors — surfacing the actual
+difference, if any.
+
+---
+
+## Identity Collision
+
+**What it is:** a real, deterministic check — before a new customer or
+character record is ever silently created, verifying the exact name
+isn't already known under a genuinely conflicting role.
+
+**Inputs:** any message that would otherwise create a new customer or
+character record for a name already known as the other.
+
+**Outputs:** held for real confirmation rather than silently creating
+a duplicate or misassigned identity — confirming creates a real, new,
+separate record, since the same person can genuinely be both a
+customer and a supplier or installer.
+
+---
+
+## Projects (Layer 2)
+
+**What it is:** grouping related job scopes into one real project,
+without Peter ever having to say "these belong together."
+
+**Inputs:** multiple components/tasks named in the same breath, or a
+later, separate message for a customer with an existing open project.
+
+**Outputs:**
+- Same-breath assembly — job scopes sharing the same real capture
+  automatically form or join one project.
+- Cross-capture attachment — a later, standalone job scope
+  automatically attaches to a customer's one open project; if two or
+  more genuinely compete, Peter is asked directly which one, rather
+  than guessed.
+- Real, computed job-completion status (open / closed, paid in full)
+  and scheduling shown per phase, conversationally ("how's Jenny's job
+  going").
+
+---
+
+## Corporate Stationary
+
+**What it is:** the business's own real logo, captured once and reused
+on every generated document — the grounded, demonstrated-need core;
+fonts, color schemes, and marketing material deliberately left
+unbuilt, no real need shown for them yet.
+
+**Inputs:** a real photo of the business logo, uploaded once.
+
+**Outputs:** stored and served back reliably, ready to appear on
+generated PDFs.
+
+---
+
 ## Designed, not yet built — for completeness, not confusion with the above
 
-Two real, substantial design documents exist in `DECISIONS.md`, fully
+Real, substantial design documents exist in `DECISIONS.md`, fully
 specced, deliberately not built yet:
 
-- **Purchase Orders, Goods Received Notes, and Supplier Invoices** — the
-  mirror image of Quotations/Invoicing, Peter → Supplier instead of
-  Peter → Customer, with real, deterministic reconciliation (quantity
-  and price variance) as the actual point of building it.
-- **Consumables stock and stocktakes** — a deliberately narrow scope
-  (not full inventory), including real-time remnant tracking (a PO's
-  ordered pack size against an invoice's actual consumption) so a
-  question like "how many lengths of ERP308 do we have?" can one day
-  get a real, accurate answer and prevent a needless order.
+- **Job-specific material remnant tracking** — the harder half of
+  stock (a job-specific product like carpet or tile, not a generic
+  consumable) — genuinely separate from Consumables Stock above, still
+  needing real product-code specificity and PO-vs-invoice
+  reconciliation mechanics worked out.
+- **Warranty tracking**, and the richer job-completion questions
+  (mandatory vs. optional artifacts, maintenance reminders) — Snags
+  above is the real, simpler half of this same design already built.
+- **The named-handle Layer 2 rung** — referring to a specific project
+  by name in conversation, rather than the ask-when-ambiguous rung
+  already built.
+- **Chain automation** — a real trigger layer noticing state
+  transitions across the full lead-to-invoice chain and proposing the
+  next action, deliberately gated behind the mirror being "polished
+  bright" first, not action yet.
+- **Office scales by scope** — the nested-offices architectural
+  direction, correctly gated behind real evidence of a second
+  organizational layer that doesn't exist yet.
 
-Both are explicitly sequenced behind Layer 2 and behind their own
-listed open design questions — named here so this map stays complete,
-not because they're active today.
+Named here so this map stays complete, not because they're active
+today.
+
+
