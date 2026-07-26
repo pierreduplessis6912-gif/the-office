@@ -2545,17 +2545,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         return Response.json({ error: "logo file missing from storage" }, { status: 404 });
       }
       const buffer = await object.arrayBuffer();
-      // Temporary diagnostic header, found live — confirms exactly
-      // what this code path actually sees at the real point of
-      // returning the response, since a 200-status, 0-byte result
-      // persisted even after switching from streaming object.body to
-      // reading the full buffer first, and even with cache-busting
-      // ruling out a stale CDN response.
       return new Response(buffer, {
-        headers: {
-          "Content-Type": object.httpMetadata?.contentType ?? "image/png",
-          "X-Debug-Buffer-Size": String(buffer.byteLength),
-        },
+        headers: { "Content-Type": object.httpMetadata?.contentType ?? "image/png" },
       });
     }
 
