@@ -2549,6 +2549,27 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       });
     }
 
+    // Real, safe debug route — checks the real R2 object's own
+    // metadata (size, etc.) without serving the full body, to
+    // diagnose whether a 0-byte result is an upload-side problem
+    // (empty buffer stored) or a retrieve-side problem (stream not
+    // returned correctly).
+    if (url.pathname === "/debug/logo-metadata" && request.method === "GET") {
+      const profile = await env.OFFICE_DB.prepare("SELECT logo_r2_key FROM business_profile WHERE id = 1").first<{
+        logo_r2_key: string | null;
+      }>();
+      if (!profile?.logo_r2_key) {
+        return Response.json({ error: "no logo on file", profile });
+      }
+      const object = await env.OFFICE_VAULT.head(profile.logo_r2_key);
+      return Response.json({
+        logoKey: profile.logo_r2_key,
+        found: !!object,
+        size: object?.size ?? null,
+        contentType: object?.httpMetadata?.contentType ?? null,
+      });
+    }
+
     if (url.pathname === "/debug/memberships" && request.method === "GET") {
       const { results } = await env.OFFICE_DB.prepare("SELECT * FROM memberships ORDER BY created_at DESC").all();
       const enriched = results.map((m) => ({ ...m, capabilities: ROLE_CAPABILITIES[String(m.role)] ?? [] }));
