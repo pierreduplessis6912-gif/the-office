@@ -4532,7 +4532,17 @@ export default {
     for (const [key, value] of Object.entries(CORS_HEADERS)) {
       newHeaders.set(key, value);
     }
-    return new Response(response.body, {
+    // Real fix, found live via the logo-retrieval feature: streaming
+    // response.body directly here silently truncated every binary
+    // response to 0 bytes, even though the inner route already read
+    // its own full buffer correctly — the headers (including a
+    // correct Content-Length) came through fine, but the body itself
+    // never did. Never surfaced before, since every prior response in
+    // this Worker was JSON; this is the first binary response ever
+    // produced. Reading the full buffer here, at the one real place
+    // that wraps every response, is the correct, permanent fix.
+    const bodyBuffer = await response.arrayBuffer();
+    return new Response(bodyBuffer, {
       status: response.status,
       statusText: response.statusText,
       headers: newHeaders,
