@@ -2544,14 +2544,18 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       if (!object) {
         return Response.json({ error: "logo file missing from storage" }, { status: 404 });
       }
-      // Real fix, found live: streaming object.body directly returned
-      // a real 200 status with a genuine 0-byte body, even though the
-      // real, stored R2 object itself had a real, correct size and
-      // content type (confirmed via a real HEAD check). Reading the
-      // full buffer first is the known, safer pattern here.
       const buffer = await object.arrayBuffer();
+      // Temporary diagnostic header, found live — confirms exactly
+      // what this code path actually sees at the real point of
+      // returning the response, since a 200-status, 0-byte result
+      // persisted even after switching from streaming object.body to
+      // reading the full buffer first, and even with cache-busting
+      // ruling out a stale CDN response.
       return new Response(buffer, {
-        headers: { "Content-Type": object.httpMetadata?.contentType ?? "image/png" },
+        headers: {
+          "Content-Type": object.httpMetadata?.contentType ?? "image/png",
+          "X-Debug-Buffer-Size": String(buffer.byteLength),
+        },
       });
     }
 
