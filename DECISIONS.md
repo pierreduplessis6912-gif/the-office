@@ -4111,3 +4111,60 @@ Remaining before Auth v2 is even considered: the Android native flow
 `codemagic.yaml`, and a real, fresh native build has never exercised
 any of this — plus real error-handling for cancelled logins and
 network failures.
+
+## The first successful native Android build — a real, multi-round debugging journey (2026-07-27)
+
+**The real, decisive milestone**: the very first successful native
+build of the entire redesigned app — dark theme, five embers, drawer,
+camera/document upload, the full login flow, all of it — a real,
+downloadable `app-release.apk`. Every prior native attempt, going back
+to a single build months ago, predates this whole redesign.
+
+**The real, wrong hypothesis, worth recording honestly rather than
+glossed over.** The first failure — `jni-1.0.1/android/build.gradle`,
+`Could not find method kotlin()` — was reasonably assumed to be a
+Kotlin Gradle plugin version mismatch, and reasonably assumed to
+trace back through `flutter_web_auth_2` → `desktop_webview_window` →
+`jni`, given that chain's real, heavy desktop-platform footprint.
+Both assumptions were wrong. Upgrading `flutter_web_auth_2` did
+nothing. Bumping the Kotlin version did nothing.
+
+**The real fix came from refusing to guess a third time and instead
+running `flutter pub deps` directly** — a genuinely different,
+correct root cause: `jni` comes from `path_provider_android`, a
+dependency present since the very first build, months before any of
+tonight's auth work. `desktop_webview_window` (confirmed via the same
+tree) depends on nothing more than `flutter` and `path` — the
+suspected chain never existed. `path_provider_android`'s own real
+changelog confirmed the precise version boundary: 2.2.22 was the last
+version before it switched to Kotlin DSL build files (2.2.23) and
+then added the real, incompatible `jni` dependency (2.3.0). Pinned
+via `dependency_overrides` to 2.2.22 — the real fix.
+
+**Two more real, genuinely different bugs surfaced immediately after,
+each traced and fixed in turn rather than assumed away:**
+- `:file_picker:checkReleaseAarMetadata` failed because a transitive
+  dependency now requires `compileSdk` 36+, while the app itself only
+  overrides its own `:app` module's `compileSdk` — each third-party
+  plugin module is its own, independent Gradle subproject with its
+  own setting. Fixed with a real `subprojects { afterEvaluate { ... } }`
+  block in the root `android/build.gradle.kts`, forcing every Android
+  module to compile against 36.
+- That fix itself then failed — "Cannot run Project.afterEvaluate(Action)
+  when the project is already evaluated" — because the existing,
+  pre-existing `evaluationDependsOn(":app")` block forces early
+  evaluation, and the new block had been appended *after* it in the
+  file. Fixed by registering it first instead, before anything else
+  in the file could force evaluation — a real Gradle lifecycle-
+  ordering lesson, not a logic error.
+
+**The real, durable lesson, worth stating plainly for next time:**
+when a Gradle/native-build failure names a specific package and line
+number, get the real, proven dependency chain (`flutter pub deps`,
+filtered for the actual package name) before forming any hypothesis
+about which of your own dependencies caused it. A plausible-sounding
+chain, reasoned from a dependency list alone, was wrong twice in this
+exact session. Every patch here was also verified locally against a
+realistic, simulated project structure before being pushed to a real
+build — including one real bug (a misplaced Kotlin import) caught
+this way before it ever reached Codemagic.
