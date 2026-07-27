@@ -4,6 +4,8 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -168,11 +170,24 @@ class _OfficeHomeState extends State<OfficeHome> {
 
   final EmberCounts _embers = EmberCounts();
 
+  // Real feature 2026-07-27 — real login, bearer-token based per the
+  // deliberate architecture decision: cookies were never going to
+  // work reliably for an app-based client (no cookie jar natively,
+  // and the wildcard CORS origin blocks credentialed cookie requests
+  // on web anyway). flutter_secure_storage uses the platform's real,
+  // hardware-backed keystore rather than plain app storage.
+  final _secureStorage = const FlutterSecureStorage();
+  String? _sessionToken;
+  String? _userEmail;
+  String? _userRole;
+  bool get _isSignedIn => _sessionToken != null;
+
   Timer? _statusTimer;
 
   @override
   void initState() {
     super.initState();
+    _restoreSession();
     _loadEmberCounts();
   }
 
@@ -196,7 +211,7 @@ class _OfficeHomeState extends State<OfficeHome> {
   Future<void> _loadEmberCounts() async {
     Future<void> safeFetch(String path, void Function(Map<String, dynamic>) onData) async {
       try {
-        final response = await http.get(Uri.parse('$officeApiBase$path'));
+        final response = await http.get(Uri.parse('$officeApiBase$path'), headers: _authHeaders());
         if (response.statusCode == 200) {
           onData(jsonDecode(response.body) as Map<String, dynamic>);
         }
@@ -247,6 +262,90 @@ class _OfficeHomeState extends State<OfficeHome> {
         });
       }),
     ]);
+  }
+
+  // Real feature 2026-07-27 — checks for a real, previously-stored
+  // token on startup and verifies it's still valid against /auth/me,
+  // rather than trusting a stored token blindly (it could be expired
+  // — real, signed tokens carry a real 30-day expiry).
+  Future<void> _restoreSession() async {
+    final token = await _secureStorage.read(key: 'session_token');
+    if (token == null) return;
+    try {
+      final response = await http.get(
+        Uri.parse('$officeApiBase/auth/me'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        if (data['signedIn'] == true) {
+          setState(() {
+            _sessionToken = token;
+            _userEmail = data['email'] as String?;
+            _userRole = data['role'] as String?;
+          });
+          return;
+        }
+      }
+    } catch (_) {
+      // Real, deliberate no-op — treated the same as "not signed in"
+      // below; a network hiccup on startup shouldn't be shown as an
+      // error, it just means signed-out state until retried.
+    }
+    // Token was invalid, expired, or unreachable — real, honest
+    // cleanup rather than holding onto something that doesn't work.
+    await _secureStorage.delete(key: 'session_token');
+  }
+
+  // Real feature 2026-07-27 — the real, final-form login flow.
+  // flutter_web_auth_2 opens the real Google login URL and waits for
+  // the real redirect to the theoffice:// scheme the backend now
+  // sends, working the same way on web and native.
+  Future<void> _signIn() async {
+    try {
+      final result = await FlutterWebAuth2.authenticate(
+        url: '$officeApiBase/auth/google/login',
+        callbackUrlScheme: 'theoffice',
+      );
+      final uri = Uri.parse(result);
+      final token = uri.queryParameters['token'];
+      final email = uri.queryParameters['email'];
+      final role = uri.queryParameters['role'];
+      if (token == null) {
+        _addMessage(MessageRole.office, 'Sign-in did not return a real token — try again.');
+        return;
+      }
+      await _secureStorage.write(key: 'session_token', value: token);
+      setState(() {
+        _sessionToken = token;
+        _userEmail = email;
+        _userRole = role;
+      });
+      _loadEmberCounts();
+    } catch (_) {
+      _addMessage(MessageRole.office, 'Sign-in was cancelled or failed.');
+    }
+  }
+
+  // Real, honest note: session tokens are self-contained, signed
+  // JWTs with no server-side session store to invalidate — "logout"
+  // is genuinely just forgetting the local token, not a real server
+  // call. The cookie-clearing /auth/logout route exists for the
+  // cookie flow, which this app no longer uses.
+  Future<void> _signOut() async {
+    await _secureStorage.delete(key: 'session_token');
+    setState(() {
+      _sessionToken = null;
+      _userEmail = null;
+      _userRole = null;
+    });
+  }
+
+  // Real feature 2026-07-27 — the one, shared helper every real HTTP
+  // call site uses, so the actual bearer-token sending is never
+  // duplicated or forgotten at a new call site.
+  Map<String, String> _authHeaders([Map<String, String>? extra]) {
+    return {if (_sessionToken != null) 'Authorization': 'Bearer $_sessionToken', ...?extra};
   }
 
   String _newId() => 'msg-${_idCounter++}';
@@ -334,7 +433,7 @@ class _OfficeHomeState extends State<OfficeHome> {
       final uri = Uri.parse('$officeApiBase/messages/text');
       final response = await http.post(
         uri,
-        headers: {'Content-Type': 'application/json'},
+        headers: _authHeaders({'Content-Type': 'application/json'}),
         body: jsonEncode({'text': text, 'history': history}),
       );
       _stopStatusCycle();
@@ -404,6 +503,7 @@ class _OfficeHomeState extends State<OfficeHome> {
     try {
       final uri = Uri.parse('$officeApiBase/files/audio');
       final request = http.MultipartRequest('POST', uri);
+      request.headers.addAll(_authHeaders());
       request.files.add(await http.MultipartFile.fromPath('audio', path));
       request.fields['history'] = jsonEncode(history);
       final streamed = await request.send();
@@ -475,6 +575,7 @@ class _OfficeHomeState extends State<OfficeHome> {
     try {
       final uri = Uri.parse('$officeApiBase/files/$endpoint');
       final request = http.MultipartRequest('POST', uri);
+      request.headers.addAll(_authHeaders());
       request.files.add(await http.MultipartFile.fromPath(fieldName, path));
       final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);
@@ -528,7 +629,7 @@ class _OfficeHomeState extends State<OfficeHome> {
 
     try {
       final uri = Uri.parse('$officeApiBase/actions/$itemId/${confirm ? "confirm" : "reject"}');
-      final response = await http.post(uri);
+      final response = await http.post(uri, headers: _authHeaders());
       // Only invoice/quotation confirms carry a real pdfUrl — every
       // other confirm type (payment, customer_fact) simply won't have
       // one, which is fine, this stays null for those.
@@ -619,19 +720,66 @@ class _OfficeHomeState extends State<OfficeHome> {
 
   // The three-dot menu — real, meta, account-level actions, not
   // business data. Mirrors this very interface's own convention
-  // rather than inventing a new one. Login/settings/tutorials are
-  // real, named destinations in UI_MAP.md — placeholder for now,
-  // real wiring is a deliberate, separate next step.
-  void _showMoreMenu(BuildContext context) {
-    showMenu(
+  // rather than inventing a new one. Account is now wired to the
+  // real sign-in flow; Settings and Help remain named destinations
+  // in UI_MAP.md, not yet built.
+  Future<void> _showMoreMenu(BuildContext context) async {
+    final selected = await showMenu<String>(
       context: context,
       position: const RelativeRect.fromLTRB(1000, 60, 0, 0),
       color: _charcoal,
       items: [
-        const PopupMenuItem(value: 'account', child: Text('Account')),
+        PopupMenuItem(value: 'account', child: Text(_isSignedIn ? (_userEmail ?? 'Account') : 'Sign in')),
         const PopupMenuItem(value: 'settings', child: Text('Settings')),
         const PopupMenuItem(value: 'help', child: Text('Help & tutorials')),
       ],
+    );
+    if (selected == 'account') _showAccountSheet();
+  }
+
+  // Real feature 2026-07-27 — the real account sheet: sign-in for a
+  // signed-out state, real, signed-in identity plus sign-out for a
+  // signed-in one.
+  void _showAccountSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _charcoal,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('ACCOUNT', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+              const SizedBox(height: 16),
+              if (_isSignedIn) ...[
+                Text(_userEmail ?? '', style: GoogleFonts.workSans(color: _paper, fontSize: 15)),
+                const SizedBox(height: 4),
+                Text((_userRole ?? '').toUpperCase(), style: GoogleFonts.ibmPlexMono(color: _muted, fontSize: 11, letterSpacing: 1)),
+                const SizedBox(height: 20),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _signOut();
+                  },
+                  child: Text('SIGN OUT', style: GoogleFonts.ibmPlexMono(color: _stampRed, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1)),
+                ),
+              ] else ...[
+                Text('Not signed in.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)),
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _signIn();
+                  },
+                  child: Text('SIGN IN WITH GOOGLE', style: GoogleFonts.ibmPlexMono(color: _officeAccent, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1)),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -766,7 +914,7 @@ class _OfficeHomeState extends State<OfficeHome> {
   Future<void> _showPeopleSheet() async {
     List<dynamic> people = [];
     try {
-      final response = await http.get(Uri.parse('$officeApiBase/debug/characters'));
+      final response = await http.get(Uri.parse('$officeApiBase/debug/characters'), headers: _authHeaders());
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         people = data['characters'] as List? ?? [];
@@ -818,7 +966,7 @@ class _OfficeHomeState extends State<OfficeHome> {
   Future<void> _showHistorySheet() async {
     List<dynamic> captures = [];
     try {
-      final response = await http.get(Uri.parse('$officeApiBase/debug/captures'));
+      final response = await http.get(Uri.parse('$officeApiBase/debug/captures'), headers: _authHeaders());
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         captures = data['captures'] as List? ?? [];
