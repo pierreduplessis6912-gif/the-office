@@ -114,3 +114,43 @@ else:
         assert str(COMPILE_SDK_VERSION) in open(app_gradle_path).read()
         print(f"compileSdk overridden to {COMPILE_SDK_VERSION} in {app_gradle_path}.")
 
+# Real fix for the actual, precise cause found live: the app-level
+# compileSdk override above only affects the :app module itself. Each
+# third-party plugin (like file_picker) is its own, independent Gradle
+# subproject with its own compileSdk setting, untouched by the app's
+# own override. A real subprojects block in the root-level
+# build.gradle.kts is the standard way to force every Android module
+# - including plugin modules - to compile against a consistent SDK
+# version, overriding whatever each individual plugin's own build
+# file specifies.
+ROOT_BUILD_GRADLE_CANDIDATES = ["android/build.gradle.kts", "android/build.gradle"]
+root_gradle_path = next((p for p in ROOT_BUILD_GRADLE_CANDIDATES if os.path.exists(p)), None)
+
+SUBPROJECTS_SDK_BLOCK = f"""
+subprojects {{
+    afterEvaluate {{
+        val isAndroidModule = plugins.hasPlugin("com.android.application") || plugins.hasPlugin("com.android.library")
+        if (isAndroidModule) {{
+            val androidExt = extensions.findByName("android") as? BaseExtension
+            androidExt?.compileSdkVersion({COMPILE_SDK_VERSION})
+        }}
+    }}
+}}
+"""
+IMPORT_LINE = "import com.android.build.gradle.BaseExtension\n"
+
+if root_gradle_path is None:
+    print(f"WARNING: no root android/build.gradle(.kts) found at {ROOT_BUILD_GRADLE_CANDIDATES} — nothing patched.")
+else:
+    root_gradle = open(root_gradle_path).read()
+    if "androidExt?.compileSdkVersion" not in root_gradle:
+        # Real fix, found live via local testing: a Kotlin import must
+        # sit at the very top of the file, never appended after other
+        # code - prepending it separately from the appended block.
+        new_root_gradle = IMPORT_LINE + root_gradle + SUBPROJECTS_SDK_BLOCK
+        open(root_gradle_path, "w").write(new_root_gradle)
+        assert "androidExt?.compileSdkVersion" in open(root_gradle_path).read()
+        print(f"Real subprojects compileSdk-forcing block appended to {root_gradle_path}.")
+    else:
+        print(f"Subprojects compileSdk-forcing block already present in {root_gradle_path} — skipping.")
+
