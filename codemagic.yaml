@@ -24,6 +24,14 @@ workflows:
         script: |
           cd app
           flutter pub get
+      - name: DIAGNOSTIC - show the real dependency chain for jni
+        script: |
+          cd app
+          echo "=== Full flutter pub deps output, saved for reference ==="
+          flutter pub deps > /tmp/pub_deps_output.txt || true
+          echo "=== Lines mentioning jni, desktop_webview_window, or flutter_web_auth (with context) ==="
+          grep -n -B 3 -A 1 -i "jni\|desktop_webview_window\|flutter_web_auth" /tmp/pub_deps_output.txt || echo "No matches found."
+          echo "=== End of diagnostic ==="
       - name: Build APK (release)
         script: |
           cd app
