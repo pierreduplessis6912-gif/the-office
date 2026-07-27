@@ -15,9 +15,9 @@ workflows:
             flutter create --platforms=android --org za.co.websitehub --project-name the_office .
             cp /tmp/pubspec.yaml.bak pubspec.yaml
             cp /tmp/main.dart.bak lib/main.dart
-            echo "Patching INTERNET and RECORD_AUDIO permissions into the generated manifest."
-            python3 -c "import re; p='android/app/src/main/AndroidManifest.xml'; c=open(p).read(); c=(c if 'INTERNET' in c else re.sub(r'(<manifest [^>]*>)', r'\1\n    <uses-permission android:name=\"android.permission.INTERNET\" />', c, count=1)); c=(c if 'RECORD_AUDIO' in c else re.sub(r'(<manifest [^>]*>)', r'\1\n    <uses-permission android:name=\"android.permission.RECORD_AUDIO\" />', c, count=1)); open(p,'w').write(c); assert 'INTERNET' in open(p).read() and 'RECORD_AUDIO' in open(p).read()"
-            echo "Both permissions confirmed present in manifest."
+            echo "Patching INTERNET, RECORD_AUDIO, and CAMERA permissions into the generated manifest."
+            python3 -c "import re; p='android/app/src/main/AndroidManifest.xml'; c=open(p).read(); c=(c if 'INTERNET' in c else re.sub(r'(<manifest [^>]*>)', r'\1\n    <uses-permission android:name=\"android.permission.INTERNET\" />', c, count=1)); c=(c if 'RECORD_AUDIO' in c else re.sub(r'(<manifest [^>]*>)', r'\1\n    <uses-permission android:name=\"android.permission.RECORD_AUDIO\" />', c, count=1)); c=(c if 'android.permission.CAMERA' in c else re.sub(r'(<manifest [^>]*>)', r'\1\n    <uses-permission android:name=\"android.permission.CAMERA\" />', c, count=1)); open(p,'w').write(c); assert 'INTERNET' in open(p).read() and 'RECORD_AUDIO' in open(p).read() and 'android.permission.CAMERA' in open(p).read()"
+            echo "All three permissions confirmed present in manifest."
           else
             echo "android/ already present, skipping bootstrap."
           fi
