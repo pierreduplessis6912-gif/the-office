@@ -34,6 +34,10 @@ const _officeAccent = Color(0xFF6FAF8F);
 const _userAccent = Color(0xFFD9A868);
 const _stampRed = Color(0xFFE0665A);
 const _confirmedGreen = Color(0xFF6FAF8F);
+// Real, exact color from the Ether manifesto's own --breathe token -
+// the sigh state's calm signal, distinct from confirmedGreen (a
+// different shade meaning something semantically different).
+const _breathe = Color(0xFF2A9D8F);
 
 // The five embers — real, deterministic magnitude, never urgency or
 // judgment. Tasks folds in Snags (both a real, open "thing to do").
@@ -144,6 +148,11 @@ class EmberCounts {
   List<dynamic> creditorsData = [];
   List<dynamic> pendingData = [];
   EmberCounts({this.tasks = 0, this.scheduler = 0, this.finance = 0, this.suppliers = 0, this.pending = 0});
+
+  // Real feature 2026-07-27 — the sigh state (Ether manifesto, "the
+  // sigh is the metric"). True only when every real count is
+  // genuinely zero — never inferred, never approximated.
+  bool get allClear => tasks == 0 && scheduler == 0 && finance == 0 && suppliers == 0 && pending == 0;
 }
 
 class OfficeHome extends StatefulWidget {
@@ -697,21 +706,24 @@ class _OfficeHomeState extends State<OfficeHome> {
         child: Column(
           children: [
             Expanded(
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                itemCount: _messages.length,
-                itemBuilder: (context, i) => _MessageLine(
-                  message: _messages[i],
-                  onConfirm: (itemId) => _resolvePendingItem(_messages[i].id, itemId, true),
-                  onReject: (itemId) => _resolvePendingItem(_messages[i].id, itemId, false),
-                ),
-              ),
+              child: _embers.allClear && _messages.isEmpty
+                  ? const _SighState()
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      itemCount: _messages.length,
+                      itemBuilder: (context, i) => _MessageLine(
+                        message: _messages[i],
+                        onConfirm: (itemId) => _resolvePendingItem(_messages[i].id, itemId, true),
+                        onReject: (itemId) => _resolvePendingItem(_messages[i].id, itemId, false),
+                      ),
+                    ),
             ),
             _Composer(
               controller: _textController,
               isRecording: _isRecording,
               isWriteMode: _isWriteMode,
+              isAllClear: _embers.allClear && _messages.isEmpty,
               onSend: () {
                 _sendText();
                 setState(() => _isWriteMode = false);
@@ -1151,10 +1163,41 @@ class _Ember extends StatelessWidget {
 // on the same real send path. Camera and document buttons added
 // 2026-07-26, real, direct upload to /files/photo and /files/document
 // — the single most significant gap this rebuild exists to close.
+// Real feature 2026-07-27 — the sigh state (Ether manifesto section
+// 03, "when nothing is urgent, the app tells you to breathe"). Shown
+// only when every real ember count is genuinely zero and nothing has
+// been said yet this session — never simulated, never shown by
+// default. Deliberately calm: no card, no border, just centered text
+// in the real breathe color, matching the manifesto's own described
+// state exactly.
+class _SighState extends StatelessWidget {
+  const _SighState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Text(
+          'Nothing urgent.\nBreathe.',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.workSans(
+            fontSize: 20,
+            color: _breathe,
+            height: 1.5,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _Composer extends StatelessWidget {
   final TextEditingController controller;
   final bool isRecording;
   final bool isWriteMode;
+  final bool isAllClear;
   final VoidCallback onSend;
   final VoidCallback onMicTap;
   final VoidCallback onCameraTap;
@@ -1166,6 +1209,7 @@ class _Composer extends StatelessWidget {
     required this.controller,
     required this.isRecording,
     required this.isWriteMode,
+    required this.isAllClear,
     required this.onSend,
     required this.onMicTap,
     required this.onCameraTap,
@@ -1204,7 +1248,11 @@ class _Composer extends StatelessWidget {
         IconButton(
           iconSize: 34,
           icon: Icon(isRecording ? Icons.stop_circle : Icons.mic_none),
-          color: isRecording ? _stampRed : _officeAccent,
+          // Real feature 2026-07-27 — the sigh state's color signal:
+          // when genuinely all clear and nothing recording, the mic
+          // itself shifts to the calm breathe color, matching the
+          // Ether manifesto's own described state exactly.
+          color: isRecording ? _stampRed : (isAllClear ? _breathe : _officeAccent),
           onPressed: onMicTap,
         ),
         IconButton(icon: const Icon(Icons.edit_outlined), color: _muted, onPressed: onToggleWriteMode),
