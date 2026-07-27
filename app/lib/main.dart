@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
@@ -297,15 +298,27 @@ class _OfficeHomeState extends State<OfficeHome> {
     await _secureStorage.delete(key: 'session_token');
   }
 
-  // Real feature 2026-07-27 — the real, final-form login flow.
-  // flutter_web_auth_2 opens the real Google login URL and waits for
-  // the real redirect to the theoffice:// scheme the backend now
-  // sends, working the same way on web and native.
+  // Real feature 2026-07-27 — the real, final-form login flow, now
+  // platform-aware. flutter_web_auth_2's web implementation requires
+  // landing on the exact same origin the app is running on (its own
+  // postMessage security model) — genuinely different from native,
+  // which uses the theoffice:// scheme the backend defaults to when
+  // no platform/origin is given.
   Future<void> _signIn() async {
     try {
+      var loginUrl = '$officeApiBase/auth/google/login';
+      var callbackScheme = 'theoffice';
+      if (kIsWeb) {
+        final origin = Uri.base.origin;
+        loginUrl += '?platform=web&redirect_origin=${Uri.encodeComponent(origin)}';
+        // flutter_web_auth_2's own documented pattern for web: the
+        // real redirect lands on an https page (the callback page
+        // installed at web/auth-callback.html), not a custom scheme.
+        callbackScheme = 'https';
+      }
       final result = await FlutterWebAuth2.authenticate(
-        url: '$officeApiBase/auth/google/login',
-        callbackUrlScheme: 'theoffice',
+        url: loginUrl,
+        callbackUrlScheme: callbackScheme,
       );
       final uri = Uri.parse(result);
       final token = uri.queryParameters['token'];
