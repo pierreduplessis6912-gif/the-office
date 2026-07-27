@@ -11,10 +11,10 @@ compiled with newer Kotlin (found live: jni-1.0.1's own build.gradle
 requires a newer Kotlin DSL feature than the generated project's
 default plugin version supports).
 """
+import os
 import re
 
 MANIFEST_PATH = "android/app/src/main/AndroidManifest.xml"
-SETTINGS_GRADLE_PATH = "android/settings.gradle"
 
 PERMISSIONS = [
     "android.permission.INTERNET",
@@ -59,17 +59,29 @@ print("All permissions and the CallbackActivity confirmed present in manifest.")
 
 # Real Kotlin Gradle plugin version bump - the actual root cause of a
 # real jni/build.gradle failure found live on the first native build.
+# Real fix, found live: this Flutter version generates settings.gradle
+# as Kotlin DSL (.kts), not the Groovy (.gradle) this originally
+# assumed - checking both real paths rather than hardcoding one.
 KOTLIN_VERSION = "2.1.0"
-settings = open(SETTINGS_GRADLE_PATH).read()
-new_settings, count = re.subn(
-    r'(id\s+["\']org\.jetbrains\.kotlin\.android["\']\s+version\s+["\'])[^"\']+(["\'])',
-    rf"\g<1>{KOTLIN_VERSION}\g<2>",
-    settings,
-)
-if count == 0:
-    print(f"WARNING: no Kotlin plugin version line found in {SETTINGS_GRADLE_PATH} — nothing patched.")
+SETTINGS_GRADLE_CANDIDATES = ["android/settings.gradle.kts", "android/settings.gradle"]
+settings_path = next((p for p in SETTINGS_GRADLE_CANDIDATES if os.path.exists(p)), None)
+
+if settings_path is None:
+    print(f"WARNING: no settings.gradle(.kts) found at {SETTINGS_GRADLE_CANDIDATES} — nothing patched.")
 else:
-    open(SETTINGS_GRADLE_PATH, "w").write(new_settings)
-    assert KOTLIN_VERSION in open(SETTINGS_GRADLE_PATH).read()
-    print(f"Kotlin Gradle plugin version bumped to {KOTLIN_VERSION} in {SETTINGS_GRADLE_PATH}.")
+    settings = open(settings_path).read()
+    # Handles both real syntax forms: Groovy's id "x" version "y" and
+    # Kotlin DSL's id("x") version "y" - either could be what a given
+    # Flutter version actually generates.
+    new_settings, count = re.subn(
+        r'(id\(?\s*["\']org\.jetbrains\.kotlin\.android["\']\s*\)?\s+version\s+["\'])[^"\']+(["\'])',
+        rf"\g<1>{KOTLIN_VERSION}\g<2>",
+        settings,
+    )
+    if count == 0:
+        print(f"WARNING: no Kotlin plugin version line found in {settings_path} — nothing patched.")
+    else:
+        open(settings_path, "w").write(new_settings)
+        assert KOTLIN_VERSION in open(settings_path).read()
+        print(f"Kotlin Gradle plugin version bumped to {KOTLIN_VERSION} in {settings_path}.")
 
