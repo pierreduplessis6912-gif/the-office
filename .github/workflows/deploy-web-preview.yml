@@ -42,6 +42,12 @@ jobs:
             echo "web/ already present, skipping bootstrap."
           fi
 
+      - name: Install the real flutter_web_auth_2 callback page
+        run: |
+          cd app
+          cp auth-callback-template.html web/auth-callback.html
+          echo "Real callback page installed at web/auth-callback.html."
+
       - name: Get packages
         run: |
           cd app
