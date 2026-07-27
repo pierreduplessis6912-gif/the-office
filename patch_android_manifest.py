@@ -85,3 +85,32 @@ else:
         assert KOTLIN_VERSION in open(settings_path).read()
         print(f"Kotlin Gradle plugin version bumped to {KOTLIN_VERSION} in {settings_path}.")
 
+# Real, genuinely different issue found live on the next build after
+# the jni fix worked: a transitive dependency (flutter_plugin_android_
+# lifecycle) now requires compileSdk 36+, but this project compiles
+# against whatever flutter.compileSdkVersion currently resolves to
+# (34, per the real build error). Overriding to a hardcoded, higher
+# value directly, since Flutter's own bundled default is lagging.
+COMPILE_SDK_VERSION = 36
+APP_BUILD_GRADLE_CANDIDATES = ["android/app/build.gradle.kts", "android/app/build.gradle"]
+app_gradle_path = next((p for p in APP_BUILD_GRADLE_CANDIDATES if os.path.exists(p)), None)
+
+if app_gradle_path is None:
+    print(f"WARNING: no app/build.gradle(.kts) found at {APP_BUILD_GRADLE_CANDIDATES} — nothing patched.")
+else:
+    app_gradle = open(app_gradle_path).read()
+    # Handles both real syntax forms: Kotlin DSL's compileSdk =
+    # flutter.compileSdkVersion and Groovy's compileSdk
+    # flutter.compileSdkVersion (with or without the equals sign).
+    new_app_gradle, count = re.subn(
+        r"(compileSdk\s*=?\s*)flutter\.compileSdkVersion",
+        rf"\g<1>{COMPILE_SDK_VERSION}",
+        app_gradle,
+    )
+    if count == 0:
+        print(f"WARNING: no compileSdk = flutter.compileSdkVersion line found in {app_gradle_path} — nothing patched.")
+    else:
+        open(app_gradle_path, "w").write(new_app_gradle)
+        assert str(COMPILE_SDK_VERSION) in open(app_gradle_path).read()
+        print(f"compileSdk overridden to {COMPILE_SDK_VERSION} in {app_gradle_path}.")
+
