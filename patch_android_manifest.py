@@ -147,7 +147,14 @@ else:
         # Real fix, found live via local testing: a Kotlin import must
         # sit at the very top of the file, never appended after other
         # code - prepending it separately from the appended block.
-        new_root_gradle = IMPORT_LINE + root_gradle + SUBPROJECTS_SDK_BLOCK
+        # Real fix, found live: appending this block at the end put
+        # it after the existing evaluationDependsOn(":app") block,
+        # which forces early evaluation - by the time this ran,
+        # afterEvaluate on those same projects threw "Cannot run
+        # Project.afterEvaluate(Action) when the project is already
+        # evaluated." Registering it first, right after the import,
+        # ensures it runs before anything else can force evaluation.
+        new_root_gradle = IMPORT_LINE + SUBPROJECTS_SDK_BLOCK + root_gradle
         open(root_gradle_path, "w").write(new_root_gradle)
         assert "androidExt?.compileSdkVersion" in open(root_gradle_path).read()
         print(f"Real subprojects compileSdk-forcing block appended to {root_gradle_path}.")
