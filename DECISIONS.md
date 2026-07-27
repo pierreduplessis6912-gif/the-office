@@ -4093,3 +4093,21 @@ end-to-end testing, real error handling (cancelled login, network
 failures) — before touching the protocol at all. Ship Auth v1, use
 it, learn from it, then harden. Not a compromise being quietly
 carried forward; a real, named, sequenced roadmap.
+
+**Web flow proven live, 2026-07-27** — real, complete end-to-end
+test: tap sign in → real Google login → redirect → app caught the
+callback via the installed `web/auth-callback.html` page → token
+stored in secure storage → real, signed-in email shown in the account
+sheet. Every piece worked together correctly on the first real test:
+the platform-aware backend redirect (`platform`/`redirect_origin`
+remembered from `/auth/google/login`, used to build the correct
+same-origin callback target `flutter_web_auth_2`'s own postMessage
+security model requires), the real callback page itself, and the
+app's platform-aware `_signIn()`.
+
+One of ADR-0007's two success criteria is now real, not assumed.
+Remaining before Auth v2 is even considered: the Android native flow
+— the `theoffice://` intent filter still needs patching into
+`codemagic.yaml`, and a real, fresh native build has never exercised
+any of this — plus real error-handling for cancelled logins and
+network failures.
