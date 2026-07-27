@@ -4054,3 +4054,42 @@ sending for pronoun resolution, and the record-and-upload voice flow
 recognition, which doesn't carry over to a native build). Porting
 these was never in question — only the visual and interaction layer
 around them changed.
+
+## ADR-0007 — Authentication Redirect (2026-07-27)
+
+**Current:** OAuth callback redirects directly with a signed JWT in
+the URL (`theoffice://auth-callback?token=...`).
+
+**Reason:** Simplifies Flutter integration and removes dependency on
+an additional exchange endpoint while auth is still being proven end
+to end. Cookies were never a real option for an app-based client — no
+native cookie jar, and the wildcard CORS origin blocks credentialed
+cookie requests on web regardless.
+
+**Known limitations:**
+- Token appears in a redirect URL — logged, cached, visible to
+  debuggers and crash reports.
+- No refresh tokens — a 30-day signed token with no rotation.
+- No server-side logout — sign-out is genuinely local-only; the old
+  token stays valid until its own expiry if somehow replayed.
+- No token revocation, no 401-detection/refresh/retry loop.
+
+**Success criteria before redesign:** Android flow proven end to end
+on a real device. Web flow proven end to end in the preview. A real
+user actually authenticated successfully through the whole path —
+tap sign in → Google → redirect → app resumes → token stored →
+`/auth/me` → Office opens.
+
+**Future (Auth v2):** Replace the direct JWT redirect with a
+short-lived, single-use authorization code
+(`theoffice://auth-callback?code=...`), exchanged via a new
+`POST /auth/exchange` for a real access token and refresh token pair.
+Adds real refresh-on-expiry and real server-side logout (revoking the
+refresh token) without changing the mobile UX at all.
+
+**Explicit, deliberate decision, given directly by Pierre:** finish
+the MVP flow first — Android intent filter, web callback page,
+end-to-end testing, real error handling (cancelled login, network
+failures) — before touching the protocol at all. Ship Auth v1, use
+it, learn from it, then harden. Not a compromise being quietly
+carried forward; a real, named, sequenced roadmap.
