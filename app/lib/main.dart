@@ -574,7 +574,11 @@ class _OfficeHomeState extends State<OfficeHome> {
           ),
         ],
       ),
-      drawer: const _OfficeDrawer(),
+      drawer: _OfficeDrawer(
+        onReportsTap: _showReportsSheet,
+        onPeopleTap: _showPeopleSheet,
+        onHistoryTap: _showHistorySheet,
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -721,19 +725,151 @@ class _OfficeHomeState extends State<OfficeHome> {
       child: Text(text, style: GoogleFonts.workSans(color: _paper, fontSize: 14.5)),
     );
   }
+
+  // Real feature 2026-07-27 — wiring the drawer, working down the
+  // agreed dev-URL build list. Reports opens the real, already-proven
+  // PDF endpoints directly, exact real routes confirmed against the
+  // manifesto's own tested implementation.
+  void _showReportsSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _charcoal,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.description_outlined, color: _muted),
+              title: Text('Profit & Loss', style: GoogleFonts.workSans(color: _paper)),
+              onTap: () {
+                Navigator.pop(context);
+                launchUrl(Uri.parse('$officeApiBase/reports/profit-and-loss/pdf'), webOnlyWindowName: '_blank');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.description_outlined, color: _muted),
+              title: Text('Aged Debtors', style: GoogleFonts.workSans(color: _paper)),
+              onTap: () {
+                Navigator.pop(context);
+                launchUrl(Uri.parse('$officeApiBase/reports/aged-debtors/pdf'), webOnlyWindowName: '_blank');
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Real feature 2026-07-27 — People, fetched fresh on open rather
+  // than cached like the embers, since this is a rarely-opened,
+  // on-demand list rather than something needing constant refresh.
+  Future<void> _showPeopleSheet() async {
+    List<dynamic> people = [];
+    try {
+      final response = await http.get(Uri.parse('$officeApiBase/debug/characters'));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        people = data['characters'] as List? ?? [];
+      }
+    } catch (_) {
+      // Real, deliberate no-op — an empty list is shown honestly
+      // below rather than a confusing error for a low-stakes lookup.
+    }
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _charcoal,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('PEOPLE', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+              const SizedBox(height: 12),
+              if (people.isEmpty)
+                Text('Nobody real here yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic))
+              else
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.5),
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: people.map((p) {
+                      final row = p as Map<String, dynamic>;
+                      final relationship = row['relationship'] as String?;
+                      return _docketCard('${row['name']}${relationship != null ? ' — $relationship' : ''}');
+                    }).toList(),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Real feature 2026-07-27 — History, the real, deliberately simple
+  // input/output ledger. Currently shows only the real input side
+  // (raw_text) from /debug/captures — whether a companion route
+  // carries the paired output is a real, open question named in
+  // BUILD_SEQUENCE.md, not yet resolved, so this is honestly partial
+  // for now rather than pretending completeness.
+  Future<void> _showHistorySheet() async {
+    List<dynamic> captures = [];
+    try {
+      final response = await http.get(Uri.parse('$officeApiBase/debug/captures'));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        captures = data['captures'] as List? ?? [];
+      }
+    } catch (_) {
+      // Real, deliberate no-op — matches the same honest-empty
+      // pattern as People above.
+    }
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _charcoal,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('HISTORY', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+              const SizedBox(height: 12),
+              if (captures.isEmpty)
+                Text('Nothing real here yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic))
+              else
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.5),
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: captures.map((c) {
+                      final row = c as Map<String, dynamic>;
+                      return _docketCard(row['raw_text']?.toString() ?? '');
+                    }).toList(),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // The hamburger drawer — real navigation into existing data, mirroring
-// this very interface's own sidebar. Reports & Documents and People
-// were real, proven in the manifesto prototype; History joins them
-// here rather than staying its own separate, poorly-discoverable
-// swipe gesture (a real, named problem with the prior design — the
-// handle blended into the background and the log itself used chat
-// bubbles, which this whole rebuild deliberately moves away from).
-// All three placeholder for now — real wiring is a deliberate,
-// separate next step from this visual shell.
+// this very interface's own sidebar. All three items now wired to
+// real backend data — Reports opens real, already-proven PDFs;
+// People and History fetch real, live lists on open.
 class _OfficeDrawer extends StatelessWidget {
-  const _OfficeDrawer();
+  final VoidCallback onReportsTap;
+  final VoidCallback onPeopleTap;
+  final VoidCallback onHistoryTap;
+  const _OfficeDrawer({required this.onReportsTap, required this.onPeopleTap, required this.onHistoryTap});
 
   @override
   Widget build(BuildContext context) {
@@ -750,20 +886,23 @@ class _OfficeDrawer extends StatelessWidget {
                 style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 16, letterSpacing: 1.6, fontWeight: FontWeight.w600),
               ),
             ),
-            _drawerItem(Icons.description_outlined, 'Reports & Documents'),
-            _drawerItem(Icons.people_outline, 'People'),
-            _drawerItem(Icons.history, 'History'),
+            _drawerItem(Icons.description_outlined, 'Reports & Documents', onReportsTap, context),
+            _drawerItem(Icons.people_outline, 'People', onPeopleTap, context),
+            _drawerItem(Icons.history, 'History', onHistoryTap, context),
           ],
         ),
       ),
     );
   }
 
-  Widget _drawerItem(IconData icon, String label) {
+  Widget _drawerItem(IconData icon, String label, VoidCallback onTap, BuildContext context) {
     return ListTile(
       leading: Icon(icon, color: _muted),
       title: Text(label, style: GoogleFonts.workSans(color: _paper, fontSize: 15)),
-      onTap: () {},
+      onTap: () {
+        Navigator.pop(context);
+        onTap();
+      },
     );
   }
 }
