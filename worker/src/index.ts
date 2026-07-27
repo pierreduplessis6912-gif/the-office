@@ -1575,7 +1575,7 @@ const ROLE_CAPABILITIES: Record<string, string[]> = {
 // person with genuinely restricted access exists — capability
 // enforcement without a required session is not real enforcement.
 async function resolveCapabilities(request: Request, env: Env): Promise<{ email: string | null; role: string | null; capabilities: string[] }> {
-  const session = await verifySession(env, getCookie(request, "office_session"));
+  const session = await verifySession(env, getSessionToken(request));
   if (!session) {
     return { email: null, role: null, capabilities: ROLE_CAPABILITIES.owner };
   }
@@ -1593,6 +1593,22 @@ function getCookie(request: Request, name: string): string | null {
   if (!header) return null;
   const match = header.split(";").map((c) => c.trim()).find((c) => c.startsWith(`${name}=`));
   return match ? decodeURIComponent(match.slice(name.length + 1)) : null;
+}
+
+// Real feature 2026-07-27 — bearer-token auth alongside the existing
+// cookie flow, never replacing it. A native app has no browser-style
+// cookie jar, and the existing CORS wrapper uses a wildcard origin,
+// which browsers refuse to send credentialed (cookie) requests
+// against anyway — so a real, explicit Authorization header is the
+// robust path for an app-based client, web or native alike. Bearer
+// checked first since an app that has one is being deliberate about
+// using it; falls back to the cookie for every existing tested flow.
+function getSessionToken(request: Request): string | null {
+  const authHeader = request.headers.get("Authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    return authHeader.slice(7).trim();
+  }
+  return getCookie(request, "office_session");
 }
 
 async function handleRequest(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -3158,7 +3174,12 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
 
       const sessionToken = await signSession(env, claims.email);
       return Response.json(
-        { status: "signed in", email: claims.email, role: membership.role },
+        // Real feature 2026-07-27 — the real token itself, alongside
+        // the existing cookie, never replacing it. An app-based
+        // client (web or native) stores this and sends it back as a
+        // real Authorization: Bearer header — the cookie alone was
+        // never going to work reliably for that kind of client.
+        { status: "signed in", email: claims.email, role: membership.role, sessionToken },
         {
           headers: {
             "Set-Cookie": `office_session=${sessionToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`,
@@ -3168,7 +3189,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     }
 
     if (url.pathname === "/auth/me" && request.method === "GET") {
-      const session = await verifySession(env, getCookie(request, "office_session"));
+      const session = await verifySession(env, getSessionToken(request));
       if (!session) return Response.json({ signedIn: false });
       const membership = await env.OFFICE_DB.prepare("SELECT * FROM memberships WHERE google_email = ?")
         .bind(session.email)
@@ -3207,7 +3228,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       if (!body.google_email) return Response.json({ error: "google_email is required" }, { status: 400 });
       const sessionToken = await signSession(env, body.google_email);
       return Response.json(
-        { status: "minted", google_email: body.google_email },
+        { status: "minted", google_email: body.google_email, sessionToken },
         { headers: { "Set-Cookie": `office_session=${sessionToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000` } }
       );
     }
