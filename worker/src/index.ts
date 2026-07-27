@@ -3123,15 +3123,26 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       googleUrl.searchParams.set("response_type", "code");
       googleUrl.searchParams.set("scope", "openid email profile");
       googleUrl.searchParams.set("state", state);
-      return new Response(null, {
-        status: 302,
-        headers: {
-          Location: googleUrl.toString(),
-          // Short-lived, HttpOnly — real CSRF protection, compared
-          // against Google's own returned state on the callback.
-          "Set-Cookie": `oauth_state=${state}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=600`,
-        },
-      });
+
+      // Real feature 2026-07-27 — remembering which kind of client
+      // asked, so the callback can build the real, correct redirect
+      // target. flutter_web_auth_2's web implementation requires the
+      // redirect to land on the exact same origin the app is running
+      // on (its own postMessage security model) — genuinely
+      // different from the native theoffice:// scheme. The app
+      // itself is the only thing that knows its own real origin, so
+      // it's passed here, not assumed.
+      const platform = url.searchParams.get("platform");
+      const redirectOrigin = url.searchParams.get("redirect_origin");
+      const headers = new Headers({ Location: googleUrl.toString() });
+      headers.append("Set-Cookie", `oauth_state=${state}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=600`);
+      if (platform) {
+        headers.append("Set-Cookie", `oauth_platform=${encodeURIComponent(platform)}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=600`);
+      }
+      if (redirectOrigin) {
+        headers.append("Set-Cookie", `oauth_redirect_origin=${encodeURIComponent(redirectOrigin)}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=600`);
+      }
+      return new Response(null, { status: 302, headers });
     }
 
     if (url.pathname === "/auth/google/callback" && request.method === "GET") {
@@ -3189,17 +3200,20 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       }
 
       const sessionToken = await signSession(env, claims.email);
-      // Real, final form 2026-07-27 — redirects to a custom URL
-      // scheme carrying the real token, rather than returning raw
-      // JSON in place. This is what an app-based client (flutter_web_
-      // auth_2 or equivalent) actually needs to catch — it opens the
-      // login URL and waits for a redirect matching this scheme,
-      // then extracts the token from it. Returning JSON directly
-      // was only ever for manual/curl testing, not the real,
-      // intended flow. The cookie is still set too — harmless, and
-      // still useful for direct browser testing — but the redirect
-      // is the real, primary path now.
-      const callbackUrl = new URL("theoffice://auth-callback");
+      // Real, final form 2026-07-27 — the redirect target is now
+      // platform-aware. flutter_web_auth_2's web implementation
+      // requires landing on the exact same origin the app is running
+      // on (its own postMessage security model) — genuinely
+      // different from native, which uses the theoffice:// scheme.
+      // Falls back to native if no platform/origin was remembered
+      // from /auth/google/login, since that's always been the real,
+      // working path.
+      const platform = getCookie(request, "oauth_platform");
+      const redirectOrigin = getCookie(request, "oauth_redirect_origin");
+      const callbackUrl =
+        platform === "web" && redirectOrigin
+          ? new URL(`${redirectOrigin}/auth-callback.html`)
+          : new URL("theoffice://auth-callback");
       callbackUrl.searchParams.set("token", sessionToken);
       callbackUrl.searchParams.set("email", claims.email);
       callbackUrl.searchParams.set("role", membership.role);
