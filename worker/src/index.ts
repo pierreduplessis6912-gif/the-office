@@ -2990,10 +2990,26 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       // temporarily exceeded"), which never happened at 11-14 cases.
       // A regression suite that fails on its own load isn't reliable;
       // sequential execution is slower but actually trustworthy.
+      // Real finding 2026-07-27: the suite has grown from 17 cases
+      // (when the capacity-limit finding above was made) to 22, and
+      // pure sequential execution of 22 real, live AI calls is now
+      // genuinely timing out — found live when it hung completely,
+      // twice in a row. Full parallelism already proved unreliable
+      // (the capacity-limit finding above), so the real fix is
+      // batched concurrency: small groups running together, staying
+      // well under whatever threshold tripped that limit, while
+      // meaningfully cutting total wall-clock time versus one-by-one.
       const results: Array<{ name: string; input: string; pass: boolean; extraction: Extraction | null; rawOnFailure?: unknown }> = [];
-      for (const c of cases) {
-        const { extraction, raw } = await extractIntent(env, c.text);
-        results.push({ name: c.name, input: c.text, pass: c.check(extraction), extraction, rawOnFailure: extraction ? undefined : raw });
+      const batchSize = 4;
+      for (let i = 0; i < cases.length; i += batchSize) {
+        const batch = cases.slice(i, i + batchSize);
+        const batchResults = await Promise.all(
+          batch.map(async (c) => {
+            const { extraction, raw } = await extractIntent(env, c.text);
+            return { name: c.name, input: c.text, pass: c.check(extraction), extraction, rawOnFailure: extraction ? undefined : raw };
+          })
+        );
+        results.push(...batchResults);
       }
 
       return Response.json({ allPassed: results.every((r) => r.pass), results });
