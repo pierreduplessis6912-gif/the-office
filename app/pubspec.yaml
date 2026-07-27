@@ -25,5 +25,16 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^4.0.0
 
+# Real, precise fix, found live via path_provider_android's own
+# changelog: 2.2.22 is the last version before it switched build files
+# to Kotlin DSL (2.2.23) and then added a real jni dependency (2.3.0)
+# - jni's own Android build.gradle has a genuine, confirmed Gradle DSL
+# incompatibility ("Could not find method kotlin()") with this
+# project's generated Android setup. Pinned here rather than fighting
+# that incompatibility directly, since path_provider itself only
+# needs a stable file-path API, not JNI.
+dependency_overrides:
+  path_provider_android: 2.2.22
+
 flutter:
   uses-material-design: true
