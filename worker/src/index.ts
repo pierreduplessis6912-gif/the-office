@@ -3189,19 +3189,27 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       }
 
       const sessionToken = await signSession(env, claims.email);
-      return Response.json(
-        // Real feature 2026-07-27 — the real token itself, alongside
-        // the existing cookie, never replacing it. An app-based
-        // client (web or native) stores this and sends it back as a
-        // real Authorization: Bearer header — the cookie alone was
-        // never going to work reliably for that kind of client.
-        { status: "signed in", email: claims.email, role: membership.role, sessionToken },
-        {
-          headers: {
-            "Set-Cookie": `office_session=${sessionToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`,
-          },
-        }
-      );
+      // Real, final form 2026-07-27 — redirects to a custom URL
+      // scheme carrying the real token, rather than returning raw
+      // JSON in place. This is what an app-based client (flutter_web_
+      // auth_2 or equivalent) actually needs to catch — it opens the
+      // login URL and waits for a redirect matching this scheme,
+      // then extracts the token from it. Returning JSON directly
+      // was only ever for manual/curl testing, not the real,
+      // intended flow. The cookie is still set too — harmless, and
+      // still useful for direct browser testing — but the redirect
+      // is the real, primary path now.
+      const callbackUrl = new URL("theoffice://auth-callback");
+      callbackUrl.searchParams.set("token", sessionToken);
+      callbackUrl.searchParams.set("email", claims.email);
+      callbackUrl.searchParams.set("role", membership.role);
+      return new Response(null, {
+        status: 302,
+        headers: {
+          Location: callbackUrl.toString(),
+          "Set-Cookie": `office_session=${sessionToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`,
+        },
+      });
     }
 
     if (url.pathname === "/auth/me" && request.method === "GET") {
