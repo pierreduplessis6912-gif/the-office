@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Ether — Design Manifesto</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --void: #0a0a0b;
+    --ether: #1a1a1e;
+    --pulse: #e63946;
+    --pulse-glow: rgba(230, 57, 70, 0.3);
+    --breathe: #2a9d8f;
+    --amber: #f4a261;
+    --text-primary: #f5f5f5;
+    --text-secondary: #8a8a8f;
+    --text-tertiary: #5a5a5f;
+    --surface: #141418;
+    --surface-elevated: #1e1e24;
+    --border: #2a2a30;
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-body: 'Inter', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--void);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .manifesto-container {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  .hero {
+    padding: 80px 0 60px;
+    text-align: center;
+    position: relative;
+  }
+
+  .hero-orb {
+    width: 120px;
+    height: 120px;
+    margin: 0 auto 40px;
+    position: relative;
+  }
+
+  .orb-core {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, var(--pulse), #8b0000);
+    box-shadow: 0 0 60px var(--pulse-glow), 0 0 120px rgba(230, 57, 70, 0.1);
+    animation: pulse-breathe 4s ease-in-out infinite;
+    position: relative;
+  }
+
+  .orb-ring {
+    position: absolute;
+    top: -20px; left: -20px; right: -20px; bottom: -20px;
+    border: 1px solid rgba(230, 57, 70, 0.15);
+    border-radius: 50%;
+    animation: ring-expand 4s ease-in-out infinite;
+  }
+
+  .orb-ring-2 {
+    position: absolute;
+    top: -40px; left: -40px; right: -40px; bottom: -40px;
+    border: 1px solid rgba(230, 57, 70, 0.08);
+    border-radius: 50%;
+    animation: ring-expand 4s ease-in-out infinite 0.5s;
+  }
+
+  @keyframes pulse-breathe {
+    0%, 100% { transform: scale(1); opacity: 0.9; }
+    50% { transform: scale(1.05); opacity: 1; }
+  }
+
+  @keyframes ring-expand {
+    0%, 100% { transform: scale(1); opacity: 0.3; }
+    50% { transform: scale(1.15); opacity: 0.1; }
+  }
+
+  .hero h1 {
+    font-family: var(--font-display);
+    font-size: 56px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 16px;
+  }
+
+  .hero h1 span {
+    background: linear-gradient(135deg, var(--pulse), var(--amber));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-subtitle {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 300;
+    color: var(--text-secondary);
+    letter-spacing: 0.02em;
+    margin-bottom: 32px;
+  }
+
+  .hero-manifesto {
+    font-size: 18px;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    max-width: 560px;
+    margin: 0 auto;
+    font-style: italic;
+  }
+
+  .hero-manifesto strong {
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+
+  .section {
+    padding: 60px 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .section-label {
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--text-tertiary);
+    margin-bottom: 24px;
+  }
+
+  .section h2 {
+    font-family: var(--font-display);
+    font-size: 32px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    margin-bottom: 24px;
+  }
+
+  .section p {
+    font-size: 16px;
+    line-height: 1.8;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+  }
+
+  .section p strong {
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+
+  .philosophy-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-top: 32px;
+  }
+
+  .philosophy-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    transition: all 0.3s ease;
+    cursor: default;
+  }
+
+  .philosophy-card:hover {
+    border-color: var(--pulse);
+    transform: translateY(-2px);
+  }
+
+  .philosophy-card h3 {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .philosophy-card h3 .icon {
+    font-size: 24px;
+    opacity: 0.8;
+  }
+
+  .philosophy-card p {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  .journey-timeline {
+    position: relative;
+    padding-left: 32px;
+    margin-top: 32px;
+  }
+
+  .journey-timeline::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--pulse), var(--breathe));
+    opacity: 0.3;
+  }
+
+  .journey-step {
+    position: relative;
+    margin-bottom: 40px;
+    padding-left: 24px;
+  }
+
+  .journey-step::before {
+    content: '';
+    position: absolute;
+    left: -28px;
+    top: 4px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 2px solid var(--pulse);
+  }
+
+  .journey-step.active::before {
+    background: var(--pulse);
+    box-shadow: 0 0 12px var(--pulse-glow);
+  }
+
+  .journey-step.completed::before {
+    background: var(--breathe);
+    border-color: var(--breathe);
+  }
+
+  .journey-step h4 {
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .journey-step p {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  .journey-step .step-meta {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin-top: 8px;
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .phone-mockup {
+    width: 280px;
+    height: 560px;
+    background: var(--surface);
+    border: 3px solid var(--border);
+    border-radius: 40px;
+    margin: 32px auto;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 25px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03);
+  }
+
+  .phone-notch {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 28px;
+    background: var(--void);
+    border-radius: 0 0 16px 16px;
+    z-index: 10;
+  }
+
+  .phone-screen {
+    width: 100%;
+    height: 100%;
+    background: var(--void);
+    display: flex;
+    flex-direction: column;
+    padding: 48px 20px 24px;
+    position: relative;
+  }
+
+  .phone-briefing {
+    background: var(--surface-elevated);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 16px;
+    border: 1px solid var(--border);
+  }
+
+  .phone-briefing-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+
+  .phone-briefing-header .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--pulse);
+    animation: blink 2s ease-in-out infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .phone-briefing-items {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  .phone-briefing-items span {
+    display: block;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .phone-briefing-items span:last-child {
+    border-bottom: none;
+  }
+
+  .phone-response {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .phone-waveform {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    height: 40px;
+    margin-bottom: 16px;
+  }
+
+  .phone-waveform .bar {
+    width: 3px;
+    background: var(--pulse);
+    border-radius: 2px;
+    animation: wave 1.2s ease-in-out infinite;
+  }
+
+  .phone-waveform .bar:nth-child(1) { height: 12px; animation-delay: 0s; }
+  .phone-waveform .bar:nth-child(2) { height: 24px; animation-delay: 0.1s; }
+  .phone-waveform .bar:nth-child(3) { height: 32px; animation-delay: 0.2s; }
+  .phone-waveform .bar:nth-child(4) { height: 20px; animation-delay: 0.3s; }
+  .phone-waveform .bar:nth-child(5) { height: 36px; animation-delay: 0.15s; }
+  .phone-waveform .bar:nth-child(6) { height: 16px; animation-delay: 0.25s; }
+  .phone-waveform .bar:nth-child(7) { height: 28px; animation-delay: 0.05s; }
+
+  @keyframes wave {
+    0%, 100% { transform: scaleY(0.5); opacity: 0.5; }
+    50% { transform: scaleY(1); opacity: 1; }
+  }
+
+  .phone-response-text {
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    max-width: 220px;
+  }
+
+  .phone-response-subtext {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin-top: 8px;
+  }
+
+  .phone-mic-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding-top: 16px;
+  }
+
+  .phone-mic-button {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, var(--pulse), #8b0000);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 24px var(--pulse-glow);
+    position: relative;
+  }
+
+  .phone-mic-button::after {
+    content: '🎤';
+    font-size: 28px;
+    filter: grayscale(0.3);
+  }
+
+  .phone-mic-label {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-family: var(--font-display);
+  }
+
+  .phone-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    margin-top: 12px;
+  }
+
+  .phone-nav-btn {
+    font-size: 18px;
+    color: var(--text-tertiary);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+  }
+
+  .phone-sigh .phone-briefing {
+    display: none;
+  }
+
+  .phone-sigh .phone-response-text {
+    font-size: 18px;
+    color: var(--breathe);
+  }
+
+  .phone-sigh .phone-mic-button {
+    background: radial-gradient(circle at 30% 30%, var(--breathe), #1a5f55);
+    box-shadow: 0 4px 24px rgba(42, 157, 143, 0.3);
+  }
+
+  .quote-block {
+    background: var(--surface);
+    border-left: 3px solid var(--pulse);
+    padding: 24px 28px;
+    margin: 32px 0;
+    border-radius: 0 12px 12px 0;
+  }
+
+  .quote-block p {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 300;
+    line-height: 1.6;
+    color: var(--text-primary);
+    font-style: italic;
+    margin: 0;
+  }
+
+  .quote-block .attribution {
+    font-size: 13px;
+    color: var(--text-tertiary);
+    margin-top: 16px;
+    font-style: normal;
+    font-family: var(--font-body);
+  }
+
+  .principles-list {
+    list-style: none;
+    margin-top: 24px;
+  }
+
+  .principles-list li {
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+  }
+
+  .principles-list li:last-child {
+    border-bottom: none;
+  }
+
+  .principle-num {
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--pulse);
+    opacity: 0.5;
+    line-height: 1;
+    min-width: 32px;
+  }
+
+  .principle-content h4 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: var(--text-primary);
+  }
+
+  .principle-content p {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  .anti-pattern {
+    display: flex;
+    gap: 16px;
+    padding: 20px;
+    background: var(--surface);
+    border-radius: 12px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+  }
+
+  .anti-x {
+    font-size: 24px;
+    color: var(--pulse);
+    opacity: 0.6;
+    line-height: 1;
+  }
+
+  .anti-content h4 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: var(--text-primary);
+  }
+
+  .anti-content p {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  .footer {
+    padding: 80px 0 60px;
+    text-align: center;
+    border-top: 1px solid var(--border);
+  }
+
+  .footer-orb {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 24px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, var(--breathe), #1a5f55);
+    box-shadow: 0 0 40px rgba(42, 157, 143, 0.2);
+    animation: pulse-breathe 4s ease-in-out infinite;
+  }
+
+  .footer p {
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 300;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  .footer p strong {
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--void); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+
+  @media (max-width: 600px) {
+    .hero h1 { font-size: 40px; }
+    .hero-subtitle { font-size: 16px; }
+    .section h2 { font-size: 24px; }
+    .phone-mockup { transform: scale(0.85); margin: 16px auto; }
+  }
+</style>
+</head>
+<body>
+
+<div class="manifesto-container">
+  <section class="hero">
+    <div class="hero-orb">
+      <div class="orb-ring"></div>
+      <div class="orb-ring-2"></div>
+      <div class="orb-core"></div>
+    </div>
+    <h1>Speak into <span>the Ether</span></h1>
+    <p class="hero-subtitle">A cognitive prosthetic for people who hold too much</p>
+    <p class="hero-manifesto">
+      The plumber already talks to himself. Between the truck and the job site, while holding the drill, after the call with the angry customer. <strong>The Ether listens.</strong> It remembers. It reacts. It tells you what matters so you can breathe.
+    </p>
+  </section>
+
+  <section class="section">
+    <div class="section-label">01 — Philosophy</div>
+    <h2>The plumber doesn't go to the office. The office comes to him.</h2>
+    <p>Traditional business software is built for desks. Forms, dashboards, dropdowns, date pickers. A plumber has dirty hands, noisy environments, and no patience for context switching. <strong>Zero adoption is the default.</strong></p>
+    <p>The Ether inverts this. The plumber already mutters, narrates, complains, celebrates. He speaks into the void constantly. The only change: <strong>now the void remembers.</strong></p>
+
+    <div class="quote-block">
+      <p>"Peter. Eshowe is handled. The venue part is ordered. Your wife confirmed the Danish travel. You have 45 minutes before crew drop-off. Dog food is on your route. Do not take another job this week. Breathe."</p>
+      <div class="attribution">— The Ether, 6:47 PM</div>
+    </div>
+
+    <div class="philosophy-grid">
+      <div class="philosophy-card">
+        <h3><span class="icon">🎙️</span> Voice is the hero</h3>
+        <p>One big red button. Hold to talk. Release to send. No keyboard by default. Text is a debug mode you intentionally summon. The interface is ears first, eyes second.</p>
+      </div>
+      <div class="philosophy-card">
+        <h3><span class="icon">🛡️</span> Guard everything</h3>
+        <p>Every mutation — payment, new customer, address update — lands in a holding table first. A human must confirm before anything touches ground truth. The LLM proposes. Peter decides.</p>
+      </div>
+      <div class="philosophy-card">
+        <h3><span class="icon">🧠</span> Memory is a hierarchy</h3>
+        <p>KV for instant recall. D1 for structured facts. Progressive summaries for narrative compression. Entity graph for relationships. Vectorize for cross-customer search. Each layer has a purpose.</p>
+      </div>
+      <div class="philosophy-card">
+        <h3><span class="icon">💨</span> The sigh is the metric</h3>
+        <p>Success is not API latency or test coverage. Success is the moment Peter opens the app and feels relief instead of overwhelm. The green dot. "Nothing urgent. Breathe."</p>
+      </div>
+      <div class="philosophy-card">
+        <h3><span class="icon">🔒</span> Git is the source of truth</h3>
+        <p>The Cloudflare dashboard is read-only. If it's not in a commit, it isn't real. Secrets never live in the repo. Names go in config files; values live in encrypted secret stores.</p>
+      </div>
+      <div class="philosophy-card">
+        <h3><span class="icon">🏗️</span> Build order is sacred</h3>
+        <p>Shell → mic → D1 → guard → memory → briefing. Each step is usable tomorrow. Do not build the cathedral before the foundation. Do not build 5 before 3 is solid.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-label">02 — The Screen</div>
+    <h2>One screen. No tabs. No forms.</h2>
+    <p>The screen should feel like a <strong>walkie-talkie that thinks</strong>. Not a chat app. Not a dashboard. Not a note-taking tool. A single surface where speaking is the primary action and everything else is ambient context.</p>
+
+    <div class="phone-mockup">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div class="phone-briefing">
+          <div class="phone-briefing-header">
+            <div class="dot"></div>
+            <span>2 urgent · 1 today · 0 this week</span>
+          </div>
+          <div class="phone-briefing-items">
+            <span>Payment #7 needs confirmation</span>
+            <span>FedEx clearance: check today</span>
+            <span>Eshowe: daughter pressure</span>
+          </div>
+        </div>
+        <div class="phone-response">
+          <div class="phone-waveform">
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+          </div>
+          <div class="phone-response-text">Payment noted for Jenny of R850</div>
+          <div class="phone-response-subtext">needs your confirmation</div>
+        </div>
+        <div class="phone-mic-area">
+          <div class="phone-mic-button"></div>
+          <div class="phone-mic-label">Hold to talk</div>
+        </div>
+        <div class="phone-nav">
+          <button class="phone-nav-btn">≡</button>
+          <button class="phone-nav-btn">✎</button>
+          <button class="phone-nav-btn">←→</button>
+        </div>
+      </div>
+    </div>
+
+    <p style="text-align: center; font-size: 13px; color: var(--text-tertiary);">The briefing card is collapsed by default. Tap to expand. Swipe left to dismiss. The mic dominates the visual hierarchy. Everything else is secondary.</p>
+  </section>
+
+  <section class="section">
+    <div class="section-label">03 — The Sigh State</div>
+    <h2>When nothing is urgent, the app tells you to breathe.</h2>
+    <p>Most apps create anxiety. Notifications, badges, unread counts, red dots. The Ether does the opposite. When the world is calm, the screen is calm.</p>
+
+    <div class="phone-mockup phone-sigh">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div class="phone-briefing">
+          <div class="phone-briefing-header">
+            <div class="dot" style="background: var(--breathe);"></div>
+            <span>All clear</span>
+          </div>
+        </div>
+        <div class="phone-response">
+          <div class="phone-response-text">Nothing urgent.<br>Breathe.</div>
+        </div>
+        <div class="phone-mic-area">
+          <div class="phone-mic-button"></div>
+          <div class="phone-mic-label">Hold to talk</div>
+        </div>
+        <div class="phone-nav">
+          <button class="phone-nav-btn">≡</button>
+          <button class="phone-nav-btn">✎</button>
+          <button class="phone-nav-btn">←→</button>
+        </div>
+      </div>
+    </div>
+
+    <p style="text-align: center; font-size: 13px; color: var(--text-tertiary);">The green dot replaces the red. No briefing card. Just a single line of text, centered, large. The app is telling Peter he can stop holding everything.</p>
+  </section>
+
+  <section class="section">
+    <div class="section-label">04 — Principles</div>
+    <h2>Every decision flows from one question: does this help Peter breathe?</h2>
+
+    <ol class="principles-list">
+      <li>
+        <span class="principle-num">01</span>
+        <div class="principle-content">
+          <h4>One screen, no tabs</h4>
+          <p>Everything is gesture or voice. Swipe right for history. Swipe left for menu. The main screen is sacred — only the briefing, the response, and the mic.</p>
+        </div>
+      </li>
+      <li>
+        <span class="principle-num">02</span>
+        <div class="principle-content">
+          <h4>The mic is the biggest thing on screen</h4>
+          <p>72px diameter, center-bottom, 80% of thumb reach. It dominates the visual hierarchy. Color states: dark red (idle), bright pulsing red (recording), amber (processing), green flash (success).</p>
+        </div>
+      </li>
+      <li>
+        <span class="principle-num">03</span>
+        <div class="principle-content">
+          <h4>Text is always secondary</h4>
+          <p>Smaller, gray, below the audio. The waveform visualizes speech. Text is a fallback for noisy environments. Tap text to copy — a hidden affordance, not a primary action.</p>
+        </div>
+      </li>
+      <li>
+        <span class="principle-num">04</span>
+        <div class="principle-content">
+          <h4>The briefing is ambient</h4>
+          <p>There when needed, invisible when not. Collapsed to counts by default. Red dot if critical. Auto-collapses after 10 seconds of inactivity. Never demands attention.</p>
+        </div>
+      </li>
+      <li>
+        <span class="principle-num">05</span>
+        <div class="principle-content">
+          <h4>Responses are spoken first</h4>
+          <p>TTS auto-plays. Waveform animates. Text appears after. In a truck, on a roof, with noisy tools — Peter hears before he reads.</p>
+        </div>
+      </li>
+      <li>
+        <span class="principle-num">06</span>
+        <div class="principle-content">
+          <h4>No notifications</h4>
+          <p>The app doesn't buzz. Peter opens it when he wants to. The Ether is a tool, not a boss. It waits for him. It never demands.</p>
+        </div>
+      </li>
+      <li>
+        <span class="principle-num">07</span>
+        <div class="principle-content">
+          <h4>No onboarding</h4>
+          <p>Open app → hold button → talk. That's it. No account creation flow. No tutorial. No "let's get started" screens. The first voice note is the onboarding.</p>
+        </div>
+      </li>
+      <li>
+        <span class="principle-num">08</span>
+        <div class="principle-content">
+          <h4>No settings on first launch</h4>
+          <p>Defaults are tuned for a tradesperson in a truck. Dark mode. Large touch targets. Voice on. English. If Peter needs to change something, he can find it later. But he shouldn't need to on day one.</p>
+        </div>
+      </li>
+      <li>
+        <span class="principle-num">09</span>
+        <div class="principle-content">
+          <h4>Dark mode default</h4>
+          <p>Easier on eyes in bright sunlight. Less battery drain on OLED. The void is dark. The Ether lives in the void.</p>
+        </div>
+      </li>
+      <li>
+        <span class="principle-num">10</span>
+        <div class="principle-content">
+          <h4>Large touch targets</h4>
+          <p>Gloves. Dirty hands. One-handed use while holding a drill. Every tap target is at least 48px. The mic is 72px. Buttons are generous. Precision is not expected.</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <section class="section">
+    <div class="section-label">05 — Anti-Patterns</div>
+    <h2>This is NOT...</h2>
+    <p>Every product category The Ether deliberately avoids. If it looks like any of these, it has failed.</p>
+
+    <div class="anti-pattern">
+      <div class="anti-x">✕</div>
+      <div class="anti-content">
+        <h4>NOT a chat app with a mic button</h4>
+        <p>WhatsApp, Telegram — chat bubbles, typing indicators, read receipts, conversational back-and-forth. The Ether is not a conversation. It is a monologue that gets understood.</p>
+      </div>
+    </div>
+
+    <div class="anti-pattern">
+      <div class="anti-x">✕</div>
+      <div class="anti-content">
+        <h4>NOT a form with voice fill</h4>
+        <p>Siri Shortcuts — "Hey Siri, add a payment for Jenny for 850 rand." The Ether has no forms. There are no fields. There is no structure imposed on the user. Just speak.</p>
+      </div>
+    </div>
+
+    <div class="anti-pattern">
+      <div class="anti-x">✕</div>
+      <div class="anti-content">
+        <h4>NOT a dashboard with a voice widget</h4>
+        <p>Google Assistant, Alexa — a voice layer bolted onto a screen-first interface. The Ether has no dashboard. No charts. No KPIs. No customer list as the default view.</p>
+      </div>
+    </div>
+
+    <div class="anti-pattern">
+      <div class="anti-x">✕</div>
+      <div class="anti-content">
+        <h4>NOT a note-taking app with voice input</h4>
+        <p>Notion, Obsidian — capture everything, organize later. The Ether doesn't capture. It understands. It compresses. It tells you what matters. It is not a filing cabinet.</p>
+      </div>
+    </div>
+
+    <div class="anti-pattern">
+      <div class="anti-x">✕</div>
+      <div class="anti-content">
+        <h4>NOT an AI that talks back</h4>
+        <p>ChatGPT, Claude — conversational, exploratory, open-ended. The Ether is not a chatbot. It does not ask "How can I help you today?" It listens, holds, and speaks only when it has something worth saying.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-label">06 — The Journey</div>
+    <h2>From muttering to breathing</h2>
+    <p>The path a user takes from first open to daily reliance. Each stage is a commitment, not a feature.</p>
+
+    <div class="journey-timeline">
+      <div class="journey-step completed">
+        <h4>First Open</h4>
+        <p>App opens to a dark screen with a single red circle. No tutorial. No "get started." Peter holds the button, says "test," releases. The system responds: "Got it." That's the onboarding.</p>
+        <div class="step-meta">0 seconds to first value</div>
+      </div>
+
+      <div class="journey-step completed">
+        <h4>First Real Note</h4>
+        <p>Peter is in the truck, between jobs. He holds the button: "Jenny paid 850." The system extracts the payment, holds it for confirmation, speaks back: "Payment noted for Jenny of R850 — needs your confirmation." Peter taps confirm. The first ground-truth write happens.</p>
+        <div class="step-meta">Guard discipline proven</div>
+      </div>
+
+      <div class="journey-step active">
+        <h4>First Briefing</h4>
+        <p>Peter opens the app at 6 PM. The briefing card shows: "3 things need your attention." He taps. Payment #7 pending. FedEx clearance reminder. Eshowe daughter pressure. He taps the payment, confirms it. He feels the first hint of relief.</p>
+        <div class="step-meta">The snapshot becomes real</div>
+      </div>
+
+      <div class="journey-step">
+        <h4>First Sigh</h4>
+        <p>A calm day. Peter opens the app. The briefing card is gone. The screen is green. "Nothing urgent. Breathe." He exhales. He didn't realize he was holding tension until the app told him he could let go.</p>
+        <div class="step-meta">The product proves its worth</div>
+      </div>
+
+      <div class="journey-step">
+        <h4>Daily Ritual</h4>
+        <p>Peter no longer thinks about The Ether. He just speaks into it. In the truck, on the roof, after the angry call. The muttering is the same. But now the muttering has a memory. And sometimes, at the end of a hard day, the app tells him to breathe.</p>
+        <div class="step-meta">Cognitive load externalized</div>
+      </div>
+
+      <div class="journey-step">
+        <h4>Dependence</h4>
+        <p>Peter forgets a commitment. He asks The Ether: "What did I promise the Eshowe lady?" The system traverses the entity graph, finds the promise, speaks it back. Peter realizes he no longer holds his business in his head. The Ether holds it for him.</p>
+        <div class="step-meta">The prosthetic becomes invisible</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="footer">
+    <div class="footer-orb"></div>
+    <p>Speak into the void.<br><strong>The void remembers.</strong></p>
+  </section>
+</div>
+
+</body>
+</html>
