@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' show FragmentProgram, FragmentShader;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -1492,6 +1494,102 @@ class _EmberGlowPainter extends CustomPainter {
 // Real, deliberate CustomPainter for the primary circle's glow -
 // same rationale as _EmberGlowPainter, applied to the one, dominant
 // object rather than the embers.
+// A/B experiment - the Heat Orb, exactly as provided by Kimi, with
+// one real bug fixed: the original declared `late FragmentProgram
+// _program` (non-nullable) but then checked `if (_program == null)`,
+// which would not compile as given. Made properly nullable here so
+// the loading-state check actually works.
+class HeatOrb extends StatefulWidget {
+  final bool isRecording;
+  final double size;
+  const HeatOrb({super.key, required this.isRecording, this.size = 220});
+
+  @override
+  State<HeatOrb> createState() => _HeatOrbState();
+}
+
+class _HeatOrbState extends State<HeatOrb> with SingleTickerProviderStateMixin {
+  FragmentProgram? _program;
+  late AnimationController _breath;
+
+  @override
+  void initState() {
+    super.initState();
+    _breath = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 6500),
+    )..repeat(reverse: true);
+    _loadShader();
+  }
+
+  Future<void> _loadShader() async {
+    final program = await FragmentProgram.fromAsset('shaders/heat_orb.frag');
+    if (!mounted) return;
+    setState(() => _program = program);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final program = _program;
+    if (program == null) return const SizedBox.shrink();
+
+    return AnimatedBuilder(
+      animation: _breath,
+      builder: (_, __) {
+        return CustomPaint(
+          size: Size(widget.size, widget.size),
+          painter: _HeatPainter(
+            program: program,
+            breath: _breath.value,
+            heartbeat: widget.isRecording ? 1.0 : 0.0,
+            time: DateTime.now().millisecondsSinceEpoch / 1000.0,
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _breath.dispose();
+    super.dispose();
+  }
+}
+
+class _HeatPainter extends CustomPainter {
+  final FragmentProgram program;
+  final double breath;
+  final double heartbeat;
+  final double time;
+
+  _HeatPainter({
+    required this.program,
+    required this.breath,
+    required this.heartbeat,
+    required this.time,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final shader = program.fragmentShader();
+    shader.setFloat(0, size.width);
+    shader.setFloat(1, size.height);
+    shader.setFloat(2, time);
+    shader.setFloat(3, breath);
+    shader.setFloat(4, heartbeat);
+    shader.setFloat(5, 0.5); // center X (normalized)
+    shader.setFloat(6, 0.5); // center Y (normalized)
+
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..shader = shader,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _HeatPainter old) => true;
+}
+
 class _CircleGlowPainter extends CustomPainter {
   final Color color;
   final double coreDiameter;
@@ -1839,99 +1937,15 @@ class _TalkArea extends StatelessWidget {
               // its own RepaintBoundary — the same continuously-
               // repainting, glow-heavy pattern as the embers, isolated
               // the same way.
+              // A/B experiment: replacing the existing circle
+              // implementation entirely with the Heat Orb fragment
+              // shader, so this is a fair, isolated comparison of just
+              // the orb technique - everything else in this screen
+              // (embers, layout, subtitle) stays the same.
               RepaintBoundary(
-                child: AnimatedBuilder(
-                  animation: breatheController,
-                  builder: (context, child) {
-                final breatheValue = breatheController.value; // 0..1, slow 8s cycle
-                final baseColor = isRecording ? _pulse : (isAllClear ? _breathe : _pulse);
-                // Real, genuine performance fix: replaces the previous
-                // BoxShadow blur with a CustomPainter glow halo layered
-                // behind the solid circle - same rationale as the
-                // embers' _EmberGlowPainter, no blur kernel recomputed
-                // every tick.
-                return GestureDetector(
+                child: GestureDetector(
                   onTap: onMicTap,
-                  child: SizedBox(
-                    width: 160,
-                    height: 160,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      // Real bug fix, found live: Stack defaults to
-                      // Clip.hardEdge, clipping children to its own
-                      // 160x160 bounds regardless of OverflowBox's own
-                      // no-clip behavior - very likely the actual,
-                      // remaining cause of the box artifact around the
-                      // circle even after the earlier OverflowBox fix.
-                      clipBehavior: Clip.none,
-                      children: [
-                        // Real bug, found live: the glow radius at
-                        // higher breathe values exceeds this 160x160
-                        // layout size, so Flutter was clipping the
-                        // paint at that boundary — the visible hard
-                        // rectangular edge around the circle.
-                        // OverflowBox lets the glow paint into a real,
-                        // larger area without changing the tap target.
-                        OverflowBox(
-                          maxWidth: 220,
-                          maxHeight: 220,
-                          child: CustomPaint(
-                            size: const Size(220, 220),
-                            painter: _CircleGlowPainter(
-                              color: baseColor,
-                              coreDiameter: 96,
-                              glowIntensity: 0.22 + (0.18 * breatheValue),
-                              glowSpread: 1.0 + (0.35 * breatheValue),
-                            ),
-                          ),
-                        ),
-                        Container(
-                          width: 96,
-                          height: 96,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            // Real feature 2026-07-28 — reworked with
-                            // real, tuned color stops for a rim-light
-                            // effect and softer, more gradual falloff,
-                            // matching the reference image's layered
-                            // depth rather than one flat two-color
-                            // gradient: a bright highlight near the
-                            // light source, the main body color, a
-                            // darker mid-tone for real depth, then a
-                            // brighter rim right at the edge -
-                            // simulating light wrapping around a
-                            // sphere.
-                            gradient: RadialGradient(
-                              center: const Alignment(-0.3, -0.3),
-                              stops: const [0.0, 0.35, 0.75, 1.0],
-                              colors: isRecording
-                                  ? [
-                                      Color.lerp(_pulse, Colors.white, 0.35)!,
-                                      _pulse,
-                                      const Color(0xFF8B0000),
-                                      const Color(0xFFFF6B4A),
-                                    ]
-                                  : isAllClear
-                                      ? [
-                                          Color.lerp(_breathe, Colors.white, 0.35)!,
-                                          _breathe,
-                                          const Color(0xFF1A5F55),
-                                          const Color(0xFF5FD9C4),
-                                        ]
-                                      : [
-                                          Color.lerp(_pulse, Colors.white, 0.35)!,
-                                          _pulse,
-                                          const Color(0xFF8B0000),
-                                          const Color(0xFFFF6B4A),
-                                        ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
+                  child: HeatOrb(isRecording: isRecording, size: 220),
                 ),
               ),
               const SizedBox(height: 14),
