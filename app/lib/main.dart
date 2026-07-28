@@ -221,8 +221,6 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   String? _userRole;
   bool get _isSignedIn => _sessionToken != null;
 
-  Timer? _statusTimer;
-
   @override
   void initState() {
     super.initState();
@@ -245,7 +243,6 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     _recorder.dispose();
     _textController.dispose();
     _scrollController.dispose();
-    _statusTimer?.cancel();
     _entranceController.dispose();
     _breatheController.dispose();
     super.dispose();
@@ -442,20 +439,23 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     });
   }
 
-  // Live, rotating description of what's actually happening — not a
-  // generic spinner. Cancelled the moment a real response arrives.
-  void _startStatusCycle(String statusId, List<String> phrases) {
-    var i = 0;
-    _statusTimer?.cancel();
-    _statusTimer = Timer.periodic(const Duration(milliseconds: 1100), (_) {
-      i = (i + 1) % phrases.length;
-      _updateMessage(statusId, text: phrases[i]);
-    });
+  // Real, direct feedback: "when Peter finishes talking, there should
+  // be about half a second of complete stillness... then one ember
+  // glows slightly brighter... no loading indicator, no AI typing,
+  // just the fire is working." Replaces the earlier rotating
+  // status-text mechanism entirely.
+  String? _thinkingEmberId;
+
+  Future<void> _startThinking() async {
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
+    const emberIds = ['tasks', 'scheduler', 'finance', 'suppliers', 'pending'];
+    setState(() => _thinkingEmberId = emberIds[math.Random().nextInt(emberIds.length)]);
   }
 
-  void _stopStatusCycle() {
-    _statusTimer?.cancel();
-    _statusTimer = null;
+  void _stopThinking() {
+    if (!mounted) return;
+    setState(() => _thinkingEmberId = null);
   }
 
   // The actual fix for the query-rewriting gap: the backend has been
@@ -489,8 +489,8 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
 
     final history = _recentHistory();
     _addMessage(MessageRole.user, text);
-    final statusId = _addMessage(MessageRole.status, 'Reading that...');
-    _startStatusCycle(statusId, ['Reading that...', 'Checking who you meant...', 'Writing it down...']);
+    final statusId = _addMessage(MessageRole.status, '');
+    _startThinking();
 
     try {
       final uri = Uri.parse('$officeApiBase/messages/text');
@@ -499,7 +499,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         headers: _authHeaders({'Content-Type': 'application/json'}),
         body: jsonEncode({'text': text, 'history': history}),
       );
-      _stopStatusCycle();
+      _stopThinking();
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -514,7 +514,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         _updateMessage(statusId, role: MessageRole.office, text: 'Something went wrong (${response.statusCode}).');
       }
     } catch (_) {
-      _stopStatusCycle();
+      _stopThinking();
       _updateMessage(statusId, role: MessageRole.office, text: 'Could not reach the Office — check connection.');
     }
   }
@@ -560,8 +560,8 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     // replaces it. Same pattern WhatsApp uses for voice notes, just
     // temporary here rather than permanent.
     final userId = _addMessage(MessageRole.user, '🎤 Voice message');
-    final statusId = _addMessage(MessageRole.status, 'Transcribing...');
-    _startStatusCycle(statusId, ['Transcribing...', 'Checking who you meant...', 'Writing it down...']);
+    final statusId = _addMessage(MessageRole.status, '');
+    _startThinking();
 
     try {
       final uri = Uri.parse('$officeApiBase/files/audio');
@@ -571,7 +571,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       request.fields['history'] = jsonEncode(history);
       final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);
-      _stopStatusCycle();
+      _stopThinking();
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -590,7 +590,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         _updateMessage(statusId, role: MessageRole.office, text: 'Upload failed (${response.statusCode}).');
       }
     } catch (_) {
-      _stopStatusCycle();
+      _stopThinking();
       _updateMessage(statusId, role: MessageRole.office, text: 'Upload failed — check connection.');
     } finally {
       try {
@@ -632,8 +632,8 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     required String label,
   }) async {
     _addMessage(MessageRole.user, label);
-    final statusId = _addMessage(MessageRole.status, 'Uploading...');
-    _startStatusCycle(statusId, ['Uploading...', 'Reading it...', 'Checking who this is for...']);
+    final statusId = _addMessage(MessageRole.status, '');
+    _startThinking();
 
     try {
       final uri = Uri.parse('$officeApiBase/files/$endpoint');
@@ -642,7 +642,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       request.files.add(await http.MultipartFile.fromPath(fieldName, path));
       final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);
-      _stopStatusCycle();
+      _stopThinking();
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -675,7 +675,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         _updateMessage(statusId, role: MessageRole.office, text: 'Upload failed (${response.statusCode}).');
       }
     } catch (_) {
-      _stopStatusCycle();
+      _stopThinking();
       _updateMessage(statusId, role: MessageRole.office, text: 'Upload failed — check connection.');
     }
   }
@@ -786,6 +786,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
                   isWriteMode: _isWriteMode,
                   isAllClear: _embers.allClear && _messages.isEmpty,
                   breatheController: _breatheController,
+                  thinkingEmberId: _thinkingEmberId,
                   onSend: () {
                     _sendText();
                     setState(() => _isWriteMode = false);
@@ -1179,7 +1180,8 @@ class _Ember extends StatefulWidget {
   final Color color;
   final int count;
   final VoidCallback onTap;
-  const _Ember({required this.color, required this.count, required this.onTap});
+  final bool isThinking;
+  const _Ember({required this.color, required this.count, required this.onTap, this.isThinking = false});
 
   @override
   State<_Ember> createState() => _EmberState();
@@ -1190,10 +1192,15 @@ class _EmberState extends State<_Ember> with SingleTickerProviderStateMixin {
   // Real, deliberate randomization per ember instance — duration and
   // phase both vary, so no two embers ever drift in sync. "Their
   // movement should be random enough to feel alive" (Design
-  // Constitution v2).
+  // Constitution v2). Direct feedback: "on a 20-30 second cycle. Not
+  // enough that anyone consciously notices."
   late final double _driftRadiusX;
   late final double _driftRadiusY;
   late final double _phaseOffset;
+  // Direct feedback: "real embers aren't circles... different
+  // brightness, different sizes, almost organic." A small, fixed
+  // per-instance variation rather than a perfectly uniform tier size.
+  late final double _sizeVariation;
 
   @override
   void initState() {
@@ -1202,11 +1209,12 @@ class _EmberState extends State<_Ember> with SingleTickerProviderStateMixin {
     final random = math.Random(seed);
     _driftController = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: 6000 + random.nextInt(4000)),
+      duration: Duration(milliseconds: 20000 + random.nextInt(10000)),
     )..repeat();
     _driftRadiusX = 5 + random.nextDouble() * 6;
     _driftRadiusY = 4 + random.nextDouble() * 5;
     _phaseOffset = random.nextDouble() * 2 * math.pi;
+    _sizeVariation = 0.85 + random.nextDouble() * 0.3;
   }
 
   @override
@@ -1247,36 +1255,50 @@ class _EmberState extends State<_Ember> with SingleTickerProviderStateMixin {
         final t = _driftController.value * 2 * math.pi + _phaseOffset;
         final dx = math.sin(t) * _driftRadiusX;
         final dy = math.cos(t * 0.8) * _driftRadiusY;
+        // Direct feedback: "they should slowly brighten, dim, drift,
+        // wobble on a 20-30 second cycle... enough that the screen
+        // never feels frozen." Same slow cycle also modulates real
+        // glow intensity, not just position.
+        final glowPulse = 0.85 + (math.sin(t) * 0.15);
+        final actualDiameter = diameter * _sizeVariation;
+        // Real, direct feedback: "one ember glows slightly brighter...
+        // no loading indicator... just the fire is working." This
+        // specific ember lights up regardless of its real, current
+        // count while chosen as the thinking signal.
+        final effectiveCore = widget.isThinking ? widget.color : core;
+        final effectiveGlow = widget.isThinking ? glowPulse * 1.8 : glowPulse;
+        final showGlow = widget.count > 0 || widget.isThinking;
         return Transform.translate(
           offset: Offset(dx, dy),
-          child: child,
-        );
-      },
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: SizedBox(
-          width: 32,
-          height: 32,
-          child: Center(
-            child: Container(
-              width: diameter,
-              height: diameter,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    widget.count > 0 ? Color.lerp(core, Colors.white, (brightness - 1).clamp(0, 1) * 0.5) ?? core : core,
-                    core.withOpacity(0.4),
-                  ],
+          child: GestureDetector(
+            onTap: widget.onTap,
+            child: SizedBox(
+              width: 32,
+              height: 32,
+              child: Center(
+                child: Container(
+                  width: actualDiameter,
+                  height: actualDiameter,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        widget.count > 0 || widget.isThinking
+                            ? Color.lerp(effectiveCore, Colors.white, (brightness - 1).clamp(0, 1) * 0.5) ?? effectiveCore
+                            : effectiveCore,
+                        effectiveCore.withOpacity(0.4),
+                      ],
+                    ),
+                    boxShadow: showGlow
+                        ? [BoxShadow(color: widget.color.withOpacity(0.55 * effectiveGlow), blurRadius: 10 * brightness * effectiveGlow, spreadRadius: 2)]
+                        : null,
+                  ),
                 ),
-                boxShadow: widget.count > 0
-                    ? [BoxShadow(color: widget.color.withOpacity(0.55), blurRadius: 10 * brightness, spreadRadius: 2)]
-                    : null,
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -1327,6 +1349,7 @@ class _TalkArea extends StatelessWidget {
   final bool isWriteMode;
   final bool isAllClear;
   final AnimationController breatheController;
+  final String? thinkingEmberId;
   final VoidCallback onSend;
   final VoidCallback onMicTap;
   final VoidCallback onCameraTap;
@@ -1342,6 +1365,7 @@ class _TalkArea extends StatelessWidget {
     required this.isWriteMode,
     required this.isAllClear,
     required this.breatheController,
+    required this.thinkingEmberId,
     required this.onSend,
     required this.onMicTap,
     required this.onCameraTap,
@@ -1370,34 +1394,33 @@ class _TalkArea extends StatelessWidget {
   Widget _buildTalkState() {
     return Stack(
       children: [
-        // Real fix, found live: Positioned uses absolute coordinates
-        // from the Stack's own edges, not relative to the centered
-        // circle beside it — which is exactly why the embers drifted
-        // away instead of gathering beside it. Align with a
-        // fractional offset stays correctly relative to the circle's
-        // real position regardless of screen size. "Maybe lower
-        // left... like a braai beside you." Genuinely scattered —
-        // varying x and y, never a neat, aligned row, and now real
-        // weighted orbs rather than thin slits, each drifting
-        // independently.
+        // Real, direct feedback: "the embers should feel like they're
+        // waiting for Peter... coals lying underneath [the button]."
+        // Moved from a side cluster to directly beneath the circle —
+        // a wider, flatter spread reading as a hearth rather than
+        // orbiting satellites. Genuinely scattered — varying x and y,
+        // never a neat, aligned row — real weighted orbs, each
+        // drifting independently.
         Align(
-          alignment: const Alignment(-0.55, 0.3),
+          alignment: const Alignment(0, 0.62),
           child: SizedBox(
-            width: 110,
-            height: 110,
+            width: 160,
+            height: 60,
             child: Stack(
               children: [
-                Positioned(left: 6, bottom: 10, child: _Ember(color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'))),
-                Positioned(left: 44, bottom: 34, child: _Ember(color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'))),
-                Positioned(left: 14, bottom: 64, child: _Ember(color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'))),
-                Positioned(left: 60, bottom: 6, child: _Ember(color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'))),
-                Positioned(left: 74, bottom: 52, child: _Ember(color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'))),
+                Positioned(left: 10, top: 18, child: _Ember(color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), isThinking: thinkingEmberId == 'tasks')),
+                Positioned(left: 46, top: 2, child: _Ember(color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), isThinking: thinkingEmberId == 'scheduler')),
+                Positioned(left: 74, top: 24, child: _Ember(color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), isThinking: thinkingEmberId == 'finance')),
+                Positioned(left: 104, top: 6, child: _Ember(color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), isThinking: thinkingEmberId == 'suppliers')),
+                Positioned(left: 132, top: 20, child: _Ember(color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'), isThinking: thinkingEmberId == 'pending')),
               ],
             ),
           ),
         ),
+        // Real, direct feedback: "the button should almost float...
+        // lift it about 40-60 pixels. It should feel suspended."
         Align(
-          alignment: Alignment.center,
+          alignment: const Alignment(0, -0.18),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1453,19 +1476,19 @@ class _TalkArea extends StatelessWidget {
               IconButton(
                 iconSize: 18,
                 icon: const Icon(Icons.camera_alt_outlined),
-                color: _textTertiary.withOpacity(0.12),
+                color: _textTertiary.withOpacity(0.08),
                 onPressed: onCameraTap,
               ),
               IconButton(
                 iconSize: 18,
                 icon: const Icon(Icons.attach_file),
-                color: _textTertiary.withOpacity(0.12),
+                color: _textTertiary.withOpacity(0.08),
                 onPressed: onDocumentTap,
               ),
               IconButton(
                 iconSize: 18,
                 icon: const Icon(Icons.edit_outlined),
-                color: _textTertiary.withOpacity(0.12),
+                color: _textTertiary.withOpacity(0.08),
                 onPressed: onToggleWriteMode,
               ),
             ],
@@ -1578,23 +1601,10 @@ class _MessageLine extends StatelessWidget {
   }
 
   Widget _buildStatus() {
-    return Padding(
-      padding: const EdgeInsets.only(left: 13, top: 4, bottom: 10),
-      child: Row(
-        children: [
-          const SizedBox(
-            width: 12,
-            height: 12,
-            child: CircularProgressIndicator(strokeWidth: 1.6, color: _muted),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            message.text.toUpperCase(),
-            style: GoogleFonts.ibmPlexMono(fontSize: 11.5, color: _muted, letterSpacing: 0.8),
-          ),
-        ],
-      ),
-    );
+    // Real, direct feedback: "no spinner. No 'processing'... just
+    // stillness... then one ember glows slightly brighter." The
+    // thinking signal now lives entirely in the ember, not here.
+    return const SizedBox.shrink();
   }
 
   // The signature element: anything guard() has held for confirmation
