@@ -35,6 +35,14 @@ CALLBACK_ACTIVITY = """    <activity android:name="com.linusu.flutter_web_auth_2
     </activity>
 """
 
+# Real, explicit Impeller-enabling flag - Impeller is already the
+# default on modern Android per current Flutter docs, but is
+# conditionally disabled on older/lower-end devices. Setting this
+# explicitly removes any ambiguity rather than relying on an assumed
+# default, per the direct instruction to target it as the real
+# rendering engine for the native build.
+IMPELLER_FLAG = '    <meta-data android:name="io.flutter.embedding.android.EnableImpeller" android:value="true" />\n'
+
 content = open(MANIFEST_PATH).read()
 
 for permission in PERMISSIONS:
@@ -49,13 +57,17 @@ for permission in PERMISSIONS:
 if "com.linusu.flutter_web_auth_2.CallbackActivity" not in content:
     content = re.sub(r"(\s*)(</application>)", rf"\1{CALLBACK_ACTIVITY}\1\2", content, count=1)
 
+if "EnableImpeller" not in content:
+    content = re.sub(r"(\s*)(</application>)", rf"\1{IMPELLER_FLAG}\1\2", content, count=1)
+
 open(MANIFEST_PATH, "w").write(content)
 
 final = open(MANIFEST_PATH).read()
 for permission in PERMISSIONS:
     assert permission in final, f"missing permission after patch: {permission}"
 assert "com.linusu.flutter_web_auth_2.CallbackActivity" in final, "missing CallbackActivity after patch"
-print("All permissions and the CallbackActivity confirmed present in manifest.")
+assert "EnableImpeller" in final, "missing Impeller flag after patch"
+print("All permissions, the CallbackActivity, and the Impeller flag confirmed present in manifest.")
 
 # Real Kotlin Gradle plugin version bump - the actual root cause of a
 # real jni/build.gradle failure found live on the first native build.
