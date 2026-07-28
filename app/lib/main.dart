@@ -1418,10 +1418,14 @@ class _EmberGlowPainter extends CustomPainter {
     // Real bug fix, found live: BlendMode.plus without layer isolation
     // doesn't just merge the sub-blobs with each other - it interacts
     // with whatever is already painted on the canvas beneath it,
-    // which is very likely the real cause of the box artifact still
-    // visible around each ember. saveLayer bounds this additive
-    // blending to its own, isolated layer before compositing back.
-    final layerBounds = Rect.fromCircle(center: center, radius: diameter);
+    // which contributed to the box artifact around each ember.
+    // saveLayer bounds this additive blending to its own, isolated
+    // layer before compositing back. Bounds enlarged to safely match
+    // the same size as the OverflowBox above it - Flutter's own docs
+    // describe saveLayer's bounds as a hint to the compositor rather
+    // than a strictly enforced clip, but a generous size here costs
+    // nothing and removes it as a possible contributing factor.
+    final layerBounds = Rect.fromCircle(center: center, radius: diameter * 2.8);
     canvas.saveLayer(layerBounds, Paint());
     final coreColor = Color.lerp(core, Colors.white, (brightness - 1).clamp(0, 1) * 0.5) ?? core;
     for (final blob in blobs) {
