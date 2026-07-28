@@ -1200,6 +1200,16 @@ class _Ember extends StatefulWidget {
   State<_Ember> createState() => _EmberState();
 }
 
+// A single offset sub-shape - 2-3 of these together form one ember's
+// genuinely irregular silhouette, rather than one perfect circle.
+class _EmberBlob {
+  final double dx;
+  final double dy;
+  final double sizeRatio;
+  final double driftPhase;
+  const _EmberBlob({required this.dx, required this.dy, required this.sizeRatio, required this.driftPhase});
+}
+
 class _EmberState extends State<_Ember> with SingleTickerProviderStateMixin {
   late final AnimationController _driftController;
   // Real, deliberate randomization per ember instance — duration and
@@ -1214,6 +1224,17 @@ class _EmberState extends State<_Ember> with SingleTickerProviderStateMixin {
   // brightness, different sizes, almost organic." A small, fixed
   // per-instance variation rather than a perfectly uniform tier size.
   late final double _sizeVariation;
+  // Direct feedback: "an ember isn't an orb at all... embers, sparks,
+  // heavier but fluid." Each ember's silhouette is genuinely
+  // irregular, built from 2-3 offset sub-blobs rather than one
+  // perfect circle, seeded per instance so no two look identical.
+  late final List<_EmberBlob> _blobs;
+  // Direct feedback: real coals flicker, not just breathe smoothly —
+  // roughly 40% of embers get a faster, smaller, more erratic
+  // oscillation layered on top of the slow breathe cycle.
+  late final bool _isFlickery;
+  late final double _flickerSpeed;
+  late final double _flickerPhase;
 
   @override
   void initState() {
@@ -1228,6 +1249,17 @@ class _EmberState extends State<_Ember> with SingleTickerProviderStateMixin {
     _driftRadiusY = 4 + random.nextDouble() * 5;
     _phaseOffset = random.nextDouble() * 2 * math.pi;
     _sizeVariation = 0.85 + random.nextDouble() * 0.3;
+    _blobs = List.generate(2 + random.nextInt(2), (i) {
+      return _EmberBlob(
+        dx: (random.nextDouble() - 0.5) * 0.55,
+        dy: (random.nextDouble() - 0.5) * 0.55,
+        sizeRatio: 0.55 + random.nextDouble() * 0.4,
+        driftPhase: random.nextDouble() * 2 * math.pi,
+      );
+    });
+    _isFlickery = random.nextDouble() < 0.4;
+    _flickerSpeed = 3 + random.nextDouble() * 4;
+    _flickerPhase = random.nextDouble() * 2 * math.pi;
   }
 
   @override
@@ -1280,12 +1312,19 @@ class _EmberState extends State<_Ember> with SingleTickerProviderStateMixin {
           // glow intensity, not just position.
           final glowPulse = 0.85 + (math.sin(t) * 0.15);
           final actualDiameter = diameter * _sizeVariation;
+          // Direct feedback: real coals flicker, not just breathe
+          // smoothly. A faster, smaller, more erratic oscillation
+          // layered on top of the slow breathe cycle, only for the
+          // roughly 40% of embers seeded as "flickery."
+          final flickerValue = _isFlickery
+              ? 1.0 + (math.sin(t * _flickerSpeed + _flickerPhase) * math.sin(t * _flickerSpeed * 1.7) * 0.18)
+              : 1.0;
           // Real, direct feedback: "one ember glows slightly brighter...
           // no loading indicator... just the fire is working." This
           // specific ember lights up regardless of its real, current
           // count while chosen as the thinking signal.
           final effectiveCore = widget.isThinking ? widget.color : core;
-          final effectiveGlow = widget.isThinking ? glowPulse * 1.8 : glowPulse;
+          final effectiveGlow = widget.isThinking ? glowPulse * 1.8 : glowPulse * flickerValue;
           final showGlow = widget.count > 0 || widget.isThinking;
           return Transform.translate(
             offset: Offset(dx, dy),
@@ -1320,6 +1359,8 @@ class _EmberState extends State<_Ember> with SingleTickerProviderStateMixin {
                       brightness: brightness,
                       diameter: actualDiameter,
                       glowIntensity: showGlow ? effectiveGlow : 0,
+                      blobs: _blobs,
+                      driftTime: t,
                     ),
                   ),
                 ),
@@ -1342,6 +1383,8 @@ class _EmberGlowPainter extends CustomPainter {
   final double brightness;
   final double diameter;
   final double glowIntensity;
+  final List<_EmberBlob> blobs;
+  final double driftTime;
 
   _EmberGlowPainter({
     required this.color,
@@ -1349,6 +1392,8 @@ class _EmberGlowPainter extends CustomPainter {
     required this.brightness,
     required this.diameter,
     required this.glowIntensity,
+    required this.blobs,
+    required this.driftTime,
   });
 
   @override
@@ -1362,14 +1407,27 @@ class _EmberGlowPainter extends CustomPainter {
         ).createShader(Rect.fromCircle(center: center, radius: glowRadius));
       canvas.drawCircle(center, glowRadius, glowPaint);
     }
-    final corePaint = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          Color.lerp(core, Colors.white, (brightness - 1).clamp(0, 1) * 0.5) ?? core,
-          core.withOpacity(0.4),
-        ],
-      ).createShader(Rect.fromCircle(center: center, radius: diameter / 2));
-    canvas.drawCircle(center, diameter / 2, corePaint);
+    // Direct feedback: "an ember isn't an orb at all... heavier but
+    // fluid." The core is built from 2-3 overlapping sub-blobs,
+    // additively blended so they merge into one cohesive but
+    // genuinely irregular shape, rather than a single perfect circle.
+    // Each blob also drifts very slightly on its own slow phase, so
+    // the silhouette itself subtly morphs over time, not just its
+    // overall position.
+    final coreColor = Color.lerp(core, Colors.white, (brightness - 1).clamp(0, 1) * 0.5) ?? core;
+    for (final blob in blobs) {
+      final wobble = 0.06;
+      final blobDx = (blob.dx + math.sin(driftTime * 0.6 + blob.driftPhase) * wobble) * diameter;
+      final blobDy = (blob.dy + math.cos(driftTime * 0.5 + blob.driftPhase) * wobble) * diameter;
+      final blobCenter = center + Offset(blobDx, blobDy);
+      final blobRadius = (diameter / 2) * blob.sizeRatio;
+      final blobPaint = Paint()
+        ..blendMode = BlendMode.plus
+        ..shader = RadialGradient(
+          colors: [coreColor, core.withOpacity(0.0)],
+        ).createShader(Rect.fromCircle(center: blobCenter, radius: blobRadius));
+      canvas.drawCircle(blobCenter, blobRadius, blobPaint);
+    }
   }
 
   @override
@@ -1378,7 +1436,8 @@ class _EmberGlowPainter extends CustomPainter {
         oldPainter.core != core ||
         oldPainter.brightness != brightness ||
         oldPainter.diameter != diameter ||
-        oldPainter.glowIntensity != glowIntensity;
+        oldPainter.glowIntensity != glowIntensity ||
+        oldPainter.driftTime != driftTime;
   }
 }
 
