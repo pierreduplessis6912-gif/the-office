@@ -1249,56 +1249,63 @@ class _EmberState extends State<_Ember> with SingleTickerProviderStateMixin {
       core = _emberUnlit;
       diameter = 6;
     }
-    return AnimatedBuilder(
-      animation: _driftController,
-      builder: (context, child) {
-        final t = _driftController.value * 2 * math.pi + _phaseOffset;
-        final dx = math.sin(t) * _driftRadiusX;
-        final dy = math.cos(t * 0.8) * _driftRadiusY;
-        // Direct feedback: "they should slowly brighten, dim, drift,
-        // wobble on a 20-30 second cycle... enough that the screen
-        // never feels frozen." Same slow cycle also modulates real
-        // glow intensity, not just position.
-        final glowPulse = 0.85 + (math.sin(t) * 0.15);
-        final actualDiameter = diameter * _sizeVariation;
-        // Real, direct feedback: "one ember glows slightly brighter...
-        // no loading indicator... just the fire is working." This
-        // specific ember lights up regardless of its real, current
-        // count while chosen as the thinking signal.
-        final effectiveCore = widget.isThinking ? widget.color : core;
-        final effectiveGlow = widget.isThinking ? glowPulse * 1.8 : glowPulse;
-        final showGlow = widget.count > 0 || widget.isThinking;
-        return Transform.translate(
-          offset: Offset(dx, dy),
-          child: GestureDetector(
-            onTap: widget.onTap,
-            child: SizedBox(
-              width: 32,
-              height: 32,
-              child: Center(
-                child: Container(
-                  width: actualDiameter,
-                  height: actualDiameter,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        widget.count > 0 || widget.isThinking
-                            ? Color.lerp(effectiveCore, Colors.white, (brightness - 1).clamp(0, 1) * 0.5) ?? effectiveCore
-                            : effectiveCore,
-                        effectiveCore.withOpacity(0.4),
-                      ],
+    // Real, Flutter-specific equivalent of the general "isolate
+    // expensive, glowing, continuously-animating elements" concern -
+    // RepaintBoundary ensures this ember's own repaint (every tick,
+    // for its whole lifetime) stays on its own layer rather than
+    // forcing a repaint of whatever it's embedded in.
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _driftController,
+        builder: (context, child) {
+          final t = _driftController.value * 2 * math.pi + _phaseOffset;
+          final dx = math.sin(t) * _driftRadiusX;
+          final dy = math.cos(t * 0.8) * _driftRadiusY;
+          // Direct feedback: "they should slowly brighten, dim, drift,
+          // wobble on a 20-30 second cycle... enough that the screen
+          // never feels frozen." Same slow cycle also modulates real
+          // glow intensity, not just position.
+          final glowPulse = 0.85 + (math.sin(t) * 0.15);
+          final actualDiameter = diameter * _sizeVariation;
+          // Real, direct feedback: "one ember glows slightly brighter...
+          // no loading indicator... just the fire is working." This
+          // specific ember lights up regardless of its real, current
+          // count while chosen as the thinking signal.
+          final effectiveCore = widget.isThinking ? widget.color : core;
+          final effectiveGlow = widget.isThinking ? glowPulse * 1.8 : glowPulse;
+          final showGlow = widget.count > 0 || widget.isThinking;
+          return Transform.translate(
+            offset: Offset(dx, dy),
+            child: GestureDetector(
+              onTap: widget.onTap,
+              child: SizedBox(
+                width: 32,
+                height: 32,
+                child: Center(
+                  child: Container(
+                    width: actualDiameter,
+                    height: actualDiameter,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          widget.count > 0 || widget.isThinking
+                              ? Color.lerp(effectiveCore, Colors.white, (brightness - 1).clamp(0, 1) * 0.5) ?? effectiveCore
+                              : effectiveCore,
+                          effectiveCore.withOpacity(0.4),
+                        ],
+                      ),
+                      boxShadow: showGlow
+                          ? [BoxShadow(color: widget.color.withOpacity(0.55 * effectiveGlow), blurRadius: 10 * brightness * effectiveGlow, spreadRadius: 2)]
+                          : null,
                     ),
-                    boxShadow: showGlow
-                        ? [BoxShadow(color: widget.color.withOpacity(0.55 * effectiveGlow), blurRadius: 10 * brightness * effectiveGlow, spreadRadius: 2)]
-                        : null,
                   ),
                 ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }
@@ -1427,10 +1434,14 @@ class _TalkArea extends StatelessWidget {
               // The primary object. Real, direct feedback: "the button
               // itself is the microphone" — no icon at all, and the
               // glow now breathes on a real, slow cycle rather than
-              // sitting static, "like a sleeping person."
-              AnimatedBuilder(
-                animation: breatheController,
-                builder: (context, child) {
+              // sitting static, "like a sleeping person." Wrapped in
+              // its own RepaintBoundary — the same continuously-
+              // repainting, glow-heavy pattern as the embers, isolated
+              // the same way.
+              RepaintBoundary(
+                child: AnimatedBuilder(
+                  animation: breatheController,
+                  builder: (context, child) {
                 final breatheValue = breatheController.value; // 0..1, slow 8s cycle
                 final baseColor = isRecording ? _pulse : (isAllClear ? _breathe : _pulse);
                 return GestureDetector(
@@ -1459,8 +1470,9 @@ class _TalkArea extends StatelessWidget {
                   ),
                 );
               },
-            ),
-          ],
+                ),
+              ),
+            ],
           ),
         ),
         // Real, still-needed secondary intake paths (Home Screen
