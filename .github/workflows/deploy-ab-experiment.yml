@@ -65,4 +65,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy app/build/web --project-name=the-office-ab-experiment
+          command: pages deploy app/build/web --project-name=the-office-ab-experiment --branch=experiment/kimi-ab-test
