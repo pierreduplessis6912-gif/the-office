@@ -52,6 +52,14 @@ jobs:
           cd app
           flutter build web --release
 
+      - name: Ensure the Cloudflare Pages project exists
+        uses: cloudflare/wrangler-action@v3
+        continue-on-error: true
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages project create the-office-ab-experiment --production-branch=experiment/kimi-ab-test
+
       - name: Deploy to Cloudflare Pages (separate A/B project)
         uses: cloudflare/wrangler-action@v3
         with:
