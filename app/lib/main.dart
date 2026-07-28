@@ -1197,6 +1197,32 @@ class _OfficeDrawer extends StatelessWidget {
 // look."
 const _emberUnlit = Color(0xFF2A2620);
 
+// Real, direct feedback: "crackling flickering... not orb looking
+// floating balls." The real difference between an orb and an ember
+// isn't just shape - it's how the light behaves over time. A smooth
+// sine wave, however irregular the outline, still reads as a solid,
+// continuous surface. Real embers/sparks crackle: intensity holds
+// briefly then jumps abruptly to a new, unrelated level, never a
+// smooth oscillation. This returns a real, seeded pseudo-random
+// value in roughly [0, 1] that steps and holds rather than glides.
+double _crackleValue(double t, double speed, int seed) {
+  double hashToUnit(int n) {
+    final x = math.sin(n * 12.9898 + seed * 78.233) * 43758.5453;
+    return x - x.floorToDouble();
+  }
+
+  final stepped = t * speed;
+  final stepIndex = stepped.floor();
+  final frac = stepped - stepIndex;
+  final current = hashToUnit(stepIndex);
+  final next = hashToUnit(stepIndex + 1);
+  // Cubic ease - holds near the current value, then snaps quickly
+  // toward the next one near the end of each step, mimicking a real
+  // crackle rather than a smooth, even glide.
+  final eased = frac * frac * frac;
+  return current + (next - current) * eased;
+}
+
 class _Ember extends StatefulWidget {
   final Color color;
   final int count;
@@ -1237,12 +1263,11 @@ class _EmberState extends State<_Ember> with SingleTickerProviderStateMixin {
   // irregular, built from 2-3 offset sub-blobs rather than one
   // perfect circle, seeded per instance so no two look identical.
   late final List<_EmberBlob> _blobs;
-  // Direct feedback: real coals flicker, not just breathe smoothly —
-  // roughly 40% of embers get a faster, smaller, more erratic
-  // oscillation layered on top of the slow breathe cycle.
-  late final bool _isFlickery;
-  late final double _flickerSpeed;
-  late final double _flickerPhase;
+  // Real, direct feedback: "crackling flickering... not orb looking
+  // floating balls." Every ember crackles now, each with its own
+  // speed and seed so none are ever in sync or identical.
+  late final double _crackleSpeed;
+  late final int _crackleSeed;
 
   @override
   void initState() {
@@ -1265,9 +1290,8 @@ class _EmberState extends State<_Ember> with SingleTickerProviderStateMixin {
         driftPhase: random.nextDouble() * 2 * math.pi,
       );
     });
-    _isFlickery = random.nextDouble() < 0.4;
-    _flickerSpeed = 3 + random.nextDouble() * 4;
-    _flickerPhase = random.nextDouble() * 2 * math.pi;
+    _crackleSpeed = 8 + random.nextDouble() * 8;
+    _crackleSeed = random.nextInt(100000);
   }
 
   @override
@@ -1320,13 +1344,17 @@ class _EmberState extends State<_Ember> with SingleTickerProviderStateMixin {
           // glow intensity, not just position.
           final glowPulse = 0.85 + (math.sin(t) * 0.15);
           final actualDiameter = diameter * _sizeVariation;
-          // Direct feedback: real coals flicker, not just breathe
-          // smoothly. A faster, smaller, more erratic oscillation
-          // layered on top of the slow breathe cycle, only for the
-          // roughly 40% of embers seeded as "flickery."
-          final flickerValue = _isFlickery
-              ? 1.0 + (math.sin(t * _flickerSpeed + _flickerPhase) * math.sin(t * _flickerSpeed * 1.7) * 0.18)
-              : 1.0;
+          // Real, direct feedback: "crackling flickering... not orb
+          // looking floating balls." Replaces the smooth, sine-based
+          // flicker with the real crackle function - genuinely erratic,
+          // not a smooth oscillation, applied to every ember now
+          // (not just a subset), since a smooth pulse was the actual
+          // cause of the "orb" read regardless of shape. Combines the
+          // slow breathe cycle (gentle baseline) with the fast,
+          // unpredictable crackle (the sharp component that actually
+          // reads as ember rather than orb).
+          final crackle = _crackleValue(t, _crackleSpeed, _crackleSeed);
+          final flickerValue = 0.55 + crackle * 0.75;
           // Real, direct feedback: "one ember glows slightly brighter...
           // no loading indicator... just the fire is working." This
           // specific ember lights up regardless of its real, current
@@ -1437,7 +1465,13 @@ class _EmberGlowPainter extends CustomPainter {
       final blobPaint = Paint()
         ..blendMode = BlendMode.plus
         ..shader = RadialGradient(
-          colors: [coreColor, core.withOpacity(0.0)],
+          // Real, direct feedback: a sharp, high-contrast core rather
+          // than one smooth, gradual falloff across the whole radius -
+          // staying bright through most of its size, then falling off
+          // quickly right at the edge, reading as a small, intense
+          // point of light rather than a large, soft, glowing area.
+          stops: const [0.0, 0.55, 1.0],
+          colors: [coreColor, coreColor, core.withOpacity(0.0)],
         ).createShader(Rect.fromCircle(center: blobCenter, radius: blobRadius));
       canvas.drawCircle(blobCenter, blobRadius, blobPaint);
     }
@@ -1595,16 +1629,25 @@ class _SparkFieldPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    for (final spark in sparks) {
+    for (var i = 0; i < sparks.length; i++) {
+      final spark = sparks[i];
       final drift = spark.driftSpeed * time;
       final dx = (spark.x + math.cos(spark.driftAngle) * drift) % 1.0;
       final dy = (spark.y - drift * 1.3) % 1.0; // drifting slowly upward, wrapping around
-      final opacity = (0.15 + (math.sin(time * spark.fadeSpeed + spark.fadePhase) * 0.5 + 0.5) * 0.55).clamp(0.0, 0.7);
+      // Real, direct feedback: "crackling flickering... not orb
+      // looking floating balls." Real crackle instead of a smooth
+      // sine wave, same fix as the 5 real embers.
+      final crackle = _crackleValue(time, spark.fadeSpeed * 3, i * 7919);
+      final opacity = (0.1 + crackle * 0.55).clamp(0.0, 0.65);
       final position = Offset(dx * size.width, (dy < 0 ? dy + 1.0 : dy) * size.height);
       final paint = Paint()
         ..shader = RadialGradient(
-          colors: [_pulse.withOpacity(opacity), _pulse.withOpacity(0.0)],
-        ).createShader(Rect.fromCircle(center: position, radius: spark.size * 2.5));
+          // Sharper, smaller core - staying bright most of the way
+          // out, then falling off quickly, rather than one smooth,
+          // gradual fade across the whole radius.
+          stops: const [0.0, 0.4, 1.0],
+          colors: [_pulse.withOpacity(opacity), _pulse.withOpacity(opacity * 0.6), _pulse.withOpacity(0.0)],
+        ).createShader(Rect.fromCircle(center: position, radius: spark.size * 2.2));
       canvas.drawCircle(position, spark.size, paint);
     }
   }
