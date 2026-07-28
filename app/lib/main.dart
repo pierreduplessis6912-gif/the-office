@@ -1288,14 +1288,26 @@ class _EmberState extends State<_Ember> with SingleTickerProviderStateMixin {
                 // "glow" comes entirely from gradient opacity falloff,
                 // cheap GPU shader math, no blur kernel recalculated
                 // per tick.
-                child: CustomPaint(
-                  size: const Size(32, 32),
-                  painter: _EmberGlowPainter(
-                    color: widget.color,
-                    core: effectiveCore,
-                    brightness: brightness,
-                    diameter: actualDiameter,
-                    glowIntensity: showGlow ? effectiveGlow : 0,
+                //
+                // Real bug, found live: the glow radius at higher
+                // brightness tiers actually exceeds this 32x32 layout
+                // size, so Flutter was clipping the paint at that
+                // boundary — the visible hard rectangular edge around
+                // each ember. OverflowBox lets the glow paint into a
+                // real, larger area without changing the tap target or
+                // affecting the positioning calculations elsewhere.
+                child: OverflowBox(
+                  maxWidth: 96,
+                  maxHeight: 96,
+                  child: CustomPaint(
+                    size: const Size(96, 96),
+                    painter: _EmberGlowPainter(
+                      color: widget.color,
+                      core: effectiveCore,
+                      brightness: brightness,
+                      diameter: actualDiameter,
+                      glowIntensity: showGlow ? effectiveGlow : 0,
+                    ),
                   ),
                 ),
               ),
@@ -1540,13 +1552,24 @@ class _TalkArea extends StatelessWidget {
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        CustomPaint(
-                          size: const Size(160, 160),
-                          painter: _CircleGlowPainter(
-                            color: baseColor,
-                            coreDiameter: 96,
-                            glowIntensity: 0.22 + (0.18 * breatheValue),
-                            glowSpread: 1.0 + (0.35 * breatheValue),
+                        // Real bug, found live: the glow radius at
+                        // higher breathe values exceeds this 160x160
+                        // layout size, so Flutter was clipping the
+                        // paint at that boundary — the visible hard
+                        // rectangular edge around the circle.
+                        // OverflowBox lets the glow paint into a real,
+                        // larger area without changing the tap target.
+                        OverflowBox(
+                          maxWidth: 220,
+                          maxHeight: 220,
+                          child: CustomPaint(
+                            size: const Size(220, 220),
+                            painter: _CircleGlowPainter(
+                              color: baseColor,
+                              coreDiameter: 96,
+                              glowIntensity: 0.22 + (0.18 * breatheValue),
+                              glowSpread: 1.0 + (0.35 * breatheValue),
+                            ),
                           ),
                         ),
                         Container(
