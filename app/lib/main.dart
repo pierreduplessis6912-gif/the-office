@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -1174,53 +1175,102 @@ class _OfficeDrawer extends StatelessWidget {
 // look."
 const _emberUnlit = Color(0xFF2A2620);
 
-class _Ember extends StatelessWidget {
+class _Ember extends StatefulWidget {
   final Color color;
   final int count;
   final VoidCallback onTap;
-  // Real, deliberate small vertical offset per ember — "their movement
-  // should be random enough to feel alive" (Design Constitution v2,
-  // Home Screen Specification). A neat, aligned row read as
-  // navigation; a loose, uneven scatter reads as atmosphere.
-  final double verticalOffset;
-  const _Ember({required this.color, required this.count, required this.onTap, this.verticalOffset = 0});
+  const _Ember({required this.color, required this.count, required this.onTap});
+
+  @override
+  State<_Ember> createState() => _EmberState();
+}
+
+class _EmberState extends State<_Ember> with SingleTickerProviderStateMixin {
+  late final AnimationController _driftController;
+  // Real, deliberate randomization per ember instance — duration and
+  // phase both vary, so no two embers ever drift in sync. "Their
+  // movement should be random enough to feel alive" (Design
+  // Constitution v2).
+  late final double _driftRadiusX;
+  late final double _driftRadiusY;
+  late final double _phaseOffset;
+
+  @override
+  void initState() {
+    super.initState();
+    final seed = widget.color.value + widget.count;
+    final random = math.Random(seed);
+    _driftController = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 6000 + random.nextInt(4000)),
+    )..repeat();
+    _driftRadiusX = 5 + random.nextDouble() * 6;
+    _driftRadiusY = 4 + random.nextDouble() * 5;
+    _phaseOffset = random.nextDouble() * 2 * math.pi;
+  }
+
+  @override
+  void dispose() {
+    _driftController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     // Real, tested tiers, exact thresholds carried forward from the
     // manifesto's own real JS logic — never a flat lit/unlit, real
-    // magnitude shown as real brightness.
+    // magnitude shown as real brightness. Size now scales with the
+    // same real count too — "weight," not just glow.
     final double brightness;
     final Color core;
-    if (count >= 6) {
+    final double diameter;
+    if (widget.count >= 6) {
       brightness = 1.35;
-      core = color;
-    } else if (count >= 3) {
+      core = widget.color;
+      diameter = 18;
+    } else if (widget.count >= 3) {
       brightness = 1.0;
-      core = color;
-    } else if (count >= 1) {
+      core = widget.color;
+      diameter = 14;
+    } else if (widget.count >= 1) {
       brightness = 0.7;
-      core = color;
+      core = widget.color;
+      diameter = 10;
     } else {
-      brightness = 1.0;
+      brightness = 0.5;
       core = _emberUnlit;
+      diameter = 6;
     }
-    return Transform.translate(
-      offset: Offset(0, verticalOffset),
-      child: InkWell(
-        onTap: onTap,
+    return AnimatedBuilder(
+      animation: _driftController,
+      builder: (context, child) {
+        final t = _driftController.value * 2 * math.pi + _phaseOffset;
+        final dx = math.sin(t) * _driftRadiusX;
+        final dy = math.cos(t * 0.8) * _driftRadiusY;
+        return Transform.translate(
+          offset: Offset(dx, dy),
+          child: child,
+        );
+      },
+      child: GestureDetector(
+        onTap: widget.onTap,
         child: SizedBox(
-          width: 20,
-          height: 44,
+          width: 32,
+          height: 32,
           child: Center(
             child: Container(
-              width: 4,
-              height: 15,
+              width: diameter,
+              height: diameter,
               decoration: BoxDecoration(
-                color: count > 0 ? Color.lerp(core, Colors.white, (brightness - 1).clamp(0, 1) * 0.4) ?? core : core,
-                borderRadius: BorderRadius.circular(2),
-                boxShadow: count > 0
-                    ? [BoxShadow(color: color.withOpacity(0.5), blurRadius: 6 * brightness, spreadRadius: 1)]
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    widget.count > 0 ? Color.lerp(core, Colors.white, (brightness - 1).clamp(0, 1) * 0.5) ?? core : core,
+                    core.withOpacity(0.4),
+                  ],
+                ),
+                boxShadow: widget.count > 0
+                    ? [BoxShadow(color: widget.color.withOpacity(0.55), blurRadius: 10 * brightness, spreadRadius: 2)]
                     : null,
               ),
             ),
@@ -1305,7 +1355,12 @@ class _TalkArea extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Container(
-        height: 260,
+        // Real fix, found live: a cramped, fixed 260px strip made the
+        // circle read as stranded at the very bottom of an empty
+        // screen rather than genuinely situated in the space. A real
+        // fraction of the actual available height gives it room to
+        // feel like presence rather than an afterthought.
+        height: MediaQuery.of(context).size.height * 0.42,
         padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
         child: isWriteMode ? _buildWriteMode() : _buildTalkState(),
       ),
@@ -1314,40 +1369,45 @@ class _TalkArea extends StatelessWidget {
 
   Widget _buildTalkState() {
     return Stack(
-      alignment: Alignment.center,
       children: [
-        // Real, direct feedback: "I don't think the embers belong
-        // above the button... maybe lower left... like a braai beside
-        // you, not directly in front of you. That tiny change changes
-        // the metaphor completely." Genuinely scattered — varying x
-        // and y, never a neat, aligned row.
-        Positioned(
-          left: 8,
-          bottom: 36,
+        // Real fix, found live: Positioned uses absolute coordinates
+        // from the Stack's own edges, not relative to the centered
+        // circle beside it — which is exactly why the embers drifted
+        // away instead of gathering beside it. Align with a
+        // fractional offset stays correctly relative to the circle's
+        // real position regardless of screen size. "Maybe lower
+        // left... like a braai beside you." Genuinely scattered —
+        // varying x and y, never a neat, aligned row, and now real
+        // weighted orbs rather than thin slits, each drifting
+        // independently.
+        Align(
+          alignment: const Alignment(-0.55, 0.3),
           child: SizedBox(
-            width: 90,
-            height: 90,
+            width: 110,
+            height: 110,
             child: Stack(
               children: [
-                Positioned(left: 4, bottom: 8, child: _Ember(color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'))),
-                Positioned(left: 34, bottom: 28, child: _Ember(color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'))),
-                Positioned(left: 10, bottom: 52, child: _Ember(color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'))),
-                Positioned(left: 48, bottom: 4, child: _Ember(color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'))),
-                Positioned(left: 60, bottom: 44, child: _Ember(color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'))),
+                Positioned(left: 6, bottom: 10, child: _Ember(color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'))),
+                Positioned(left: 44, bottom: 34, child: _Ember(color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'))),
+                Positioned(left: 14, bottom: 64, child: _Ember(color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'))),
+                Positioned(left: 60, bottom: 6, child: _Ember(color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'))),
+                Positioned(left: 74, bottom: 52, child: _Ember(color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'))),
               ],
             ),
           ),
         ),
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // The primary object. Real, direct feedback: "the button
-            // itself is the microphone" — no icon at all, and the
-            // glow now breathes on a real, slow cycle rather than
-            // sitting static, "like a sleeping person."
-            AnimatedBuilder(
-              animation: breatheController,
-              builder: (context, child) {
+        Align(
+          alignment: Alignment.center,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // The primary object. Real, direct feedback: "the button
+              // itself is the microphone" — no icon at all, and the
+              // glow now breathes on a real, slow cycle rather than
+              // sitting static, "like a sleeping person."
+              AnimatedBuilder(
+                animation: breatheController,
+                builder: (context, child) {
                 final breatheValue = breatheController.value; // 0..1, slow 8s cycle
                 final baseColor = isRecording ? _pulse : (isAllClear ? _breathe : _pulse);
                 return GestureDetector(
@@ -1378,6 +1438,7 @@ class _TalkArea extends StatelessWidget {
               },
             ),
           ],
+          ),
         ),
         // Real, still-needed secondary intake paths (Home Screen
         // Specification names camera, files, and edit transcript
