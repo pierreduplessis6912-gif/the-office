@@ -164,10 +164,19 @@ class EmberCounts {
   List<dynamic> pendingData = [];
   EmberCounts({this.tasks = 0, this.scheduler = 0, this.finance = 0, this.suppliers = 0, this.pending = 0});
 
+  // Real bug fix, found live: counts default to zero before the real
+  // first fetch completes, which made the app briefly claim "all
+  // clear" (the green sigh state) on every launch — a false positive
+  // during a genuine loading gap, not a real answer. hasLoaded folds
+  // directly into allClear itself so this can never be claimed until
+  // the app has actually checked.
+  bool hasLoaded = false;
+
   // Real feature 2026-07-27 — the sigh state (Ether manifesto, "the
   // sigh is the metric"). True only when every real count is
-  // genuinely zero — never inferred, never approximated.
-  bool get allClear => tasks == 0 && scheduler == 0 && finance == 0 && suppliers == 0 && pending == 0;
+  // genuinely zero AND the app has actually loaded real data to know
+  // that — never inferred, never a default-value false positive.
+  bool get allClear => hasLoaded && tasks == 0 && scheduler == 0 && finance == 0 && suppliers == 0 && pending == 0;
 }
 
 class OfficeHome extends StatefulWidget {
@@ -310,6 +319,10 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         });
       }),
     ]);
+    // Real bug fix: only now does the app actually know whether
+    // things are clear or not — never claim "all clear" before this
+    // point, even if every real count still happens to be zero.
+    setState(() => _embers.hasLoaded = true);
   }
 
   // Real feature 2026-07-27 — checks for a real, previously-stored
