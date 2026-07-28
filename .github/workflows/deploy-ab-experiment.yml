@@ -1,0 +1,60 @@
+name: Deploy A/B experiment preview
+
+# Real, separate A/B test branch - Pierre provides code from another
+# source (Kimi), built here exactly as given, deployed to its own,
+# genuinely separate Cloudflare Pages project so it can be compared
+# side by side with the real, established build on main. Never
+# touches the main preview or its deployment target.
+on:
+  push:
+    branches: [experiment/kimi-ab-test]
+    paths:
+      - "app/**"
+      - ".github/workflows/deploy-ab-experiment.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Bootstrap web scaffolding if missing
+        run: |
+          cd app
+          if [ ! -d "web" ]; then
+            echo "No web/ folder — generating it with flutter create."
+            cp pubspec.yaml /tmp/pubspec.yaml.bak
+            cp lib/main.dart /tmp/main.dart.bak
+            flutter create --platforms=web --org za.co.websitehub --project-name the_office .
+            cp /tmp/pubspec.yaml.bak pubspec.yaml
+            cp /tmp/main.dart.bak lib/main.dart
+          else
+            echo "web/ already present, skipping bootstrap."
+          fi
+
+      - name: Install the real flutter_web_auth_2 callback page
+        run: |
+          cd app
+          cp auth-callback-template.html web/auth-callback.html
+          echo "Real callback page installed at web/auth-callback.html."
+
+      - name: Get packages
+        run: |
+          cd app
+          flutter pub get
+
+      - name: Build web
+        run: |
+          cd app
+          flutter build web --release
+
+      - name: Deploy to Cloudflare Pages (separate A/B project)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy app/build/web --project-name=the-office-ab-experiment
