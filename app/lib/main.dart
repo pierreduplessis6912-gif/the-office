@@ -176,7 +176,7 @@ class OfficeHome extends StatefulWidget {
   State<OfficeHome> createState() => _OfficeHomeState();
 }
 
-class _OfficeHomeState extends State<OfficeHome> {
+class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   final _recorder = AudioRecorder();
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
@@ -193,6 +193,20 @@ class _OfficeHomeState extends State<OfficeHome> {
   final List<ChatMessage> _messages = [];
 
   final EmberCounts _embers = EmberCounts();
+
+  // Real feature 2026-07-28 — the one-time entrance moment: "the
+  // logo... animate it once. When the Office opens. Then let it
+  // become still. Almost like opening the door to a quiet room."
+  // Fades in, holds briefly, fades out — never seen again this
+  // session.
+  late final AnimationController _entranceController;
+  late final Animation<double> _entranceOpacity;
+
+  // Real feature 2026-07-28 — "the glow is almost there. I'd make it
+  // breathe. Not pulse. Breathe. About a 7-10 second cycle. Almost
+  // imperceptible. Like a sleeping person." A slow, continuous,
+  // subtle intensity cycle on the primary circle's glow.
+  late final AnimationController _breatheController;
 
   // Real feature 2026-07-27 — real login, bearer-token based per the
   // deliberate architecture decision: cookies were never going to
@@ -213,6 +227,16 @@ class _OfficeHomeState extends State<OfficeHome> {
     super.initState();
     _restoreSession();
     _loadEmberCounts();
+
+    _entranceController = AnimationController(vsync: this, duration: const Duration(milliseconds: 4200));
+    _entranceOpacity = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0).chain(CurveTween(curve: Curves.easeIn)), weight: 30),
+      TweenSequenceItem(tween: ConstantTween(1.0), weight: 25),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0).chain(CurveTween(curve: Curves.easeOut)), weight: 45),
+    ]).animate(_entranceController);
+    _entranceController.forward();
+
+    _breatheController = AnimationController(vsync: this, duration: const Duration(seconds: 8))..repeat(reverse: true);
   }
 
   @override
@@ -221,6 +245,8 @@ class _OfficeHomeState extends State<OfficeHome> {
     _textController.dispose();
     _scrollController.dispose();
     _statusTimer?.cancel();
+    _entranceController.dispose();
+    _breatheController.dispose();
     super.dispose();
   }
 
@@ -701,11 +727,28 @@ class _OfficeHomeState extends State<OfficeHome> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // Real, direct fix: the persistent "THE OFFICE" title and a
+      // full-opacity menu icon were still saying "here's the
+      // interface." Removed entirely from the ongoing chrome — a
+      // real, one-time entrance moment replaces it (see initState),
+      // then genuine stillness. Both navigation icons explicitly
+      // overridden to the same low-opacity treatment as the
+      // secondary intake icons below, rather than Flutter's default,
+      // full-opacity auto-generated drawer icon.
       appBar: AppBar(
-        title: const Text('THE OFFICE'),
+        backgroundColor: _void,
+        elevation: 0,
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            color: _textTertiary.withOpacity(0.15),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.more_vert),
+            color: _textTertiary.withOpacity(0.15),
             onPressed: () => _showMoreMenu(context),
           ),
         ],
@@ -716,41 +759,66 @@ class _OfficeHomeState extends State<OfficeHome> {
         onHistoryTap: _showHistorySheet,
       ),
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            Expanded(
-              child: _embers.allClear && _messages.isEmpty
-                  ? const _SighState()
-                  : ListView.builder(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      itemCount: _messages.length,
-                      itemBuilder: (context, i) => _MessageLine(
-                        message: _messages[i],
-                        onConfirm: (itemId) => _resolvePendingItem(_messages[i].id, itemId, true),
-                        onReject: (itemId) => _resolvePendingItem(_messages[i].id, itemId, false),
-                      ),
-                    ),
+            Column(
+              children: [
+                Expanded(
+                  child: _embers.allClear && _messages.isEmpty
+                      ? const _SighState()
+                      : ListView.builder(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          itemCount: _messages.length,
+                          itemBuilder: (context, i) => _MessageLine(
+                            message: _messages[i],
+                            onConfirm: (itemId) => _resolvePendingItem(_messages[i].id, itemId, true),
+                            onReject: (itemId) => _resolvePendingItem(_messages[i].id, itemId, false),
+                          ),
+                        ),
+                ),
+                _TalkArea(
+                  embers: _embers,
+                  onEmberTap: _showEmberSheet,
+                  controller: _textController,
+                  isRecording: _isRecording,
+                  isWriteMode: _isWriteMode,
+                  isAllClear: _embers.allClear && _messages.isEmpty,
+                  breatheController: _breatheController,
+                  onSend: () {
+                    _sendText();
+                    setState(() => _isWriteMode = false);
+                  },
+                  onMicTap: _toggleRecording,
+                  onCameraTap: _pickAndSendPhoto,
+                  onDocumentTap: _pickAndSendDocument,
+                  onToggleWriteMode: () => setState(() => _isWriteMode = !_isWriteMode),
+                  onDiscard: () {
+                    _textController.clear();
+                    setState(() => _isWriteMode = false);
+                  },
+                ),
+              ],
             ),
-            _TalkArea(
-              embers: _embers,
-              onEmberTap: _showEmberSheet,
-              controller: _textController,
-              isRecording: _isRecording,
-              isWriteMode: _isWriteMode,
-              isAllClear: _embers.allClear && _messages.isEmpty,
-              onSend: () {
-                _sendText();
-                setState(() => _isWriteMode = false);
-              },
-              onMicTap: _toggleRecording,
-              onCameraTap: _pickAndSendPhoto,
-              onDocumentTap: _pickAndSendDocument,
-              onToggleWriteMode: () => setState(() => _isWriteMode = !_isWriteMode),
-              onDiscard: () {
-                _textController.clear();
-                setState(() => _isWriteMode = false);
-              },
+            // Real feature 2026-07-28 — the one-time entrance moment.
+            // Positioned above everything else, but ignoring pointer
+            // events entirely once it starts fading, so it never
+            // blocks real interaction with the screen underneath.
+            IgnorePointer(
+              child: FadeTransition(
+                opacity: _entranceOpacity,
+                child: Center(
+                  child: Text(
+                    'THE OFFICE',
+                    style: GoogleFonts.ibmPlexMono(
+                      color: _textPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 22,
+                      letterSpacing: 3,
+                    ),
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -1208,6 +1276,7 @@ class _TalkArea extends StatelessWidget {
   final bool isRecording;
   final bool isWriteMode;
   final bool isAllClear;
+  final AnimationController breatheController;
   final VoidCallback onSend;
   final VoidCallback onMicTap;
   final VoidCallback onCameraTap;
@@ -1222,6 +1291,7 @@ class _TalkArea extends StatelessWidget {
     required this.isRecording,
     required this.isWriteMode,
     required this.isAllClear,
+    required this.breatheController,
     required this.onSend,
     required this.onMicTap,
     required this.onCameraTap,
@@ -1235,6 +1305,7 @@ class _TalkArea extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Container(
+        height: 260,
         padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
         child: isWriteMode ? _buildWriteMode() : _buildTalkState(),
       ),
@@ -1242,81 +1313,102 @@ class _TalkArea extends StatelessWidget {
   }
 
   Widget _buildTalkState() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    return Stack(
+      alignment: Alignment.center,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            _Ember(color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), verticalOffset: 0),
-            _Ember(color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), verticalOffset: 6),
-            _Ember(color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), verticalOffset: -4),
-            _Ember(color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), verticalOffset: 8),
-            _Ember(color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'), verticalOffset: 2),
-          ],
-        ),
-        const SizedBox(height: 24),
-        // The primary object. Real, tested state colors: pulse red
-        // idle, brighter/pulsing while recording, breathe green when
-        // genuinely all clear — "presence," not a button among icons.
-        GestureDetector(
-          onTap: onMicTap,
-          child: Container(
-            width: 96,
-            height: 96,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                center: const Alignment(-0.3, -0.3),
-                colors: isRecording
-                    ? [_pulse, const Color(0xFF8B0000)]
-                    : isAllClear
-                        ? [_breathe, const Color(0xFF1A5F55)]
-                        : [_pulse, const Color(0xFF8B0000)],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: (isAllClear && !isRecording ? _breathe : _pulse).withOpacity(0.35),
-                  blurRadius: 32,
-                  spreadRadius: 4,
-                ),
+        // Real, direct feedback: "I don't think the embers belong
+        // above the button... maybe lower left... like a braai beside
+        // you, not directly in front of you. That tiny change changes
+        // the metaphor completely." Genuinely scattered — varying x
+        // and y, never a neat, aligned row.
+        Positioned(
+          left: 8,
+          bottom: 36,
+          child: SizedBox(
+            width: 90,
+            height: 90,
+            child: Stack(
+              children: [
+                Positioned(left: 4, bottom: 8, child: _Ember(color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'))),
+                Positioned(left: 34, bottom: 28, child: _Ember(color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'))),
+                Positioned(left: 10, bottom: 52, child: _Ember(color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'))),
+                Positioned(left: 48, bottom: 4, child: _Ember(color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'))),
+                Positioned(left: 60, bottom: 44, child: _Ember(color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'))),
               ],
-            ),
-            child: Icon(
-              isRecording ? Icons.stop : Icons.mic_none,
-              color: Colors.white.withOpacity(0.9),
-              size: 30,
             ),
           ),
         ),
-        const SizedBox(height: 20),
-        // Real, still-needed secondary intake paths (Home Screen
-        // Specification names camera, files, and edit transcript
-        // explicitly) — "almost silhouettes," never visually competing
-        // with the primary object above.
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
-              iconSize: 20,
-              icon: const Icon(Icons.camera_alt_outlined),
-              color: _textTertiary.withOpacity(0.6),
-              onPressed: onCameraTap,
-            ),
-            IconButton(
-              iconSize: 20,
-              icon: const Icon(Icons.attach_file),
-              color: _textTertiary.withOpacity(0.6),
-              onPressed: onDocumentTap,
-            ),
-            IconButton(
-              iconSize: 20,
-              icon: const Icon(Icons.edit_outlined),
-              color: _textTertiary.withOpacity(0.6),
-              onPressed: onToggleWriteMode,
+            // The primary object. Real, direct feedback: "the button
+            // itself is the microphone" — no icon at all, and the
+            // glow now breathes on a real, slow cycle rather than
+            // sitting static, "like a sleeping person."
+            AnimatedBuilder(
+              animation: breatheController,
+              builder: (context, child) {
+                final breatheValue = breatheController.value; // 0..1, slow 8s cycle
+                final baseColor = isRecording ? _pulse : (isAllClear ? _breathe : _pulse);
+                return GestureDetector(
+                  onTap: onMicTap,
+                  child: Container(
+                    width: 96,
+                    height: 96,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        center: const Alignment(-0.3, -0.3),
+                        colors: isRecording
+                            ? [_pulse, const Color(0xFF8B0000)]
+                            : isAllClear
+                                ? [_breathe, const Color(0xFF1A5F55)]
+                                : [_pulse, const Color(0xFF8B0000)],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: baseColor.withOpacity(0.22 + (0.18 * breatheValue)),
+                          blurRadius: 24 + (16 * breatheValue),
+                          spreadRadius: 2 + (4 * breatheValue),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
           ],
+        ),
+        // Real, still-needed secondary intake paths (Home Screen
+        // Specification names camera, files, and edit transcript
+        // explicitly) — reduced close to invisible, a whisper rather
+        // than a row of choices, per the direct feedback that they
+        // were still saying "choose your workflow."
+        Positioned(
+          bottom: 0,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                iconSize: 18,
+                icon: const Icon(Icons.camera_alt_outlined),
+                color: _textTertiary.withOpacity(0.12),
+                onPressed: onCameraTap,
+              ),
+              IconButton(
+                iconSize: 18,
+                icon: const Icon(Icons.attach_file),
+                color: _textTertiary.withOpacity(0.12),
+                onPressed: onDocumentTap,
+              ),
+              IconButton(
+                iconSize: 18,
+                icon: const Icon(Icons.edit_outlined),
+                color: _textTertiary.withOpacity(0.12),
+                onPressed: onToggleWriteMode,
+              ),
+            ],
+          ),
         ),
       ],
     );
