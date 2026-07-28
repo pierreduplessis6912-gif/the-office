@@ -775,21 +775,29 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       body: SafeArea(
         child: Stack(
           children: [
+            // Real feature 2026-07-28 — the decorative, wide-field
+            // spark layer from the reference image. Deliberately
+            // separate from the 5 real, functional embers: purely
+            // ambient, non-interactive, not tied to any real data —
+            // atmosphere, not information.
+            const Positioned.fill(child: _AmbientSparkField()),
             Column(
               children: [
                 Expanded(
                   child: _embers.allClear && _messages.isEmpty
                       ? const _SighState()
-                      : ListView.builder(
-                          controller: _scrollController,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          itemCount: _messages.length,
-                          itemBuilder: (context, i) => _MessageLine(
-                            message: _messages[i],
-                            onConfirm: (itemId) => _resolvePendingItem(_messages[i].id, itemId, true),
-                            onReject: (itemId) => _resolvePendingItem(_messages[i].id, itemId, false),
-                          ),
-                        ),
+                      : _messages.isEmpty
+                          ? _Greeting(userEmail: _userEmail)
+                          : ListView.builder(
+                              controller: _scrollController,
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              itemCount: _messages.length,
+                              itemBuilder: (context, i) => _MessageLine(
+                                message: _messages[i],
+                                onConfirm: (itemId) => _resolvePendingItem(_messages[i].id, itemId, true),
+                                onReject: (itemId) => _resolvePendingItem(_messages[i].id, itemId, false),
+                              ),
+                            ),
                 ),
                 _TalkArea(
                   embers: _embers,
@@ -1407,13 +1415,14 @@ class _EmberGlowPainter extends CustomPainter {
         ).createShader(Rect.fromCircle(center: center, radius: glowRadius));
       canvas.drawCircle(center, glowRadius, glowPaint);
     }
-    // Direct feedback: "an ember isn't an orb at all... heavier but
-    // fluid." The core is built from 2-3 overlapping sub-blobs,
-    // additively blended so they merge into one cohesive but
-    // genuinely irregular shape, rather than a single perfect circle.
-    // Each blob also drifts very slightly on its own slow phase, so
-    // the silhouette itself subtly morphs over time, not just its
-    // overall position.
+    // Real bug fix, found live: BlendMode.plus without layer isolation
+    // doesn't just merge the sub-blobs with each other - it interacts
+    // with whatever is already painted on the canvas beneath it,
+    // which is very likely the real cause of the box artifact still
+    // visible around each ember. saveLayer bounds this additive
+    // blending to its own, isolated layer before compositing back.
+    final layerBounds = Rect.fromCircle(center: center, radius: diameter);
+    canvas.saveLayer(layerBounds, Paint());
     final coreColor = Color.lerp(core, Colors.white, (brightness - 1).clamp(0, 1) * 0.5) ?? core;
     for (final blob in blobs) {
       final wobble = 0.06;
@@ -1428,6 +1437,7 @@ class _EmberGlowPainter extends CustomPainter {
         ).createShader(Rect.fromCircle(center: blobCenter, radius: blobRadius));
       canvas.drawCircle(blobCenter, blobRadius, blobPaint);
     }
+    canvas.restore();
   }
 
   @override
@@ -1466,6 +1476,18 @@ class _CircleGlowPainter extends CustomPainter {
         colors: [color.withOpacity(glowIntensity), color.withOpacity(0.0)],
       ).createShader(Rect.fromCircle(center: center, radius: glowRadius));
     canvas.drawCircle(center, glowRadius, glowPaint);
+
+    // Real feature 2026-07-28 — the floor reflection from the
+    // reference image: a dim, flattened glow directly beneath the
+    // orb, as if it's resting on a surface rather than floating in
+    // pure void.
+    final floorCenter = Offset(center.dx, center.dy + coreDiameter * 0.42);
+    final floorRect = Rect.fromCenter(center: floorCenter, width: coreDiameter * 0.9, height: coreDiameter * 0.22);
+    final floorPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [color.withOpacity(glowIntensity * 0.5), color.withOpacity(0.0)],
+      ).createShader(floorRect);
+    canvas.drawOval(floorRect, floorPaint);
   }
 
   @override
@@ -1484,6 +1506,109 @@ class _CircleGlowPainter extends CustomPainter {
 // default. Deliberately calm: no card, no border, just centered text
 // in the real breathe color, matching the manifesto's own described
 // state exactly.
+// Real feature 2026-07-28 — the decorative, wide-field spark layer
+// from the reference image. Real, seeded randomness per spark
+// (position, size, drift, appear/fade timing) so none repeat or
+// synchronize, rendered via a single CustomPainter — one paint pass
+// for ~28 sparks, not 28 separate animating widgets, matching the
+// same performance discipline as the real embers.
+class _AmbientSparkField extends StatefulWidget {
+  const _AmbientSparkField();
+
+  @override
+  State<_AmbientSparkField> createState() => _AmbientSparkFieldState();
+}
+
+class _Spark {
+  final double x;
+  final double y;
+  final double size;
+  final double driftSpeed;
+  final double driftAngle;
+  final double fadePhase;
+  final double fadeSpeed;
+  const _Spark({
+    required this.x,
+    required this.y,
+    required this.size,
+    required this.driftSpeed,
+    required this.driftAngle,
+    required this.fadePhase,
+    required this.fadeSpeed,
+  });
+}
+
+class _AmbientSparkFieldState extends State<_AmbientSparkField> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final List<_Spark> _sparks;
+
+  @override
+  void initState() {
+    super.initState();
+    final random = math.Random(42);
+    _sparks = List.generate(28, (i) {
+      return _Spark(
+        x: random.nextDouble(),
+        y: random.nextDouble(),
+        size: 1.5 + random.nextDouble() * 3.5,
+        driftSpeed: 0.004 + random.nextDouble() * 0.008,
+        driftAngle: random.nextDouble() * 2 * math.pi,
+        fadePhase: random.nextDouble() * 2 * math.pi,
+        fadeSpeed: 0.3 + random.nextDouble() * 0.7,
+      );
+    });
+    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 60))..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: RepaintBoundary(
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            return CustomPaint(
+              size: Size.infinite,
+              painter: _SparkFieldPainter(sparks: _sparks, time: _controller.value * 60),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _SparkFieldPainter extends CustomPainter {
+  final List<_Spark> sparks;
+  final double time;
+  _SparkFieldPainter({required this.sparks, required this.time});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final spark in sparks) {
+      final drift = spark.driftSpeed * time;
+      final dx = (spark.x + math.cos(spark.driftAngle) * drift) % 1.0;
+      final dy = (spark.y - drift * 1.3) % 1.0; // drifting slowly upward, wrapping around
+      final opacity = (0.15 + (math.sin(time * spark.fadeSpeed + spark.fadePhase) * 0.5 + 0.5) * 0.55).clamp(0.0, 0.7);
+      final position = Offset(dx * size.width, (dy < 0 ? dy + 1.0 : dy) * size.height);
+      final paint = Paint()
+        ..shader = RadialGradient(
+          colors: [_pulse.withOpacity(opacity), _pulse.withOpacity(0.0)],
+        ).createShader(Rect.fromCircle(center: position, radius: spark.size * 2.5));
+      canvas.drawCircle(position, spark.size, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SparkFieldPainter oldPainter) => oldPainter.time != time;
+}
+
 class _SighState extends StatelessWidget {
   const _SighState();
 
@@ -1501,6 +1626,59 @@ class _SighState extends StatelessWidget {
             height: 1.5,
             fontWeight: FontWeight.w400,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// Real feature 2026-07-28 — the persistent, time-of-day-aware
+// greeting from the reference image. Distinct from the sigh state,
+// which stays specifically for genuine "all clear" relief; this is
+// the default, neutral welcome shown whenever nothing has been said
+// yet but there's real, ordinary business state to attend to. Uses
+// the real, signed-in user's email to derive a first name, rather
+// than hardcoding a specific person's name into the app itself.
+class _Greeting extends StatelessWidget {
+  const _Greeting({this.userEmail});
+  final String? userEmail;
+
+  String get _timeOfDayGreeting {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  }
+
+  String? get _firstName {
+    if (userEmail == null || !userEmail!.contains('@')) return null;
+    final local = userEmail!.split('@').first;
+    final namePart = local.split(RegExp(r'[._]')).first;
+    if (namePart.isEmpty) return null;
+    return namePart[0].toUpperCase() + namePart.substring(1).toLowerCase();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name = _firstName;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              name != null ? '$_timeOfDayGreeting, $name.' : '$_timeOfDayGreeting.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.workSans(fontSize: 19, color: _textPrimary, fontWeight: FontWeight.w400),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'How can I help?',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.workSans(fontSize: 17, color: _textSecondary, fontWeight: FontWeight.w300),
+            ),
+          ],
         ),
       ),
     );
@@ -1567,6 +1745,9 @@ class _TalkArea extends StatelessWidget {
 
   Widget _buildTalkState() {
     return Stack(
+      // Real bug fix, found live: same Stack default-clipping issue,
+      // applied consistently at the outermost level too.
+      clipBehavior: Clip.none,
       children: [
         // Real, direct feedback: "the embers should feel like they're
         // waiting for Peter... coals lying underneath [the button]."
@@ -1581,6 +1762,12 @@ class _TalkArea extends StatelessWidget {
             width: 160,
             height: 60,
             child: Stack(
+              // Real bug fix, found live: same Stack default-clipping
+              // issue as the primary circle - each ember's own
+              // OverflowBox glow can genuinely exceed this small
+              // 160x60 container, and Stack's default Clip.hardEdge
+              // would cut it off right at that boundary.
+              clipBehavior: Clip.none,
               children: [
                 Positioned(left: 10, top: 18, child: _Ember(color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), isThinking: thinkingEmberId == 'tasks')),
                 Positioned(left: 46, top: 2, child: _Ember(color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), isThinking: thinkingEmberId == 'scheduler')),
@@ -1623,6 +1810,13 @@ class _TalkArea extends StatelessWidget {
                     height: 160,
                     child: Stack(
                       alignment: Alignment.center,
+                      // Real bug fix, found live: Stack defaults to
+                      // Clip.hardEdge, clipping children to its own
+                      // 160x160 bounds regardless of OverflowBox's own
+                      // no-clip behavior - very likely the actual,
+                      // remaining cause of the box artifact around the
+                      // circle even after the earlier OverflowBox fix.
+                      clipBehavior: Clip.none,
                       children: [
                         // Real bug, found live: the glow radius at
                         // higher breathe values exceeds this 160x160
@@ -1649,13 +1843,40 @@ class _TalkArea extends StatelessWidget {
                           height: 96,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
+                            // Real feature 2026-07-28 — reworked with
+                            // real, tuned color stops for a rim-light
+                            // effect and softer, more gradual falloff,
+                            // matching the reference image's layered
+                            // depth rather than one flat two-color
+                            // gradient: a bright highlight near the
+                            // light source, the main body color, a
+                            // darker mid-tone for real depth, then a
+                            // brighter rim right at the edge -
+                            // simulating light wrapping around a
+                            // sphere.
                             gradient: RadialGradient(
                               center: const Alignment(-0.3, -0.3),
+                              stops: const [0.0, 0.35, 0.75, 1.0],
                               colors: isRecording
-                                  ? [_pulse, const Color(0xFF8B0000)]
+                                  ? [
+                                      Color.lerp(_pulse, Colors.white, 0.35)!,
+                                      _pulse,
+                                      const Color(0xFF8B0000),
+                                      const Color(0xFFFF6B4A),
+                                    ]
                                   : isAllClear
-                                      ? [_breathe, const Color(0xFF1A5F55)]
-                                      : [_pulse, const Color(0xFF8B0000)],
+                                      ? [
+                                          Color.lerp(_breathe, Colors.white, 0.35)!,
+                                          _breathe,
+                                          const Color(0xFF1A5F55),
+                                          const Color(0xFF5FD9C4),
+                                        ]
+                                      : [
+                                          Color.lerp(_pulse, Colors.white, 0.35)!,
+                                          _pulse,
+                                          const Color(0xFF8B0000),
+                                          const Color(0xFFFF6B4A),
+                                        ],
                             ),
                           ),
                         ),
@@ -1665,6 +1886,13 @@ class _TalkArea extends StatelessWidget {
                 );
               },
                 ),
+              ),
+              const SizedBox(height: 14),
+              // Real feature 2026-07-28 — the persistent subtitle from
+              // the reference image, matched directly.
+              Text(
+                'TAP OR HOLD TO SPEAK',
+                style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 11, letterSpacing: 1.6),
               ),
             ],
           ),
