@@ -18,26 +18,40 @@ import 'package:url_launcher/url_launcher.dart';
 /// Changing this one line is the entire cost of a future domain swap.
 const officeApiBase = 'https://office.websitehub.co.za';
 
-// Design tokens. Real, marrying two proven design threads rather than
-// picking one: the "aged ledger" line-based rendering from the first
-// Flutter build (no chat bubbles, ever), now on the dark, charcoal
-// palette from the July manifesto prototype — the real, intended
-// visual direction confirmed directly, not a stylistic guess. Five
-// embers (real magnitude counts, never editorializing — see
-// DECISIONS.md, "Peter must guide") replace the four from the
-// original prototype, broadened to cover tonight's real, additional
-// capabilities without growing the masthead further.
-const _charcoal = Color(0xFF17140F);
-const _paper = Color(0xFFF5F2EB);
-const _muted = Color(0xFF8A8172);
-const _officeAccent = Color(0xFF6FAF8F);
-const _userAccent = Color(0xFFD9A868);
-const _stampRed = Color(0xFFE0665A);
-const _confirmedGreen = Color(0xFF6FAF8F);
-// Real, exact color from the Ether manifesto's own --breathe token -
-// the sigh state's calm signal, distinct from confirmedGreen (a
-// different shade meaning something semantically different).
+// Design tokens — real, decisive rebuild toward
+// DESIGN_CONSTITUTION_V2.md, the most architecturally authoritative
+// of the three real design documents. "Background: true black. Not
+// dark grey. Not warm charcoal." The exact --void/--pulse/--breathe
+// palette from ether-manifesto.html, not the earlier charcoal
+// prototype's palette. Pulse red is now the dominant, primary color
+// — "one large red circle... it is not a button. It is presence."
+const _void = Color(0xFF0A0A0B);
+// Real, deliberate alias — _charcoal was the background color in the
+// old palette; kept as an alias to _void for the same reason as
+// _paper above.
+const _charcoal = _void;
+const _pulse = Color(0xFFE63946);
+const _pulseGlow = Color(0x4DE63946); // rgba(230,57,70,0.3)
 const _breathe = Color(0xFF2A9D8F);
+const _amber = Color(0xFFF4A261);
+const _textPrimary = Color(0xFFF5F5F5);
+// Real, deliberate alias — _paper was the main text color in the old
+// palette; kept as an alias to _textPrimary rather than hunting down
+// every one of its many existing usages throughout this file, which
+// would risk introducing a mistake for no real benefit.
+const _paper = _textPrimary;
+const _textSecondary = Color(0xFF8A8A8F);
+const _textTertiary = Color(0xFF5A5A5F);
+// Kept for now, still used by confirm/reject stamps and the message
+// line accents, which step 1 of this rebuild deliberately leaves
+// untouched — the guard()'d confirm flow is the single most
+// load-bearing piece of the whole app and isn't being touched
+// alongside a visual rebuild.
+const _muted = _textTertiary;
+const _officeAccent = _breathe;
+const _userAccent = _amber;
+const _stampRed = _pulse;
+const _confirmedGreen = _breathe;
 
 // The five embers — real, deterministic magnitude, never urgency or
 // judgment. Tasks folds in Snags (both a real, open "thing to do").
@@ -66,28 +80,28 @@ class OfficeApp extends StatelessWidget {
       title: 'The Office',
       theme: ThemeData(
         useMaterial3: true,
-        scaffoldBackgroundColor: _charcoal,
+        scaffoldBackgroundColor: _void,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: _officeAccent,
+          seedColor: _pulse,
           brightness: Brightness.dark,
-        ).copyWith(surface: _charcoal),
+        ).copyWith(surface: _void),
         textTheme: GoogleFonts.workSansTextTheme(base.textTheme).apply(
-          bodyColor: _paper,
-          displayColor: _paper,
+          bodyColor: _textPrimary,
+          displayColor: _textPrimary,
         ),
         appBarTheme: AppBarTheme(
-          backgroundColor: _charcoal,
-          foregroundColor: _paper,
+          backgroundColor: _void,
+          foregroundColor: _textPrimary,
           elevation: 0,
           scrolledUnderElevation: 0,
           titleTextStyle: GoogleFonts.ibmPlexMono(
-            color: _paper,
+            color: _textPrimary,
             fontWeight: FontWeight.w600,
             fontSize: 19,
             letterSpacing: 1.8,
           ),
         ),
-        drawerTheme: const DrawerThemeData(backgroundColor: _charcoal),
+        drawerTheme: const DrawerThemeData(backgroundColor: _void),
         popupMenuTheme: PopupMenuThemeData(
           color: _charcoal,
           textStyle: GoogleFonts.workSans(color: _paper, fontSize: 14),
@@ -690,7 +704,6 @@ class _OfficeHomeState extends State<OfficeHome> {
       appBar: AppBar(
         title: const Text('THE OFFICE'),
         actions: [
-          _EmberRow(embers: _embers, onEmberTap: _showEmberSheet),
           IconButton(
             icon: const Icon(Icons.more_vert),
             onPressed: () => _showMoreMenu(context),
@@ -719,7 +732,9 @@ class _OfficeHomeState extends State<OfficeHome> {
                       ),
                     ),
             ),
-            _Composer(
+            _TalkArea(
+              embers: _embers,
+              onEmberTap: _showEmberSheet,
               controller: _textController,
               isRecording: _isRecording,
               isWriteMode: _isWriteMode,
@@ -1091,30 +1106,16 @@ class _OfficeDrawer extends StatelessWidget {
 // look."
 const _emberUnlit = Color(0xFF2A2620);
 
-class _EmberRow extends StatelessWidget {
-  final EmberCounts embers;
-  final void Function(String emberId) onEmberTap;
-  const _EmberRow({required this.embers, required this.onEmberTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        _Ember(color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks')),
-        _Ember(color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler')),
-        _Ember(color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance')),
-        _Ember(color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers')),
-        _Ember(color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending')),
-      ],
-    );
-  }
-}
-
 class _Ember extends StatelessWidget {
   final Color color;
   final int count;
   final VoidCallback onTap;
-  const _Ember({required this.color, required this.count, required this.onTap});
+  // Real, deliberate small vertical offset per ember — "their movement
+  // should be random enough to feel alive" (Design Constitution v2,
+  // Home Screen Specification). A neat, aligned row read as
+  // navigation; a loose, uneven scatter reads as atmosphere.
+  final double verticalOffset;
+  const _Ember({required this.color, required this.count, required this.onTap, this.verticalOffset = 0});
 
   @override
   Widget build(BuildContext context) {
@@ -1136,21 +1137,24 @@ class _Ember extends StatelessWidget {
       brightness = 1.0;
       core = _emberUnlit;
     }
-    return InkWell(
-      onTap: onTap,
-      child: SizedBox(
-        width: 20,
-        height: 44,
-        child: Center(
-          child: Container(
-            width: 4,
-            height: 15,
-            decoration: BoxDecoration(
-              color: count > 0 ? Color.lerp(core, Colors.white, (brightness - 1).clamp(0, 1) * 0.4) ?? core : core,
-              borderRadius: BorderRadius.circular(2),
-              boxShadow: count > 0
-                  ? [BoxShadow(color: color.withOpacity(0.5), blurRadius: 6 * brightness, spreadRadius: 1)]
-                  : null,
+    return Transform.translate(
+      offset: Offset(0, verticalOffset),
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          width: 20,
+          height: 44,
+          child: Center(
+            child: Container(
+              width: 4,
+              height: 15,
+              decoration: BoxDecoration(
+                color: count > 0 ? Color.lerp(core, Colors.white, (brightness - 1).clamp(0, 1) * 0.4) ?? core : core,
+                borderRadius: BorderRadius.circular(2),
+                boxShadow: count > 0
+                    ? [BoxShadow(color: color.withOpacity(0.5), blurRadius: 6 * brightness, spreadRadius: 1)]
+                    : null,
+              ),
             ),
           ),
         ),
@@ -1159,10 +1163,6 @@ class _Ember extends StatelessWidget {
   }
 }
 
-// Bottom-anchored, thumb-reachable composer — talk and write converge
-// on the same real send path. Camera and document buttons added
-// 2026-07-26, real, direct upload to /files/photo and /files/document
-// — the single most significant gap this rebuild exists to close.
 // Real feature 2026-07-27 — the sigh state (Ether manifesto section
 // 03, "when nothing is urgent, the app tells you to breathe"). Shown
 // only when every real ember count is genuinely zero and nothing has
@@ -1193,7 +1193,17 @@ class _SighState extends StatelessWidget {
   }
 }
 
-class _Composer extends StatelessWidget {
+// Real, decisive rebuild toward DESIGN_CONSTITUTION_V2.md's Home
+// Screen Specification. "One large red circle. Everything else is
+// secondary... It is not a button. It is presence." Embers scattered
+// above it as ambient atmosphere, never a neat navigation row. Camera,
+// document, and write are real, still-needed secondary intake paths
+// (the Constitution's own spec names them explicitly) but rendered as
+// small, low-opacity "almost silhouettes," never competing visually
+// with the one, dominant object.
+class _TalkArea extends StatelessWidget {
+  final EmberCounts embers;
+  final void Function(String emberId) onEmberTap;
   final TextEditingController controller;
   final bool isRecording;
   final bool isWriteMode;
@@ -1205,7 +1215,9 @@ class _Composer extends StatelessWidget {
   final VoidCallback onToggleWriteMode;
   final VoidCallback onDiscard;
 
-  const _Composer({
+  const _TalkArea({
+    required this.embers,
+    required this.onEmberTap,
     required this.controller,
     required this.isRecording,
     required this.isWriteMode,
@@ -1223,39 +1235,89 @@ class _Composer extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
-        // Real, tested design carried forward from the manifesto's own
-        // history: no permanent text field, no hint text ("once the
-        // icons are self-explanatory, instructional text was redundant
-        // clutter competing with the void's own emptiness"). Talk mode
-        // is the real, default state; write mode is a genuine, distinct
-        // mode switched into, not a field sitting there all along.
-        child: isWriteMode ? _buildWriteMode() : _buildTalkRow(),
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
+        child: isWriteMode ? _buildWriteMode() : _buildTalkState(),
       ),
     );
   }
 
-  Widget _buildTalkRow() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildTalkState() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            IconButton(icon: const Icon(Icons.camera_alt_outlined), color: _muted, onPressed: onCameraTap),
-            IconButton(icon: const Icon(Icons.attach_file), color: _muted, onPressed: onDocumentTap),
+            _Ember(color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), verticalOffset: 0),
+            _Ember(color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), verticalOffset: 6),
+            _Ember(color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), verticalOffset: -4),
+            _Ember(color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), verticalOffset: 8),
+            _Ember(color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'), verticalOffset: 2),
           ],
         ),
-        IconButton(
-          iconSize: 34,
-          icon: Icon(isRecording ? Icons.stop_circle : Icons.mic_none),
-          // Real feature 2026-07-27 — the sigh state's color signal:
-          // when genuinely all clear and nothing recording, the mic
-          // itself shifts to the calm breathe color, matching the
-          // Ether manifesto's own described state exactly.
-          color: isRecording ? _stampRed : (isAllClear ? _breathe : _officeAccent),
-          onPressed: onMicTap,
+        const SizedBox(height: 24),
+        // The primary object. Real, tested state colors: pulse red
+        // idle, brighter/pulsing while recording, breathe green when
+        // genuinely all clear — "presence," not a button among icons.
+        GestureDetector(
+          onTap: onMicTap,
+          child: Container(
+            width: 96,
+            height: 96,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                center: const Alignment(-0.3, -0.3),
+                colors: isRecording
+                    ? [_pulse, const Color(0xFF8B0000)]
+                    : isAllClear
+                        ? [_breathe, const Color(0xFF1A5F55)]
+                        : [_pulse, const Color(0xFF8B0000)],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: (isAllClear && !isRecording ? _breathe : _pulse).withOpacity(0.35),
+                  blurRadius: 32,
+                  spreadRadius: 4,
+                ),
+              ],
+            ),
+            child: Icon(
+              isRecording ? Icons.stop : Icons.mic_none,
+              color: Colors.white.withOpacity(0.9),
+              size: 30,
+            ),
+          ),
         ),
-        IconButton(icon: const Icon(Icons.edit_outlined), color: _muted, onPressed: onToggleWriteMode),
+        const SizedBox(height: 20),
+        // Real, still-needed secondary intake paths (Home Screen
+        // Specification names camera, files, and edit transcript
+        // explicitly) — "almost silhouettes," never visually competing
+        // with the primary object above.
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            IconButton(
+              iconSize: 20,
+              icon: const Icon(Icons.camera_alt_outlined),
+              color: _textTertiary.withOpacity(0.6),
+              onPressed: onCameraTap,
+            ),
+            IconButton(
+              iconSize: 20,
+              icon: const Icon(Icons.attach_file),
+              color: _textTertiary.withOpacity(0.6),
+              onPressed: onDocumentTap,
+            ),
+            IconButton(
+              iconSize: 20,
+              icon: const Icon(Icons.edit_outlined),
+              color: _textTertiary.withOpacity(0.6),
+              onPressed: onToggleWriteMode,
+            ),
+          ],
+        ),
       ],
     );
   }
