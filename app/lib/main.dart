@@ -1281,24 +1281,21 @@ class _EmberState extends State<_Ember> with SingleTickerProviderStateMixin {
               child: SizedBox(
                 width: 32,
                 height: 32,
-                child: Center(
-                  child: Container(
-                    width: actualDiameter,
-                    height: actualDiameter,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          widget.count > 0 || widget.isThinking
-                              ? Color.lerp(effectiveCore, Colors.white, (brightness - 1).clamp(0, 1) * 0.5) ?? effectiveCore
-                              : effectiveCore,
-                          effectiveCore.withOpacity(0.4),
-                        ],
-                      ),
-                      boxShadow: showGlow
-                          ? [BoxShadow(color: widget.color.withOpacity(0.55 * effectiveGlow), blurRadius: 10 * brightness * effectiveGlow, spreadRadius: 2)]
-                          : null,
-                    ),
+                // Real, genuine performance fix: replaces the previous
+                // BoxShadow blur (which forces an expensive rasterized
+                // blur mask every single frame) with a CustomPainter
+                // drawing RadialGradient shaders directly - the soft
+                // "glow" comes entirely from gradient opacity falloff,
+                // cheap GPU shader math, no blur kernel recalculated
+                // per tick.
+                child: CustomPaint(
+                  size: const Size(32, 32),
+                  painter: _EmberGlowPainter(
+                    color: widget.color,
+                    core: effectiveCore,
+                    brightness: brightness,
+                    diameter: actualDiameter,
+                    glowIntensity: showGlow ? effectiveGlow : 0,
                   ),
                 ),
               ),
@@ -1307,6 +1304,92 @@ class _EmberState extends State<_Ember> with SingleTickerProviderStateMixin {
         },
       ),
     );
+  }
+}
+
+// Real, deliberate CustomPainter replacing BoxShadow blur entirely -
+// see the RepaintBoundary comment above for the full rationale. Draws
+// a soft glow halo via RadialGradient opacity falloff (no blur), then
+// the solid core circle on top.
+class _EmberGlowPainter extends CustomPainter {
+  final Color color;
+  final Color core;
+  final double brightness;
+  final double diameter;
+  final double glowIntensity;
+
+  _EmberGlowPainter({
+    required this.color,
+    required this.core,
+    required this.brightness,
+    required this.diameter,
+    required this.glowIntensity,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    if (glowIntensity > 0) {
+      final glowRadius = diameter * 1.4 * brightness;
+      final glowPaint = Paint()
+        ..shader = RadialGradient(
+          colors: [color.withOpacity(0.55 * glowIntensity), color.withOpacity(0.0)],
+        ).createShader(Rect.fromCircle(center: center, radius: glowRadius));
+      canvas.drawCircle(center, glowRadius, glowPaint);
+    }
+    final corePaint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          Color.lerp(core, Colors.white, (brightness - 1).clamp(0, 1) * 0.5) ?? core,
+          core.withOpacity(0.4),
+        ],
+      ).createShader(Rect.fromCircle(center: center, radius: diameter / 2));
+    canvas.drawCircle(center, diameter / 2, corePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _EmberGlowPainter oldPainter) {
+    return oldPainter.color != color ||
+        oldPainter.core != core ||
+        oldPainter.brightness != brightness ||
+        oldPainter.diameter != diameter ||
+        oldPainter.glowIntensity != glowIntensity;
+  }
+}
+
+// Real, deliberate CustomPainter for the primary circle's glow -
+// same rationale as _EmberGlowPainter, applied to the one, dominant
+// object rather than the embers.
+class _CircleGlowPainter extends CustomPainter {
+  final Color color;
+  final double coreDiameter;
+  final double glowIntensity;
+  final double glowSpread;
+
+  _CircleGlowPainter({
+    required this.color,
+    required this.coreDiameter,
+    required this.glowIntensity,
+    required this.glowSpread,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final glowRadius = (coreDiameter / 2) * 1.6 * glowSpread;
+    final glowPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [color.withOpacity(glowIntensity), color.withOpacity(0.0)],
+      ).createShader(Rect.fromCircle(center: center, radius: glowRadius));
+    canvas.drawCircle(center, glowRadius, glowPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CircleGlowPainter oldPainter) {
+    return oldPainter.color != color ||
+        oldPainter.coreDiameter != coreDiameter ||
+        oldPainter.glowIntensity != glowIntensity ||
+        oldPainter.glowSpread != glowSpread;
   }
 }
 
@@ -1444,26 +1527,42 @@ class _TalkArea extends StatelessWidget {
                   builder: (context, child) {
                 final breatheValue = breatheController.value; // 0..1, slow 8s cycle
                 final baseColor = isRecording ? _pulse : (isAllClear ? _breathe : _pulse);
+                // Real, genuine performance fix: replaces the previous
+                // BoxShadow blur with a CustomPainter glow halo layered
+                // behind the solid circle - same rationale as the
+                // embers' _EmberGlowPainter, no blur kernel recomputed
+                // every tick.
                 return GestureDetector(
                   onTap: onMicTap,
-                  child: Container(
-                    width: 96,
-                    height: 96,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        center: const Alignment(-0.3, -0.3),
-                        colors: isRecording
-                            ? [_pulse, const Color(0xFF8B0000)]
-                            : isAllClear
-                                ? [_breathe, const Color(0xFF1A5F55)]
-                                : [_pulse, const Color(0xFF8B0000)],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: baseColor.withOpacity(0.22 + (0.18 * breatheValue)),
-                          blurRadius: 24 + (16 * breatheValue),
-                          spreadRadius: 2 + (4 * breatheValue),
+                  child: SizedBox(
+                    width: 160,
+                    height: 160,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        CustomPaint(
+                          size: const Size(160, 160),
+                          painter: _CircleGlowPainter(
+                            color: baseColor,
+                            coreDiameter: 96,
+                            glowIntensity: 0.22 + (0.18 * breatheValue),
+                            glowSpread: 1.0 + (0.35 * breatheValue),
+                          ),
+                        ),
+                        Container(
+                          width: 96,
+                          height: 96,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(
+                              center: const Alignment(-0.3, -0.3),
+                              colors: isRecording
+                                  ? [_pulse, const Color(0xFF8B0000)]
+                                  : isAllClear
+                                      ? [_breathe, const Color(0xFF1A5F55)]
+                                      : [_pulse, const Color(0xFF8B0000)],
+                            ),
+                          ),
                         ),
                       ],
                     ),
