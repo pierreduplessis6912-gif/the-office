@@ -119,3 +119,33 @@ will actually run on. A fresh native build and a real look on-device
 is the honest starting point for the next session — not a fourth
 iteration to compare, just ground truth on what already exists before
 building the foundation underneath it.
+
+---
+
+## Status: built and verified (2026-07-29)
+
+This milestone is done, not just planned. Every piece above exists as
+real, running code — `lib/runtime/office_clock.dart`,
+`office_state.dart`, `office_room.dart` — verified with a real,
+successful build after each step, not assumed correct from reading
+the code. Full narrative and the real bugs found along the way are in
+`DECISIONS.md`.
+
+Real, honest scope check against what's actually built, not the full
+vision: one capability (People) exists against "Current Capability" —
+Quotes, Invoices, Camera, and the rest remain the drawer's other,
+still-placeholder items. The render pipeline as formally distinct,
+ordered layers (per the original architecture sketch) is still
+implicit in widget order, not an explicit structure. `RoomOpening`/
+`RoomClosing` have exactly one real example to have proven the
+pattern against — worth building a second capability before treating
+the room pattern itself as fully settled.
+
+Verified on the real, native device, closing the gap named just
+above — Pierre's own report: "looks a little bit smoother... the
+animations look the same." Both halves are the correct, predicted
+result: smoother from fewer independent tickers and proper
+`RepaintBoundary` isolation; visually unchanged because this was
+deliberately a migration (same behavior, different timing source),
+not a redesign.
+
