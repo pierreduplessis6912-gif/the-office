@@ -1255,7 +1255,8 @@ class _Ember extends StatefulWidget {
   final int count;
   final VoidCallback onTap;
   final bool isThinking;
-  const _Ember({required this.color, required this.count, required this.onTap, this.isThinking = false});
+  final OfficeClock clock;
+  const _Ember({required this.color, required this.count, required this.onTap, required this.clock, this.isThinking = false});
 
   @override
   State<_Ember> createState() => _EmberState();
@@ -1271,8 +1272,13 @@ class _EmberBlob {
   const _EmberBlob({required this.dx, required this.dy, required this.sizeRatio, required this.driftPhase});
 }
 
-class _EmberState extends State<_Ember> with SingleTickerProviderStateMixin {
-  late final AnimationController _driftController;
+class _EmberState extends State<_Ember> {
+  // Runtime migration: no longer owns an independent
+  // AnimationController - reads phase from the shared widget.clock
+  // instead. _driftDurationSeconds is now just a plain, randomized
+  // number (still per-instance, so no two embers share a period) used
+  // to compute where in its own cycle this ember currently is.
+  late final double _driftDurationSeconds;
   // Real, deliberate randomization per ember instance — duration and
   // phase both vary, so no two embers ever drift in sync. "Their
   // movement should be random enough to feel alive" (Design
@@ -1301,10 +1307,7 @@ class _EmberState extends State<_Ember> with SingleTickerProviderStateMixin {
     super.initState();
     final seed = widget.color.value + widget.count;
     final random = math.Random(seed);
-    _driftController = AnimationController(
-      vsync: this,
-      duration: Duration(milliseconds: 20000 + random.nextInt(10000)),
-    )..repeat();
+    _driftDurationSeconds = 20 + random.nextDouble() * 10;
     _driftRadiusX = 5 + random.nextDouble() * 6;
     _driftRadiusY = 4 + random.nextDouble() * 5;
     _phaseOffset = random.nextDouble() * 2 * math.pi;
@@ -1319,12 +1322,6 @@ class _EmberState extends State<_Ember> with SingleTickerProviderStateMixin {
     });
     _crackleSpeed = 8 + random.nextDouble() * 8;
     _crackleSeed = random.nextInt(100000);
-  }
-
-  @override
-  void dispose() {
-    _driftController.dispose();
-    super.dispose();
   }
 
   @override
@@ -1360,9 +1357,15 @@ class _EmberState extends State<_Ember> with SingleTickerProviderStateMixin {
     // forcing a repaint of whatever it's embedded in.
     return RepaintBoundary(
       child: AnimatedBuilder(
-        animation: _driftController,
+        animation: widget.clock,
         builder: (context, child) {
-          final t = _driftController.value * 2 * math.pi + _phaseOffset;
+          // Real migration: reads phase from the shared clock instead
+          // of an independent AnimationController - the per-instance
+          // _driftDurationSeconds still gives this ember its own,
+          // randomized period, exactly as the controller's own
+          // duration did.
+          final progress = (widget.clock.elapsedSeconds / _driftDurationSeconds) % 1.0;
+          final t = progress * 2 * math.pi + _phaseOffset;
           final dx = math.sin(t) * _driftRadiusX;
           final dy = math.cos(t * 0.8) * _driftRadiusY;
           // Direct feedback: "they should slowly brighten, dim, drift,
@@ -1843,11 +1846,11 @@ class _TalkArea extends StatelessWidget {
               // would cut it off right at that boundary.
               clipBehavior: Clip.none,
               children: [
-                Positioned(left: 10, top: 18, child: _Ember(color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), isThinking: thinkingEmberId == 'tasks')),
-                Positioned(left: 46, top: 2, child: _Ember(color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), isThinking: thinkingEmberId == 'scheduler')),
-                Positioned(left: 74, top: 24, child: _Ember(color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), isThinking: thinkingEmberId == 'finance')),
-                Positioned(left: 104, top: 6, child: _Ember(color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), isThinking: thinkingEmberId == 'suppliers')),
-                Positioned(left: 132, top: 20, child: _Ember(color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'), isThinking: thinkingEmberId == 'pending')),
+                Positioned(left: 10, top: 18, child: _Ember(color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), clock: clock, isThinking: thinkingEmberId == 'tasks')),
+                Positioned(left: 46, top: 2, child: _Ember(color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), clock: clock, isThinking: thinkingEmberId == 'scheduler')),
+                Positioned(left: 74, top: 24, child: _Ember(color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), clock: clock, isThinking: thinkingEmberId == 'finance')),
+                Positioned(left: 104, top: 6, child: _Ember(color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), clock: clock, isThinking: thinkingEmberId == 'suppliers')),
+                Positioned(left: 132, top: 20, child: _Ember(color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'), clock: clock, isThinking: thinkingEmberId == 'pending')),
               ],
             ),
           ),
