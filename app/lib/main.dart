@@ -807,7 +807,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
             // separate from the 5 real, functional embers: purely
             // ambient, non-interactive, not tied to any real data —
             // atmosphere, not information.
-            const Positioned.fill(child: _AmbientSparkField()),
+            Positioned.fill(child: _AmbientSparkField(clock: _clock)),
             Column(
               children: [
                 Expanded(
@@ -1581,7 +1581,8 @@ class _CircleGlowPainter extends CustomPainter {
 // for ~28 sparks, not 28 separate animating widgets, matching the
 // same performance discipline as the real embers.
 class _AmbientSparkField extends StatefulWidget {
-  const _AmbientSparkField();
+  final OfficeClock clock;
+  const _AmbientSparkField({required this.clock});
 
   @override
   State<_AmbientSparkField> createState() => _AmbientSparkFieldState();
@@ -1606,8 +1607,12 @@ class _Spark {
   });
 }
 
-class _AmbientSparkFieldState extends State<_AmbientSparkField> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
+class _AmbientSparkFieldState extends State<_AmbientSparkField> {
+  // Runtime migration: no longer owns its own AnimationController -
+  // reads the shared widget.clock instead. The original 60-second
+  // wrapping only ever fed periodic sin/cos calculations, which are
+  // identical for any equivalent angle regardless of how large the
+  // input gets - elapsedSeconds needs no rescaling or wrapping at all.
   late final List<_Spark> _sparks;
 
   @override
@@ -1625,13 +1630,6 @@ class _AmbientSparkFieldState extends State<_AmbientSparkField> with SingleTicke
         fadeSpeed: 0.3 + random.nextDouble() * 0.7,
       );
     });
-    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 60))..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
   }
 
   @override
@@ -1639,11 +1637,11 @@ class _AmbientSparkFieldState extends State<_AmbientSparkField> with SingleTicke
     return IgnorePointer(
       child: RepaintBoundary(
         child: AnimatedBuilder(
-          animation: _controller,
+          animation: widget.clock,
           builder: (context, child) {
             return CustomPaint(
               size: Size.infinite,
-              painter: _SparkFieldPainter(sparks: _sparks, time: _controller.value * 60),
+              painter: _SparkFieldPainter(sparks: _sparks, time: widget.clock.elapsedSeconds),
             );
           },
         ),
