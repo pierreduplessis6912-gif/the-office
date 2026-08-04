@@ -228,7 +228,10 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   // breathe. Not pulse. Breathe. About a 7-10 second cycle. Almost
   // imperceptible. Like a sleeping person." A slow, continuous,
   // subtle intensity cycle on the primary circle's glow.
-  late final AnimationController _breatheController;
+  // Runtime migration: the orb's breathe cycle no longer drives its
+  // own, independent AnimationController - it reads from the shared
+  // _clock instead, per OFFICE_RUNTIME_V1.md's "existing systems
+  // migrated onto that foundation."
 
   // Real feature 2026-07-27 — real login, bearer-token based per the
   // deliberate architecture decision: cookies were never going to
@@ -258,7 +261,9 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     ]).animate(_entranceController);
     _entranceController.forward();
 
-    _breatheController = AnimationController(vsync: this, duration: const Duration(seconds: 8))..repeat(reverse: true);
+    // Real migration: the orb's breathe cycle now reads _clock.elapsedSeconds
+    // directly (see _TalkArea below) rather than driving its own,
+    // independent AnimationController here.
   }
 
   @override
@@ -267,7 +272,6 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     _textController.dispose();
     _scrollController.dispose();
     _entranceController.dispose();
-    _breatheController.dispose();
     _clock.dispose();
     _officeState.dispose();
     super.dispose();
@@ -829,7 +833,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
                   isRecording: _isRecording,
                   isWriteMode: _isWriteMode,
                   isAllClear: _embers.allClear && _messages.isEmpty,
-                  breatheController: _breatheController,
+                  clock: _clock,
                   thinkingEmberId: _thinkingEmberId,
                   onSend: () {
                     _sendText();
@@ -1770,7 +1774,7 @@ class _TalkArea extends StatelessWidget {
   final bool isRecording;
   final bool isWriteMode;
   final bool isAllClear;
-  final AnimationController breatheController;
+  final OfficeClock clock;
   final String? thinkingEmberId;
   final VoidCallback onSend;
   final VoidCallback onMicTap;
@@ -1786,7 +1790,7 @@ class _TalkArea extends StatelessWidget {
     required this.isRecording,
     required this.isWriteMode,
     required this.isAllClear,
-    required this.breatheController,
+    required this.clock,
     required this.thinkingEmberId,
     required this.onSend,
     required this.onMicTap,
@@ -1864,9 +1868,15 @@ class _TalkArea extends StatelessWidget {
               // the same way.
               RepaintBoundary(
                 child: AnimatedBuilder(
-                  animation: breatheController,
+                  animation: clock,
                   builder: (context, child) {
-                final breatheValue = breatheController.value; // 0..1, slow 8s cycle
+                // Real migration: reads the shared clock instead of
+                // its own, independent AnimationController. A smooth
+                // sine wave over an 8-second period - genuinely
+                // smoother than the original's linear triangle wave
+                // (0..1..0 via reverse:true), and a better match for
+                // "breathe" as a metaphor.
+                final breatheValue = (math.sin(clock.elapsedSeconds * (2 * math.pi / 8)) + 1) / 2;
                 final baseColor = isRecording ? _pulse : (isAllClear ? _breathe : _pulse);
                 // Real, genuine performance fix: replaces the previous
                 // BoxShadow blur with a CustomPainter glow halo layered
