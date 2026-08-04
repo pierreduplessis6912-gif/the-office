@@ -16,6 +16,7 @@ import 'package:record/record.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'runtime/office_clock.dart';
+import 'runtime/office_room.dart';
 import 'runtime/office_state.dart';
 
 /// The one thing every future client (Flutter, PWA, desktop) points at.
@@ -1107,33 +1108,54 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       // below rather than a confusing error for a low-stakes lookup.
     }
     if (!mounted) return;
-    showModalBottomSheet(
+    // Real first room, per Rule 8 - "the relevant world quietly
+    // appears," materializing rather than sliding up from an edge.
+    // The first real capability built against the runtime foundation.
+    await showOfficeRoom(
       context: context,
-      backgroundColor: _charcoal,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('PEOPLE', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
-              const SizedBox(height: 12),
-              if (people.isEmpty)
-                Text('Nobody real here yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic))
-              else
-                ConstrainedBox(
-                  constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.5),
-                  child: ListView(
-                    shrinkWrap: true,
-                    children: people.map((p) {
-                      final row = p as Map<String, dynamic>;
-                      final relationship = row['relationship'] as String?;
-                      return _docketCard('${row['name']}${relationship != null ? ' — $relationship' : ''}');
-                    }).toList(),
-                  ),
+      officeState: _officeState,
+      builder: (context) => Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 420, maxHeight: MediaQuery.of(context).size.height * 0.7),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 24),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: _charcoal,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _textTertiary.withOpacity(0.15)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('PEOPLE', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      color: _muted,
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
                 ),
-            ],
+                const SizedBox(height: 8),
+                if (people.isEmpty)
+                  Text('Nobody real here yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic))
+                else
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: people.map((p) {
+                        final row = p as Map<String, dynamic>;
+                        final relationship = row['relationship'] as String?;
+                        return _docketCard('${row['name']}${relationship != null ? ' — $relationship' : ''}');
+                      }).toList(),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
