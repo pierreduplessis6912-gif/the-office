@@ -15,6 +15,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'runtime/office_clock.dart';
+import 'runtime/office_state.dart';
+
 /// The one thing every future client (Flutter, PWA, desktop) points at.
 /// Changing this one line is the entire cost of a future domain swap.
 const officeApiBase = 'https://office.websitehub.co.za';
@@ -192,6 +195,15 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   final _scrollController = ScrollController();
   final _imagePicker = ImagePicker();
 
+  // The Office Runtime - real, foundational pieces per
+  // OFFICE_RUNTIME_V1.md. _officeState is the single source of truth
+  // for what the app is doing; _clock is the single, shared timing
+  // source real systems will migrate onto. Neither replaces existing
+  // behavior yet on its own - this is the first, bounded wiring step,
+  // not the full migration.
+  final _officeState = OfficeStateMachine();
+  late final OfficeClock _clock;
+
   bool _isRecording = false;
   bool _isWriteMode = false;
   int _idCounter = 0;
@@ -236,6 +248,8 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     _restoreSession();
     _loadEmberCounts();
 
+    _clock = OfficeClock(vsync: this)..start();
+
     _entranceController = AnimationController(vsync: this, duration: const Duration(milliseconds: 4200));
     _entranceOpacity = TweenSequence<double>([
       TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0).chain(CurveTween(curve: Curves.easeIn)), weight: 30),
@@ -254,6 +268,8 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     _scrollController.dispose();
     _entranceController.dispose();
     _breatheController.dispose();
+    _clock.dispose();
+    _officeState.dispose();
     super.dispose();
   }
 
@@ -463,12 +479,17 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     await Future.delayed(const Duration(milliseconds: 500));
     if (!mounted) return;
     const emberIds = ['tasks', 'scheduler', 'finance', 'suppliers', 'pending'];
-    setState(() => _thinkingEmberId = emberIds[math.Random().nextInt(emberIds.length)]);
+    final chosen = emberIds[math.Random().nextInt(emberIds.length)];
+    setState(() => _thinkingEmberId = chosen);
+    _officeState.transitionTo(OfficeState.thinking);
+    _officeState.emit(EmberThinkingChanged(chosen));
   }
 
   void _stopThinking() {
     if (!mounted) return;
     setState(() => _thinkingEmberId = null);
+    _officeState.transitionTo(OfficeState.idle);
+    _officeState.emit(const EmberThinkingChanged(null));
   }
 
   // The actual fix for the query-rewriting gap: the backend has been
@@ -554,11 +575,13 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       final path = '${dir.path}/note_${DateTime.now().millisecondsSinceEpoch}.m4a';
       await _recorder.start(const RecordConfig(), path: path);
       setState(() => _isRecording = true);
+      _officeState.transitionTo(OfficeState.listening);
     } catch (e, stack) {
       // Surface the real error instead of failing silently — this is
       // a diagnostic addition specifically to find out what's actually
       // breaking on web, not a permanent behavior.
       setState(() => _isRecording = false);
+      _officeState.transitionTo(OfficeState.idle);
       _addMessage(MessageRole.office, 'Mic error: $e');
       debugPrint('Mic error: $e\n$stack');
     }
