@@ -1,11 +1,20 @@
 # The Office — Current State
 
-**Last verified: 2026-07-17.** This is the authoritative "where things
-actually stand" document, restructured this session after external
-review found real, verified staleness (the header alone was six days
-behind its own content). If it disagrees with a memory of a past
-conversation, trust this file — it's meant to be kept current;
-conversation summaries aren't.
+**Last verified: 2026-07-17 for the backend below.** This is the
+authoritative "where things actually stand" document for the backend
+specifically. If it disagrees with a memory of a past conversation,
+trust this file — it's meant to be kept current; conversation
+summaries aren't.
+
+**A real, separate, substantial arc of frontend/app work has
+happened since this header's date, not reflected below** — the
+visual/UX design convergence (`EXPERIENCE_BRIEF.md`,
+`ether-manifesto.html`, `DESIGN_CONSTITUTION_V2.md`,
+`NATIVE_TRANSITION_BRIEF.md`), the embers/orb redesign, and the full
+Office Runtime v1 build (`OFFICE_RUNTIME_V1.md`, real clock/state
+machine/event bus/rooms in `app/lib/runtime/`). See those documents
+directly, and the corresponding entries in `DECISIONS.md`, for that
+work — this file's own scope has stayed backend-focused throughout.
 
 **This document now covers only current state and active reference —
 the *what*.** Rationale, rejected alternatives, philosophy essays, and
