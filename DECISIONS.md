@@ -4168,3 +4168,121 @@ exact session. Every patch here was also verified locally against a
 realistic, simulated project structure before being pushed to a real
 build — including one real bug (a misplaced Kotlin import) caught
 this way before it ever reached Codemagic.
+
+## The visual/UX design convergence, and the Office Runtime v1 build (2026-07-28–29)
+
+A long, genuinely important arc that produced four real governance
+documents and a working code foundation, none of which had been
+written up here until now.
+
+**The design convergence.** Pierre ran the same open question — what
+should The Office actually feel like, and how should it be built —
+through several parallel conversations (this one, Kimi, ChatGPT) and
+brought each response back for real, critical evaluation rather than
+picking one blindly. That process produced, in order:
+`EXPERIENCE_BRIEF.md` (the braai/embers emotional core), the Ether
+manifesto (`ether-manifesto.html`, voice-first, "the sigh state"),
+`DESIGN_CONSTITUTION_V2.md` (real, numbered rules — the void is
+sacred, embers are subconscious, motion is weather not theatre), and
+`NATIVE_TRANSITION_BRIEF.md` (stop judging feel from the web preview,
+verify on the real device). Each document sharpened or genuinely
+corrected something in the one before it — Rule 3 of the Constitution
+resolved a question the Experience Brief only gestured at; the
+Constitution's "no waveform" instruction explicitly overrode the
+Ether manifesto's waveform idea on that one point.
+
+**The embers/orb redesign — real, iterative, several rounds of direct
+feedback, not one pass.** Started from a simple `RadialGradient`
+circle. Direct feedback ("these are all floating orbs, not embers")
+led to a genuine mechanism change, not just a shape tweak: real,
+seeded pseudo-random "crackle" (hold, then jump abruptly to an
+unrelated value — see `_crackleValue` in `main.dart`) replacing a
+smooth sine-wave pulse, since the smooth *behavior* was the actual
+cause of the "orb" read, regardless of outline. Real bugs found and
+fixed along the way, each confirmed live rather than assumed: a
+`BlendMode.plus` additive blend needed `saveLayer` isolation or it
+interacted with the canvas beneath it; `Stack`'s default
+`Clip.hardEdge` was silently clipping `OverflowBox`'s larger glow
+area at three separate nesting levels; the glow radius at high
+brightness tiers exceeded its own `CustomPaint` canvas size. The orb
+gained real layered depth (tuned gradient stops for a rim-light
+effect, a genuine floor reflection) and a persistent, time-of-day
+greeting using the real signed-in user's email rather than a
+hardcoded name.
+
+**The A/B experiment branch (`experiment/kimi-ab-test`) — explored,
+not adopted.** Kimi proposed a fragment-shader "Heat Orb" (turbulent
+noise field, no hard edge at all) as an alternative to the
+`CustomPainter` approach. Built faithfully on a real, separate branch
+with its own, separate Cloudflare Pages project
+(`the-office-ab-experiment`) — deliberately isolated so it could never
+touch the real preview. Two real bugs fixed along the way (a
+non-nullable field compared against null; the shader-uniform API in
+the original code didn't match Flutter's actual `dart:ui` API,
+corrected to `fragmentShader()` + `setFloat()`) and one real
+deployment issue (the project's Cloudflare-side production branch
+didn't match what the workflow was pushing, routing every deploy to a
+non-root preview URL rather than the visible one — fixed by pinning
+`--branch=main` explicitly). The shader did render, and did
+demonstrate genuinely different visual qualities (no discernible
+edge) — but the branch was never merged into `main`; the
+`CustomPainter` approach, refined through the crackle/depth work
+above, is what's live. Worth remembering this branch exists if the
+shader approach is ever revisited, rather than rediscovering it from
+scratch.
+
+**Office Runtime v1 — planned in `OFFICE_RUNTIME_V1.md`, then
+genuinely built the same session.** Real, converged architecture
+across the same multi-conversation process: a runtime answers "what
+is the current state of the world," not "how do I animate this."
+Deliberately excludes a generic capability/plugin framework — just a
+single "Current Capability" slot, until enough real capabilities
+exist to generalize their shape honestly from evidence rather than
+guess at it.
+
+Built, in order, each step verified with a real, successful build
+before the next began:
+- `lib/runtime/office_clock.dart` — a single, shared `Ticker`-based
+  timing source. One real bug found and fixed on the first build that
+  actually compiled it: `ChangeNotifier` lives in
+  `package:flutter/foundation.dart`, not `scheduler.dart`, which only
+  provides `Ticker`/`TickerProvider`.
+- `lib/runtime/office_state.dart` — real, named states (Idle,
+  Listening, Thinking, Responding, RoomOpening, RoomClosing,
+  Executing) as the single source of truth, plus a minimal,
+  `Stream`-based event mechanism for the few things a bare state
+  value can't carry (a response's actual text, which ember is
+  currently "thinking").
+- All three existing visual systems — the orb's breathe cycle, all 5
+  embers' drift, the decorative spark field — migrated off their own,
+  independent `AnimationController`s onto the one shared clock. A
+  real reduction: several independent tickers down to one shared
+  timing source, each system's existing visual behavior deliberately
+  preserved exactly (same math, same timing) so this was verifiably a
+  migration, not a redesign — changing what it looked like at the
+  same time as how it was driven would have made it impossible to
+  attribute any difference to the right cause.
+- Real state transitions wired at the actual, existing trigger
+  points: Listening when recording starts, Thinking during a real
+  response wait, Responding (and a real `ResponseReceived` event)
+  centralized in `_updateMessage`/`_addMessage` — the one, shared
+  place every flow's actual response already passes through, rather
+  than duplicated across three flows' success/error paths.
+  Executing wraps the real, guarded confirm/reject action.
+- `lib/runtime/office_room.dart` — the real materialization pattern
+  for Rule 8 ("a room opens, not a popup, not a sheet, not a toast"),
+  using `showGeneralDialog`'s own `transitionBuilder` for a genuine
+  fade+scale entrance rather than a standard bottom-sheet slide.
+  People rebuilt as the first real capability against this — the
+  first real test of whether the foundation actually supports
+  building something new on top of it, not just organizing what
+  already existed.
+
+**Verified on the real, native device**, not just the web preview —
+the explicit point of `NATIVE_TRANSITION_BRIEF.md`. Pierre's own
+report: "looks a little bit smoother... the animations look the
+same." Both halves of that are exactly the intended, predicted
+result — smoother from fewer tickers and proper `RepaintBoundary`
+isolation; visually identical because the migration deliberately
+changed *how* the animations are driven, not *what* they look like.
+
