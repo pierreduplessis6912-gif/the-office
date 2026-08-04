@@ -447,6 +447,14 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     final id = _newId();
     setState(() => _messages.add(ChatMessage(id: id, role: role, text: text)));
     _scrollToEnd();
+    // Real state machine wiring, matching _updateMessage below - a
+    // real office message just appeared here too, not only via the
+    // status-placeholder flow.
+    if (role == MessageRole.office) {
+      _officeState.transitionTo(OfficeState.responding);
+      _officeState.emit(ResponseReceived(text));
+      _officeState.transitionTo(OfficeState.idle);
+    }
     return id;
   }
 
@@ -459,6 +467,19 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       if (pendingItems != null) _messages[index].pendingItems = pendingItems;
     });
     _scrollToEnd();
+    // Real state machine wiring: every flow's actual response (success
+    // or error text) passes through here, whichever of the three
+    // real flows (text/voice/upload) produced it - the one, real
+    // place to transition Responding rather than duplicating this at
+    // six separate call sites. Transitions straight back to Idle,
+    // since there's no real, ongoing "responding" animation yet to
+    // occupy that state over time - honest about what's actually
+    // happening rather than lingering in an unused state.
+    if (role == MessageRole.office) {
+      _officeState.transitionTo(OfficeState.responding);
+      _officeState.emit(ResponseReceived(text));
+      _officeState.transitionTo(OfficeState.idle);
+    }
   }
 
   void _scrollToEnd() {
@@ -729,6 +750,9 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     if (itemIndex == -1) return;
 
     setState(() => _messages[msgIndex].pendingItems[itemIndex].busy = true);
+    // Real state machine wiring: a real, guarded action genuinely in
+    // flight - Rule from OFFICE_RUNTIME_V1.md's own state list.
+    _officeState.transitionTo(OfficeState.executing);
 
     try {
       final uri = Uri.parse('$officeApiBase/actions/$itemId/${confirm ? "confirm" : "reject"}');
@@ -763,6 +787,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       setState(() => _messages[msgIndex].pendingItems[itemIndex].busy = false);
       _addMessage(MessageRole.office, 'Could not reach the Office to ${confirm ? "confirm" : "reject"} that.');
     }
+    _officeState.transitionTo(OfficeState.idle);
   }
 
   @override
