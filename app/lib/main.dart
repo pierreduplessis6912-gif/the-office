@@ -845,13 +845,6 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
             // ambient, non-interactive, not tied to any real data —
             // atmosphere, not information.
             Positioned.fill(child: _AmbientSparkField(clock: _clock)),
-            // Phase 1 of the Word Field System — real transcript words
-            // appear, drift, and dissolve in the upper band, per Rule 3
-            // and the Speech Visualisation spec. Additive only: the
-            // ledger below still shows the same transcript permanently
-            // — Rule 3's larger "no permanent ledger at all" question
-            // is deliberately not decided in this pass.
-            Positioned.fill(child: WordField(controller: _wordField, clock: _clock)),
             Column(
               children: [
                 Expanded(
@@ -894,6 +887,22 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
                 ),
               ],
             ),
+            // Phase 1 of the Word Field System — real transcript words
+            // appear, drift, and dissolve in the upper band, per Rule 3
+            // and the Speech Visualisation spec. Painted AFTER Column
+            // so it renders on top of the ledger, not underneath it —
+            // real bug found on-device 2026-08-06: it originally sat
+            // before Column in this Stack, so the permanent ledger
+            // (which fills with the same content almost simultaneously)
+            // completely buried it for its whole lifetime. IgnorePointer
+            // inside WordField means it never blocks real interaction
+            // with the ledger or talk area beneath it.
+            //
+            // Additive only, still: the ledger below still shows the
+            // same transcript permanently at the same time — Rule 3's
+            // larger "no permanent ledger at all" question is
+            // deliberately not decided in this pass.
+            Positioned.fill(child: WordField(controller: _wordField, clock: _clock)),
             // Real feature 2026-07-28 — the one-time entrance moment.
             // Positioned above everything else, but ignoring pointer
             // events entirely once it starts fading, so it never
