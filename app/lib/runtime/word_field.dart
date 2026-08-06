@@ -154,9 +154,37 @@ class WordField extends StatelessWidget {
           animation: Listenable.merge([clock, controller]),
           builder: (context, child) {
             controller.tick(clock.elapsedSeconds);
-            return CustomPaint(
-              size: Size.infinite,
-              painter: _WordFieldPainter(words: controller.words, time: clock.elapsedSeconds),
+            return Stack(
+              children: [
+                CustomPaint(
+                  size: Size.infinite,
+                  painter: _WordFieldPainter(words: controller.words, time: clock.elapsedSeconds),
+                ),
+                // TEMPORARY DIAGNOSTIC — 2026-08-06. Not the real design.
+                // Purely to answer one binary question on a real device
+                // where the animation itself is reportedly invisible:
+                // is WordSpoken actually being received and turned into
+                // real WordParticles at all? If this counter changes
+                // from 0 to a real number and back down after speaking,
+                // the event pipeline works and the bug is paint-side —
+                // in _WordFieldPainter itself. If it stays 0 forever,
+                // the bug is upstream — WordSpoken isn't reaching this
+                // controller. Remove this whole Positioned block once
+                // that's known.
+                Positioned(
+                  top: 90,
+                  left: 16,
+                  child: Text(
+                    'WF:${controller.words.length}',
+                    style: const TextStyle(
+                      color: Color(0xFF00FF00),
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      backgroundColor: Color(0xFF000000),
+                    ),
+                  ),
+                ),
+              ],
             );
           },
         ),
