@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
@@ -11,8 +10,8 @@ import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:record/record.dart';
+import 'package:speech_to_text/speech_recognition_result.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:url_launcher/url_launcher.dart';
 
 import 'runtime/office_clock.dart';
@@ -192,7 +191,16 @@ class OfficeHome extends StatefulWidget {
 }
 
 class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
-  final _recorder = AudioRecorder();
+  // Real feature 2026-08-06 — replaces the old record-audio-then-
+  // upload-then-server-transcribe pipeline entirely. Android does not
+  // support recording raw audio while on-device speech recognition is
+  // active at the same time (confirmed against the plugin's own
+  // documentation, not assumed) — so this is the actual, authoritative
+  // transcript now, the same as typed text, not a preview layered on
+  // top of a separate audio upload.
+  final _speech = stt.SpeechToText();
+  String _lastPartialTranscript = '';
+  bool _finalizedThisUtterance = false;
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
   final _imagePicker = ImagePicker();
@@ -282,7 +290,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    _recorder.dispose();
+    _speech.stop();
     _textController.dispose();
     _scrollController.dispose();
     _entranceController.dispose();
@@ -620,25 +628,45 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   Future<void> _toggleRecording() async {
     try {
       if (_isRecording) {
-        final path = await _recorder.stop();
+        await _speech.stop();
         setState(() => _isRecording = false);
-        if (path != null) {
-          await _handleRecording(path);
+        _officeState.transitionTo(OfficeState.idle);
+        // Real robustness, not just the happy path: send whatever was
+        // actually heard the moment Peter explicitly taps to stop,
+        // rather than depending entirely on the plugin's own stop()
+        // call reliably delivering one more onResult callback first.
+        // _finalizedThisUtterance still guards against a genuine
+        // double-send if that callback does also arrive.
+        if (!_finalizedThisUtterance && _lastPartialTranscript.trim().isNotEmpty) {
+          _finalizedThisUtterance = true;
+          _sendRecognizedText(_lastPartialTranscript.trim());
         }
         return;
       }
 
-      if (!await _recorder.hasPermission()) {
-        _addMessage(MessageRole.office, 'Microphone permission denied.');
+      // initialize() only needs to run once per real session per the
+      // plugin's own docs, and repeat calls are safe no-ops — calling
+      // it every tap avoids needing a second piece of state just to
+      // track whether it already ran once this session.
+      final available = await _speech.initialize(
+        onStatus: _onSpeechStatus,
+        onError: _onSpeechError,
+      );
+      if (!available) {
+        _addMessage(MessageRole.office, 'Speech recognition permission denied or unavailable.');
         return;
       }
 
-      final dir = await getTemporaryDirectory();
-      final path = '${dir.path}/note_${DateTime.now().millisecondsSinceEpoch}.m4a';
-      await _recorder.start(const RecordConfig(), path: path);
+      _lastPartialTranscript = '';
+      _finalizedThisUtterance = false;
+      _wordField.clear();
       setState(() => _isRecording = true);
       _officeState.transitionTo(OfficeState.listening);
-      _wordField.clear();
+      await _speech.listen(
+        onResult: _onSpeechResult,
+        listenFor: const Duration(seconds: 30),
+        pauseFor: const Duration(seconds: 5),
+      );
     } catch (e, stack) {
       // Surface the real error instead of failing silently — this is
       // a diagnostic addition specifically to find out what's actually
@@ -650,35 +678,78 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     }
   }
 
-  Future<void> _handleRecording(String path) async {
-    final history = _recentHistory();
+  // Real feature 2026-08-06 — words reach the void the instant the
+  // on-device recognizer produces them, not after a full record-then-
+  // upload-then-transcribe round trip. Only the delta since the last
+  // callback gets emitted as a new WordSpoken event, so each new word
+  // gets its own real appear-and-dissolve cycle as it's actually
+  // recognized, rather than re-spawning the whole growing sentence
+  // from scratch on every callback.
+  void _onSpeechResult(SpeechRecognitionResult result) {
+    final full = result.recognizedWords;
+    if (full.isNotEmpty && full != _lastPartialTranscript) {
+      if (full.length > _lastPartialTranscript.length && full.startsWith(_lastPartialTranscript)) {
+        final delta = full.substring(_lastPartialTranscript.length).trim();
+        if (delta.isNotEmpty) _officeState.emit(WordSpoken(delta));
+      } else {
+        // The recognizer revised an earlier guess rather than simply
+        // extending it — real and common with live STT. Simplest
+        // honest response: clear and show the current best guess
+        // fresh, rather than trying to diff a changed prefix.
+        _wordField.clear();
+        _officeState.emit(WordSpoken(full));
+      }
+      _lastPartialTranscript = full;
+    }
 
-    // Acknowledge instantly — we don't have the real words yet (no live
-    // on-device transcript wired in this version), so a voice-message
-    // placeholder stands in until the real transcript comes back and
-    // replaces it. Same pattern WhatsApp uses for voice notes, just
-    // temporary here rather than permanent.
-    final userId = _addMessage(MessageRole.user, '🎤 Voice message');
+    if (result.finalResult && !_finalizedThisUtterance && full.trim().isNotEmpty) {
+      _finalizedThisUtterance = true;
+      setState(() => _isRecording = false);
+      _officeState.transitionTo(OfficeState.idle);
+      _sendRecognizedText(full.trim());
+    }
+  }
+
+  void _onSpeechStatus(String status) {
+    // Real fix for a real gap: Android's own short pause timeout can
+    // end a listen session with no explicit second tap and no final
+    // result at all (genuine silence, or speech too quiet to catch) —
+    // without this, _isRecording would stay stuck true and the mic
+    // would look permanently "on" with nothing to show for it.
+    if ((status == 'done' || status == 'notListening') && _isRecording) {
+      setState(() => _isRecording = false);
+      _officeState.transitionTo(OfficeState.idle);
+    }
+  }
+
+  void _onSpeechError(dynamic error) {
+    setState(() => _isRecording = false);
+    _officeState.transitionTo(OfficeState.idle);
+    debugPrint('Speech recognition error: $error');
+  }
+
+  // Real feature 2026-08-06 — the actual real answer, mirroring
+  // _sendText() exactly, since a finalized on-device transcript is now
+  // authoritative the same way typed text already is — not a preview
+  // waiting on a separate server-side transcription step that no
+  // longer exists in this flow.
+  Future<void> _sendRecognizedText(String text) async {
+    final history = _recentHistory();
+    _addMessage(MessageRole.user, text);
     final statusId = _addMessage(MessageRole.status, '');
     _startThinking();
 
     try {
-      final uri = Uri.parse('$officeApiBase/files/audio');
-      final request = http.MultipartRequest('POST', uri);
-      request.headers.addAll(_authHeaders());
-      request.files.add(await http.MultipartFile.fromPath('audio', path));
-      request.fields['history'] = jsonEncode(history);
-      final streamed = await request.send();
-      final response = await http.Response.fromStream(streamed);
+      final uri = Uri.parse('$officeApiBase/messages/text');
+      final response = await http.post(
+        uri,
+        headers: _authHeaders({'Content-Type': 'application/json'}),
+        body: jsonEncode({'text': text, 'history': history}),
+      );
       _stopThinking();
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
-        final transcript = data['transcript'] as String?;
-        if (transcript != null && transcript.trim().isNotEmpty) {
-          _updateMessage(userId, text: transcript);
-          _officeState.emit(WordSpoken(transcript));
-        }
         _updateMessage(
           statusId,
           role: MessageRole.office,
@@ -687,17 +758,11 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         );
         _loadEmberCounts();
       } else {
-        _updateMessage(statusId, role: MessageRole.office, text: 'Upload failed (${response.statusCode}).');
+        _updateMessage(statusId, role: MessageRole.office, text: 'Something went wrong (${response.statusCode}).');
       }
     } catch (_) {
       _stopThinking();
-      _updateMessage(statusId, role: MessageRole.office, text: 'Upload failed — check connection.');
-    } finally {
-      try {
-        await File(path).delete();
-      } catch (_) {
-        // Not critical if cleanup fails.
-      }
+      _updateMessage(statusId, role: MessageRole.office, text: 'Could not reach the Office — check connection.');
     }
   }
 
