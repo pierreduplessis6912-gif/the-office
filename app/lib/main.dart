@@ -18,6 +18,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'runtime/office_clock.dart';
 import 'runtime/office_room.dart';
 import 'runtime/office_state.dart';
+import 'runtime/word_field.dart';
 
 /// The one thing every future client (Flutter, PWA, desktop) points at.
 /// Changing this one line is the entire cost of a future domain swap.
@@ -205,6 +206,12 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   final _officeState = OfficeStateMachine();
   late final OfficeClock _clock;
 
+  // Phase 1 of the Word Field System (see runtime/word_field.dart) —
+  // built against _officeState.events, the real, first thing to
+  // consume it. Doesn't replace _messages/the ledger below; a purely
+  // additive animation layered on top of it.
+  late final WordFieldController _wordField;
+
   bool _isRecording = false;
   bool _isWriteMode = false;
   int _idCounter = 0;
@@ -253,6 +260,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     _loadEmberCounts();
 
     _clock = OfficeClock(vsync: this)..start();
+    _wordField = WordFieldController(events: _officeState.events);
 
     _entranceController = AnimationController(vsync: this, duration: const Duration(milliseconds: 4200));
     _entranceOpacity = TweenSequence<double>([
@@ -275,6 +283,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     _entranceController.dispose();
     _clock.dispose();
     _officeState.dispose();
+    _wordField.dispose();
     super.dispose();
   }
 
@@ -602,6 +611,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       await _recorder.start(const RecordConfig(), path: path);
       setState(() => _isRecording = true);
       _officeState.transitionTo(OfficeState.listening);
+      _wordField.clear();
     } catch (e, stack) {
       // Surface the real error instead of failing silently — this is
       // a diagnostic addition specifically to find out what's actually
@@ -640,6 +650,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         final transcript = data['transcript'] as String?;
         if (transcript != null && transcript.trim().isNotEmpty) {
           _updateMessage(userId, text: transcript);
+          _officeState.emit(WordSpoken(transcript));
         }
         _updateMessage(
           statusId,
@@ -834,6 +845,13 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
             // ambient, non-interactive, not tied to any real data —
             // atmosphere, not information.
             Positioned.fill(child: _AmbientSparkField(clock: _clock)),
+            // Phase 1 of the Word Field System — real transcript words
+            // appear, drift, and dissolve in the upper band, per Rule 3
+            // and the Speech Visualisation spec. Additive only: the
+            // ledger below still shows the same transcript permanently
+            // — Rule 3's larger "no permanent ledger at all" question
+            // is deliberately not decided in this pass.
+            Positioned.fill(child: WordField(controller: _wordField, clock: _clock)),
             Column(
               children: [
                 Expanded(
