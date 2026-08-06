@@ -469,7 +469,19 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       _officeState.transitionTo(OfficeState.responding);
       _officeState.emit(ResponseReceived(text));
       _officeState.transitionTo(OfficeState.idle);
-      setState(() => _activeMessageId = id);
+      // Real bug found on-device 2026-08-06: the response used to
+      // activate immediately, independent of whatever WordField was
+      // still doing — when the backend answered fast, the still-
+      // dissolving input words visually collided with the answer
+      // crystallizing in on top of them. Clearing here interrupts
+      // them cleanly the instant the answer is ready, with one short,
+      // deliberate beat before the answer appears — not the words'
+      // full natural ~3-4s cycle, which would just add felt latency
+      // for no reason.
+      _wordField.clear();
+      Timer(const Duration(milliseconds: 220), () {
+        if (mounted) setState(() => _activeMessageId = id);
+      });
     }
     return id;
   }
@@ -495,7 +507,15 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       _officeState.transitionTo(OfficeState.responding);
       _officeState.emit(ResponseReceived(text));
       _officeState.transitionTo(OfficeState.idle);
-      setState(() => _activeMessageId = id);
+      // Same real fix as _addMessage above — interrupt any still-
+      // dissolving input words the instant the real answer is ready,
+      // rather than letting them run their full course and collide
+      // with it. This is the actual call site the real voice flow
+      // hits, so this is the one that mattered for the reported bug.
+      _wordField.clear();
+      Timer(const Duration(milliseconds: 220), () {
+        if (mounted) setState(() => _activeMessageId = id);
+      });
     }
   }
 
