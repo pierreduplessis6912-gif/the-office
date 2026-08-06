@@ -57,6 +57,24 @@ for permission in PERMISSIONS:
 if "com.linusu.flutter_web_auth_2.CallbackActivity" not in content:
     content = re.sub(r"(\s*)(</application>)", rf"\1{CALLBACK_ACTIVITY}\1\2", content, count=1)
 
+# Real requirement for on-device speech recognition (speech_to_text
+# package) added 2026-08-06: Android 11+ (API 30+) restricts package
+# visibility by default, so without this <queries> block the OS's own
+# speech recognition service becomes invisible to the app and
+# SpeechToText.initialize() silently reports unavailable. Confirmed
+# against the plugin's own documented Android SDK 30+ setup
+# requirement, not guessed at — this project already compiles against
+# SDK 36, well above that threshold, so this genuinely applies here.
+QUERIES_BLOCK = """    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+"""
+
+if "android.speech.RecognitionService" not in content:
+    content = re.sub(r"(\s*)(<application)", rf"\1{QUERIES_BLOCK}\1\2", content, count=1)
+
 if "EnableImpeller" not in content:
     content = re.sub(r"(\s*)(</application>)", rf"\1{IMPELLER_FLAG}\1\2", content, count=1)
 
@@ -66,6 +84,7 @@ final = open(MANIFEST_PATH).read()
 for permission in PERMISSIONS:
     assert permission in final, f"missing permission after patch: {permission}"
 assert "com.linusu.flutter_web_auth_2.CallbackActivity" in final, "missing CallbackActivity after patch"
+assert "android.speech.RecognitionService" in final, "missing speech recognition queries block after patch"
 assert "EnableImpeller" in final, "missing Impeller flag after patch"
 print("All permissions, the CallbackActivity, and the Impeller flag confirmed present in manifest.")
 
