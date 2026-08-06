@@ -2276,6 +2276,24 @@ class _ActiveResponseState extends State<_ActiveResponse> with SingleTickerProvi
   Timer? _dissolveTimer;
   String? _shownId;
 
+  // Real feature 2026-08-06 — "structure from chaos," the mirror of
+  // Peter's own words dissolving into scatter on the input side.
+  // Deliberately NOT literal per-glyph particle tracing — that needs
+  // real glyph outline sampling, a genuinely bigger, separate build.
+  // This is a small, fixed number of scattered light points
+  // converging loosely into the response's own real layout area
+  // (fractional target coordinates resolved against the actual
+  // CustomPaint canvas size at paint time, which matches _MessageLine's
+  // real bounds since Stack sizes to its largest child) — an
+  // atmospheric convergence, not a precise trace, on purpose: Pierre
+  // asked for subtle, and a precise letter-trace would read as the
+  // showier, more theatrical version of this idea, not the quieter
+  // one. Reusing the exact same seeded-offset-as-pure-function pattern
+  // already proven in word_field.dart, for the same reason — safe to
+  // reason about frame to frame, no hidden mutable state.
+  static const int _particleCount = 22;
+  List<_ParticleSeed> _particles = const [];
+
   @override
   void initState() {
     super.initState();
@@ -2297,6 +2315,7 @@ class _ActiveResponseState extends State<_ActiveResponse> with SingleTickerProvi
       // from the start. A confirm/reject tap on the SAME message
       // must never replay this; only a real new arrival does.
       _shownId = msg.id;
+      _particles = _seedParticles(msg.id);
       _dissolveTimer?.cancel();
       _dissolveTimer = null;
       _controller
@@ -2304,6 +2323,19 @@ class _ActiveResponseState extends State<_ActiveResponse> with SingleTickerProvi
         ..forward();
     }
     _maybeArmDissolve();
+  }
+
+  List<_ParticleSeed> _seedParticles(String seed) {
+    final rand = math.Random(seed.hashCode);
+    return List.generate(_particleCount, (i) {
+      final angle = rand.nextDouble() * 2 * math.pi;
+      final radius = 80.0 + rand.nextDouble() * 130.0;
+      return _ParticleSeed(
+        startOffset: Offset(math.cos(angle) * radius, math.sin(angle) * radius),
+        targetDx: 0.08 + rand.nextDouble() * 0.84,
+        targetDy: 0.12 + rand.nextDouble() * 0.76,
+      );
+    });
   }
 
   bool get _hasUnresolvedPending =>
@@ -2326,6 +2358,10 @@ class _ActiveResponseState extends State<_ActiveResponse> with SingleTickerProvi
     final justResolved = msg.pendingItems.isNotEmpty;
     final holdMs = justResolved ? 2600 : (2500 + msg.text.length * 40).clamp(3000, 14000);
     _dissolveTimer = Timer(Duration(milliseconds: holdMs), () async {
+      // Reusing the same controller in reverse means the light
+      // scatters back outward as the response leaves — order
+      // returning to chaos on the way out, the same real system
+      // playing backward, not a second effect built to match.
       await _controller.reverse();
       if (mounted) widget.onDismissed();
     });
@@ -2342,22 +2378,79 @@ class _ActiveResponseState extends State<_ActiveResponse> with SingleTickerProvi
   Widget build(BuildContext context) {
     final msg = widget.message;
     if (msg == null) return const SizedBox.shrink();
-    return FadeTransition(
-      opacity: _controller,
-      child: ScaleTransition(
-        scale: Tween<double>(begin: 0.97, end: 1.0)
-            .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic)),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: _MessageLine(
-            message: msg,
-            onConfirm: widget.onConfirm,
-            onReject: widget.onReject,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // The real text — deliberately delayed relative to the
+          // particles (Interval starts at 0.35, not 0.0) so the light
+          // visibly gathers first, then resolves into readable words,
+          // rather than both cross-fading in at the same flat rate.
+          FadeTransition(
+            opacity: CurvedAnimation(
+              parent: _controller,
+              curve: const Interval(0.35, 1.0, curve: Curves.easeOut),
+            ),
+            child: _MessageLine(
+              message: msg,
+              onConfirm: widget.onConfirm,
+              onReject: widget.onReject,
+            ),
           ),
-        ),
+          // The converging light — ignores touch, purely atmospheric,
+          // fully faded and inert well before the hold phase begins.
+          IgnorePointer(
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) => CustomPaint(
+                size: Size.infinite,
+                painter: _ConvergingLightPainter(progress: _controller.value, particles: _particles),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+// Pure seed data, resolved against real canvas size only at paint
+// time — the same discipline as WordParticle in word_field.dart.
+class _ParticleSeed {
+  final Offset startOffset; // absolute px, relative to canvas center — independent of size
+  final double targetDx; // 0..1 fraction of the real canvas width at paint time
+  final double targetDy; // 0..1 fraction of the real canvas height at paint time
+  const _ParticleSeed({required this.startOffset, required this.targetDx, required this.targetDy});
+}
+
+class _ConvergingLightPainter extends CustomPainter {
+  final double progress; // 0..1, straight from _controller — reversible for free
+  final List<_ParticleSeed> particles;
+  _ConvergingLightPainter({required this.progress, required this.particles});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final eased = Curves.easeOutCubic.transform(progress.clamp(0.0, 1.0));
+    final opacity = (1.0 - eased).clamp(0.0, 1.0);
+    if (opacity <= 0.0) return;
+
+    final center = size.center(Offset.zero);
+    for (final p in particles) {
+      final target = Offset(size.width * p.targetDx, size.height * p.targetDy);
+      final start = center + p.startOffset;
+      final pos = Offset.lerp(start, target, eased)!;
+      final glowOpacity = (opacity * 0.85).clamp(0.0, 1.0);
+      final glowPaint = Paint()
+        ..shader = RadialGradient(
+          colors: [_paper.withOpacity(glowOpacity), _paper.withOpacity(0.0)],
+        ).createShader(Rect.fromCircle(center: pos, radius: 4.0));
+      canvas.drawCircle(pos, 2.2, glowPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ConvergingLightPainter old) => old.progress != progress;
 }
 
 class _MessageLine extends StatelessWidget {
