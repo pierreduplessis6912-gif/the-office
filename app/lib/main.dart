@@ -221,6 +221,11 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   // the app should start genuinely empty, not with a pre-written
   // greeting standing in for it.
   final List<ChatMessage> _messages = [];
+  // The void stays a void — at most one office message is ever
+  // visible at a time, via _ActiveResponse below. _messages itself
+  // keeps accumulating everything, unseen, purely as real
+  // conversational memory for _recentHistory().
+  String? _activeMessageId;
 
   final EmberCounts _embers = EmberCounts();
 
@@ -464,6 +469,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       _officeState.transitionTo(OfficeState.responding);
       _officeState.emit(ResponseReceived(text));
       _officeState.transitionTo(OfficeState.idle);
+      setState(() => _activeMessageId = id);
     }
     return id;
   }
@@ -489,6 +495,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       _officeState.transitionTo(OfficeState.responding);
       _officeState.emit(ResponseReceived(text));
       _officeState.transitionTo(OfficeState.idle);
+      setState(() => _activeMessageId = id);
     }
   }
 
@@ -852,14 +859,30 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
                       ? const _SighState()
                       : _messages.isEmpty
                           ? _Greeting(userEmail: _userEmail)
-                          : ListView.builder(
-                              controller: _scrollController,
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              itemCount: _messages.length,
-                              itemBuilder: (context, i) => _MessageLine(
-                                message: _messages[i],
-                                onConfirm: (itemId) => _resolvePendingItem(_messages[i].id, itemId, true),
-                                onReject: (itemId) => _resolvePendingItem(_messages[i].id, itemId, false),
+                          // The void stays a void — no permanent ledger.
+                          // _messages keeps accumulating underneath
+                          // (real conversational context, e.g.
+                          // _recentHistory() for pronoun resolution,
+                          // and Constitution Principle 3 doesn't apply
+                          // here anyway since the real capture already
+                          // lives server-side). But nothing renders as
+                          // a scrolling list of bubbles anymore. At
+                          // most one office response is ever visible,
+                          // and even that one dissolves once read.
+                          : Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
+                              child: _ActiveResponse(
+                                message: _activeMessageId == null
+                                    ? null
+                                    : _messages.firstWhere(
+                                        (m) => m.id == _activeMessageId,
+                                        orElse: () => _messages.last,
+                                      ),
+                                onConfirm: (itemId) => _resolvePendingItem(_activeMessageId!, itemId, true),
+                                onReject: (itemId) => _resolvePendingItem(_activeMessageId!, itemId, false),
+                                onDismissed: () {
+                                  if (mounted) setState(() => _activeMessageId = null);
+                                },
                               ),
                             ),
                 ),
@@ -2129,6 +2152,129 @@ class _TalkArea extends StatelessWidget {
 // Not a chat bubble — a ledger line. Each entry is a small-caps mono
 // label, a colored accent stripe identifying who wrote it, and the
 // message in a plain, highly legible body face.
+// Real feature 2026-08-06 — the void stays a void. Replaces the
+// permanent ledger entirely: at most one office message is ever
+// visible on screen, and even that one dissolves once read, the
+// mirror of Peter's own words dissolving via WordField. No chat
+// bubbles, no scroll history, no memory of the exchange left showing
+// — matching Rule 3's fuller intent, not the partial, additive version
+// this started as.
+//
+// One real, non-negotiable safety rule this widget must never violate:
+// a message carrying an unresolved guard()'d pending item (a real
+// payment, invoice, quotation, or fact awaiting confirmation) NEVER
+// auto-dissolves while any item on it is still PendingStatus.pending.
+// It holds open until Peter actually confirms or rejects every item.
+// The void can wait. A live money decision cannot be timed out from
+// under him. Enforced by simply never arming the dissolve timer while
+// that's true, re-checked on every rebuild — not by touching the
+// confirm/reject rendering itself, which stays exactly _MessageLine's
+// existing, already-proven UI, completely untouched.
+class _ActiveResponse extends StatefulWidget {
+  final ChatMessage? message;
+  final void Function(int itemId) onConfirm;
+  final void Function(int itemId) onReject;
+  final VoidCallback onDismissed;
+  const _ActiveResponse({
+    required this.message,
+    required this.onConfirm,
+    required this.onReject,
+    required this.onDismissed,
+  });
+
+  @override
+  State<_ActiveResponse> createState() => _ActiveResponseState();
+}
+
+class _ActiveResponseState extends State<_ActiveResponse> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  Timer? _dissolveTimer;
+  String? _shownId;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 650));
+    _maybeStart();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ActiveResponse oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _maybeStart();
+  }
+
+  void _maybeStart() {
+    final msg = widget.message;
+    if (msg == null) return;
+    if (msg.id != _shownId) {
+      // A genuinely new message — reset and play the crystallize-in
+      // from the start. A confirm/reject tap on the SAME message
+      // must never replay this; only a real new arrival does.
+      _shownId = msg.id;
+      _dissolveTimer?.cancel();
+      _dissolveTimer = null;
+      _controller
+        ..reset()
+        ..forward();
+    }
+    _maybeArmDissolve();
+  }
+
+  bool get _hasUnresolvedPending =>
+      widget.message?.pendingItems.any((p) => p.status == PendingStatus.pending) ?? false;
+
+  void _maybeArmDissolve() {
+    final msg = widget.message;
+    if (msg == null) return;
+    if (_hasUnresolvedPending) {
+      _dissolveTimer?.cancel();
+      _dissolveTimer = null;
+      return;
+    }
+    if (_dissolveTimer != null) return;
+    // Generous, deliberate reading time for a real answer, not a
+    // single word — roughly 25 characters/second skim speed, floored
+    // and capped. If it just resolved a pending item, Peter already
+    // read it once while deciding, so a short acknowledgement hold is
+    // enough rather than a full re-read window.
+    final justResolved = msg.pendingItems.isNotEmpty;
+    final holdMs = justResolved ? 2600 : (2500 + msg.text.length * 40).clamp(3000, 14000);
+    _dissolveTimer = Timer(Duration(milliseconds: holdMs), () async {
+      await _controller.reverse();
+      if (mounted) widget.onDismissed();
+    });
+  }
+
+  @override
+  void dispose() {
+    _dissolveTimer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final msg = widget.message;
+    if (msg == null) return const SizedBox.shrink();
+    return FadeTransition(
+      opacity: _controller,
+      child: ScaleTransition(
+        scale: Tween<double>(begin: 0.97, end: 1.0)
+            .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: _MessageLine(
+            message: msg,
+            onConfirm: widget.onConfirm,
+            onReject: widget.onReject,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MessageLine extends StatelessWidget {
   final ChatMessage message;
   final void Function(int itemId) onConfirm;
