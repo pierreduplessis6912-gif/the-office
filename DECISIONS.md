@@ -4286,3 +4286,147 @@ result — smoother from fewer tickers and proper `RepaintBoundary`
 isolation; visually identical because the migration deliberately
 changed *how* the animations are driven, not *what* they look like.
 
+## The Word Field System, the void realized in full, and real-time on-device speech (2026-08-06)
+
+A single session that moved from an external design proposal to a
+verified, working real-time voice pipeline on the actual device — four
+real bugs found and fixed along the way, each traced from real
+evidence rather than assumed, and one genuine architecture reversal
+mid-build when a platform constraint turned out to make the original
+plan technically impossible.
+
+**The proposal, evaluated critically rather than adopted by
+default.** An external conversation (reading like Kimi or ChatGPT)
+proposed a full physics-based word-particle system — words drifting
+toward the orb under simulated gravity, dissolving into an event
+horizon, the response condensing back out "like water on glass." The
+right response wasn't wholesale adoption or dismissal: it turned out
+to already match, almost verbatim, the Speech Visualisation spec in
+`NATIVE_TRANSITION_BRIEF.md` and a named-but-never-built "Speech
+System" slot in `OFFICE_RUNTIME_V1.md`'s own architecture diagram —
+not a new idea, an unbuilt one. What needed real pushback: the
+cinematic "black hole"/"event horizon" framing fights Rule 7 (never
+loud) and the Ember Test directly; semantic word-weighting needed to
+ride the real, already-computed extraction result per Principle 1,
+not a fresh AI judgement made just for the animation. Built as Phase 1
+only — appear, drift, dissolve on a fixed timer — smallest real domino
+first, the same discipline as the Runtime v1 build itself.
+
+**Real bug 1 — invisible by simple ordering mistake.** `WordField` was
+placed before `Column` in the body `Stack`, so it painted underneath
+the permanent message ledger rather than on top of it. Found from a
+real on-device screenshot Pierre sent showing the ledger with zero
+trace of any animation. Fixed by reordering — a plain mistake, not a
+deep one.
+
+**Real bug 2 — invisible for a subtler, truthier reason, found only
+by extracting real video frames.** Even after the ordering fix, still
+reportedly invisible. Claude has no native video playback — the real,
+working method turned out to be ffmpeg-extracting dense frame bursts
+from Pierre's screen recordings and inspecting them as stills, dense
+enough to reconstruct real timing. A `WF:N` counter (temporary,
+explicitly marked as such, removed once it had answered its question)
+proved the event pipeline genuinely worked — `WordSpoken`, defined in
+`office_state.dart` since it was first written but never once emitted
+anywhere until this session, was now firing and populating real
+`WordParticle`s. A full-resolution frame then showed why nothing
+registered anyway: the words were painting, correctly positioned, but
+at 15px, low contrast, mostly caught mid-fade rather than at peak
+opacity, directly overlapping the permanent ledger's own bold text
+showing the identical words underneath. Not broken — camouflaged by
+its own duplicate. Durable lesson, worth stating plainly for next
+time: a video upload is genuinely usable evidence even without native
+playback — ffmpeg frame extraction, done densely enough around the
+moment that matters, found two real bugs tonight that reading the
+code alone could not have caught.
+
+**"The void stays a void" — Rule 3 realized in full, not the partial,
+additive version this had been.** Pierre's own words: "the void stays
+a void. It must never become a ledger or chat bubble... Words dissolve
+out of my mouth into the void. Words appear out of the void as an
+answer." This meant more than fixing contrast — the permanent
+`ListView` ledger was removed entirely. Replaced with `_ActiveResponse`:
+at most one office message ever visible at a time, a real crystallize-in
+(fade + scale, not a chat bubble), held for a reading-time-proportional
+duration, then dissolved — the direct mirror of Peter's own words on
+the input side. `_messages` itself was deliberately left untouched
+underneath — it still feeds `_recentHistory()` for real pronoun
+resolution ("her" → "Jenny"), and the real transcript already lives
+server-side regardless of what the screen shows; the void performs
+forgetting, the backend doesn't. One non-negotiable safety rule
+enforced here: a message carrying an unresolved `guard()`-held pending
+item (a real payment, invoice, quotation) never auto-dissolves while
+any item on it is still pending — enforced by simply never arming the
+dissolve timer while that's true, reusing `_MessageLine` and
+`_resolvePendingItem` completely untouched rather than rewriting any
+part of the confirm/reject path itself.
+
+**Real bug 3 — the void's two halves racing each other.** Once both
+halves existed, a real screen recording showed the answer crystallizing
+in while Peter's own words were still visibly dissolving on top of it
+— the backend had answered faster than the input words' natural ~4s
+cycle. Not a delay problem; fixed by having the response's arrival
+immediately clear any still-visible input words and activate after one
+short, deliberate 220ms beat, rather than either colliding with them
+or making every answer wait out the words' full natural life for no
+reason.
+
+**Real bug 4 — a ~24-second dead first attempt, found the same way.**
+A third recording showed 24 straight seconds of a completely
+unchanging idle screen before anything happened at all — not "no
+visual feedback," genuinely no message ever added, meaning the
+recording flow never completed on the first real attempt. Best
+evidence-based explanation, not fully confirmed: Android's own
+permission dialog likely intercepted the interaction. Separately, real
+code review confirmed the orb does attempt a recording-state visual
+change (a brighter gradient blend) but the base color stays identical
+in the common, non-"all clear" case — the same low-contrast pattern as
+bug 2, flagged but deliberately not fixed in this pass, since the
+architecture change below made it moot for voice specifically.
+
+**The architecture reversal: real-time on-device speech recognition
+replaces record-then-upload entirely.** Pierre's real, pointed
+question — why does voice input here lag ~8 seconds when live
+transcription elsewhere feels instant — led to a proposal to run
+on-device recognition alongside the existing audio-upload pipeline,
+framed as "nothing else about the pipeline changes." That framing was
+wrong: Android does not support recording raw audio while on-device
+speech recognition is active at the same time, confirmed directly
+against the speech_to_text plugin's own documentation, not assumed.
+Surfaced honestly before writing any code, with the real fork it
+created: on-device recognition as a mere preview (keep the existing
+architecture, accept the lag) versus on-device recognition becoming
+authoritative (instant, but no second, server-side transcription pass
+to catch a mishearing). Pierre chose the latter explicitly, naming the
+real accuracy tradeoff and the existing guard()/confirm mechanism as
+the accepted mitigation.
+
+Built: the entire record→upload→server-transcribe pipeline for voice
+removed (`record` and `path_provider` dependencies dropped entirely,
+confirmed genuinely unused elsewhere first). `speech_to_text` (7.4.0)
+now drives live recognition directly; each new recognized word is
+diffed against the previous partial result and emitted as its own
+`WordSpoken` event the instant it arrives — real appear-and-dissolve
+per word, live, not a batch replay after the fact. The finalized
+transcript posts through the exact same `/messages/text` endpoint
+typed messages already used, rather than a separate voice-specific
+route. `patch_android_manifest.py` gained the real `<queries>` block
+Android 11+ requires before the OS's own speech service becomes
+visible to the app at all — a documented plugin requirement, not
+guessed at. Real robustness built in deliberately, not assumed: an
+explicit tap-to-stop sends whatever was heard directly rather than
+depending solely on the plugin's own `stop()` reliably firing one more
+result callback; a status listener resets the recording state if
+Android's own short pause timeout ends a session with no explicit
+second tap; an error listener prevents the mic from ever looking
+permanently stuck on.
+
+**Verified on the real device — a real, unambiguous success.**
+Pierre's own words: "instant, words floating, disappearing, black
+screen, rendered a response. Native speech, perfect." First Codemagic
+build carrying a genuinely new native dependency, first try. The web
+preview build passing throughout this whole arc was real signal for
+compilation correctness — never mistaken for confirmation of on-device
+plugin behavior, timing, or contrast, which is what real device
+testing kept catching that reading code alone did not.
+
