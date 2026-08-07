@@ -2378,38 +2378,67 @@ class _ActiveResponseState extends State<_ActiveResponse> with SingleTickerProvi
   Widget build(BuildContext context) {
     final msg = widget.message;
     if (msg == null) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // The real text — deliberately delayed relative to the
-          // particles (Interval starts at 0.35, not 0.0) so the light
-          // visibly gathers first, then resolves into readable words,
-          // rather than both cross-fading in at the same flat rate.
-          FadeTransition(
-            opacity: CurvedAnimation(
-              parent: _controller,
-              curve: const Interval(0.35, 1.0, curve: Curves.easeOut),
+    final hasPending = msg.pendingItems.isNotEmpty;
+
+    // Real feedback, 2026-08-07: "it still looks like a chat bubble" —
+    // not because of any literal box or fill, there never was one, but
+    // because a sender label plus a colored accent bar plus a
+    // top-pinned paragraph is chat-app grammar on its own. The orb is
+    // visibly who's speaking; a plain response no longer needs a
+    // header announcing that. The pending-item stamp keeps its own
+    // label and _MessageLine rendering completely unchanged underneath
+    // — it's a fundamentally different, already-distinct confirm/
+    // reject UI, not what this feedback was about, and not worth the
+    // risk of touching. Both cases now share the same bottom-center
+    // anchor, above the orb, rather than pinned top-left like a
+    // notification that arrived.
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: hasPending ? 16 : 32, vertical: 8),
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            // The real content — deliberately delayed relative to the
+            // particles (Interval starts at 0.35, not 0.0) so the
+            // light visibly gathers first, then resolves into
+            // readable words, rather than both cross-fading in at the
+            // same flat rate.
+            FadeTransition(
+              opacity: CurvedAnimation(
+                parent: _controller,
+                curve: const Interval(0.35, 1.0, curve: Curves.easeOut),
+              ),
+              child: hasPending
+                  ? _MessageLine(message: msg, onConfirm: widget.onConfirm, onReject: widget.onReject)
+                  : Text(
+                      msg.text,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.workSans(
+                        fontSize: 16.5,
+                        color: _paper,
+                        height: 1.45,
+                        shadows: [
+                          Shadow(color: _pulse.withOpacity(0.55), blurRadius: 26),
+                          Shadow(color: _pulse.withOpacity(0.22), blurRadius: 54),
+                        ],
+                      ),
+                    ),
             ),
-            child: _MessageLine(
-              message: msg,
-              onConfirm: widget.onConfirm,
-              onReject: widget.onReject,
-            ),
-          ),
-          // The converging light — ignores touch, purely atmospheric,
-          // fully faded and inert well before the hold phase begins.
-          IgnorePointer(
-            child: AnimatedBuilder(
-              animation: _controller,
-              builder: (context, _) => CustomPaint(
-                size: Size.infinite,
-                painter: _ConvergingLightPainter(progress: _controller.value, particles: _particles),
+            // The converging light — ignores touch, purely atmospheric,
+            // fully faded and inert well before the hold phase begins.
+            IgnorePointer(
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, _) => CustomPaint(
+                  size: Size.infinite,
+                  painter: _ConvergingLightPainter(progress: _controller.value, particles: _particles),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
