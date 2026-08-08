@@ -224,7 +224,14 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   // proven Container orb stays the real experience; this only shows
   // when explicitly toggled from the more-menu, purely to verify the
   // shader pipeline on the real device before Stage 1 begins.
-  bool _showShaderStage0 = false;
+  // Real orb rebuild, Stage 1, 2026-08-07 — the real material, still
+  // off by default. Loaded once at app level (not per-widget-mount)
+  // since it's a real, shared resource the orb needs for the whole
+  // session, not a one-off test. Null until _loadStage1Shader()
+  // finishes; _TalkArea falls back to the proven old orb whenever
+  // it's null, toggle or not.
+  ui.FragmentShader? _stage1Shader;
+  bool _useShaderOrb = false;
   bool _isWriteMode = false;
   int _idCounter = 0;
 
@@ -278,6 +285,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
 
     _clock = OfficeClock(vsync: this)..start();
     _wordField = WordFieldController(events: _officeState.events);
+    _loadStage1Shader();
 
     _entranceController = AnimationController(vsync: this, duration: const Duration(milliseconds: 4200));
     _entranceOpacity = TweenSequence<double>([
@@ -312,6 +320,20 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   // guide"). Failures are silently ignored per-route rather than
   // shown as an error; a stale or missing count is a minor cosmetic
   // gap, not something worth interrupting Peter over.
+  // Real orb rebuild, Stage 1, 2026-08-07 — loads once at startup.
+  // Deliberately does not touch _useShaderOrb here; the toggle stays
+  // false until explicitly flipped from the more-menu, same
+  // feature-flag discipline as Stage 0.
+  Future<void> _loadStage1Shader() async {
+    try {
+      final program = await ui.FragmentProgram.fromAsset('shaders/stage1_orb.frag');
+      if (!mounted) return;
+      setState(() => _stage1Shader = program.fragmentShader());
+    } catch (e, stack) {
+      debugPrint('Stage 1 shader load failed: $e\n$stack');
+    }
+  }
+
   Future<void> _loadEmberCounts() async {
     Future<void> safeFetch(String path, void Function(Map<String, dynamic>) onData) async {
       try {
@@ -984,6 +1006,8 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
                   isAllClear: _embers.allClear && _messages.isEmpty,
                   clock: _clock,
                   thinkingEmberId: _thinkingEmberId,
+                  useShaderOrb: _useShaderOrb,
+                  stage1Shader: _stage1Shader,
                   onSend: () {
                     _sendText();
                     setState(() => _isWriteMode = false);
@@ -1015,15 +1039,6 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
             // larger "no permanent ledger at all" question is
             // deliberately not decided in this pass.
             Positioned.fill(child: WordField(controller: _wordField, clock: _clock)),
-            // Real orb rebuild, Stage 0, 2026-08-07 — off by default,
-            // purely additive. Deliberately does not touch or replace
-            // the real orb below; see _showMoreMenu for the toggle.
-            if (_showShaderStage0)
-              Positioned(
-                top: 80,
-                right: 16,
-                child: _ShaderStage0Test(clock: _clock),
-              ),
             // Real feature 2026-07-28 — the one-time entrance moment.
             // Positioned above everything else, but ignoring pointer
             // events entirely once it starts fading, so it never
@@ -1064,17 +1079,19 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         PopupMenuItem(value: 'account', child: Text(_isSignedIn ? (_userEmail ?? 'Account') : 'Sign in')),
         const PopupMenuItem(value: 'settings', child: Text('Settings')),
         const PopupMenuItem(value: 'help', child: Text('Help & tutorials')),
-        // Real, temporary, 2026-08-07 — Stage 0 of the orb rebuild.
-        // Remove once Stage 0 is confirmed on the real device and
-        // Stage 1 begins; this was never meant to be permanent chrome.
+        // Real, temporary, 2026-08-07 — Stage 1 of the orb rebuild.
+        // Stage 0's own toggle is gone now that it's confirmed and
+        // superseded. This one swaps the real orb itself in place —
+        // same feature-flag discipline, higher stakes. Remove once
+        // Stage 1 is accepted and Stage 2 begins.
         PopupMenuItem(
-          value: 'shader_stage0',
-          child: Text(_showShaderStage0 ? 'Hide shader test (Stage 0)' : 'Shader test (Stage 0)'),
+          value: 'shader_orb',
+          child: Text(_useShaderOrb ? 'Use old orb' : 'Use shader orb (Stage 1)'),
         ),
       ],
     );
     if (selected == 'account') _showAccountSheet();
-    if (selected == 'shader_stage0') setState(() => _showShaderStage0 = !_showShaderStage0);
+    if (selected == 'shader_orb') setState(() => _useShaderOrb = !_useShaderOrb);
   }
 
   // Real feature 2026-07-27 — the real account sheet: sign-in for a
@@ -1725,6 +1742,32 @@ class _EmberGlowPainter extends CustomPainter {
 // Real, deliberate CustomPainter for the primary circle's glow -
 // same rationale as _EmberGlowPainter, applied to the one, dominant
 // object rather than the embers.
+// Real orb rebuild, Stage 1, 2026-08-07 — the real material, painted.
+// Deliberately minimal: only uSize and uTime reach the shader, per
+// Stage 1's own explicit constraint that it must not know the Office
+// has states. _CircleGlowPainter's existing halo still renders behind
+// this untouched, so the shader orb inherits the same ambient glow
+// the old one had, rather than needing its own second glow system.
+class _Stage1OrbPainter extends CustomPainter {
+  final ui.FragmentShader shader;
+  final double time;
+  _Stage1OrbPainter({required this.shader, required this.time});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Uniform order must match stage1_orb.frag exactly: uSize (vec2 =
+    // 2 floats), then uTime (float = 1 float).
+    shader
+      ..setFloat(0, size.width)
+      ..setFloat(1, size.height)
+      ..setFloat(2, time);
+    canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
+  }
+
+  @override
+  bool shouldRepaint(covariant _Stage1OrbPainter old) => old.time != time;
+}
+
 class _CircleGlowPainter extends CustomPainter {
   final Color color;
   final double coreDiameter;
@@ -1783,95 +1826,6 @@ class _CircleGlowPainter extends CustomPainter {
 // synchronize, rendered via a single CustomPainter — one paint pass
 // for ~28 sparks, not 28 separate animating widgets, matching the
 // same performance discipline as the real embers.
-// Real orb rebuild, Stage 0, 2026-08-07 — proves the Flutter/Impeller
-// fragment shader pipeline end to end on the real device before any
-// real material math gets written. See stage0_pulse.frag for the
-// full reasoning. Deliberately temporary: remove this whole class
-// once Stage 0 is confirmed and Stage 1 begins.
-class _ShaderStage0Test extends StatefulWidget {
-  final OfficeClock clock;
-  const _ShaderStage0Test({required this.clock});
-
-  @override
-  State<_ShaderStage0Test> createState() => _ShaderStage0TestState();
-}
-
-class _ShaderStage0TestState extends State<_ShaderStage0Test> {
-  ui.FragmentShader? _shader;
-  String? _loadError;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    try {
-      final program = await ui.FragmentProgram.fromAsset('shaders/stage0_pulse.frag');
-      if (!mounted) return;
-      setState(() => _shader = program.fragmentShader());
-    } catch (e, stack) {
-      // Real diagnostic, not a permanent behavior - Stage 0's whole
-      // purpose is finding out if this fails, and why, on the real
-      // device rather than guessing.
-      debugPrint('Stage 0 shader load failed: $e\n$stack');
-      if (mounted) setState(() => _loadError = e.toString());
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final shader = _shader;
-    if (_loadError != null) {
-      return Container(
-        width: 140,
-        height: 140,
-        color: Colors.black87,
-        padding: const EdgeInsets.all(8),
-        child: Text(
-          'Stage 0 failed:\n$_loadError',
-          style: const TextStyle(color: Colors.redAccent, fontSize: 9),
-        ),
-      );
-    }
-    if (shader == null) {
-      return const SizedBox(
-        width: 140,
-        height: 140,
-        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-      );
-    }
-    return AnimatedBuilder(
-      animation: widget.clock,
-      builder: (context, _) => CustomPaint(
-        size: const Size(140, 140),
-        painter: _Stage0Painter(shader: shader, time: widget.clock.elapsedSeconds),
-      ),
-    );
-  }
-}
-
-class _Stage0Painter extends CustomPainter {
-  final ui.FragmentShader shader;
-  final double time;
-  _Stage0Painter({required this.shader, required this.time});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // Uniform order must match the .frag file exactly: uSize (vec2 =
-    // 2 floats), then uTime (float = 1 float).
-    shader
-      ..setFloat(0, size.width)
-      ..setFloat(1, size.height)
-      ..setFloat(2, time);
-    canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
-  }
-
-  @override
-  bool shouldRepaint(covariant _Stage0Painter old) => old.time != time;
-}
-
 class _AmbientSparkField extends StatefulWidget {
   final OfficeClock clock;
   const _AmbientSparkField({required this.clock});
@@ -2069,6 +2023,12 @@ class _TalkArea extends StatelessWidget {
   final bool isAllClear;
   final OfficeClock clock;
   final String? thinkingEmberId;
+  // Real orb rebuild, Stage 1, 2026-08-07 — deliberately just a
+  // shader reference and a bool, nothing state-derived passed to the
+  // shader itself. Falls back to the proven old orb whenever
+  // stage1Shader is null, toggle or not.
+  final bool useShaderOrb;
+  final ui.FragmentShader? stage1Shader;
   final VoidCallback onSend;
   final VoidCallback onMicTap;
   final VoidCallback onCameraTap;
@@ -2085,6 +2045,8 @@ class _TalkArea extends StatelessWidget {
     required this.isAllClear,
     required this.clock,
     required this.thinkingEmberId,
+    required this.useShaderOrb,
+    required this.stage1Shader,
     required this.onSend,
     required this.onMicTap,
     required this.onCameraTap,
@@ -2211,48 +2173,63 @@ class _TalkArea extends StatelessWidget {
                             ),
                           ),
                         ),
-                        Container(
-                          width: 96,
-                          height: 96,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            // Real feature 2026-07-28 — reworked with
-                            // real, tuned color stops for a rim-light
-                            // effect and softer, more gradual falloff,
-                            // matching the reference image's layered
-                            // depth rather than one flat two-color
-                            // gradient: a bright highlight near the
-                            // light source, the main body color, a
-                            // darker mid-tone for real depth, then a
-                            // brighter rim right at the edge -
-                            // simulating light wrapping around a
-                            // sphere.
-                            gradient: RadialGradient(
-                              center: const Alignment(-0.3, -0.3),
-                              stops: const [0.0, 0.35, 0.75, 1.0],
-                              colors: isRecording
-                                  ? [
-                                      Color.lerp(_pulse, Colors.white, 0.35)!,
-                                      _pulse,
-                                      const Color(0xFF8B0000),
-                                      const Color(0xFFFF6B4A),
-                                    ]
-                                  : isAllClear
-                                      ? [
-                                          Color.lerp(_breathe, Colors.white, 0.35)!,
-                                          _breathe,
-                                          const Color(0xFF1A5F55),
-                                          const Color(0xFF5FD9C4),
-                                        ]
-                                      : [
-                                          Color.lerp(_pulse, Colors.white, 0.35)!,
-                                          _pulse,
-                                          const Color(0xFF8B0000),
-                                          const Color(0xFFFF6B4A),
-                                        ],
+                        // Real orb rebuild, Stage 1, 2026-08-07 — the
+                        // actual swap point. useShaderOrb and a loaded
+                        // stage1Shader both required, or this falls
+                        // straight back to the exact, untouched
+                        // original gradient Container below — the
+                        // proven orb stays reachable no matter what.
+                        if (useShaderOrb && stage1Shader != null)
+                          SizedBox(
+                            width: 96,
+                            height: 96,
+                            child: CustomPaint(
+                              painter: _Stage1OrbPainter(shader: stage1Shader!, time: clock.elapsedSeconds),
+                            ),
+                          )
+                        else
+                          Container(
+                            width: 96,
+                            height: 96,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              // Real feature 2026-07-28 — reworked with
+                              // real, tuned color stops for a rim-light
+                              // effect and softer, more gradual falloff,
+                              // matching the reference image's layered
+                              // depth rather than one flat two-color
+                              // gradient: a bright highlight near the
+                              // light source, the main body color, a
+                              // darker mid-tone for real depth, then a
+                              // brighter rim right at the edge -
+                              // simulating light wrapping around a
+                              // sphere.
+                              gradient: RadialGradient(
+                                center: const Alignment(-0.3, -0.3),
+                                stops: const [0.0, 0.35, 0.75, 1.0],
+                                colors: isRecording
+                                    ? [
+                                        Color.lerp(_pulse, Colors.white, 0.35)!,
+                                        _pulse,
+                                        const Color(0xFF8B0000),
+                                        const Color(0xFFFF6B4A),
+                                      ]
+                                    : isAllClear
+                                        ? [
+                                            Color.lerp(_breathe, Colors.white, 0.35)!,
+                                            _breathe,
+                                            const Color(0xFF1A5F55),
+                                            const Color(0xFF5FD9C4),
+                                          ]
+                                        : [
+                                            Color.lerp(_pulse, Colors.white, 0.35)!,
+                                            _pulse,
+                                            const Color(0xFF8B0000),
+                                            const Color(0xFFFF6B4A),
+                                          ],
+                              ),
                             ),
                           ),
-                        ),
                       ],
                     ),
                   ),
