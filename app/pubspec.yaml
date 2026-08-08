@@ -37,10 +37,8 @@ dependency_overrides:
 
 flutter:
   uses-material-design: true
-  # Stage 0 of the real orb rebuild, 2026-08-07 — a single, deliberately
-  # trivial pulse shader, purely to prove the Flutter/Impeller shader
-  # pipeline works end to end before any real material math is written.
-  # See stage0_pulse.frag for the full real reasoning.
+  # Real orb rebuild, Stage 1, 2026-08-07 — the real material shader.
+  # Stage 0's own pulse-only proof shader is gone, confirmed and
+  # superseded — see DECISIONS.md for the real record.
   shaders:
-    - shaders/stage0_pulse.frag
     - shaders/stage1_orb.frag
