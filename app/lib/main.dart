@@ -38,7 +38,6 @@ const _charcoal = _void;
 const _pulse = Color(0xFFE63946);
 const _pulseGlow = Color(0x4DE63946); // rgba(230,57,70,0.3)
 const _breathe = Color(0xFF2A9D8F);
-const _amber = Color(0xFFF4A261);
 const _textPrimary = Color(0xFFF5F5F5);
 // Real, deliberate alias — _paper was the main text color in the old
 // palette; kept as an alias to _textPrimary rather than hunting down
@@ -54,7 +53,6 @@ const _textTertiary = Color(0xFF5A5A5F);
 // alongside a visual rebuild.
 const _muted = _textTertiary;
 const _officeAccent = _breathe;
-const _userAccent = _amber;
 const _stampRed = _pulse;
 const _confirmedGreen = _breathe;
 
@@ -2489,65 +2487,21 @@ class _MessageLine extends StatelessWidget {
 
   const _MessageLine({required this.message, required this.onConfirm, required this.onReject});
 
+  // Real cleanup, 2026-08-07: this used to dispatch across a plain
+  // labeled line, a status placeholder, and the stamp — back when
+  // _MessageLine rendered every row of a permanent ledger. It's now
+  // called from exactly one place (_ActiveResponse), and only when
+  // the message already has pending items, confirmed by tracing every
+  // call site rather than assumed. _buildStatus() and the old
+  // PETER/OFFICE-labeled _buildLine() were unreachable as a result —
+  // status never showed here (the ember carries that signal instead),
+  // and plain text now renders directly in _ActiveResponse without a
+  // sender label at all. Removed rather than left as dead paths no
+  // future session could tell were safe to call. _MessageLine is now
+  // honestly just the stamp — the one thing this widget still does
+  // that nothing else builds.
   @override
-  Widget build(BuildContext context) {
-    if (message.role == MessageRole.status) {
-      return _buildStatus();
-    }
-    if (message.pendingItems.isNotEmpty) {
-      return _buildStamp();
-    }
-    return _buildLine();
-  }
-
-  Widget _buildLine() {
-    final isUser = message.role == MessageRole.user;
-    final accent = isUser ? _userAccent : _officeAccent;
-    final label = isUser ? 'PETER' : 'OFFICE';
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 3,
-            height: 20,
-            margin: const EdgeInsets.only(top: 3, right: 10),
-            color: accent,
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: GoogleFonts.ibmPlexMono(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.4,
-                    color: accent,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  message.text,
-                  style: GoogleFonts.workSans(fontSize: 15.5, color: _paper, height: 1.35),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatus() {
-    // Real, direct feedback: "no spinner. No 'processing'... just
-    // stillness... then one ember glows slightly brighter." The
-    // thinking signal now lives entirely in the ember, not here.
-    return const SizedBox.shrink();
-  }
+  Widget build(BuildContext context) => _buildStamp();
 
   // The signature element: anything guard() has held for confirmation
   // renders as a literal, rotated, dashed-ink stamp — driven by the
