@@ -4430,3 +4430,80 @@ compilation correctness — never mistaken for confirmation of on-device
 plugin behavior, timing, or contrast, which is what real device
 testing kept catching that reading code alone did not.
 
+## The real orb rebuild — the case against tuning, and Stage 0 confirmed (2026-08-07)
+
+A separate real critique, delivered plainly: "our embers are in the
+wrong place they don't look or behave like embers, our orb looks like
+a 2D ball, the background doesn't do much... the visual is flat and
+boring." Verified against the actual code before agreeing with any of
+it — the orb is a plain `Container` with a static 4-stop
+`RadialGradient`, the embers are business-domain tap targets wearing
+an ember costume, and the ambient field is small gradient-dot circles
+drifting upward. The code comment on that last one already quoted a
+*previous* round of this exact complaint ("not orb looking floating
+balls") — the earlier fix added an opacity flicker; the shape never
+changed. Same complaint twice, because the first fix treated a
+materials problem as a timing problem.
+
+**The real, structural conclusion:** Canvas primitives — circles,
+gradients, blur — cannot produce "fluid" or "alive" no matter how long
+they're tuned, because those qualities come from surface behavior, not
+shape. That's what fragment shaders exist for. Two rounds of external
+research (evaluated critically, not adopted by default, matching the
+Word Field arc's discipline) proposed real, verified reference
+material: `LiquidGlassOrbShader.metal` (real, sophisticated "single
+coherent swell" wave design — but Metal, not GLSL, needs real
+translation, not reuse), `orb.js` (real GLSL, but Flutter's
+`FragmentProgram` only accepts a fragment shader — no vertex stage, no
+`attribute`/`varying` — so its structure needs real interface work;
+also honestly closer to a JARVIS energy orb than the calm-lake target),
+and `liquid-shape-distortions` (real, MIT, 107 stars — but its own
+README calls it "psychedelic" and built for "rave posters," the
+opposite end of the spectrum from calm; the fBM/simplex noise
+technique is the real value, not its tuning). Flame engine was
+separately proposed and rejected — real and legitimate (10.7k stars,
+actively maintained), but adopting a second rendering/game-loop
+paradigm to re-earn tonight's already-verified architecture from zero
+was the wrong trade for a benefit that was still theoretical.
+
+**Staged plan, refined through one real round of external critique**
+(the same evaluate-don't-adopt discipline applied here too — most of
+it adopted, one part pushed back on): six stages, each gated on a real
+device recording before the next begins. Stage 1 explicitly knows
+nothing about Office state — time, resolution, and fixed material
+parameters only, so a wrong-looking result can only mean the material
+is wrong, not the state machine or controller. The `OrbController`
+translates semantic state into material parameters (`energy`,
+`swell`), never `if state → playAnimation()` — the concrete API shape
+of "simulate, don't animate." Interaction (`interactionStrength`,
+`X`, `Y`, `age`) stays separate from state (`stateEnergy`,
+`stateSwell`) so a tap disturbs the material without changing what
+state it's in — "same lake, different disturbance." The old Container
+orb stays reachable behind a runtime toggle rather than a branch,
+specifically so old and new can be compared in the same build without
+a second Codemagic cycle. One real pushback on the external proposal:
+literal `.mp4` recordings committed into the repo were rejected —
+binaries don't belong in git and can't be diffed — real findings go in
+this file instead, the same discipline as everything else here.
+
+**Stage 0, confirmed on the real device.** Deliberately the most
+brutal version possible: a single trivial `.frag` shader — no SDF, no
+noise, no helper functions beyond necessary — proving asset
+declaration, `impellerc` compilation, `FragmentProgram.fromAsset`
+loading, real-device rendering, and per-frame uniform updates, all in
+one pass, driven by the existing `OfficeClock` rather than a new timer.
+Verified Flutter's exact current shader conventions directly against
+the live documentation before writing anything — `#include
+<flutter/runtime_effect.glsl>`, `out vec4 fragColor` (never
+`gl_FragColor`), `FlutterFragCoord()` (never `gl_FragCoord`, which
+Impeller doesn't support) — rather than relying on possibly-stale
+training knowledge for a case where a wrong guess would have wasted
+the entire point of the stage. Mounted as a small, off-by-default,
+purely additive overlay toggled from the existing more-menu, never
+touching the real orb's own rendering — the feature-flag discipline
+applied from the very first stage, not deferred to Stage 2. Pierre's
+own real-device confirmation: "Success." The pipeline is proven; Stage
+1 is now a contained graphics problem, not an open question about
+whether Flutter and this project's Android setup can run shaders at
+all.
+
