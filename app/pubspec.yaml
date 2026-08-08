@@ -43,3 +43,4 @@ flutter:
   # See stage0_pulse.frag for the full real reasoning.
   shaders:
     - shaders/stage0_pulse.frag
+    - shaders/stage1_orb.frag
