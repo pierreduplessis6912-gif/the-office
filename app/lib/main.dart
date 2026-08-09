@@ -232,6 +232,12 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   // it's null, toggle or not.
   ui.FragmentShader? _stage1Shader;
   bool _useShaderOrb = false;
+  // The embers, rebuilt, 2026-08-08 — same feature-flag discipline,
+  // one shared compiled program (five embers each derive their own
+  // independent shader instance from it via .fragmentShader(), rather
+  // than each loading and compiling the asset separately).
+  ui.FragmentProgram? _emberTearProgram;
+  bool _useTearEmbers = false;
   bool _isWriteMode = false;
   int _idCounter = 0;
 
@@ -286,6 +292,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     _clock = OfficeClock(vsync: this)..start();
     _wordField = WordFieldController(events: _officeState.events);
     _loadStage1Shader();
+    _loadEmberTearShader();
 
     _entranceController = AnimationController(vsync: this, duration: const Duration(milliseconds: 4200));
     _entranceOpacity = TweenSequence<double>([
@@ -331,6 +338,20 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       setState(() => _stage1Shader = program.fragmentShader());
     } catch (e, stack) {
       debugPrint('Stage 1 shader load failed: $e\n$stack');
+    }
+  }
+
+  // The embers, rebuilt, 2026-08-08 — loads the compiled program
+  // once; each _EmberTear instance calls .fragmentShader() on this
+  // same program to get its own independent uniform state, rather
+  // than five separate asset loads and compiles.
+  Future<void> _loadEmberTearShader() async {
+    try {
+      final program = await ui.FragmentProgram.fromAsset('shaders/ember_tear.frag');
+      if (!mounted) return;
+      setState(() => _emberTearProgram = program);
+    } catch (e, stack) {
+      debugPrint('Ember tear shader load failed: $e\n$stack');
     }
   }
 
@@ -1008,6 +1029,8 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
                   thinkingEmberId: _thinkingEmberId,
                   useShaderOrb: _useShaderOrb,
                   stage1Shader: _stage1Shader,
+                  useTearEmbers: _useTearEmbers,
+                  emberTearProgram: _emberTearProgram,
                   onSend: () {
                     _sendText();
                     setState(() => _isWriteMode = false);
@@ -1088,10 +1111,17 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
           value: 'shader_orb',
           child: Text(_useShaderOrb ? 'Use old orb' : 'Use shader orb (Stage 1)'),
         ),
+        // Real, temporary, 2026-08-08 — the embers rebuilt as tears
+        // in the void rather than blob clusters. Remove once accepted.
+        PopupMenuItem(
+          value: 'tear_embers',
+          child: Text(_useTearEmbers ? 'Use old embers' : 'Use tear embers'),
+        ),
       ],
     );
     if (selected == 'account') _showAccountSheet();
     if (selected == 'shader_orb') setState(() => _useShaderOrb = !_useShaderOrb);
+    if (selected == 'tear_embers') setState(() => _useTearEmbers = !_useTearEmbers);
   }
 
   // Real feature 2026-07-27 — the real account sheet: sign-in for a
@@ -1468,6 +1498,144 @@ double _crackleValue(double t, double speed, int seed) {
   // crackle rather than a smooth, even glide.
   final eased = frac * frac * frac;
   return current + (next - current) * eased;
+}
+
+// The embers, rebuilt, 2026-08-08 — "tears in the veil of the void."
+// Reuses _Ember's own proven drift timing, per-instance
+// randomization, and isThinking treatment wholesale rather than
+// reinventing motion that already works; only the shape and paint
+// technique are new. One shared FragmentProgram (loaded once at app
+// level) is turned into an independent FragmentShader instance per
+// ember here, so five embers never share or fight over uniform state.
+class _EmberTear extends StatefulWidget {
+  final ui.FragmentProgram program;
+  final Color color;
+  final int count;
+  final VoidCallback onTap;
+  final bool isThinking;
+  final OfficeClock clock;
+  final double seedOffset;
+  const _EmberTear({
+    required this.program,
+    required this.color,
+    required this.count,
+    required this.onTap,
+    required this.clock,
+    required this.seedOffset,
+    this.isThinking = false,
+  });
+
+  @override
+  State<_EmberTear> createState() => _EmberTearState();
+}
+
+class _EmberTearState extends State<_EmberTear> {
+  late final ui.FragmentShader _shader;
+  // Real, deliberate reuse of _Ember's own proven per-instance
+  // randomization — same real reasoning, same values, so the tears
+  // drift with the same tuned, already-accepted "gently floating"
+  // quality rather than a fresh, untested motion feel.
+  late final double _driftDurationSeconds;
+  late final double _driftRadiusX;
+  late final double _driftRadiusY;
+  late final double _phaseOffset;
+
+  @override
+  void initState() {
+    super.initState();
+    _shader = widget.program.fragmentShader();
+    final seed = widget.color.value + widget.count;
+    final random = math.Random(seed);
+    _driftDurationSeconds = 20 + random.nextDouble() * 10;
+    _driftRadiusX = 4 + random.nextDouble() * 5;
+    _driftRadiusY = 5 + random.nextDouble() * 6;
+    _phaseOffset = random.nextDouble() * 2 * math.pi;
+  }
+
+  @override
+  void dispose() {
+    _shader.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Same real, tested tiers as the old embers — never a flat
+    // lit/unlit, real magnitude shown as real brightness and size.
+    final double brightness;
+    final double size;
+    if (widget.count >= 6) {
+      brightness = 1.0;
+      size = 34;
+    } else if (widget.count >= 3) {
+      brightness = 0.85;
+      size = 28;
+    } else if (widget.count >= 1) {
+      brightness = 0.65;
+      size = 22;
+    } else {
+      brightness = 0.4;
+      size = 16;
+    }
+    final effectiveColor = widget.isThinking ? widget.color : Color.lerp(_emberUnlit, widget.color, brightness)!;
+
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: widget.clock,
+        builder: (context, child) {
+          final progress = (widget.clock.elapsedSeconds / _driftDurationSeconds) % 1.0;
+          final t = progress * 2 * math.pi + _phaseOffset;
+          final dx = math.sin(t) * _driftRadiusX;
+          final dy = math.cos(t * 0.8) * _driftRadiusY;
+          return Transform.translate(
+            offset: Offset(dx, dy),
+            child: GestureDetector(
+              onTap: widget.onTap,
+              child: SizedBox(
+                width: size,
+                height: size * 1.7,
+                child: CustomPaint(
+                  painter: _EmberTearPainter(
+                    shader: _shader,
+                    time: widget.clock.elapsedSeconds,
+                    seed: widget.seedOffset,
+                    color: effectiveColor,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _EmberTearPainter extends CustomPainter {
+  final ui.FragmentShader shader;
+  final double time;
+  final double seed;
+  final Color color;
+  _EmberTearPainter({required this.shader, required this.time, required this.seed, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Uniform order must match ember_tear.frag exactly: uSize (vec2),
+    // uTime (float), uSeed (float), uColor (vec3).
+    shader
+      ..setFloat(0, size.width)
+      ..setFloat(1, size.height)
+      ..setFloat(2, time)
+      ..setFloat(3, seed)
+      ..setFloat(4, color.red / 255.0)
+      ..setFloat(5, color.green / 255.0)
+      ..setFloat(6, color.blue / 255.0);
+    canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
+  }
+
+  @override
+  bool shouldRepaint(covariant _EmberTearPainter old) =>
+      old.time != time || old.color != color;
 }
 
 class _Ember extends StatefulWidget {
@@ -2029,6 +2197,8 @@ class _TalkArea extends StatelessWidget {
   // stage1Shader is null, toggle or not.
   final bool useShaderOrb;
   final ui.FragmentShader? stage1Shader;
+  final bool useTearEmbers;
+  final ui.FragmentProgram? emberTearProgram;
   final VoidCallback onSend;
   final VoidCallback onMicTap;
   final VoidCallback onCameraTap;
@@ -2047,6 +2217,8 @@ class _TalkArea extends StatelessWidget {
     required this.thinkingEmberId,
     required this.useShaderOrb,
     required this.stage1Shader,
+    required this.useTearEmbers,
+    required this.emberTearProgram,
     required this.onSend,
     required this.onMicTap,
     required this.onCameraTap,
@@ -2080,33 +2252,61 @@ class _TalkArea extends StatelessWidget {
       children: [
         // Real, direct feedback: "the embers should feel like they're
         // waiting for Peter... coals lying underneath [the button]."
-        // Moved from a side cluster to directly beneath the circle —
-        // a wider, flatter spread reading as a hearth rather than
-        // orbiting satellites. Genuinely scattered — varying x and y,
-        // never a neat, aligned row — real weighted orbs, each
-        // drifting independently.
-        Align(
-          alignment: const Alignment(0, 0.62),
-          child: SizedBox(
-            width: 160,
-            height: 60,
-            child: Stack(
-              // Real bug fix, found live: same Stack default-clipping
-              // issue as the primary circle - each ember's own
-              // OverflowBox glow can genuinely exceed this small
-              // 160x60 container, and Stack's default Clip.hardEdge
-              // would cut it off right at that boundary.
-              clipBehavior: Clip.none,
-              children: [
-                Positioned(left: 10, top: 18, child: _Ember(color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), clock: clock, isThinking: thinkingEmberId == 'tasks')),
-                Positioned(left: 46, top: 2, child: _Ember(color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), clock: clock, isThinking: thinkingEmberId == 'scheduler')),
-                Positioned(left: 74, top: 24, child: _Ember(color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), clock: clock, isThinking: thinkingEmberId == 'finance')),
-                Positioned(left: 104, top: 6, child: _Ember(color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), clock: clock, isThinking: thinkingEmberId == 'suppliers')),
-                Positioned(left: 132, top: 20, child: _Ember(color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'), clock: clock, isThinking: thinkingEmberId == 'pending')),
-              ],
+        // Real feedback, 2026-08-08: "the embers are still sort of
+        // under the orb... they should be aligned on the left
+        // vertical." When the tear shader is active and loaded, this
+        // is a genuinely different arrangement, not just a recolor —
+        // vertically stacked along the left edge instead of a tight
+        // horizontal cluster fighting the orb for the same small
+        // patch of screen. Falls back to the exact original
+        // horizontal cluster whenever the toggle is off or the
+        // shader hasn't loaded yet, same discipline as the orb.
+        if (useTearEmbers && emberTearProgram != null)
+          Align(
+            alignment: const Alignment(-0.86, 0.05),
+            child: SizedBox(
+              width: 60,
+              height: 260,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned(left: 12, top: 0, child: _EmberTear(program: emberTearProgram!, color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), clock: clock, isThinking: thinkingEmberId == 'tasks', seedOffset: 0.0)),
+                  Positioned(left: 4, top: 55, child: _EmberTear(program: emberTearProgram!, color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), clock: clock, isThinking: thinkingEmberId == 'scheduler', seedOffset: 1.0)),
+                  Positioned(left: 16, top: 110, child: _EmberTear(program: emberTearProgram!, color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), clock: clock, isThinking: thinkingEmberId == 'finance', seedOffset: 2.0)),
+                  Positioned(left: 2, top: 165, child: _EmberTear(program: emberTearProgram!, color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), clock: clock, isThinking: thinkingEmberId == 'suppliers', seedOffset: 3.0)),
+                  Positioned(left: 14, top: 220, child: _EmberTear(program: emberTearProgram!, color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'), clock: clock, isThinking: thinkingEmberId == 'pending', seedOffset: 4.0)),
+                ],
+              ),
+            ),
+          )
+        else
+          // Moved from a side cluster to directly beneath the circle —
+          // a wider, flatter spread reading as a hearth rather than
+          // orbiting satellites. Genuinely scattered — varying x and y,
+          // never a neat, aligned row — real weighted orbs, each
+          // drifting independently.
+          Align(
+            alignment: const Alignment(0, 0.62),
+            child: SizedBox(
+              width: 160,
+              height: 60,
+              child: Stack(
+                // Real bug fix, found live: same Stack default-clipping
+                // issue as the primary circle - each ember's own
+                // OverflowBox glow can genuinely exceed this small
+                // 160x60 container, and Stack's default Clip.hardEdge
+                // would cut it off right at that boundary.
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned(left: 10, top: 18, child: _Ember(color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), clock: clock, isThinking: thinkingEmberId == 'tasks')),
+                  Positioned(left: 46, top: 2, child: _Ember(color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), clock: clock, isThinking: thinkingEmberId == 'scheduler')),
+                  Positioned(left: 74, top: 24, child: _Ember(color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), clock: clock, isThinking: thinkingEmberId == 'finance')),
+                  Positioned(left: 104, top: 6, child: _Ember(color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), clock: clock, isThinking: thinkingEmberId == 'suppliers')),
+                  Positioned(left: 132, top: 20, child: _Ember(color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'), clock: clock, isThinking: thinkingEmberId == 'pending')),
+                ],
+              ),
             ),
           ),
-        ),
         // Real, direct feedback: "the button should almost float...
         // lift it about 40-60 pixels. It should feel suspended."
         Align(
