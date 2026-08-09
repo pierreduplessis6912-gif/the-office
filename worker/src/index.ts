@@ -1,7 +1,7 @@
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult } from "./types";
 import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractSupplierStatement, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, splitIntoTopics, storeUnscopedMemory, transcribe } from "./ai";
 import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
-import { completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
+import { attachToSiblingJobScope, completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveScheduledDate, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
 import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
@@ -866,16 +866,51 @@ async function processOneExtraction(
       const installer = await reconcileCharacter(env, observation.installer_name, "installer");
       installerId = installer?.id ?? null;
     }
-    // Real fix 2026-07-13: no longer gated behind customer being
-    // resolved — a job with a real installer but no yet-known
-    // customer should still be recorded, not silently dropped.
-    const recorded = await recordWorkObservation(env, customer?.id ?? null, observation, transcript, installerId, captureId);
-    workObservationResult = {
-      jobScopeId: recorded.jobScopeId,
-      componentCount: observation.components.length,
-      taskCount: observation.tasks.length,
-      installerConflict: recorded.installerConflict,
-    };
+
+    // Real fix 2026-08-09 — found live via /debug/split-test: a
+    // segment like "schedule Jabulani to install next Monday" (split
+    // away from the sentence that actually named the customer and
+    // room) has no customer and no measurable component or task of
+    // its own here. Creating a fresh, customer-less job scope for it
+    // would silently orphan real information instead of losing it
+    // outright — no better an outcome. Tried first: attach this
+    // installer/date to the most recent sibling job scope from the
+    // exact same capture, the segment that described the actual job a
+    // moment earlier in the same breath. Falls through to the
+    // existing, unchanged behavior whenever this doesn't apply or no
+    // sibling exists yet. Deliberately does NOT return early — that
+    // would risk silently discarding a real character/customer value
+    // already resolved earlier in this same function; workObservationResult
+    // is populated here and the function's own existing, natural flow
+    // builds the final message exactly as it already does today.
+    const scheduledDateForAttach = resolveScheduledDate(observation.scheduled_date_raw, nowInBusinessTimezone());
+    const attached =
+      !customer && observation.components.length === 0 && observation.tasks.length === 0
+        ? await attachToSiblingJobScope(env, captureId, installerId, scheduledDateForAttach, observation.scheduled_date_raw)
+        : null;
+
+    if (attached) {
+      workObservationResult = {
+        jobScopeId: attached.jobScopeId,
+        componentCount: 0,
+        taskCount: 0,
+        // Real, deliberate scope limit: the double-booking check this
+        // fix doesn't also extend to the attach path — a separate,
+        // smaller gap, not what today's real report was about.
+        installerConflict: null,
+      };
+    } else {
+      // Real fix 2026-07-13: no longer gated behind customer being
+      // resolved — a job with a real installer but no yet-known
+      // customer should still be recorded, not silently dropped.
+      const recorded = await recordWorkObservation(env, customer?.id ?? null, observation, transcript, installerId, captureId);
+      workObservationResult = {
+        jobScopeId: recorded.jobScopeId,
+        componentCount: observation.components.length,
+        taskCount: observation.tasks.length,
+        installerConflict: recorded.installerConflict,
+      };
+    }
 
     // Real fix 2026-07-15 — Layer 1 (Constitution Principle 28): a
     // rate stated in the same breath as the work it describes used to
