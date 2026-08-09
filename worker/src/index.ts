@@ -657,6 +657,21 @@ async function processOneExtraction(
     }
   }
 
+  // Real fix 2026-08-09 — moved earlier so the invoice block below can
+  // populate this too. Confirmed live via /debug/job-scopes: "invoiced
+  // a job for Mr Stevenson for 2 rooms laminate and Jabulani to
+  // install next week Monday" recorded the invoice and discarded
+  // everything else — no job scope, no installer, no date, not
+  // resolved wrong, never even attempted. "invoice" had no equivalent
+  // of the fallback quotation/price_scope already had for exactly
+  // this same-breath situation.
+  let workObservationResult: {
+    jobScopeId: number;
+    componentCount: number;
+    taskCount: number;
+    installerConflict: { description: string; customerName: string | null } | null;
+  } | null = null;
+
   if (extraction?.intent === "invoice" && customer && extraction.amount) {
     const held = await holdForConfirmation(
       env,
@@ -665,6 +680,26 @@ async function processOneExtraction(
       transcript
     );
     pendingActionId = held.id;
+
+    // Mirrors the quotation/price_scope fallback exactly (same
+    // extraction, same recording call) — and does the real installer
+    // reconciliation that fallback still doesn't do, rather than
+    // repeating the same gap a second place.
+    const observation = await extractWorkObservation(env, transcript);
+    if (observation.components.length > 0 || observation.tasks.length > 0) {
+      let installerId: number | null = null;
+      if (observation.installer_name) {
+        const installer = await reconcileCharacter(env, observation.installer_name, "installer");
+        installerId = installer?.id ?? null;
+      }
+      const recorded = await recordWorkObservation(env, customer.id, observation, transcript, installerId, captureId);
+      workObservationResult = {
+        jobScopeId: recorded.jobScopeId,
+        componentCount: observation.components.length,
+        taskCount: observation.tasks.length,
+        installerConflict: recorded.installerConflict,
+      };
+    }
   }
 
   let quotationLineItems: LineItemWithTotal[] = [];
@@ -810,12 +845,6 @@ async function processOneExtraction(
     }
   }
 
-  let workObservationResult: {
-    jobScopeId: number;
-    componentCount: number;
-    taskCount: number;
-    installerConflict: { description: string; customerName: string | null } | null;
-  } | null = null;
   if (extraction?.intent === "work_observation") {
     const observation = await extractWorkObservation(env, transcript);
     // Real feature 2026-07-12 — the smallest real first domino toward
@@ -1122,6 +1151,21 @@ async function processOneExtraction(
         ? ` (${quotationLineItems.length} line item${quotationLineItems.length > 1 ? "s" : ""})`
         : "";
     message = `${kind} noted for ${customer!.name}${displayAmount ? ` of R${displayAmount}` : ""}${lineItemNote} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
+    // Real fix 2026-08-09 — this branch and the workObservationResult
+    // one below are mutually exclusive (if/else-if), so an invoice
+    // that also recorded a job scope needs its own note appended
+    // right here, not a separate branch that would never be reached.
+    if (workObservationResult) {
+      const jobParts: string[] = [];
+      if (workObservationResult.componentCount > 0) jobParts.push(`${workObservationResult.componentCount} component${workObservationResult.componentCount > 1 ? "s" : ""} measured`);
+      if (workObservationResult.taskCount > 0) jobParts.push(`${workObservationResult.taskCount} task${workObservationResult.taskCount > 1 ? "s" : ""} noted`);
+      message += ` Job scope #${workObservationResult.jobScopeId} also recorded${jobParts.length ? ` — ${jobParts.join(", ")}` : ""}.`;
+      if (workObservationResult.installerConflict) {
+        const conflict = workObservationResult.installerConflict;
+        const who = conflict.customerName ? `${conflict.customerName}: ${conflict.description}` : conflict.description;
+        message += ` Heads up — the same installer is already booked that day (${who}).`;
+      }
+    }
   } else if (workObservationResult) {
     const { jobScopeId, componentCount, taskCount, installerConflict } = workObservationResult;
     const parts: string[] = [];
