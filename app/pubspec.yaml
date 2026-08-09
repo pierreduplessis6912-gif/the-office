@@ -42,3 +42,4 @@ flutter:
   # superseded — see DECISIONS.md for the real record.
   shaders:
     - shaders/stage1_orb.frag
+    - shaders/ember_tear.frag
