@@ -308,6 +308,59 @@ export async function recordWorkObservation(
 // instead of "Marked done: get dog food"). Fixed rules, same input
 // always produces the same output — text munging, not AI judgment.
 // Verified directly in Node before deploying.
+// Real feature 2026-08-09 — found live: a segment naming an installer
+// and/or a date but with no measurable component or task of its own
+// ("schedule Jabulani to install next Monday," split away from "invoice
+// Stevenson for R20,000 for two rooms of laminate" as a separate
+// segment by splitIntoTopics) has nowhere real of its own to write to.
+// Rather than create a customer-less orphan job scope or silently
+// discard real information the AI genuinely extracted, this attaches
+// it to the most recent job scope sharing the exact same capture_id —
+// the sibling segment that just described the actual job a moment
+// earlier, in the same breath. Deliberately narrow: only ever attaches
+// within the same capture, never guesses across unrelated ones.
+export async function attachToSiblingJobScope(
+  env: Env,
+  captureId: number | null,
+  installerId: number | null,
+  scheduledDate: string | null,
+  scheduledDateRaw: string | null
+): Promise<{ jobScopeId: number; customerName: string | null } | null> {
+  if (captureId === null) return null;
+  if (installerId === null && scheduledDate === null) return null;
+
+  const sibling = await env.OFFICE_DB.prepare(
+    `SELECT js.id, c.name as customer_name FROM job_scopes js
+     LEFT JOIN customers c ON c.id = js.customer_id
+     WHERE js.capture_id = ?
+     ORDER BY js.created_at DESC LIMIT 1`
+  )
+    .bind(captureId)
+    .first<{ id: number; customer_name: string | null }>();
+  if (!sibling) return null;
+
+  const updates: string[] = [];
+  const values: (string | number)[] = [];
+  if (installerId !== null) {
+    updates.push("installer_id = ?");
+    values.push(installerId);
+  }
+  if (scheduledDate !== null) {
+    updates.push("scheduled_date = ?");
+    values.push(scheduledDate);
+    updates.push("scheduled_date_raw = ?");
+    values.push(scheduledDateRaw ?? "");
+  }
+  if (updates.length === 0) return null;
+
+  values.push(sibling.id);
+  await env.OFFICE_DB.prepare(`UPDATE job_scopes SET ${updates.join(", ")} WHERE id = ?`)
+    .bind(...values)
+    .run();
+
+  return { jobScopeId: sibling.id, customerName: sibling.customer_name };
+}
+
 export function cleanTaskDescription(raw: string): string {
   let text = raw.trim();
   const prefixes = [
