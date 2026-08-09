@@ -672,14 +672,24 @@ async function processOneExtraction(
     installerConflict: { description: string; customerName: string | null } | null;
   } | null = null;
 
-  if (extraction?.intent === "invoice" && customer && extraction.amount) {
-    const held = await holdForConfirmation(
-      env,
-      "invoice",
-      { customerId: customer.id, customerName: customer.name, description: transcript, amount: extraction.amount },
-      transcript
-    );
-    pendingActionId = held.id;
+  if (extraction?.intent === "invoice" && customer) {
+    // Real bug, found live a second time: this used to require
+    // extraction.amount for the whole block, including the extraction
+    // below — meaning a message with no explicit rand figure stated
+    // ("2 rooms laminate and Jabulani to install next week Monday")
+    // never reached the job-scope recording at all, even after the
+    // first fix. The invoice confirmation genuinely does need a real
+    // amount to mean anything; the job/installer/schedule capture
+    // does not, and now runs regardless.
+    if (extraction.amount) {
+      const held = await holdForConfirmation(
+        env,
+        "invoice",
+        { customerId: customer.id, customerName: customer.name, description: transcript, amount: extraction.amount },
+        transcript
+      );
+      pendingActionId = held.id;
+    }
 
     // Mirrors the quotation/price_scope fallback exactly (same
     // extraction, same recording call) — and does the real installer
