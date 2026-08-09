@@ -4544,3 +4544,93 @@ called for; or question whether the deliberate slight rotation is
 earning its cost, since it's likely the most direct driver of "looks
 skew" even though it was intentional.
 
+## The receptacle audit — Mr Stevenson, and where Layer 1/2 doctrine meets real complexity for the first time (2026-08-09)
+
+A real, natural, multi-clause booking — a job, an amount, an
+installer, and a date, all in one breath — repeatedly failed to
+schedule correctly across five real attempts. Requested afterward:
+read back through the actual governing doctrine (`OFFICE_CONSTITUTION.md`,
+`DECISIONS.md`, `STATUS.md`) to see what was already decided and where
+the real gaps sit, rather than treat this as an isolated string of
+bugs. It isn't one — it's the first time this doctrine's own stated
+promises met a genuinely complex, real utterance, and several of them
+didn't fully hold.
+
+**The promise being tested, named precisely.** Principle 3 (Nothing Is
+Lost) and Principle 22 (Capabilities Emerge From Captured Reality) —
+"Peter doesn't maintain business systems. He describes reality, once,
+in his own words" — is exactly what "invoice Stevenson for R20,000 for
+two rooms of laminate, schedule Jabulani to install next Monday" is:
+one real utterance meant to update several things at once. Tonight
+proved that promise doesn't yet hold for this specific shape of
+complexity.
+
+**Principle 28 claims more than tonight's evidence supports, and the
+doctrine should say so plainly rather than leave the gap silent.** It
+declares Layer 1 (Reliability — "a deterministic fact heard clearly...
+must never disappear before reaching storage") "genuinely resolved" as
+of 2026-07-15, on the strength of a real R9,000 quotation. The
+2026-07-24 Layer 2 scheduling entry found the same thing again,
+independently — extraction and storage worked correctly for "measured
+Thabo hallway at fifteen square meters for laminate, doing it next
+Friday." Both real, both true — and both single, unsplit utterances
+where every fact arrived in one continuous statement. Tonight's real
+test was the first to combine an amount, a room, an installer, and a
+date across what `splitIntoTopics` treats as multiple separate topics
+— and extraction completeness broke down exactly at that seam, not
+because it regressed, but because it was never actually tested against
+this shape before. Layer 1 is resolved for the utterance shapes it was
+tested against; tonight is real evidence it isn't yet resolved for
+this one.
+
+**Layer 2's existing mechanisms don't have a gap where I assumed one —
+they share one, single, unexamined precondition.** Read directly
+before building anything tonight, not assumed: same-breath assembly
+(2026-07-22) requires `customerId !== null` to run at all. Cross-
+capture attachment (2026-07-25) requires `scope.customer_id !== null`
+too. Both are real, correct, already proven — and both were built and
+tested against segments that always had a real customer resolved.
+Neither considers the case where a segment has real, valuable
+information (an installer, a date) but genuinely no customer of its
+own — exactly what "schedule Jabulani to install next Monday," split
+away from the sentence that named Stevenson, actually is. The new
+`attachToSiblingJobScope` (scheduler.ts) fills that specific,
+confirmed-real gap — matched only on `capture_id`, deliberately not
+`customer_id`, since the whole point is handling the segment that
+doesn't have one. Confirmed directly against the code, not assumed:
+this doesn't duplicate or conflict with either existing mechanism: they
+solve "how do complete job scopes relate to each other"; this solves
+"how does an incomplete segment's real information reach the sibling
+it belongs to."
+
+**A second, separate, still-open gap: what a segment's content means,
+not just how the sentence gets divided.** `/debug/intent-test`,
+confirmed directly: "the job is the one we invoice for 20,000 rand to
+rooms" classifies as `intent: "invoice"` — reading a present-tense,
+referential amount (identifying which existing job is meant) as an
+instruction to bill new work. No existing principle or prior Layer 2
+entry names this distinction — it's a genuinely new category of gap,
+not a previously-decided thing implemented wrong. Deliberately not
+patched tonight: fixing it well likely means either `splitIntoTopics`
+preserving more shared context between related segments, or a real,
+new way of naming "this amount identifies an existing thing" apart
+from "this amount states a new one" — not a quick prompt tweak guessed
+at near midnight. Real, related, and confirmed independently by
+`customer_name: "rooms"` on the same test — a hallucinated common noun
+where no real name existed in the segment at all. That one *was* fixed
+and reverified live via the same tool.
+
+**The real, durable win independent of any single fix tonight:**
+`/debug/split-test` and `/debug/intent-test` — real, read-only, direct
+views into two steps of the pipeline that previously had zero
+visibility, closing exactly the kind of guessing that cost real cycles
+on both the ember shader and this arc. The customer_name fix was
+verified true, not just claimed, because these existed.
+
+**What's genuinely still open, named rather than left implicit:**
+whether Principle 28's Layer 1 status needs a qualifying update instead
+of a flat "resolved"; whether `attachToSiblingJobScope` should extend
+to the installer-double-booking check it currently skips; and the
+intent-misclassification gap above, which needs real design thought,
+not a rushed patch.
+
