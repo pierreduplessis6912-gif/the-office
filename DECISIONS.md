@@ -4507,3 +4507,40 @@ own real-device confirmation: "Success." The pipeline is proven; Stage
 whether Flutter and this project's Android setup can run shaders at
 all.
 
+## Two real findings on the pending-confirmation stamp, both deferred on purpose (2026-08-08)
+
+A real, concrete example surfaced the on-device speech accuracy
+tradeoff accepted when choosing on-device recognition as authoritative
+over server-side transcription: an address captured as "eshawi"
+instead of "Eshowe." Investigating it turned up two separate, real
+findings — both explicitly deferred, not forgotten, "nothing is
+breaking, mark it as future polish."
+
+**Editability isn't just a frontend question.** `_resolvePendingItem`
+posts to `/actions/{id}/confirm` with no request body at all — a pure
+boolean signal telling the backend to commit whatever it already has
+staged. There is currently no way for the client to send a corrected
+value alongside a confirm. Adding a text field to the stamp without
+also changing what confirm sends would be actively worse than doing
+nothing — it would look edited and silently save the original, wrong
+value anyway, on exactly the class of action `guard()` exists to
+protect. Real edit-before-confirm needs the backend endpoint to accept
+an edited value too; that's cross-stack work, not something to build
+from the frontend alone. The honest, zero-risk path that already works
+today with no code changes: reject, then say the correct value again.
+
+**The stamp's visual language doesn't match what it's protecting.**
+The original design comment calls it a "dashed-ink stamp," but the
+actual border is a plain solid 2px line — the dashed texture was never
+built. Pending items render in `_stampRed`, the app's main red, bold
+all-caps label, solid border — Pierre's own words: "very obtrusive...
+looks intimidating." Worth stating precisely why: a pending
+confirmation is the *safe* thing happening, the system pausing before
+committing anything — but the visual language borrowed is error/danger
+styling, not "please check this." Real candidate directions, not yet
+chosen: drop the alarm-red for a neutral or warm tone and reserve red
+for actual failures; build the dashed texture the original concept
+called for; or question whether the deliberate slight rotation is
+earning its cost, since it's likely the most direct driver of "looks
+skew" even though it was intentional.
+
