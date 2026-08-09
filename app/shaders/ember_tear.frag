@@ -113,9 +113,22 @@ void main() {
   // Slow, coherent breathing — the tear widening and narrowing very
   // gently. Never a fixed, dead shape, never fast enough to read as
   // pulsing on purpose rather than simply being alive.
+  //
+  // Real bug, found and fixed 2026-08-08 by actually rendering this
+  // shader offline (headless GLSL via Mesa llvmpipe, not guessed at
+  // from re-reading code a third time) rather than pushing blind
+  // again: sdVesica's w must be the LARGER value — the half-reach
+  // toward the pointed tips — and h the smaller cross-axis value.
+  // The first version had these backwards (w small, h large), which
+  // doesn't just misshape the curve, it breaks the formula into two
+  // disconnected lobes with a dark gap between them — confirmed by
+  // rendering the raw, uncolored SDF alone before touching the
+  // lighting code at all. uv.yx (not uv) feeds the swapped-axis call
+  // below, since w now needs to be the vertical reach for a tall,
+  // narrow tear rather than a wide, flat one.
   float breath = 0.5 + 0.5 * snoise(vec3(0.0, 0.0, t * 0.15));
-  float w = 0.15 + breath * 0.018;
-  float h = 0.60 + breath * 0.03;
+  float w = 0.62 + breath * 0.03;
+  float h = 0.16 + breath * 0.018;
 
   // The edge itself is wobbled by real noise sampled around its own
   // boundary, not a perfect geometric curve — genuinely torn, not
@@ -123,7 +136,7 @@ void main() {
   float angle = atan(uv.y, uv.x);
   float edgeNoise = snoise(vec3(cos(angle) * 2.2, sin(angle) * 2.2, t * 0.22)) * 0.011;
 
-  float d = sdVesica(uv, w + edgeNoise, h + edgeNoise);
+  float d = sdVesica(uv.yx, w + edgeNoise, h + edgeNoise);
 
   // Soft glow bleeding from the rupture into the surrounding void —
   // real inverse-distance falloff, not a fixed-radius blur.
@@ -133,8 +146,16 @@ void main() {
   // Hottest and brightest right at the narrow tips, where the veil is
   // thinnest — warm ember through the wider body. Light escaping a
   // rupture, not a lit object being shaded.
-  float insideT = clamp(-d / max(w, 0.001), 0.0, 1.0);
-  float tipProximity = pow(clamp(1.0 - abs(uv.y) / h, 0.0, 1.0), 3.0);
+  //
+  // Real bug, found the same way as the geometry one: this originally
+  // divided by h for both insideT and tipProximity, which is why the
+  // "hottest at the tips" comment didn't match what it actually
+  // computed — brightest at the middle instead. Tips now correctly
+  // sit at uv.y ~= +/-w (w is the vertical reach after the axis
+  // swap above), and the interior-depth normalization uses h (the
+  // narrow cross-axis half-width), not w.
+  float insideT = clamp(-d / max(h, 0.001), 0.0, 1.0);
+  float tipProximity = pow(clamp(1.0 - abs(uv.y) / w, 0.0, 1.0), 3.0);
 
   vec3 hot = vec3(1.0, 0.95, 0.85);
   vec3 ember = uColor;
