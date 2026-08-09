@@ -810,7 +810,12 @@ async function processOneExtraction(
     }
   }
 
-  let workObservationResult: { jobScopeId: number; componentCount: number; taskCount: number } | null = null;
+  let workObservationResult: {
+    jobScopeId: number;
+    componentCount: number;
+    taskCount: number;
+    installerConflict: { description: string; customerName: string | null } | null;
+  } | null = null;
   if (extraction?.intent === "work_observation") {
     const observation = await extractWorkObservation(env, transcript);
     // Real feature 2026-07-12 — the smallest real first domino toward
@@ -830,6 +835,7 @@ async function processOneExtraction(
       jobScopeId: recorded.jobScopeId,
       componentCount: observation.components.length,
       taskCount: observation.tasks.length,
+      installerConflict: recorded.installerConflict,
     };
 
     // Real fix 2026-07-15 — Layer 1 (Constitution Principle 28): a
@@ -1117,7 +1123,7 @@ async function processOneExtraction(
         : "";
     message = `${kind} noted for ${customer!.name}${displayAmount ? ` of R${displayAmount}` : ""}${lineItemNote} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
   } else if (workObservationResult) {
-    const { jobScopeId, componentCount, taskCount } = workObservationResult;
+    const { jobScopeId, componentCount, taskCount, installerConflict } = workObservationResult;
     const parts: string[] = [];
     if (componentCount > 0) parts.push(`${componentCount} component${componentCount > 1 ? "s" : ""} measured`);
     if (taskCount > 0) parts.push(`${taskCount} task${taskCount > 1 ? "s" : ""} noted`);
@@ -1126,6 +1132,17 @@ async function processOneExtraction(
     // caught before shipping, same pattern as the earlier expense-
     // message fix (character ? ... : "").
     message = `Job scope #${jobScopeId} recorded${customer ? ` for ${customer.name}` : ""}${parts.length ? ` — ${parts.join(", ")}` : ""}.`;
+    // Real feature 2026-08-08 — installer double-booking, surfaced as
+    // a plain warning appended to the same message, never a separate
+    // confirmation or a block. "Are we even free to do it" deserves an
+    // honest heads-up, not the system silently deciding it's fine, or
+    // refusing to book a legitimate double-up on Peter's behalf.
+    if (installerConflict) {
+      const who = installerConflict.customerName
+        ? `${installerConflict.customerName}: ${installerConflict.description}`
+        : installerConflict.description;
+      message += ` Heads up — the same installer is already booked that day (${who}).`;
+    }
     // Real fix 2026-07-25 — cross-capture attachment (Layer 2's
     // ask-when-2-plus rung) is no longer decided per-segment here; it
     // runs as its own, separate step in processTranscript, only after
