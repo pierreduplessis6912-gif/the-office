@@ -117,8 +117,37 @@ export async function recordWorkObservation(
   jobScopeId: number;
   computedComponents: Array<{ name: string; area_sqm: number | null }>;
   computedTasks: Array<{ description: string; component_name: string | null }>;
+  installerConflict: { description: string; customerName: string | null } | null;
 }> {
   const scheduledDate = resolveScheduledDate(observation.scheduled_date_raw, nowInBusinessTimezone());
+
+  // Real feature 2026-08-08 — installer double-booking check, using
+  // data that already existed (installer_id + scheduled_date on every
+  // job_scope) rather than anything new. Real, direct feedback: "are
+  // we even free to do it?" Runs before the insert below, so it never
+  // matches against the job being created right now. Only checked
+  // when both a real installer and a real resolved date are known —
+  // a job with no date yet can't conflict with anything. Deliberately
+  // just a warning surfaced in the response text, not a block: Peter
+  // asked whether he'd know, not for the system to refuse the
+  // booking — two small jobs the same day, or a helper covering, are
+  // real, legitimate cases only he can judge.
+  let installerConflict: { description: string; customerName: string | null } | null = null;
+  if (installerId != null && scheduledDate != null) {
+    const conflict = await env.OFFICE_DB.prepare(
+      `SELECT js.description, c.name as customer_name
+       FROM job_scopes js
+       LEFT JOIN customers c ON c.id = js.customer_id
+       WHERE js.installer_id = ? AND js.scheduled_date = ?
+       LIMIT 1`
+    )
+      .bind(installerId, scheduledDate)
+      .first<{ description: string; customer_name: string | null }>();
+    if (conflict) {
+      installerConflict = { description: conflict.description, customerName: conflict.customer_name };
+    }
+  }
+
   // Real feature 2026-07-20 (Layer 2 / Project design, verified via the
   // Fable 5 design pass): capture_id is the real, deterministic
   // same-breath signal that turned out not to actually exist in stored
@@ -247,7 +276,7 @@ export async function recordWorkObservation(
     // standalone by default.
   }
 
-  return { jobScopeId, computedComponents, computedTasks };
+  return { jobScopeId, computedComponents, computedTasks, installerConflict };
 }
 
 // Small, deterministic cleanup — real polish item flagged since the
@@ -486,10 +515,25 @@ export async function getEmberCounts(
   const pad = (n: number) => String(n).padStart(2, "0");
   const now = nowInBusinessTimezone();
   const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  // Real feedback, 2026-08-08: "I just booked Jabulani to install for
+  // Mr Jeffrey [next week]... I think we should widen the scope for
+  // planning purposes." Today-only under-served exactly this — a real
+  // job with real lead time, invisible until the day it happened.
+  // Widened to a real 7-day horizon so upcoming, not just same-day,
+  // work is visible. Deliberately just the count's own date window
+  // changing — the query still reads real job_scopes.scheduled_date,
+  // nothing new stored, nothing else about how a job gets scheduled
+  // changes.
+  const horizonDate = new Date(now);
+  horizonDate.setDate(horizonDate.getDate() + 7);
+  const horizon = `${horizonDate.getFullYear()}-${pad(horizonDate.getMonth() + 1)}-${pad(horizonDate.getDate())}`;
 
   const [tasksRow, schedulerRow, financeRow, expensesRow] = await Promise.all([
     env.OFFICE_DB.prepare("SELECT COUNT(*) as n FROM tasks WHERE done = 0").first<{ n: number }>(),
-    env.OFFICE_DB.prepare("SELECT COUNT(*) as n FROM job_scopes WHERE scheduled_date = ?").bind(today).first<{ n: number }>(),
+    env.OFFICE_DB
+      .prepare("SELECT COUNT(*) as n FROM job_scopes WHERE scheduled_date >= ? AND scheduled_date <= ?")
+      .bind(today, horizon)
+      .first<{ n: number }>(),
     env.OFFICE_DB.prepare(
       `SELECT COUNT(*) as n FROM (
          SELECT c.id, COALESCE(SUM(i.amount), 0) - COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.customer_id = c.id), 0) as balance
