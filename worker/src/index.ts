@@ -1,5 +1,5 @@
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult } from "./types";
-import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractSupplierStatement, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, storeUnscopedMemory, transcribe } from "./ai";
+import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractSupplierStatement, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, splitIntoTopics, storeUnscopedMemory, transcribe } from "./ai";
 import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
@@ -3540,6 +3540,21 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         // Already exists — fine, that's what makes this idempotent.
       }
       return Response.json({ status: "ok" });
+    }
+
+    // Real feature 2026-08-09 — a genuine gap this whole debugging arc
+    // ran into repeatedly: no way to see how a phrase actually gets
+    // split into segments before intent classification runs, only the
+    // final stored result several steps downstream. Read-only, calls
+    // the real splitIntoTopics unchanged, touches no data at all —
+    // meant to end guessing about this step, not just for tonight.
+    if (url.pathname === "/debug/split-test" && request.method === "GET") {
+      const text = url.searchParams.get("text");
+      if (!text) {
+        return Response.json({ error: "text query parameter is required" }, { status: 400 });
+      }
+      const segments = await splitIntoTopics(env, text);
+      return Response.json({ input: text, segments, segmentCount: segments.length });
     }
 
     if (url.pathname === "/debug/job-scopes" && request.method === "GET") {
