@@ -3592,6 +3592,19 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ input: text, segments, segmentCount: segments.length });
     }
 
+    // Real feature 2026-08-09 — the direct companion to split-test,
+    // same real gap: no way to see what extractIntent actually returns
+    // for a given segment, only the final downstream effect. Read-only,
+    // calls the real extractIntent unchanged, touches no data.
+    if (url.pathname === "/debug/intent-test" && request.method === "GET") {
+      const text = url.searchParams.get("text");
+      if (!text) {
+        return Response.json({ error: "text query parameter is required" }, { status: 400 });
+      }
+      const result = await extractIntent(env, text);
+      return Response.json({ input: text, extraction: result.extraction });
+    }
+
     if (url.pathname === "/debug/job-scopes" && request.method === "GET") {
       const { results: scopes } = await env.OFFICE_DB.prepare(
         `SELECT js.id, js.customer_id, c.name as customer_name, js.description, js.scheduled_date_raw,
