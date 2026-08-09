@@ -38,6 +38,33 @@ export function resolveScheduledDate(rawPhrase: string | null, now: Date): strin
   }
 
   const weekdays = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+
+  // Real bug, found live 2026-08-09: "next week monday" used to reach
+  // the plain weekday loop below first, matching on "monday" as a
+  // substring and returning the nearest upcoming Monday — which could
+  // mean tomorrow, not next week, depending on what day it actually
+  // was. "next week" is an explicit signal to skip past the nearest
+  // occurrence into the following week; checked here, first, so it
+  // wins over the plain weekday match rather than never being reached.
+  if (phrase.includes("next week")) {
+    for (let i = 0; i < weekdays.length; i++) {
+      if (phrase.includes(weekdays[i])) {
+        const currentDay = now.getDay();
+        let diff = (i - currentDay + 7) % 7;
+        if (diff === 0) diff = 7;
+        diff += 7; // the following week's occurrence, not the nearest one
+        const d = new Date(now);
+        d.setDate(d.getDate() + diff);
+        return toIso(d);
+      }
+    }
+    // "next week" with no specific day named — unchanged, existing
+    // bare +7 behavior.
+    const d = new Date(now);
+    d.setDate(d.getDate() + 7);
+    return toIso(d);
+  }
+
   for (let i = 0; i < weekdays.length; i++) {
     if (phrase.includes(weekdays[i])) {
       const currentDay = now.getDay();
@@ -59,11 +86,6 @@ export function resolveScheduledDate(rawPhrase: string | null, now: Date): strin
   if (inWeeksMatch) {
     const d = new Date(now);
     d.setDate(d.getDate() + parseInt(inWeeksMatch[1], 10) * 7);
-    return toIso(d);
-  }
-  if (phrase.includes("next week")) {
-    const d = new Date(now);
-    d.setDate(d.getDate() + 7);
     return toIso(d);
   }
 
