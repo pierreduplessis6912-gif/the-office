@@ -179,7 +179,17 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             "the tradesperson buys FROM or pays, not someone who owes the tradesperson). A supplier is " +
             "never customer_name, even though the relationship is business, not personal — the " +
             "tradesperson doesn't bill their supplier, so the same protection from ever being " +
-            "accidentally quoted or invoiced that a personal relation gets applies here too. Real bug " +
+            "accidentally quoted or invoiced that a personal relation gets applies here too. " +
+            "Real bug found live 2026-08-09: for \"the job is the one we invoice for 20,000 rand to rooms\" " +
+            "— a fragment identifying an existing job by its price, with no actual person or business " +
+            "named anywhere in it — customer_name was set to \"rooms\", a common noun, not a name. " +
+            "customer_name and character_name must ALWAYS be a real, specific name of an actual person or " +
+            "business — never a generic word like \"rooms\", \"job\", \"work\", \"the customer\", or any " +
+            "other common noun grabbed because a name-shaped slot needed filling. If no real, specific " +
+            "name is genuinely present in the message, both must be null, even when the message clearly " +
+            "has an intent and an amount — a real amount with no real name attached is still a real, " +
+            "valid extraction; a fabricated name is not. " +
+            "Real bug " +
             "found live 2026-07-13: \"Sipho is measuring the hospital\" — naming only an installer doing " +
             "the work, no separate customer ever stated — had the installer's name forced into " +
             "customer_name since it was the only name available, creating a job record linked to the " +
