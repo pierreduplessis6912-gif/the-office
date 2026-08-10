@@ -1499,6 +1499,95 @@ class _EmberGlowPainter extends CustomPainter {
 // _program` (non-nullable) but then checked `if (_program == null)`,
 // which would not compile as given. Made properly nullable here so
 // the loading-state check actually works.
+// A/B experiment: LivingOrb, using living_orb.frag - optimized for
+// real animation performance per direct instruction, secondary
+// displacement noise removed, snoise() evaluations cut from 15 to 8
+// per pixel per frame. Modeled on HeatOrb's proven loading pattern.
+class LivingOrb extends StatefulWidget {
+  final bool isRecording;
+  final double size;
+  const LivingOrb({super.key, required this.isRecording, this.size = 220});
+
+  @override
+  State<LivingOrb> createState() => _LivingOrbState();
+}
+
+class _LivingOrbState extends State<LivingOrb> with SingleTickerProviderStateMixin {
+  FragmentProgram? _program;
+  late AnimationController _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    // A real, continuously-repeating driver for the rebuild loop only
+    // - the shader itself derives all real motion (breathing, drift)
+    // from uTime directly, unlike HeatOrb's separate breath uniform.
+    _ticker = AnimationController(vsync: this, duration: const Duration(seconds: 1))..repeat();
+    _loadShader();
+  }
+
+  Future<void> _loadShader() async {
+    final program = await FragmentProgram.fromAsset('shaders/living_orb.frag');
+    if (!mounted) return;
+    setState(() => _program = program);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final program = _program;
+    if (program == null) return const SizedBox.shrink();
+
+    return AnimatedBuilder(
+      animation: _ticker,
+      builder: (_, __) {
+        return CustomPaint(
+          size: Size(widget.size, widget.size),
+          painter: _LivingOrbPainter(
+            program: program,
+            energy: widget.isRecording ? 1.0 : 0.0,
+            time: DateTime.now().millisecondsSinceEpoch / 1000.0,
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
+}
+
+class _LivingOrbPainter extends CustomPainter {
+  final FragmentProgram program;
+  final double energy;
+  final double time;
+
+  _LivingOrbPainter({required this.program, required this.energy, required this.time});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final shader = program.fragmentShader();
+    // Real, matched to living_orb.frag's actual uniform declaration
+    // order: uSize (vec2 = 2 floats), uTime, uEnergy - a simpler
+    // layout than HeatOrb's, since this shader has no separate
+    // breath/heartbeat/center uniforms.
+    shader.setFloat(0, size.width);
+    shader.setFloat(1, size.height);
+    shader.setFloat(2, time);
+    shader.setFloat(3, energy);
+
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..shader = shader,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _LivingOrbPainter old) => true;
+}
+
 class HeatOrb extends StatefulWidget {
   final bool isRecording;
   final double size;
@@ -1945,7 +2034,7 @@ class _TalkArea extends StatelessWidget {
               RepaintBoundary(
                 child: GestureDetector(
                   onTap: onMicTap,
-                  child: HeatOrb(isRecording: isRecording, size: 220),
+                  child: LivingOrb(isRecording: isRecording, size: 220),
                 ),
               ),
               const SizedBox(height: 14),
