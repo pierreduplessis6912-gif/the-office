@@ -1503,6 +1503,110 @@ class _EmberGlowPainter extends CustomPainter {
 // real animation performance per direct instruction, secondary
 // displacement noise removed, snoise() evaluations cut from 15 to 8
 // per pixel per frame. Modeled on HeatOrb's proven loading pattern.
+// A/B experiment: RaymarchedOrb, using raymarched_orb.frag - a real
+// 80-step raymarch, worth trying per direct instruction despite the
+// real, named performance cost (roughly 480 noise evaluations per
+// pixel for the raymarch alone). The ripple/tap effect is driven by
+// isRecording transitioning to true rather than a separate tap
+// handler, since the app's existing orb already has a GestureDetector
+// for mic-toggle and a second, competing handler would conflict.
+class RaymarchedOrb extends StatefulWidget {
+  final bool isRecording;
+  final double size;
+  const RaymarchedOrb({super.key, required this.isRecording, this.size = 220});
+
+  @override
+  State<RaymarchedOrb> createState() => _RaymarchedOrbState();
+}
+
+class _RaymarchedOrbState extends State<RaymarchedOrb> with SingleTickerProviderStateMixin {
+  FragmentProgram? _program;
+  late AnimationController _ticker;
+  double _tapTime = -1;
+  final DateTime _start = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = AnimationController(vsync: this, duration: const Duration(seconds: 1))..repeat();
+    _loadShader();
+  }
+
+  @override
+  void didUpdateWidget(covariant RaymarchedOrb oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Real ripple trigger: recording just started - a real feedback
+    // signal reusing the shader's own tap-ripple effect, rather than
+    // leaving it unused for lack of a real, non-conflicting trigger.
+    if (widget.isRecording && !oldWidget.isRecording) {
+      _tapTime = DateTime.now().difference(_start).inMilliseconds / 1000.0;
+    }
+  }
+
+  Future<void> _loadShader() async {
+    final program = await FragmentProgram.fromAsset('shaders/raymarched_orb.frag');
+    if (!mounted) return;
+    setState(() => _program = program);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final program = _program;
+    if (program == null) return const SizedBox.shrink();
+
+    return AnimatedBuilder(
+      animation: _ticker,
+      builder: (_, __) {
+        return CustomPaint(
+          size: Size(widget.size, widget.size),
+          painter: _RaymarchedOrbPainter(
+            program: program,
+            time: DateTime.now().difference(_start).inMilliseconds / 1000.0,
+            tapTime: _tapTime,
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
+}
+
+class _RaymarchedOrbPainter extends CustomPainter {
+  final FragmentProgram program;
+  final double time;
+  final double tapTime;
+
+  _RaymarchedOrbPainter({required this.program, required this.time, required this.tapTime});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final shader = program.fragmentShader();
+    // Real, matched to raymarched_orb.frag's actual uniform
+    // declaration order: uResolution (vec2 = 2 floats), uTime, uMouse
+    // (vec2 = 2 floats), uTapTime. Mouse fixed to center (no drag
+    // interaction wired in for this test) rather than left undefined.
+    shader.setFloat(0, size.width);
+    shader.setFloat(1, size.height);
+    shader.setFloat(2, time);
+    shader.setFloat(3, size.width / 2);
+    shader.setFloat(4, size.height / 2);
+    shader.setFloat(5, tapTime);
+
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..shader = shader,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _RaymarchedOrbPainter old) => true;
+}
+
 class LivingOrb extends StatefulWidget {
   final bool isRecording;
   final double size;
@@ -2034,7 +2138,7 @@ class _TalkArea extends StatelessWidget {
               RepaintBoundary(
                 child: GestureDetector(
                   onTap: onMicTap,
-                  child: LivingOrb(isRecording: isRecording, size: 220),
+                  child: RaymarchedOrb(isRecording: isRecording, size: 220),
                 ),
               ),
               const SizedBox(height: 14),
