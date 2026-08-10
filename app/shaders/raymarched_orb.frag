@@ -167,7 +167,15 @@ void main() {
   bg += particles(fragCoord / uResolution + 0.5, t * 0.7, 1.0);
 
   if (hit < 0.5) {
-    fragColor = vec4(bg * (1.0 - dot(uv,uv)*0.4), 1.0);
+    // Real bug fix, found live: this was hardcoded to fully opaque
+    // alpha (1.0), which painted the shader's entire canvas rectangle
+    // as a visible, dark-gray square - bg isn't pure black, and an
+    // opaque fill of it is exactly the box that showed up against the
+    // app's true-black void. Both other shaders in this project
+    // already handle this correctly (fully transparent alpha /
+    // masked to zero outside their own visible shape) - this one just
+    // never got the same treatment.
+    fragColor = vec4(bg * (1.0 - dot(uv,uv)*0.4), 0.0);
     return;
   }
 
