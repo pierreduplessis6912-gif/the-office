@@ -40,3 +40,4 @@ flutter:
   uses-material-design: true
   shaders:
     - shaders/heat_orb.frag
+    - shaders/living_orb.frag
