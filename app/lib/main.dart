@@ -971,9 +971,9 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         ],
       ),
       drawer: _OfficeDrawer(
-        onReportsTap: _showReportsSheet,
+        onReportsTap: (_) => _showReportsSheet(),
         onPeopleTap: _showPeopleSheet,
-        onHistoryTap: _showHistorySheet,
+        onHistoryTap: (_) => _showHistorySheet(),
       ),
       body: SafeArea(
         child: Stack(
@@ -1298,7 +1298,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   // Real feature 2026-07-27 — People, fetched fresh on open rather
   // than cached like the embers, since this is a rarely-opened,
   // on-demand list rather than something needing constant refresh.
-  Future<void> _showPeopleSheet() async {
+  Future<void> _showPeopleSheet(Offset origin) async {
     List<dynamic> people = [];
     try {
       final response = await http.get(Uri.parse('$officeApiBase/debug/characters'), headers: _authHeaders());
@@ -1314,9 +1314,13 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     // Real first room, per Rule 8 - "the relevant world quietly
     // appears," materializing rather than sliding up from an edge.
     // The first real capability built against the runtime foundation.
+    // Real, direct feedback: "the room should be born from the
+    // ember" - now genuinely grows from the real, tapped origin
+    // rather than always the screen's center.
     await showOfficeRoom(
       context: context,
       officeState: _officeState,
+      origin: origin,
       builder: (context) => Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: 420, maxHeight: MediaQuery.of(context).size.height * 0.7),
@@ -1422,9 +1426,9 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
 // real backend data — Reports opens real, already-proven PDFs;
 // People and History fetch real, live lists on open.
 class _OfficeDrawer extends StatelessWidget {
-  final VoidCallback onReportsTap;
-  final VoidCallback onPeopleTap;
-  final VoidCallback onHistoryTap;
+  final void Function(Offset) onReportsTap;
+  final void Function(Offset) onPeopleTap;
+  final void Function(Offset) onHistoryTap;
   const _OfficeDrawer({required this.onReportsTap, required this.onPeopleTap, required this.onHistoryTap});
 
   @override
@@ -1451,14 +1455,22 @@ class _OfficeDrawer extends StatelessWidget {
     );
   }
 
-  Widget _drawerItem(IconData icon, String label, VoidCallback onTap, BuildContext context) {
-    return ListTile(
-      leading: Icon(icon, color: _muted),
-      title: Text(label, style: GoogleFonts.workSans(color: _paper, fontSize: 15)),
-      onTap: () {
+  Widget _drawerItem(IconData icon, String label, void Function(Offset) onTap, BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (details) {
+        // Real, direct feedback: "the room should be born from the
+        // ember." Captures the real, on-screen tap position before
+        // the drawer closes - the drawer's own pop-then-callback
+        // ordering would otherwise lose it entirely.
+        final origin = details.globalPosition;
         Navigator.pop(context);
-        onTap();
+        onTap(origin);
       },
+      child: ListTile(
+        leading: Icon(icon, color: _muted),
+        title: Text(label, style: GoogleFonts.workSans(color: _paper, fontSize: 15)),
+      ),
     );
   }
 }
