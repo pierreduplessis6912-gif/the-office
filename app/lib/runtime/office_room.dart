@@ -16,12 +16,32 @@ import 'office_state.dart';
 /// RoomOpening while opening and RoomClosing while dismissing, so the
 /// state machine's own states have something real to represent
 /// rather than sitting permanently unwired.
+///
+/// Real, direct feedback: "the ember becomes a doorway... the room
+/// should be born from the ember, not appear as a generic modal."
+/// [origin] is the real, on-screen position of whatever was tapped to
+/// open this room (an ember, a menu item) - when given, the room
+/// genuinely grows outward from that point rather than the screen's
+/// center. Optional and falls back to centered scaling, so existing
+/// callers keep working unchanged until they have a real origin to
+/// pass.
 Future<T?> showOfficeRoom<T>({
   required BuildContext context,
   required OfficeStateMachine officeState,
   required WidgetBuilder builder,
+  Offset? origin,
 }) {
   officeState.transitionTo(OfficeState.roomOpening);
+  final screenSize = MediaQuery.of(context).size;
+  // Real conversion from a screen-space pixel Offset to Alignment's
+  // own -1..1 space (0,0 is center) - only computed when a real
+  // origin was actually given.
+  final alignment = origin == null
+      ? Alignment.center
+      : Alignment(
+          (origin.dx / screenSize.width) * 2 - 1,
+          (origin.dy / screenSize.height) * 2 - 1,
+        );
   return showGeneralDialog<T>(
     context: context,
     barrierLabel: 'Room',
@@ -45,7 +65,12 @@ Future<T?> showOfficeRoom<T>({
       return FadeTransition(
         opacity: curved,
         child: ScaleTransition(
-          scale: Tween<double>(begin: 0.94, end: 1.0).animate(curved),
+          // Real, direct feedback: grows from the real, tapped
+          // origin point rather than always the generic center -
+          // 0.06 (not the previous 0.94) since growing from a small,
+          // real point reads correctly starting much smaller.
+          alignment: alignment,
+          scale: Tween<double>(begin: origin == null ? 0.94 : 0.06, end: 1.0).animate(curved),
           child: child,
         ),
       );
