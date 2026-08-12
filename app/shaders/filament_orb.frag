@@ -121,21 +121,27 @@ void main() {
   vec3 p = vec3(uv, z) / radius;
 
   // ------------------------------------------------------------
-  // DOMAIN WARPING - the real, key technique. A low-frequency warp
-  // field displaces the coordinates fed into a higher-frequency
-  // noise evaluation, producing organic, branching, vein-like
-  // structure rather than blobby fBM clouds.
+  // FLOWING RIBBON - real, direct feedback: "notice the flow" - a
+  // single, coherent, swirling ribbon of light, not several separate
+  // veins scattered across the whole surface. A slowly-rotating band
+  // axis defines a great circle on the sphere; domain-warped noise
+  // bends the surface point's path before measuring distance to that
+  // axis, giving the ribbon organic, flowing irregularity rather than
+  // a perfect, static circle.
   // ------------------------------------------------------------
 
-  vec3 warp = vec3(
-    snoise(p * 0.3 + t * 0.01),
-    snoise(p * 0.3 + t * 0.01 + 100.0),
-    snoise(p * 0.3 + t * 0.01 + 200.0)
-  ) * 0.5;
+  vec3 bandNormal = normalize(vec3(sin(t * 0.11), cos(t * 0.09), sin(t * 0.07 + 1.5) * 0.6));
 
-  float veins = snoise(p * 2.0 + warp + t * 0.02);
-  float detail = snoise(p * 4.0 + warp * 0.5 + t * 0.03) * 0.5;
-  float filaments = smoothstep(-0.1, 0.5, veins + detail);
+  vec3 warp = vec3(
+    snoise(p * 1.2 + t * 0.05),
+    snoise(p * 1.2 + t * 0.05 + 50.0),
+    snoise(p * 1.2 + t * 0.05 + 90.0)
+  ) * 0.35;
+  vec3 pw = normalize(p + warp);
+
+  float bandDist = dot(pw, bandNormal);
+  float filaments = 1.0 - smoothstep(0.0, 0.09, abs(bandDist));
+  float ribbonCore = 1.0 - smoothstep(0.0, 0.03, abs(bandDist));
 
   // Real, deliberate tap-ripple: an expanding ring using angular
   // distance from a fixed tap point, driven by isRecording via
@@ -153,20 +159,20 @@ void main() {
 
   float bodyGlow = coherentSwell(p, t) * 0.5 + 0.5;
 
-  // Fast micro-sparkle, only inside bright filament veins.
+  // Fast micro-sparkle, only inside the bright ribbon core.
   float sparkle = snoise(p * 12.0 + t * 0.6);
-  sparkle = pow(max(sparkle, 0.0), 4.0) * smoothstep(0.55, 0.9, filaments);
+  sparkle = pow(max(sparkle, 0.0), 4.0) * ribbonCore;
 
   // ------------------------------------------------------------
-  // COLOR COMPOSITION - layered, in order, per the brief. No broad
+  // COLOR COMPOSITION - same real, layered order as before. No broad
   // directional light anywhere in this stack - that was the real,
   // confirmed cause of drowning internal variation.
   // ------------------------------------------------------------
 
   vec3 col = vec3(0.02, 0.005, 0.002);
-  col += vec3(0.8, 0.1, 0.02) * bodyGlow * 0.3;
-  col += vec3(0.95, 0.22, 0.05) * filaments * 0.75;
-  col += vec3(1.0, 0.42, 0.08) * pow(filaments, 3.0) * 0.45;
+  col += vec3(0.8, 0.1, 0.02) * bodyGlow * 0.25;
+  col += vec3(0.95, 0.25, 0.05) * filaments * 0.85;
+  col += vec3(1.0, 0.5, 0.12) * ribbonCore * 0.6;
   col += vec3(1.0, 0.6, 0.25) * sparkle * 0.4;
   col += vec3(1.0, 0.28, 0.08) * ripple * 0.5;
 
