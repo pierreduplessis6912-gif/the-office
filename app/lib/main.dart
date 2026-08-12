@@ -17,6 +17,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'runtime/office_room.dart';
+import 'runtime/office_state.dart';
+
 /// The one thing every future client (Flutter, PWA, desktop) points at.
 /// Changing this one line is the entire cost of a future domain swap.
 const officeApiBase = 'https://office.websitehub.co.za';
@@ -194,6 +197,13 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   final _scrollController = ScrollController();
   final _imagePicker = ImagePicker();
 
+  // Real, minimal port from main - only what showOfficeRoom's own
+  // internal RoomOpening/RoomClosing/Idle transitions need. This
+  // branch predates the full clock/runtime migration on main; the
+  // doorway room mechanic doesn't depend on that, so it's not ported
+  // here.
+  final _officeState = OfficeStateMachine();
+
   bool _isRecording = false;
   bool _isWriteMode = false;
   int _idCounter = 0;
@@ -256,6 +266,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     _scrollController.dispose();
     _entranceController.dispose();
     _breatheController.dispose();
+    _officeState.dispose();
     super.dispose();
   }
 
@@ -770,9 +781,9 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         ],
       ),
       drawer: _OfficeDrawer(
-        onReportsTap: _showReportsSheet,
+        onReportsTap: (_) => _showReportsSheet(),
         onPeopleTap: _showPeopleSheet,
-        onHistoryTap: _showHistorySheet,
+        onHistoryTap: (_) => _showHistorySheet(),
       ),
       body: SafeArea(
         child: Stack(
@@ -1044,7 +1055,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   // Real feature 2026-07-27 — People, fetched fresh on open rather
   // than cached like the embers, since this is a rarely-opened,
   // on-demand list rather than something needing constant refresh.
-  Future<void> _showPeopleSheet() async {
+  Future<void> _showPeopleSheet(Offset origin) async {
     List<dynamic> people = [];
     try {
       final response = await http.get(Uri.parse('$officeApiBase/debug/characters'), headers: _authHeaders());
@@ -1057,33 +1068,58 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       // below rather than a confusing error for a low-stakes lookup.
     }
     if (!mounted) return;
-    showModalBottomSheet(
+    // Real first room, per Rule 8 - "the relevant world quietly
+    // appears," materializing rather than sliding up from an edge.
+    // Real, direct feedback: "the room should be born from the
+    // ember" - now genuinely grows from the real, tapped origin
+    // rather than always the screen's center. Ported from main -
+    // this branch predated the runtime/room migration.
+    await showOfficeRoom(
       context: context,
-      backgroundColor: _charcoal,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('PEOPLE', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
-              const SizedBox(height: 12),
-              if (people.isEmpty)
-                Text('Nobody real here yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic))
-              else
-                ConstrainedBox(
-                  constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.5),
-                  child: ListView(
-                    shrinkWrap: true,
-                    children: people.map((p) {
-                      final row = p as Map<String, dynamic>;
-                      final relationship = row['relationship'] as String?;
-                      return _docketCard('${row['name']}${relationship != null ? ' — $relationship' : ''}');
-                    }).toList(),
-                  ),
+      officeState: _officeState,
+      origin: origin,
+      builder: (context) => Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 420, maxHeight: MediaQuery.of(context).size.height * 0.7),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 24),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: _charcoal,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _textTertiary.withOpacity(0.15)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('PEOPLE', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      color: _muted,
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
                 ),
-            ],
+                const SizedBox(height: 8),
+                if (people.isEmpty)
+                  Text('Nobody real here yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic))
+                else
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: people.map((p) {
+                        final row = p as Map<String, dynamic>;
+                        final relationship = row['relationship'] as String?;
+                        return _docketCard('${row['name']}${relationship != null ? ' — $relationship' : ''}');
+                      }).toList(),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1147,9 +1183,9 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
 // real backend data — Reports opens real, already-proven PDFs;
 // People and History fetch real, live lists on open.
 class _OfficeDrawer extends StatelessWidget {
-  final VoidCallback onReportsTap;
-  final VoidCallback onPeopleTap;
-  final VoidCallback onHistoryTap;
+  final void Function(Offset) onReportsTap;
+  final void Function(Offset) onPeopleTap;
+  final void Function(Offset) onHistoryTap;
   const _OfficeDrawer({required this.onReportsTap, required this.onPeopleTap, required this.onHistoryTap});
 
   @override
@@ -1176,14 +1212,22 @@ class _OfficeDrawer extends StatelessWidget {
     );
   }
 
-  Widget _drawerItem(IconData icon, String label, VoidCallback onTap, BuildContext context) {
-    return ListTile(
-      leading: Icon(icon, color: _muted),
-      title: Text(label, style: GoogleFonts.workSans(color: _paper, fontSize: 15)),
-      onTap: () {
+  Widget _drawerItem(IconData icon, String label, void Function(Offset) onTap, BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (details) {
+        // Real, direct feedback: "the room should be born from the
+        // ember." Captures the real, on-screen tap position before
+        // the drawer closes - the drawer's own pop-then-callback
+        // ordering would otherwise lose it entirely. Ported from main.
+        final origin = details.globalPosition;
         Navigator.pop(context);
-        onTap();
+        onTap(origin);
       },
+      child: ListTile(
+        leading: Icon(icon, color: _muted),
+        title: Text(label, style: GoogleFonts.workSans(color: _paper, fontSize: 15)),
+      ),
     );
   }
 }
