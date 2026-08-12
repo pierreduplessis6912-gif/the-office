@@ -42,3 +42,4 @@ flutter:
     - shaders/heat_orb.frag
     - shaders/living_orb.frag
     - shaders/raymarched_orb.frag
+    - shaders/filament_orb.frag
