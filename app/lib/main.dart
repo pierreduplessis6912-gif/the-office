@@ -1510,6 +1510,103 @@ class _EmberGlowPainter extends CustomPainter {
 // isRecording transitioning to true rather than a separate tap
 // handler, since the app's existing orb already has a GestureDetector
 // for mic-toggle and a second, competing handler would conflict.
+// A/B experiment: FilamentOrb, using filament_orb.frag - the third
+// architecture, verified offline before this was ever wired in. Ripple
+// trigger reuses the same isRecording-transition pattern as
+// RaymarchedOrb.
+class FilamentOrb extends StatefulWidget {
+  final bool isRecording;
+  final double size;
+  const FilamentOrb({super.key, required this.isRecording, this.size = 220});
+
+  @override
+  State<FilamentOrb> createState() => _FilamentOrbState();
+}
+
+class _FilamentOrbState extends State<FilamentOrb> with SingleTickerProviderStateMixin {
+  FragmentProgram? _program;
+  late AnimationController _ticker;
+  double _tapTime = -1;
+  final DateTime _start = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = AnimationController(vsync: this, duration: const Duration(seconds: 1))..repeat();
+    _loadShader();
+  }
+
+  @override
+  void didUpdateWidget(covariant FilamentOrb oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isRecording && !oldWidget.isRecording) {
+      _tapTime = DateTime.now().difference(_start).inMilliseconds / 1000.0;
+    }
+  }
+
+  Future<void> _loadShader() async {
+    final program = await FragmentProgram.fromAsset('shaders/filament_orb.frag');
+    if (!mounted) return;
+    setState(() => _program = program);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final program = _program;
+    if (program == null) return const SizedBox.shrink();
+
+    return AnimatedBuilder(
+      animation: _ticker,
+      builder: (_, __) {
+        return CustomPaint(
+          size: Size(widget.size, widget.size),
+          painter: _FilamentOrbPainter(
+            program: program,
+            energy: widget.isRecording ? 1.0 : 0.0,
+            time: DateTime.now().difference(_start).inMilliseconds / 1000.0,
+            tapTime: _tapTime,
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
+}
+
+class _FilamentOrbPainter extends CustomPainter {
+  final FragmentProgram program;
+  final double energy;
+  final double time;
+  final double tapTime;
+
+  _FilamentOrbPainter({required this.program, required this.energy, required this.time, required this.tapTime});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final shader = program.fragmentShader();
+    // Real, matched to filament_orb.frag's actual uniform declaration
+    // order: uSize (vec2 = 2 floats), uTime, uEnergy, uTapTime.
+    shader.setFloat(0, size.width);
+    shader.setFloat(1, size.height);
+    shader.setFloat(2, time);
+    shader.setFloat(3, energy);
+    shader.setFloat(4, tapTime);
+
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..shader = shader,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _FilamentOrbPainter old) => true;
+}
+
 class RaymarchedOrb extends StatefulWidget {
   final bool isRecording;
   final double size;
@@ -2138,7 +2235,7 @@ class _TalkArea extends StatelessWidget {
               RepaintBoundary(
                 child: GestureDetector(
                   onTap: onMicTap,
-                  child: RaymarchedOrb(isRecording: isRecording, size: 220),
+                  child: FilamentOrb(isRecording: isRecording, size: 220),
                 ),
               ),
               const SizedBox(height: 14),
