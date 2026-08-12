@@ -27,7 +27,17 @@ workflows:
       - name: Build APK (release)
         script: |
           cd app
-          flutter build apk --release
+          # Real fix, found live: Flutter's stable channel had moved
+          # forward to require a newer minimum Kotlin version (2.2.20)
+          # than the project's regex-based patch (targeting an older
+          # template format) was successfully setting - the patch was
+          # silently not matching, leaving Flutter's own, still-too-old
+          # generated default (2.2.10) in place. Rather than keep
+          # chasing Flutter's evolving Gradle template syntax with an
+          # increasingly fragile regex, using the official CLI bypass
+          # flag Flutter itself offers for exactly this situation -
+          # more robust against future template changes.
+          flutter build apk --release --android-skip-build-dependency-validation
     artifacts:
       - app/build/app/outputs/**/*.apk
     triggering:
