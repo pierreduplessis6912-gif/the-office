@@ -2277,9 +2277,26 @@ class _TalkArea extends StatelessWidget {
               // the orb technique - everything else in this screen
               // (embers, layout, subtitle) stays the same.
               RepaintBoundary(
-                child: GestureDetector(
-                  onTap: onMicTap,
-                  child: FilamentOrb(isRecording: isRecording, size: 220),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    FilamentOrb(isRecording: isRecording, size: 220),
+                    // Real bug fix, found live: the GestureDetector was
+                    // previously wrapping the full 220x220 canvas, but
+                    // the shader's own visible sphere (radius 0.38 of
+                    // 220) is only ~167px across - CustomPaint doesn't
+                    // do per-pixel alpha-aware hit-testing, so the
+                    // invisible remainder of that box was tappable too,
+                    // overlapping the nearby embers and intercepting
+                    // taps meant for them. This is sized to the actual
+                    // visible sphere, with a small comfortable margin,
+                    // not the full glow canvas.
+                    SizedBox(
+                      width: 172,
+                      height: 172,
+                      child: GestureDetector(onTap: onMicTap),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 14),
