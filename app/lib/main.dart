@@ -1074,23 +1074,26 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     // ember" - now genuinely grows from the real, tapped origin
     // rather than always the screen's center. Ported from main -
     // this branch predated the runtime/room migration.
+    //
+    // Real, direct feedback, found live: "it looks pretty much just
+    // like a card." Honest, and correct - a bordered, rounded-corner
+    // box centered on a darkened backdrop is exactly a dialog, no
+    // matter how it entered. Rebuilt as a genuine full-screen room -
+    // no border, no card fill, the same void-black background as the
+    // main Office, so it reads as a real continuation of the same
+    // world rather than a surface floating on top of it.
     await showOfficeRoom(
       context: context,
       officeState: _officeState,
       origin: origin,
-      builder: (context) => Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: 420, maxHeight: MediaQuery.of(context).size.height * 0.7),
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 24),
+      builder: (context) => Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: _void,
+        child: SafeArea(
+          child: Padding(
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: _charcoal,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _textTertiary.withOpacity(0.15)),
-            ),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
@@ -1104,13 +1107,12 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 16),
                 if (people.isEmpty)
                   Text('Nobody real here yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic))
                 else
-                  Flexible(
+                  Expanded(
                     child: ListView(
-                      shrinkWrap: true,
                       children: people.map((p) {
                         final row = p as Map<String, dynamic>;
                         final relationship = row['relationship'] as String?;
