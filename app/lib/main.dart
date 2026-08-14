@@ -1055,6 +1055,21 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   // Real feature 2026-07-27 — People, fetched fresh on open rather
   // than cached like the embers, since this is a rarely-opened,
   // on-demand list rather than something needing constant refresh.
+  // Real, honest grouping - by whatever relationship string values
+  // actually exist in the data, not a guessed taxonomy. A missing or
+  // empty relationship gets an honest fallback label rather than
+  // silently dropping the person from the room.
+  Map<String, List<dynamic>> _groupPeopleByRelationship(List<dynamic> people) {
+    final groups = <String, List<dynamic>>{};
+    for (final p in people) {
+      final row = p as Map<String, dynamic>;
+      final relationship = (row['relationship'] as String?)?.trim();
+      final key = (relationship == null || relationship.isEmpty) ? 'Other' : relationship;
+      groups.putIfAbsent(key, () => []).add(row);
+    }
+    return groups;
+  }
+
   Future<void> _showPeopleSheet(Offset origin) async {
     List<dynamic> people = [];
     try {
@@ -1113,10 +1128,36 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
                 else
                   Expanded(
                     child: ListView(
-                      children: people.map((p) {
-                        final row = p as Map<String, dynamic>;
-                        final relationship = row['relationship'] as String?;
-                        return _docketCard('${row['name']}${relationship != null ? ' — $relationship' : ''}');
+                      children: _groupPeopleByRelationship(people).entries.map((group) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 28),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                group.key.toUpperCase(),
+                                style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 11, letterSpacing: 1.4),
+                              ),
+                              const SizedBox(height: 14),
+                              // Real, direct feedback: "scattered, not
+                              // stacked" - a loose Wrap rather than a
+                              // vertical list, each person their own
+                              // small, warm ember rather than a row of
+                              // text. Broad vision first: uniform
+                              // count for now (no real recency/mention
+                              // metric available yet), name reveals on
+                              // tap rather than staying printed.
+                              Wrap(
+                                spacing: 22,
+                                runSpacing: 22,
+                                children: group.value.map((p) {
+                                  final row = p as Map<String, dynamic>;
+                                  return _PersonEmber(name: row['name'] as String? ?? 'Unnamed');
+                                }).toList(),
+                              ),
+                            ],
+                          ),
+                        );
                       }).toList(),
                     ),
                   ),
@@ -1269,6 +1310,52 @@ double _crackleValue(double t, double speed, int seed) {
   // crackle rather than a smooth, even glide.
   final eased = frac * frac * frac;
   return current + (next - current) * eased;
+}
+
+// Real, direct feedback: "each person as their own small ember, not
+// a row of text... name appearing only on touch." Reuses the exact
+// same _Ember widget as the main app's 5 real embers - genuine visual
+// consistency, not a parallel, separate implementation. Broad vision
+// first, per direct instruction: uniform count for everyone (no real
+// recency/mention-frequency metric exists yet to drive honest
+// variation), tap only reveals the name - drilling into relationship/
+// facts/history is the deliberately separate, next step.
+class _PersonEmber extends StatefulWidget {
+  final String name;
+  const _PersonEmber({required this.name});
+
+  @override
+  State<_PersonEmber> createState() => _PersonEmberState();
+}
+
+class _PersonEmberState extends State<_PersonEmber> {
+  bool _revealed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 32,
+          height: 32,
+          child: _Ember(
+            color: _emberAmber,
+            count: 1,
+            onTap: () => setState(() => _revealed = !_revealed),
+          ),
+        ),
+        AnimatedOpacity(
+          opacity: _revealed ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 200),
+          child: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(widget.name, style: GoogleFonts.workSans(color: _muted, fontSize: 11)),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _Ember extends StatefulWidget {
