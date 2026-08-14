@@ -25,11 +25,19 @@ import 'office_state.dart';
 /// center. Optional and falls back to centered scaling, so existing
 /// callers keep working unchanged until they have a real origin to
 /// pass.
+///
+/// Real, direct feedback: "that same colour becomes the first light
+/// of the room." [accentColor], when given alongside [origin], adds a
+/// real, animated colored glow at the same point during the opening
+/// transition - the same colour the ignition sequence ended on
+/// continues here rather than cutting to a generic black barrier, so
+/// the two read as one continuous event.
 Future<T?> showOfficeRoom<T>({
   required BuildContext context,
   required OfficeStateMachine officeState,
   required WidgetBuilder builder,
   Offset? origin,
+  Color? accentColor,
 }) {
   officeState.transitionTo(OfficeState.roomOpening);
   final screenSize = MediaQuery.of(context).size;
@@ -62,7 +70,7 @@ Future<T?> showOfficeRoom<T>({
       if (animation.status == AnimationStatus.reverse && officeState.state != OfficeState.roomClosing) {
         officeState.transitionTo(OfficeState.roomClosing);
       }
-      return FadeTransition(
+      final scaled = FadeTransition(
         opacity: curved,
         child: ScaleTransition(
           // Real, direct feedback: grows from the real, tapped
@@ -73,6 +81,41 @@ Future<T?> showOfficeRoom<T>({
           scale: Tween<double>(begin: origin == null ? 0.94 : 0.06, end: 1.0).animate(curved),
           child: child,
         ),
+      );
+      if (accentColor == null || origin == null) return scaled;
+      return Stack(
+        children: [
+          scaled,
+          // Real, animated colored glow at the same origin - peaks
+          // early (continuing the ignition's own final brightness),
+          // then recedes as the room's real content takes over, so
+          // the same colour genuinely becomes the room's first light
+          // rather than a sharp cut to black.
+          IgnorePointer(
+            child: AnimatedBuilder(
+              animation: animation,
+              builder: (context, _) {
+                final t = animation.value;
+                final glowOpacity = (1.0 - t).clamp(0.0, 1.0) * 0.4;
+                if (glowOpacity <= 0.0) return const SizedBox.shrink();
+                return Positioned(
+                  left: origin.dx - 300,
+                  top: origin.dy - 300,
+                  child: Container(
+                    width: 600,
+                    height: 600,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [accentColor.withOpacity(glowOpacity), accentColor.withOpacity(0.0)],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       );
     },
   ).whenComplete(() {
