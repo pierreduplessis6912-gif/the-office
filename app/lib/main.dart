@@ -1070,6 +1070,80 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     return groups;
   }
 
+  // Real, direct feedback: "when I tap an ember, does my brain
+  // perceive that ember as the thing opening the room? Not tap →
+  // ember animation → dialog → room animation. One event propagating
+  // through the world." Deliberately not new architecture - uses
+  // Flutter's own, existing Overlay mechanism to play a real,
+  // brighten-then-propagate sequence at the exact tapped origin,
+  // awaited before the existing, unmodified showOfficeRoom transform
+  // takes over from the same point - one continuous handoff, not two
+  // separate animations stitched together.
+  Future<void> _igniteEmber(Offset origin, Color color) async {
+    final overlayState = Overlay.of(context);
+    final controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 380));
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (context) => AnimatedBuilder(
+        animation: controller,
+        builder: (context, _) {
+          final t = controller.value;
+          // Phase 1 (0.0-0.32): acknowledge touch - brightens and
+          // grows quickly, ease-out.
+          final acknowledge = Curves.easeOut.transform((t / 0.32).clamp(0.0, 1.0));
+          // Phase 2 (0.32-1.0): the glow propagates outward - its
+          // colour becomes the dominant light, the surrounding
+          // darkness responds. Ease-in, so it starts slow (still
+          // feels connected to the small dot) and accelerates outward.
+          final propagate = Curves.easeIn.transform(((t - 0.32) / 0.68).clamp(0.0, 1.0));
+
+          final dotRadius = 6 + acknowledge * 10;
+          final glowRadius = propagate * 420;
+          final glowOpacity = (1.0 - propagate) * 0.55 + (propagate < 0.15 ? propagate / 0.15 * 0.2 : 0.2 * (1 - propagate));
+
+          return IgnorePointer(
+            child: Stack(
+              children: [
+                if (glowRadius > 0)
+                  Positioned(
+                    left: origin.dx - glowRadius,
+                    top: origin.dy - glowRadius,
+                    child: Container(
+                      width: glowRadius * 2,
+                      height: glowRadius * 2,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [color.withOpacity(glowOpacity.clamp(0.0, 1.0)), color.withOpacity(0.0)],
+                        ),
+                      ),
+                    ),
+                  ),
+                Positioned(
+                  left: origin.dx - dotRadius,
+                  top: origin.dy - dotRadius,
+                  child: Container(
+                    width: dotRadius * 2,
+                    height: dotRadius * 2,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: color.withOpacity(acknowledge),
+                      boxShadow: [BoxShadow(color: color.withOpacity(acknowledge * 0.8), blurRadius: 16, spreadRadius: 2)],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+    overlayState.insert(entry);
+    await controller.forward();
+    entry.remove();
+    controller.dispose();
+  }
+
   Future<void> _showPeopleSheet(Offset origin) async {
     List<dynamic> people = [];
     try {
@@ -1082,6 +1156,14 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       // Real, deliberate no-op — an empty list is shown honestly
       // below rather than a confusing error for a low-stakes lookup.
     }
+    if (!mounted) return;
+    // Real, direct feedback: "when I tap an ember, does my brain
+    // perceive that ember as the thing opening the room?" The
+    // ignition plays first, at the same real, tapped origin - then
+    // the room's own, existing, unmodified transform takes over from
+    // the same point and colour, so the two read as one continuous
+    // event rather than tap → animation → dialog → animation.
+    await _igniteEmber(origin, _emberAmber);
     if (!mounted) return;
     // Real first room, per Rule 8 - "the relevant world quietly
     // appears," materializing rather than sliding up from an edge.
@@ -1101,6 +1183,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       context: context,
       officeState: _officeState,
       origin: origin,
+      accentColor: _emberAmber,
       builder: (context) => Container(
         width: double.infinity,
         height: double.infinity,
