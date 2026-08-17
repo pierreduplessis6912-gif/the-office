@@ -43,3 +43,4 @@ flutter:
   shaders:
     - shaders/stage1_orb.frag
     - shaders/ember_tear.frag
+    - shaders/filament_orb.frag
