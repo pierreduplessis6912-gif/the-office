@@ -170,16 +170,16 @@ void main() {
   // ------------------------------------------------------------
 
   vec3 col = vec3(0.02, 0.005, 0.002);
-  col += vec3(0.8, 0.1, 0.02) * bodyGlow * 0.25;
-  col += vec3(0.95, 0.25, 0.05) * filaments * 0.85;
-  col += vec3(1.0, 0.5, 0.12) * ribbonCore * 0.6;
-  col += vec3(1.0, 0.6, 0.25) * sparkle * 0.4;
-  col += vec3(1.0, 0.28, 0.08) * ripple * 0.5;
+  col += vec3(0.85, 0.06, 0.03) * bodyGlow * 0.25;
+  col += vec3(0.92, 0.12, 0.04) * filaments * 0.85;
+  col += vec3(1.0, 0.22, 0.08) * ribbonCore * 0.6;
+  col += vec3(1.0, 0.3, 0.15) * sparkle * 0.4;
+  col += vec3(1.0, 0.15, 0.06) * ripple * 0.5;
 
   // Fresnel rim - the glass-membrane edge quality, without a
   // directional light. z is already the view-facing component.
   float fresnel = pow(1.0 - z, 3.0);
-  col += vec3(1.0, 0.3, 0.1) * fresnel * 1.0;
+  col += vec3(1.0, 0.15, 0.07) * fresnel * 1.0;
 
   // The ONE small, sharp directional element - a fixed specular
   // spot, small enough it never becomes a broad gradient.
