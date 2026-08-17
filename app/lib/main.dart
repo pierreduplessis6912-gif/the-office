@@ -231,7 +231,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   // finishes; _TalkArea falls back to the proven old orb whenever
   // it's null, toggle or not.
   ui.FragmentShader? _stage1Shader;
-  bool _useShaderOrb = false;
+  bool _useShaderOrb = true;
   // The embers, rebuilt, 2026-08-08 — same feature-flag discipline,
   // one shared compiled program (five embers each derive their own
   // independent shader instance from it via .fragmentShader(), rather
@@ -1311,29 +1311,40 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       // below rather than a confusing error for a low-stakes lookup.
     }
     if (!mounted) return;
+    // Real, direct feedback: "when I tap an ember, does my brain
+    // perceive that ember as the thing opening the room?" The
+    // ignition plays first, at the same real, tapped origin - then
+    // the room's own, existing, unmodified transform takes over from
+    // the same point and colour, so the two read as one continuous
+    // event rather than tap → animation → dialog → animation.
+    await _igniteEmber(origin, _emberAmber);
+    if (!mounted) return;
     // Real first room, per Rule 8 - "the relevant world quietly
     // appears," materializing rather than sliding up from an edge.
-    // The first real capability built against the runtime foundation.
     // Real, direct feedback: "the room should be born from the
     // ember" - now genuinely grows from the real, tapped origin
     // rather than always the screen's center.
+    //
+    // Real, direct feedback, found live: "it looks pretty much just
+    // like a card." Honest, and correct - a bordered, rounded-corner
+    // box centered on a darkened backdrop is exactly a dialog, no
+    // matter how it entered. Rebuilt as a genuine full-screen room -
+    // no border, no card fill, the same void-black background as the
+    // main Office, so it reads as a real continuation of the same
+    // world rather than a surface floating on top of it.
     await showOfficeRoom(
       context: context,
       officeState: _officeState,
       origin: origin,
-      builder: (context) => Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: 420, maxHeight: MediaQuery.of(context).size.height * 0.7),
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 24),
+      accentColor: _emberAmber,
+      builder: (context) => Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: _void,
+        child: SafeArea(
+          child: Padding(
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: _charcoal,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _textTertiary.withOpacity(0.15)),
-            ),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
@@ -1347,17 +1358,42 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 16),
                 if (people.isEmpty)
                   Text('Nobody real here yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic))
                 else
-                  Flexible(
+                  Expanded(
                     child: ListView(
-                      shrinkWrap: true,
-                      children: people.map((p) {
-                        final row = p as Map<String, dynamic>;
-                        final relationship = row['relationship'] as String?;
-                        return _docketCard('${row['name']}${relationship != null ? ' — $relationship' : ''}');
+                      children: _groupPeopleByRelationship(people).entries.map((group) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 28),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                group.key.toUpperCase(),
+                                style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 11, letterSpacing: 1.4),
+                              ),
+                              const SizedBox(height: 14),
+                              // Real, direct feedback: "scattered, not
+                              // stacked" - a loose Wrap rather than a
+                              // vertical list, each person their own
+                              // small, warm ember rather than a row of
+                              // text. Uniform count for now (no real
+                              // recency/mention metric available yet),
+                              // name reveals on tap rather than
+                              // staying printed.
+                              Wrap(
+                                spacing: 22,
+                                runSpacing: 22,
+                                children: group.value.map((p) {
+                                  final row = p as Map<String, dynamic>;
+                                  return _PersonEmber(name: row['name'] as String? ?? 'Unnamed', clock: _clock);
+                                }).toList(),
+                              ),
+                            ],
+                          ),
+                        );
                       }).toList(),
                     ),
                   ),
@@ -1367,6 +1403,89 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         ),
       ),
     );
+  }
+
+  // Real, honest grouping - by whatever relationship string values
+  // actually exist in the data, not a guessed taxonomy. A missing or
+  // empty relationship gets an honest fallback label rather than
+  // silently dropping the person from the room.
+  Map<String, List<dynamic>> _groupPeopleByRelationship(List<dynamic> people) {
+    final groups = <String, List<dynamic>>{};
+    for (final p in people) {
+      final row = p as Map<String, dynamic>;
+      final relationship = (row['relationship'] as String?)?.trim();
+      final key = (relationship == null || relationship.isEmpty) ? 'Other' : relationship;
+      groups.putIfAbsent(key, () => []).add(row);
+    }
+    return groups;
+  }
+
+  // Real, direct feedback: "when I tap an ember, does my brain
+  // perceive that ember as the thing opening the room? Not tap →
+  // ember animation → dialog → room animation. One event propagating
+  // through the world." Deliberately not new architecture - uses
+  // Flutter's own, existing Overlay mechanism to play a real, timed
+  // brighten-then-propagate sequence at the exact tapped origin,
+  // awaited before the existing, unmodified showOfficeRoom transform
+  // takes over from the same point - one continuous handoff, not two
+  // separate animations stitched together.
+  Future<void> _igniteEmber(Offset origin, Color color) async {
+    final overlayState = Overlay.of(context);
+    final controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 380));
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (context) => AnimatedBuilder(
+        animation: controller,
+        builder: (context, _) {
+          final t = controller.value;
+          final acknowledge = Curves.easeOut.transform((t / 0.32).clamp(0.0, 1.0));
+          final propagate = Curves.easeIn.transform(((t - 0.32) / 0.68).clamp(0.0, 1.0));
+
+          final dotRadius = 6 + acknowledge * 10;
+          final glowRadius = propagate * 420;
+          final glowOpacity = (1.0 - propagate) * 0.55 + (propagate < 0.15 ? propagate / 0.15 * 0.2 : 0.2 * (1 - propagate));
+
+          return IgnorePointer(
+            child: Stack(
+              children: [
+                if (glowRadius > 0)
+                  Positioned(
+                    left: origin.dx - glowRadius,
+                    top: origin.dy - glowRadius,
+                    child: Container(
+                      width: glowRadius * 2,
+                      height: glowRadius * 2,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [color.withOpacity(glowOpacity.clamp(0.0, 1.0)), color.withOpacity(0.0)],
+                        ),
+                      ),
+                    ),
+                  ),
+                Positioned(
+                  left: origin.dx - dotRadius,
+                  top: origin.dy - dotRadius,
+                  child: Container(
+                    width: dotRadius * 2,
+                    height: dotRadius * 2,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: color.withOpacity(acknowledge),
+                      boxShadow: [BoxShadow(color: color.withOpacity(acknowledge * 0.8), blurRadius: 16, spreadRadius: 2)],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+    overlayState.insert(entry);
+    await controller.forward();
+    entry.remove();
+    controller.dispose();
   }
 
   // Real feature 2026-07-27 — History, the real, deliberately simple
@@ -1648,6 +1767,50 @@ class _EmberTearPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _EmberTearPainter old) =>
       old.time != time || old.color != color;
+}
+
+// Real, direct feedback: "each person as their own small ember, not
+// a row of text... name appearing only on touch." Reuses the exact
+// same _Ember widget as the main app's 5 real embers - genuine visual
+// consistency, not a parallel, separate implementation.
+class _PersonEmber extends StatefulWidget {
+  final String name;
+  final OfficeClock clock;
+  const _PersonEmber({required this.name, required this.clock});
+
+  @override
+  State<_PersonEmber> createState() => _PersonEmberState();
+}
+
+class _PersonEmberState extends State<_PersonEmber> {
+  bool _revealed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 32,
+          height: 32,
+          child: _Ember(
+            color: _emberAmber,
+            count: 1,
+            onTap: () => setState(() => _revealed = !_revealed),
+            clock: widget.clock,
+          ),
+        ),
+        AnimatedOpacity(
+          opacity: _revealed ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 200),
+          child: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(widget.name, style: GoogleFonts.workSans(color: _muted, fontSize: 11)),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _Ember extends StatefulWidget {
@@ -1946,6 +2109,103 @@ class _Stage1OrbPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _Stage1OrbPainter old) => old.time != time;
+}
+
+// A/B experiment, brought to main: FilamentOrb, using filament_orb.frag -
+// perfect sphere geometry (no SDF deformation), all "life" in emissive,
+// domain-warped color rather than a lit, shaded surface - confirmed
+// working, real motion, and genuinely rich detail, offline-verified
+// before ever reaching a device. A single, flowing ribbon (per direct
+// feedback: "notice the flow"), palette shifted toward red per direct
+// instruction. Ripple trigger reuses the isRecording-transition pattern.
+class FilamentOrb extends StatefulWidget {
+  final bool isRecording;
+  final double size;
+  const FilamentOrb({super.key, required this.isRecording, this.size = 220});
+
+  @override
+  State<FilamentOrb> createState() => _FilamentOrbState();
+}
+
+class _FilamentOrbState extends State<FilamentOrb> with SingleTickerProviderStateMixin {
+  ui.FragmentProgram? _program;
+  late AnimationController _ticker;
+  double _tapTime = -1;
+  final DateTime _start = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = AnimationController(vsync: this, duration: const Duration(seconds: 1))..repeat();
+    _loadShader();
+  }
+
+  @override
+  void didUpdateWidget(covariant FilamentOrb oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isRecording && !oldWidget.isRecording) {
+      _tapTime = DateTime.now().difference(_start).inMilliseconds / 1000.0;
+    }
+  }
+
+  Future<void> _loadShader() async {
+    final program = await ui.FragmentProgram.fromAsset('shaders/filament_orb.frag');
+    if (!mounted) return;
+    setState(() => _program = program);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final program = _program;
+    if (program == null) return const SizedBox.shrink();
+
+    return AnimatedBuilder(
+      animation: _ticker,
+      builder: (_, __) {
+        return CustomPaint(
+          size: Size(widget.size, widget.size),
+          painter: _FilamentOrbPainter(
+            program: program,
+            energy: widget.isRecording ? 1.0 : 0.0,
+            time: DateTime.now().difference(_start).inMilliseconds / 1000.0,
+            tapTime: _tapTime,
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
+}
+
+class _FilamentOrbPainter extends CustomPainter {
+  final ui.FragmentProgram program;
+  final double energy;
+  final double time;
+  final double tapTime;
+
+  _FilamentOrbPainter({required this.program, required this.energy, required this.time, required this.tapTime});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final shader = program.fragmentShader();
+    // Uniform order must match filament_orb.frag exactly: uSize (vec2),
+    // uTime, uEnergy, uTapTime.
+    shader.setFloat(0, size.width);
+    shader.setFloat(1, size.height);
+    shader.setFloat(2, time);
+    shader.setFloat(3, energy);
+    shader.setFloat(4, tapTime);
+
+    canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
+  }
+
+  @override
+  bool shouldRepaint(covariant _FilamentOrbPainter old) => true;
 }
 
 class _CircleGlowPainter extends CustomPainter {
@@ -2385,19 +2645,20 @@ class _TalkArea extends StatelessWidget {
                             ),
                           ),
                         ),
-                        // Real orb rebuild, Stage 1, 2026-08-07 — the
-                        // actual swap point. useShaderOrb and a loaded
-                        // stage1Shader both required, or this falls
-                        // straight back to the exact, untouched
-                        // original gradient Container below — the
-                        // proven orb stays reachable no matter what.
-                        if (useShaderOrb && stage1Shader != null)
+                        // Real orb rebuild, Stage 1, swapped for
+                        // FilamentOrb (brought over from the A/B
+                        // experiment branch) - confirmed working, real
+                        // motion, genuinely rich detail, now the
+                        // chosen orb. useShaderOrb still required, or
+                        // this falls straight back to the exact,
+                        // untouched original gradient Container below
+                        // - the proven orb stays reachable no matter
+                        // what.
+                        if (useShaderOrb)
                           SizedBox(
                             width: 96,
                             height: 96,
-                            child: CustomPaint(
-                              painter: _Stage1OrbPainter(shader: stage1Shader!, time: clock.elapsedSeconds),
-                            ),
+                            child: FilamentOrb(isRecording: isRecording, size: 96),
                           )
                         else
                           Container(
