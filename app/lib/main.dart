@@ -979,6 +979,9 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       body: SafeArea(
         child: Stack(
           children: [
+            // The void itself, now alive - see VoidLake. Painted
+            // first, beneath everything else.
+            const Positioned.fill(child: VoidLake()),
             // Real feature 2026-07-28 — the decorative, wide-field
             // spark layer from the reference image. Deliberately
             // separate from the 5 real, functional embers: purely
@@ -2208,6 +2211,86 @@ class _FilamentOrbPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _FilamentOrbPainter old) => true;
+}
+
+// Real, direct feedback: "imagine a dark lake where these embers
+// float in. It's alive. It has depth to it. It's a liquid. It's not
+// a blank piece of paper." Extends the same, already-proven shader
+// technique (domain-warped noise, no broad directional light) from
+// just the orb to the void itself. Deliberately subtle - this is
+// background, not foreground - offline-verified before ever reaching
+// a device.
+class VoidLake extends StatefulWidget {
+  const VoidLake({super.key});
+
+  @override
+  State<VoidLake> createState() => _VoidLakeState();
+}
+
+class _VoidLakeState extends State<VoidLake> with SingleTickerProviderStateMixin {
+  ui.FragmentProgram? _program;
+  late AnimationController _ticker;
+  final DateTime _start = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = AnimationController(vsync: this, duration: const Duration(seconds: 1))..repeat();
+    _loadShader();
+  }
+
+  Future<void> _loadShader() async {
+    final program = await ui.FragmentProgram.fromAsset('shaders/void_lake.frag');
+    if (!mounted) return;
+    setState(() => _program = program);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final program = _program;
+    // Deliberate, honest fallback - the exact, real _void color, so
+    // there's never a flash of an unstyled background while the
+    // shader loads.
+    if (program == null) return Container(color: _void);
+
+    return AnimatedBuilder(
+      animation: _ticker,
+      builder: (_, __) => CustomPaint(
+        size: Size.infinite,
+        painter: _VoidLakePainter(
+          program: program,
+          time: DateTime.now().difference(_start).inMilliseconds / 1000.0,
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
+}
+
+class _VoidLakePainter extends CustomPainter {
+  final ui.FragmentProgram program;
+  final double time;
+
+  _VoidLakePainter({required this.program, required this.time});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final shader = program.fragmentShader();
+    // Uniform order must match void_lake.frag exactly: uSize (vec2),
+    // uTime.
+    shader.setFloat(0, size.width);
+    shader.setFloat(1, size.height);
+    shader.setFloat(2, time);
+    canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
+  }
+
+  @override
+  bool shouldRepaint(covariant _VoidLakePainter old) => true;
 }
 
 class _CircleGlowPainter extends CustomPainter {
