@@ -1392,7 +1392,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
                                 runSpacing: 22,
                                 children: group.value.map((p) {
                                   final row = p as Map<String, dynamic>;
-                                  return _PersonEmber(name: row['name'] as String? ?? 'Unnamed', clock: _clock);
+                                  return _PersonOrb(name: row['name'] as String? ?? 'Unnamed');
                                 }).toList(),
                               ),
                             ],
@@ -1774,48 +1774,123 @@ class _EmberTearPainter extends CustomPainter {
       old.time != time || old.color != color;
 }
 
-// Real, direct feedback: "each person as their own small ember, not
-// a row of text... name appearing only on touch." Reuses the exact
-// same _Ember widget as the main app's 5 real embers - genuine visual
-// consistency, not a parallel, separate implementation.
-class _PersonEmber extends StatefulWidget {
+// Real, direct feedback: "different colour translucent orbs with
+// slit-like embers in them." A genuinely different material from the
+// main orb and the other 5 embers - translucent (low, honest alpha)
+// rather than opaque and emissive, a real glass rim rather than a
+// fiery one. Color and flicker timing are both deterministically
+// derived from the person's real name, so the same person reads the
+// same way every time rather than looking random on each rebuild.
+class _PersonOrb extends StatefulWidget {
   final String name;
-  final OfficeClock clock;
-  const _PersonEmber({required this.name, required this.clock});
+  const _PersonOrb({required this.name});
 
   @override
-  State<_PersonEmber> createState() => _PersonEmberState();
+  State<_PersonOrb> createState() => _PersonOrbState();
 }
 
-class _PersonEmberState extends State<_PersonEmber> {
+class _PersonOrbState extends State<_PersonOrb> with SingleTickerProviderStateMixin {
+  ui.FragmentProgram? _program;
+  late AnimationController _ticker;
+  final DateTime _start = DateTime.now();
   bool _revealed = false;
 
   @override
+  void initState() {
+    super.initState();
+    _ticker = AnimationController(vsync: this, duration: const Duration(seconds: 1))..repeat();
+    _loadShader();
+  }
+
+  Future<void> _loadShader() async {
+    final program = await ui.FragmentProgram.fromAsset('shaders/person_orb.frag');
+    if (!mounted) return;
+    setState(() => _program = program);
+  }
+
+  // Real, deterministic hash from the person's own name - the same
+  // person gets the same color and flicker timing every time, rather
+  // than looking different on each rebuild.
+  int get _hash => widget.name.codeUnits.fold(0, (acc, c) => acc * 31 + c);
+
+  Color get _color {
+    final hue = (_hash % 360).toDouble();
+    return HSVColor.fromAHSV(1.0, hue, 0.55, 1.0).toColor();
+  }
+
+  double get _seed => (_hash % 1000).toDouble() / 10.0;
+
+  @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(
-          width: 32,
-          height: 32,
-          child: _Ember(
-            color: _emberAmber,
-            count: 1,
-            onTap: () => setState(() => _revealed = !_revealed),
-            clock: widget.clock,
+    final program = _program;
+    if (program == null) return const SizedBox(width: 40, height: 40);
+
+    final color = _color;
+    return GestureDetector(
+      onTap: () => setState(() => _revealed = !_revealed),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 40,
+            height: 40,
+            child: AnimatedBuilder(
+              animation: _ticker,
+              builder: (_, __) => CustomPaint(
+                painter: _PersonOrbPainter(
+                  program: program,
+                  color: color,
+                  seed: _seed,
+                  time: DateTime.now().difference(_start).inMilliseconds / 1000.0,
+                ),
+              ),
+            ),
           ),
-        ),
-        AnimatedOpacity(
-          opacity: _revealed ? 1.0 : 0.0,
-          duration: const Duration(milliseconds: 200),
-          child: Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(widget.name, style: GoogleFonts.workSans(color: _muted, fontSize: 11)),
+          AnimatedOpacity(
+            opacity: _revealed ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 200),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(widget.name, style: GoogleFonts.workSans(color: _muted, fontSize: 11)),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
+}
+
+class _PersonOrbPainter extends CustomPainter {
+  final ui.FragmentProgram program;
+  final Color color;
+  final double seed;
+  final double time;
+
+  _PersonOrbPainter({required this.program, required this.color, required this.seed, required this.time});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final shader = program.fragmentShader();
+    // Uniform order must match person_orb.frag exactly: uSize (vec2),
+    // uTime, uColor (vec3), uSeed.
+    shader.setFloat(0, size.width);
+    shader.setFloat(1, size.height);
+    shader.setFloat(2, time);
+    shader.setFloat(3, color.red / 255.0);
+    shader.setFloat(4, color.green / 255.0);
+    shader.setFloat(5, color.blue / 255.0);
+    shader.setFloat(6, seed);
+    canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
+  }
+
+  @override
+  bool shouldRepaint(covariant _PersonOrbPainter old) => true;
 }
 
 class _Ember extends StatefulWidget {
