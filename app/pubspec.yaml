@@ -47,3 +47,4 @@ flutter:
     - shaders/ember_tear.frag
     - shaders/filament_orb.frag
     - shaders/void_lake.frag
+    - shaders/person_orb.frag
