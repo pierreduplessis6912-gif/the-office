@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 import 'office_state.dart';
 
@@ -79,7 +80,18 @@ Future<T?> showOfficeRoom<T>({
           // real point reads correctly starting much smaller.
           alignment: alignment,
           scale: Tween<double>(begin: origin == null ? 0.94 : 0.06, end: 1.0).animate(curved),
-          child: child,
+          // Real, direct feedback: "make it feel like you are
+          // slipping into a new world." A real entrance-only layer,
+          // separate from the outer scale/fade (which is what
+          // correctly reverses on close, tied to the dialog route's
+          // own animation) - starts slightly out of focus and
+          // unsettled, resolves into sharp focus as the room
+          // actually settles. The felt quality of moving through a
+          // threshold, not just growing into view.
+          child: child
+              .animate()
+              .blur(begin: const Offset(8, 8), end: Offset.zero, duration: 480.ms, curve: Curves.easeOutCubic)
+              .slideY(begin: 0.035, end: 0, duration: 480.ms, curve: Curves.easeOutCubic),
         ),
       );
       if (accentColor == null || origin == null) return scaled;
