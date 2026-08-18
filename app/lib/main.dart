@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -1431,61 +1432,62 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   // separate animations stitched together.
   Future<void> _igniteEmber(Offset origin, Color color) async {
     final overlayState = Overlay.of(context);
-    final controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 380));
+    final completer = Completer<void>();
     late OverlayEntry entry;
     entry = OverlayEntry(
-      builder: (context) => AnimatedBuilder(
-        animation: controller,
-        builder: (context, _) {
-          final t = controller.value;
-          final acknowledge = Curves.easeOut.transform((t / 0.32).clamp(0.0, 1.0));
-          final propagate = Curves.easeIn.transform(((t - 0.32) / 0.68).clamp(0.0, 1.0));
-
-          final dotRadius = 6 + acknowledge * 10;
-          final glowRadius = propagate * 420;
-          final glowOpacity = (1.0 - propagate) * 0.55 + (propagate < 0.15 ? propagate / 0.15 * 0.2 : 0.2 * (1 - propagate));
-
-          return IgnorePointer(
-            child: Stack(
-              children: [
-                if (glowRadius > 0)
-                  Positioned(
-                    left: origin.dx - glowRadius,
-                    top: origin.dy - glowRadius,
-                    child: Container(
-                      width: glowRadius * 2,
-                      height: glowRadius * 2,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [color.withOpacity(glowOpacity.clamp(0.0, 1.0)), color.withOpacity(0.0)],
-                        ),
-                      ),
-                    ),
-                  ),
-                Positioned(
-                  left: origin.dx - dotRadius,
-                  top: origin.dy - dotRadius,
-                  child: Container(
-                    width: dotRadius * 2,
-                    height: dotRadius * 2,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: color.withOpacity(acknowledge),
-                      boxShadow: [BoxShadow(color: color.withOpacity(acknowledge * 0.8), blurRadius: 16, spreadRadius: 2)],
-                    ),
-                  ),
+      builder: (context) => IgnorePointer(
+        child: Stack(
+          children: [
+            // The glow - real, declarative sequencing via flutter_animate
+            // rather than hand-computed opacity/radius math. Scales
+            // continuously across the full duration while opacity rises
+            // quickly then recedes, matching a real pulse of light
+            // spreading and dissipating rather than a solid disc
+            // growing. onComplete signals the real end of the whole
+            // sequence, since this is the longer-running of the two.
+            Positioned(
+              left: origin.dx - 210,
+              top: origin.dy - 210,
+              child: Container(
+                width: 420,
+                height: 420,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(colors: [color, color.withOpacity(0.0)]),
                 ),
-              ],
+              )
+                  .animate(onComplete: (_) => completer.complete())
+                  .scaleXY(begin: 0.02, end: 1.0, duration: 380.ms, curve: Curves.easeOut)
+                  .fadeIn(duration: 60.ms, curve: Curves.easeOut, begin: 0.0)
+                  .then(delay: 40.ms)
+                  .fadeOut(duration: 280.ms, curve: Curves.easeIn),
             ),
-          );
-        },
+            // The dot - real, direct acknowledgement of touch. Fades
+            // and scales up together, quickly, then holds at full
+            // brightness for the remainder of the sequence.
+            Positioned(
+              left: origin.dx - 16,
+              top: origin.dy - 16,
+              child: Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: color,
+                  boxShadow: [BoxShadow(color: color.withOpacity(0.8), blurRadius: 16, spreadRadius: 2)],
+                ),
+              )
+                  .animate()
+                  .fadeIn(duration: 120.ms, curve: Curves.easeOut)
+                  .scaleXY(begin: 0.3, end: 1.0, duration: 120.ms, curve: Curves.easeOut),
+            ),
+          ],
+        ),
       ),
     );
     overlayState.insert(entry);
-    await controller.forward();
+    await completer.future;
     entry.remove();
-    controller.dispose();
   }
 
   // Real feature 2026-07-27 — History, the real, deliberately simple
