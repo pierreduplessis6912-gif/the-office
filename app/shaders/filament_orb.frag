@@ -19,6 +19,8 @@ uniform vec2 uSize;
 uniform float uTime;
 uniform float uEnergy;
 uniform float uTapTime;
+uniform float uIgnitionTime;
+uniform vec3 uReactColor;
 
 out vec4 fragColor;
 
@@ -157,7 +159,19 @@ void main() {
            * smoothstep(0.0, 0.4, dt);
   }
 
-  float bodyGlow = coherentSwell(p, t) * 0.5 + 0.5;
+  // Real, direct feedback: "the Orb visibly knows which Ember was
+  // tapped and reacts to it... internal energy accelerates, brightness
+  // increases, rim responds... settles naturally back toward idle."
+  // Quick rise, slower decay - a real pulse, not a flash-and-cut.
+  float ignition = 0.0;
+  if (uIgnitionTime > 0.0) {
+    float dt = t - uIgnitionTime;
+    float rise = smoothstep(0.0, 0.15, dt);
+    float decay = 1.0 - smoothstep(0.15, 0.75, dt);
+    ignition = clamp(rise * decay, 0.0, 1.0);
+  }
+
+  float bodyGlow = coherentSwell(p, t) * 0.5 + 0.5 + ignition * 0.2;
 
   // Fast micro-sparkle, only inside the bright ribbon core.
   float sparkle = snoise(p * 12.0 + t * 0.6);
@@ -179,7 +193,10 @@ void main() {
   // Fresnel rim - the glass-membrane edge quality, without a
   // directional light. z is already the view-facing component.
   float fresnel = pow(1.0 - z, 3.0);
-  col += vec3(1.0, 0.15, 0.07) * fresnel * 1.0;
+  col += vec3(1.0, 0.15, 0.07) * fresnel * (1.0 + ignition * 0.9);
+  // Real, direct proof the orb knows which ember: a real, visible
+  // hint of the tapped ember's own color, not just a generic flash.
+  col += uReactColor * ignition * 0.22;
 
   // The ONE small, sharp directional element - a fixed specular
   // spot, small enough it never becomes a broad gradient.
@@ -191,6 +208,7 @@ void main() {
   // Very restrained energy response.
   col += vec3(1.0, 0.5, 0.15) * uEnergy * 0.08;
 
+  col *= (1.0 + ignition * 0.15);
   col = col / (col + vec3(0.7)) * 1.15;
   col *= sphereMask;
 
