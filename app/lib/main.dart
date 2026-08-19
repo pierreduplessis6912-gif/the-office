@@ -610,6 +610,47 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     _officeState.emit(const EmberThinkingChanged(null));
   }
 
+  // Real, bounded milestone: "tap an Ember, the Orb visibly knows
+  // which Ember was tapped and reacts to it." Deliberately just
+  // Ember → Orb - no room/route involvement at all. _ignitionEmberId/
+  // _ignitionAtSeconds drive both the tapped ember's own brief
+  // brighten and the orb's shader-side reaction; _ignitionSeq exists
+  // purely to give FilamentOrb's didUpdateWidget a real, reliable
+  // change to detect (the color or timestamp alone could coincide
+  // with a prior value).
+  String? _ignitionEmberId;
+  double _ignitionAtSeconds = -1000;
+  int _ignitionSeq = 0;
+
+  static const _emberColors = {
+    'tasks': _emberAmber,
+    'scheduler': _emberBlue,
+    'finance': _emberRed,
+    'suppliers': _emberPurple,
+    'pending': _emberSage,
+  };
+
+  void _reactToEmberTap(String emberId) {
+    setState(() {
+      _ignitionEmberId = emberId;
+      _ignitionAtSeconds = _clock.elapsedSeconds;
+      _ignitionSeq++;
+    });
+  }
+
+  // Real, eased decay (not linear) from the shared clock - 0 the
+  // instant it's tapped's sibling, 1 for a brief moment, then a
+  // natural ease back down. Matches the shader's own quick-rise,
+  // slower-decay curve so the ember and orb settle together.
+  double _tapPulseFor(String emberId) {
+    if (_ignitionEmberId != emberId) return 0.0;
+    final dt = _clock.elapsedSeconds - _ignitionAtSeconds;
+    if (dt < 0 || dt > 0.75) return 0.0;
+    final rise = Curves.easeOut.transform((dt / 0.15).clamp(0.0, 1.0));
+    final decay = 1.0 - Curves.easeIn.transform(((dt - 0.15) / 0.6).clamp(0.0, 1.0));
+    return (rise * decay).clamp(0.0, 1.0);
+  }
+
   // The actual fix for the query-rewriting gap: the backend has been
   // able to resolve "her" -> "Jenny" using history since yesterday,
   // but nothing in the app ever sent any history to use. Last 3
@@ -1031,6 +1072,9 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
                   isAllClear: _embers.allClear && _messages.isEmpty,
                   clock: _clock,
                   thinkingEmberId: _thinkingEmberId,
+                  tapPulseFor: _tapPulseFor,
+                  ignitionSeq: _ignitionSeq,
+                  reactColor: _ignitionEmberId != null ? _emberColors[_ignitionEmberId] : null,
                   useShaderOrb: _useShaderOrb,
                   stage1Shader: _stage1Shader,
                   useTearEmbers: _useTearEmbers,
@@ -1179,6 +1223,12 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   // real, already-cached docket data for that domain — no separate
   // fetch, since it was already retrieved to compute the count.
   void _showEmberSheet(String emberId) {
+    // Real, bounded milestone: "the Orb visibly knows which Ember was
+    // tapped and reacts to it." A real, additional side-effect only -
+    // everything below this line is the exact, existing, untouched
+    // behavior.
+    _reactToEmberTap(emberId);
+
     late String title;
     late List<Widget> cards;
 
@@ -1906,13 +1956,30 @@ class _GroupBubblePainter extends CustomPainter {
   bool shouldRepaint(covariant _GroupBubblePainter old) => true;
 }
 
+double _zeroPulse() => 0.0;
+
 class _Ember extends StatefulWidget {
   final Color color;
   final int count;
   final VoidCallback onTap;
   final bool isThinking;
   final OfficeClock clock;
-  const _Ember({required this.color, required this.count, required this.onTap, required this.clock, this.isThinking = false});
+  // Real, bounded milestone: "the tapped Ember becomes the source -
+  // brighten, slightly intensify its glow." A function, not a static
+  // value - _TalkArea is a StatelessWidget that only rebuilds on the
+  // parent's setState, so a pre-computed double would freeze at
+  // whatever it was at that instant rather than actually animate.
+  // Re-invoked fresh on every clock tick, inside the existing
+  // AnimatedBuilder below.
+  final double Function() tapPulse;
+  const _Ember({
+    required this.color,
+    required this.count,
+    required this.onTap,
+    required this.clock,
+    this.isThinking = false,
+    this.tapPulse = _zeroPulse,
+  });
 
   @override
   State<_Ember> createState() => _EmberState();
@@ -2046,7 +2113,7 @@ class _EmberState extends State<_Ember> {
           // specific ember lights up regardless of its real, current
           // count while chosen as the thinking signal.
           final effectiveCore = widget.isThinking ? widget.color : core;
-          final effectiveGlow = widget.isThinking ? glowPulse * 1.8 : glowPulse * flickerValue;
+          final effectiveGlow = (widget.isThinking ? glowPulse * 1.8 : glowPulse * flickerValue) * (1.0 + widget.tapPulse() * 0.6);
           final showGlow = widget.count > 0 || widget.isThinking;
           return Transform.translate(
             offset: Offset(dx, dy),
@@ -2214,7 +2281,20 @@ class _Stage1OrbPainter extends CustomPainter {
 class FilamentOrb extends StatefulWidget {
   final bool isRecording;
   final double size;
-  const FilamentOrb({super.key, required this.isRecording, this.size = 220});
+  // Real, bounded milestone: "the Orb visibly knows which Ember was
+  // tapped." ignitionSeq is an incrementing counter - each real
+  // increment records a new reaction start time, the same pattern
+  // already proven for isRecording's own tapTime. reactColor carries
+  // which ember caused it.
+  final int ignitionSeq;
+  final Color? reactColor;
+  const FilamentOrb({
+    super.key,
+    required this.isRecording,
+    this.size = 220,
+    this.ignitionSeq = 0,
+    this.reactColor,
+  });
 
   @override
   State<FilamentOrb> createState() => _FilamentOrbState();
@@ -2224,6 +2304,8 @@ class _FilamentOrbState extends State<FilamentOrb> with SingleTickerProviderStat
   ui.FragmentProgram? _program;
   late AnimationController _ticker;
   double _tapTime = -1;
+  double _ignitionTime = -1;
+  Color _reactColor = _emberAmber;
   final DateTime _start = DateTime.now();
 
   @override
@@ -2238,6 +2320,10 @@ class _FilamentOrbState extends State<FilamentOrb> with SingleTickerProviderStat
     super.didUpdateWidget(oldWidget);
     if (widget.isRecording && !oldWidget.isRecording) {
       _tapTime = DateTime.now().difference(_start).inMilliseconds / 1000.0;
+    }
+    if (widget.ignitionSeq != oldWidget.ignitionSeq) {
+      _ignitionTime = DateTime.now().difference(_start).inMilliseconds / 1000.0;
+      _reactColor = widget.reactColor ?? _emberAmber;
     }
   }
 
@@ -2262,6 +2348,8 @@ class _FilamentOrbState extends State<FilamentOrb> with SingleTickerProviderStat
             energy: widget.isRecording ? 1.0 : 0.0,
             time: DateTime.now().difference(_start).inMilliseconds / 1000.0,
             tapTime: _tapTime,
+            ignitionTime: _ignitionTime,
+            reactColor: _reactColor,
           ),
         );
       },
@@ -2280,19 +2368,33 @@ class _FilamentOrbPainter extends CustomPainter {
   final double energy;
   final double time;
   final double tapTime;
+  final double ignitionTime;
+  final Color reactColor;
 
-  _FilamentOrbPainter({required this.program, required this.energy, required this.time, required this.tapTime});
+  _FilamentOrbPainter({
+    required this.program,
+    required this.energy,
+    required this.time,
+    required this.tapTime,
+    required this.ignitionTime,
+    required this.reactColor,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
     final shader = program.fragmentShader();
-    // Uniform order must match filament_orb.frag exactly: uSize (vec2),
-    // uTime, uEnergy, uTapTime.
+    // Uniform order must match filament_orb.frag exactly: uSize
+    // (vec2), uTime, uEnergy, uTapTime, uIgnitionTime, uReactColor
+    // (vec3).
     shader.setFloat(0, size.width);
     shader.setFloat(1, size.height);
     shader.setFloat(2, time);
     shader.setFloat(3, energy);
     shader.setFloat(4, tapTime);
+    shader.setFloat(5, ignitionTime);
+    shader.setFloat(6, reactColor.red / 255.0);
+    shader.setFloat(7, reactColor.green / 255.0);
+    shader.setFloat(8, reactColor.blue / 255.0);
 
     canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
   }
@@ -2636,6 +2738,13 @@ class _TalkArea extends StatelessWidget {
   final bool isAllClear;
   final OfficeClock clock;
   final String? thinkingEmberId;
+  // Real, bounded milestone: "the Orb visibly knows which Ember was
+  // tapped and reacts to it." tapPulseFor drives each ember's own
+  // brief brighten; ignitionSeq/reactColor drive the orb's shader-
+  // side reaction. Purely Ember → Orb - no room/route involvement.
+  final double Function(String emberId) tapPulseFor;
+  final int ignitionSeq;
+  final Color? reactColor;
   // Real orb rebuild, Stage 1, 2026-08-07 — deliberately just a
   // shader reference and a bool, nothing state-derived passed to the
   // shader itself. Falls back to the proven old orb whenever
@@ -2660,6 +2769,9 @@ class _TalkArea extends StatelessWidget {
     required this.isAllClear,
     required this.clock,
     required this.thinkingEmberId,
+    required this.tapPulseFor,
+    required this.ignitionSeq,
+    required this.reactColor,
     required this.useShaderOrb,
     required this.stage1Shader,
     required this.useTearEmbers,
@@ -2743,11 +2855,11 @@ class _TalkArea extends StatelessWidget {
                 // would cut it off right at that boundary.
                 clipBehavior: Clip.none,
                 children: [
-                  Positioned(left: 10, top: 18, child: _Ember(color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), clock: clock, isThinking: thinkingEmberId == 'tasks')),
-                  Positioned(left: 46, top: 2, child: _Ember(color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), clock: clock, isThinking: thinkingEmberId == 'scheduler')),
-                  Positioned(left: 74, top: 24, child: _Ember(color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), clock: clock, isThinking: thinkingEmberId == 'finance')),
-                  Positioned(left: 104, top: 6, child: _Ember(color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), clock: clock, isThinking: thinkingEmberId == 'suppliers')),
-                  Positioned(left: 132, top: 20, child: _Ember(color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'), clock: clock, isThinking: thinkingEmberId == 'pending')),
+                  Positioned(left: 10, top: 18, child: _Ember(color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), clock: clock, isThinking: thinkingEmberId == 'tasks', tapPulse: () => tapPulseFor('tasks'))),
+                  Positioned(left: 46, top: 2, child: _Ember(color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), clock: clock, isThinking: thinkingEmberId == 'scheduler', tapPulse: () => tapPulseFor('scheduler'))),
+                  Positioned(left: 74, top: 24, child: _Ember(color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), clock: clock, isThinking: thinkingEmberId == 'finance', tapPulse: () => tapPulseFor('finance'))),
+                  Positioned(left: 104, top: 6, child: _Ember(color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), clock: clock, isThinking: thinkingEmberId == 'suppliers', tapPulse: () => tapPulseFor('suppliers'))),
+                  Positioned(left: 132, top: 20, child: _Ember(color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'), clock: clock, isThinking: thinkingEmberId == 'pending', tapPulse: () => tapPulseFor('pending'))),
                 ],
               ),
             ),
@@ -2831,7 +2943,7 @@ class _TalkArea extends StatelessWidget {
                           SizedBox(
                             width: 96,
                             height: 96,
-                            child: FilamentOrb(isRecording: isRecording, size: 96),
+                            child: FilamentOrb(isRecording: isRecording, size: 96, ignitionSeq: ignitionSeq, reactColor: reactColor),
                           )
                         else
                           Container(
