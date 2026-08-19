@@ -1379,21 +1379,15 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
                                 style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 11, letterSpacing: 1.4),
                               ),
                               const SizedBox(height: 14),
-                              // Real, direct feedback: "scattered, not
-                              // stacked" - a loose Wrap rather than a
-                              // vertical list, each person their own
-                              // small, warm ember rather than a row of
-                              // text. Uniform count for now (no real
-                              // recency/mention metric available yet),
-                              // name reveals on tap rather than
-                              // staying printed.
-                              Wrap(
-                                spacing: 22,
-                                runSpacing: 22,
-                                children: group.value.map((p) {
-                                  final row = p as Map<String, dynamic>;
-                                  return _PersonOrb(name: row['name'] as String? ?? 'Unnamed');
-                                }).toList(),
+                              // Real, direct visual correction: the
+                              // translucent orb is the GROUP, not each
+                              // person - a single bubble containing
+                              // real, clustered embers (same style as
+                              // the main page's 5), not a person-level
+                              // shader.
+                              _GroupBubble(
+                                names: group.value.map((p) => (p as Map<String, dynamic>)['name'] as String? ?? 'Unnamed').toList(),
+                                clock: _clock,
                               ),
                             ],
                           ),
@@ -1774,26 +1768,28 @@ class _EmberTearPainter extends CustomPainter {
       old.time != time || old.color != color;
 }
 
-// Real, direct feedback: "different colour translucent orbs with
-// slit-like embers in them." A genuinely different material from the
-// main orb and the other 5 embers - translucent (low, honest alpha)
-// rather than opaque and emissive, a real glass rim rather than a
-// fiery one. Color and flicker timing are both deterministically
-// derived from the person's real name, so the same person reads the
-// same way every time rather than looking random on each rebuild.
-class _PersonOrb extends StatefulWidget {
-  final String name;
-  const _PersonOrb({required this.name});
+// Real, direct visual correction: the translucent orb is the GROUP,
+// not each person - a real, translucent glass container with real,
+// clustered _Ember widgets inside it (the exact same widget as the
+// main page's 5 - genuine visual consistency, not a parallel
+// implementation), not a person-level shader. Members are positioned
+// with a deterministic golden-angle spiral so they spread evenly
+// within the bubble without random overlap, and stay stable across
+// rebuilds rather than jittering.
+class _GroupBubble extends StatefulWidget {
+  final List<String> names;
+  final OfficeClock clock;
+  const _GroupBubble({required this.names, required this.clock});
 
   @override
-  State<_PersonOrb> createState() => _PersonOrbState();
+  State<_GroupBubble> createState() => _GroupBubbleState();
 }
 
-class _PersonOrbState extends State<_PersonOrb> with SingleTickerProviderStateMixin {
+class _GroupBubbleState extends State<_GroupBubble> with SingleTickerProviderStateMixin {
   ui.FragmentProgram? _program;
   late AnimationController _ticker;
   final DateTime _start = DateTime.now();
-  bool _revealed = false;
+  final Set<int> _revealed = {};
 
   @override
   void initState() {
@@ -1803,57 +1799,80 @@ class _PersonOrbState extends State<_PersonOrb> with SingleTickerProviderStateMi
   }
 
   Future<void> _loadShader() async {
-    final program = await ui.FragmentProgram.fromAsset('shaders/person_orb.frag');
+    final program = await ui.FragmentProgram.fromAsset('shaders/group_bubble.frag');
     if (!mounted) return;
     setState(() => _program = program);
   }
 
-  // Real, deterministic hash from the person's own name - the same
-  // person gets the same color and flicker timing every time, rather
-  // than looking different on each rebuild.
-  int get _hash => widget.name.codeUnits.fold(0, (acc, c) => acc * 31 + c);
-
-  Color get _color {
-    final hue = (_hash % 360).toDouble();
-    return HSVColor.fromAHSV(1.0, hue, 0.55, 1.0).toColor();
-  }
-
-  double get _seed => (_hash % 1000).toDouble() / 10.0;
-
   @override
   Widget build(BuildContext context) {
     final program = _program;
-    if (program == null) return const SizedBox(width: 40, height: 40);
+    final n = widget.names.length;
+    final size = (90.0 + math.sqrt(n) * 35.0).clamp(90.0, 210.0);
 
-    final color = _color;
-    return GestureDetector(
-      onTap: () => setState(() => _revealed = !_revealed),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+    if (program == null) return SizedBox(width: size, height: size);
+
+    // Real, deterministic golden-angle spiral - even distribution
+    // within the bubble, no random collisions, stable across rebuilds.
+    const goldenAngle = 137.5 * (math.pi / 180.0);
+    final positions = <Offset>[];
+    for (var i = 0; i < n; i++) {
+      final angle = i * goldenAngle;
+      final radiusFraction = n == 1 ? 0.0 : math.sqrt((i + 0.5) / n);
+      final maxRadius = size / 2 * 0.5;
+      positions.add(Offset(
+        size / 2 + math.cos(angle) * radiusFraction * maxRadius - 16,
+        size / 2 + math.sin(angle) * radiusFraction * maxRadius - 16,
+      ));
+    }
+
+    return SizedBox(
+      width: size,
+      height: size + 20,
+      child: Stack(
+        clipBehavior: Clip.none,
         children: [
           SizedBox(
-            width: 40,
-            height: 40,
+            width: size,
+            height: size,
             child: AnimatedBuilder(
               animation: _ticker,
               builder: (_, __) => CustomPaint(
-                painter: _PersonOrbPainter(
+                painter: _GroupBubblePainter(
                   program: program,
-                  color: color,
-                  seed: _seed,
                   time: DateTime.now().difference(_start).inMilliseconds / 1000.0,
                 ),
               ),
             ),
           ),
-          AnimatedOpacity(
-            opacity: _revealed ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 200),
-            child: Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(widget.name, style: GoogleFonts.workSans(color: _muted, fontSize: 11)),
+          for (var i = 0; i < n; i++)
+            Positioned(
+              left: positions[i].dx,
+              top: positions[i].dy,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: _Ember(
+                      color: _emberAmber,
+                      count: 1,
+                      onTap: () => setState(() => _revealed.contains(i) ? _revealed.remove(i) : _revealed.add(i)),
+                      clock: widget.clock,
+                    ),
+                  ),
+                  AnimatedOpacity(
+                    opacity: _revealed.contains(i) ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(widget.names[i], style: GoogleFonts.workSans(color: _muted, fontSize: 10)),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -1866,31 +1885,25 @@ class _PersonOrbState extends State<_PersonOrb> with SingleTickerProviderStateMi
   }
 }
 
-class _PersonOrbPainter extends CustomPainter {
+class _GroupBubblePainter extends CustomPainter {
   final ui.FragmentProgram program;
-  final Color color;
-  final double seed;
   final double time;
 
-  _PersonOrbPainter({required this.program, required this.color, required this.seed, required this.time});
+  _GroupBubblePainter({required this.program, required this.time});
 
   @override
   void paint(Canvas canvas, Size size) {
     final shader = program.fragmentShader();
-    // Uniform order must match person_orb.frag exactly: uSize (vec2),
-    // uTime, uColor (vec3), uSeed.
+    // Uniform order must match group_bubble.frag exactly: uSize
+    // (vec2), uTime.
     shader.setFloat(0, size.width);
     shader.setFloat(1, size.height);
     shader.setFloat(2, time);
-    shader.setFloat(3, color.red / 255.0);
-    shader.setFloat(4, color.green / 255.0);
-    shader.setFloat(5, color.blue / 255.0);
-    shader.setFloat(6, seed);
     canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
   }
 
   @override
-  bool shouldRepaint(covariant _PersonOrbPainter old) => true;
+  bool shouldRepaint(covariant _GroupBubblePainter old) => true;
 }
 
 class _Ember extends StatefulWidget {
