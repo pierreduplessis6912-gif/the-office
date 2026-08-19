@@ -48,3 +48,4 @@ flutter:
     - shaders/filament_orb.frag
     - shaders/void_lake.frag
     - shaders/person_orb.frag
+    - shaders/group_bubble.frag
