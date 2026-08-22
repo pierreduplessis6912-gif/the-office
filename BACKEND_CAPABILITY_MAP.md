@@ -64,8 +64,11 @@ every module, not just people.
 
 ## 4. Scheduling / Jobs
 
-- **Store:** `job_scopes_new` (the real, current table — an earlier
-  `job_scopes` was migrated away from), `tasks`, `projects`.
+- **Store:** `job_scopes` (the real, permanent table name - a
+  one-time migration briefly used `job_scopes_new` as an intermediate
+  name while relaxing a NOT NULL constraint, then renamed it back to
+  `job_scopes` at the end; that migration is complete and the
+  transient name no longer exists), `tasks`, `projects`.
 - **Relay:** `/debug/job-scopes`, `/debug/schedule`, `/debug/tasks`,
   `/debug/projects`.
 - **Real, confirmed strength:** this is genuinely rich — job scopes
