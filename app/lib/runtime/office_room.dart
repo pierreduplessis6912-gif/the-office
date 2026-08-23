@@ -63,7 +63,21 @@ Future<T?> showOfficeRoom<T>({
       if (animation.status == AnimationStatus.completed) {
         officeState.transitionTo(OfficeState.idle);
       }
-      return Builder(builder: builder);
+      // Real, confirmed fix: showGeneralDialog, unlike
+      // showModalBottomSheet, does not wrap its content in a Material
+      // widget automatically - the exact, real, structural difference
+      // between every room built here (which all showed a pervasive
+      // underline artifact) and the app's older sheets (which never
+      // did). Without a real Material ancestor, Text falls back to
+      // Flutter's own root DefaultTextStyle, which includes
+      // decoration: TextDecoration.underline as a genuine, built-in
+      // signal that something's structurally missing. Wrapping in
+      // Material gives real, proper theme inheritance, the same as
+      // every other part of this app already has for free.
+      return Material(
+        color: Colors.transparent,
+        child: Builder(builder: builder),
+      );
     },
     transitionBuilder: (context, animation, secondaryAnimation, child) {
       final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
