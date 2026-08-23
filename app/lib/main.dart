@@ -1090,6 +1090,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
                   tapPulseFor: _tapPulseFor,
                   ignitionSeq: _ignitionSeq,
                   reactColor: _ignitionEmberId != null ? _emberColors[_ignitionEmberId] : null,
+                  financeEmberKey: _financeEmberKey,
                   useShaderOrb: _useShaderOrb,
                   stage1Shader: _stage1Shader,
                   useTearEmbers: _useTearEmbers,
@@ -2998,6 +2999,12 @@ class _TalkArea extends StatelessWidget {
   final double Function(String emberId) tapPulseFor;
   final int ignitionSeq;
   final Color? reactColor;
+  // Real bug fix, found via the real compile error: this was
+  // referenced directly as _financeEmberKey (a field on
+  // _OfficeHomeState) from inside this completely separate widget
+  // class, which has no access to it. Passed down properly, the same
+  // way every other piece of ignition state already is.
+  final GlobalKey financeEmberKey;
   // Real orb rebuild, Stage 1, 2026-08-07 — deliberately just a
   // shader reference and a bool, nothing state-derived passed to the
   // shader itself. Falls back to the proven old orb whenever
@@ -3025,6 +3032,7 @@ class _TalkArea extends StatelessWidget {
     required this.tapPulseFor,
     required this.ignitionSeq,
     required this.reactColor,
+    required this.financeEmberKey,
     required this.useShaderOrb,
     required this.stage1Shader,
     required this.useTearEmbers,
@@ -3082,7 +3090,7 @@ class _TalkArea extends StatelessWidget {
                 children: [
                   Positioned(left: 12, top: 0, child: _EmberTear(program: emberTearProgram!, color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), clock: clock, isThinking: thinkingEmberId == 'tasks', seedOffset: 0.0)),
                   Positioned(left: 4, top: 55, child: _EmberTear(program: emberTearProgram!, color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), clock: clock, isThinking: thinkingEmberId == 'scheduler', seedOffset: 1.0)),
-                  Positioned(left: 16, top: 110, child: _EmberTear(key: _financeEmberKey, program: emberTearProgram!, color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), clock: clock, isThinking: thinkingEmberId == 'finance', seedOffset: 2.0)),
+                  Positioned(left: 16, top: 110, child: _EmberTear(key: financeEmberKey, program: emberTearProgram!, color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), clock: clock, isThinking: thinkingEmberId == 'finance', seedOffset: 2.0)),
                   Positioned(left: 2, top: 165, child: _EmberTear(program: emberTearProgram!, color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), clock: clock, isThinking: thinkingEmberId == 'suppliers', seedOffset: 3.0)),
                   Positioned(left: 14, top: 220, child: _EmberTear(program: emberTearProgram!, color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'), clock: clock, isThinking: thinkingEmberId == 'pending', seedOffset: 4.0)),
                 ],
@@ -3110,7 +3118,7 @@ class _TalkArea extends StatelessWidget {
                 children: [
                   Positioned(left: 10, top: 18, child: _Ember(color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), clock: clock, isThinking: thinkingEmberId == 'tasks', tapPulse: () => tapPulseFor('tasks'))),
                   Positioned(left: 46, top: 2, child: _Ember(color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), clock: clock, isThinking: thinkingEmberId == 'scheduler', tapPulse: () => tapPulseFor('scheduler'))),
-                  Positioned(left: 74, top: 24, child: _Ember(key: _financeEmberKey, color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), clock: clock, isThinking: thinkingEmberId == 'finance', tapPulse: () => tapPulseFor('finance'))),
+                  Positioned(left: 74, top: 24, child: _Ember(key: financeEmberKey, color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), clock: clock, isThinking: thinkingEmberId == 'finance', tapPulse: () => tapPulseFor('finance'))),
                   Positioned(left: 104, top: 6, child: _Ember(color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), clock: clock, isThinking: thinkingEmberId == 'suppliers', tapPulse: () => tapPulseFor('suppliers'))),
                   Positioned(left: 132, top: 20, child: _Ember(color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'), clock: clock, isThinking: thinkingEmberId == 'pending', tapPulse: () => tapPulseFor('pending'))),
                 ],
