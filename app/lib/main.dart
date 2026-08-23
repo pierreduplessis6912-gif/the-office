@@ -651,6 +651,21 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     return topLeft + Offset(box.size.width / 2, box.size.height / 2);
   }
 
+  // Real, temporary isolation test - not a permanent module. Same
+  // proven origin mechanism as Finance, reused on Tasks (which has no
+  // real room of its own yet) to open a genuinely minimal, bare room
+  // and settle, with certainty, whether the pervasive underline
+  // artifact lives in showOfficeRoom itself or somewhere else
+  // entirely.
+  final GlobalKey _tasksTestEmberKey = GlobalKey();
+
+  Offset? _tasksTestEmberOrigin() {
+    final box = _tasksTestEmberKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached) return null;
+    final topLeft = box.localToGlobal(Offset.zero);
+    return topLeft + Offset(box.size.width / 2, box.size.height / 2);
+  }
+
   void _reactToEmberTap(String emberId) {
     setState(() {
       _ignitionEmberId = emberId;
@@ -1097,6 +1112,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
                   ignitionSeq: _ignitionSeq,
                   reactColor: _ignitionEmberId != null ? _emberColors[_ignitionEmberId] : null,
                   financeEmberKey: _financeEmberKey,
+                  tasksTestEmberKey: _tasksTestEmberKey,
                   useShaderOrb: _useShaderOrb,
                   stage1Shader: _stage1Shader,
                   useTearEmbers: _useTearEmbers,
@@ -1264,6 +1280,54 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       // Real, honest fallback - if the real position genuinely can't
       // be found (e.g. mid-layout-change), fall through to the old
       // behavior rather than silently do nothing.
+    }
+
+    // Real, temporary isolation test - not a permanent module.
+    // Deliberately bare: showOfficeRoom called directly, no
+    // _igniteEmber, no accentColor, plain Text on the void. If the
+    // underline is absent here, it lives in People's or Finance's own
+    // content, not the shared room mechanism. If it's present even on
+    // this bare minimum, it's something more fundamental.
+    if (emberId == 'tasks') {
+      final origin = _tasksTestEmberOrigin();
+      if (origin != null) {
+        showOfficeRoom(
+          context: context,
+          officeState: _officeState,
+          origin: origin,
+          builder: (context) => Container(
+            width: double.infinity,
+            height: double.infinity,
+            color: _void,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('TEST ROOM', style: TextStyle(color: Colors.white, fontSize: 14)),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          color: _muted,
+                          onPressed: () => Navigator.of(context).pop(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    const Text('Plain text. No flutter_animate. No shaders.', style: TextStyle(color: Colors.white, fontSize: 15)),
+                    const SizedBox(height: 8),
+                    const Text('R20000', style: TextStyle(color: Colors.white, fontSize: 15)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        return;
+      }
     }
 
     late String title;
@@ -3066,6 +3130,8 @@ class _TalkArea extends StatelessWidget {
   // class, which has no access to it. Passed down properly, the same
   // way every other piece of ignition state already is.
   final GlobalKey financeEmberKey;
+  // Real, temporary isolation test field - not permanent.
+  final GlobalKey tasksTestEmberKey;
   // Real orb rebuild, Stage 1, 2026-08-07 — deliberately just a
   // shader reference and a bool, nothing state-derived passed to the
   // shader itself. Falls back to the proven old orb whenever
@@ -3094,6 +3160,7 @@ class _TalkArea extends StatelessWidget {
     required this.ignitionSeq,
     required this.reactColor,
     required this.financeEmberKey,
+    required this.tasksTestEmberKey,
     required this.useShaderOrb,
     required this.stage1Shader,
     required this.useTearEmbers,
@@ -3149,7 +3216,7 @@ class _TalkArea extends StatelessWidget {
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  Positioned(left: 12, top: 0, child: _EmberTear(program: emberTearProgram!, color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), clock: clock, isThinking: thinkingEmberId == 'tasks', seedOffset: 0.0)),
+                  Positioned(left: 12, top: 0, child: _EmberTear(key: tasksTestEmberKey, program: emberTearProgram!, color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), clock: clock, isThinking: thinkingEmberId == 'tasks', seedOffset: 0.0)),
                   Positioned(left: 4, top: 55, child: _EmberTear(program: emberTearProgram!, color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), clock: clock, isThinking: thinkingEmberId == 'scheduler', seedOffset: 1.0)),
                   Positioned(left: 16, top: 110, child: _EmberTear(key: financeEmberKey, program: emberTearProgram!, color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), clock: clock, isThinking: thinkingEmberId == 'finance', seedOffset: 2.0)),
                   Positioned(left: 2, top: 165, child: _EmberTear(program: emberTearProgram!, color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), clock: clock, isThinking: thinkingEmberId == 'suppliers', seedOffset: 3.0)),
@@ -3177,7 +3244,7 @@ class _TalkArea extends StatelessWidget {
                 // would cut it off right at that boundary.
                 clipBehavior: Clip.none,
                 children: [
-                  Positioned(left: 10, top: 18, child: _Ember(color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), clock: clock, isThinking: thinkingEmberId == 'tasks', tapPulse: () => tapPulseFor('tasks'))),
+                  Positioned(left: 10, top: 18, child: _Ember(key: tasksTestEmberKey, color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), clock: clock, isThinking: thinkingEmberId == 'tasks', tapPulse: () => tapPulseFor('tasks'))),
                   Positioned(left: 46, top: 2, child: _Ember(color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), clock: clock, isThinking: thinkingEmberId == 'scheduler', tapPulse: () => tapPulseFor('scheduler'))),
                   Positioned(left: 74, top: 24, child: _Ember(key: financeEmberKey, color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), clock: clock, isThinking: thinkingEmberId == 'finance', tapPulse: () => tapPulseFor('finance'))),
                   Positioned(left: 104, top: 6, child: _Ember(color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), clock: clock, isThinking: thinkingEmberId == 'suppliers', tapPulse: () => tapPulseFor('suppliers'))),
