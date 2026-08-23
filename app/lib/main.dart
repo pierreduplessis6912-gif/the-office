@@ -73,6 +73,12 @@ const _emberRed = Color(0xFFC4432B); // Finance
 const _emberPurple = Color(0xFF7A5FB8); // Suppliers
 const _emberSage = Color(0xFF5C7A5C); // Pending
 
+// Real, honest status colors for Finance's badges, matching the
+// agreed mockup exactly - distinct from the ember palette above,
+// since these describe a record's state, not which module it's in.
+const _statusPaid = Color(0xFF5C8A6B);
+const _statusPending = Color(0xFFB8935A);
+
 void main() => runApp(const OfficeApp());
 
 class OfficeApp extends StatelessWidget {
@@ -2414,112 +2420,154 @@ class _FinanceRoomContentState extends State<_FinanceRoomContent> {
       width: double.infinity,
       height: double.infinity,
       color: _void,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('FINANCE', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 18),
-                    color: _muted,
-                    onPressed: () => Navigator.of(context).pop(),
+      child: Stack(
+        children: [
+          // Real, deliberate signature element, per the agreed
+          // mockup - a quiet, warm bleed at the very top, a small
+          // echo of the ember this room grew from. Was designed but
+          // never actually carried into this real build until now.
+          Positioned(
+            top: -180,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                width: 520,
+                height: 340,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [_emberRed.withOpacity(0.30), _emberRed.withOpacity(0.10), _emberRed.withOpacity(0.0)],
+                    stops: const [0.0, 0.4, 0.72],
                   ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // Real, primary way to narrow the list, per
-              // ERP_MODE_ARCHITECTURE.md's depth principle - search
-              // does the real work, not a menu of filters.
-              TextField(
-                controller: _searchController,
-                onChanged: _onSearchChanged,
-                style: GoogleFonts.workSans(color: _paper, fontSize: 14),
-                cursorColor: _emberRed,
-                decoration: InputDecoration(
-                  hintText: 'Search invoices, quotations, customers…',
-                  hintStyle: GoogleFonts.workSans(color: _textTertiary, fontSize: 14),
-                  isDense: true,
-                  border: UnderlineInputBorder(borderSide: BorderSide(color: _textTertiary.withOpacity(0.25))),
-                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _textTertiary.withOpacity(0.25))),
-                  focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _emberRed.withOpacity(0.6))),
                 ),
               ),
-              const SizedBox(height: 8),
-              if (_loading)
-                const Padding(padding: EdgeInsets.only(top: 24), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
-              else if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 24),
-                  child: Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)),
-                )
-              else if (_items.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 24),
-                  child: Text('Nothing real here yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)),
-                )
-              else
-                Expanded(
-                  child: ListView.separated(
-                    padding: const EdgeInsets.only(top: 8),
-                    itemCount: _items.length,
-                    separatorBuilder: (_, __) => Divider(height: 1, color: _textTertiary.withOpacity(0.1)),
-                    itemBuilder: (context, index) {
-                      final row = _items[index] as Map<String, dynamic>;
-                      final type = row['type'] as String? ?? '';
-                      final isInvoice = type == 'invoice';
-                      final amount = (row['amount'] as num?)?.toDouble().toStringAsFixed(0) ?? '0';
-                      final statusText = isInvoice
-                          ? _dueLabel(row['due_date'] as String?)
-                          : (row['quotation_status'] as String? ?? '').toUpperCase();
-                      final statusColor = isInvoice
-                          ? (statusText.startsWith('Overdue') ? _emberRed : _muted)
-                          : _muted;
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('FINANCE', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        color: _muted,
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // Real, primary way to narrow the list, per
+                  // ERP_MODE_ARCHITECTURE.md's depth principle -
+                  // search does the real work, not a menu of filters.
+                  TextField(
+                    controller: _searchController,
+                    onChanged: _onSearchChanged,
+                    style: GoogleFonts.workSans(color: _paper, fontSize: 14),
+                    cursorColor: _emberRed,
+                    decoration: InputDecoration(
+                      prefixIcon: Icon(Icons.search, size: 17, color: _textTertiary),
+                      prefixIconConstraints: const BoxConstraints(minWidth: 30),
+                      hintText: 'Search invoices, quotations, customers…',
+                      hintStyle: GoogleFonts.workSans(color: _textTertiary, fontSize: 14),
+                      isDense: true,
+                      border: UnderlineInputBorder(borderSide: BorderSide(color: _textTertiary.withOpacity(0.25))),
+                      enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _textTertiary.withOpacity(0.25))),
+                      focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _emberRed.withOpacity(0.6))),
+                    ),
+                  ),
+                  if (!_loading && _error == null && _items.isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    Text('${_items.length} ${_items.length == 1 ? 'item' : 'items'}', style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 1)),
+                  ],
+                  const SizedBox(height: 8),
+                  if (_loading)
+                    const Padding(padding: EdgeInsets.only(top: 24), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+                  else if (_error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 24),
+                      child: Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)),
+                    )
+                  else if (_items.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 24),
+                      child: Text('Nothing real here yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)),
+                    )
+                  else
+                    Expanded(
+                      child: ListView.separated(
+                        padding: const EdgeInsets.only(top: 8),
+                        itemCount: _items.length,
+                        separatorBuilder: (_, __) => Divider(height: 1, color: _textTertiary.withOpacity(0.1)),
+                        itemBuilder: (context, index) {
+                          final row = _items[index] as Map<String, dynamic>;
+                          final type = row['type'] as String? ?? '';
+                          final isInvoice = type == 'invoice';
+                          final amount = (row['amount'] as num?)?.toDouble().toStringAsFixed(0) ?? '0';
+                          final statusText = isInvoice
+                              ? _dueLabel(row['due_date'] as String?)
+                              : (row['quotation_status'] as String? ?? '').toUpperCase();
+                          final isOverdue = statusText.startsWith('Overdue');
+                          // Real, tinted-background pill badge, per
+                          // the agreed mockup and the invoice-status
+                          // research - not plain, unshaped text.
+                          final statusColor = isOverdue ? _emberRed : (isInvoice ? _statusPaid : _statusPending);
+                          final statusBg = statusColor.withOpacity(0.14);
 
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(row['customer_name'] as String? ?? '', style: GoogleFonts.workSans(color: _paper, fontSize: 15, fontWeight: FontWeight.w500)),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '${isInvoice ? 'Invoice' : 'Quotation'} · ${row['description'] ?? ''}',
-                                    style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 11),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text('R$amount', style: GoogleFonts.workSans(color: _paper, fontSize: 15, fontWeight: FontWeight.w600)),
-                                const SizedBox(height: 5),
-                                if (statusText.isNotEmpty)
-                                  Text(statusText, style: GoogleFonts.ibmPlexMono(color: statusColor, fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(row['customer_name'] as String? ?? '', style: GoogleFonts.workSans(color: _paper, fontSize: 15, fontWeight: FontWeight.w500)),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '${isInvoice ? 'Invoice' : 'Quotation'} · ${row['description'] ?? ''}',
+                                        style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 11),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text('R$amount', style: GoogleFonts.workSans(color: _paper, fontSize: 15, fontWeight: FontWeight.w600)),
+                                    const SizedBox(height: 6),
+                                    if (statusText.isNotEmpty)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                        decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(20)),
+                                        child: Text(
+                                          statusText.toUpperCase(),
+                                          style: GoogleFonts.ibmPlexMono(color: statusColor, fontSize: 9.5, fontWeight: FontWeight.w600, letterSpacing: 0.6),
+                                        ),
+                                      ),
+                                  ],
+                                ),
                               ],
                             ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ),
-            ],
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
