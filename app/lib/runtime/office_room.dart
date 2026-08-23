@@ -84,13 +84,18 @@ Future<T?> showOfficeRoom<T>({
           // slipping into a new world." A real entrance-only layer,
           // separate from the outer scale/fade (which is what
           // correctly reverses on close, tied to the dialog route's
-          // own animation) - starts slightly out of focus and
-          // unsettled, resolves into sharp focus as the room
-          // actually settles. The felt quality of moving through a
-          // threshold, not just growing into view.
+          // own animation).
+          //
+          // Real bug, found live: a pervasive underline artifact
+          // appeared on all text, first noticed in People, also
+          // present in Finance - the one, exact code path both share.
+          // .blur() is a real Gaussian image filter under the hood, a
+          // known category of web-rendering risk; removed as the
+          // primary, targeted suspect, keeping the simpler .slideY()
+          // transform, which carries much lower risk of this class of
+          // artifact.
           child: child
               .animate()
-              .blur(begin: const Offset(8, 8), end: Offset.zero, duration: 480.ms, curve: Curves.easeOutCubic)
               .slideY(begin: 0.035, end: 0, duration: 480.ms, curve: Curves.easeOutCubic),
         ),
       );
