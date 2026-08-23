@@ -129,13 +129,19 @@ export async function recordInvoice(
   const retentionPercent = customer?.retention_percent ?? null;
   const retentionAmount = retentionPercent ? Math.round(amount * (retentionPercent / 100) * 100) / 100 : 0;
 
+  // Real, deliberately narrow addition - a real due_date, 30 days
+  // from creation. No stated-term extraction yet (a real, separate
+  // future refinement) - just an honest, simple default so "is this
+  // actually overdue" becomes a real, answerable question.
+  const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
   // Real feature 2026-07-22 — Layer 2 (Project): the real, missing
   // link back to the job scope this invoice was actually priced from,
   // per the design pinned in DECISIONS.md.
   const inserted = await env.OFFICE_DB.prepare(
-    "INSERT INTO invoices (customer_id, description, amount, source_transcript, retention_percent, retention_amount, job_scope_id) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id"
+    "INSERT INTO invoices (customer_id, description, amount, source_transcript, retention_percent, retention_amount, job_scope_id, due_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id"
   )
-    .bind(customerId, description, amount, sourceTranscript, retentionPercent, retentionAmount, jobScopeId)
+    .bind(customerId, description, amount, sourceTranscript, retentionPercent, retentionAmount, jobScopeId, dueDate)
     .first<{ id: number }>();
 
   const invoiceId = inserted!.id;
@@ -966,10 +972,14 @@ export async function convertQuoteToInvoice(
     .first<{ job_scope_id: number | null }>();
   const jobScopeId = sourceQuotation?.job_scope_id ?? null;
 
+  // Real, deliberately narrow addition - a real due_date, 30 days
+  // from creation, same honest default as the direct-invoice path.
+  const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
   const inserted = await env.OFFICE_DB.prepare(
-    "INSERT INTO invoices (customer_id, description, amount, source_transcript, quotation_id, retention_percent, retention_amount, job_scope_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id"
+    "INSERT INTO invoices (customer_id, description, amount, source_transcript, quotation_id, retention_percent, retention_amount, job_scope_id, due_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id"
   )
-    .bind(customerId, description, remainingBalance, sourceTranscript, quotationId, retentionPercent, retentionAmount, jobScopeId)
+    .bind(customerId, description, remainingBalance, sourceTranscript, quotationId, retentionPercent, retentionAmount, jobScopeId, dueDate)
     .first<{ id: number }>();
 
   const invoiceId = inserted!.id;
