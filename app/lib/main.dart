@@ -630,6 +630,21 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     'pending': _emberSage,
   };
 
+  // Real, doorway-mechanism support for Finance's new ERP-mode room:
+  // attached to both the _EmberTear and _Ember finance instances below
+  // (only one is ever actually mounted at a time, per the
+  // useTearEmbers toggle) so its real, current screen position can be
+  // looked up at tap time regardless of which is active - the same
+  // real origin mechanism already proven for People.
+  final GlobalKey _financeEmberKey = GlobalKey();
+
+  Offset? _financeEmberOrigin() {
+    final box = _financeEmberKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached) return null;
+    final topLeft = box.localToGlobal(Offset.zero);
+    return topLeft + Offset(box.size.width / 2, box.size.height / 2);
+  }
+
   void _reactToEmberTap(String emberId) {
     setState(() {
       _ignitionEmberId = emberId;
@@ -1229,6 +1244,21 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     // behavior.
     _reactToEmberTap(emberId);
 
+    // Real, first ERP-mode module. Finance now opens the new, real
+    // room (search + flat, blended, honest list) instead of the old
+    // showModalBottomSheet - every other ember's behavior stays
+    // exactly as it was until it has a real room of its own.
+    if (emberId == 'finance') {
+      final origin = _financeEmberOrigin();
+      if (origin != null) {
+        _showFinanceRoom(origin);
+        return;
+      }
+      // Real, honest fallback - if the real position genuinely can't
+      // be found (e.g. mid-layout-change), fall through to the old
+      // behavior rather than silently do nothing.
+    }
+
     late String title;
     late List<Widget> cards;
 
@@ -1305,6 +1335,24 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
           ),
         ),
       ),
+    );
+  }
+
+  // Real, first ERP-mode module, per ERP_MODE_ARCHITECTURE.md. Same
+  // proven doorway - ignition at the real, tapped origin, then the
+  // room grows from that same point and color - as People. Content
+  // is a real, separate StatefulWidget since it needs its own local
+  // state for search-as-you-type, not something the inline builder
+  // callback can hold.
+  Future<void> _showFinanceRoom(Offset origin) async {
+    await _igniteEmber(origin, _emberRed);
+    if (!mounted) return;
+    await showOfficeRoom(
+      context: context,
+      officeState: _officeState,
+      origin: origin,
+      accentColor: _emberRed,
+      builder: (context) => _FinanceRoomContent(authHeaders: _authHeaders()),
     );
   }
 
@@ -2278,6 +2326,205 @@ class _Stage1OrbPainter extends CustomPainter {
 // before ever reaching a device. A single, flowing ribbon (per direct
 // feedback: "notice the flow"), palette shifted toward red per direct
 // instruction. Ripple trigger reuses the isRecording-transition pattern.
+class _FinanceRoomContent extends StatefulWidget {
+  final Map<String, String> authHeaders;
+  const _FinanceRoomContent({required this.authHeaders});
+
+  @override
+  State<_FinanceRoomContent> createState() => _FinanceRoomContentState();
+}
+
+class _FinanceRoomContentState extends State<_FinanceRoomContent> {
+  final _searchController = TextEditingController();
+  Timer? _debounce;
+  List<dynamic> _items = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch({String? search}) async {
+    setState(() => _loading = true);
+    try {
+      final uri = Uri.parse('$officeApiBase/debug/finance-list').replace(
+        queryParameters: (search != null && search.trim().isNotEmpty) ? {'search': search.trim()} : null,
+      );
+      final response = await http.get(uri, headers: widget.authHeaders);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        if (!mounted) return;
+        setState(() {
+          _items = data['items'] as List? ?? [];
+          _loading = false;
+          _error = null;
+        });
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = 'Could not load Finance right now.';
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Could not load Finance right now.';
+      });
+    }
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () => _fetch(search: value));
+  }
+
+  // Real, honest per-invoice fact - due_date, now real (see
+  // worker/src/finance.ts) - rather than a fabricated paid/overdue
+  // badge the backend genuinely can't support yet.
+  String _dueLabel(String? dueDateIso) {
+    if (dueDateIso == null) return '';
+    final due = DateTime.tryParse(dueDateIso);
+    if (due == null) return '';
+    final days = due.difference(DateTime.now()).inDays;
+    if (days < 0) return 'Overdue ${-days}d';
+    if (days == 0) return 'Due today';
+    return 'Due ${due.day} ${_monthAbbr(due.month)}';
+  }
+
+  String _monthAbbr(int month) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return months[month - 1];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: _void,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('FINANCE', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    color: _muted,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // Real, primary way to narrow the list, per
+              // ERP_MODE_ARCHITECTURE.md's depth principle - search
+              // does the real work, not a menu of filters.
+              TextField(
+                controller: _searchController,
+                onChanged: _onSearchChanged,
+                style: GoogleFonts.workSans(color: _paper, fontSize: 14),
+                cursorColor: _emberRed,
+                decoration: InputDecoration(
+                  hintText: 'Search invoices, quotations, customers…',
+                  hintStyle: GoogleFonts.workSans(color: _textTertiary, fontSize: 14),
+                  isDense: true,
+                  border: UnderlineInputBorder(borderSide: BorderSide(color: _textTertiary.withOpacity(0.25))),
+                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _textTertiary.withOpacity(0.25))),
+                  focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _emberRed.withOpacity(0.6))),
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (_loading)
+                const Padding(padding: EdgeInsets.only(top: 24), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+              else if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 24),
+                  child: Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)),
+                )
+              else if (_items.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 24),
+                  child: Text('Nothing real here yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)),
+                )
+              else
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.only(top: 8),
+                    itemCount: _items.length,
+                    separatorBuilder: (_, __) => Divider(height: 1, color: _textTertiary.withOpacity(0.1)),
+                    itemBuilder: (context, index) {
+                      final row = _items[index] as Map<String, dynamic>;
+                      final type = row['type'] as String? ?? '';
+                      final isInvoice = type == 'invoice';
+                      final amount = (row['amount'] as num?)?.toStringAsFixed(0) ?? '0';
+                      final statusText = isInvoice
+                          ? _dueLabel(row['due_date'] as String?)
+                          : (row['quotation_status'] as String? ?? '').toUpperCase();
+                      final statusColor = isInvoice
+                          ? (statusText.startsWith('Overdue') ? _emberRed : _muted)
+                          : _muted;
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(row['customer_name'] as String? ?? '', style: GoogleFonts.workSans(color: _paper, fontSize: 15, fontWeight: FontWeight.w500)),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${isInvoice ? 'Invoice' : 'Quotation'} · ${row['description'] ?? ''}',
+                                    style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 11),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text('R$amount', style: GoogleFonts.workSans(color: _paper, fontSize: 15, fontWeight: FontWeight.w600)),
+                                const SizedBox(height: 5),
+                                if (statusText.isNotEmpty)
+                                  Text(statusText, style: GoogleFonts.ibmPlexMono(color: statusColor, fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+}
+
 class FilamentOrb extends StatefulWidget {
   final bool isRecording;
   final double size;
@@ -2829,7 +3076,7 @@ class _TalkArea extends StatelessWidget {
                 children: [
                   Positioned(left: 12, top: 0, child: _EmberTear(program: emberTearProgram!, color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), clock: clock, isThinking: thinkingEmberId == 'tasks', seedOffset: 0.0)),
                   Positioned(left: 4, top: 55, child: _EmberTear(program: emberTearProgram!, color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), clock: clock, isThinking: thinkingEmberId == 'scheduler', seedOffset: 1.0)),
-                  Positioned(left: 16, top: 110, child: _EmberTear(program: emberTearProgram!, color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), clock: clock, isThinking: thinkingEmberId == 'finance', seedOffset: 2.0)),
+                  Positioned(left: 16, top: 110, child: _EmberTear(key: _financeEmberKey, program: emberTearProgram!, color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), clock: clock, isThinking: thinkingEmberId == 'finance', seedOffset: 2.0)),
                   Positioned(left: 2, top: 165, child: _EmberTear(program: emberTearProgram!, color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), clock: clock, isThinking: thinkingEmberId == 'suppliers', seedOffset: 3.0)),
                   Positioned(left: 14, top: 220, child: _EmberTear(program: emberTearProgram!, color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'), clock: clock, isThinking: thinkingEmberId == 'pending', seedOffset: 4.0)),
                 ],
@@ -2857,7 +3104,7 @@ class _TalkArea extends StatelessWidget {
                 children: [
                   Positioned(left: 10, top: 18, child: _Ember(color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), clock: clock, isThinking: thinkingEmberId == 'tasks', tapPulse: () => tapPulseFor('tasks'))),
                   Positioned(left: 46, top: 2, child: _Ember(color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), clock: clock, isThinking: thinkingEmberId == 'scheduler', tapPulse: () => tapPulseFor('scheduler'))),
-                  Positioned(left: 74, top: 24, child: _Ember(color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), clock: clock, isThinking: thinkingEmberId == 'finance', tapPulse: () => tapPulseFor('finance'))),
+                  Positioned(left: 74, top: 24, child: _Ember(key: _financeEmberKey, color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), clock: clock, isThinking: thinkingEmberId == 'finance', tapPulse: () => tapPulseFor('finance'))),
                   Positioned(left: 104, top: 6, child: _Ember(color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), clock: clock, isThinking: thinkingEmberId == 'suppliers', tapPulse: () => tapPulseFor('suppliers'))),
                   Positioned(left: 132, top: 20, child: _Ember(color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'), clock: clock, isThinking: thinkingEmberId == 'pending', tapPulse: () => tapPulseFor('pending'))),
                 ],
