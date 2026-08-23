@@ -2352,8 +2352,12 @@ class _FinanceRoomContentState extends State<_FinanceRoomContent> {
   Future<void> _fetch({String? search}) async {
     setState(() => _loading = true);
     try {
+      final queryParams = <String, String>{};
+      if (search != null && search.trim().isNotEmpty) {
+        queryParams['search'] = search.trim();
+      }
       final uri = Uri.parse('$officeApiBase/debug/finance-list').replace(
-        queryParameters: (search != null && search.trim().isNotEmpty) ? {'search': search.trim()} : null,
+        queryParameters: queryParams.isEmpty ? null : queryParams,
       );
       final response = await http.get(uri, headers: widget.authHeaders);
       if (response.statusCode == 200) {
@@ -2467,7 +2471,7 @@ class _FinanceRoomContentState extends State<_FinanceRoomContent> {
                       final row = _items[index] as Map<String, dynamic>;
                       final type = row['type'] as String? ?? '';
                       final isInvoice = type == 'invoice';
-                      final amount = (row['amount'] as num?)?.toStringAsFixed(0) ?? '0';
+                      final amount = (row['amount'] as num?)?.toDouble().toStringAsFixed(0) ?? '0';
                       final statusText = isInvoice
                           ? _dueLabel(row['due_date'] as String?)
                           : (row['quotation_status'] as String? ?? '').toUpperCase();
