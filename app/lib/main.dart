@@ -2596,7 +2596,12 @@ class _FinanceRoomContentState extends State<_FinanceRoomContent> {
                           final statusColor = isOverdue ? _emberRed : (isInvoice ? _statusPaid : _statusPending);
                           final statusBg = statusColor.withOpacity(0.14);
 
-                          return Padding(
+                          final documentId = row['id'];
+                          final pdfUrl = '$officeApiBase/${isInvoice ? 'invoices' : 'quotations'}/$documentId/pdf';
+
+                          return InkWell(
+                            onTap: () => launchUrl(Uri.parse(pdfUrl), webOnlyWindowName: '_blank'),
+                            child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2635,6 +2640,7 @@ class _FinanceRoomContentState extends State<_FinanceRoomContent> {
                                   ],
                                 ),
                               ],
+                            ),
                             ),
                           );
                         },
