@@ -2414,6 +2414,19 @@ class _FinanceRoomContentState extends State<_FinanceRoomContent> {
     return months[month - 1];
   }
 
+  // Real, simple thousand-separator formatting - no new dependency
+  // needed for something this straightforward.
+  String _formatAmount(num? amount) {
+    if (amount == null) return '0';
+    final whole = amount.round().toString();
+    final buffer = StringBuffer();
+    for (var i = 0; i < whole.length; i++) {
+      if (i > 0 && (whole.length - i) % 3 == 0) buffer.write(',');
+      buffer.write(whole[i]);
+    }
+    return buffer.toString();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -2427,17 +2440,17 @@ class _FinanceRoomContentState extends State<_FinanceRoomContent> {
           // echo of the ember this room grew from. Was designed but
           // never actually carried into this real build until now.
           Positioned(
-            top: -180,
+            top: -120,
             left: 0,
             right: 0,
             child: Center(
               child: Container(
-                width: 520,
-                height: 340,
+                width: 560,
+                height: 380,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
-                    colors: [_emberRed.withOpacity(0.30), _emberRed.withOpacity(0.10), _emberRed.withOpacity(0.0)],
+                    colors: [_emberRed.withOpacity(0.42), _emberRed.withOpacity(0.16), _emberRed.withOpacity(0.0)],
                     stops: const [0.0, 0.4, 0.72],
                   ),
                 ),
@@ -2508,7 +2521,7 @@ class _FinanceRoomContentState extends State<_FinanceRoomContent> {
                           final row = _items[index] as Map<String, dynamic>;
                           final type = row['type'] as String? ?? '';
                           final isInvoice = type == 'invoice';
-                          final amount = (row['amount'] as num?)?.toDouble().toStringAsFixed(0) ?? '0';
+                          final amount = _formatAmount(row['amount'] as num?);
                           final statusText = isInvoice
                               ? _dueLabel(row['due_date'] as String?)
                               : (row['quotation_status'] as String? ?? '').toUpperCase();
