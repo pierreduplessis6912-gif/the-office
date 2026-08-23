@@ -1744,6 +1744,7 @@ class _EmberTear extends StatefulWidget {
   final OfficeClock clock;
   final double seedOffset;
   const _EmberTear({
+    super.key,
     required this.program,
     required this.color,
     required this.count,
@@ -2021,6 +2022,7 @@ class _Ember extends StatefulWidget {
   // AnimatedBuilder below.
   final double Function() tapPulse;
   const _Ember({
+    super.key,
     required this.color,
     required this.count,
     required this.onTap,
