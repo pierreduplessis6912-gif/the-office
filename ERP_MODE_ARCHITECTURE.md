@@ -58,6 +58,43 @@ six separate, smaller ones. The same instinct that made `OfficeClock`
 and `OfficeStateMachine` shared primitives instead of one-off
 implementations per feature.
 
+## Depth and cognitive load — staying light
+
+A real, named risk, not a vague concern: `BACKEND_CAPABILITY_MAP.md`
+shows Finance alone covers quotations, invoices, expenses,
+aged-creditors, and two separate PDF reports. Left unchecked, that's
+five sub-menus before a second module is even reached — the exact
+thing the Experience Brief has warned against since the beginning:
+relief, not productivity software. Nobody should need a tutorial to
+get a simple number out of this.
+
+**One flat, searchable list per module, not tabs per data type.**
+Finance doesn't ask "invoices or quotations?" first. One list,
+blended, each row quietly labeled with its own type. Search narrows
+it — there's no menu to learn before you can even look for something.
+
+**Search is the primary way to narrow things down, not a feature
+alongside navigation.** Already named as a goal in this document;
+made load-bearing here. Typing beats navigating. Fewer structural
+decisions imposed on Peter, more just asking for what he wants.
+
+**Filters and sort stay hidden until summoned.** A single small icon,
+not a permanent row of chips consuming screen space — the same
+Notion pattern already confirmed in research: controls appear on
+demand, not by default. The list's own default order should already
+be the useful one (overdue first, for Finance) so most of the time
+nobody touches sort or filter at all.
+
+**Reports are actions, not sections to browse.** Aged-debtors and P&L
+are documents to generate, not a list to scroll. One small "generate"
+action, not a tab implying a menu of reports to learn.
+
+**A hard depth rule: two taps, always.** Void → module list → detail.
+Never a third layer of category-picking in between. If a module's
+real data can't fit that shape, that's a signal its data model needs
+better blending in the list itself — not a reason to add a level of
+navigation.
+
 ## Moving between modules without falling back to the void
 
 A small, persistent way to jump from one module to another directly
