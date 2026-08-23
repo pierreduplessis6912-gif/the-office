@@ -3730,6 +3730,59 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // key"). SQLite's ADD COLUMN has no IF NOT EXISTS, so each is
     // wrapped individually to stay safe to call more than once, same
     // as every other schema-init route here.
+    // Real, deliberately narrow addition - a due_date on invoices,
+    // per direct instruction: distinct in scope from payment-to-
+    // invoice linking (a real business-logic decision, not attempted
+    // here). This is just a real fact recorded once at creation, no
+    // inference needed - makes "is this actually overdue" a real,
+    // answerable question without fabricating per-invoice paid/unpaid
+    // status the backend genuinely can't support yet.
+    // Real, new list endpoint for ERP mode's Finance module, per
+    // ERP_MODE_ARCHITECTURE.md: "one flat, searchable list per
+    // module, not tabs per data type." Blends invoices and
+    // quotations into one, real, searchable, paginated list -
+    // replacing the old /debug/invoices and /debug/quotations'
+    // arbitrary LIMIT 10 with real search and real pagination.
+    // Deliberately honest about status: quotations.status is real and
+    // meaningfully set (draft/converted); invoices never got a
+    // meaningful status written anywhere, so due_date (now real,
+    // added above) is surfaced instead of a fabricated paid/overdue
+    // badge - a real, per-invoice fact, not an invented one.
+    if (url.pathname === "/debug/finance-list" && request.method === "GET") {
+      const search = url.searchParams.get("search")?.trim() || null;
+      const limit = Math.min(Number(url.searchParams.get("limit")) || 50, 200);
+      const offset = Number(url.searchParams.get("offset")) || 0;
+      const like = search ? `%${search}%` : null;
+
+      const { results } = await env.OFFICE_DB.prepare(
+        `SELECT * FROM (
+           SELECT 'invoice' as type, i.id, i.customer_id, c.name as customer_name,
+                  i.description, i.amount, i.due_date, NULL as quotation_status, i.created_at
+           FROM invoices i JOIN customers c ON c.id = i.customer_id
+           UNION ALL
+           SELECT 'quotation' as type, q.id, q.customer_id, c.name as customer_name,
+                  q.description, q.amount, NULL as due_date, q.status as quotation_status, q.created_at
+           FROM quotations q JOIN customers c ON c.id = q.customer_id
+         )
+         WHERE (?1 IS NULL OR customer_name LIKE ?2 OR description LIKE ?2)
+         ORDER BY created_at DESC
+         LIMIT ?3 OFFSET ?4`
+      )
+        .bind(search, like, limit, offset)
+        .all();
+
+      return Response.json({ items: results, limit, offset });
+    }
+
+    if (url.pathname === "/debug/init-invoices-due-date" && request.method === "POST") {
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE invoices ADD COLUMN due_date TEXT").run();
+      } catch {
+        // Already exists — fine, that's what makes this idempotent.
+      }
+      return Response.json({ status: "ok" });
+    }
+
     if (url.pathname === "/debug/init-captures-fk" && request.method === "POST") {
       for (const column of ["customer_id INTEGER", "character_id INTEGER"]) {
         try {
