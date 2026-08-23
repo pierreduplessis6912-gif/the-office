@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 
 import 'office_state.dart';
 
@@ -78,25 +77,18 @@ Future<T?> showOfficeRoom<T>({
           // origin point rather than always the generic center -
           // 0.06 (not the previous 0.94) since growing from a small,
           // real point reads correctly starting much smaller.
-          alignment: alignment,
-          scale: Tween<double>(begin: origin == null ? 0.94 : 0.06, end: 1.0).animate(curved),
-          // Real, direct feedback: "make it feel like you are
-          // slipping into a new world." A real entrance-only layer,
-          // separate from the outer scale/fade (which is what
-          // correctly reverses on close, tied to the dialog route's
-          // own animation).
-          //
           // Real bug, found live: a pervasive underline artifact
           // appeared on all text, first noticed in People, also
           // present in Finance - the one, exact code path both share.
-          // .blur() is a real Gaussian image filter under the hood, a
-          // known category of web-rendering risk; removed as the
-          // primary, targeted suspect, keeping the simpler .slideY()
-          // transform, which carries much lower risk of this class of
-          // artifact.
-          child: child
-              .animate()
-              .slideY(begin: 0.035, end: 0, duration: 480.ms, curve: Curves.easeOutCubic),
+          // Removing .blur() alone did not fix it (confirmed on real
+          // device) - removing the entire flutter_animate chain here
+          // as a decisive test of whether the package itself, in this
+          // usage, is responsible, rather than continuing to guess at
+          // individual effects within it. Reverts to the plain,
+          // originally-proven scale/fade only for the entrance.
+          alignment: alignment,
+          scale: Tween<double>(begin: origin == null ? 0.94 : 0.06, end: 1.0).animate(curved),
+          child: child,
         ),
       );
       if (accentColor == null || origin == null) return scaled;
