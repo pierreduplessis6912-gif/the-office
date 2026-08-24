@@ -2974,6 +2974,42 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       }
     }
 
+    // Real, scoped edit endpoint - same principle as invoices/
+    // quotations: a customer record already exists once voice
+    // creates it (customers only ever gets a name at creation, per
+    // the real, confirmed insert), so editing it is genuinely
+    // different from creating one from nothing. Deliberately narrow
+    // to the two fields confirmed to actually exist in the schema
+    // (name, address, per generateStatementPdf's own real query) -
+    // no phone/email, since no evidence those columns exist; adding
+    // them would need a real, separate migration, not assumed here.
+    if (url.pathname.match(/^\/customers\/\d+$/) && request.method === "PATCH") {
+      const customerId = Number(url.pathname.split("/")[2]);
+      try {
+        const body = (await request.json()) as Record<string, unknown>;
+        const existing = await env.OFFICE_DB.prepare("SELECT id FROM customers WHERE id = ?").bind(customerId).first();
+        if (!existing) {
+          return Response.json({ error: "Customer not found" }, { status: 404 });
+        }
+
+        const name = typeof body.name === "string" ? body.name : undefined;
+        const address = typeof body.address === "string" ? body.address : undefined;
+
+        await env.OFFICE_DB.prepare(
+          `UPDATE customers SET
+             name = COALESCE(?, name),
+             address = COALESCE(?, address)
+           WHERE id = ?`
+        )
+          .bind(name ?? null, address ?? null, customerId)
+          .run();
+
+        return Response.json({ status: "ok", id: customerId });
+      } catch (err) {
+        return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
+      }
+    }
+
     if (url.pathname.match(/^\/invoices\/\d+\/pdf$/) && request.method === "GET") {
       const invoiceId = Number(url.pathname.split("/")[2]);
       try {
