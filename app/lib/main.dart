@@ -651,6 +651,21 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     return topLeft + Offset(box.size.width / 2, box.size.height / 2);
   }
 
+  // Real, same proven doorway-mechanism support, extended to the
+  // remaining four embers - suppliers, scheduling, inventory,
+  // pending. Same pattern exactly, no variation.
+  final GlobalKey _suppliersEmberKey = GlobalKey();
+  final GlobalKey _schedulerEmberKey = GlobalKey();
+  final GlobalKey _inventoryEmberKey = GlobalKey();
+  final GlobalKey _pendingEmberKey = GlobalKey();
+
+  Offset? _emberOrigin(GlobalKey key) {
+    final box = key.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached) return null;
+    final topLeft = box.localToGlobal(Offset.zero);
+    return topLeft + Offset(box.size.width / 2, box.size.height / 2);
+  }
+
   // Real, temporary isolation test - not a permanent module. Same
   // proven origin mechanism as Finance, reused on Tasks (which has no
   // real room of its own yet) to open a genuinely minimal, bare room
@@ -1113,6 +1128,9 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
                   reactColor: _ignitionEmberId != null ? _emberColors[_ignitionEmberId] : null,
                   financeEmberKey: _financeEmberKey,
                   tasksTestEmberKey: _tasksTestEmberKey,
+                  suppliersEmberKey: _suppliersEmberKey,
+                  schedulerEmberKey: _schedulerEmberKey,
+                  pendingEmberKey: _pendingEmberKey,
                   useShaderOrb: _useShaderOrb,
                   stage1Shader: _stage1Shader,
                   useTearEmbers: _useTearEmbers,
@@ -1282,50 +1300,40 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       // behavior rather than silently do nothing.
     }
 
-    // Real, temporary isolation test - not a permanent module.
-    // Deliberately bare: showOfficeRoom called directly, no
-    // _igniteEmber, no accentColor, plain Text on the void. If the
-    // underline is absent here, it lives in People's or Finance's own
-    // content, not the shared room mechanism. If it's present even on
-    // this bare minimum, it's something more fundamental.
+    // Real, honest placeholder - Tasks falls under the Scheduling
+    // domain, deliberately held back per the real, evidence-based
+    // sequencing decision (known, unresolved extraction bugs found
+    // the same night this was scoped). This replaces the earlier,
+    // temporary isolation-test room - its diagnostic purpose
+    // (confirming the underline bug's real cause) is fulfilled.
     if (emberId == 'tasks') {
-      final origin = _tasksTestEmberOrigin();
+      final origin = _emberOrigin(_tasksTestEmberKey);
       if (origin != null) {
-        showOfficeRoom(
-          context: context,
-          officeState: _officeState,
-          origin: origin,
-          builder: (context) => Container(
-            width: double.infinity,
-            height: double.infinity,
-            color: _void,
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('TEST ROOM', style: TextStyle(color: Colors.white, fontSize: 14)),
-                        IconButton(
-                          icon: const Icon(Icons.close, size: 18),
-                          color: _muted,
-                          onPressed: () => Navigator.of(context).pop(),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    const Text('Plain text. No flutter_animate. No shaders.', style: TextStyle(color: Colors.white, fontSize: 15)),
-                    const SizedBox(height: 8),
-                    const Text('R20000', style: TextStyle(color: Colors.white, fontSize: 15)),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
+        _showPlaceholderRoom(origin, _emberAmber, 'TASKS', 'Held back deliberately - Scheduling has known, unresolved extraction issues that need real attention before this room shows real data.');
+        return;
+      }
+    }
+
+    if (emberId == 'scheduler') {
+      final origin = _emberOrigin(_schedulerEmberKey);
+      if (origin != null) {
+        _showPlaceholderRoom(origin, _emberBlue, 'SCHEDULER', 'Held back deliberately - Scheduling has known, unresolved extraction issues that need real attention before this room shows real data.');
+        return;
+      }
+    }
+
+    if (emberId == 'suppliers') {
+      final origin = _emberOrigin(_suppliersEmberKey);
+      if (origin != null) {
+        _showPlaceholderRoom(origin, _emberPurple, 'SUPPLIERS', 'Real data exists (purchase orders, goods received, supplier invoices) but no single, blended, searchable view yet - real backend work, not yet built.');
+        return;
+      }
+    }
+
+    if (emberId == 'pending') {
+      final origin = _emberOrigin(_pendingEmberKey);
+      if (origin != null) {
+        _showPendingRoom(origin);
         return;
       }
     }
@@ -1424,6 +1432,68 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       origin: origin,
       accentColor: _emberRed,
       builder: (context) => _FinanceRoomContent(authHeaders: _authHeaders()),
+    );
+  }
+
+  // Real, generic, reusable - honest "not built yet" content, per
+  // direct instruction: use placeholders where real data or a real
+  // endpoint doesn't exist, rather than build something that implies
+  // capability that isn't real. Same proven doorway as every other
+  // room.
+  Future<void> _showPlaceholderRoom(Offset origin, Color accentColor, String title, String message) async {
+    await _igniteEmber(origin, accentColor);
+    if (!mounted) return;
+    await showOfficeRoom(
+      context: context,
+      officeState: _officeState,
+      origin: origin,
+      accentColor: accentColor,
+      builder: (context) => Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: _void,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(title, style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      color: _muted,
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 40),
+                Text(message, style: GoogleFonts.workSans(color: _muted, fontSize: 14, fontStyle: FontStyle.italic, height: 1.5)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Real, functional room, per direct instruction: pending actions
+  // already have real, working confirm/reject endpoints - a genuine
+  // fit for this space, not a placeholder. This is exactly what the
+  // pinned voice-is-the-hero principle describes: reviewing what
+  // voice already created, the real human checkpoint guard() exists
+  // for.
+  Future<void> _showPendingRoom(Offset origin) async {
+    await _igniteEmber(origin, _emberSage);
+    if (!mounted) return;
+    await showOfficeRoom(
+      context: context,
+      officeState: _officeState,
+      origin: origin,
+      accentColor: _emberSage,
+      builder: (context) => _PendingRoomContent(authHeaders: _authHeaders()),
     );
   }
 
@@ -2912,6 +2982,159 @@ class _EditDocumentDialogState extends State<_EditDocumentDialog> {
   }
 }
 
+// Real, functional room, per direct instruction: pending actions
+// already have real, working confirm/reject endpoints - genuinely
+// reviewing what voice already created, the real human checkpoint
+// guard() exists for. Not a placeholder, not search/list/detail like
+// Finance - a real, different, simpler shape: a queue to work
+// through.
+class _PendingRoomContent extends StatefulWidget {
+  final Map<String, String> authHeaders;
+  const _PendingRoomContent({required this.authHeaders});
+
+  @override
+  State<_PendingRoomContent> createState() => _PendingRoomContentState();
+}
+
+class _PendingRoomContentState extends State<_PendingRoomContent> {
+  List<dynamic> _items = [];
+  bool _loading = true;
+  String? _error;
+  final Set<int> _busyIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    setState(() => _loading = true);
+    try {
+      final response = await http.get(Uri.parse('$officeApiBase/actions/pending'), headers: widget.authHeaders);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        if (!mounted) return;
+        setState(() {
+          _items = data['pending'] as List? ?? [];
+          _loading = false;
+          _error = null;
+        });
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = 'Could not load Pending right now.';
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Could not load Pending right now.';
+      });
+    }
+  }
+
+  Future<void> _resolve(int id, String action) async {
+    setState(() => _busyIds.add(id));
+    try {
+      final response = await http.post(Uri.parse('$officeApiBase/actions/$id/$action'), headers: widget.authHeaders);
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        setState(() {
+          _items = _items.where((item) => (item as Map<String, dynamic>)['id'] != id).toList();
+          _busyIds.remove(id);
+        });
+      } else {
+        setState(() => _busyIds.remove(id));
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _busyIds.remove(id));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: _void,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('PENDING', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    color: _muted,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              if (_loading)
+                const Padding(padding: EdgeInsets.only(top: 24), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+              else if (_error != null)
+                Padding(padding: const EdgeInsets.only(top: 24), child: Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else if (_items.isEmpty)
+                Padding(padding: const EdgeInsets.only(top: 24), child: Text('Nothing waiting on you right now.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: _items.length,
+                    separatorBuilder: (_, __) => Divider(height: 1, color: _textTertiary.withOpacity(0.1)),
+                    itemBuilder: (context, index) {
+                      final item = _items[index] as Map<String, dynamic>;
+                      final id = item['id'] as int;
+                      final type = item['type'] as String? ?? '';
+                      final transcript = item['source_transcript'] as String? ?? '';
+                      final busy = _busyIds.contains(id);
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(type.toUpperCase(), style: GoogleFonts.ibmPlexMono(color: _emberSage, fontSize: 10.5, fontWeight: FontWeight.w600, letterSpacing: 0.8)),
+                            const SizedBox(height: 6),
+                            Text(transcript, style: GoogleFonts.workSans(color: _paper, fontSize: 14)),
+                            const SizedBox(height: 12),
+                            if (busy)
+                              const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                            else
+                              Row(
+                                children: [
+                                  TextButton(
+                                    onPressed: () => _resolve(id, 'confirm'),
+                                    child: Text('Confirm', style: GoogleFonts.workSans(color: _emberSage, fontWeight: FontWeight.w600)),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  TextButton(
+                                    onPressed: () => _resolve(id, 'reject'),
+                                    child: Text('Reject', style: GoogleFonts.workSans(color: _muted)),
+                                  ),
+                                ],
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _FilterChip extends StatelessWidget {
   final String label;
   final bool selected;
@@ -3413,6 +3636,12 @@ class _TalkArea extends StatelessWidget {
   final GlobalKey financeEmberKey;
   // Real, temporary isolation test field - not permanent.
   final GlobalKey tasksTestEmberKey;
+  // Real doorway support for the remaining three real embers -
+  // suppliers, scheduler, pending. Tasks reuses tasksTestEmberKey
+  // above (its diagnostic role is done, its GlobalKey isn't).
+  final GlobalKey suppliersEmberKey;
+  final GlobalKey schedulerEmberKey;
+  final GlobalKey pendingEmberKey;
   // Real orb rebuild, Stage 1, 2026-08-07 — deliberately just a
   // shader reference and a bool, nothing state-derived passed to the
   // shader itself. Falls back to the proven old orb whenever
@@ -3442,6 +3671,9 @@ class _TalkArea extends StatelessWidget {
     required this.reactColor,
     required this.financeEmberKey,
     required this.tasksTestEmberKey,
+    required this.suppliersEmberKey,
+    required this.schedulerEmberKey,
+    required this.pendingEmberKey,
     required this.useShaderOrb,
     required this.stage1Shader,
     required this.useTearEmbers,
@@ -3498,10 +3730,10 @@ class _TalkArea extends StatelessWidget {
                 clipBehavior: Clip.none,
                 children: [
                   Positioned(left: 12, top: 0, child: _EmberTear(key: tasksTestEmberKey, program: emberTearProgram!, color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), clock: clock, isThinking: thinkingEmberId == 'tasks', seedOffset: 0.0)),
-                  Positioned(left: 4, top: 55, child: _EmberTear(program: emberTearProgram!, color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), clock: clock, isThinking: thinkingEmberId == 'scheduler', seedOffset: 1.0)),
+                  Positioned(left: 4, top: 55, child: _EmberTear(key: schedulerEmberKey, program: emberTearProgram!, color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), clock: clock, isThinking: thinkingEmberId == 'scheduler', seedOffset: 1.0)),
                   Positioned(left: 16, top: 110, child: _EmberTear(key: financeEmberKey, program: emberTearProgram!, color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), clock: clock, isThinking: thinkingEmberId == 'finance', seedOffset: 2.0)),
-                  Positioned(left: 2, top: 165, child: _EmberTear(program: emberTearProgram!, color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), clock: clock, isThinking: thinkingEmberId == 'suppliers', seedOffset: 3.0)),
-                  Positioned(left: 14, top: 220, child: _EmberTear(program: emberTearProgram!, color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'), clock: clock, isThinking: thinkingEmberId == 'pending', seedOffset: 4.0)),
+                  Positioned(left: 2, top: 165, child: _EmberTear(key: suppliersEmberKey, program: emberTearProgram!, color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), clock: clock, isThinking: thinkingEmberId == 'suppliers', seedOffset: 3.0)),
+                  Positioned(left: 14, top: 220, child: _EmberTear(key: pendingEmberKey, program: emberTearProgram!, color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'), clock: clock, isThinking: thinkingEmberId == 'pending', seedOffset: 4.0)),
                 ],
               ),
             ),
@@ -3526,10 +3758,10 @@ class _TalkArea extends StatelessWidget {
                 clipBehavior: Clip.none,
                 children: [
                   Positioned(left: 10, top: 18, child: _Ember(key: tasksTestEmberKey, color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), clock: clock, isThinking: thinkingEmberId == 'tasks', tapPulse: () => tapPulseFor('tasks'))),
-                  Positioned(left: 46, top: 2, child: _Ember(color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), clock: clock, isThinking: thinkingEmberId == 'scheduler', tapPulse: () => tapPulseFor('scheduler'))),
+                  Positioned(left: 46, top: 2, child: _Ember(key: schedulerEmberKey, color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), clock: clock, isThinking: thinkingEmberId == 'scheduler', tapPulse: () => tapPulseFor('scheduler'))),
                   Positioned(left: 74, top: 24, child: _Ember(key: financeEmberKey, color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), clock: clock, isThinking: thinkingEmberId == 'finance', tapPulse: () => tapPulseFor('finance'))),
-                  Positioned(left: 104, top: 6, child: _Ember(color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), clock: clock, isThinking: thinkingEmberId == 'suppliers', tapPulse: () => tapPulseFor('suppliers'))),
-                  Positioned(left: 132, top: 20, child: _Ember(color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'), clock: clock, isThinking: thinkingEmberId == 'pending', tapPulse: () => tapPulseFor('pending'))),
+                  Positioned(left: 104, top: 6, child: _Ember(key: suppliersEmberKey, color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), clock: clock, isThinking: thinkingEmberId == 'suppliers', tapPulse: () => tapPulseFor('suppliers'))),
+                  Positioned(left: 132, top: 20, child: _Ember(key: pendingEmberKey, color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'), clock: clock, isThinking: thinkingEmberId == 'pending', tapPulse: () => tapPulseFor('pending'))),
                 ],
               ),
             ),
