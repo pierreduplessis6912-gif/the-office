@@ -8,6 +8,44 @@ not a new investigation.
 
 ---
 
+## Voice is the hero — the shell serves it, never competes with it
+
+Real, direct instruction, and the single most important constraint on
+everything else in this document: ERP mode must never become a mini
+SAP, or SAP Light. The shell exists to find and review what voice
+already created — not to become a second, competing way of getting
+data into the system.
+
+The whole backend is genuinely, entirely built around one idea:
+describe what happened, let extraction turn it into structured data.
+That's not an implementation detail to work around — it's the
+product's actual identity. A rich, well-reasoned system already
+exists around this (`guard()`'s human-confirmation discipline,
+deterministic financial math, the unified capture pipeline). The
+shell's job is to stay lean and subordinate to that, permanently:
+
+- **Search, view, and a narrow edit-existing-record form** are the
+  real ceiling for the shell's own write capability. Editing a
+  record that already exists (born from voice) is genuinely
+  different from creating one from nothing — the shell may do the
+  former; voice alone does the latter.
+- **No "New Invoice" button that starts a document from a blank
+  form.** However convenient it might look once the shell exists,
+  a document is only ever born through voice. This is a permanent
+  constraint, not a temporary one pending future backend work.
+- **When manual editing is genuinely needed** (per the real,
+  reasoned decision already made), it works *with* the same
+  underlying, deterministic functions voice already calls
+  (`recordInvoice`, etc.) — never a parallel, competing write path
+  that could quietly drift from what voice produces.
+
+This principle disciplines every other section in this document. If
+a future addition to the shell would make it feel like a faster or
+more capable way to enter data than speaking, that's the signal it's
+drifted from what this system actually is.
+
+---
+
 ## The core principle — two modes, one system
 
 **Rest — the void.** Orb breathing, embers drifting, the lake alive
