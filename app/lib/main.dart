@@ -2413,6 +2413,23 @@ class _FinanceRoomContentState extends State<_FinanceRoomContent> {
   List<dynamic> _items = [];
   bool _loading = true;
   String? _error;
+  // Real, honest filter: All / Overdue, not All/Outstanding/Paid.
+  // due_date is the one real, per-invoice fact that exists - there is
+  // no per-invoice paid status in the backend (only a customer-level
+  // balance), so a "Paid" tab would imply precision the data doesn't
+  // actually have.
+  String _filter = 'all';
+
+  List<dynamic> get _filteredItems {
+    if (_filter == 'all') return _items;
+    return _items.where((row) {
+      final map = row as Map<String, dynamic>;
+      if (map['type'] != 'invoice') return false;
+      final dueIso = map['due_date'] as String?;
+      final due = dueIso != null ? DateTime.tryParse(dueIso) : null;
+      return due != null && due.isBefore(DateTime.now());
+    }).toList();
+  }
 
   @override
   void initState() {
@@ -2560,7 +2577,20 @@ class _FinanceRoomContentState extends State<_FinanceRoomContent> {
                   ),
                   if (!_loading && _error == null && _items.isNotEmpty) ...[
                     const SizedBox(height: 14),
-                    Text('${_items.length} ${_items.length == 1 ? 'item' : 'items'}', style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 1)),
+                    Row(
+                      children: [
+                        Text('${_filteredItems.length} ${_filteredItems.length == 1 ? 'item' : 'items'}', style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 1)),
+                        const Spacer(),
+                        // Real, honest filter - All / Overdue, not
+                        // All/Outstanding/Paid. due_date is the one
+                        // real, per-invoice fact that exists; there
+                        // is no per-invoice paid status in the
+                        // backend, only a customer-level balance.
+                        _FilterChip(label: 'All', selected: _filter == 'all', onTap: () => setState(() => _filter = 'all')),
+                        const SizedBox(width: 10),
+                        _FilterChip(label: 'Overdue', selected: _filter == 'overdue', onTap: () => setState(() => _filter = 'overdue')),
+                      ],
+                    ),
                   ],
                   const SizedBox(height: 8),
                   if (_loading)
@@ -2570,19 +2600,22 @@ class _FinanceRoomContentState extends State<_FinanceRoomContent> {
                       padding: const EdgeInsets.only(top: 24),
                       child: Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)),
                     )
-                  else if (_items.isEmpty)
+                  else if (_filteredItems.isEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 24),
-                      child: Text('Nothing real here yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)),
+                      child: Text(
+                        _items.isEmpty ? 'Nothing real here yet.' : 'Nothing overdue right now.',
+                        style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic),
+                      ),
                     )
                   else
                     Expanded(
                       child: ListView.separated(
                         padding: const EdgeInsets.only(top: 8),
-                        itemCount: _items.length,
+                        itemCount: _filteredItems.length,
                         separatorBuilder: (_, __) => Divider(height: 1, color: _textTertiary.withOpacity(0.1)),
                         itemBuilder: (context, index) {
-                          final row = _items[index] as Map<String, dynamic>;
+                          final row = _filteredItems[index] as Map<String, dynamic>;
                           final type = row['type'] as String? ?? '';
                           final isInvoice = type == 'invoice';
                           final amount = _formatAmount(row['amount'] as num?);
@@ -2660,6 +2693,34 @@ class _FinanceRoomContentState extends State<_FinanceRoomContent> {
     _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+}
+
+// Real, small, quiet filter control - matches the app's established
+// status-badge visual language rather than inventing a new one.
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _FilterChip({required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: selected ? _emberRed.withOpacity(0.16) : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: selected ? _emberRed.withOpacity(0.5) : _textTertiary.withOpacity(0.25)),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.ibmPlexMono(color: selected ? _emberRed : _textTertiary, fontSize: 10.5, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+        ),
+      ),
+    );
   }
 }
 
