@@ -2898,6 +2898,82 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ ok: true, note: "this trivial route works" });
     }
 
+    // Real, scoped edit endpoint, per the real, reasoned decision:
+    // voice remains the only way a document is born; this is purely
+    // for editing a record that already exists. The human's
+    // deliberate PATCH request is itself the guard() checkpoint - the
+    // same real principle that already governs recordPayment/
+    // recordInvoice, just satisfied by a direct human edit instead of
+    // an AI-extracted confirm. Deliberately narrow: document-level
+    // fields only (description, due_date, amount, retention_percent)
+    // - not line items, a genuinely more complex, separate piece of
+    // work given line_items is its own, normalized table.
+    if (url.pathname.match(/^\/invoices\/\d+$/) && request.method === "PATCH") {
+      const invoiceId = Number(url.pathname.split("/")[2]);
+      try {
+        const body = (await request.json()) as Record<string, unknown>;
+        const existing = await env.OFFICE_DB.prepare("SELECT customer_id, amount, retention_percent FROM invoices WHERE id = ?")
+          .bind(invoiceId)
+          .first<{ customer_id: number; amount: number; retention_percent: number | null }>();
+        if (!existing) {
+          return Response.json({ error: "Invoice not found" }, { status: 404 });
+        }
+
+        const description = typeof body.description === "string" ? body.description : undefined;
+        const amount = typeof body.amount === "number" ? body.amount : undefined;
+        const dueDate = typeof body.due_date === "string" ? body.due_date : undefined;
+        const retentionPercent = typeof body.retention_percent === "number" ? body.retention_percent : existing.retention_percent;
+
+        // Real, deterministic re-derivation - the exact same formula
+        // already proven in recordInvoice, never re-guessed by an AI.
+        const effectiveAmount = amount ?? existing.amount;
+        const retentionAmount = retentionPercent ? Math.round(effectiveAmount * (retentionPercent / 100) * 100) / 100 : 0;
+
+        await env.OFFICE_DB.prepare(
+          `UPDATE invoices SET
+             description = COALESCE(?, description),
+             amount = COALESCE(?, amount),
+             due_date = COALESCE(?, due_date),
+             retention_percent = ?,
+             retention_amount = ?
+           WHERE id = ?`
+        )
+          .bind(description ?? null, amount ?? null, dueDate ?? null, retentionPercent, retentionAmount, invoiceId)
+          .run();
+
+        return Response.json({ status: "ok", id: invoiceId });
+      } catch (err) {
+        return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
+      }
+    }
+
+    if (url.pathname.match(/^\/quotations\/\d+$/) && request.method === "PATCH") {
+      const quotationId = Number(url.pathname.split("/")[2]);
+      try {
+        const body = (await request.json()) as Record<string, unknown>;
+        const existing = await env.OFFICE_DB.prepare("SELECT id FROM quotations WHERE id = ?").bind(quotationId).first();
+        if (!existing) {
+          return Response.json({ error: "Quotation not found" }, { status: 404 });
+        }
+
+        const description = typeof body.description === "string" ? body.description : undefined;
+        const amount = typeof body.amount === "number" ? body.amount : undefined;
+
+        await env.OFFICE_DB.prepare(
+          `UPDATE quotations SET
+             description = COALESCE(?, description),
+             amount = COALESCE(?, amount)
+           WHERE id = ?`
+        )
+          .bind(description ?? null, amount ?? null, quotationId)
+          .run();
+
+        return Response.json({ status: "ok", id: quotationId });
+      } catch (err) {
+        return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
+      }
+    }
+
     if (url.pathname.match(/^\/invoices\/\d+\/pdf$/) && request.method === "GET") {
       const invoiceId = Number(url.pathname.split("/")[2]);
       try {
