@@ -2655,6 +2655,34 @@ class _FinanceRoomContentState extends State<_FinanceRoomContent> {
                                     ],
                                   ),
                                 ),
+                                const SizedBox(width: 8),
+                                // Real, separate, sibling tap target -
+                                // not nested inside the view-PDF
+                                // InkWell, avoiding any gesture-arena
+                                // ambiguity. Per the real, agreed
+                                // scope: editing an existing record
+                                // only, description/amount/due_date,
+                                // no line items.
+                                GestureDetector(
+                                  onTap: () async {
+                                    final saved = await showDialog<bool>(
+                                      context: context,
+                                      builder: (context) => _EditDocumentDialog(
+                                        authHeaders: widget.authHeaders,
+                                        documentId: (documentId as num).toInt(),
+                                        isInvoice: isInvoice,
+                                        initialDescription: row['description'] as String? ?? '',
+                                        initialAmount: (row['amount'] as num?)?.toDouble() ?? 0,
+                                        initialDueDate: row['due_date'] as String?,
+                                      ),
+                                    );
+                                    if (saved == true) _fetch(search: _searchController.text);
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                    child: Icon(Icons.edit_outlined, size: 16, color: _textTertiary),
+                                  ),
+                                ),
                                 const SizedBox(width: 12),
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -2698,6 +2726,192 @@ class _FinanceRoomContentState extends State<_FinanceRoomContent> {
 
 // Real, small, quiet filter control - matches the app's established
 // status-badge visual language rather than inventing a new one.
+// Real, scoped edit form, per the real, agreed decision: voice
+// remains the only way a document is born; this exists purely to
+// edit a record that already exists. Description, amount, and
+// due_date (invoices only) - no line items, a genuinely separate,
+// later piece of work. The deliberate "Save" tap here is itself the
+// guard() checkpoint, the same real discipline already governing
+// recordPayment/recordInvoice.
+class _EditDocumentDialog extends StatefulWidget {
+  final Map<String, String> authHeaders;
+  final int documentId;
+  final bool isInvoice;
+  final String initialDescription;
+  final double initialAmount;
+  final String? initialDueDate;
+
+  const _EditDocumentDialog({
+    required this.authHeaders,
+    required this.documentId,
+    required this.isInvoice,
+    required this.initialDescription,
+    required this.initialAmount,
+    required this.initialDueDate,
+  });
+
+  @override
+  State<_EditDocumentDialog> createState() => _EditDocumentDialogState();
+}
+
+class _EditDocumentDialogState extends State<_EditDocumentDialog> {
+  late final TextEditingController _descriptionController;
+  late final TextEditingController _amountController;
+  DateTime? _dueDate;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _descriptionController = TextEditingController(text: widget.initialDescription);
+    _amountController = TextEditingController(text: widget.initialAmount.toStringAsFixed(2));
+    _dueDate = widget.initialDueDate != null ? DateTime.tryParse(widget.initialDueDate!) : null;
+  }
+
+  Future<void> _save() async {
+    final amount = double.tryParse(_amountController.text.trim());
+    if (amount == null) {
+      setState(() => _error = 'Amount must be a real number.');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final path = widget.isInvoice ? 'invoices' : 'quotations';
+      final body = <String, dynamic>{
+        'description': _descriptionController.text.trim(),
+        'amount': amount,
+        if (widget.isInvoice && _dueDate != null) 'due_date': _dueDate!.toIso8601String(),
+      };
+      final response = await http.patch(
+        Uri.parse('$officeApiBase/$path/${widget.documentId}'),
+        headers: {...widget.authHeaders, 'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      );
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        Navigator.of(context).pop(true);
+      } else {
+        setState(() {
+          _saving = false;
+          _error = 'Could not save. Try again.';
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = 'Could not save. Try again.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: _void,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _textTertiary.withOpacity(0.2))),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'EDIT ${widget.isInvoice ? 'INVOICE' : 'QUOTATION'}',
+              style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 1.4),
+            ),
+            const SizedBox(height: 18),
+            Text('Description', style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 0.8)),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _descriptionController,
+              style: GoogleFonts.workSans(color: _paper, fontSize: 14),
+              cursorColor: _emberRed,
+              maxLines: 2,
+              decoration: InputDecoration(
+                isDense: true,
+                border: UnderlineInputBorder(borderSide: BorderSide(color: _textTertiary.withOpacity(0.25))),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _textTertiary.withOpacity(0.25))),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _emberRed.withOpacity(0.6))),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text('Amount (R)', style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 0.8)),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _amountController,
+              style: GoogleFonts.workSans(color: _paper, fontSize: 14),
+              cursorColor: _emberRed,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                isDense: true,
+                border: UnderlineInputBorder(borderSide: BorderSide(color: _textTertiary.withOpacity(0.25))),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _textTertiary.withOpacity(0.25))),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _emberRed.withOpacity(0.6))),
+              ),
+            ),
+            if (widget.isInvoice) ...[
+              const SizedBox(height: 16),
+              Text('Due date', style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 0.8)),
+              const SizedBox(height: 6),
+              GestureDetector(
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: _dueDate ?? DateTime.now(),
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime(2035),
+                  );
+                  if (picked != null) setState(() => _dueDate = picked);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    _dueDate != null ? '${_dueDate!.day} ${_dueDate!.month}/${_dueDate!.year}' : 'Not set',
+                    style: GoogleFonts.workSans(color: _paper, fontSize: 14),
+                  ),
+                ),
+              ),
+            ],
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(_error!, style: GoogleFonts.workSans(color: _emberRed, fontSize: 12)),
+            ],
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: _saving ? null : () => Navigator.of(context).pop(false),
+                  child: Text('Cancel', style: GoogleFonts.workSans(color: _muted)),
+                ),
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: _saving ? null : _save,
+                  child: _saving
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : Text('Save', style: GoogleFonts.workSans(color: _emberRed, fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _descriptionController.dispose();
+    _amountController.dispose();
+    super.dispose();
+  }
+}
+
 class _FilterChip extends StatelessWidget {
   final String label;
   final bool selected;
