@@ -1309,7 +1309,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     if (emberId == 'tasks') {
       final origin = _emberOrigin(_tasksTestEmberKey);
       if (origin != null) {
-        _showPlaceholderRoom(origin, _emberAmber, 'TASKS', 'Held back deliberately - Scheduling has known, unresolved extraction issues that need real attention before this room shows real data.');
+        _showTasksRoom(origin);
         return;
       }
     }
@@ -1317,7 +1317,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     if (emberId == 'scheduler') {
       final origin = _emberOrigin(_schedulerEmberKey);
       if (origin != null) {
-        _showPlaceholderRoom(origin, _emberBlue, 'SCHEDULER', 'Held back deliberately - Scheduling has known, unresolved extraction issues that need real attention before this room shows real data.');
+        _showSchedulerRoom(origin);
         return;
       }
     }
@@ -1511,6 +1511,36 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       origin: origin,
       accentColor: _emberPurple,
       builder: (context) => _SuppliersRoomContent(authHeaders: _authHeaders()),
+    );
+  }
+
+  // Real, fourth and fifth ERP-mode modules, per direct instruction
+  // to finish building out the shell. Same proven doorway. The two
+  // named extraction bugs that held these back were checked directly
+  // against the live code and found already fixed in a prior session
+  // - this shows real, current data honestly, whatever state it's
+  // actually in, rather than stay a placeholder indefinitely.
+  Future<void> _showTasksRoom(Offset origin) async {
+    await _igniteEmber(origin, _emberAmber);
+    if (!mounted) return;
+    await showOfficeRoom(
+      context: context,
+      officeState: _officeState,
+      origin: origin,
+      accentColor: _emberAmber,
+      builder: (context) => _TasksRoomContent(authHeaders: _authHeaders()),
+    );
+  }
+
+  Future<void> _showSchedulerRoom(Offset origin) async {
+    await _igniteEmber(origin, _emberBlue);
+    if (!mounted) return;
+    await showOfficeRoom(
+      context: context,
+      officeState: _officeState,
+      origin: origin,
+      accentColor: _emberBlue,
+      builder: (context) => _SchedulerRoomContent(authHeaders: _authHeaders()),
     );
   }
 
@@ -3403,6 +3433,347 @@ class _SuppliersRoomContentState extends State<_SuppliersRoomContent> {
     _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+}
+
+// Real, fourth ERP-mode module. Tasks link to either a customer or a
+// character - the backend already joins whichever is set. Marking a
+// task done is a direct, real action against the already-existing
+// done/completed_at fields.
+class _TasksRoomContent extends StatefulWidget {
+  final Map<String, String> authHeaders;
+  const _TasksRoomContent({required this.authHeaders});
+
+  @override
+  State<_TasksRoomContent> createState() => _TasksRoomContentState();
+}
+
+class _TasksRoomContentState extends State<_TasksRoomContent> {
+  final _searchController = TextEditingController();
+  Timer? _debounce;
+  List<dynamic> _items = [];
+  bool _loading = true;
+  String? _error;
+  final Set<int> _busyIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch({String? search}) async {
+    setState(() => _loading = true);
+    try {
+      final queryParams = <String, String>{};
+      if (search != null && search.trim().isNotEmpty) {
+        queryParams['search'] = search.trim();
+      }
+      final uri = Uri.parse('$officeApiBase/debug/tasks-list').replace(
+        queryParameters: queryParams.isEmpty ? null : queryParams,
+      );
+      final response = await http.get(uri, headers: widget.authHeaders);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        if (!mounted) return;
+        setState(() {
+          _items = data['items'] as List? ?? [];
+          _loading = false;
+          _error = null;
+        });
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = 'Could not load Tasks right now.';
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Could not load Tasks right now.';
+      });
+    }
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () => _fetch(search: value));
+  }
+
+  Future<void> _markDone(int id) async {
+    setState(() => _busyIds.add(id));
+    try {
+      final response = await http.post(Uri.parse('$officeApiBase/tasks/$id/done'), headers: widget.authHeaders);
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        setState(() {
+          final index = _items.indexWhere((item) => (item as Map<String, dynamic>)['id'] == id);
+          if (index != -1) (_items[index] as Map<String, dynamic>)['done'] = 1;
+          _busyIds.remove(id);
+        });
+      } else {
+        setState(() => _busyIds.remove(id));
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _busyIds.remove(id));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: _void,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('TASKS', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    color: _muted,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _searchController,
+                onChanged: _onSearchChanged,
+                style: GoogleFonts.workSans(color: _paper, fontSize: 14),
+                cursorColor: _emberAmber,
+                decoration: InputDecoration(
+                  prefixIcon: Icon(Icons.search, size: 17, color: _textTertiary),
+                  prefixIconConstraints: const BoxConstraints(minWidth: 30),
+                  hintText: 'Search tasks…',
+                  hintStyle: GoogleFonts.workSans(color: _textTertiary, fontSize: 14),
+                  isDense: true,
+                  border: UnderlineInputBorder(borderSide: BorderSide(color: _textTertiary.withOpacity(0.25))),
+                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _textTertiary.withOpacity(0.25))),
+                  focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _emberAmber.withOpacity(0.6))),
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (_loading)
+                const Padding(padding: EdgeInsets.only(top: 24), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+              else if (_error != null)
+                Padding(padding: const EdgeInsets.only(top: 24), child: Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else if (_items.isEmpty)
+                Padding(padding: const EdgeInsets.only(top: 24), child: Text('Nothing real here yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.only(top: 8),
+                    itemCount: _items.length,
+                    separatorBuilder: (_, __) => Divider(height: 1, color: _textTertiary.withOpacity(0.1)),
+                    itemBuilder: (context, index) {
+                      final task = _items[index] as Map<String, dynamic>;
+                      final id = task['id'] as int;
+                      final done = task['done'] == 1 || task['done'] == true;
+                      final who = (task['customer_name'] as String?) ?? (task['character_name'] as String?);
+                      final busy = _busyIds.contains(id);
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (busy)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 2, right: 12),
+                                child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                              )
+                            else
+                              GestureDetector(
+                                onTap: done ? null : () => _markDone(id),
+                                child: Padding(
+                                  padding: const EdgeInsets.only(top: 1, right: 12),
+                                  child: Icon(
+                                    done ? Icons.check_circle : Icons.radio_button_unchecked,
+                                    size: 18,
+                                    color: done ? _emberAmber : _textTertiary,
+                                  ),
+                                ),
+                              ),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    task['description'] as String? ?? '',
+                                    style: GoogleFonts.workSans(
+                                      color: done ? _muted : _paper,
+                                      fontSize: 14,
+                                      decoration: done ? TextDecoration.lineThrough : TextDecoration.none,
+                                    ),
+                                  ),
+                                  if (who != null) ...[
+                                    const SizedBox(height: 3),
+                                    Text(who, style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 11)),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+}
+
+// Real, fifth ERP-mode module. Uses /debug/schedule directly - no new
+// endpoint needed, already returns customer_name joined and a real
+// 14-day window. No search - the date window already bounds the data
+// to a genuinely small, glanceable set.
+class _SchedulerRoomContent extends StatefulWidget {
+  final Map<String, String> authHeaders;
+  const _SchedulerRoomContent({required this.authHeaders});
+
+  @override
+  State<_SchedulerRoomContent> createState() => _SchedulerRoomContentState();
+}
+
+class _SchedulerRoomContentState extends State<_SchedulerRoomContent> {
+  List<dynamic> _items = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    try {
+      final response = await http.get(Uri.parse('$officeApiBase/debug/schedule'), headers: widget.authHeaders);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        if (!mounted) return;
+        setState(() {
+          _items = data['schedule'] as List? ?? [];
+          _loading = false;
+          _error = null;
+        });
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = 'Could not load Scheduler right now.';
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Could not load Scheduler right now.';
+      });
+    }
+  }
+
+  String _formatDate(String? iso) {
+    if (iso == null) return '';
+    final date = DateTime.tryParse(iso);
+    if (date == null) return iso;
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${date.day} ${months[date.month - 1]}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: _void,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('SCHEDULER', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    color: _muted,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text('Next 14 days', style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 1)),
+              const SizedBox(height: 16),
+              if (_loading)
+                const Padding(padding: EdgeInsets.only(top: 24), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+              else if (_error != null)
+                Padding(padding: const EdgeInsets.only(top: 24), child: Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else if (_items.isEmpty)
+                Padding(padding: const EdgeInsets.only(top: 24), child: Text('Nothing scheduled in the next 14 days.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: _items.length,
+                    separatorBuilder: (_, __) => Divider(height: 1, color: _textTertiary.withOpacity(0.1)),
+                    itemBuilder: (context, index) {
+                      final job = _items[index] as Map<String, dynamic>;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(job['customer_name'] as String? ?? '', style: GoogleFonts.workSans(color: _paper, fontSize: 15, fontWeight: FontWeight.w500)),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    job['description'] as String? ?? '',
+                                    style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 11),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(_formatDate(job['scheduled_date'] as String?), style: GoogleFonts.ibmPlexMono(color: _emberBlue, fontSize: 12, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
