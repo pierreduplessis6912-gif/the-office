@@ -1325,7 +1325,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     if (emberId == 'suppliers') {
       final origin = _emberOrigin(_suppliersEmberKey);
       if (origin != null) {
-        _showPlaceholderRoom(origin, _emberPurple, 'SUPPLIERS', 'Real data exists (purchase orders, goods received, supplier invoices) but no single, blended, searchable view yet - real backend work, not yet built.');
+        _showSuppliersRoom(origin);
         return;
       }
     }
@@ -1494,6 +1494,23 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       origin: origin,
       accentColor: _emberSage,
       builder: (context) => _PendingRoomContent(authHeaders: _authHeaders()),
+    );
+  }
+
+  // Real, second ERP-mode module, per direct instruction to keep
+  // pushing through the list. Same proven doorway as Finance and
+  // Pending. Purchase orders are the real hub here - each one
+  // already carries its own real, computed document-completeness
+  // status and line items, verified working before this was built.
+  Future<void> _showSuppliersRoom(Offset origin) async {
+    await _igniteEmber(origin, _emberPurple);
+    if (!mounted) return;
+    await showOfficeRoom(
+      context: context,
+      officeState: _officeState,
+      origin: origin,
+      accentColor: _emberPurple,
+      builder: (context) => _SuppliersRoomContent(authHeaders: _authHeaders()),
     );
   }
 
@@ -3132,6 +3149,260 @@ class _PendingRoomContentState extends State<_PendingRoomContent> {
         ),
       ),
     );
+  }
+}
+
+// Real, second ERP-mode module. Purchase orders are the real hub -
+// each one already carries a real, computed document-completeness
+// status and its own line items, verified working before this was
+// built. No PDF exists for purchase orders (confirmed directly) -
+// tapping a row shows real line items in a dialog instead, an
+// honest difference from Finance's tap-to-view-PDF, not a gap.
+class _SuppliersRoomContent extends StatefulWidget {
+  final Map<String, String> authHeaders;
+  const _SuppliersRoomContent({required this.authHeaders});
+
+  @override
+  State<_SuppliersRoomContent> createState() => _SuppliersRoomContentState();
+}
+
+class _SuppliersRoomContentState extends State<_SuppliersRoomContent> {
+  final _searchController = TextEditingController();
+  Timer? _debounce;
+  List<dynamic> _items = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch({String? search}) async {
+    setState(() => _loading = true);
+    try {
+      final queryParams = <String, String>{};
+      if (search != null && search.trim().isNotEmpty) {
+        queryParams['search'] = search.trim();
+      }
+      final uri = Uri.parse('$officeApiBase/debug/suppliers-list').replace(
+        queryParameters: queryParams.isEmpty ? null : queryParams,
+      );
+      final response = await http.get(uri, headers: widget.authHeaders);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        if (!mounted) return;
+        setState(() {
+          _items = data['items'] as List? ?? [];
+          _loading = false;
+          _error = null;
+        });
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = 'Could not load Suppliers right now.';
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Could not load Suppliers right now.';
+      });
+    }
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () => _fetch(search: value));
+  }
+
+  // Real, honest status colors - matching the already-computed,
+  // real document-completeness status, not inventing a new scheme.
+  Color _statusColor(String status) {
+    if (status == 'closed') return _statusPaid;
+    if (status.contains('awaiting invoice')) return _statusPending;
+    return _textTertiary;
+  }
+
+  void _showLineItems(Map<String, dynamic> order) {
+    final lineItems = order['lineItems'] as List? ?? [];
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: _void,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _textTertiary.withOpacity(0.2))),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                (order['supplier_name'] as String? ?? 'SUPPLIER').toUpperCase(),
+                style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 1.2),
+              ),
+              const SizedBox(height: 16),
+              if (lineItems.isEmpty)
+                Text('No line items recorded.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic))
+              else
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.4),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: lineItems.length,
+                    separatorBuilder: (_, __) => Divider(height: 1, color: _textTertiary.withOpacity(0.1)),
+                    itemBuilder: (context, index) {
+                      final item = lineItems[index] as Map<String, dynamic>;
+                      final qty = item['quantity_ordered'];
+                      final unit = item['unit'] as String? ?? '';
+                      final price = (item['unit_price_expected'] as num?)?.toDouble();
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(item['description'] as String? ?? '', style: GoogleFonts.workSans(color: _paper, fontSize: 14)),
+                            const SizedBox(height: 3),
+                            Text(
+                              '$qty $unit${price != null ? ' · R${price.toStringAsFixed(2)}' : ''}',
+                              style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('Close', style: GoogleFonts.workSans(color: _emberPurple, fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: _void,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('SUPPLIERS', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    color: _muted,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _searchController,
+                onChanged: _onSearchChanged,
+                style: GoogleFonts.workSans(color: _paper, fontSize: 14),
+                cursorColor: _emberPurple,
+                decoration: InputDecoration(
+                  prefixIcon: Icon(Icons.search, size: 17, color: _textTertiary),
+                  prefixIconConstraints: const BoxConstraints(minWidth: 30),
+                  hintText: 'Search purchase orders, suppliers…',
+                  hintStyle: GoogleFonts.workSans(color: _textTertiary, fontSize: 14),
+                  isDense: true,
+                  border: UnderlineInputBorder(borderSide: BorderSide(color: _textTertiary.withOpacity(0.25))),
+                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _textTertiary.withOpacity(0.25))),
+                  focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _emberPurple.withOpacity(0.6))),
+                ),
+              ),
+              if (!_loading && _error == null && _items.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Text('${_items.length} ${_items.length == 1 ? 'order' : 'orders'}', style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 1)),
+              ],
+              const SizedBox(height: 8),
+              if (_loading)
+                const Padding(padding: EdgeInsets.only(top: 24), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+              else if (_error != null)
+                Padding(padding: const EdgeInsets.only(top: 24), child: Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else if (_items.isEmpty)
+                Padding(padding: const EdgeInsets.only(top: 24), child: Text('Nothing real here yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.only(top: 8),
+                    itemCount: _items.length,
+                    separatorBuilder: (_, __) => Divider(height: 1, color: _textTertiary.withOpacity(0.1)),
+                    itemBuilder: (context, index) {
+                      final order = _items[index] as Map<String, dynamic>;
+                      final status = order['documentStatus'] as String? ?? '';
+                      final statusColor = _statusColor(status);
+                      return InkWell(
+                        onTap: () => _showLineItems(order),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(order['supplier_name'] as String? ?? 'Unknown supplier', style: GoogleFonts.workSans(color: _paper, fontSize: 15, fontWeight: FontWeight.w500)),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      order['description'] as String? ?? '',
+                                      style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 11),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(color: statusColor.withOpacity(0.14), borderRadius: BorderRadius.circular(20)),
+                                child: Text(
+                                  status.toUpperCase(),
+                                  style: GoogleFonts.ibmPlexMono(color: statusColor, fontSize: 9, fontWeight: FontWeight.w600, letterSpacing: 0.4),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
   }
 }
 
