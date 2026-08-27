@@ -3805,6 +3805,30 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // same real gap: no way to see what extractIntent actually returns
     // for a given segment, only the final downstream effect. Read-only,
     // calls the real extractIntent unchanged, touches no data.
+    // Real, new diagnostic tool, added directly in response to
+    // tonight's real, reported bug (a pure scheduling voice note being
+    // silently discarded). The direct companion to intent-test/
+    // split-test - same real gap those closed for extractIntent, now
+    // closed for extractWorkObservation and the gate deciding whether
+    // it actually gets recorded: no way to see either without writing
+    // real data. Read-only, touches no D1 tables - safe to rerun after
+    // every future change to this area, the same real, proven design
+    // already established for the other diagnostic tools.
+    if (url.pathname === "/debug/work-observation-test" && request.method === "GET") {
+      const text = url.searchParams.get("text");
+      if (!text) {
+        return Response.json({ error: "text query parameter is required" }, { status: 400 });
+      }
+      const observation = await extractWorkObservation(env, text);
+      const wouldRecord =
+        observation.components.length > 0 ||
+        observation.tasks.length > 0 ||
+        !!observation.scheduled_date_raw ||
+        !!observation.installer_name;
+      const resolvedDate = resolveScheduledDate(observation.scheduled_date_raw, nowInBusinessTimezone());
+      return Response.json({ input: text, observation, wouldRecord, resolvedDate });
+    }
+
     if (url.pathname === "/debug/intent-test" && request.method === "GET") {
       const text = url.searchParams.get("text");
       if (!text) {
