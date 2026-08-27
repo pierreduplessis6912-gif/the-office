@@ -4634,3 +4634,39 @@ to the installer-double-booking check it currently skips; and the
 intent-misclassification gap above, which needs real design thought,
 not a rushed patch.
 
+**Real bug found live, 2026-08-26 — a pure scheduling voice note
+silently discarded.** "Schedule the Premier Hotel to be installed
+tomorrow" — a named customer, a real date, no measurements or task
+text — produced no job scope at all, and nothing showed up in
+Scheduler. Not a date-parsing bug: `resolveScheduledDate` correctly
+turns "tomorrow" into a real ISO date, and `recordWorkObservation`
+correctly saves it once called. The actual bug was one step earlier —
+the gate deciding whether to call `recordWorkObservation` at all only
+ever checked `observation.components.length > 0 ||
+observation.tasks.length > 0`, never whether a date or installer was
+actually extracted. A pure "schedule X" statement satisfies neither
+condition, so the whole thing was skipped before the correct,
+downstream logic was ever reached. Fixed by also checking
+`scheduled_date_raw`/`installer_name` in that gate.
+
+Two other, similar-looking gates checked and deliberately left alone,
+not silently assumed safe: the `price_scope` fallback path (a
+different context — nothing measured genuinely means nothing to
+price, so skipping is correct there) and the sibling-attach path added
+2026-08-09 (a different scenario — no customer named at all, not a
+named customer with no measurements).
+
+**The real, durable gap this exposed:** unlike `extractIntent`
+(covered by `/debug/intent-test`, `/debug/split-test`, and 22 cases in
+`/debug/smoke-test`), `extractWorkObservation` and its recording gate
+had zero live visibility — exactly why this went unnoticed. Closed the
+same way those were: added `/debug/work-observation-test`, read-only,
+same real, proven zero-side-effect design.
+
+**What's genuinely still open:** the fix has not been independently,
+empirically verified against a real voice transcript — confirmed by
+direct code reading, not by observing corrected live behavior. The
+existing 22-case smoke suite doesn't exercise this code path either
+(it stops at `extractIntent`), so a clean run there would not, on its
+own, confirm this specific fix.
+
