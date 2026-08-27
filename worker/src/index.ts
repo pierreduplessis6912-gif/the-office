@@ -2827,6 +2827,42 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ expenses: results });
     }
 
+    // Real, new list endpoint for ERP mode's Tasks module. Same real
+    // search/pagination shape as finance-list/suppliers-list. Tasks
+    // link to either a customer or a character (never both, per the
+    // real, existing schema) - joins whichever is actually set so the
+    // list shows who/what a task relates to, not just its bare text.
+    if (url.pathname === "/debug/tasks-list" && request.method === "GET") {
+      const search = url.searchParams.get("search")?.trim() || null;
+      const limit = Math.min(Number(url.searchParams.get("limit")) || 50, 200);
+      const offset = Number(url.searchParams.get("offset")) || 0;
+      const like = search ? `%${search}%` : null;
+
+      const { results } = await env.OFFICE_DB.prepare(
+        `SELECT t.id, t.description, t.done, t.created_at, t.completed_at,
+                c.name as customer_name, ch.name as character_name
+         FROM tasks t
+         LEFT JOIN customers c ON c.id = t.customer_id
+         LEFT JOIN characters ch ON ch.id = t.character_id
+         WHERE (?1 IS NULL OR t.description LIKE ?2 OR c.name LIKE ?2 OR ch.name LIKE ?2)
+         ORDER BY t.done ASC, t.created_at DESC
+         LIMIT ?3 OFFSET ?4`
+      )
+        .bind(search, like, limit, offset)
+        .all();
+
+      return Response.json({ items: results, limit, offset });
+    }
+
+    // Real, scoped action - marking a task done is a direct, human-
+    // initiated action, not an edit to a financial record, so no
+    // guard() question applies here the way it did for invoices.
+    if (url.pathname.match(/^\/tasks\/\d+\/done$/) && request.method === "POST") {
+      const taskId = Number(url.pathname.split("/")[2]);
+      await env.OFFICE_DB.prepare("UPDATE tasks SET done = 1, completed_at = datetime('now') WHERE id = ?").bind(taskId).run();
+      return Response.json({ status: "ok", id: taskId });
+    }
+
     if (url.pathname === "/debug/tasks" && request.method === "GET") {
       const { results } = await env.OFFICE_DB.prepare(
         "SELECT id, description, done, customer_id, character_id, created_at, completed_at FROM tasks ORDER BY created_at DESC LIMIT 30"
