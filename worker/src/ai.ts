@@ -357,8 +357,12 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             "reporting it done now. " +
             'intent is "work_observation" if the message describes measuring, scoping, or inspecting a job ' +
             '— components, measurements, or tasks — with NO price stated at all. This is earlier than a ' +
-            'quotation: the tradesperson is recording what they observed, not proposing a cost. If any ' +
-            'rand amount is mentioned, it is NOT work_observation — use quotation, invoice, price_scope, ' +
+            'quotation: the tradesperson is recording what they observed, not proposing a cost. This also ' +
+            'includes scheduling or assigning an installation date or installer to a customer\'s job, even ' +
+            'with no measurements or tasks stated at all — "schedule the Premier Hotel to be installed ' +
+            'tomorrow" or "send Sipho to Jenny\'s job on Monday" are both work_observation, never reminder, ' +
+            'since they describe real, business-side job scheduling, not a personal thing to remember. If ' +
+            'any rand amount is mentioned, it is NOT work_observation — use quotation, invoice, price_scope, ' +
             "or payment instead. " +
             "amount is a plain number in the currency's major unit (e.g. rand, not cents) if a specific " +
             "amount was stated, exactly as given — never estimate or calculate, only use a number " +
