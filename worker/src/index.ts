@@ -696,7 +696,14 @@ async function processOneExtraction(
     // reconciliation that fallback still doesn't do, rather than
     // repeating the same gap a second place.
     const observation = await extractWorkObservation(env, transcript);
-    if (observation.components.length > 0 || observation.tasks.length > 0) {
+    // Real bug fix, found live via a direct, reported failure: "schedule
+    // the Premier Hotel to be installed tomorrow" - a named customer, a
+    // real date, no measurements or task text - was silently skipped
+    // entirely, since this gate only ever checked for components or
+    // tasks. resolveScheduledDate and recordWorkObservation below both
+    // already handle a date-only or installer-only observation
+    // correctly; they just were never being reached for one.
+    if (observation.components.length > 0 || observation.tasks.length > 0 || observation.scheduled_date_raw || observation.installer_name) {
       let installerId: number | null = null;
       if (observation.installer_name) {
         const installer = await reconcileCharacter(env, observation.installer_name, "installer");
