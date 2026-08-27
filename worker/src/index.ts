@@ -2206,6 +2206,60 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ status: "ok" });
     }
 
+    // Real, new list endpoint for ERP mode's Suppliers module, per
+    // ERP_MODE_ARCHITECTURE.md: same real search/pagination shape as
+    // /debug/finance-list. Reuses the exact, already-proven document-
+    // completeness status and line-item enrichment already verified
+    // working in /debug/purchase-orders above - no new status logic
+    // invented, just made searchable and paginated.
+    if (url.pathname === "/debug/suppliers-list" && request.method === "GET") {
+      const search = url.searchParams.get("search")?.trim() || null;
+      const limit = Math.min(Number(url.searchParams.get("limit")) || 50, 200);
+      const offset = Number(url.searchParams.get("offset")) || 0;
+      const like = search ? `%${search}%` : null;
+
+      const { results: orders } = await env.OFFICE_DB.prepare(
+        `SELECT po.id, po.supplier_id, ch.name as supplier_name, po.description, po.created_at
+         FROM purchase_orders po
+         LEFT JOIN characters ch ON ch.id = po.supplier_id
+         WHERE (?1 IS NULL OR ch.name LIKE ?2 OR po.description LIKE ?2)
+         ORDER BY po.created_at DESC
+         LIMIT ?3 OFFSET ?4`
+      )
+        .bind(search, like, limit, offset)
+        .all();
+
+      const enriched = await Promise.all(
+        (orders as Array<{ id: number }>).map(async (order) => {
+          const { results: lineItems } = await env.OFFICE_DB.prepare(
+            "SELECT id, description, quantity_ordered, unit, unit_price_expected FROM po_line_items WHERE purchase_order_id = ?"
+          )
+            .bind(order.id)
+            .all();
+          const grnCount = await env.OFFICE_DB.prepare(
+            "SELECT COUNT(*) as count FROM goods_received_notes WHERE purchase_order_id = ?"
+          )
+            .bind(order.id)
+            .first<{ count: number }>();
+          const invoiceCount = await env.OFFICE_DB.prepare(
+            "SELECT COUNT(*) as count FROM supplier_invoices WHERE purchase_order_id = ?"
+          )
+            .bind(order.id)
+            .first<{ count: number }>();
+          const hasDeliveryNote = (grnCount?.count ?? 0) > 0;
+          const hasSupplierInvoice = (invoiceCount?.count ?? 0) > 0;
+          const documentStatus = hasSupplierInvoice
+            ? "closed"
+            : hasDeliveryNote
+            ? "delivery note received, awaiting invoice"
+            : "ordered, awaiting delivery";
+          return { ...order, documentStatus, hasDeliveryNote, hasSupplierInvoice, lineItems };
+        })
+      );
+
+      return Response.json({ items: enriched, limit, offset });
+    }
+
     if (url.pathname === "/debug/purchase-orders" && request.method === "GET") {
       const { results: orders } = await env.OFFICE_DB.prepare(
         `SELECT po.id, po.supplier_id, ch.name as supplier_name, po.description, po.created_at
