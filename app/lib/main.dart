@@ -4394,7 +4394,7 @@ class _TalkArea extends StatelessWidget {
             alignment: const Alignment(-0.86, 0.05),
             child: SizedBox(
               width: 60,
-              height: 260,
+              height: 330,
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -4417,8 +4417,8 @@ class _TalkArea extends StatelessWidget {
           Align(
             alignment: const Alignment(0, 0.62),
             child: SizedBox(
-              width: 160,
-              height: 60,
+              width: 200,
+              height: 80,
               child: Stack(
                 // Real bug fix, found live: same Stack default-clipping
                 // issue as the primary circle - each ember's own
