@@ -10,6 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.6
+  flutter_native_calendar: ^0.3.0
   speech_to_text: ^7.4.0
   http: ^1.2.2
   google_fonts: ^6.2.1
