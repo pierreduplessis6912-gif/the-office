@@ -11,6 +11,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_native_calendar/native_calendar.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -3476,6 +3477,28 @@ class _SchedulerRoomContentState extends State<_SchedulerRoomContent> {
     return '${date.day} ${months[date.month - 1]}';
   }
 
+  // Real, first, deliberately narrow calendar action, per
+  // CALENDAR_INTEGRATION_ARCHITECTURE.md: hand off to the device's own
+  // calendar app, pre-filled - the person taps save themselves. No
+  // WRITE_CALENDAR permission request in this first version. All-day,
+  // since a real date was extracted from voice, never a specific time
+  // - honest about what's actually known, not invented.
+  Future<void> _addToCalendar(Map<String, dynamic> job) async {
+    final iso = job['scheduled_date'] as String?;
+    if (iso == null) return;
+    final date = DateTime.tryParse(iso);
+    if (date == null) return;
+    final customer = job['customer_name'] as String? ?? '';
+    final description = job['description'] as String? ?? '';
+    final event = CalendarEvent(
+      title: customer.isNotEmpty ? '$customer — $description' : description,
+      startDate: date,
+      isAllDay: true,
+      description: description,
+    );
+    await NativeCalendar.openCalendarWithEvent(event);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -3537,7 +3560,25 @@ class _SchedulerRoomContentState extends State<_SchedulerRoomContent> {
                               ),
                             ),
                             const SizedBox(width: 12),
-                            Text(_formatDate(job['scheduled_date'] as String?), style: GoogleFonts.ibmPlexMono(color: _emberBlue, fontSize: 12, fontWeight: FontWeight.w600)),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(_formatDate(job['scheduled_date'] as String?), style: GoogleFonts.ibmPlexMono(color: _emberBlue, fontSize: 12, fontWeight: FontWeight.w600)),
+                                const SizedBox(height: 8),
+                                // Real, third-tap action, per the
+                                // newly-settled principle: this is
+                                // where the app touches reality. Hand
+                                // off to the device's own calendar
+                                // app, pre-filled - the person taps
+                                // save themselves, per the deliberately
+                                // narrow first version scoped in
+                                // CALENDAR_INTEGRATION_ARCHITECTURE.md.
+                                GestureDetector(
+                                  onTap: () => _addToCalendar(job),
+                                  child: Icon(Icons.event_outlined, size: 18, color: _textTertiary),
+                                ),
+                              ],
+                            ),
                           ],
                         ),
                       );
