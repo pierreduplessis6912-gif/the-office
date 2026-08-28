@@ -3370,6 +3370,33 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ thinkingOff, thinkingOn });
     }
 
+    // Real, new list endpoint for ERP mode's People module, per
+    // direct instruction: People becomes a real, searchable/indexed
+    // room, the same pattern as every other module - no more
+    // bubbles/orbs. Same real search/pagination shape as
+    // finance-list/suppliers-list/tasks-list.
+    if (url.pathname === "/debug/characters-list" && request.method === "GET") {
+      const search = url.searchParams.get("search")?.trim() || null;
+      const limit = Math.min(Number(url.searchParams.get("limit")) || 50, 200);
+      const offset = Number(url.searchParams.get("offset")) || 0;
+      const like = search ? `%${search}%` : null;
+
+      const { results: characters } = await env.OFFICE_DB.prepare(
+        `SELECT id, name, relationship, created_at FROM characters
+         WHERE (?1 IS NULL OR name LIKE ?2 OR relationship LIKE ?2)
+         ORDER BY name ASC
+         LIMIT ?3 OFFSET ?4`
+      )
+        .bind(search, like, limit, offset)
+        .all<{ id: number; name: string; relationship: string | null; created_at: string }>();
+
+      const enriched = await Promise.all(
+        characters.map(async (c) => ({ ...c, notes: await getCharacterNotes(env, c.id) }))
+      );
+
+      return Response.json({ items: enriched, limit, offset });
+    }
+
     if (url.pathname === "/debug/characters" && request.method === "GET") {
       const { results: characters } = await env.OFFICE_DB.prepare(
         "SELECT id, name, relationship, created_at FROM characters ORDER BY created_at DESC LIMIT 20"
