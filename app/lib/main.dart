@@ -658,6 +658,11 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   final GlobalKey _schedulerEmberKey = GlobalKey();
   final GlobalKey _inventoryEmberKey = GlobalKey();
   final GlobalKey _pendingEmberKey = GlobalKey();
+  // Real, sixth ember, per direct instruction: People becomes a real
+  // ember with its own room, the same pattern as everything else - no
+  // more bubbles/orbs. Reuses _breathe (already established, distinct
+  // from all 5 existing ember colors) rather than inventing a new one.
+  final GlobalKey _peopleEmberKey = GlobalKey();
 
   Offset? _emberOrigin(GlobalKey key) {
     final box = key.currentContext?.findRenderObject() as RenderBox?;
@@ -1131,6 +1136,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
                   suppliersEmberKey: _suppliersEmberKey,
                   schedulerEmberKey: _schedulerEmberKey,
                   pendingEmberKey: _pendingEmberKey,
+                  peopleEmberKey: _peopleEmberKey,
                   useShaderOrb: _useShaderOrb,
                   stage1Shader: _stage1Shader,
                   useTearEmbers: _useTearEmbers,
@@ -1334,6 +1340,14 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       final origin = _emberOrigin(_pendingEmberKey);
       if (origin != null) {
         _showPendingRoom(origin);
+        return;
+      }
+    }
+
+    if (emberId == 'people') {
+      final origin = _emberOrigin(_peopleEmberKey);
+      if (origin != null) {
+        _showPeopleSheet(origin);
         return;
       }
     }
@@ -1588,120 +1602,20 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   // Real feature 2026-07-27 — People, fetched fresh on open rather
   // than cached like the embers, since this is a rarely-opened,
   // on-demand list rather than something needing constant refresh.
+  // Real, sixth ERP-mode module, per direct instruction: People
+  // becomes a real, searchable/indexed room, the same pattern as
+  // everything else - no more bubbles/orbs. Same proven doorway as
+  // every other room.
   Future<void> _showPeopleSheet(Offset origin) async {
-    List<dynamic> people = [];
-    try {
-      final response = await http.get(Uri.parse('$officeApiBase/debug/characters'), headers: _authHeaders());
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        people = data['characters'] as List? ?? [];
-      }
-    } catch (_) {
-      // Real, deliberate no-op — an empty list is shown honestly
-      // below rather than a confusing error for a low-stakes lookup.
-    }
+    await _igniteEmber(origin, _breathe);
     if (!mounted) return;
-    // Real, direct feedback: "when I tap an ember, does my brain
-    // perceive that ember as the thing opening the room?" The
-    // ignition plays first, at the same real, tapped origin - then
-    // the room's own, existing, unmodified transform takes over from
-    // the same point and colour, so the two read as one continuous
-    // event rather than tap → animation → dialog → animation.
-    await _igniteEmber(origin, _emberAmber);
-    if (!mounted) return;
-    // Real first room, per Rule 8 - "the relevant world quietly
-    // appears," materializing rather than sliding up from an edge.
-    // Real, direct feedback: "the room should be born from the
-    // ember" - now genuinely grows from the real, tapped origin
-    // rather than always the screen's center.
-    //
-    // Real, direct feedback, found live: "it looks pretty much just
-    // like a card." Honest, and correct - a bordered, rounded-corner
-    // box centered on a darkened backdrop is exactly a dialog, no
-    // matter how it entered. Rebuilt as a genuine full-screen room -
-    // no border, no card fill, the same void-black background as the
-    // main Office, so it reads as a real continuation of the same
-    // world rather than a surface floating on top of it.
     await showOfficeRoom(
       context: context,
       officeState: _officeState,
       origin: origin,
-      accentColor: _emberAmber,
-      builder: (context) => Container(
-        width: double.infinity,
-        height: double.infinity,
-        color: _void,
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('PEOPLE', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
-                    IconButton(
-                      icon: const Icon(Icons.close, size: 18),
-                      color: _muted,
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                if (people.isEmpty)
-                  Text('Nobody real here yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic))
-                else
-                  Expanded(
-                    child: ListView(
-                      children: _groupPeopleByRelationship(people).entries.map((group) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 28),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                group.key.toUpperCase(),
-                                style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 11, letterSpacing: 1.4),
-                              ),
-                              const SizedBox(height: 14),
-                              // Real, direct visual correction: the
-                              // translucent orb is the GROUP, not each
-                              // person - a single bubble containing
-                              // real, clustered embers (same style as
-                              // the main page's 5), not a person-level
-                              // shader.
-                              _GroupBubble(
-                                names: group.value.map((p) => (p as Map<String, dynamic>)['name'] as String? ?? 'Unnamed').toList(),
-                                clock: _clock,
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
+      accentColor: _breathe,
+      builder: (context) => _PeopleRoomContent(authHeaders: _authHeaders()),
     );
-  }
-
-  // Real, honest grouping - by whatever relationship string values
-  // actually exist in the data, not a guessed taxonomy. A missing or
-  // empty relationship gets an honest fallback label rather than
-  // silently dropping the person from the room.
-  Map<String, List<dynamic>> _groupPeopleByRelationship(List<dynamic> people) {
-    final groups = <String, List<dynamic>>{};
-    for (final p in people) {
-      final row = p as Map<String, dynamic>;
-      final relationship = (row['relationship'] as String?)?.trim();
-      final key = (relationship == null || relationship.isEmpty) ? 'Other' : relationship;
-      groups.putIfAbsent(key, () => []).add(row);
-    }
-    return groups;
   }
 
   // Real, direct feedback: "when I tap an ember, does my brain
@@ -1851,7 +1765,6 @@ class _OfficeDrawer extends StatelessWidget {
               ),
             ),
             _drawerItem(Icons.description_outlined, 'Reports & Documents', onReportsTap, context),
-            _drawerItem(Icons.people_outline, 'People', onPeopleTap, context),
             _drawerItem(Icons.history, 'History', onHistoryTap, context),
           ],
         ),
@@ -2053,144 +1966,6 @@ class _EmberTearPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _EmberTearPainter old) =>
       old.time != time || old.color != color;
-}
-
-// Real, direct visual correction: the translucent orb is the GROUP,
-// not each person - a real, translucent glass container with real,
-// clustered _Ember widgets inside it (the exact same widget as the
-// main page's 5 - genuine visual consistency, not a parallel
-// implementation), not a person-level shader. Members are positioned
-// with a deterministic golden-angle spiral so they spread evenly
-// within the bubble without random overlap, and stay stable across
-// rebuilds rather than jittering.
-class _GroupBubble extends StatefulWidget {
-  final List<String> names;
-  final OfficeClock clock;
-  const _GroupBubble({required this.names, required this.clock});
-
-  @override
-  State<_GroupBubble> createState() => _GroupBubbleState();
-}
-
-class _GroupBubbleState extends State<_GroupBubble> with SingleTickerProviderStateMixin {
-  ui.FragmentProgram? _program;
-  late AnimationController _ticker;
-  final DateTime _start = DateTime.now();
-  final Set<int> _revealed = {};
-
-  @override
-  void initState() {
-    super.initState();
-    _ticker = AnimationController(vsync: this, duration: const Duration(seconds: 1))..repeat();
-    _loadShader();
-  }
-
-  Future<void> _loadShader() async {
-    final program = await ui.FragmentProgram.fromAsset('shaders/group_bubble.frag');
-    if (!mounted) return;
-    setState(() => _program = program);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final program = _program;
-    final n = widget.names.length;
-    final size = (90.0 + math.sqrt(n) * 35.0).clamp(90.0, 210.0);
-
-    if (program == null) return SizedBox(width: size, height: size);
-
-    // Real, deterministic golden-angle spiral - even distribution
-    // within the bubble, no random collisions, stable across rebuilds.
-    const goldenAngle = 137.5 * (math.pi / 180.0);
-    final positions = <Offset>[];
-    for (var i = 0; i < n; i++) {
-      final angle = i * goldenAngle;
-      final radiusFraction = n == 1 ? 0.0 : math.sqrt((i + 0.5) / n);
-      final maxRadius = size / 2 * 0.5;
-      positions.add(Offset(
-        size / 2 + math.cos(angle) * radiusFraction * maxRadius - 16,
-        size / 2 + math.sin(angle) * radiusFraction * maxRadius - 16,
-      ));
-    }
-
-    return SizedBox(
-      width: size,
-      height: size + 20,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          SizedBox(
-            width: size,
-            height: size,
-            child: AnimatedBuilder(
-              animation: _ticker,
-              builder: (_, __) => CustomPaint(
-                painter: _GroupBubblePainter(
-                  program: program,
-                  time: DateTime.now().difference(_start).inMilliseconds / 1000.0,
-                ),
-              ),
-            ),
-          ),
-          for (var i = 0; i < n; i++)
-            Positioned(
-              left: positions[i].dx,
-              top: positions[i].dy,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 32,
-                    height: 32,
-                    child: _Ember(
-                      color: _emberAmber,
-                      count: 1,
-                      onTap: () => setState(() => _revealed.contains(i) ? _revealed.remove(i) : _revealed.add(i)),
-                      clock: widget.clock,
-                    ),
-                  ),
-                  AnimatedOpacity(
-                    opacity: _revealed.contains(i) ? 1.0 : 0.0,
-                    duration: const Duration(milliseconds: 200),
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(widget.names[i], style: GoogleFonts.workSans(color: _muted, fontSize: 10)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _ticker.dispose();
-    super.dispose();
-  }
-}
-
-class _GroupBubblePainter extends CustomPainter {
-  final ui.FragmentProgram program;
-  final double time;
-
-  _GroupBubblePainter({required this.program, required this.time});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final shader = program.fragmentShader();
-    // Uniform order must match group_bubble.frag exactly: uSize
-    // (vec2), uTime.
-    shader.setFloat(0, size.width);
-    shader.setFloat(1, size.height);
-    shader.setFloat(2, time);
-    canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
-  }
-
-  @override
-  bool shouldRepaint(covariant _GroupBubblePainter old) => true;
 }
 
 double _zeroPulse() => 0.0;
@@ -3777,6 +3552,215 @@ class _SchedulerRoomContentState extends State<_SchedulerRoomContent> {
   }
 }
 
+// Real, sixth ERP-mode module. characters (name, relationship, notes)
+// - real, searchable, indexed, per direct instruction. Tap a person
+// to see their real notes, same real dialog pattern already proven
+// for Suppliers' line items.
+class _PeopleRoomContent extends StatefulWidget {
+  final Map<String, String> authHeaders;
+  const _PeopleRoomContent({required this.authHeaders});
+
+  @override
+  State<_PeopleRoomContent> createState() => _PeopleRoomContentState();
+}
+
+class _PeopleRoomContentState extends State<_PeopleRoomContent> {
+  final _searchController = TextEditingController();
+  Timer? _debounce;
+  List<dynamic> _items = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch({String? search}) async {
+    setState(() => _loading = true);
+    try {
+      final queryParams = <String, String>{};
+      if (search != null && search.trim().isNotEmpty) {
+        queryParams['search'] = search.trim();
+      }
+      final uri = Uri.parse('$officeApiBase/debug/characters-list').replace(
+        queryParameters: queryParams.isEmpty ? null : queryParams,
+      );
+      final response = await http.get(uri, headers: widget.authHeaders);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        if (!mounted) return;
+        setState(() {
+          _items = data['items'] as List? ?? [];
+          _loading = false;
+          _error = null;
+        });
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = 'Could not load People right now.';
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Could not load People right now.';
+      });
+    }
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () => _fetch(search: value));
+  }
+
+  void _showNotes(Map<String, dynamic> person) {
+    final notes = person['notes'] as List? ?? [];
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: _void,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _textTertiary.withOpacity(0.2))),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                (person['name'] as String? ?? 'PERSON').toUpperCase(),
+                style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 1.2),
+              ),
+              const SizedBox(height: 16),
+              if (notes.isEmpty)
+                Text('No notes recorded.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic))
+              else
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.4),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: notes.length,
+                    separatorBuilder: (_, __) => Divider(height: 1, color: _textTertiary.withOpacity(0.1)),
+                    itemBuilder: (context, index) {
+                      final note = notes[index];
+                      final text = note is Map<String, dynamic> ? (note['note'] as String? ?? note.toString()) : note.toString();
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Text(text, style: GoogleFonts.workSans(color: _paper, fontSize: 14)),
+                      );
+                    },
+                  ),
+                ),
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('Close', style: GoogleFonts.workSans(color: _breathe, fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: _void,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('PEOPLE', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    color: _muted,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _searchController,
+                onChanged: _onSearchChanged,
+                style: GoogleFonts.workSans(color: _paper, fontSize: 14),
+                cursorColor: _breathe,
+                decoration: InputDecoration(
+                  prefixIcon: Icon(Icons.search, size: 17, color: _textTertiary),
+                  prefixIconConstraints: const BoxConstraints(minWidth: 30),
+                  hintText: 'Search people…',
+                  hintStyle: GoogleFonts.workSans(color: _textTertiary, fontSize: 14),
+                  isDense: true,
+                  border: UnderlineInputBorder(borderSide: BorderSide(color: _textTertiary.withOpacity(0.25))),
+                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _textTertiary.withOpacity(0.25))),
+                  focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _breathe.withOpacity(0.6))),
+                ),
+              ),
+              if (!_loading && _error == null && _items.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Text('${_items.length} ${_items.length == 1 ? 'person' : 'people'}', style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 1)),
+              ],
+              const SizedBox(height: 8),
+              if (_loading)
+                const Padding(padding: EdgeInsets.only(top: 24), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+              else if (_error != null)
+                Padding(padding: const EdgeInsets.only(top: 24), child: Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else if (_items.isEmpty)
+                Padding(padding: const EdgeInsets.only(top: 24), child: Text('Nobody real here yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.only(top: 8),
+                    itemCount: _items.length,
+                    separatorBuilder: (_, __) => Divider(height: 1, color: _textTertiary.withOpacity(0.1)),
+                    itemBuilder: (context, index) {
+                      final person = _items[index] as Map<String, dynamic>;
+                      final relationship = person['relationship'] as String?;
+                      return InkWell(
+                        onTap: () => _showNotes(person),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(person['name'] as String? ?? '', style: GoogleFonts.workSans(color: _paper, fontSize: 15, fontWeight: FontWeight.w500)),
+                              if (relationship != null && relationship.isNotEmpty)
+                                Text(relationship.toUpperCase(), style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 0.6)),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+}
+
 class _FilterChip extends StatelessWidget {
   final String label;
   final bool selected;
@@ -4284,6 +4268,7 @@ class _TalkArea extends StatelessWidget {
   final GlobalKey suppliersEmberKey;
   final GlobalKey schedulerEmberKey;
   final GlobalKey pendingEmberKey;
+  final GlobalKey peopleEmberKey;
   // Real orb rebuild, Stage 1, 2026-08-07 — deliberately just a
   // shader reference and a bool, nothing state-derived passed to the
   // shader itself. Falls back to the proven old orb whenever
@@ -4316,6 +4301,7 @@ class _TalkArea extends StatelessWidget {
     required this.suppliersEmberKey,
     required this.schedulerEmberKey,
     required this.pendingEmberKey,
+    required this.peopleEmberKey,
     required this.useShaderOrb,
     required this.stage1Shader,
     required this.useTearEmbers,
@@ -4376,6 +4362,7 @@ class _TalkArea extends StatelessWidget {
                   Positioned(left: 16, top: 110, child: _EmberTear(key: financeEmberKey, program: emberTearProgram!, color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), clock: clock, isThinking: thinkingEmberId == 'finance', seedOffset: 2.0)),
                   Positioned(left: 2, top: 165, child: _EmberTear(key: suppliersEmberKey, program: emberTearProgram!, color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), clock: clock, isThinking: thinkingEmberId == 'suppliers', seedOffset: 3.0)),
                   Positioned(left: 14, top: 220, child: _EmberTear(key: pendingEmberKey, program: emberTearProgram!, color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'), clock: clock, isThinking: thinkingEmberId == 'pending', seedOffset: 4.0)),
+                  Positioned(left: 26, top: 275, child: _EmberTear(key: peopleEmberKey, program: emberTearProgram!, color: _breathe, count: 0, onTap: () => onEmberTap('people'), clock: clock, isThinking: thinkingEmberId == 'people', seedOffset: 5.0)),
                 ],
               ),
             ),
@@ -4404,6 +4391,7 @@ class _TalkArea extends StatelessWidget {
                   Positioned(left: 74, top: 24, child: _Ember(key: financeEmberKey, color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), clock: clock, isThinking: thinkingEmberId == 'finance', tapPulse: () => tapPulseFor('finance'))),
                   Positioned(left: 104, top: 6, child: _Ember(key: suppliersEmberKey, color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), clock: clock, isThinking: thinkingEmberId == 'suppliers', tapPulse: () => tapPulseFor('suppliers'))),
                   Positioned(left: 132, top: 20, child: _Ember(key: pendingEmberKey, color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'), clock: clock, isThinking: thinkingEmberId == 'pending', tapPulse: () => tapPulseFor('pending'))),
+                  Positioned(left: 160, top: 34, child: _Ember(key: peopleEmberKey, color: _breathe, count: 0, onTap: () => onEmberTap('people'), clock: clock, isThinking: thinkingEmberId == 'people', tapPulse: () => tapPulseFor('people'))),
                 ],
               ),
             ),
