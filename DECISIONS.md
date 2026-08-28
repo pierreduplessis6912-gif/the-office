@@ -4722,3 +4722,78 @@ looking correct (its own test passed) while the real, reported bug
 remained completely unfixed. Layered verification, not single-point
 confirmation, is what actually caught that.
 
+**Calendar integration, 2026-08-27 — Scheduler's real, first "third
+tap": a job leaves the Office and exists somewhere else.** Every real
+feature built before this stayed inside the app. This is the first
+time a job genuinely, permanently exists outside it — a real device
+calendar entry, shareable, visible without ever opening the Office —
+directly following the newly-settled principle that the third tap is
+where the app stops describing and starts touching reality.
+
+**A real dead end, checked directly rather than assumed away.** The
+existing Google OAuth in this codebase was suspected as reusable
+infrastructure for this. Checked directly instead of assuming: it
+requests only `openid email profile`, and the code only ever captures
+an `id_token`, never an access or refresh token. That's genuinely
+login/access-control — verifying who's allowed to use the app at all
+— not authorization to act on a user's calendar. A real, different
+capability that happens to share the word "OAuth." Reusing it would
+not have worked; this was confirmed, not guessed.
+
+**The real, simpler path: Android's own native calendar, no OAuth at
+all.** Confirmed via direct search: a real, built-in Android content
+provider, needing only standard `READ_CALENDAR`/`WRITE_CALENDAR`
+runtime permissions — the same familiar pattern already used for
+microphone access. For anyone with a real Google account already
+signed into their phone, the OS itself keeps the device calendar
+synced with Google Calendar automatically, delivering the real,
+practical outcome wanted without OAuth ever entering the picture.
+
+**A real mistake caught and fixed before any code was written.** The
+first draft of `CALENDAR_INTEGRATION_ARCHITECTURE.md` named
+`device_calendar_plus` as the chosen package, but described the
+hand-off, pre-filled behavior that's specifically `flutter_native_calendar`'s
+feature — `device_calendar_plus` is built around direct read/write, a
+different mode. Caught by re-reading the document's own claims against
+what was actually verified, corrected before any implementation began.
+`flutter_native_calendar` (confirmed real, current version `^0.3.0`
+directly against pub.dev) became the real choice for this first
+version; `device_calendar_plus` correctly named instead as the right
+choice for a later, direct-write version.
+
+**A second real, structural discovery, this one about the repo
+itself.** Attempted to edit `AndroidManifest.xml` directly to add the
+new permissions — it doesn't exist in the repository at all. The
+`android/` directory is deliberately not committed; it's generated
+fresh on every build via `flutter create`, per `codemagic.yaml`. The
+real, correct, already-established mechanism for this exact situation
+was `patch_android_manifest.py` — a real, existing script, already
+proven for microphone and camera permissions, that patches the
+freshly-generated manifest as a build step. Editing the (non-existent,
+non-persistent) committed manifest would have been real, wasted effort
+that silently did nothing on the next build. Found before that mistake
+was made, not after.
+
+**Deliberately narrow first version, matching the same "smallest real
+domino" discipline used everywhere else tonight.** A real, explicit
+"Add to Calendar" action per job — not an ongoing sync, which would
+mean handling updates, deletions, and duplicate prevention correctly,
+forever, on someone's real calendar. Hands off to the device's own
+calendar app with the job pre-filled (customer, description, an
+honest all-day event, since only a date was ever extracted from
+voice, never a specific time) — the person taps save themselves. No
+`WRITE_CALENDAR` permission requested yet; that's the real, named next
+step once this version is proven, not attempted here.
+
+**What was genuinely uncertain going in, named rather than assumed
+safe:** this was the first native-platform package dependency added
+all night — everything before it was pure Dart, verifiable by the
+automated web-preview build alone. A mobile-only native plugin could
+plausibly have broken that same web build, or worked differently in a
+real native build than the web preview could ever show. Checked
+directly rather than hoped: the web-preview build was confirmed
+passing with the new dependency in place before writing any Dart code
+against it, and the real native build and a real device tap were what
+finally, actually confirmed this working — not assumed from a clean
+compile alone.
+
