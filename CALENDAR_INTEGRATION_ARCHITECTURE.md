@@ -41,14 +41,21 @@ OS itself keeps the device calendar synced with Google Calendar
 automatically — so this genuinely delivers the real outcome described,
 without OAuth ever entering the picture.
 
-**Package: `device_calendar_plus`.** Confirmed via direct search as
-current and actively maintained (2025), explicit in its own docs about
-where Android/iOS genuinely differ rather than hiding it. `device_calendar`
-(builttoroam) is the older, more established alternative, but its own
-documentation admits real, acknowledged reliability gaps ("not all
-workflows have been checked... you are strongly advised to test").
-Given a real person's actual calendar is what's at stake, the more
-current, more honest package is the right choice.
+**Package for this first version: `flutter_native_calendar`.**
+Confirmed via direct search: it specifically supports handing off to
+the device's own calendar app with an event pre-filled
+(`NativeCalendar.openCalendarWithEvent`) — exactly the no-permission,
+person-confirms-themselves mode this first version needs. Real,
+honest caveat also confirmed directly: on Android, custom reminders
+aren't respected in this mode — the calendar app uses its own
+defaults, not something this integration can control.
+
+`device_calendar_plus` — confirmed current and actively maintained
+(2025), explicit in its own docs about where Android/iOS genuinely
+differ rather than hiding it — is the right, real choice for a later,
+direct-write version, once this first one is proven. It's built for
+reading and writing calendar events directly, not the hand-off mode
+this first version deliberately uses instead.
 
 ## The real, first-version scope — deliberately narrow
 
