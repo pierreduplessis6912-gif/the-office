@@ -4663,10 +4663,62 @@ had zero live visibility — exactly why this went unnoticed. Closed the
 same way those were: added `/debug/work-observation-test`, read-only,
 same real, proven zero-side-effect design.
 
-**What's genuinely still open:** the fix has not been independently,
-empirically verified against a real voice transcript — confirmed by
-direct code reading, not by observing corrected live behavior. The
-existing 22-case smoke suite doesn't exercise this code path either
-(it stops at `extractIntent`), so a clean run there would not, on its
-own, confirm this specific fix.
+**What was genuinely still open at that point:** the fix had not been
+independently, empirically verified against a real voice transcript —
+confirmed by direct code reading, not by observing corrected live
+behavior. The existing 22-case smoke suite doesn't exercise this code
+path either (it stops at `extractIntent`), so a clean run there would
+not, on its own, confirm this specific fix.
+
+**Real, second bug found — this one only surfaced because verification
+kept going instead of stopping at the first green light.**
+`/debug/work-observation-test` confirmed the gate fix worked in
+isolation (`wouldRecord: true`, `resolvedDate: "2026-08-28"`). On that
+basis, a real fresh native build was run and the same voice note
+spoken again — and the job still didn't reach Scheduler. It showed up
+as a task instead. That test call had a real, honest blind spot: it
+invoked `extractWorkObservation` directly, which meant it never
+verified that the real, upstream `extractIntent` classifier would
+route this phrase there in the first place. Called `/debug/intent-test`
+directly against the exact phrase — confirmed `intent: "reminder"`,
+not `"work_observation"`. A second, genuinely different, earlier bug,
+not a recurrence of the first.
+
+**Root cause:** `work_observation`'s own written definition in the
+extraction prompt only ever described "measuring, scoping, or
+inspecting a job" — it never once mentioned scheduling or assigning a
+date or installer, even though the downstream code
+(`extractWorkObservation`, `resolveScheduledDate`) was already built
+correctly to handle exactly that. The classifier had no way to know a
+pure scheduling statement belonged there, so it reasonably fell back
+to "reminder" — genuinely, structurally similar wording ("remind me to
+call Jenny by Friday" vs. "schedule the Premier Hotel... tomorrow").
+Fixed by adding an explicit clause to `work_observation`'s definition,
+naming the exact confirmed phrase as a worked example, rather than a
+broad rewrite that could shift other, already-correct classifications.
+
+**The full, real verification chain, each link checked before trusting
+the next:**
+1. `/debug/intent-test` re-run against the same phrase — confirmed
+   `intent: "work_observation"`.
+2. `/debug/smoke-test` re-run — all 22 cases still passed, including
+   the one closest in shape to the new clause ("heading to jenny's job
+   now, remind me to get dog food after" — still correctly classified
+   `"reminder"`), confirming the new clause is genuinely narrow, not a
+   rule that happened to fix one case by loosening the boundary
+   everywhere.
+3. A real, fresh native build, the exact same voice note spoken again
+   — the job appeared in Scheduler: correct customer, correct
+   description, correct date.
+
+**Why this is the real, worked example of the discipline asked for
+directly:** two separate, real bugs, in two different layers of the
+same pipeline (a downstream recording gate, an upstream classification
+definition), each one found by direct code investigation rather than
+guessing, each fix checked in isolation before being trusted, and nothing
+declared "done" until the actual, live behavior was observed — not
+just a diagnostic tool's output. The first fix alone would have shipped
+looking correct (its own test passed) while the real, reported bug
+remained completely unfixed. Layered verification, not single-point
+confirmation, is what actually caught that.
 
