@@ -20,6 +20,8 @@ PERMISSIONS = [
     "android.permission.INTERNET",
     "android.permission.RECORD_AUDIO",
     "android.permission.CAMERA",
+    "android.permission.READ_CALENDAR",
+    "android.permission.WRITE_CALENDAR",
 ]
 
 # Real, exact XML required by flutter_web_auth_2 to catch the
