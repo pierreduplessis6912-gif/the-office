@@ -2306,12 +2306,118 @@ class _FinanceRoomContentState extends State<_FinanceRoomContent> {
   List<dynamic> _items = [];
   bool _loading = true;
   String? _error;
+  bool _importingCsv = false;
   // Real, honest filter: All / Overdue, not All/Outstanding/Paid.
   // due_date is the one real, per-invoice fact that exists - there is
   // no per-invoice paid status in the backend (only a customer-level
   // balance), so a "Paid" tab would imply precision the data doesn't
   // actually have.
   String _filter = 'all';
+
+  // Real, separate, deliberately narrow bulk-onboarding path, per
+  // direct reasoning: a CSV has real, structured columns, no AI
+  // inference needed, unlike a PDF. Does not touch the existing
+  // voice-first pipeline at all - a genuinely different, new upload
+  // target (/files/customers-csv-import), not a variant of the
+  // existing document upload.
+  Future<void> _importCustomersCsv(BuildContext context) async {
+    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['csv']);
+    final path = result?.files.single.path;
+    if (path == null) return;
+
+    setState(() => _importingCsv = true);
+    try {
+      final uri = Uri.parse('$officeApiBase/files/customers-csv-import');
+      final request = http.MultipartRequest('POST', uri);
+      request.headers.addAll(widget.authHeaders);
+      request.files.add(await http.MultipartFile.fromPath('csv', path));
+      final streamed = await request.send();
+      final response = await http.Response.fromStream(streamed);
+      if (!mounted) return;
+      setState(() => _importingCsv = false);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        _showCsvImportSummary(context, data);
+      } else {
+        final data = jsonDecode(response.body) as Map<String, dynamic>?;
+        _showCsvImportError(context, data?['error'] as String? ?? 'Could not import this file.');
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _importingCsv = false);
+      _showCsvImportError(context, 'Could not import this file.');
+    }
+  }
+
+  void _showCsvImportSummary(BuildContext context, Map<String, dynamic> data) {
+    final created = data['created'] as int? ?? 0;
+    final matched = data['matched'] as int? ?? 0;
+    final skipped = data['skipped'] as int? ?? 0;
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: _void,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _textTertiary.withOpacity(0.2))),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('IMPORT COMPLETE', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
+              const SizedBox(height: 16),
+              Text('$created new customer${created == 1 ? '' : 's'} created', style: GoogleFonts.workSans(color: _paper, fontSize: 14)),
+              const SizedBox(height: 6),
+              Text('$matched already existed, matched by name', style: GoogleFonts.workSans(color: _paper, fontSize: 14)),
+              if (skipped > 0) ...[
+                const SizedBox(height: 6),
+                Text('$skipped row${skipped == 1 ? '' : 's'} skipped - no usable name', style: GoogleFonts.workSans(color: _muted, fontSize: 14)),
+              ],
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('Close', style: GoogleFonts.workSans(color: _emberRed, fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showCsvImportError(BuildContext context, String message) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: _void,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _textTertiary.withOpacity(0.2))),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('IMPORT FAILED', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
+              const SizedBox(height: 16),
+              Text(message, style: GoogleFonts.workSans(color: _muted, fontSize: 14)),
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('Close', style: GoogleFonts.workSans(color: _emberRed, fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   List<dynamic> get _filteredItems {
     if (_filter == 'all') return _items;
@@ -2441,10 +2547,30 @@ class _FinanceRoomContentState extends State<_FinanceRoomContent> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text('FINANCE', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 18),
-                        color: _muted,
-                        onPressed: () => Navigator.of(context).pop(),
+                      Row(
+                        children: [
+                          // Real, separate, deliberately narrow bulk-
+                          // onboarding path, distinct from voice
+                          // capture entirely - a CSV has real,
+                          // structured columns, no AI inference
+                          // needed. Placed here since customers are
+                          // already conceptually relevant to Finance,
+                          // given no dedicated customer-list room
+                          // exists yet.
+                          IconButton(
+                            icon: _importingCsv
+                                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                : const Icon(Icons.upload_file_outlined, size: 18),
+                            color: _muted,
+                            tooltip: 'Import customers from CSV',
+                            onPressed: _importingCsv ? null : () => _importCustomersCsv(context),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close, size: 18),
+                            color: _muted,
+                            onPressed: () => Navigator.of(context).pop(),
+                          ),
+                        ],
                       ),
                     ],
                   ),
