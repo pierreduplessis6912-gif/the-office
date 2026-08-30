@@ -2321,9 +2321,21 @@ class _FinanceRoomContentState extends State<_FinanceRoomContent> {
   // target (/files/customers-csv-import), not a variant of the
   // existing document upload.
   Future<void> _importCustomersCsv(BuildContext context) async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['csv']);
+    // Real bug fix, confirmed via direct research: allowedExtensions
+    // filtering is a well-documented, long-standing file_picker
+    // limitation on Android - CSV files, especially Excel-saved ones,
+    // don't reliably resolve to a MIME type the OS picker recognizes,
+    // greying out everything. FileType.any avoids the OS-level filter
+    // entirely; the real extension check happens here instead, in
+    // code, with an honest error if the wrong file was picked.
+    final result = await FilePicker.platform.pickFiles(type: FileType.any);
     final path = result?.files.single.path;
     if (path == null) return;
+    if (!path.toLowerCase().endsWith('.csv')) {
+      if (!mounted) return;
+      _showCsvImportError(context, 'That doesn\'t look like a .csv file. Please pick a real CSV export.');
+      return;
+    }
 
     setState(() => _importingCsv = true);
     try {
