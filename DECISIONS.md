@@ -4797,3 +4797,31 @@ against it, and the real native build and a real device tap were what
 finally, actually confirmed this working — not assumed from a clean
 compile alone.
 
+**Real, found discrepancy, pinned rather than fixed — imported
+historical invoices double-charging VAT on PDF generation.** Checked
+directly against a real, generated PDF for an imported invoice
+(ZF21426): the source CSV shows `Tax: 0, Subtotal: 11860, Total:
+11860`, but the generated PDF showed VAT of R1,779 and a total of
+R13,639. Root cause, confirmed directly in the existing PDF code: any
+invoice's stored `amount` automatically gets 15% VAT added at PDF-
+generation time unless that customer is explicitly marked VAT-exempt —
+correct, sensible behavior for a new invoice created through voice,
+where the amount is genuinely a pre-tax subtotal. The CSV import
+instead stored the file's own `Total` column — already the real,
+final, historically accurate figure — so the existing logic then added
+a second, fictional 15% on top of a number that was already complete.
+Likely affects most of the 271 already-imported invoices, since the
+real, uploaded file shows the large majority with `Tax: 0`.
+
+**Why this is pinned, not fixed immediately, in the pinner's own
+words:** "the notion that another business would be as messy as me is
+unhinged." The real, uploaded data shows the same customer sometimes
+billed with tax, sometimes without, across the same business's own
+history — which the existing, simple all-or-nothing per-customer
+VAT-exempt flag genuinely cannot represent. Building a general,
+per-invoice tax-final override to solve this would be solving for a
+problem that may be specific, real mess from one business's own
+history — not a universal case every future business's historical
+import would need. Real evidence from a second business would change
+this; none exists yet.
+
