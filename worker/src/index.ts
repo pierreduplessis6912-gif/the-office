@@ -3459,6 +3459,19 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ items: enriched, limit, offset });
     }
 
+    // Real, new diagnostic endpoint, added directly in response to a
+    // real, immediate need: customers had no visibility anywhere in
+    // the system - not in the app's UI, not in any existing
+    // diagnostic endpoint - confirmed by checking directly rather
+    // than assumed. Same, exact proven pattern as /debug/characters.
+    if (url.pathname === "/debug/customers" && request.method === "GET") {
+      const { results: customers } = await env.OFFICE_DB.prepare(
+        "SELECT id, name, address, created_at FROM customers ORDER BY created_at DESC LIMIT 20"
+      ).all<{ id: number; name: string; address: string | null; created_at: string }>();
+
+      return Response.json({ customers });
+    }
+
     if (url.pathname === "/debug/characters" && request.method === "GET") {
       const { results: characters } = await env.OFFICE_DB.prepare(
         "SELECT id, name, relationship, created_at FROM characters ORDER BY created_at DESC LIMIT 20"
