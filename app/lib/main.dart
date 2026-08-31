@@ -4599,7 +4599,7 @@ class _TalkArea extends StatelessWidget {
         // screen rather than genuinely situated in the space. A real
         // fraction of the actual available height gives it room to
         // feel like presence rather than an afterthought.
-        height: MediaQuery.of(context).size.height * 0.42,
+        height: MediaQuery.of(context).size.height * 0.62,
         padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
         child: isWriteMode ? _buildWriteMode() : _buildTalkState(),
       ),
