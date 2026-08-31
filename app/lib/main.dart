@@ -4625,7 +4625,7 @@ class _TalkArea extends StatelessWidget {
         // shader hasn't loaded yet, same discipline as the orb.
         if (useTearEmbers && emberTearProgram != null)
           Align(
-            alignment: const Alignment(-0.86, 0.05),
+            alignment: const Alignment(-0.86, -0.05),
             child: SizedBox(
               width: 60,
               height: 330,
@@ -4649,7 +4649,7 @@ class _TalkArea extends StatelessWidget {
           // never a neat, aligned row — real weighted orbs, each
           // drifting independently.
           Align(
-            alignment: const Alignment(0, 0.62),
+            alignment: const Alignment(0, 0.15),
             child: SizedBox(
               width: 200,
               height: 80,
