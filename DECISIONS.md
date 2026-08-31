@@ -4825,3 +4825,105 @@ history — not a universal case every future business's historical
 import would need. Real evidence from a second business would change
 this; none exists yet.
 
+---
+
+## Real, extracted lessons — the CSV import journey
+
+The detailed, blow-by-blow of building customer and invoice bulk
+import is already recorded above, entry by entry. This is the
+consolidated, forward-looking version — what should actually change
+about how future work like this gets done, not a re-telling.
+
+**Test parsers against the real, actual file, never pasted or
+reconstructed text.** The very first version of the invoice CSV,
+pasted into a chat message, appeared to have real, inconsistent
+delimiters (tabs, then semicolons). It didn't — the real, uploaded
+file was completely, consistently comma-delimited throughout. The
+apparent inconsistency was purely an artifact of the paste. A parser
+built to handle a paste-artifact problem that doesn't exist in the
+real file is effort spent solving the wrong thing.
+
+**Independently verify a parser against real edge cases before it
+touches live code — and this is the one part of the journey that
+already worked, worth reinforcing, not just critiquing.** Both the
+customer and invoice CSV parsers were written and tested standalone,
+against real data extracted from the actual file, before being placed
+in `index.ts`. The invoice parser's payment-detail sums were checked
+against all 295 real rows, with zero reconciliation mismatches, before
+any endpoint used it. This should stay the default for any future
+parsing work, not something reached for only when a project feels
+important enough.
+
+**A shared field's meaning is a real contract with everything that
+already reads it — writing to it isn't enough; what already consumes
+it has to be checked too.** The VAT double-charge happened because
+`invoices.amount` was silently written as a post-tax total, while the
+already-existing PDF logic had always treated that same field as a
+pre-tax subtotal and calculated VAT on top of it. Nothing was wrong
+with either piece of code in isolation — the bug lived entirely in the
+unchecked assumption that both sides agreed on what the field meant.
+Before writing new data into an existing table or field, find and read
+what already consumes it, not just confirm the column exists and
+accepts the value.
+
+**A platform quirk can look like a data problem at first — check the
+platform before concluding the data is wrong.** CSV files, especially
+Excel-saved ones, are a well-documented `file_picker` limitation on
+Android specifically, unrelated to anything about the file itself.
+Confirmed directly via search before writing a fix, rather than
+guessing at what might be wrong with the file.
+
+**Two similar-looking actions sitting next to each other, both opening
+the same generic system file picker, are a real, easy way to select
+the wrong one without noticing.** The customer-import and invoice-
+import icons look different, but the file picker each one opens looks
+identical regardless of which button triggered it — nothing in that
+screen tells the person which import they're actually about to run.
+Worth a real, named lesson for any future feature with more than one
+similar action: the file picker itself carries no context back to the
+person using it.
+
+## Real, extracted lessons — the ember positioning escapade
+
+Also already recorded above in the individual commits. This is the
+consolidated version.
+
+**A confirmed, correctly-deployed code change producing zero visible
+difference is a real, distinct category of problem from "the fix was
+wrong" — and it deserves a different, cheaper diagnostic step much
+earlier, not three more rounds of the same kind of guess.** Three
+separate alignment adjustments were made, each verified present in the
+live, deployed code, before a five-minute fix (a visible build-version
+marker on screen) actually confirmed the real code was reaching the
+device at all. That diagnostic should have been the second move, not
+the fourth, the moment a real, dramatic code change produced no
+visible effect whatsoever.
+
+**A child that already nearly fills its parent's available space makes
+`Align`'s positioning value nearly irrelevant, no matter how dramatic
+the value.** The real root cause: an earlier fix grew the ember
+container's own height to stop one ember from rendering outside it,
+which left almost no real slack in the parent for `Align` to
+distribute at all. The lesson generalizes past this one bug: fixing an
+overflow by growing a container can silently consume the very room a
+sibling or the same widget's own positioning depends on. Check the
+full, real parent-child size relationship, not just whether the
+immediate overflow is gone.
+
+**When multiple, parallel UI variants exist behind a toggle, confirm
+which one is actually active on the real device before diagnosing
+anything about its appearance.** Real time was spent reasoning about
+whether "old" and "tear" embers were both visible at once before
+checking the toggle's actual default value directly in the code — it
+defaults false, so only one variant was ever being seen the entire
+time.
+
+**A textual description of a UI problem is a real, working hypothesis,
+not a confirmed diagnosis — a screenshot resolves ambiguity that
+several rounds of careful reasoning cannot.** Multiple, plausible-
+sounding but ultimately wrong theories were built from words alone
+before the actual, real constraint (a too-small parent height) was
+found by directly calculating the numbers. Ask for a screenshot early
+in any UI-positioning report, before investing in more than one
+theory-driven fix.
+
