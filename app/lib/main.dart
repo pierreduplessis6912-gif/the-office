@@ -4612,6 +4612,17 @@ class _TalkArea extends StatelessWidget {
       // applied consistently at the outermost level too.
       clipBehavior: Clip.none,
       children: [
+        // Real, temporary diagnostic marker - not permanent. Added
+        // directly in response to three consecutive rebuilds showing
+        // zero visible change despite a large, confirmed code edit.
+        // A real, direct way to confirm whether a given install
+        // genuinely contains this exact code, rather than continuing
+        // to infer it indirectly from ember positions.
+        Positioned(
+          top: 0,
+          left: 0,
+          child: Text('BUILD v5', style: GoogleFonts.ibmPlexMono(color: Colors.red, fontSize: 11, fontWeight: FontWeight.w700)),
+        ),
         // Real, direct feedback: "the embers should feel like they're
         // waiting for Peter... coals lying underneath [the button]."
         // Real feedback, 2026-08-08: "the embers are still sort of
