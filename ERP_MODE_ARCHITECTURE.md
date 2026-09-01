@@ -33,6 +33,20 @@ shell's job is to stay lean and subordinate to that, permanently:
   form.** However convenient it might look once the shell exists,
   a document is only ever born through voice. This is a permanent
   constraint, not a temporary one pending future backend work.
+
+**The same principle has a real, output-side counterpart, stated
+directly:** "the last thing we want is SAP, but we do want to capture
+the business intelligence in SAP." The existing principle above
+governs how data gets *in* — never a second, competing way to create
+it. This governs how it comes back *out* — real depth, real business
+intelligence (P&L, cash flow, aged debtors, whatever a genuine
+enterprise system would surface), delivered through the shell's own,
+minimal, voice-first shape, never through SAP's actual navigation —
+menus, module pickers, a screen for every report. `LOOKUP_ROUTING_
+ARCHITECTURE.md` is the first real, concrete design built on this
+half of the principle: the depth of a real ERP's reporting, routed to
+by a real, spoken question, never reached by tapping through a
+hierarchy to find it.
 - **When manual editing is genuinely needed** (per the real,
   reasoned decision already made), it works *with* the same
   underlying, deterministic functions voice already calls
