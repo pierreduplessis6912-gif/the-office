@@ -3,7 +3,7 @@ import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeI
 import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { attachToSiblingJobScope, completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveScheduledDate, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
-import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
+import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 
 // Second layer of defense against storing questions as facts — never
@@ -3460,6 +3460,55 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // the system - not in the app's UI, not in any existing
     // diagnostic endpoint - confirmed by checking directly rather
     // than assumed. Same, exact proven pattern as /debug/characters.
+    // Real, new diagnostic endpoint, added directly in response to a
+    // real, direct request: separate whether the pipeline and output
+    // actually work from whether the current data is coherent - the
+    // data can always be reset later; the machinery needs verifying
+    // now. Deterministic, structured, zero AI involved - reuses the
+    // exact, already-existing, already-working SQL logic (the same
+    // real functions already powering voice lookups), just exposed
+    // directly as real numbers instead of formatted sentences fed to
+    // a model.
+    if (url.pathname === "/debug/financial-snapshot" && request.method === "GET") {
+      const [invoicedRow, paidRow, expensesRow, outstandingRows, pnl] = await Promise.all([
+        env.OFFICE_DB.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM invoices").first<{ total: number }>(),
+        env.OFFICE_DB.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM payments").first<{ total: number }>(),
+        env.OFFICE_DB.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM expenses").first<{ total: number }>(),
+        env.OFFICE_DB.prepare(
+          `SELECT c.name as name,
+                  COALESCE(SUM(i.amount), 0) as invoiced,
+                  COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.customer_id = c.id), 0) as paid
+           FROM customers c
+           JOIN invoices i ON i.customer_id = c.id
+           GROUP BY c.id
+           HAVING invoiced > paid
+           ORDER BY (invoiced - paid) DESC`
+        ).all<{ name: string; invoiced: number; paid: number }>(),
+        getProfitAndLoss(env),
+      ]);
+
+      const totalInvoiced = invoicedRow?.total ?? 0;
+      const totalPaid = paidRow?.total ?? 0;
+      const totalExpenses = expensesRow?.total ?? 0;
+      const outstanding = outstandingRows.results.map((r) => ({ customer: r.name, invoiced: r.invoiced, paid: r.paid, owes: r.invoiced - r.paid }));
+      const totalOutstanding = outstanding.reduce((sum, r) => sum + r.owes, 0);
+
+      return Response.json({
+        cashBasis: {
+          totalInvoiced,
+          totalReceived: totalPaid,
+          totalExpenses,
+          roughCashPosition: totalPaid - totalExpenses,
+        },
+        accrualBasisProfitAndLoss: pnl,
+        outstanding: {
+          totalOutstanding,
+          customerCount: outstanding.length,
+          byCustomer: outstanding,
+        },
+      });
+    }
+
     if (url.pathname === "/debug/customers" && request.method === "GET") {
       const { results: customers } = await env.OFFICE_DB.prepare(
         "SELECT id, name, address, created_at FROM customers ORDER BY created_at DESC LIMIT 20"
