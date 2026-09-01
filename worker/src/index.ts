@@ -1337,68 +1337,85 @@ async function processOneExtraction(
         message = `No real supplier invoice on file yet mentions "${extraction.fact_value}" — nothing to base a price on.`;
       }
     } else if (extraction?.query_scope === "business") {
-      // No single customer — a business-wide financial question,
-      // answered from real SQL aggregates, not a guess from a
-      // sentence. Real bug found live 2026-07-10: including both
-      // fact sets unconditionally meant a follow-up specifically
-      // about quotations ("names and amounts") pulled in unrelated
-      // invoice-balance facts too. classifyBusinessTopic anchors on
-      // the conversation's actual standing topic the same way
-      // resolveFollowUpEntity does for named entities — a truly
-      // general question (no history, or genuinely broad) still gets
-      // both fact sets; a topic-specific follow-up gets only what's
-      // relevant to it.
-      const topic = await classifyBusinessTopic(env, history, transcript);
-      // Real feature 2026-07-14 — step 4 of the phased auth scope
-      // (Constitution Principle 26): the financial lookup, permission-
-      // aware at last, exactly the example used in every design
-      // discussion tonight. Checked here, at fact-gathering, before
-      // synthesis — never generated in full and filtered afterward. A
-      // neutral, valueless marker replaces the real facts when not
-      // permitted, so the model can give an honest "restricted"
-      // answer rather than a misleading "I don't know."
-      const canKnowProfit = capabilities.includes("can_know_profit");
-      const canKnowDebtors = capabilities.includes("can_know_debtors");
-      const canManageInvoicesHere = capabilities.includes("can_manage_invoices");
-      const canKnowMaterialsHere = capabilities.includes("can_know_materials");
-      // Real performance fix, found live: these seven real, independent
-      // database aggregates were being awaited one after another,
-      // adding real, noticeable latency for a genuinely slow-feeling
-      // question. None depends on another's result - only on `topic`
-      // and the capability checks above, both already resolved before
-      // this point. Same exact conditional logic as before, unchanged
-      // - only the execution order changed, from sequential to
-      // concurrent.
-      const [outstandingFacts, quotationFacts, expenseFacts, snapshotFacts, pnlFacts, agedFacts, creditorFacts] = await Promise.all([
-        topic === "quotations" || topic === "expenses"
-          ? []
-          : canKnowDebtors
-            ? getOutstandingInvoices(env)
-            : ["Outstanding balances exist for this business but are restricted for your role."],
-        topic === "invoices" || topic === "expenses"
-          ? []
-          : canManageInvoicesHere
-            ? getQuotationsSummary(env)
-            : ["Quotation activity exists for this business but is restricted for your role."],
-        topic === "quotations" || topic === "invoices"
-          ? []
-          : canKnowMaterialsHere
-            ? getExpenseSummary(env)
-            : ["Expense activity exists for this business but is restricted for your role."],
-        topic !== "general" ? [] : canKnowProfit ? getFinancialSnapshot(env) : ["Financial performance data exists for this business but is restricted for your role."],
-        topic === "general" && canKnowProfit ? getProfitAndLossSummary(env) : [],
-        topic === "quotations" || topic === "expenses"
-          ? []
-          : canKnowDebtors
-            ? getAgedDebtorsSummary(env)
-            : ["Outstanding balances exist for this business but are restricted for your role."],
-        topic === "quotations" || topic === "invoices"
-          ? []
-          : canKnowMaterialsHere
-            ? getAgedCreditorsSummary(env)
-            : ["Outstanding supplier balances exist for this business but are restricted for your role."],
-      ]);
-      message = await answerFromMemory(env, transcript, [...outstandingFacts, ...quotationFacts, ...expenseFacts, ...snapshotFacts, ...pnlFacts, ...agedFacts, ...creditorFacts]);
+      // Real, new routing step, per LOOKUP_ROUTING_ARCHITECTURE.md and
+      // direct instruction to build it: checked first, before any of
+      // the existing, real fact-gathering runs below, so a confident
+      // match skips the slow AI-synthesis path entirely rather than
+      // paying its full cost and discarding the result. A confident
+      // match sets a real, simple marker the Flutter side recognizes
+      // and opens a real room for, instead of displaying as text. An
+      // unsure match asks a real, honest clarifying question rather
+      // than guessing between the two. No match at all falls through
+      // to the existing, unchanged logic below.
+      const dashboardRoute = await classifyDashboardIntent(env, transcript);
+      if (dashboardRoute === "financial_snapshot" || dashboardRoute === "aged_debtors") {
+        message = `__OPEN_DASHBOARD__:${dashboardRoute}`;
+      } else if (dashboardRoute === "unsure") {
+        message = "Did you want to see the full financial snapshot, or are you asking specifically about who owes you money?";
+      } else {
+        // No single customer — a business-wide financial question,
+        // answered from real SQL aggregates, not a guess from a
+        // sentence. Real bug found live 2026-07-10: including both
+        // fact sets unconditionally meant a follow-up specifically
+        // about quotations ("names and amounts") pulled in unrelated
+        // invoice-balance facts too. classifyBusinessTopic anchors on
+        // the conversation's actual standing topic the same way
+        // resolveFollowUpEntity does for named entities — a truly
+        // general question (no history, or genuinely broad) still gets
+        // both fact sets; a topic-specific follow-up gets only what's
+        // relevant to it.
+        const topic = await classifyBusinessTopic(env, history, transcript);
+        // Real feature 2026-07-14 — step 4 of the phased auth scope
+        // (Constitution Principle 26): the financial lookup, permission-
+        // aware at last, exactly the example used in every design
+        // discussion tonight. Checked here, at fact-gathering, before
+        // synthesis — never generated in full and filtered afterward. A
+        // neutral, valueless marker replaces the real facts when not
+        // permitted, so the model can give an honest "restricted"
+        // answer rather than a misleading "I don't know."
+        const canKnowProfit = capabilities.includes("can_know_profit");
+        const canKnowDebtors = capabilities.includes("can_know_debtors");
+        const canManageInvoicesHere = capabilities.includes("can_manage_invoices");
+        const canKnowMaterialsHere = capabilities.includes("can_know_materials");
+        // Real performance fix, found live: these seven real, independent
+        // database aggregates were being awaited one after another,
+        // adding real, noticeable latency for a genuinely slow-feeling
+        // question. None depends on another's result - only on `topic`
+        // and the capability checks above, both already resolved before
+        // this point. Same exact conditional logic as before, unchanged
+        // - only the execution order changed, from sequential to
+        // concurrent.
+        const [outstandingFacts, quotationFacts, expenseFacts, snapshotFacts, pnlFacts, agedFacts, creditorFacts] = await Promise.all([
+          topic === "quotations" || topic === "expenses"
+            ? []
+            : canKnowDebtors
+              ? getOutstandingInvoices(env)
+              : ["Outstanding balances exist for this business but are restricted for your role."],
+          topic === "invoices" || topic === "expenses"
+            ? []
+            : canManageInvoicesHere
+              ? getQuotationsSummary(env)
+              : ["Quotation activity exists for this business but is restricted for your role."],
+          topic === "quotations" || topic === "invoices"
+            ? []
+            : canKnowMaterialsHere
+              ? getExpenseSummary(env)
+              : ["Expense activity exists for this business but is restricted for your role."],
+          topic !== "general" ? [] : canKnowProfit ? getFinancialSnapshot(env) : ["Financial performance data exists for this business but is restricted for your role."],
+          topic === "general" && canKnowProfit ? getProfitAndLossSummary(env) : [],
+          topic === "quotations" || topic === "expenses"
+            ? []
+            : canKnowDebtors
+              ? getAgedDebtorsSummary(env)
+              : ["Outstanding balances exist for this business but are restricted for your role."],
+          topic === "quotations" || topic === "invoices"
+            ? []
+            : canKnowMaterialsHere
+              ? getAgedCreditorsSummary(env)
+              : ["Outstanding supplier balances exist for this business but are restricted for your role."],
+        ]);
+        message = await answerFromMemory(env, transcript, [...outstandingFacts, ...quotationFacts, ...expenseFacts, ...snapshotFacts, ...pnlFacts, ...agedFacts, ...creditorFacts]);
+      }
       // Real feature 2026-07-12 — the small, real, static piece of
       // Guide (see STATUS.md's pinned entry for the full design and
       // what's deliberately NOT built yet: dissatisfaction-detection,
