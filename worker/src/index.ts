@@ -1,5 +1,5 @@
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult } from "./types";
-import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, describeImage, embedText, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractSupplierStatement, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, splitIntoTopics, storeUnscopedMemory, transcribe } from "./ai";
+import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, classifyDashboardIntent, describeImage, embedText, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractSupplierStatement, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, splitIntoTopics, storeUnscopedMemory, transcribe } from "./ai";
 import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { attachToSiblingJobScope, completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveScheduledDate, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
@@ -3961,6 +3961,21 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // real data. Read-only, touches no D1 tables - safe to rerun after
     // every future change to this area, the same real, proven design
     // already established for the other diagnostic tools.
+    // Real, new diagnostic tool, built per direct commitment in
+    // LOOKUP_ROUTING_ARCHITECTURE.md: this classifier does not go live
+    // in the real message pipeline without the same, proven,
+    // zero-side-effect live-testing discipline as intent-test and
+    // work-observation-test before it. Read-only, calls the real
+    // classifyDashboardIntent unchanged, touches no data.
+    if (url.pathname === "/debug/dashboard-route-test" && request.method === "GET") {
+      const text = url.searchParams.get("text");
+      if (!text) {
+        return Response.json({ error: "text query parameter is required" }, { status: 400 });
+      }
+      const route = await classifyDashboardIntent(env, text);
+      return Response.json({ input: text, route });
+    }
+
     if (url.pathname === "/debug/work-observation-test" && request.method === "GET") {
       const text = url.searchParams.get("text");
       if (!text) {
