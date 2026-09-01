@@ -1348,6 +1348,16 @@ async function processOneExtraction(
       // than guessing between the two. No match at all falls through
       // to the existing, unchanged logic below.
       const dashboardRoute = await classifyDashboardIntent(env, transcript);
+      // Real, confirmed bug fix, found live: these three were
+      // previously declared inside the else branch below, but code
+      // right after this whole if/else still referenced them - a
+      // genuine ReferenceError, a real 500, on every business-scope
+      // question that fell through to the conversational path. Safe
+      // defaults here; overwritten inside the else branch when it
+      // actually runs.
+      let topic: "quotations" | "invoices" | "expenses" | "general" = "general";
+      let canKnowDebtors = false;
+      let outstandingFacts: string[] = [];
       if (dashboardRoute === "financial_snapshot" || dashboardRoute === "aged_debtors") {
         message = `__OPEN_DASHBOARD__:${dashboardRoute}`;
       } else if (dashboardRoute === "unsure") {
@@ -1364,7 +1374,7 @@ async function processOneExtraction(
         // general question (no history, or genuinely broad) still gets
         // both fact sets; a topic-specific follow-up gets only what's
         // relevant to it.
-        const topic = await classifyBusinessTopic(env, history, transcript);
+        topic = await classifyBusinessTopic(env, history, transcript);
         // Real feature 2026-07-14 — step 4 of the phased auth scope
         // (Constitution Principle 26): the financial lookup, permission-
         // aware at last, exactly the example used in every design
@@ -1374,7 +1384,7 @@ async function processOneExtraction(
         // permitted, so the model can give an honest "restricted"
         // answer rather than a misleading "I don't know."
         const canKnowProfit = capabilities.includes("can_know_profit");
-        const canKnowDebtors = capabilities.includes("can_know_debtors");
+        canKnowDebtors = capabilities.includes("can_know_debtors");
         const canManageInvoicesHere = capabilities.includes("can_manage_invoices");
         const canKnowMaterialsHere = capabilities.includes("can_know_materials");
         // Real performance fix, found live: these seven real, independent
@@ -1385,7 +1395,8 @@ async function processOneExtraction(
         // this point. Same exact conditional logic as before, unchanged
         // - only the execution order changed, from sequential to
         // concurrent.
-        const [outstandingFacts, quotationFacts, expenseFacts, snapshotFacts, pnlFacts, agedFacts, creditorFacts] = await Promise.all([
+        let quotationFacts: string[], expenseFacts: string[], snapshotFacts: string[], pnlFacts: string[], agedFacts: string[], creditorFacts: string[];
+        [outstandingFacts, quotationFacts, expenseFacts, snapshotFacts, pnlFacts, agedFacts, creditorFacts] = await Promise.all([
           topic === "quotations" || topic === "expenses"
             ? []
             : canKnowDebtors
@@ -1433,8 +1444,12 @@ async function processOneExtraction(
       // restriction marker itself is a one-element array — checking
       // canKnowDebtors explicitly here too, never suggesting a deeper
       // breakdown of something this membership can't see at all.
+      // Real, confirmed bug fix: also guarded on dashboardRoute ===
+      // "none" now - this addendum only makes sense for the real,
+      // conversational fallback path; appending it to a dashboard-
+      // open marker or a clarifying question was never correct.
       const alreadyAskedForAging = /\b(aged|aging|overdue|breakdown)\b/i.test(transcript);
-      if (canKnowDebtors && outstandingFacts.length > 0 && !alreadyAskedForAging && topic !== "quotations" && topic !== "expenses") {
+      if (dashboardRoute === "none" && canKnowDebtors && outstandingFacts.length > 0 && !alreadyAskedForAging && topic !== "quotations" && topic !== "expenses") {
         message += "\n\nA more detailed aged breakdown is also available if useful.";
       }
     } else if (character) {
