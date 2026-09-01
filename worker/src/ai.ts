@@ -1456,6 +1456,58 @@ export async function classifyExpenseCategory(
   }
 }
 
+// Real, new classification step, per LOOKUP_ROUTING_ARCHITECTURE.md —
+// the real, first piece of "AI determines intent, never composes the
+// answer." Same, exact proven shape as classifyBusinessTopic above.
+// Deliberately scoped to only the two dashboards actually backend-
+// ready right now (financial_snapshot, aged_debtors) - profit and
+// loss, cash flow, and aged creditors are real but not yet ready per
+// the pinned document, so left out rather than routed to
+// prematurely. Real, three-outcome design, not a binary: a confident
+// match routes directly; a plausible-but-unsure match should prompt
+// the person rather than guess; no match at all means this was never
+// a dashboard-worthy question, and falls through to the existing,
+// proven conversational answer, unchanged.
+export async function classifyDashboardIntent(
+  env: Env,
+  message: string
+): Promise<"financial_snapshot" | "aged_debtors" | "unsure" | "none"> {
+  try {
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        chat_template_kwargs: { thinking: false },
+        temperature: 0,
+        max_tokens: 10,
+        messages: [
+          {
+            role: "system",
+            content:
+              'Is this a broad, whole-business question wanting a real, visual snapshot ("what\'s our ' +
+              'financial position", "how are we doing", "where do we stand", "are we going to make it") ' +
+              '— answer FINANCIAL_SNAPSHOT. Is it specifically about who owes money and how overdue ' +
+              '("who owes me", "aged debtors", "outstanding balances") — answer AGED_DEBTORS. Is it a ' +
+              "genuinely narrow, specific question about one customer, one invoice, or one small fact " +
+              '("what does Jenny owe", "did Alfons pay", "what\'s the balance on job 283") — these are ' +
+              "NOT dashboard questions, answer NONE. If it sounds broad and financial but you're not " +
+              "confident it's asking for a snapshot specifically, or not confident which of the two " +
+              "dashboards fits, answer UNSURE — never guess between them. Answer with exactly one word: " +
+              '"FINANCIAL_SNAPSHOT", "AGED_DEBTORS", "UNSURE", or "NONE".',
+          },
+          { role: "user", content: message },
+        ],
+      })
+    );
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const answer = r.choices?.[0]?.message?.content?.trim().toUpperCase() ?? "";
+    if (answer.includes("FINANCIAL_SNAPSHOT") || answer.includes("SNAPSHOT")) return "financial_snapshot";
+    if (answer.includes("AGED_DEBTORS") || answer.includes("DEBTOR")) return "aged_debtors";
+    if (answer.includes("UNSURE")) return "unsure";
+    return "none";
+  } catch {
+    return "none";
+  }
+}
+
 // --- Memory: color, not ground truth. Never used for money or ------
 // anything with real-world consequence — only for recalling what was
 // said (a preference, a note) when nothing structured exists to
