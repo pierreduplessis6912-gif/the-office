@@ -1359,67 +1359,45 @@ async function processOneExtraction(
       // answer rather than a misleading "I don't know."
       const canKnowProfit = capabilities.includes("can_know_profit");
       const canKnowDebtors = capabilities.includes("can_know_debtors");
-      // Outstanding invoices is literally who owes money — the same
-      // debtors category as the aged breakdown below, gated the same
-      // way. A real gap caught before it shipped: it's easy to gate
-      // the obviously-named "aged debtors" fact and overlook that
-      // "outstanding invoices" is the identical category of
-      // information under a different name.
-      const outstandingFacts =
+      const canManageInvoicesHere = capabilities.includes("can_manage_invoices");
+      const canKnowMaterialsHere = capabilities.includes("can_know_materials");
+      // Real performance fix, found live: these seven real, independent
+      // database aggregates were being awaited one after another,
+      // adding real, noticeable latency for a genuinely slow-feeling
+      // question. None depends on another's result - only on `topic`
+      // and the capability checks above, both already resolved before
+      // this point. Same exact conditional logic as before, unchanged
+      // - only the execution order changed, from sequential to
+      // concurrent.
+      const [outstandingFacts, quotationFacts, expenseFacts, snapshotFacts, pnlFacts, agedFacts, creditorFacts] = await Promise.all([
         topic === "quotations" || topic === "expenses"
           ? []
           : canKnowDebtors
-            ? await getOutstandingInvoices(env)
-            : ["Outstanding balances exist for this business but are restricted for your role."];
-      const canManageInvoicesHere = capabilities.includes("can_manage_invoices");
-      const canKnowMaterialsHere = capabilities.includes("can_know_materials");
-      const quotationFacts =
+            ? getOutstandingInvoices(env)
+            : ["Outstanding balances exist for this business but are restricted for your role."],
         topic === "invoices" || topic === "expenses"
           ? []
           : canManageInvoicesHere
-            ? await getQuotationsSummary(env)
-            : ["Quotation activity exists for this business but is restricted for your role."];
-      const expenseFacts =
+            ? getQuotationsSummary(env)
+            : ["Quotation activity exists for this business but is restricted for your role."],
         topic === "quotations" || topic === "invoices"
           ? []
           : canKnowMaterialsHere
-            ? await getExpenseSummary(env)
-            : ["Expense activity exists for this business but is restricted for your role."];
-      // Real feature 2026-07-12: the combined snapshot (reading both
-      // revenue and expenses) only for genuinely general questions —
-      // a topic-specific follow-up about just quotations, just
-      // invoices, or just expenses shouldn't have the combined
-      // position dragged in alongside it, same discipline as every
-      // other topic exclusion here.
-      const snapshotFacts =
-        topic !== "general" ? [] : canKnowProfit ? await getFinancialSnapshot(env) : ["Financial performance data exists for this business but is restricted for your role."];
-      // Real feature 2026-07-12 — the final piece: the formal,
-      // accrual-based P&L, alongside the cash-basis snapshot above.
-      // Genuinely different questions, both real, same "general only"
-      // scoping as the snapshot.
-      const pnlFacts = topic === "general" && canKnowProfit ? await getProfitAndLossSummary(env) : [];
-      // Aged debtors is fundamentally about receivables — relevant
-      // whenever invoices specifically or the business overall is
-      // being asked about, excluded only when the topic is narrowly
-      // quotations or expenses.
-      const agedFacts =
+            ? getExpenseSummary(env)
+            : ["Expense activity exists for this business but is restricted for your role."],
+        topic !== "general" ? [] : canKnowProfit ? getFinancialSnapshot(env) : ["Financial performance data exists for this business but is restricted for your role."],
+        topic === "general" && canKnowProfit ? getProfitAndLossSummary(env) : [],
         topic === "quotations" || topic === "expenses"
           ? []
           : canKnowDebtors
-            ? await getAgedDebtorsSummary(env)
-            : ["Outstanding balances exist for this business but are restricted for your role."];
-      // Real feature 2026-07-24 — Aged Creditors, the real mirror of
-      // Aged Debtors for the supplier side of money, built in certain
-      // anticipation of a real, recurring need (a monthly supplier
-      // statement). Gated behind canKnowMaterialsHere, the same
-      // capability already used for expense data — this is the same
-      // real domain (supplier money), not receivables.
-      const creditorFacts =
+            ? getAgedDebtorsSummary(env)
+            : ["Outstanding balances exist for this business but are restricted for your role."],
         topic === "quotations" || topic === "invoices"
           ? []
           : canKnowMaterialsHere
-            ? await getAgedCreditorsSummary(env)
-            : ["Outstanding supplier balances exist for this business but are restricted for your role."];
+            ? getAgedCreditorsSummary(env)
+            : ["Outstanding supplier balances exist for this business but are restricted for your role."],
+      ]);
       message = await answerFromMemory(env, transcript, [...outstandingFacts, ...quotationFacts, ...expenseFacts, ...snapshotFacts, ...pnlFacts, ...agedFacts, ...creditorFacts]);
       // Real feature 2026-07-12 — the small, real, static piece of
       // Guide (see STATUS.md's pinned entry for the full design and
