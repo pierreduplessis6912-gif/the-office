@@ -753,10 +753,11 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final rawMessage = data['message'] as String? ?? 'Done.';
         _updateMessage(
           statusId,
           role: MessageRole.office,
-          text: data['message'] as String? ?? 'Done.',
+          text: _handlePossibleDashboardMarker(rawMessage),
           pendingItems: _extractPendingItems(data),
         );
         _loadEmberCounts();
@@ -896,10 +897,11 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final rawMessage = data['message'] as String? ?? 'Done.';
         _updateMessage(
           statusId,
           role: MessageRole.office,
-          text: data['message'] as String? ?? 'Done.',
+          text: _handlePossibleDashboardMarker(rawMessage),
           pendingItems: _extractPendingItems(data),
         );
         _loadEmberCounts();
@@ -1526,6 +1528,53 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       origin: origin,
       accentColor: _emberPurple,
       builder: (context) => _SuppliersRoomContent(authHeaders: _authHeaders()),
+    );
+  }
+
+  // Real, genuinely new interaction pattern, per LOOKUP_ROUTING_
+  // ARCHITECTURE.md: the first room in the whole app that opens from
+  // a spoken question rather than a tap. No real tap origin exists to
+  // anchor the ignition to, so screen center is used as an honest,
+  // reasonable default - not pretending this came from a real ember.
+  String _handlePossibleDashboardMarker(String rawMessage) {
+    const marker = '__OPEN_DASHBOARD__:';
+    if (!rawMessage.startsWith(marker)) return rawMessage;
+    final route = rawMessage.substring(marker.length);
+    final size = MediaQuery.of(context).size;
+    final origin = Offset(size.width / 2, size.height / 2);
+    if (route == 'financial_snapshot') {
+      _showFinancialSnapshotRoom(origin);
+      return 'Opening your financial snapshot…';
+    } else if (route == 'aged_debtors') {
+      _showAgedDebtorsRoom(origin);
+      return 'Opening aged debtors…';
+    }
+    // Real, honest fallback - an unrecognized route name shows the
+    // raw marker rather than silently hiding a real, new bug.
+    return rawMessage;
+  }
+
+  Future<void> _showFinancialSnapshotRoom(Offset origin) async {
+    await _igniteEmber(origin, _emberRed);
+    if (!mounted) return;
+    await showOfficeRoom(
+      context: context,
+      officeState: _officeState,
+      origin: origin,
+      accentColor: _emberRed,
+      builder: (context) => _FinancialSnapshotRoomContent(authHeaders: _authHeaders()),
+    );
+  }
+
+  Future<void> _showAgedDebtorsRoom(Offset origin) async {
+    await _igniteEmber(origin, _emberRed);
+    if (!mounted) return;
+    await showOfficeRoom(
+      context: context,
+      officeState: _officeState,
+      origin: origin,
+      accentColor: _emberRed,
+      builder: (context) => _AgedDebtorsRoomContent(authHeaders: _authHeaders()),
     );
   }
 
@@ -4033,6 +4082,265 @@ class _PeopleRoomContentState extends State<_PeopleRoomContent> {
     _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+}
+
+// Real, first dashboard built per LOOKUP_ROUTING_ARCHITECTURE.md -
+// deterministic, zero AI involved, fetching the exact, already-proven
+// /debug/financial-snapshot directly. The genuinely new interaction
+// pattern: this room can open from a spoken question, not just a tap.
+class _FinancialSnapshotRoomContent extends StatefulWidget {
+  final Map<String, String> authHeaders;
+  const _FinancialSnapshotRoomContent({required this.authHeaders});
+
+  @override
+  State<_FinancialSnapshotRoomContent> createState() => _FinancialSnapshotRoomContentState();
+}
+
+class _FinancialSnapshotRoomContentState extends State<_FinancialSnapshotRoomContent> {
+  Map<String, dynamic>? _data;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    try {
+      final response = await http.get(Uri.parse('$officeApiBase/debug/financial-snapshot'), headers: widget.authHeaders);
+      if (response.statusCode == 200) {
+        if (!mounted) return;
+        setState(() {
+          _data = jsonDecode(response.body) as Map<String, dynamic>;
+          _loading = false;
+        });
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = 'Could not load the snapshot right now.';
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Could not load the snapshot right now.';
+      });
+    }
+  }
+
+  String _rand(num? value) => 'R${(value ?? 0).toStringAsFixed(2)}';
+
+  @override
+  Widget build(BuildContext context) {
+    final cashBasis = _data?['cashBasis'] as Map<String, dynamic>?;
+    final pnl = _data?['accrualBasisProfitAndLoss'] as Map<String, dynamic>?;
+    final outstanding = _data?['outstanding'] as Map<String, dynamic>?;
+
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: _void,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('FINANCIAL SNAPSHOT', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    color: _muted,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text('Real, deterministic numbers - no AI involved', style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 0.6)),
+              const SizedBox(height: 16),
+              if (_loading)
+                const Padding(padding: EdgeInsets.only(top: 24), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+              else if (_error != null)
+                Padding(padding: const EdgeInsets.only(top: 24), child: Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else
+                Expanded(
+                  child: ListView(
+                    children: [
+                      _snapshotSection('CASH POSITION', [
+                        _snapshotRow('Total invoiced', _rand(cashBasis?['totalInvoiced'])),
+                        _snapshotRow('Total received', _rand(cashBasis?['totalReceived'])),
+                        _snapshotRow('Total expenses', _rand(cashBasis?['totalExpenses'])),
+                        _snapshotRow('Rough cash position', _rand(cashBasis?['roughCashPosition']), highlight: true),
+                      ]),
+                      const SizedBox(height: 24),
+                      _snapshotSection('PROFIT & LOSS (all-time)', [
+                        _snapshotRow('Revenue', _rand(pnl?['revenue'])),
+                        _snapshotRow('Cost of sales', _rand(pnl?['costOfSales'])),
+                        _snapshotRow('Gross profit', _rand(pnl?['grossProfit'])),
+                        _snapshotRow('Operating expenses', _rand(pnl?['operatingExpenses'])),
+                        _snapshotRow('Net profit', _rand(pnl?['netProfit']), highlight: true),
+                      ]),
+                      const SizedBox(height: 24),
+                      _snapshotSection('OUTSTANDING', [
+                        _snapshotRow('Total outstanding', _rand(outstanding?['totalOutstanding']), highlight: true),
+                        _snapshotRow('Customers owing', '${outstanding?['customerCount'] ?? 0}'),
+                      ]),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _snapshotSection(String title, List<Widget> rows) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: GoogleFonts.ibmPlexMono(color: _emberRed, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1)),
+        const SizedBox(height: 10),
+        ...rows,
+      ],
+    );
+  }
+
+  Widget _snapshotRow(String label, String value, {bool highlight = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: GoogleFonts.workSans(color: highlight ? _paper : _muted, fontSize: 14, fontWeight: highlight ? FontWeight.w600 : FontWeight.w400)),
+          Text(value, style: GoogleFonts.ibmPlexMono(color: highlight ? _paper : _textTertiary, fontSize: 14, fontWeight: highlight ? FontWeight.w700 : FontWeight.w400)),
+        ],
+      ),
+    );
+  }
+}
+
+// Real, second dashboard, per LOOKUP_ROUTING_ARCHITECTURE.md.
+// Deliberately honest about a real, current limitation: reuses the
+// same outstanding-by-customer data as the snapshot, since a real,
+// age-bucketed (30/60/90 day) breakdown doesn't exist behind this
+// endpoint yet - shown as a plain, sorted list rather than pretending
+// a bucketed view that isn't real.
+class _AgedDebtorsRoomContent extends StatefulWidget {
+  final Map<String, String> authHeaders;
+  const _AgedDebtorsRoomContent({required this.authHeaders});
+
+  @override
+  State<_AgedDebtorsRoomContent> createState() => _AgedDebtorsRoomContentState();
+}
+
+class _AgedDebtorsRoomContentState extends State<_AgedDebtorsRoomContent> {
+  List<dynamic> _rows = [];
+  num _total = 0;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    try {
+      final response = await http.get(Uri.parse('$officeApiBase/debug/financial-snapshot'), headers: widget.authHeaders);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final outstanding = data['outstanding'] as Map<String, dynamic>?;
+        if (!mounted) return;
+        setState(() {
+          _rows = outstanding?['byCustomer'] as List? ?? [];
+          _total = (outstanding?['totalOutstanding'] as num?) ?? 0;
+          _loading = false;
+        });
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = 'Could not load aged debtors right now.';
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Could not load aged debtors right now.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: _void,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('AGED DEBTORS', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    color: _muted,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text('Not yet bucketed by age - sorted by amount owed', style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 0.4)),
+              const SizedBox(height: 16),
+              if (_loading)
+                const Padding(padding: EdgeInsets.only(top: 24), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+              else if (_error != null)
+                Padding(padding: const EdgeInsets.only(top: 24), child: Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else if (_rows.isEmpty)
+                Padding(padding: const EdgeInsets.only(top: 24), child: Text('Nobody owes you anything right now.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else ...[
+                Text('R${_total.toStringAsFixed(2)} total outstanding', style: GoogleFonts.ibmPlexMono(color: _emberRed, fontSize: 16, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 14),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: _rows.length,
+                    separatorBuilder: (_, __) => Divider(height: 1, color: _textTertiary.withOpacity(0.1)),
+                    itemBuilder: (context, index) {
+                      final row = _rows[index] as Map<String, dynamic>;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(row['customer'] as String? ?? '', style: GoogleFonts.workSans(color: _paper, fontSize: 15)),
+                            Text('R${((row['owes'] as num?) ?? 0).toStringAsFixed(2)}', style: GoogleFonts.ibmPlexMono(color: _emberRed, fontSize: 14, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
