@@ -79,24 +79,76 @@ testing, the same discipline every other classification bug tonight
 was found and fixed with. This is a real, new decision point, not an
 extension of an existing one.
 
-**A named, finite set of real dashboards to route to.** Not yet
-decided how many, or how they relate to each other — a single,
-tabbed financial view versus several separate ones is a real, open
-question, not resolved by this document.
+**A named, finite set of real dashboards to route to — real, honest
+priority order, decided:**
+
+1. **Financial Snapshot** — the single most general, most frequently-
+   needed question. Fully backend-ready, proven end-to-end tonight via
+   `/debug/financial-snapshot`. First, both highest-value and
+   lowest-risk to ship.
+2. **Aged Debtors** — who owes money, and how overdue. A real, daily,
+   actionable concern for a trades business. `getAgedDebtorsSummary`
+   already exists; whether it already buckets by real age ranges
+   (30/60/90 days) or just totals needs confirming before UI is built
+   on it.
+3. **Profit and Loss, for a real, chosen period.** Genuinely valuable
+   but lower frequency — a review question, not a daily check.
+   `getProfitAndLoss` exists but appears to cover all-time, not a
+   selectable range — a real, small backend addition needed before
+   this is genuinely period-aware.
+4. **Cash Flow over time.** Named honestly as the one dashboard on
+   this list that isn't secretly already built: what exists today is
+   a single, point-in-time cash position, not real movement across
+   months. A genuine cash-flow view needs real, new backend work (a
+   time-bucketed query, grouped by month) before any UI is worth
+   building.
+5. **Aged Creditors** — what's owed to suppliers. Real and
+   backend-ready, but lower day-to-day urgency than chasing debtors.
+   Last, deliberately.
 
 **A genuinely new interaction pattern.** Every room built so far opens
 by a tap. This would be the first time a spoken question opens a room
 on its own, without a tap at all — worth naming explicitly as new,
 not assumed to behave like anything already built.
 
+## The real, settled routing decision — three outcomes, not two
+
+Per direct instruction: not a binary between "confidently route" and
+"silently fall back." A real, third, middle outcome exists.
+
+1. **Confident match** — a real, clear question ("what's our
+   financial position") routes directly to its dashboard. No
+   confirmation needed.
+2. **Genuinely unsure, but with a real, plausible candidate** — the
+   model asks or proposes, rather than silently guessing. "Did you
+   want to see the financial snapshot, or just hear the number?" A
+   real, honest middle ground between guessing wrong and refusing to
+   help.
+3. **No real, plausible dashboard match at all** — falls back to the
+   existing, already-proven conversational path (`answerFromMemory`),
+   unchanged. A dashboard is an enhancement on top of what already
+   works, never a replacement that can leave a real question
+   unanswered if the classifier is uncertain.
+
+**A real, zero-side-effect diagnostic tool for this classifier
+specifically, before it ever touches live routing** — the same
+`/debug/work-observation-test` pattern that caught this session's
+scheduling bug. A `/debug/dashboard-route-test?text=...` endpoint,
+showing which of the three outcomes a given phrase would produce,
+without actually opening anything or writing any data. Given how much
+a wrongly-triggered dashboard could disrupt a real conversation, this
+classifier should not go live without that same live-testing
+discipline every other classification decision tonight required.
+
 ## What this document does not settle
 
-- The real, exact wording and structure of the new classification
-  step's prompt.
-- How many distinct dashboards exist, and what each one shows.
-- What happens if the classifier is genuinely unsure which lane a
-  question belongs in — a real, honest fallback needs deciding, not
-  left implicit.
+- The real, exact wording of the new classification step's prompt —
+  the three real, named outcomes above are decided; the actual prompt
+  text that reliably produces them is not.
 - Whether a dashboard opened by voice should look and behave exactly
   like a dashboard opened by tapping an ember, or whether a
   voice-triggered entry deserves its own, distinct framing.
+- The real backend work still needed before Profit and Loss (a
+  selectable period) and Cash Flow (time-bucketed movement) are
+  genuinely ready for a dashboard, versus Financial Snapshot and Aged
+  Debtors, which already are.
