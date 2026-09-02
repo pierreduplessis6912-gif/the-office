@@ -1540,7 +1540,8 @@ export async function containsBackwardReference(env: Env, message: string): Prom
               'thing just mentioned), "those", "the same one", "it" (referring to something specific) — ' +
               'answer YES. Or does it stand completely on its own, naming everything it needs explicitly, ' +
               'with no such reference at all (even if it happens to contain a word like "that" used a ' +
-              'different way, e.g. "what\'s that going to cost" as a rhetorical aside, not a real reference) ' +
+              'different way, e.g. "that\'s just how it goes sometimes" as a generic idiom with no specific ' +
+              'antecedent, not a real reference) ' +
               '— answer NO. Examples: "what does she owe" — YES. "who did we deal with in those instances" ' +
               '— YES. "who owes me money" — NO, names its own subject fully. "what\'s our financial ' +
               'position" — NO. Answer with exactly one word: "YES" or "NO".',
