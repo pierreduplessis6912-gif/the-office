@@ -1508,6 +1508,59 @@ export async function classifyDashboardIntent(
   }
 }
 
+// Real, precise fix for a real, confirmed register-staleness bug
+// found live tonight: "who owes me money" - a genuinely standalone
+// question - was silently resolved to whichever customer (Jenny) was
+// most recently touched, because the existing guard only checked
+// whether any conversation history existed at all, not whether this
+// specific message actually needed it. The real, same linguistic
+// judgment already proven in splitIntoTopics' own pronoun-detection
+// language ("a clause using a pronoun to refer back to something just
+// stated"), applied one level up: does this whole message contain a
+// genuine backward reference at all, or does it stand completely on
+// its own? A naive word-list check ("does it contain 'that'") would
+// false-positive on "what's that cost" — this needs real judgment,
+// not pattern matching. Deliberately conservative on error: assumes a
+// reference might exist rather than silently breaking the real,
+// already-proven case (a supplier follow-up like "who did we deal
+// with in those instances") that genuinely depends on this working.
+export async function containsBackwardReference(env: Env, message: string): Promise<boolean> {
+  try {
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        chat_template_kwargs: { thinking: false },
+        temperature: 0,
+        max_tokens: 10,
+        messages: [
+          {
+            role: "system",
+            content:
+              'Does this message contain a genuine, referential pronoun or demonstrative pointing back to ' +
+              "something or someone already discussed — \"her\", \"him\", \"them\", \"that\" (referring to a " +
+              'thing just mentioned), "those", "the same one", "it" (referring to something specific) — ' +
+              'answer YES. Or does it stand completely on its own, naming everything it needs explicitly, ' +
+              'with no such reference at all (even if it happens to contain a word like "that" used a ' +
+              'different way, e.g. "what\'s that going to cost" as a rhetorical aside, not a real reference) ' +
+              '— answer NO. Examples: "what does she owe" — YES. "who did we deal with in those instances" ' +
+              '— YES. "who owes me money" — NO, names its own subject fully. "what\'s our financial ' +
+              'position" — NO. Answer with exactly one word: "YES" or "NO".',
+          },
+          { role: "user", content: message },
+        ],
+      })
+    );
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const answer = r.choices?.[0]?.message?.content?.trim().toUpperCase() ?? "";
+    // Deliberately conservative: only a confident "NO" disables entity
+    // resolution. Anything else (including an unparseable answer)
+    // defaults to true, never silently breaking the real, proven
+    // follow-up case this whole mechanism exists for.
+    return !answer.startsWith("NO");
+  } catch {
+    return true;
+  }
+}
+
 // --- Memory: color, not ground truth. Never used for money or ------
 // anything with real-world consequence — only for recalling what was
 // said (a preference, a note) when nothing structured exists to
