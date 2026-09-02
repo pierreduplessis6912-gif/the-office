@@ -1,5 +1,5 @@
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult } from "./types";
-import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, classifyDashboardIntent, describeImage, embedText, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractSupplierStatement, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, splitIntoTopics, storeUnscopedMemory, transcribe } from "./ai";
+import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, classifyDashboardIntent, containsBackwardReference, describeImage, embedText, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractSupplierStatement, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, splitIntoTopics, storeUnscopedMemory, transcribe } from "./ai";
 import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
 import { attachToSiblingJobScope, completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveScheduledDate, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
@@ -3999,6 +3999,18 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // zero-side-effect live-testing discipline as intent-test and
     // work-observation-test before it. Read-only, calls the real
     // classifyDashboardIntent unchanged, touches no data.
+    // Real, new diagnostic tool, built before containsBackwardReference
+    // ever touches the live register logic - same, proven,
+    // zero-side-effect discipline as every other classifier tonight.
+    if (url.pathname === "/debug/backward-reference-test" && request.method === "GET") {
+      const text = url.searchParams.get("text");
+      if (!text) {
+        return Response.json({ error: "text query parameter is required" }, { status: 400 });
+      }
+      const hasReference = await containsBackwardReference(env, text);
+      return Response.json({ input: text, hasBackwardReference: hasReference });
+    }
+
     if (url.pathname === "/debug/dashboard-route-test" && request.method === "GET") {
       const text = url.searchParams.get("text");
       if (!text) {
