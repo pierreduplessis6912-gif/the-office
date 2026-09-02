@@ -770,12 +770,13 @@ export async function recordLead(
   env: Env,
   name: string,
   interest: string | null,
-  source: string | null
+  source: string | null,
+  captureId: number | null
 ): Promise<{ id: number }> {
   const inserted = await env.OFFICE_DB.prepare(
-    "INSERT INTO leads (name, interest, source, status) VALUES (?, ?, ?, 'enquired') RETURNING id"
+    "INSERT INTO leads (name, interest, source, status, capture_id) VALUES (?, ?, ?, 'enquired', ?) RETURNING id"
   )
-    .bind(name, interest, source)
+    .bind(name, interest, source, captureId)
     .first<{ id: number }>();
   return { id: inserted!.id };
 }
