@@ -4016,6 +4016,31 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // Real, new diagnostic tool, built before containsBackwardReference
     // ever touches the live register logic - same, proven,
     // zero-side-effect discipline as every other classifier tonight.
+    // Real, new diagnostic tool, built specifically to test the real
+    // identity-matching fix directly and safely: reconcileCustomer
+    // itself has a real side effect (it inserts a new customer when
+    // no match is found), so calling it directly here would risk
+    // creating real, unwanted test data in the live database. This
+    // runs only the real, now-fixed matching query itself - read-only,
+    // no insert, ever.
+    if (url.pathname === "/debug/name-match-test" && request.method === "GET") {
+      const name = url.searchParams.get("name");
+      if (!name) {
+        return Response.json({ error: "name query parameter is required" }, { status: 400 });
+      }
+      const customerMatch = await env.OFFICE_DB.prepare(
+        `SELECT id, name FROM customers WHERE (name = ? OR name LIKE ? OR name LIKE ? OR name LIKE ?) LIMIT 1`
+      )
+        .bind(name, `${name} %`, `% ${name}`, `% ${name} %`)
+        .first<{ id: number; name: string }>();
+      const characterMatch = await env.OFFICE_DB.prepare(
+        `SELECT id, name FROM characters WHERE (name = ? OR name LIKE ? OR name LIKE ? OR name LIKE ?) LIMIT 1`
+      )
+        .bind(name, `${name} %`, `% ${name}`, `% ${name} %`)
+        .first<{ id: number; name: string }>();
+      return Response.json({ input: name, customerMatch: customerMatch ?? null, characterMatch: characterMatch ?? null });
+    }
+
     if (url.pathname === "/debug/backward-reference-test" && request.method === "GET") {
       const text = url.searchParams.get("text");
       if (!text) {
