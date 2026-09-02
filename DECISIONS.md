@@ -4927,3 +4927,107 @@ found by directly calculating the numbers. Ask for a screenshot early
 in any UI-positioning report, before investing in more than one
 theory-driven fix.
 
+---
+
+## The full arc — from "huge gap between expectation and reality" to a working, voice-triggered dashboard
+
+**Where this started: a real, honest admission, driving, mid-session
+— "there's a huge gap between what this app should be able to do and
+what it's actually doing... it's very laggy... it tells me it doesn't
+have things on file... nothing is tying it all together."** Named
+directly as more important than any single feature: a real, working
+system that feels coherent, not a collection of individually-tested
+rooms.
+
+**The real audit that followed (`CAPABILITY_AUDIT.md`) found something
+genuinely surprising: the backend was far deeper than five rooms
+suggested** — real leads, projects, snags, full P&L, aged debtors and
+creditors, all real and working, checked directly against the code.
+The actual problem wasn't missing capability — it was capability with
+no discoverable path, answerable only if the right words were spoken.
+
+**A real, measured performance fix came first** — seven independent
+database aggregates for a general financial question were running
+sequentially instead of concurrently, a real, confirmed, direct
+contributor to the reported "very laggy" feeling. Fixed with
+`Promise.all`, every conditional branch preserved exactly.
+
+**Then a real, live demonstration of the deeper problem**: "what's our
+financial position" as a spoken question took two minutes of silence
+before answering — not from any single, findable bug, but from routing
+a question that has a real, structured, already-known answer through
+an unnecessary, slow AI-synthesis step. This produced the real,
+architectural reframe that governed everything after: AI should
+determine intent and route, never compose an answer a real,
+deterministic path already has. Refined further with a genuine,
+load-bearing distinction — complexity, not topic, decides whether a
+question deserves a real dashboard or a real, spoken sentence — and
+tied to the project's own core identity: "the last thing we want is
+SAP, but we do want to capture the business intelligence in SAP." Real
+depth, delivered through the shell's own minimal shape, never through
+SAP's actual navigation. All captured in `LOOKUP_ROUTING_ARCHITECTURE.
+md` and pinned into `ERP_MODE_ARCHITECTURE.md` alongside its
+input-side counterpart.
+
+**Building it, in order: classify, test live, then wire in — the same
+discipline as every other classifier tonight.** `classifyDashboardIntent`
+built, tested against three real, distinct categories (a confident
+match, a correctly-distinguished sibling case, and — the one that
+mattered most — a narrow, specific question correctly recognized as
+*not* dashboard-worthy) before ever touching the live pipeline.
+
+**A real, severe regression, introduced and then found and fixed the
+same night.** Wiring the classifier in meant wrapping existing,
+working logic in a new `else` block — which silently moved several
+variable declarations out of scope for code sitting right after that
+block that still needed them. A genuine `ReferenceError`, a real 500,
+on any business-scope question that fell through to the conversational
+path — a regression on already-working functionality, caused by the
+new feature's own wiring, not a pre-existing issue. Found by reading
+the actual, pushed code line by line after a real, reported 500 error,
+not guessed at.
+
+**A second, deeper, genuinely different bug, found only by real,
+repeated live testing after the crash was fixed:** "who owes me
+money," asked with real conversation history present, kept getting
+silently answered about Jenny — whoever the `register`'s most recently
+touched selection happened to be — instead of opening the real,
+correct dashboard. Confirmed directly: the `register` is real,
+persisted D1 state, not conversation memory. It survives indefinitely,
+with no sense of staleness, until something else explicitly overwrites
+it.
+
+**The real, key insight belongs to the person who lived with this
+system the longest, not to a fix found in the code.** Put directly:
+the `register` was originally built to make the system feel
+"responsive and alive" — a real, deliberate, good feature — and the
+same mechanism that created that feeling was now the thing quietly
+breaking a genuinely broad question by pulling it back to stale,
+irrelevant context. Correctly reframed, on the spot, as not a forced
+choice between "a practical ERP" and "a persistent conversation tool"
+— the real fix was recognizing that a person handles this by reading
+one, precise signal per sentence (does this specific message actually
+point back to something, or does it stand on its own), not by running
+two competing modes.
+
+**The precise fix reused an already-proven pattern rather than
+inventing a new one** — `splitIntoTopics`' own, existing pronoun-
+detection judgment, applied one level up to the whole-message
+question of whether entity resolution should even be attempted.
+`containsBackwardReference` built, and — worth naming honestly — my
+own first test example in its prompt was itself wrong ("what's that
+going to cost" characterized as non-referential when it's actually a
+genuine reference in almost any real context); caught by the model
+faithfully following a flawed instruction, corrected before it caused
+real harm. Tested live against both real, load-bearing cases — the new
+bug ("who owes me money" → correctly, no reference) and the
+already-proven, older case ("those instances" → correctly, a real
+reference, confirming the fix doesn't regress it) — before being wired
+into the actual `scopeCouldBeEntity` check, replacing the blunter,
+real gap in the original history-length proxy.
+
+**Confirmed working by recreating the exact, real, original failure —
+not a fresh, easy case.** Real conversation history deliberately
+present, the same genuinely standalone question asked again — the
+real dashboard opened correctly this time.
+
