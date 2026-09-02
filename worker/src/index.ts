@@ -294,15 +294,29 @@ async function processOneExtraction(
   // different from the proven ProSupply case ("who did we deal with
   // in those instances?"), which only correctly resolves to a
   // specific entity because real history exists for it to genuinely
-  // be a follow-up to. A "business"-scoped question arriving with NO
-  // history at all has nothing to be a follow-up of — the register
-  // should never touch it. "personal" stays excluded outright (same
-  // as before); "business" is now only eligible when there's real
-  // history to justify treating it as a possible follow-up.
+  // be a follow-up to.
+  // Real bug found live tonight, this history-length proxy's own real
+  // gap: "who owes me money" — a genuinely standalone question, with
+  // real, nonzero history present (several unrelated questions asked
+  // earlier) — still got silently resolved to Jenny, the register's
+  // most recently touched selection, because "any history exists" was
+  // never the same thing as "this specific message is actually a
+  // follow-up". The register lives in D1, not conversation memory —
+  // it persists indefinitely, with no sense of staleness, until
+  // something else explicitly overwrites it. Fixed with the real,
+  // same linguistic judgment already proven in splitIntoTopics' own
+  // pronoun-detection language, applied here instead of a length
+  // check: does this specific message contain a genuine backward
+  // reference at all? A confident "no" excludes the register outright,
+  // regardless of how much history exists; the proven ProSupply case
+  // ("those instances" — a real, genuine reference) stays correctly
+  // eligible either way.
+  const needsBackwardReferenceCheck = extraction?.query_scope === "business";
+  const hasBackwardReference = needsBackwardReferenceCheck ? await containsBackwardReference(env, transcript) : true;
   const scopeCouldBeEntity =
     extraction?.query_scope !== "personal" &&
     extraction?.query_scope !== "material_price" &&
-    !(extraction?.query_scope === "business" && history.length === 0);
+    !(extraction?.query_scope === "business" && !hasBackwardReference);
   if (extraction?.intent === "lookup" && !customer && !character && scopeCouldBeEntity) {
     // Register first — rung 1 of the Execution Ladder, zero AI calls.
     // Peter's own words already established this selection on a prior
