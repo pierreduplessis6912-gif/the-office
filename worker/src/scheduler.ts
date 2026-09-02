@@ -6,6 +6,7 @@
 // territory.
 
 import type { Env, WorkObservationExtraction } from "./types";
+import { reconcileCustomer } from "./identity";
 
 
 // Unguarded, deliberately — same reasoning already applied to
@@ -337,7 +338,33 @@ export async function attachToSiblingJobScope(
   )
     .bind(captureId)
     .first<{ id: number; customer_name: string | null }>();
-  if (!sibling) return null;
+  if (!sibling) {
+    // Real, new fallback, per direct instruction after a real,
+    // confirmed bug found live: "a call from Andre... 25m² of vinyl"
+    // was classified as a lead, not a work_observation - creating a
+    // real lead but no job scope at all. The scheduling segment that
+    // followed in the same breath ("Stylish and Charles will install
+    // Monday") had no sibling job scope to attach to, since none
+    // existed yet, and silently created a customer-less one instead.
+    // leads.capture_id (added directly alongside this fix) is what
+    // makes this findable at all - job_scopes always had it; leads
+    // never did until now.
+    const siblingLead = await env.OFFICE_DB.prepare("SELECT id, name FROM leads WHERE capture_id = ? ORDER BY created_at DESC LIMIT 1")
+      .bind(captureId)
+      .first<{ id: number; name: string }>();
+    if (!siblingLead) return null;
+
+    const customer = await reconcileCustomer(env, siblingLead.name);
+    if (!customer) return null;
+
+    const inserted = await env.OFFICE_DB.prepare(
+      "INSERT INTO job_scopes (customer_id, description, installer_id, scheduled_date, scheduled_date_raw, capture_id) VALUES (?, ?, ?, ?, ?, ?) RETURNING id"
+    )
+      .bind(customer.id, "installation", installerId, scheduledDate, scheduledDateRaw ?? "", captureId)
+      .first<{ id: number }>();
+
+    return { jobScopeId: inserted!.id, customerName: customer.name };
+  }
 
   const updates: string[] = [];
   const values: (string | number)[] = [];
