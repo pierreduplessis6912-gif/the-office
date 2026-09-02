@@ -719,7 +719,7 @@ async function processOneExtraction(
     if (extraction.customer_name) {
       const lead = await extractLead(env, transcript);
       if (lead.name) {
-        const recorded = await recordLead(env, lead.name, lead.interest, lead.source);
+        const recorded = await recordLead(env, lead.name, lead.interest, lead.source, captureId);
         leadResult = { id: recorded.id, name: lead.name };
       } else {
         leadNoName = true;
@@ -4230,6 +4230,23 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     if (url.pathname === "/debug/init-invoices-due-date" && request.method === "POST") {
       try {
         await env.OFFICE_DB.prepare("ALTER TABLE invoices ADD COLUMN due_date TEXT").run();
+      } catch {
+        // Already exists — fine, that's what makes this idempotent.
+      }
+      return Response.json({ status: "ok" });
+    }
+
+    // Real, new migration, per direct instruction after a real,
+    // confirmed bug: a scheduling segment ("Stylish and Charles will
+    // install Monday") split away from an earlier segment that
+    // created a real lead ("a call from Andre... 25m² of vinyl") had
+    // no sibling job scope to attach to, since the lead never created
+    // one - and no way to even find the lead, since job_scopes has
+    // always had capture_id but leads never did. Same, exact proven
+    // pattern as the due_date migration above.
+    if (url.pathname === "/debug/init-leads-capture-id" && request.method === "POST") {
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE leads ADD COLUMN capture_id INTEGER").run();
       } catch {
         // Already exists — fine, that's what makes this idempotent.
       }
