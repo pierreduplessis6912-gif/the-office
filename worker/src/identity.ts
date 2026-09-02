@@ -5,6 +5,25 @@
 
 import type { Env } from "./types";
 
+// Real, shared helper, per direct instruction after a real, confirmed
+// bug found live: "Andre" (a bare, single-token name) incorrectly
+// matched "Juandre Lotriet" - a completely different, unrelated real
+// customer - because "Juandre" genuinely, literally contains the
+// substring "andre". The same naive `name LIKE '%token%'` pattern was
+// repeated across every reconciliation function below - a real,
+// dangerous false-positive risk that's existed the whole time, not
+// something new. Matches a token as a genuine, whole word within a
+// name - never as a substring buried inside a different, longer word.
+// Independently tested against the exact confirmed bug and legitimate
+// cases (a name where the token IS the whole first name, the whole
+// last name, or the entire name) before being placed here.
+function wholeWordClause(column: string): string {
+  return `(${column} = ? OR ${column} LIKE ? OR ${column} LIKE ? OR ${column} LIKE ?)`;
+}
+function wholeWordBindings(token: string): [string, string, string, string] {
+  return [token, `${token} %`, `% ${token}`, `% ${token} %`];
+}
+
 // Crude first-pass reconciliation: match on the first token of the
 // spoken name (usually the first name) against existing customers.
 // Pronouns and other generic words are not names — reconciliation
@@ -115,8 +134,8 @@ export async function reconcileCustomer(env: Env, spokenName: string): Promise<{
   }
 
   const firstToken = tokens[0];
-  const existing = await env.OFFICE_DB.prepare("SELECT id, name FROM customers WHERE name LIKE ? LIMIT 1")
-    .bind(`%${firstToken}%`)
+  const existing = await env.OFFICE_DB.prepare(`SELECT id, name FROM customers WHERE ${wholeWordClause("name")} LIMIT 1`)
+    .bind(...wholeWordBindings(firstToken))
     .first<{ id: number; name: string }>();
 
   if (existing) {
@@ -170,8 +189,8 @@ export async function reconcileCharacter(
     return { id: insertedFull!.id, name: insertedFull!.name, matched: false };
   }
 
-  const existing = await env.OFFICE_DB.prepare("SELECT id, name FROM characters WHERE name LIKE ? LIMIT 1")
-    .bind(`%${tokens[0]}%`)
+  const existing = await env.OFFICE_DB.prepare(`SELECT id, name FROM characters WHERE ${wholeWordClause("name")} LIMIT 1`)
+    .bind(...wholeWordBindings(tokens[0]))
     .first<{ id: number; name: string }>();
 
   if (existing) {
@@ -213,8 +232,8 @@ export async function findExistingCustomerByName(
       ? await env.OFFICE_DB.prepare("SELECT id, name FROM customers WHERE name LIKE ? AND name LIKE ? LIMIT 1")
           .bind(`%${firstToken}%`, `%${lastToken}%`)
           .first<{ id: number; name: string }>()
-      : await env.OFFICE_DB.prepare("SELECT id, name FROM customers WHERE name LIKE ? LIMIT 1")
-          .bind(`%${firstToken}%`)
+      : await env.OFFICE_DB.prepare(`SELECT id, name FROM customers WHERE ${wholeWordClause("name")} LIMIT 1`)
+          .bind(...wholeWordBindings(firstToken))
           .first<{ id: number; name: string }>();
   return row ?? null;
 }
@@ -232,8 +251,8 @@ export async function findExistingCharacterByName(
       ? await env.OFFICE_DB.prepare("SELECT id, name FROM characters WHERE name LIKE ? AND name LIKE ? LIMIT 1")
           .bind(`%${firstToken}%`, `%${lastToken}%`)
           .first<{ id: number; name: string }>()
-      : await env.OFFICE_DB.prepare("SELECT id, name FROM characters WHERE name LIKE ? LIMIT 1")
-          .bind(`%${firstToken}%`)
+      : await env.OFFICE_DB.prepare(`SELECT id, name FROM characters WHERE ${wholeWordClause("name")} LIMIT 1`)
+          .bind(...wholeWordBindings(firstToken))
           .first<{ id: number; name: string }>();
   return row ?? null;
 }
@@ -261,8 +280,8 @@ export async function findExistingEntityByName(
       ? await env.OFFICE_DB.prepare("SELECT id, name FROM customers WHERE name LIKE ? AND name LIKE ? LIMIT 1")
           .bind(`%${firstToken}%`, `%${lastToken}%`)
           .first<{ id: number; name: string }>()
-      : await env.OFFICE_DB.prepare("SELECT id, name FROM customers WHERE name LIKE ? LIMIT 1")
-          .bind(`%${firstToken}%`)
+      : await env.OFFICE_DB.prepare(`SELECT id, name FROM customers WHERE ${wholeWordClause("name")} LIMIT 1`)
+          .bind(...wholeWordBindings(firstToken))
           .first<{ id: number; name: string }>();
   if (customerRow) return { type: "customer", id: customerRow.id, name: customerRow.name };
 
@@ -271,8 +290,8 @@ export async function findExistingEntityByName(
       ? await env.OFFICE_DB.prepare("SELECT id, name FROM characters WHERE name LIKE ? AND name LIKE ? LIMIT 1")
           .bind(`%${firstToken}%`, `%${lastToken}%`)
           .first<{ id: number; name: string }>()
-      : await env.OFFICE_DB.prepare("SELECT id, name FROM characters WHERE name LIKE ? LIMIT 1")
-          .bind(`%${firstToken}%`)
+      : await env.OFFICE_DB.prepare(`SELECT id, name FROM characters WHERE ${wholeWordClause("name")} LIMIT 1`)
+          .bind(...wholeWordBindings(firstToken))
           .first<{ id: number; name: string }>();
   if (characterRow) return { type: "character", id: characterRow.id, name: characterRow.name };
 
