@@ -63,7 +63,9 @@ something is as important as the belief itself.
 
 ## Principle index (for a reader who needs to find one fast)
 
-Twenty-eight principles across two eras: 1–18 were each discovered
+Twenty-eight principles across two eras, plus one real research
+entry (008, Identity) still marked ❓ Unknown — grounded, but not
+yet settled into a numbered principle of its own. 1–18 were each discovered
 by studying one real, existing system (Gmail, an OS, a CRM, search,
 Git, an ERP, a database) and confirming Office either already matched
 its reasoning or needed correcting toward it — grouped below by which
@@ -1210,3 +1212,114 @@ If a future version of Office is tempted to let the AI "just guess" —
 match a task, resolve a customer, recalculate a total — the answer was
 never really "can we?" It was always: does this violate Principle 1?
 
+
+---
+
+## Research 008 — Identity (Git, flooring industry roles, CRM data models) (2026-09-02)
+
+## What problem were they solving?
+
+**Git (`.mailmap`):** the same real person commits under different
+names or email addresses over time — a home address by mistake, a
+company change, a typo once and never again. Git's own history is
+permanent and must never be rewritten to "fix" this after the fact.
+
+**Flooring industry (real, current job postings, not assumed):** one
+job genuinely involves several, distinct real roles at once —
+installer/subcontractor, general contractor, site foreman or
+superintendent, project coordinator, a supplier-side rep who "receives
+and fills orders... sells supplies to installers and subcontractors,"
+and — already named directly in an earlier, real example — a health
+and safety representative.
+
+**CRM data models (Salesforce, HubSpot, Pipedrive, PeopleSoft):** the
+same, real person can be a stable, ongoing part of one organization
+*and* have a completely different, narrower role on one specific deal
+or job — and conflating those two questions is a named, real design
+mistake worth avoiding on purpose.
+
+## How did they solve it?
+
+**Git never guesses, and never merges automatically on a weak
+signal.** The raw, original commit — whatever name/email was locally
+configured at the time — is permanently preserved, never altered.
+Reconciliation lives in a real, separate, explicit layer (`.mailmap`)
+consulted afterward, curated by a human, never inferred silently. A
+real, current mailmap-checking tool's own matching rules make the
+threshold explicit: an *exact* email match merges automatically; a
+same-name-different-domain match only gets *flagged for a human to
+confirm* — never auto-merged — and short tokens are deliberately
+excluded entirely, "to reduce false positives." A real comment found
+in a production `.mailmap` file states the deeper discipline plainly:
+"NEVER REMOVE A MAILMAP ENTRY... these maps tie a commit author to a
+real human for accountability."
+
+**CRM models keep two, genuinely separate questions apart on
+purpose.** "Who is this person to this organization?" (a real, stable
+relationship — Account-Contact) is answered in one place. "Who is
+doing what on this specific transaction?" (a real, per-job role —
+Contact Roles) is answered in a completely different, separate place.
+The same real person can have a different Contact Role on every deal
+while their underlying Account relationship stays the same, singular
+fact.
+
+**Pipedrive's counter-example is worth naming too:** People,
+Organizations, Deals, Activities — four objects, no custom roles
+layer at all. "Less flexibility, but also less to get wrong." Real,
+deliberate simplicity as a valid design choice, not a lesser one.
+
+## Does Office have this problem?
+
+Yes, confirmed directly, twice, live, in this same session. The
+`register`-staleness bug and the Andre/Juandre false-positive match
+are both real instances of exactly the failure Git's `.mailmap`
+discipline exists to prevent: a system inferring identity from a weak
+signal (a bare, ambiguous name, in both cases) with no real, separate
+place to hold a curated, confirmed answer, and no threshold for when
+a match is strong enough to trust automatically versus needing to ask.
+
+And the CRM research names a real, structural gap directly:
+`JOB_CARDS_ARCHITECTURE.md` already, correctly scoped the *per-job*
+question (who did what on this specific job scope) — but there is no
+real, separate place yet for the *stable* question (who is Andre,
+independent of any one job). Right now `customers`, `characters`, and
+`leads` each hold their own, separate, partial answer to that stable
+question, with nothing structurally aware the other two might be
+describing the same real person.
+
+## What principle survives?
+
+**A canonical identity needs the same discipline Git already proved
+for exactly this problem: never alter the raw, original capture;
+reconcile in a real, separate, explicit layer; and set a real
+threshold for when a match is strong enough to trust automatically
+versus needing to ask, rather than treating "found a match" as a
+single, undifferentiated outcome.** Exactly one strong match: use it.
+Zero: it's genuinely new. More than one, or a weak, ambiguous signal
+like a bare first name: hold and ask — the same real mechanism already
+proven for role-collision cases, extended to name-collision cases too.
+
+**A stable "who is this person to the business" fact and a per-job
+"who did what on this specific job" fact are two, separate questions,
+answered in two, separate places — never collapsed into one.** Andre
+being GM of Bon Hotel is true regardless of which job is being talked
+about; "Stylish installed, John inspected" is true of one job scope
+specifically. `JOB_CARDS_ARCHITECTURE.md` already, correctly owns the
+second question. This research names the real, missing home for the
+first.
+
+**Simplicity is a real, valid design choice, not a lesser one — earn
+every layer of complexity with real, demonstrated need.** Pipedrive's
+four-object model is a legitimate, deliberate answer, not an
+unfinished one. Before building a full Account-Contact-Role-style
+system, confirm the same real cases (one person, multiple real
+organizations; one person, several distinct roles even within the
+same relationship) actually recur in this business, rather than
+designing for a hypothetical.
+
+**Status:** ❓ Unknown → pinned as real, grounded research, not yet a
+design. Does not settle the actual schema, the matching thresholds'
+exact numbers, or how `customers`/`characters`/`leads` migrate to
+share one, real, canonical identity without a disruptive rewrite —
+that's the next, real, dedicated design pass this research is meant to
+inform.
