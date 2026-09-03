@@ -74,6 +74,63 @@ export function looksLikeAQuestion(text: string): boolean {
 // its own, intended table — a real, repeat match there (the common,
 // frictionless case — "Thabo measure X" when Thabo is already a known
 // installer) is never a collision at all.
+// Real, first piece of IDENTITY_ARCHITECTURE.md's matching threshold,
+// per direct instruction to build it. Deliberately not yet wired into
+// any live reconciliation path - the architecture document's own
+// migration sequencing puts backfill first; wiring this in before
+// existing customers/characters/leads rows are linked to a real
+// person would make every already-known real person look brand new
+// the next time they're mentioned, the exact fragmentation this whole
+// effort exists to fix.
+//
+// The real, precise threshold, confirmed directly against Git's own
+// .mailmap tooling: an exact, full-string match reconciles
+// automatically. No match at all is genuinely new. Anything weaker -
+// a short token (under 8 characters, the same real number a current
+// mailmap-checking tool uses "to reduce false positives") even with
+// only one candidate, or more than one real candidate at any length -
+// is never guessed. Returned as ambiguous for the caller to hold and
+// ask, the same real judgment already proven tonight for role
+// collisions, extended here to name collisions between two different
+// real people.
+export async function reconcilePerson(
+  env: Env,
+  spokenName: string
+): Promise<
+  | { status: "matched"; id: number; name: string }
+  | { status: "ambiguous"; candidates: Array<{ id: number; name: string }> }
+  | { status: "new" }
+  | null
+> {
+  if (!looksLikeAName(spokenName)) return null;
+
+  const exact = await env.OFFICE_DB.prepare("SELECT id, name FROM people WHERE name = ? COLLATE NOCASE")
+    .bind(spokenName)
+    .all<{ id: number; name: string }>();
+  if (exact.results.length === 1) {
+    return { status: "matched", id: exact.results[0].id, name: exact.results[0].name };
+  }
+  if (exact.results.length > 1) {
+    return { status: "ambiguous", candidates: exact.results };
+  }
+
+  const firstToken = spokenName.trim().split(/\s+/)[0];
+  const weak = await env.OFFICE_DB.prepare(`SELECT id, name FROM people WHERE ${wholeWordClause("name")}`)
+    .bind(...wholeWordBindings(firstToken))
+    .all<{ id: number; name: string }>();
+
+  if (weak.results.length === 0) {
+    return { status: "new" };
+  }
+  if (firstToken.length < 8) {
+    return { status: "ambiguous", candidates: weak.results };
+  }
+  if (weak.results.length === 1) {
+    return { status: "matched", id: weak.results[0].id, name: weak.results[0].name };
+  }
+  return { status: "ambiguous", candidates: weak.results };
+}
+
 export async function checkCrossRoleCollision(
   env: Env,
   name: string,
