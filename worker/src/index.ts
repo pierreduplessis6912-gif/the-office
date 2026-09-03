@@ -1,6 +1,6 @@
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult } from "./types";
 import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, classifyDashboardIntent, containsBackwardReference, describeImage, embedText, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractSupplierStatement, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, splitIntoTopics, storeUnscopedMemory, transcribe } from "./ai";
-import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, setSelection } from "./identity";
+import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, reconcilePerson, setSelection } from "./identity";
 import { attachToSiblingJobScope, completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveScheduledDate, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
 import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
@@ -4023,6 +4023,20 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // creating real, unwanted test data in the live database. This
     // runs only the real, now-fixed matching query itself - read-only,
     // no insert, ever.
+    // Real, new diagnostic tool for reconcilePerson - genuinely
+    // zero-side-effect since the function itself only ever reads,
+    // never inserts. Calls the real function directly rather than
+    // reimplementing its logic, so this is a true test of the actual
+    // code path, not a simulation of it.
+    if (url.pathname === "/debug/person-match-test" && request.method === "GET") {
+      const name = url.searchParams.get("name");
+      if (!name) {
+        return Response.json({ error: "name query parameter is required" }, { status: 400 });
+      }
+      const result = await reconcilePerson(env, name);
+      return Response.json({ input: name, result });
+    }
+
     if (url.pathname === "/debug/name-match-test" && request.method === "GET") {
       const name = url.searchParams.get("name");
       if (!name) {
