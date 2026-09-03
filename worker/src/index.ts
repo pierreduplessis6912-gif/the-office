@@ -4269,6 +4269,36 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // one - and no way to even find the lead, since job_scopes has
     // always had capture_id but leads never did. Same, exact proven
     // pattern as the due_date migration above.
+    // Real, first, deliberately narrow step of IDENTITY_ARCHITECTURE.md,
+    // per direct instruction to start building it. Purely additive -
+    // creates a new, empty people table and adds nullable person_id
+    // columns to customers/characters/leads. Nothing existing is
+    // touched, read, or altered by this step - the real, safe
+    // migration discipline already proven all night (due_date,
+    // vat_exempt, leads.capture_id), applied to the identity layer's
+    // own foundation before any reconciliation logic changes at all.
+    if (url.pathname === "/debug/init-identity-layer" && request.method === "POST") {
+      try {
+        await env.OFFICE_DB.prepare(
+          `CREATE TABLE IF NOT EXISTS people (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+          )`
+        ).run();
+      } catch {
+        // Already exists — fine, that's what makes this idempotent.
+      }
+      for (const table of ["customers", "characters", "leads"]) {
+        try {
+          await env.OFFICE_DB.prepare(`ALTER TABLE ${table} ADD COLUMN person_id INTEGER`).run();
+        } catch {
+          // Already exists — fine, that's what makes this idempotent.
+        }
+      }
+      return Response.json({ status: "ok" });
+    }
+
     if (url.pathname === "/debug/init-leads-capture-id" && request.method === "POST") {
       try {
         await env.OFFICE_DB.prepare("ALTER TABLE leads ADD COLUMN capture_id INTEGER").run();
