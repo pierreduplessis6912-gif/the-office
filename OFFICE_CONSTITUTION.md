@@ -1323,3 +1323,52 @@ exact numbers, or how `customers`/`characters`/`leads` migrate to
 share one, real, canonical identity without a disruptive rewrite —
 that's the next, real, dedicated design pass this research is meant to
 inform.
+
+### Continued, per direct instruction: real, existing open-source repos
+
+**dedupe (dedupeio/dedupe, 4,500+ real stars) — checked, and
+rejected as a fit, honestly.** A real, well-established Python
+library for exactly this named problem — fuzzy matching, record
+deduplication, entity resolution. But its actual approach is
+machine-learning-based: it "takes in human training data and comes up
+with the best rules for your dataset," with a real, separate offline
+training and clustering workflow. That's architecturally the opposite
+of Principle 1 (deterministic before AI) — built for batch-cleaning
+large, static datasets, not real-time resolution during a live,
+ongoing conversation. A real, legitimate tool for a different problem,
+not this one.
+
+**Twenty (twentyhq/twenty, 56,000+ real stars, "the open alternative
+to Salesforce") — checked directly against its real, live schema.**
+A person has exactly one, direct `companyId` foreign key — not the
+full, many-to-many Account-Contact-Relationship model the earlier
+Salesforce-style research described. Even a real, modern, widely-used
+CRM chose the simpler shape for the primary relationship. `jobTitle`
+is a plain, free-text field — confirming the already-real
+`characters.relationship` free-text approach already matches how a
+real, production system does this, not an enumerated role table.
+
+**Frappe/ERPNext (the framework underlying a real, established,
+production ERP) — checked directly against its real schema — offers a
+genuinely different, complementary pattern for the looser case.**
+Rather than one fixed foreign key, a Contact holds a real, generic
+"Dynamic Link" table: `link_doctype` (which kind of entity — Customer,
+Supplier, Sales Partner), `link_name` (which specific one), `link_title`
+(a cached display label). One real contact can hold several of these
+simultaneously. Twenty's own `noteTargets`/`taskTargets` pattern —
+letting a note or task point at whatever it's actually about, whether
+a person, a company, or an opportunity — is the same real shape,
+independently confirmed in a second, unrelated codebase.
+
+**What this adds to the principle above, made more concrete:** the
+"stable, per-organization relationship" (Andre as GM of Bon Hotel) is
+real-world exactly like Twenty's single, direct foreign key — one
+person, one primary organization, simple and sufficient for the
+common case. But Andre's other, real, looser associations — a past
+personal purchase, a different property he's connected to — are
+exactly what Frappe's Dynamic Link pattern exists for: not every real
+connection a person has needs to be forced through the same, single
+foreign key. Two real, different shapes for two real, different kinds
+of relationship, independently arrived at by two, separate, unrelated,
+established systems — not a single, over-general answer trying to
+cover both.
