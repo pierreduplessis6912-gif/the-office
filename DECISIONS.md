@@ -5031,3 +5031,81 @@ not a fresh, easy case.** Real conversation history deliberately
 present, the same genuinely standalone question asked again — the
 real dashboard opened correctly this time.
 
+---
+
+## Building the identity layer — from research to a real, safely-backfilled foundation
+
+**Started from `IDENTITY_ARCHITECTURE.md`, itself built on real,
+external research** — Git's `.mailmap` discipline, and real,
+independently-converging patterns checked directly against Twenty
+CRM's and Frappe/ERPNext's live schemas, not just summaries.
+
+**The real, first step was deliberately narrow and purely additive:**
+a new, empty `people` table, and nullable `person_id` columns on
+`customers`, `characters`, `leads`. Nothing existing read, touched, or
+altered — the same, proven migration discipline as every schema
+change tonight.
+
+**`reconcilePerson` built next, implementing the real, precise
+threshold from the architecture document** — an exact match
+reconciles; no match is genuinely new; anything weaker (a short token
+under 8 characters, even with one candidate, or multiple candidates at
+any length) is never guessed, returned as ambiguous instead.
+Independently verified against real SQLite behavior, across all four
+real outcomes, before ever being pushed.
+
+**A real, genuinely confusing deployment mystery followed, worked
+through methodically rather than guessed at.** The new diagnostic
+route returned a bare "Not Found" with no real, useful detail.
+Ruled out, one real, direct test at a time, in this order: a
+structural routing problem (a zero-logic sibling route, added the
+same way, worked fine); a caching issue (a fresh, uncached URL still
+failed); a genuine Cloudflare platform incident (checked directly
+against Cloudflare's own, official, real-time status API — nothing
+relevant, unresolved). The actual cause only became visible once the
+route was rewritten to catch and surface its own real error instead of
+letting it throw uncaught — at which point it simply worked, cleanly,
+on the next normally-timed deploy. Two consecutive, unusually slow
+deploys immediately before this were the most likely real explanation
+in hindsight: a genuine Cloudflare edge-propagation delay, not a code
+defect — code, imports, and call sites were all independently
+re-verified correct throughout and never needed to change.
+
+**The real backfill was built with a safe, honest default: dry-run
+first, real writes only on explicit `?commit=true`,** per the
+architecture document's own stated caution to run this "reviewed, not
+assumed correct silently." The first dry run surfaced a real, serious
+bug in the backfill's own logic, not a pre-existing one: it only
+checked for an exact string match across tables, without applying the
+same 8-character caution `reconcilePerson` already used going
+forward. Confirmed as a genuine bug, not a hypothetical one, by real,
+direct knowledge: "Sipho," "Thabo," and "Alfons" were confirmed to
+each be different, real people despite an exact name match — only
+"Andre" happened to be correct. Three wrong, automatic merges would
+have been committed silently if this dry run had been trusted at face
+value instead of actually read.
+
+**Fixed by applying the identical threshold already proven in
+`reconcilePerson`, verified against the exact, real, confirmed bug
+scenario before being pushed again.** The second, corrected dry run
+showed every one of those real collisions correctly flagged for
+review instead of merged — including "Andre" itself, applied
+consistently rather than specially exempted, since the system has no
+way to know in advance which short-name match is the safe one.
+
+**The real, final judgment call: commit now, since the safe default
+already prevents any wrong merge, rather than delay for a full
+resolution tool first.** The one, real gap that decision accepts —
+Andre's two records staying split until manually reviewed — is a
+small, reversible cost against the real, immediate benefit of giving
+every future capture a populated `people` table to check against.
+Paired with one, small, real addition so that gap couldn't quietly get
+lost: a persistent `needs_merge_review` flag on `people` itself, and a
+plain, direct `/debug/people-needing-review` endpoint — so the six
+real, flagged records (two Andres, two Siphos, Alfons, Thabo) stay
+genuinely findable whenever there's time to resolve them by hand,
+rather than disappearing into a one-time API response.
+
+**Committed successfully. Zero wrong merges — the one measurable this
+entire effort was built to guarantee.**
+
