@@ -4050,10 +4050,10 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // correctly found and reused by an exact match in a later one.
     if (url.pathname === "/debug/backfill-people" && request.method === "POST") {
       const commit = url.searchParams.get("commit") === "true";
-      const summary: Record<string, { linked: number; created: number; rows: Array<{ id: number; name: string; action: string }> }> = {
-        customers: { linked: 0, created: 0, rows: [] },
-        characters: { linked: 0, created: 0, rows: [] },
-        leads: { linked: 0, created: 0, rows: [] },
+      const summary: Record<string, { linked: number; created: number; needsReview: number; rows: Array<{ id: number; name: string; action: string }> }> = {
+        customers: { linked: 0, created: 0, needsReview: 0, rows: [] },
+        characters: { linked: 0, created: 0, needsReview: 0, rows: [] },
+        leads: { linked: 0, created: 0, needsReview: 0, rows: [] },
       };
       // Real, in-memory tracking for dry-run accuracy: without an
       // actual write, a second row sharing a name with an earlier one
@@ -4063,20 +4063,42 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       // rows and any names this same dry run would create.
       const wouldBeCreated = new Map<string, number>();
 
+      // Real, confirmed fix, found via a real, direct test: a bare
+      // exact-string match alone isn't enough to trust automatically.
+      // "Sipho", "Thabo", and "Alfons" are each genuinely different,
+      // real people despite an exact name match across tables - only
+      // "Andre" happened to be correct. Same, precise threshold
+      // reconcilePerson already applies going forward: a short name
+      // (under 8 characters, the same real number Git's own mailmap
+      // tooling uses) is never trusted automatically, even on an
+      // exact match - it gets its own, separate person and is flagged
+      // for real, manual review instead of being silently merged.
+      const SHORT_NAME_THRESHOLD = 8;
+
       for (const table of ["customers", "characters", "leads"] as const) {
         const rows = await env.OFFICE_DB.prepare(`SELECT id, name FROM ${table} WHERE person_id IS NULL`).all<{ id: number; name: string }>();
         for (const row of rows.results) {
           if (!row.name || !row.name.trim()) continue;
-          const nameKey = row.name.trim().toLowerCase();
+          const trimmedName = row.name.trim();
+          const nameKey = trimmedName.toLowerCase();
+          const isShort = trimmedName.split(/\s+/)[0].length < SHORT_NAME_THRESHOLD;
+
           const existing = await env.OFFICE_DB.prepare("SELECT id FROM people WHERE name = ? COLLATE NOCASE").bind(row.name).first<{ id: number }>();
+          const wouldBeMatch = existing ?? (wouldBeCreated.has(nameKey) ? { id: wouldBeCreated.get(nameKey)! } : null);
+
           let personId: number;
           let action: string;
-          if (existing) {
-            personId = existing.id;
-            action = "linked-to-existing-person";
-            summary[table].linked++;
-          } else if (wouldBeCreated.has(nameKey)) {
-            personId = wouldBeCreated.get(nameKey)!;
+          if (wouldBeMatch && isShort) {
+            if (commit) {
+              const inserted = await env.OFFICE_DB.prepare("INSERT INTO people (name) VALUES (?) RETURNING id").bind(row.name).first<{ id: number }>();
+              personId = inserted!.id;
+            } else {
+              personId = -1;
+            }
+            action = "needs-review-short-name-match";
+            summary[table].needsReview++;
+          } else if (wouldBeMatch) {
+            personId = wouldBeMatch.id;
             action = "linked-to-existing-person";
             summary[table].linked++;
           } else {
@@ -4086,9 +4108,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             } else {
               personId = -1; // real placeholder in dry-run - nothing actually created yet
             }
-            wouldBeCreated.set(nameKey, personId);
             action = "new-person-created";
             summary[table].created++;
+          }
+          if (!wouldBeCreated.has(nameKey) || !isShort) {
+            wouldBeCreated.set(nameKey, personId);
           }
           summary[table].rows.push({ id: row.id, name: row.name, action });
           if (commit) {
