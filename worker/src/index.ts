@@ -4048,6 +4048,14 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // Processes customers, then characters, then leads, in that
     // order, so an earlier table's newly-created person can be
     // correctly found and reused by an exact match in a later one.
+    // Real, simple, direct way to find every flagged record later,
+    // per direct instruction that this needs to persist rather than
+    // be lost to a one-time API response.
+    if (url.pathname === "/debug/people-needing-review" && request.method === "GET") {
+      const rows = await env.OFFICE_DB.prepare("SELECT id, name FROM people WHERE needs_merge_review = 1 ORDER BY name").all<{ id: number; name: string }>();
+      return Response.json({ count: rows.results.length, people: rows.results });
+    }
+
     if (url.pathname === "/debug/backfill-people" && request.method === "POST") {
       const commit = url.searchParams.get("commit") === "true";
       const summary: Record<string, { linked: number; created: number; needsReview: number; rows: Array<{ id: number; name: string; action: string }> }> = {
@@ -4090,7 +4098,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           let action: string;
           if (wouldBeMatch && isShort) {
             if (commit) {
-              const inserted = await env.OFFICE_DB.prepare("INSERT INTO people (name) VALUES (?) RETURNING id").bind(row.name).first<{ id: number }>();
+              const inserted = await env.OFFICE_DB.prepare("INSERT INTO people (name, needs_merge_review) VALUES (?, 1) RETURNING id").bind(row.name).first<{ id: number }>();
               personId = inserted!.id;
             } else {
               personId = -1;
@@ -4405,6 +4413,15 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
           )`
         ).run();
+      } catch {
+        // Already exists — fine, that's what makes this idempotent.
+      }
+      // Real, persistent flag for a real, ambiguous, needs-review
+      // match found during backfill or ongoing reconciliation - so it
+      // can always be found and resolved later via a simple, direct
+      // query, rather than lost to a one-time API response.
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE people ADD COLUMN needs_merge_review INTEGER DEFAULT 0").run();
       } catch {
         // Already exists — fine, that's what makes this idempotent.
       }
