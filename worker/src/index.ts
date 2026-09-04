@@ -4028,6 +4028,15 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // never inserts. Calls the real function directly rather than
     // reimplementing its logic, so this is a true test of the actual
     // code path, not a simulation of it.
+    // Real, minimal diagnostic - zero logic, no database call, no
+    // function call. Built specifically to isolate whether a problem
+    // affecting a brand-new route is specific to reconcilePerson/the
+    // people table, or something structural affecting any new route
+    // added right now.
+    if (url.pathname === "/debug/ping" && request.method === "GET") {
+      return Response.json({ ok: true });
+    }
+
     if (url.pathname === "/debug/person-match-test" && request.method === "GET") {
       const name = url.searchParams.get("name");
       if (!name) {
