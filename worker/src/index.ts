@@ -4042,8 +4042,17 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       if (!name) {
         return Response.json({ error: "name query parameter is required" }, { status: 400 });
       }
-      const result = await reconcilePerson(env, name);
-      return Response.json({ input: name, result });
+      try {
+        const result = await reconcilePerson(env, name);
+        return Response.json({ input: name, result });
+      } catch (err) {
+        // Real, deliberate error-surfacing, per direct need to see the
+        // actual, real failure rather than continue guessing at it.
+        return Response.json(
+          { input: name, error: true, message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null },
+          { status: 500 }
+        );
+      }
     }
 
     if (url.pathname === "/debug/name-match-test" && request.method === "GET") {
