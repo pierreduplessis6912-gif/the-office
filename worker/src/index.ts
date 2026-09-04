@@ -4037,6 +4037,69 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ ok: true });
     }
 
+    // Real backfill step from IDENTITY_ARCHITECTURE.md, per direct
+    // instruction to build it. Deliberately conservative: only an
+    // exact, case-insensitive full-name match links across tables;
+    // anything else gets its own, separate people row rather than
+    // guessing a merge - the same discipline as reconcilePerson
+    // itself. Defaults to a real, safe dry-run mode (?commit=true to
+    // actually write), per the architecture document's own explicit
+    // caution: "run once, reviewed, not assumed correct silently."
+    // Processes customers, then characters, then leads, in that
+    // order, so an earlier table's newly-created person can be
+    // correctly found and reused by an exact match in a later one.
+    if (url.pathname === "/debug/backfill-people" && request.method === "POST") {
+      const commit = url.searchParams.get("commit") === "true";
+      const summary: Record<string, { linked: number; created: number; rows: Array<{ id: number; name: string; action: string }> }> = {
+        customers: { linked: 0, created: 0, rows: [] },
+        characters: { linked: 0, created: 0, rows: [] },
+        leads: { linked: 0, created: 0, rows: [] },
+      };
+      // Real, in-memory tracking for dry-run accuracy: without an
+      // actual write, a second row sharing a name with an earlier one
+      // in this same pass couldn't find it via a real query - this
+      // would wrongly preview both as separate new people instead of
+      // correctly linked. Populated from both real, existing people
+      // rows and any names this same dry run would create.
+      const wouldBeCreated = new Map<string, number>();
+
+      for (const table of ["customers", "characters", "leads"] as const) {
+        const rows = await env.OFFICE_DB.prepare(`SELECT id, name FROM ${table} WHERE person_id IS NULL`).all<{ id: number; name: string }>();
+        for (const row of rows.results) {
+          if (!row.name || !row.name.trim()) continue;
+          const nameKey = row.name.trim().toLowerCase();
+          const existing = await env.OFFICE_DB.prepare("SELECT id FROM people WHERE name = ? COLLATE NOCASE").bind(row.name).first<{ id: number }>();
+          let personId: number;
+          let action: string;
+          if (existing) {
+            personId = existing.id;
+            action = "linked-to-existing-person";
+            summary[table].linked++;
+          } else if (wouldBeCreated.has(nameKey)) {
+            personId = wouldBeCreated.get(nameKey)!;
+            action = "linked-to-existing-person";
+            summary[table].linked++;
+          } else {
+            if (commit) {
+              const inserted = await env.OFFICE_DB.prepare("INSERT INTO people (name) VALUES (?) RETURNING id").bind(row.name).first<{ id: number }>();
+              personId = inserted!.id;
+            } else {
+              personId = -1; // real placeholder in dry-run - nothing actually created yet
+            }
+            wouldBeCreated.set(nameKey, personId);
+            action = "new-person-created";
+            summary[table].created++;
+          }
+          summary[table].rows.push({ id: row.id, name: row.name, action });
+          if (commit) {
+            await env.OFFICE_DB.prepare(`UPDATE ${table} SET person_id = ? WHERE id = ?`).bind(personId, row.id).run();
+          }
+        }
+      }
+
+      return Response.json({ commit, summary });
+    }
+
     if (url.pathname === "/debug/person-match-test" && request.method === "GET") {
       const name = url.searchParams.get("name");
       if (!name) {
