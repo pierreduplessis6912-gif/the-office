@@ -4051,6 +4051,32 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // Real, simple, direct way to find every flagged record later,
     // per direct instruction that this needs to persist rather than
     // be lost to a one-time API response.
+    // Real, live schema audit, per direct instruction to continue the
+    // capture_id audit - checks the actual, current database schema
+    // via SQLite's own PRAGMA table_info, not static code, since many
+    // real columns (leads.capture_id itself, tonight) were added via
+    // separate ALTER TABLE migrations that the original CREATE TABLE
+    // statements no longer reflect. Read-only.
+    if (url.pathname === "/debug/capture-id-audit" && request.method === "GET") {
+      const tables = [
+        "tasks", "expenses", "character_facts", "projects", "purchase_orders",
+        "goods_received_notes", "variance_dispositions", "stock_usage_log",
+        "stocktakes", "snags", "leads", "supplier_payments", "supplier_invoices",
+        "job_scopes", "invoices", "quotations",
+      ];
+      const results: Record<string, { hasCaptureId: boolean; columns: string[] }> = {};
+      for (const table of tables) {
+        try {
+          const info = await env.OFFICE_DB.prepare(`PRAGMA table_info(${table})`).all<{ name: string }>();
+          const columns = info.results.map((c) => c.name);
+          results[table] = { hasCaptureId: columns.includes("capture_id"), columns };
+        } catch (err) {
+          results[table] = { hasCaptureId: false, columns: [`error: ${err instanceof Error ? err.message : String(err)}`] };
+        }
+      }
+      return Response.json(results);
+    }
+
     if (url.pathname === "/debug/people-needing-review" && request.method === "GET") {
       const rows = await env.OFFICE_DB.prepare("SELECT id, name FROM people WHERE needs_merge_review = 1 ORDER BY name").all<{ id: number; name: string }>();
       return Response.json({ count: rows.results.length, people: rows.results });
