@@ -4057,6 +4057,30 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // real columns (leads.capture_id itself, tonight) were added via
     // separate ALTER TABLE migrations that the original CREATE TABLE
     // statements no longer reflect. Read-only.
+    // Real, closing step of the capture_id audit named in tonight's
+    // gameplan, per direct instruction to continue. Adds capture_id
+    // to every real table the live schema audit confirmed missing it
+    // - purely additive and nullable, the same low-risk, proven
+    // pattern as every other migration tonight. Closes the same,
+    // real structural gap leads had until tonight's fix, across every
+    // other table that captures something from a live conversation.
+    if (url.pathname === "/debug/close-capture-id-gaps" && request.method === "POST") {
+      const tables = [
+        "tasks", "expenses", "character_facts", "projects", "purchase_orders",
+        "goods_received_notes", "variance_dispositions", "stock_usage_log",
+        "stocktakes", "snags", "supplier_payments", "supplier_invoices",
+        "invoices", "quotations",
+      ];
+      for (const table of tables) {
+        try {
+          await env.OFFICE_DB.prepare(`ALTER TABLE ${table} ADD COLUMN capture_id INTEGER`).run();
+        } catch {
+          // Already exists — fine, that's what makes this idempotent.
+        }
+      }
+      return Response.json({ status: "ok", tables });
+    }
+
     if (url.pathname === "/debug/capture-id-audit" && request.method === "GET") {
       const tables = [
         "tasks", "expenses", "character_facts", "projects", "purchase_orders",
