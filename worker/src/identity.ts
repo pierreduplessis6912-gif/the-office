@@ -161,6 +161,27 @@ export async function reconcileCustomer(env: Env, spokenName: string): Promise<{
     return null;
   }
 
+  // Real, new shortcut, per direct instruction to continue wiring the
+  // identity layer into live reconciliation. Checked first: if the
+  // canonical people layer already has a confident match, genuinely
+  // linked to a real customer (via the backfill run tonight, or a
+  // future one), use it directly - the same, precise threshold
+  // already proven in reconcilePerson itself, now benefiting the
+  // exact function that caused tonight's most serious bug. Every
+  // other real case - no match, ambiguous, or a matched person not
+  // yet linked to any customer - falls through completely unchanged
+  // to the existing, proven logic below. Nothing about that logic is
+  // touched.
+  const personResult = await reconcilePerson(env, spokenName);
+  if (personResult?.status === "matched") {
+    const linkedCustomer = await env.OFFICE_DB.prepare("SELECT id, name FROM customers WHERE person_id = ? LIMIT 1")
+      .bind(personResult.id)
+      .first<{ id: number; name: string }>();
+    if (linkedCustomer) {
+      return { id: linkedCustomer.id, name: linkedCustomer.name, matched: true };
+    }
+  }
+
   const tokens = spokenName.trim().split(/\s+/);
 
   // If a full name (first + last) was given, the match must account
