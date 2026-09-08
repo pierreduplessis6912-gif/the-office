@@ -317,7 +317,17 @@ async function processOneExtraction(
     extraction?.query_scope !== "personal" &&
     extraction?.query_scope !== "material_price" &&
     !(extraction?.query_scope === "business" && !hasBackwardReference);
-  if (extraction?.intent === "lookup" && !customer && !character && scopeCouldBeEntity) {
+  // Real, precise fix, found live: a real, explicit name that was
+  // genuinely given but honestly not found (findExistingCustomerByName
+  // correctly returning nothing for someone who isn't yet a customer)
+  // was being treated identically to a vague, nameless follow-up -
+  // "!customer && !character" is true either way, with nothing asking
+  // why. That silently fell back to the register's stale selection
+  // instead of the honest, correct "not on file" answer. The register
+  // exists for exactly one real case - a message with no name at all
+  // - never for a name that was given and genuinely didn't match.
+  const noNameWasGiven = !extraction?.customer_name && !extraction?.character_name;
+  if (extraction?.intent === "lookup" && !customer && !character && scopeCouldBeEntity && noNameWasGiven) {
     // Register first — rung 1 of the Execution Ladder, zero AI calls.
     // Peter's own words already established this selection on a prior
     // turn ("show me Jenny"); a later vague reference ("show me the
