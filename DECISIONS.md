@@ -5109,3 +5109,53 @@ rather than disappearing into a one-time API response.
 **Committed successfully. Zero wrong merges — the one measurable this
 entire effort was built to guarantee.**
 
+---
+
+## A third, distinct register-staleness bug — found by direct insight, not by chasing the code
+
+**Real sequence that broke:** "What does Alfons owe us?" (correctly
+answered, R8150) → "Does Andre owe us anything?" → answered with
+Alfons's real facts again, though worded honestly enough to notice
+its own mismatch: "I don't have that on file, the information I have
+is for Alfons."
+
+**The real, key insight belongs to Pierre, not to chasing the
+identity code.** Directed straight at the actual cause: "look in the
+cache or persistent conversation section." That one line pointed
+past two real, plausible but wrong theories tonight (a bad match in
+the new `reconcilePerson` shortcut; the older register-staleness fix
+from earlier not covering this case) — both checked and ruled out
+directly, not assumed — to the real, third, distinct cause.
+
+**Confirmed: for a `lookup` intent, `reconcileCustomer` is never
+even called — a separate, read-only function, `findExistingCustomerByName`,
+is used instead**, and correctly, honestly returned no match for
+Andre. The real bug was one level up: the register-check that runs
+afterward only asked "is `customer` still unset," never "why." A
+real name that was genuinely given and honestly didn't match was
+being treated identically to a vague, nameless follow-up — both
+leave `customer` unset — and silently fell through to the register's
+stale selection instead of the honest "not on file" answer. The
+earlier, same-night `containsBackwardReference` fix didn't cover this
+either, since it was deliberately scoped only to `query_scope ===
+"business"`; this case's scope was `"customer"`, never touched by it.
+
+**Fixed with one, real, precise addition: the register only fires
+when no real name was given in the message at all.** Traced against
+every already-proven case tonight before pushing — the ProSupply
+follow-up, "who owes me money," a genuine vague "his address" — all
+have no real name extracted, so none were at risk; only the new case
+(a real name given, honestly unmatched) changes. Confirmed live,
+twice: the exact, original failure now answers honestly with no
+mention of Alfons; and immediately after, a genuinely vague follow-up
+("what's his address") still correctly resolves through the register,
+unaffected.
+
+**Real, honest pattern worth naming for whatever comes next:** three
+separate, distinct bugs tonight all trace back to the same, single
+mechanism — a name-check that only asks "do I have an answer" without
+asking "do I actually have grounds to be confident in it." Worth
+remembering as its own, real principle the next time a lookup falls
+back to something plausible-looking, not just for the register
+specifically.
+
