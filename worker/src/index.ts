@@ -893,6 +893,58 @@ async function processOneExtraction(
         const installer = await reconcileCharacter(env, observation.installer_name, "installer");
         installerId = installer?.id ?? null;
       }
+
+      // Real, new check, per direct instruction after a real, confirmed
+      // bug: recordWorkObservation always creates a new job scope
+      // unconditionally — it was never asked whether this message is
+      // actually describing a change to a job that already exists for
+      // this same customer. Reuses findLatestJobScope exactly as-is —
+      // the same real, deterministic transcript-matching already
+      // proven for pricing (2026-07-22), not a new invented mechanism.
+      // Deliberately narrow, grounded in the real case that exposed
+      // this: only checked when this message has no new components or
+      // tasks of its own — a genuinely new job almost always comes
+      // with real measurements attached; a message that's purely a
+      // date/installer change, with nothing new being measured, is
+      // the actual real signal. Only ever a second opinion, held for a
+      // human to confirm — never auto-applied, same guard() discipline
+      // as every other consequential write tonight.
+      if (observation.components.length === 0 && observation.tasks.length === 0 && (observation.scheduled_date_raw || installerId !== null)) {
+        const existingJobScope = await findLatestJobScope(env, customer.id, transcript);
+        if (existingJobScope) {
+          const currentFields = await env.OFFICE_DB.prepare(
+            "SELECT scheduled_date_raw, installer_id FROM job_scopes WHERE id = ?"
+          )
+            .bind(existingJobScope.id)
+            .first<{ scheduled_date_raw: string | null; installer_id: number | null }>();
+
+          const changes: Array<{ field: string; oldValue: string | null; newValue: string | null }> = [];
+          if (observation.scheduled_date_raw) {
+            changes.push({ field: "scheduled_date_raw", oldValue: currentFields?.scheduled_date_raw ?? null, newValue: observation.scheduled_date_raw });
+          }
+          if (installerId !== null && installerId !== currentFields?.installer_id) {
+            changes.push({ field: "installer_id", oldValue: currentFields?.installer_id != null ? String(currentFields.installer_id) : null, newValue: String(installerId) });
+          }
+
+          if (changes.length > 0) {
+            const held = await holdForConfirmation(
+              env,
+              "job_scope_amendment",
+              { jobScopeId: existingJobScope.id, jobScopeDescription: existingJobScope.description, changes, customerId: customer.id, observation, installerId, transcript, captureId },
+              transcript
+            );
+            return {
+              customer,
+              character,
+              pendingActionId: held.id,
+              factPendingActionId: null,
+              message: `This sounds like a change to job scope #${existingJobScope.id} ("${existingJobScope.description}") — update it, or create this as a separate new job? (action #${held.id})`,
+              jobScopeIdForProjectResolution: null,
+            };
+          }
+        }
+      }
+
       const recorded = await recordWorkObservation(env, customer.id, observation, transcript, installerId, captureId);
       workObservationResult = {
         jobScopeId: recorded.jobScopeId,
@@ -4421,6 +4473,45 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ jobScopes: enriched });
     }
 
+    // Real, new migration, per direct instruction, matching the same
+    // idempotent CREATE TABLE IF NOT EXISTS pattern already proven all
+    // night. job_scopes itself stays "current truth" — every real
+    // field-level change lives here permanently instead, tied to the
+    // exact capture that caused it, per the amendment design just
+    // logic'd out and now being built.
+    if (url.pathname === "/debug/init-job-scope-amendments" && request.method === "POST") {
+      try {
+        await env.OFFICE_DB.prepare(
+          `CREATE TABLE IF NOT EXISTS job_scope_amendments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_scope_id INTEGER NOT NULL,
+            capture_id INTEGER,
+            field_name TEXT NOT NULL,
+            old_value TEXT,
+            new_value TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+          )`
+        ).run();
+      } catch {
+        // Already exists — fine, that's what makes this idempotent.
+      }
+      return Response.json({ status: "ok" });
+    }
+
+    // Real, read-only counterpart to the amendment log above — added
+    // before any real amendment has happened, same "test before
+    // trusting" discipline as interaction-edges' own read endpoint.
+    if (url.pathname === "/debug/job-scope-amendments" && request.method === "GET") {
+      const { results } = await env.OFFICE_DB.prepare(
+        `SELECT a.id, a.job_scope_id, js.description as job_scope_description, a.capture_id,
+                a.field_name, a.old_value, a.new_value, a.created_at
+         FROM job_scope_amendments a
+         LEFT JOIN job_scopes js ON js.id = a.job_scope_id
+         ORDER BY a.created_at DESC LIMIT 50`
+      ).all();
+      return Response.json({ count: results.length, amendments: results });
+    }
+
     // The actual calendar query — real, queryable dates, no cron
     // snapshot, no pre-computed briefing. Computed live, on request,
     // same "smallest honest version" discipline already applied to
@@ -4841,6 +4932,56 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             reprocessEmail
           );
           return Response.json({ status: "confirmed", linkedToPersonId: chosenPersonId, ...outcome });
+        }
+
+        // Real, new handler, per direct instruction: "yes, update the
+        // existing job" writes one real, permanent audit row per
+        // field that actually changes — job_scope_id, capture_id,
+        // field_name, old_value, new_value — before touching
+        // job_scopes itself, so the full real history survives
+        // regardless of what happens next. Only ever the two real
+        // fields that have actually come up so far (scheduled_date/
+        // scheduled_date_raw, installer_id) — no speculative fields
+        // for changes that haven't happened yet.
+        if (action.type === "job_scope_amendment") {
+          const payload = JSON.parse(action.payload) as {
+            jobScopeId: number;
+            jobScopeDescription: string;
+            changes: Array<{ field: string; oldValue: string | null; newValue: string | null }>;
+            customerId: number;
+            observation: WorkObservationExtraction;
+            installerId: number | null;
+            transcript: string;
+            captureId: number | null;
+          };
+
+          for (const change of payload.changes) {
+            await env.OFFICE_DB.prepare(
+              "INSERT INTO job_scope_amendments (job_scope_id, capture_id, field_name, old_value, new_value) VALUES (?, ?, ?, ?, ?)"
+            )
+              .bind(payload.jobScopeId, payload.captureId, change.field, change.oldValue, change.newValue)
+              .run();
+          }
+
+          if (payload.observation.scheduled_date_raw) {
+            const scheduledDate = resolveScheduledDate(payload.observation.scheduled_date_raw, nowInBusinessTimezone());
+            await env.OFFICE_DB.prepare("UPDATE job_scopes SET scheduled_date_raw = ?, scheduled_date = ? WHERE id = ?")
+              .bind(payload.observation.scheduled_date_raw, scheduledDate, payload.jobScopeId)
+              .run();
+          }
+          if (payload.installerId !== null) {
+            await env.OFFICE_DB.prepare("UPDATE job_scopes SET installer_id = ? WHERE id = ?")
+              .bind(payload.installerId, payload.jobScopeId)
+              .run();
+          }
+
+          await env.OFFICE_DB.prepare(
+            "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+          )
+            .bind(id)
+            .run();
+
+          return Response.json({ status: "confirmed", amendedJobScopeId: payload.jobScopeId, changes: payload.changes });
         }
 
         // Real feature 2026-07-25 — Layer 2 (Project), the
@@ -5274,6 +5415,38 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           reprocessEmail
         );
         return Response.json({ status: "rejected_as_new_person", newPersonId, ...outcome });
+      }
+
+      // Real, new branch, per direct instruction: "no, it's a separate
+      // new job" must actually create that job — exactly what would
+      // have happened had the amendment check never fired — not just
+      // discard the real content of the message the way this
+      // action type's reject would otherwise do.
+      if (action && action.status === "pending" && action.type === "job_scope_amendment") {
+        const payload = JSON.parse(action.payload) as {
+          customerId: number;
+          observation: WorkObservationExtraction;
+          installerId: number | null;
+          transcript: string;
+          captureId: number | null;
+        };
+
+        const recorded = await recordWorkObservation(
+          env,
+          payload.customerId,
+          payload.observation,
+          payload.transcript,
+          payload.installerId,
+          payload.captureId
+        );
+
+        await env.OFFICE_DB.prepare(
+          "UPDATE pending_actions SET status = 'rejected', resolved_at = datetime('now') WHERE id = ?"
+        )
+          .bind(id)
+          .run();
+
+        return Response.json({ status: "rejected_as_new_job", newJobScopeId: recorded.jobScopeId });
       }
 
       await env.OFFICE_DB.prepare(
