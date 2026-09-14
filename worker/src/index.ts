@@ -1,6 +1,6 @@
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult } from "./types";
 import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, classifyDashboardIntent, containsBackwardReference, describeImage, embedText, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractSupplierStatement, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, splitIntoTopics, storeUnscopedMemory, transcribe } from "./ai";
-import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, reconcilePerson, setSelection } from "./identity";
+import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, logInteractionEdge, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, reconcilePerson, setSelection } from "./identity";
 import { attachToSiblingJobScope, completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveScheduledDate, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
 import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
@@ -377,6 +377,16 @@ async function processOneExtraction(
   if (captureId !== null) {
     const hint = customer?.name ?? character?.name ?? null;
     ctx.waitUntil(updateCaptureHint(env, captureId, hint, customer?.id ?? null, character?.id ?? null));
+  }
+
+  // RELATIONAL_IDENTITY_ARCHITECTURE.md Stage 1 — passive logging
+  // only, zero behavior change. The one real, unambiguous relation
+  // available at this exact point: a customer and a character were
+  // both named in the same real capture. Nothing here reads this
+  // signal back yet — Stage 2 (the ambiguous-case tiebreaker) is a
+  // separate, later addition, not wired in by this change.
+  if (captureId !== null && customer && character) {
+    ctx.waitUntil(logInteractionEdge(env, "customer", customer.id, "character", character.id, "co_captured", captureId));
   }
 
   // Real feature 2026-07-17 — extending Principle 26 to the write
@@ -4498,6 +4508,35 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     if (url.pathname === "/debug/init-leads-capture-id" && request.method === "POST") {
       try {
         await env.OFFICE_DB.prepare("ALTER TABLE leads ADD COLUMN capture_id INTEGER").run();
+      } catch {
+        // Already exists — fine, that's what makes this idempotent.
+      }
+      return Response.json({ status: "ok" });
+    }
+
+    // Real, first, deliberately narrow step of
+    // RELATIONAL_IDENTITY_ARCHITECTURE.md, per direct instruction to
+    // start building it. Stage 1 only — purely additive, creates a
+    // new, empty interaction_edges table. Nothing existing is
+    // touched, read, or altered by this step, the same safe migration
+    // discipline already proven all night on the identity layer
+    // itself. Not linked to any reconciliation decision yet — see
+    // logInteractionEdge's own comment in identity.ts for why it's
+    // deliberately entity-type/id based rather than person_id based.
+    if (url.pathname === "/debug/init-interaction-edges" && request.method === "POST") {
+      try {
+        await env.OFFICE_DB.prepare(
+          `CREATE TABLE IF NOT EXISTS interaction_edges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            capture_id INTEGER,
+            entity_type_a TEXT NOT NULL,
+            entity_id_a INTEGER NOT NULL,
+            entity_type_b TEXT NOT NULL,
+            entity_id_b INTEGER NOT NULL,
+            relation_type TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+          )`
+        ).run();
       } catch {
         // Already exists — fine, that's what makes this idempotent.
       }
