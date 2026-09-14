@@ -5159,3 +5159,45 @@ remembering as its own, real principle the next time a lookup falls
 back to something plausible-looking, not just for the register
 specifically.
 
+
+---
+
+## Relational Identity Architecture pinned — a second, auxiliary signal for the genuinely ambiguous cases
+
+**The real, honest starting point:** the six people still sitting at
+`/debug/people-needing-review` aren't a backlog problem — they're
+proof that `reconcilePerson`'s string-threshold matching has a real
+ceiling. It resolves identity from a name alone. It was never going
+to responsibly resolve two genuinely ambiguous names on its own, and
+it shouldn't be pushed to.
+
+**The real insight, arrived at by thinking through the problem out
+loud rather than by staring at the schema:** a person isn't just a
+name — they're a position in a real web of who they've talked to,
+which jobs they've touched, and when. Two independent conversations
+that keep circling the same job, the same referral chain, the same
+time-of-day pattern are real evidence of identity, separate from and
+complementary to a matching string. `RELATIONAL_IDENTITY_ARCHITECTURE.md`
+pins this as a genuinely new, staged layer: passive edge-logging
+first with zero behavior change, then a tiebreaker consulted only in
+the exact ambiguous zone `reconcilePerson` already can't resolve
+alone, then Vectorize-based shape-matching named honestly as a later,
+separate stretch — Vectorize already sits in this stack, provisioned
+and mostly unused for this.
+
+**The real, deliberate boundary drawn before any of this gets built:**
+it was tempting, in thinking this through, to imagine a system that
+eventually recognizes its own emergent patterns and lets that
+recognition become a new category on its own authority. Named
+directly and rejected: that's functionally identical to letting AI
+invent a business fact instead of routing to a deterministic one —
+the exact thing the AI-routes-it-doesn't-decide principle exists to
+prevent. Any future capability that proposes a new relational
+category still goes through the same human-confirmation gate as every
+other consequential write in this system, permanently, not as a
+placeholder for once the tech is better.
+
+**What stays true regardless of how far this goes:** `reconcilePerson`
+keeps its current authority untouched. The new layer only ever adds a
+second opinion in the cases it's already honest about not being sure
+of — it never gets to auto-merge anything by itself.
