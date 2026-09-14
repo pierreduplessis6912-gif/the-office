@@ -5201,3 +5201,19 @@ placeholder for once the tech is better.
 keeps its current authority untouched. The new layer only ever adds a
 second opinion in the cases it's already honest about not being sure
 of — it never gets to auto-merge anything by itself.
+
+---
+
+## The real transcription source found — and the fix that actually followed from it
+
+**The real, honest starting point, again:** the interaction_edges test earlier tonight produced "Sipo," "sipo," and "Sepo" as three separate people, all really meaning the same real installer already on file as "Sipho." The instinct was to look at server-side Whisper first — reasonable, since that's the transcription code visible in `ai.ts`.
+
+**Real, direct check before building anything: no audio from tonight was ever in R2.** `/debug/list-audio`'s most recent file was from 2026-08-14, a month old. That's real, confirmed evidence — not a guess — that tonight's messages went through `/messages/text`, which takes plain text directly and never touches `transcribe()` or Whisper at all. Traced further, directly: `app/lib/main.dart` calls the on-device `speech_to_text` package's `listen()`, with no `localeId` and no other option set, and posts the recognized text straight to `/messages/text`. The actual source of tonight's confusion was the phone's own on-device recognizer, a genuinely different system from anything in the Worker.
+
+**Checked directly before concluding anything: `speech_to_text`'s own public API (`SpeechListenOptions`) has no vocabulary or biasing option at all** — only `cancelOnError`, `partialResults`, `onDevice`, `listenMode`, `sampleRate`, `autoPunctuation`, `enableHapticFeedback`. That real gate closed, not assumed closed.
+
+**The real fix that followed: a phonetic pass, verified by hand before writing a line of code.** Standard Soundex encodes "Sipho," "Sipo," and "Sepo" all to `S100` — the exact real cluster from tonight. Checked directly against the earlier, real Andre/Juandre bug before trusting this: those encode to `A536` and `J536` — different first letters, genuinely different codes, so this addition cannot reopen that fix. Wired into `reconcilePerson`'s existing final fallback, reached only when no exact or whole-word match exists — and, same as every other real candidate list in that function, a phonetic hit never auto-matches. It only ever returns `ambiguous`, which — because of the holdForConfirmation wiring from earlier tonight — now correctly asks instead of silently creating another duplicate.
+
+**Real, honest limit worth keeping on record:** Soundex won't save the worst case from tonight — "Cpol" is too far a phonetic stretch from "Sipho" for any string-based technique to bridge. That's real evidence the on-device recognizer can still produce something no downstream fix will catch; worth remembering the next time a name lands unrecognizably wrong rather than just oddly wrong.
+
+**Also built alongside this, real and separate:** `/debug/reprocess-turbo`, a read-only comparison between the live base Whisper model and `whisper-large-v3-turbo` + a real `initial_prompt` built from this business's actual known names. Confirmed same price either way ($0.0005/audio minute, same shared free daily neuron pool everything else already draws from). Still untested against a real recording as of this entry — it defends the separate, real `/files/audio` "Talk mode" path, not tonight's actual bug, and shouldn't be mistaken for having fixed tonight's issue.
