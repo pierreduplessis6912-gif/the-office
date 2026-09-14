@@ -376,6 +376,41 @@ export async function findExistingEntityByName(
   return null;
 }
 
+// Real, first, deliberately narrow step of
+// RELATIONAL_IDENTITY_ARCHITECTURE.md — Stage 1 only. Passive
+// logging, zero behavior change. Records that two entities were
+// named together in the same real capture — nothing stronger is
+// claimed than that. Deliberately does not require either side to
+// already be linked to the canonical `people` table via person_id:
+// requiring that would be circular, since resolving an ambiguous
+// person is exactly the problem this signal exists to help with
+// later, in a Stage 2 not yet wired in. Fire-and-forget by design
+// (see call site) — a failure here must never be able to affect
+// reconciliation, which stays entirely unchanged by this addition.
+export async function logInteractionEdge(
+  env: Env,
+  entityTypeA: "customer" | "character" | "lead",
+  entityIdA: number,
+  entityTypeB: "customer" | "character" | "lead",
+  entityIdB: number,
+  relationType: string,
+  captureId: number | null
+): Promise<void> {
+  try {
+    await env.OFFICE_DB.prepare(
+      `INSERT INTO interaction_edges
+        (capture_id, entity_type_a, entity_id_a, entity_type_b, entity_id_b, relation_type, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`
+    )
+      .bind(captureId, entityTypeA, entityIdA, entityTypeB, entityIdB, relationType)
+      .run();
+  } catch {
+    // Real, deliberate swallow — this is a passive, auxiliary signal
+    // per RELATIONAL_IDENTITY_ARCHITECTURE.md's own explicit ordering.
+    // Nothing about reconciliation may ever depend on this succeeding.
+  }
+}
+
 // The execution register — rung 1 of the Execution Ladder (see
 // OFFICE_CONSTITUTION.md). Peter's own words ARE the selection event,
 // the same way a click is in a desktop UI: "show me Jenny" makes
