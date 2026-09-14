@@ -24,6 +24,46 @@ function wholeWordBindings(token: string): [string, string, string, string] {
   return [token, `${token} %`, `% ${token}`, `% ${token} %`];
 }
 
+// Real, deterministic phonetic pass, per direct instruction after a
+// real, confirmed bug: the on-device speech recognizer (the app's
+// speech_to_text package, confirmed to have no vocabulary/biasing
+// option in its own public API) produced three different literal
+// strings for the same real spoken name across one session — "Sipo,"
+// "sipo," "Sepo" — none of which share a whole-word match with each
+// other or with the existing "Sipho" records. Standard Soundex,
+// verified by hand before writing this: "Sipho," "Sipo," and "Sepo"
+// all encode to S100 — the exact real cluster this needs to catch.
+// Confirmed NOT to reopen the earlier Andre/Juandre bug: those encode
+// to A536 and J536 respectively — different first letters, different
+// codes, so they stay correctly distinct. Deliberately never given
+// authority to auto-match on its own, only ever used as reconcilePerson's
+// last resort before returning "new" — same "hold and ask" discipline
+// as every other ambiguous case in this file.
+function soundex(name: string): string {
+  const cleaned = name.toUpperCase().replace(/[^A-Z]/g, "");
+  if (!cleaned) return "";
+  const codes: Record<string, string> = {
+    B: "1", F: "1", P: "1", V: "1",
+    C: "2", G: "2", J: "2", K: "2", Q: "2", S: "2", X: "2", Z: "2",
+    D: "3", T: "3",
+    L: "4",
+    M: "5", N: "5",
+    R: "6",
+  };
+  let result = cleaned[0];
+  let lastCode = codes[cleaned[0]] ?? "";
+  for (let i = 1; i < cleaned.length && result.length < 4; i++) {
+    const code = codes[cleaned[i]] ?? "";
+    if (code && code !== lastCode) {
+      result += code;
+    }
+    if (cleaned[i] !== "H" && cleaned[i] !== "W") {
+      lastCode = code;
+    }
+  }
+  return (result + "000").slice(0, 4);
+}
+
 // Crude first-pass reconciliation: match on the first token of the
 // spoken name (usually the first name) against existing customers.
 // Pronouns and other generic words are not names — reconciliation
@@ -120,6 +160,21 @@ export async function reconcilePerson(
     .all<{ id: number; name: string }>();
 
   if (weak.results.length === 0) {
+    // Real phonetic pass, reached only when no exact or whole-word
+    // match exists at all — see soundex()'s own comment above for the
+    // real, confirmed evidence behind this. A full scan computed in
+    // JS, not D1/SQLite's optional soundex() extension — the people
+    // table is small at this business's real current scale, and this
+    // avoids depending on an unconfirmed build-time extension. Never
+    // auto-matched — a phonetic hit only ever becomes "ambiguous" for
+    // a human to resolve, same as every other real candidate list in
+    // this function.
+    const allPeople = await env.OFFICE_DB.prepare("SELECT id, name FROM people").all<{ id: number; name: string }>();
+    const targetCode = soundex(firstToken);
+    const phoneticMatches = allPeople.results.filter((p) => soundex(p.name.trim().split(/\s+/)[0]) === targetCode);
+    if (phoneticMatches.length > 0) {
+      return { status: "ambiguous", candidates: phoneticMatches };
+    }
     return { status: "new" };
   }
   if (firstToken.length < 8) {
