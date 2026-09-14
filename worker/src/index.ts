@@ -1,5 +1,5 @@
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult } from "./types";
-import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, classifyDashboardIntent, containsBackwardReference, describeImage, embedText, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractSupplierStatement, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, splitIntoTopics, storeUnscopedMemory, transcribe } from "./ai";
+import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, classifyDashboardIntent, containsBackwardReference, describeImage, embedText, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractSupplierStatement, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, splitIntoTopics, storeUnscopedMemory, transcribe, transcribeWithNameHints } from "./ai";
 import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, logInteractionEdge, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, reconcilePerson, setSelection } from "./identity";
 import { attachToSiblingJobScope, completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveScheduledDate, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
@@ -242,6 +242,36 @@ async function processOneExtraction(
           jobScopeIdForProjectResolution: null,
         };
       }
+      // Real, deliberate wiring of the ambiguous branch reconcilePerson
+      // has always been able to return, per direct instruction — the
+      // exact "hold and ask" pattern already proven above for role
+      // collisions, extended here to genuinely ambiguous name matches
+      // (more than one real candidate on file). This is a second,
+      // separate call to reconcilePerson from the one reconcileCustomer
+      // makes internally as its own first shortcut — a real, accepted
+      // redundancy (one extra, cheap D1 read) rather than changing
+      // reconcileCustomer's return shape, which every other call site
+      // to it would then need to handle too. Only the "ambiguous"
+      // branch is acted on here; "matched," "new," and null all fall
+      // through to reconcileCustomer exactly as before, unchanged.
+      const personCheck = await reconcilePerson(env, extraction.customer_name);
+      if (personCheck?.status === "ambiguous") {
+        const candidateNames = personCheck.candidates.map((c) => c.name).join(", ");
+        const held = await holdForConfirmation(
+          env,
+          "ambiguous_person",
+          { name: extraction.customer_name, intendedRole: "customer", candidates: personCheck.candidates, extraction, transcript, captureId },
+          transcript
+        );
+        return {
+          customer: null,
+          character: null,
+          pendingActionId: held.id,
+          factPendingActionId: null,
+          message: `"${extraction.customer_name}" could be more than one person already on file (${candidateNames}) — which one is this? (action #${held.id})`,
+          jobScopeIdForProjectResolution: null,
+        };
+      }
       customer = await reconcileCustomer(env, extraction.customer_name);
     }
   }
@@ -267,6 +297,27 @@ async function processOneExtraction(
           pendingActionId: held.id,
           factPendingActionId: null,
           message: `${collision.name} is already on file as a ${collision.existingRole} — is this the same ${collision.name}, now acting as a ${extraction.character_relationship ?? "character"} too, or did you mean someone else? (action #${held.id})`,
+          jobScopeIdForProjectResolution: null,
+        };
+      }
+      // Same real wiring as the customer block above — see its comment
+      // for why this is a deliberate, accepted second reconcilePerson
+      // call rather than a change to reconcileCharacter's return shape.
+      const personCheck = await reconcilePerson(env, extraction.character_name);
+      if (personCheck?.status === "ambiguous") {
+        const candidateNames = personCheck.candidates.map((c) => c.name).join(", ");
+        const held = await holdForConfirmation(
+          env,
+          "ambiguous_person",
+          { name: extraction.character_name, intendedRole: "character", candidates: personCheck.candidates, extraction, transcript, captureId },
+          transcript
+        );
+        return {
+          customer: null,
+          character: null,
+          pendingActionId: held.id,
+          factPendingActionId: null,
+          message: `"${extraction.character_name}" could be more than one person already on file (${candidateNames}) — which one is this? (action #${held.id})`,
           jobScopeIdForProjectResolution: null,
         };
       }
@@ -1881,6 +1932,48 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       const processed = transcript ? await processTranscript(env, transcript, ctx, [], "voice", key) : null;
 
       return Response.json({ key, transcript, transcriptionError, ...processed });
+    }
+
+    // Real, read-only comparison, per direct instruction, before
+    // committing anything about the live transcription path. Never
+    // calls processTranscript — this must never be able to create or
+    // touch a real record, the same discipline findExistingEntityByName
+    // already follows for lookups. Runs the real, currently-live
+    // base model and the untested whisper-large-v3-turbo +
+    // initial_prompt path side by side against the same real, already-
+    // stored audio, so the two can be judged on real evidence rather
+    // than assumed. knownNames pulled fresh from D1 each call, not
+    // hardcoded — a real, current list, same discipline as everything
+    // else in this codebase that refuses to guess where a database
+    // already has the answer.
+    if (url.pathname === "/debug/reprocess-turbo" && request.method === "GET") {
+      const key = url.searchParams.get("key");
+      if (!key) return Response.json({ error: "missing ?key=" }, { status: 400 });
+      const object = await env.OFFICE_VAULT.get(key);
+      if (!object) return Response.json({ error: "key not found in R2" }, { status: 404 });
+      const audioBuffer = await object.arrayBuffer();
+
+      const [customerNames, characterNames] = await Promise.all([
+        env.OFFICE_DB.prepare("SELECT name FROM customers").all<{ name: string }>(),
+        env.OFFICE_DB.prepare("SELECT name FROM characters").all<{ name: string }>(),
+      ]);
+      const knownNames = [...customerNames.results.map((r) => r.name), ...characterNames.results.map((r) => r.name)];
+
+      const [baseline, hinted] = await Promise.all([
+        transcribe(env, audioBuffer),
+        transcribeWithNameHints(env, audioBuffer, knownNames),
+      ]);
+
+      return Response.json({
+        key,
+        knownNamesUsed: knownNames.length,
+        baseline: { model: "@cf/openai/whisper", transcript: baseline.transcript, error: baseline.transcriptionError },
+        hinted: {
+          model: "@cf/openai/whisper-large-v3-turbo",
+          transcript: hinted.transcript,
+          error: hinted.transcriptionError,
+        },
+      });
     }
 
     if (url.pathname === "/debug/search-memory" && request.method === "GET") {
