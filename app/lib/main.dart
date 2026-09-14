@@ -207,6 +207,18 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   // top of a separate audio upload.
   final _speech = stt.SpeechToText();
   String _lastPartialTranscript = '';
+  // Real fix for a real, confirmed bug, found live tonight through
+  // direct testing: the on-device recognizer can revise an earlier
+  // guess mid-utterance rather than extend it (see _onSpeechResult's
+  // own comment on this below), silently replacing an already-correct,
+  // complete transcript with a shorter one moments before it locks in
+  // and sends — confirmed by three separate real messages tonight all
+  // arriving at the server as just their trailing clause ("on Friday"
+  // twice, identically, for the same sentence spoken twice). Tracked
+  // separately from _lastPartialTranscript, which only ever reflects
+  // the CURRENT guess, so the longest thing the recognizer actually
+  // produced this utterance is never lost to a later, shorter revision.
+  String _longestTranscript = '';
   bool _finalizedThisUtterance = false;
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
@@ -786,7 +798,13 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         // double-send if that callback does also arrive.
         if (!_finalizedThisUtterance && _lastPartialTranscript.trim().isNotEmpty) {
           _finalizedThisUtterance = true;
-          _sendRecognizedText(_lastPartialTranscript.trim());
+          // Same real fix as _onSpeechResult's final-result path above
+          // — see _longestTranscript's declaration comment. A manual
+          // stop-tap can land right after a late, shorter revision too.
+          final best = _longestTranscript.trim().length > _lastPartialTranscript.trim().length
+              ? _longestTranscript.trim()
+              : _lastPartialTranscript.trim();
+          _sendRecognizedText(best);
         }
         return;
       }
@@ -805,6 +823,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       }
 
       _lastPartialTranscript = '';
+      _longestTranscript = '';
       _finalizedThisUtterance = false;
       _wordField.clear();
       setState(() => _isRecording = true);
@@ -834,6 +853,11 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   // from scratch on every callback.
   void _onSpeechResult(SpeechRecognitionResult result) {
     final full = result.recognizedWords;
+    // Real fix, tracked unconditionally on every callback, not just
+    // ones that differ from the last — see _longestTranscript's own
+    // declaration comment for the confirmed real bug this defends
+    // against.
+    if (full.length > _longestTranscript.length) _longestTranscript = full;
     if (full.isNotEmpty && full != _lastPartialTranscript) {
       if (full.length > _lastPartialTranscript.length && full.startsWith(_lastPartialTranscript)) {
         final delta = full.substring(_lastPartialTranscript.length).trim();
@@ -853,7 +877,15 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       _finalizedThisUtterance = true;
       setState(() => _isRecording = false);
       _officeState.transitionTo(OfficeState.idle);
-      _sendRecognizedText(full.trim());
+      // Real fix: send whichever is genuinely longer — the final
+      // result the recognizer just settled on, or the longest guess
+      // it produced at any point this utterance. A late revision
+      // that's SHORTER than something already seen is exactly the
+      // confirmed real bug this defends against; a final result
+      // that's genuinely longer (the recognizer correctly extending
+      // right at the end, the normal happy path) still wins as before.
+      final best = _longestTranscript.trim().length > full.trim().length ? _longestTranscript.trim() : full.trim();
+      _sendRecognizedText(best);
     }
   }
 
