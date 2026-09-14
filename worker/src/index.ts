@@ -242,35 +242,47 @@ async function processOneExtraction(
           jobScopeIdForProjectResolution: null,
         };
       }
-      // Real, deliberate wiring of the ambiguous branch reconcilePerson
-      // has always been able to return, per direct instruction — the
-      // exact "hold and ask" pattern already proven above for role
-      // collisions, extended here to genuinely ambiguous name matches
-      // (more than one real candidate on file). This is a second,
-      // separate call to reconcilePerson from the one reconcileCustomer
-      // makes internally as its own first shortcut — a real, accepted
-      // redundancy (one extra, cheap D1 read) rather than changing
-      // reconcileCustomer's return shape, which every other call site
-      // to it would then need to handle too. Only the "ambiguous"
-      // branch is acted on here; "matched," "new," and null all fall
-      // through to reconcileCustomer exactly as before, unchanged.
-      const personCheck = await reconcilePerson(env, extraction.customer_name);
-      if (personCheck?.status === "ambiguous") {
-        const candidateNames = personCheck.candidates.map((c) => c.name).join(", ");
-        const held = await holdForConfirmation(
-          env,
-          "ambiguous_person",
-          { name: extraction.customer_name, intendedRole: "customer", candidates: personCheck.candidates, extraction, transcript, captureId },
-          transcript
-        );
-        return {
-          customer: null,
-          character: null,
-          pendingActionId: held.id,
-          factPendingActionId: null,
-          message: `"${extraction.customer_name}" could be more than one person already on file (${candidateNames}) — which one is this? (action #${held.id})`,
-          jobScopeIdForProjectResolution: null,
-        };
+      // Real, deliberate guard, per direct instruction after a real,
+      // confirmed design gap found live: without this, a name that's
+      // already been resolved once (a real customer row genuinely
+      // exists under this exact spoken name) would still re-trigger
+      // this same ambiguous hold on every future mention, forever,
+      // since reconcilePerson checks `people`, never `customers`
+      // directly. Same discipline checkCrossRoleCollision already
+      // uses for its own case — only ever ask when this exact name
+      // genuinely doesn't already exist in its own intended table.
+      const alreadyKnownCustomer = extraction.customer_name
+        ? await env.OFFICE_DB.prepare("SELECT id FROM customers WHERE name = ? COLLATE NOCASE").bind(extraction.customer_name).first()
+        : null;
+      if (!alreadyKnownCustomer) {
+        const personCheck = await reconcilePerson(env, extraction.customer_name);
+        if (personCheck?.status === "ambiguous") {
+          const held = await holdForConfirmation(
+            env,
+            "ambiguous_person",
+            { name: extraction.customer_name, intendedRole: "customer", candidates: personCheck.candidates, extraction, transcript, captureId },
+            transcript
+          );
+          // Real, honest split, per direct instruction after a real
+          // UX bug: a single real candidate is genuinely a yes/no
+          // question — CONFIRM and REJECT can answer it correctly.
+          // Two or more is genuinely multiple-choice, and this app has
+          // no picker UI for that anywhere yet (project_ambiguity has
+          // the same real, unbuilt gap) — said honestly here rather
+          // than offering a confirm button that can't work yet.
+          const message =
+            personCheck.candidates.length === 1
+              ? `"${extraction.customer_name}" sounds like an existing customer, "${personCheck.candidates[0].name}" — is this the same one? (action #${held.id})`
+              : `"${extraction.customer_name}" could be more than one person already on file (${personCheck.candidates.map((c) => c.name).join(", ")}) — this needs manual resolution for now, there's no picker for more than one option yet (action #${held.id})`;
+          return {
+            customer: null,
+            character: null,
+            pendingActionId: held.id,
+            factPendingActionId: null,
+            message,
+            jobScopeIdForProjectResolution: null,
+          };
+        }
       }
       customer = await reconcileCustomer(env, extraction.customer_name);
     }
@@ -300,26 +312,33 @@ async function processOneExtraction(
           jobScopeIdForProjectResolution: null,
         };
       }
-      // Same real wiring as the customer block above — see its comment
-      // for why this is a deliberate, accepted second reconcilePerson
-      // call rather than a change to reconcileCharacter's return shape.
-      const personCheck = await reconcilePerson(env, extraction.character_name);
-      if (personCheck?.status === "ambiguous") {
-        const candidateNames = personCheck.candidates.map((c) => c.name).join(", ");
-        const held = await holdForConfirmation(
-          env,
-          "ambiguous_person",
-          { name: extraction.character_name, intendedRole: "character", candidates: personCheck.candidates, extraction, transcript, captureId },
-          transcript
-        );
-        return {
-          customer: null,
-          character: null,
-          pendingActionId: held.id,
-          factPendingActionId: null,
-          message: `"${extraction.character_name}" could be more than one person already on file (${candidateNames}) — which one is this? (action #${held.id})`,
-          jobScopeIdForProjectResolution: null,
-        };
+      // Same real guard and honest single/multi-candidate split as the
+      // customer block above — see its comment for the full reasoning.
+      const alreadyKnownCharacter = extraction.character_name
+        ? await env.OFFICE_DB.prepare("SELECT id FROM characters WHERE name = ? COLLATE NOCASE").bind(extraction.character_name).first()
+        : null;
+      if (!alreadyKnownCharacter) {
+        const personCheck = await reconcilePerson(env, extraction.character_name);
+        if (personCheck?.status === "ambiguous") {
+          const held = await holdForConfirmation(
+            env,
+            "ambiguous_person",
+            { name: extraction.character_name, intendedRole: "character", candidates: personCheck.candidates, extraction, transcript, captureId },
+            transcript
+          );
+          const message =
+            personCheck.candidates.length === 1
+              ? `"${extraction.character_name}" sounds like an existing person, "${personCheck.candidates[0].name}" — is this the same one? (action #${held.id})`
+              : `"${extraction.character_name}" could be more than one person already on file (${personCheck.candidates.map((c) => c.name).join(", ")}) — this needs manual resolution for now, there's no picker for more than one option yet (action #${held.id})`;
+          return {
+            customer: null,
+            character: null,
+            pendingActionId: held.id,
+            factPendingActionId: null,
+            message,
+            jobScopeIdForProjectResolution: null,
+          };
+        }
       }
       character = await reconcileCharacter(env, extraction.character_name, extraction.character_relationship);
     }
@@ -4766,6 +4785,64 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           return Response.json({ status: "confirmed", ...outcome });
         }
 
+        // Real, new handler, per direct instruction after a real,
+        // live UX bug: the message asks a genuine yes/no question
+        // only when there's exactly one real candidate — enforced
+        // here too, not just at hold-time, since a request could
+        // still arrive for a genuinely multi-candidate action this
+        // app has no picker UI for yet (same real gap project_ambiguity
+        // already has). "Yes, same person" means creating a real, new
+        // row under the AS-SPOKEN name, linked to the confirmed
+        // person's id — the same real pattern identity_collision
+        // already uses above, so this exact spoken name resolves by
+        // literal match on every future mention, without ever
+        // re-triggering this same ambiguous check again.
+        if (action.type === "ambiguous_person") {
+          const payload = JSON.parse(action.payload) as {
+            name: string;
+            intendedRole: "customer" | "character";
+            candidates: Array<{ id: number; name: string }>;
+            extraction: Extraction;
+            transcript: string;
+            captureId: number | null;
+          };
+
+          if (payload.candidates.length !== 1) {
+            return Response.json(
+              { error: "This action has more than one real candidate — there's no picker for that yet, resolve it manually for now." },
+              { status: 400 }
+            );
+          }
+
+          const chosenPersonId = payload.candidates[0].id;
+          if (payload.intendedRole === "customer") {
+            await env.OFFICE_DB.prepare("INSERT INTO customers (name, person_id) VALUES (?, ?)").bind(payload.name, chosenPersonId).run();
+          } else {
+            await env.OFFICE_DB.prepare("INSERT INTO characters (name, relationship, person_id) VALUES (?, ?, ?)")
+              .bind(payload.name, payload.extraction.character_relationship ?? null, chosenPersonId)
+              .run();
+          }
+
+          await env.OFFICE_DB.prepare(
+            "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+          )
+            .bind(id)
+            .run();
+
+          const { capabilities: reprocessCapabilities, email: reprocessEmail } = await resolveCapabilities(request, env);
+          const outcome = await processOneExtraction(
+            env,
+            payload.transcript,
+            payload.extraction,
+            [],
+            ctx,
+            payload.captureId,
+            reprocessCapabilities,
+            reprocessEmail
+          );
+          return Response.json({ status: "confirmed", linkedToPersonId: chosenPersonId, ...outcome });
+        }
+
         // Real feature 2026-07-25 — Layer 2 (Project), the
         // ask-when-2-plus rung. Unlike every other confirmation in
         // this project, this one genuinely needs a choice among
@@ -5142,6 +5219,63 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
 
     if (url.pathname.match(/^\/actions\/\d+\/reject$/) && request.method === "POST") {
       const id = Number(url.pathname.split("/")[2]);
+
+      // Real, deliberate difference from every other action type's
+      // reject, per direct instruction after a real, live UX bug:
+      // "no, it's a different person" must still complete the real
+      // message it came from — discarding it entirely, this action
+      // type's only behavior until now, would silently lose "Sepo
+      // doing the install" along with the identity question, not just
+      // decline the match. Every other action type keeps the real,
+      // original discard-only behavior below, unchanged.
+      const action = await env.OFFICE_DB.prepare(
+        "SELECT id, type, payload, status FROM pending_actions WHERE id = ?"
+      )
+        .bind(id)
+        .first<{ id: number; type: string; payload: string; status: string }>();
+
+      if (action && action.status === "pending" && action.type === "ambiguous_person") {
+        const payload = JSON.parse(action.payload) as {
+          name: string;
+          intendedRole: "customer" | "character";
+          extraction: Extraction;
+          transcript: string;
+          captureId: number | null;
+        };
+
+        const insertedPerson = await env.OFFICE_DB.prepare("INSERT INTO people (name) VALUES (?) RETURNING id")
+          .bind(payload.name)
+          .first<{ id: number }>();
+        const newPersonId = insertedPerson!.id;
+
+        if (payload.intendedRole === "customer") {
+          await env.OFFICE_DB.prepare("INSERT INTO customers (name, person_id) VALUES (?, ?)").bind(payload.name, newPersonId).run();
+        } else {
+          await env.OFFICE_DB.prepare("INSERT INTO characters (name, relationship, person_id) VALUES (?, ?, ?)")
+            .bind(payload.name, payload.extraction.character_relationship ?? null, newPersonId)
+            .run();
+        }
+
+        await env.OFFICE_DB.prepare(
+          "UPDATE pending_actions SET status = 'rejected', resolved_at = datetime('now') WHERE id = ?"
+        )
+          .bind(id)
+          .run();
+
+        const { capabilities: reprocessCapabilities, email: reprocessEmail } = await resolveCapabilities(request, env);
+        const outcome = await processOneExtraction(
+          env,
+          payload.transcript,
+          payload.extraction,
+          [],
+          ctx,
+          payload.captureId,
+          reprocessCapabilities,
+          reprocessEmail
+        );
+        return Response.json({ status: "rejected_as_new_person", newPersonId, ...outcome });
+      }
+
       await env.OFFICE_DB.prepare(
         "UPDATE pending_actions SET status = 'rejected', resolved_at = datetime('now') WHERE id = ? AND status = 'pending'"
       )
