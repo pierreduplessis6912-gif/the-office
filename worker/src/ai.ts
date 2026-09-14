@@ -62,6 +62,43 @@ export async function transcribe(env: Env, audioBuffer: ArrayBuffer): Promise<{ 
   }
 }
 
+// Real, test-only counterpart, per direct instruction to check whether
+// naming known real people ahead of time measurably improves
+// transcription of exactly the names that have caused real,
+// confirmed confusion (Sipho landing as "Sipo," "Sepo," "Cpol" across
+// three real attempts, same session). Confirmed directly against
+// Cloudflare's own tutorial documentation before writing this:
+// whisper-large-v3-turbo documents an optional initial_prompt field;
+// the base whisper model's own docs page shows no such field, which
+// is why this is a separate function rather than a parameter added to
+// transcribe() above. Deliberately not wired into any live path yet —
+// called only from a new, read-only debug endpoint, so this can be
+// judged on real, comparative evidence before it ever touches a real
+// capture. Same pricing tier as the base model (confirmed directly:
+// $0.0005 per audio minute either way, same shared free daily
+// allocation every other AI call in this codebase already draws from)
+// — not a new cost decision, a model choice within one already made.
+export async function transcribeWithNameHints(
+  env: Env,
+  audioBuffer: ArrayBuffer,
+  knownNames: string[]
+): Promise<{ transcript: string | null; transcriptionError: string | null }> {
+  try {
+    const input: Record<string, unknown> = { audio: [...new Uint8Array(audioBuffer)] };
+    if (knownNames.length > 0) {
+      // A real cap, not a speculative one — this business's actual
+      // known-name list is small today, but an unbounded prompt would
+      // eventually degrade rather than help. 800 characters comfortably
+      // holds this business's current real name count with room to grow.
+      input.initial_prompt = `Names that may appear: ${knownNames.join(", ")}.`.slice(0, 800);
+    }
+    const result = await withRetry(() => env.AI.run("@cf/openai/whisper-large-v3-turbo", input));
+    return { transcript: (result as { text?: string }).text ?? null, transcriptionError: null };
+  } catch (err) {
+    return { transcript: null, transcriptionError: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 // Kimi, not the small "fast" model — proven head-to-head: 5/5 correct
 // with only the plain rule and zero curated examples, versus the small
 // model getting 4/5 wrong on the same input even with few-shot
