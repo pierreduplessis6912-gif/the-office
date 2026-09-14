@@ -4543,6 +4543,26 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ status: "ok" });
     }
 
+    // Real, read-only counterpart to the write side above — added
+    // before any real test data was fed in, per the project's own
+    // "test before trusting" discipline. Joins back to customers and
+    // characters by name only for readability; never writes, never
+    // used by any reconciliation path.
+    if (url.pathname === "/debug/interaction-edges" && request.method === "GET") {
+      const { results } = await env.OFFICE_DB.prepare(
+        `SELECT ie.id, ie.capture_id, ie.entity_type_a, ie.entity_id_a, ie.entity_type_b, ie.entity_id_b,
+                ie.relation_type, ie.created_at,
+                (CASE ie.entity_type_a WHEN 'customer' THEN (SELECT name FROM customers WHERE id = ie.entity_id_a)
+                                        WHEN 'character' THEN (SELECT name FROM characters WHERE id = ie.entity_id_a)
+                                        WHEN 'lead' THEN (SELECT name FROM leads WHERE id = ie.entity_id_a) END) as name_a,
+                (CASE ie.entity_type_b WHEN 'customer' THEN (SELECT name FROM customers WHERE id = ie.entity_id_b)
+                                        WHEN 'character' THEN (SELECT name FROM characters WHERE id = ie.entity_id_b)
+                                        WHEN 'lead' THEN (SELECT name FROM leads WHERE id = ie.entity_id_b) END) as name_b
+         FROM interaction_edges ie ORDER BY ie.created_at DESC LIMIT 100`
+      ).all();
+      return Response.json({ count: results.length, edges: results });
+    }
+
     if (url.pathname === "/debug/init-captures-fk" && request.method === "POST") {
       for (const column of ["customer_id INTEGER", "character_id INTEGER"]) {
         try {
