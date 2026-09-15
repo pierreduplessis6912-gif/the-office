@@ -939,6 +939,64 @@ export async function findLatestJobScope(
   return { id: scope.id, description: scope.description, components: components ?? [], tasks: tasks ?? [] };
 }
 
+// Real, shared check, per direct instruction after a real, confirmed
+// bug: recordWorkObservation always created a new job scope
+// unconditionally, with no check for whether a message describing a
+// schedule/installer change was actually about a job that already
+// exists. Built once here and called from every real site that can
+// produce a pure-logistics observation, rather than patched into one
+// call site at a time — the same "fix the pipeline, not the instance"
+// discipline already insisted on tonight. Deliberately narrow,
+// grounded in the real case that exposed this: only ever considered
+// when this message has no new components or tasks of its own — a
+// genuinely new job almost always comes with real measurements
+// attached; a message that's purely a date/installer change, with
+// nothing new being measured, is the actual real signal. Reuses
+// findLatestJobScope exactly as-is for recall — the same real,
+// deterministic transcript-matching already proven for pricing
+// (2026-07-22). Only ever a second opinion, held for a human to
+// confirm — never auto-applied, same guard() discipline as every
+// other consequential write.
+export async function checkForJobScopeAmendment(
+  env: Env,
+  customerId: number | null,
+  observation: { components: unknown[]; tasks: unknown[]; scheduled_date_raw: string | null },
+  installerId: number | null,
+  transcript: string,
+  captureId: number | null
+): Promise<{ pendingActionId: number; message: string } | null> {
+  if (customerId === null) return null;
+  if (observation.components.length !== 0 || observation.tasks.length !== 0) return null;
+  if (!observation.scheduled_date_raw && installerId === null) return null;
+
+  const existingJobScope = await findLatestJobScope(env, customerId, transcript);
+  if (!existingJobScope) return null;
+
+  const currentFields = await env.OFFICE_DB.prepare("SELECT scheduled_date_raw, installer_id FROM job_scopes WHERE id = ?")
+    .bind(existingJobScope.id)
+    .first<{ scheduled_date_raw: string | null; installer_id: number | null }>();
+
+  const changes: Array<{ field: string; oldValue: string | null; newValue: string | null }> = [];
+  if (observation.scheduled_date_raw) {
+    changes.push({ field: "scheduled_date_raw", oldValue: currentFields?.scheduled_date_raw ?? null, newValue: observation.scheduled_date_raw });
+  }
+  if (installerId !== null && installerId !== currentFields?.installer_id) {
+    changes.push({ field: "installer_id", oldValue: currentFields?.installer_id != null ? String(currentFields.installer_id) : null, newValue: String(installerId) });
+  }
+  if (changes.length === 0) return null;
+
+  const held = await holdForConfirmation(
+    env,
+    "job_scope_amendment",
+    { jobScopeId: existingJobScope.id, jobScopeDescription: existingJobScope.description, changes, customerId, observation, installerId, transcript, captureId },
+    transcript
+  );
+  return {
+    pendingActionId: held.id,
+    message: `This sounds like a change to job scope #${existingJobScope.id} ("${existingJobScope.description}") — update it, or create this as a separate new job? (action #${held.id})`,
+  };
+}
+
 // The actual, guarded conversion. total/depositAmount/remainingBalance
 // are computed once, in processTranscript, before this is ever held
 // for confirmation — this function only ever writes numbers that were
