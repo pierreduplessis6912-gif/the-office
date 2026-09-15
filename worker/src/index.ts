@@ -3,7 +3,7 @@ import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, classifyD
 import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, logInteractionEdge, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, reconcilePerson, setSelection } from "./identity";
 import { attachToSiblingJobScope, completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveScheduledDate, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
-import { buildDocumentResponse, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
+import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 
 // Second layer of defense against storing questions as facts — never
@@ -894,55 +894,20 @@ async function processOneExtraction(
         installerId = installer?.id ?? null;
       }
 
-      // Real, new check, per direct instruction after a real, confirmed
-      // bug: recordWorkObservation always creates a new job scope
-      // unconditionally — it was never asked whether this message is
-      // actually describing a change to a job that already exists for
-      // this same customer. Reuses findLatestJobScope exactly as-is —
-      // the same real, deterministic transcript-matching already
-      // proven for pricing (2026-07-22), not a new invented mechanism.
-      // Deliberately narrow, grounded in the real case that exposed
-      // this: only checked when this message has no new components or
-      // tasks of its own — a genuinely new job almost always comes
-      // with real measurements attached; a message that's purely a
-      // date/installer change, with nothing new being measured, is
-      // the actual real signal. Only ever a second opinion, held for a
-      // human to confirm — never auto-applied, same guard() discipline
-      // as every other consequential write tonight.
-      if (observation.components.length === 0 && observation.tasks.length === 0 && (observation.scheduled_date_raw || installerId !== null)) {
-        const existingJobScope = await findLatestJobScope(env, customer.id, transcript);
-        if (existingJobScope) {
-          const currentFields = await env.OFFICE_DB.prepare(
-            "SELECT scheduled_date_raw, installer_id FROM job_scopes WHERE id = ?"
-          )
-            .bind(existingJobScope.id)
-            .first<{ scheduled_date_raw: string | null; installer_id: number | null }>();
-
-          const changes: Array<{ field: string; oldValue: string | null; newValue: string | null }> = [];
-          if (observation.scheduled_date_raw) {
-            changes.push({ field: "scheduled_date_raw", oldValue: currentFields?.scheduled_date_raw ?? null, newValue: observation.scheduled_date_raw });
-          }
-          if (installerId !== null && installerId !== currentFields?.installer_id) {
-            changes.push({ field: "installer_id", oldValue: currentFields?.installer_id != null ? String(currentFields.installer_id) : null, newValue: String(installerId) });
-          }
-
-          if (changes.length > 0) {
-            const held = await holdForConfirmation(
-              env,
-              "job_scope_amendment",
-              { jobScopeId: existingJobScope.id, jobScopeDescription: existingJobScope.description, changes, customerId: customer.id, observation, installerId, transcript, captureId },
-              transcript
-            );
-            return {
-              customer,
-              character,
-              pendingActionId: held.id,
-              factPendingActionId: null,
-              message: `This sounds like a change to job scope #${existingJobScope.id} ("${existingJobScope.description}") — update it, or create this as a separate new job? (action #${held.id})`,
-              jobScopeIdForProjectResolution: null,
-            };
-          }
-        }
+      // Real, shared check — see checkForJobScopeAmendment's own
+      // comment in finance.ts. Built once, called from every real
+      // site that can produce a pure-logistics observation, not
+      // patched into this one call site alone.
+      const amendment = await checkForJobScopeAmendment(env, customer.id, observation, installerId, transcript, captureId);
+      if (amendment) {
+        return {
+          customer,
+          character,
+          pendingActionId: amendment.pendingActionId,
+          factPendingActionId: null,
+          message: amendment.message,
+          jobScopeIdForProjectResolution: null,
+        };
       }
 
       const recorded = await recordWorkObservation(env, customer.id, observation, transcript, installerId, captureId);
@@ -1146,6 +1111,24 @@ async function processOneExtraction(
       // Real fix 2026-07-13: no longer gated behind customer being
       // resolved — a job with a real installer but no yet-known
       // customer should still be recorded, not silently dropped.
+      // Real, shared amendment check, added here too — this branch
+      // (no explicit customer name restated in this message, relying
+      // on the current selection) was the actual real gap: a message
+      // like "Richards Hotel job, let's schedule that for next
+      // Wednesday" lands here, not the customer_name-driven block
+      // above, and was never checked before this.
+      const amendment = await checkForJobScopeAmendment(env, customer?.id ?? null, observation, installerId, transcript, captureId);
+      if (amendment) {
+        return {
+          customer,
+          character,
+          pendingActionId: amendment.pendingActionId,
+          factPendingActionId: null,
+          message: amendment.message,
+          jobScopeIdForProjectResolution: null,
+        };
+      }
+
       const recorded = await recordWorkObservation(env, customer?.id ?? null, observation, transcript, installerId, captureId);
       workObservationResult = {
         jobScopeId: recorded.jobScopeId,
