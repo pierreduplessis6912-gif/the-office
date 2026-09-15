@@ -1027,7 +1027,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
 
   // --- Guard() actions — the actual point of today's build ----------
 
-  Future<void> _resolvePendingItem(String messageId, int itemId, bool confirm) async {
+  Future<void> _resolvePendingItem(String? messageId, int itemId, bool confirm) async {
     // Real fix for a real, confirmed bug: this used to look up the
     // message and item in the local list FIRST, and return silently —
     // no error, no effect — if either lookup failed, even though
@@ -1039,7 +1039,17 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     // lookup gating it. Same discipline adopted here now: the network
     // call always fires; the local lookup only decides how feedback
     // gets shown afterward, never whether the action happens.
-    final msgIndex = _messages.indexWhere((m) => m.id == messageId);
+    //
+    // Real, second fix, per direct instruction after the first one
+    // still didn't work on a real device: the actual crash was one
+    // level up from here. The call site used to force-unwrap
+    // _activeMessageId! before ever calling this function — if it was
+    // null at tap-time, that threw immediately, before this rewritten
+    // body ever got a chance to run at all. messageId is nullable now,
+    // matching the call site's own nullable _activeMessageId directly,
+    // so a missing value degrades into "not found locally" instead of
+    // crashing before the network call can happen.
+    final msgIndex = messageId == null ? -1 : _messages.indexWhere((m) => m.id == messageId);
     final itemIndex = msgIndex == -1 ? -1 : _messages[msgIndex].pendingItems.indexWhere((p) => p.id == itemId);
     final foundLocally = msgIndex != -1 && itemIndex != -1;
 
@@ -1166,8 +1176,8 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
                                         (m) => m.id == _activeMessageId,
                                         orElse: () => _messages.last,
                                       ),
-                                onConfirm: (itemId) => _resolvePendingItem(_activeMessageId!, itemId, true),
-                                onReject: (itemId) => _resolvePendingItem(_activeMessageId!, itemId, false),
+                                onConfirm: (itemId) => _resolvePendingItem(_activeMessageId, itemId, true),
+                                onReject: (itemId) => _resolvePendingItem(_activeMessageId, itemId, false),
                                 onDismissed: () {
                                   if (mounted) setState(() => _activeMessageId = null);
                                 },
