@@ -1028,14 +1028,24 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   // --- Guard() actions — the actual point of today's build ----------
 
   Future<void> _resolvePendingItem(String messageId, int itemId, bool confirm) async {
+    // Real fix for a real, confirmed bug: this used to look up the
+    // message and item in the local list FIRST, and return silently —
+    // no error, no effect — if either lookup failed, even though
+    // itemId (used to build the real URL below) was already correct.
+    // If _activeMessageId ever drifts out of sync with what's actually
+    // on screen, that gate meant tapping Confirm/Reject did nothing at
+    // all. The real, working pending-room path never had this problem
+    // — it calls the server directly with the real id, no local-list
+    // lookup gating it. Same discipline adopted here now: the network
+    // call always fires; the local lookup only decides how feedback
+    // gets shown afterward, never whether the action happens.
     final msgIndex = _messages.indexWhere((m) => m.id == messageId);
-    if (msgIndex == -1) return;
-    final itemIndex = _messages[msgIndex].pendingItems.indexWhere((p) => p.id == itemId);
-    if (itemIndex == -1) return;
+    final itemIndex = msgIndex == -1 ? -1 : _messages[msgIndex].pendingItems.indexWhere((p) => p.id == itemId);
+    final foundLocally = msgIndex != -1 && itemIndex != -1;
 
-    setState(() => _messages[msgIndex].pendingItems[itemIndex].busy = true);
-    // Real state machine wiring: a real, guarded action genuinely in
-    // flight - Rule from OFFICE_RUNTIME_V1.md's own state list.
+    if (foundLocally) {
+      setState(() => _messages[msgIndex].pendingItems[itemIndex].busy = true);
+    }
     _officeState.transitionTo(OfficeState.executing);
 
     try {
@@ -1054,21 +1064,31 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
           // pdfUrl just stays null, nothing to surface.
         }
       }
-      setState(() {
-        _messages[msgIndex].pendingItems[itemIndex].busy = false;
-        _messages[msgIndex].pendingItems[itemIndex].status =
-            response.statusCode == 200
-                ? (confirm ? PendingStatus.confirmed : PendingStatus.rejected)
-                : PendingStatus.pending;
-        _messages[msgIndex].pendingItems[itemIndex].pdfUrl = pdfUrl;
-      });
+      if (foundLocally) {
+        setState(() {
+          _messages[msgIndex].pendingItems[itemIndex].busy = false;
+          _messages[msgIndex].pendingItems[itemIndex].status =
+              response.statusCode == 200
+                  ? (confirm ? PendingStatus.confirmed : PendingStatus.rejected)
+                  : PendingStatus.pending;
+          _messages[msgIndex].pendingItems[itemIndex].pdfUrl = pdfUrl;
+        });
+      } else if (response.statusCode == 200) {
+        // Real fallback for exactly the case that used to fail
+        // silently: the local item couldn't be found to update in
+        // place, but the real, server-side action still succeeded —
+        // say so, rather than leaving the box looking unchanged.
+        _addMessage(MessageRole.office, confirm ? 'Confirmed.' : 'Rejected.');
+      }
       if (response.statusCode == 200) {
         _loadEmberCounts();
       } else {
         _addMessage(MessageRole.office, 'Could not ${confirm ? "confirm" : "reject"} that — try again.');
       }
     } catch (_) {
-      setState(() => _messages[msgIndex].pendingItems[itemIndex].busy = false);
+      if (foundLocally) {
+        setState(() => _messages[msgIndex].pendingItems[itemIndex].busy = false);
+      }
       _addMessage(MessageRole.office, 'Could not reach the Office to ${confirm ? "confirm" : "reject"} that.');
     }
     _officeState.transitionTo(OfficeState.idle);
