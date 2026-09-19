@@ -132,6 +132,15 @@ enum PendingStatus { pending, confirmed, rejected }
 // invoice, a quotation, a structured fact. A message can carry more
 // than one (e.g. a quotation AND an address, both awaiting separate
 // confirmation), so this lives as a list, not a single flag.
+// Real, new model, per direct instruction: the raw candidate list for
+// a genuinely multi-candidate ambiguous_person hold — real data now,
+// not names trapped inside a prose sentence.
+class PendingCandidate {
+  final int id;
+  final String name;
+  const PendingCandidate({required this.id, required this.name});
+}
+
 class PendingItem {
   final int id;
   PendingStatus status;
@@ -140,7 +149,16 @@ class PendingItem {
   // — the backend has always returned this, nothing on the client
   // ever did anything with it until now.
   String? pdfUrl;
-  PendingItem({required this.id, this.status = PendingStatus.pending, this.busy = false, this.pdfUrl});
+  // Real, new field: populated only for a genuinely multi-candidate
+  // ambiguous_person hold. Empty for every other pending item.
+  final List<PendingCandidate> candidates;
+  PendingItem({
+    required this.id,
+    this.status = PendingStatus.pending,
+    this.busy = false,
+    this.pdfUrl,
+    this.candidates = const [],
+  });
 }
 
 class ChatMessage {
@@ -736,7 +754,20 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   List<PendingItem> _extractPendingItems(Map<String, dynamic> data) {
     final items = <PendingItem>[];
     final pendingActionId = data['pendingActionId'];
-    if (pendingActionId is int) items.add(PendingItem(id: pendingActionId));
+    if (pendingActionId is int) {
+      // Real, new parsing, per direct instruction: pendingCandidates
+      // only ever applies to the primary pendingActionId, never to
+      // factPendingActionId — an ambiguous_person hold is never the
+      // fact-note item.
+      final rawCandidates = data['pendingCandidates'];
+      final candidates = rawCandidates is List
+          ? rawCandidates
+              .whereType<Map>()
+              .map((c) => PendingCandidate(id: c['id'] as int, name: c['name'] as String))
+              .toList()
+          : const <PendingCandidate>[];
+      items.add(PendingItem(id: pendingActionId, candidates: candidates));
+    }
     final factPendingActionId = data['factPendingActionId'];
     if (factPendingActionId is int) items.add(PendingItem(id: factPendingActionId));
     // Real, new step, per direct instruction: a genuine pending
@@ -1035,7 +1066,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
 
   // --- Guard() actions — the actual point of today's build ----------
 
-  Future<void> _resolvePendingItem(String? messageId, int itemId, bool confirm) async {
+  Future<void> _resolvePendingItem(String? messageId, int itemId, bool confirm, {int? personId}) async {
     // Real fix for a real, confirmed bug: this used to look up the
     // message and item in the local list FIRST, and return silently —
     // no error, no effect — if either lookup failed, even though
@@ -1068,7 +1099,19 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
 
     try {
       final uri = Uri.parse('$officeApiBase/actions/$itemId/${confirm ? "confirm" : "reject"}');
-      final response = await http.post(uri, headers: _authHeaders());
+      // Real, new branch, per direct instruction: a real picker choice
+      // sends the actual chosen personId in the request body — the
+      // exact same mechanism the backend has already had since the
+      // ambiguous_person CONFIRM extension, previously only reachable
+      // via a direct curl. A plain tap (personId null) behaves exactly
+      // as before, unchanged.
+      final response = personId != null
+          ? await http.post(
+              uri,
+              headers: _authHeaders({'Content-Type': 'application/json'}),
+              body: jsonEncode({'personId': personId}),
+            )
+          : await http.post(uri, headers: _authHeaders());
       // Only invoice/quotation confirms carry a real pdfUrl — every
       // other confirm type (payment, customer_fact) simply won't have
       // one, which is fine, this stays null for those.
@@ -1184,7 +1227,8 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
                                         (m) => m.id == _activeMessageId,
                                         orElse: () => _messages.last,
                                       ),
-                                onConfirm: (itemId) => _resolvePendingItem(_activeMessageId, itemId, true),
+                                onConfirm: (itemId, {personId}) =>
+                                    _resolvePendingItem(_activeMessageId, itemId, true, personId: personId),
                                 onReject: (itemId) => _resolvePendingItem(_activeMessageId, itemId, false),
                                 onDismissed: () {
                                   if (mounted) setState(() => _activeMessageId = null);
@@ -5298,7 +5342,7 @@ class _TalkArea extends StatelessWidget {
 // existing, already-proven UI, completely untouched.
 class _ActiveResponse extends StatefulWidget {
   final ChatMessage? message;
-  final void Function(int itemId) onConfirm;
+  final void Function(int itemId, {int? personId}) onConfirm;
   final void Function(int itemId) onReject;
   final VoidCallback onDismissed;
   const _ActiveResponse({
@@ -5525,7 +5569,7 @@ class _ConvergingLightPainter extends CustomPainter {
 
 class _MessageLine extends StatelessWidget {
   final ChatMessage message;
-  final void Function(int itemId) onConfirm;
+  final void Function(int itemId, {int? personId}) onConfirm;
   final void Function(int itemId) onReject;
 
   const _MessageLine({required this.message, required this.onConfirm, required this.onReject});
@@ -5638,18 +5682,47 @@ class _MessageLine extends StatelessWidget {
             style: GoogleFonts.ibmPlexMono(fontSize: 11, color: _muted, fontWeight: FontWeight.w600)),
       );
     }
+    if (item.busy) {
+      return const Padding(
+        padding: EdgeInsets.only(top: 2),
+        child: SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: _stampRed)),
+      );
+    }
+    // Real picker, per direct instruction: "the picker is a main
+    // concern for me here." A genuinely multi-candidate hold gets one
+    // quiet, tappable option per real candidate, plus a "None of
+    // these" option that rejects (creates a genuinely new person, the
+    // same real path REJECT has always taken) — the same real CONFIRM
+    // mechanism as the plain case below, just with the actual chosen
+    // personId sent this time, instead of a binary Confirm/Reject
+    // that could never express "the second one." This is exactly what
+    // caused the real Bon Hotel Waterfront fragmentation earlier
+    // tonight — this is the fix for that root cause, not just a UI
+    // nicety.
+    if (item.candidates.length > 1) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final candidate in item.candidates)
+              _quietAction(candidate.name, _confirmedGreen, () => onConfirm(item.id, personId: candidate.id)),
+            _quietAction('None of these', _muted, () => onReject(item.id)),
+          ],
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.only(top: 2),
-      child: item.busy
-          ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: _stampRed))
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _quietAction('Confirm', _confirmedGreen, () => onConfirm(item.id)),
-                const SizedBox(width: 28),
-                _quietAction('Reject', _muted, () => onReject(item.id)),
-              ],
-            ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _quietAction('Confirm', _confirmedGreen, () => onConfirm(item.id)),
+          const SizedBox(width: 28),
+          _quietAction('Reject', _muted, () => onReject(item.id)),
+        ],
+      ),
     );
   }
 
