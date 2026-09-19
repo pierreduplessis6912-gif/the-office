@@ -5281,3 +5281,15 @@ of — it never gets to auto-merge anything by itself.
 **The honest fallback:** "for the flooring," said alone with no real customer or action attached, returned *"I didn't catch anything there I could act on"* — the exact honest message built to replace the old confident "Got it." for a message that genuinely captured nothing. No false success, no silent failure.
 
 Both items closed and confirmed on real device tests, not just deploy success.
+
+---
+
+## The people-table merge gap, closed — confirmed with the same real case that exposed it
+
+**The real, honest starting point:** customer-level merges never touched the underlying `people` table, so a merged duplicate's name kept surfacing as its own separate candidate in `reconcilePerson`'s exact, whole-word, and Soundex queries. Confirmed as the real cause, not just suspected: this is exactly why "bon waterfront" still showed three candidates after the Bon Hotel Waterfront merge earlier tonight, when it should have shown two.
+
+**The real fix, two halves:**
+1. `identity.ts` — `merged_into_person_id IS NULL` added to all three of `reconcilePerson`'s real queries, so a merged person is genuinely invisible to future matching, not just renamed elsewhere. The same real gap found one level down and fixed too: `reconcileCustomer`'s two direct customer-table queries and `checkCrossRoleCollision`'s customer-side check now exclude `merged_into_customer_id IS NOT NULL` rows — otherwise an exact re-mention of a merged customer's old name would still resolve straight back to the now-defunct row. `characters` has no merge column yet and was deliberately left untouched — no evidence of that specific bug.
+2. `index.ts` — `/debug/init-people-merge` (new column) and `/debug/merge-customers` extended to actually perform the people-level merge: reads each side's real `person_id`, repoints anything else referencing the losing person onto the survivor, and marks the losing person via `merged_into_person_id` — never deleted, same inspectable pattern as the customer-level merge.
+
+**Confirmed working, real data, the exact case that exposed the gap:** re-running the Bon Hotel Waterfront merge (215 → 41) returned `peopleMerged: {fromPersonId: 221, intoPersonId: 29}`. Saying "bon waterfront" again afterward produced a real picker with exactly two candidates — "SCHOONIES SEWE T/A BON WATERFRONT" and "Bon Hotel Empangeni" — with "Bon hotel waterfront" genuinely gone. Full loop closed: the same real sentence that caused the original fragmentation now resolves correctly.
