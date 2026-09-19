@@ -152,12 +152,18 @@ class PendingItem {
   // Real, new field: populated only for a genuinely multi-candidate
   // ambiguous_person hold. Empty for every other pending item.
   final List<PendingCandidate> candidates;
+  // Real, new field, per direct instruction: the real pending_actions
+  // type string (e.g. "job_scope_amendment", "ambiguous_person",
+  // "invoice"). Used to grade the confirm/reject gesture by real
+  // stakes — see _requiresHold below.
+  final String? type;
   PendingItem({
     required this.id,
     this.status = PendingStatus.pending,
     this.busy = false,
     this.pdfUrl,
     this.candidates = const [],
+    this.type,
   });
 }
 
@@ -766,7 +772,10 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
               .map((c) => PendingCandidate(id: c['id'] as int, name: c['name'] as String))
               .toList()
           : const <PendingCandidate>[];
-      items.add(PendingItem(id: pendingActionId, candidates: candidates));
+      // Real, new parsing, per direct instruction: same "primary
+      // pendingActionId only" rule as candidates above.
+      final rawType = data['pendingActionType'];
+      items.add(PendingItem(id: pendingActionId, candidates: candidates, type: rawType is String ? rawType : null));
     }
     final factPendingActionId = data['factPendingActionId'];
     if (factPendingActionId is int) items.add(PendingItem(id: factPendingActionId));
@@ -5690,15 +5699,15 @@ class _MessageLine extends StatelessWidget {
     }
     // Real picker, per direct instruction: "the picker is a main
     // concern for me here." A genuinely multi-candidate hold gets one
-    // quiet, tappable option per real candidate, plus a "None of
-    // these" option that rejects (creates a genuinely new person, the
-    // same real path REJECT has always taken) — the same real CONFIRM
-    // mechanism as the plain case below, just with the actual chosen
-    // personId sent this time, instead of a binary Confirm/Reject
-    // that could never express "the second one." This is exactly what
-    // caused the real Bon Hotel Waterfront fragmentation earlier
-    // tonight — this is the fix for that root cause, not just a UI
-    // nicety.
+    // option per real candidate, plus a "None of these" option that
+    // rejects (creates a genuinely new person, the same real path
+    // REJECT has always taken) — the same real CONFIRM mechanism as
+    // the plain case below, just with the actual chosen personId sent
+    // this time. This is exactly what caused the real Bon Hotel
+    // Waterfront fragmentation earlier tonight — this is the fix for
+    // that root cause, not just a UI nicety. Always gated by
+    // _requiresHold below — a multi-candidate hold is always a real
+    // identity question, never job_scope_amendment.
     if (item.candidates.length > 1) {
       return Padding(
         padding: const EdgeInsets.only(top: 2),
@@ -5707,8 +5716,8 @@ class _MessageLine extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             for (final candidate in item.candidates)
-              _quietAction(candidate.name, _confirmedGreen, () => onConfirm(item.id, personId: candidate.id)),
-            _quietAction('None of these', _muted, () => onReject(item.id)),
+              _gatedAction(item, candidate.name, _confirmedGreen, () => onConfirm(item.id, personId: candidate.id)),
+            _gatedAction(item, 'None of these', _muted, () => onReject(item.id)),
           ],
         ),
       );
@@ -5718,19 +5727,41 @@ class _MessageLine extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _quietAction('Confirm', _confirmedGreen, () => onConfirm(item.id)),
+          _gatedAction(item, 'Confirm', _confirmedGreen, () => onConfirm(item.id)),
           const SizedBox(width: 28),
-          _quietAction('Reject', _muted, () => onReject(item.id)),
+          _gatedAction(item, 'Reject', _muted, () => onReject(item.id)),
         ],
       ),
     );
+  }
+
+  // Real, deliberate default-deny list, per direct instruction after
+  // finding 12 real pending action types across 20 real call sites in
+  // one pass tonight — only three of which had ever actually been
+  // read and understood. Hold is the floor for everything; a type
+  // only drops to a quick tap once it's been individually reviewed
+  // and confirmed low-stakes. job_scope_amendment is the only type
+  // that's actually happened for tonight — a schedule/installer tweak
+  // on a job that's already real. Every financial document type
+  // (payment, invoice, quotation, expense, and the rest) and every
+  // identity type (ambiguous_person, identity_collision) stays on
+  // hold by default, not because each has been individually reviewed
+  // as dangerous, but because none of them have been reviewed as
+  // safe yet — the safer failure mode when time runs out.
+  bool _requiresHold(PendingItem item) => item.type != 'job_scope_amendment';
+
+  Widget _gatedAction(PendingItem item, String label, Color color, VoidCallback onConfirmed) {
+    return _requiresHold(item)
+        ? _HoldAction(label: label, color: color, onConfirmed: onConfirmed)
+        : _quietAction(label, color, onConfirmed);
   }
 
   // Real replacement for the old bordered _actionButton — per direct
   // instruction, no box, no rectangle, no background. Just quiet,
   // colored text with generous tap padding, matching how the message
   // text itself now reads — words in the world, not chrome sitting on
-  // top of it.
+  // top of it. Used only for the one type actually reviewed and
+  // confirmed low-stakes — see _requiresHold above.
   Widget _quietAction(String label, Color color, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
@@ -5740,6 +5771,83 @@ class _MessageLine extends StatelessWidget {
           label,
           style: GoogleFonts.ibmPlexMono(fontSize: 13, fontWeight: FontWeight.w600, letterSpacing: 0.5, color: color),
         ),
+      ),
+    );
+  }
+}
+
+// Real, new widget, per direct instruction: the deliberate gesture for
+// anything genuinely consequential — a press that can't happen by
+// accident the way a tap can. A quiet underline fills in under the
+// label as it's held; releasing early cancels with no action taken at
+// all; completing the hold fires the real action. No new package, no
+// box, no spinner — just the same quiet text the rest of this
+// redesign already uses, with the commitment made visible as it
+// happens rather than assumed from a single touch.
+class _HoldAction extends StatefulWidget {
+  final String label;
+  final Color color;
+  final VoidCallback onConfirmed;
+  const _HoldAction({required this.label, required this.color, required this.onConfirmed});
+
+  @override
+  State<_HoldAction> createState() => _HoldActionState();
+}
+
+class _HoldActionState extends State<_HoldAction> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 650));
+    _controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        widget.onConfirmed();
+        _controller.reset();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onLongPressStart: (_) => _controller.forward(),
+      onLongPressEnd: (_) => _controller.reverse(),
+      onLongPressCancel: () => _controller.reverse(),
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                Text(
+                  widget.label,
+                  style: GoogleFonts.ibmPlexMono(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                    color: Color.lerp(widget.color.withOpacity(0.55), widget.color, _controller.value),
+                  ),
+                ),
+                if (_controller.value > 0)
+                  Positioned(
+                    bottom: -3,
+                    child: Container(height: 2, width: 90 * _controller.value, color: widget.color),
+                  ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
