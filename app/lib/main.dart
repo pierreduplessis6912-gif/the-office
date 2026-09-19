@@ -739,6 +739,14 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     if (pendingActionId is int) items.add(PendingItem(id: pendingActionId));
     final factPendingActionId = data['factPendingActionId'];
     if (factPendingActionId is int) items.add(PendingItem(id: factPendingActionId));
+    // Real, new step, per direct instruction: a genuine pending
+    // confirmation now reacts the Orb itself, using the exact same
+    // real, proven ignition mechanism already used for ember taps —
+    // the 'pending' ember's own sage color (already defined in
+    // _emberColors, nothing new to invent) — so the scene itself
+    // visibly changes when something needs attention, rather than a
+    // box appearing on top of it.
+    if (items.isNotEmpty) _reactToEmberTap('pending');
     return items;
   }
 
@@ -5538,50 +5546,45 @@ class _MessageLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _buildStamp();
 
-  // The signature element: anything guard() has held for confirmation
-  // renders as a literal, rotated, dashed-ink stamp — driven by the
-  // real pendingActionId/factPendingActionId fields from the API now,
-  // not by matching words in the message text. A message can carry
-  // more than one item (e.g. a quotation and a fact), each with its
-  // own Confirm/Reject buttons and its own resolved state.
+  // Real redesign, per direct instruction: the bordered, rotated
+  // "stamp" still read as a conventional software alert regardless of
+  // the ink-stamp motif intended — a box is still a box. Retired
+  // entirely. The Orb's own ignition reaction (see
+  // _extractPendingItems above) already signals "something needs
+  // you" the moment this message arrives; this no longer needs its
+  // own loud label to repeat that. A small state word only appears
+  // once something's actually been resolved — a real outcome worth a
+  // brief, quiet confirmation, unlike the pending state itself, which
+  // needs none.
   Widget _buildStamp() {
+    final allResolved = message.pendingItems.every((i) => i.status != PendingStatus.pending);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Transform.rotate(
-          angle: -0.035,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            constraints: const BoxConstraints(maxWidth: 320),
-            decoration: BoxDecoration(
-              border: Border.all(color: _stampColorFor(message.pendingItems), width: 2),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _stampLabelFor(message.pendingItems),
-                  style: GoogleFonts.ibmPlexMono(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.6,
-                    color: _stampColorFor(message.pendingItems),
-                  ),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (allResolved)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                _stampLabelFor(message.pendingItems),
+                style: GoogleFonts.ibmPlexMono(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.4,
+                  color: _stampColorFor(message.pendingItems).withOpacity(0.7),
                 ),
-                const SizedBox(height: 5),
-                Text(
-                  message.text,
-                  style: GoogleFonts.workSans(fontSize: 14, color: _paper, height: 1.3),
-                ),
-                const SizedBox(height: 10),
-                ...message.pendingItems.map(_buildActionRow),
-              ],
+              ),
             ),
+          Text(
+            message.text,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.workSans(fontSize: 15, color: _paper, height: 1.35),
           ),
-        ),
+          const SizedBox(height: 12),
+          ...message.pendingItems.map(_buildActionRow),
+        ],
       ),
     );
   }
@@ -5603,32 +5606,24 @@ class _MessageLine extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.only(top: 4),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('✓ Confirmed (#${item.id})',
+            Text('Confirmed',
                 style: GoogleFonts.ibmPlexMono(fontSize: 11, color: _confirmedGreen, fontWeight: FontWeight.w600)),
             if (item.pdfUrl != null)
               Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: InkWell(
                   onTap: () => launchUrl(Uri.parse(item.pdfUrl!), webOnlyWindowName: '_blank'),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.description_outlined, size: 14, color: _officeAccent),
-                      const SizedBox(width: 5),
-                      Text(
-                        'VIEW DOCUMENT',
-                        style: GoogleFonts.ibmPlexMono(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1,
-                          color: _officeAccent,
-                          decoration: TextDecoration.underline,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    'View document',
+                    style: GoogleFonts.ibmPlexMono(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: _officeAccent,
+                      decoration: TextDecoration.underline,
+                    ),
                   ),
                 ),
               ),
@@ -5639,37 +5634,38 @@ class _MessageLine extends StatelessWidget {
     if (item.status == PendingStatus.rejected) {
       return Padding(
         padding: const EdgeInsets.only(top: 4),
-        child: Text('✕ Rejected (#${item.id})',
+        child: Text('Rejected',
             style: GoogleFonts.ibmPlexMono(fontSize: 11, color: _muted, fontWeight: FontWeight.w600)),
       );
     }
     return Padding(
-      padding: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.only(top: 2),
       child: item.busy
-          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: _stampRed))
+          ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: _stampRed))
           : Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                _actionButton('Confirm', _confirmedGreen, () => onConfirm(item.id)),
-                const SizedBox(width: 10),
-                _actionButton('Reject', _muted, () => onReject(item.id)),
+                _quietAction('Confirm', _confirmedGreen, () => onConfirm(item.id)),
+                const SizedBox(width: 28),
+                _quietAction('Reject', _muted, () => onReject(item.id)),
               ],
             ),
     );
   }
 
-  Widget _actionButton(String label, Color color, VoidCallback onTap) {
+  // Real replacement for the old bordered _actionButton — per direct
+  // instruction, no box, no rectangle, no background. Just quiet,
+  // colored text with generous tap padding, matching how the message
+  // text itself now reads — words in the world, not chrome sitting on
+  // top of it.
+  Widget _quietAction(String label, Color color, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(4),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          border: Border.all(color: color, width: 1.5),
-          borderRadius: BorderRadius.circular(4),
-        ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         child: Text(
-          label.toUpperCase(),
-          style: GoogleFonts.ibmPlexMono(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1, color: color),
+          label,
+          style: GoogleFonts.ibmPlexMono(fontSize: 13, fontWeight: FontWeight.w600, letterSpacing: 0.5, color: color),
         ),
       ),
     );
