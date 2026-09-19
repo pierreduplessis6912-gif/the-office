@@ -1743,8 +1743,27 @@ async function processOneExtraction(
     if (extraction?.personal_note) {
       message += ` Also noted: ${extraction.personal_note}.`;
     }
+  } else if (character) {
+    // Real fix for a real, confirmed bug: this exact case — a
+    // character resolved, nothing else matched — was silently
+    // falling through to the same generic "Got it." as genuine
+    // total failure below. Less visible than the Baptist Church
+    // case (a real character WAS found or created here), but the
+    // same underlying honesty problem — a specific, true outcome
+    // deserves a specific, true message.
+    message = character.matched ? `Found existing: ${character.name}.` : `Noted: ${character.name}.`;
+    if (extraction?.personal_note) {
+      message += ` Also noted: ${extraction.personal_note}.`;
+    }
   } else {
-    message = "Got it.";
+    // Real fix for a real, confirmed bug, found live: "for the
+    // Baptist church in eshawi" — no customer, no character, no
+    // intent matched anything above — landed here and said "Got it."
+    // with exactly the same confidence as a genuine success, even
+    // though nothing was actually captured or acted on. This is the
+    // TRUE nothing-happened case now, and it says so honestly instead
+    // of pretending otherwise.
+    message = "I didn't catch anything there I could act on.";
   }
 
   if (factPendingActionId) {
