@@ -82,6 +82,11 @@ export interface ProcessResult {
   message: string;
   rewrittenQuery: string;
   embers: { tasks: number; scheduler: number; finance: number; expenses: number };
+  // Real, new field, per direct instruction: the raw candidate list
+  // for a genuinely multi-candidate ambiguous_person hold, so the
+  // client can render a real picker instead of names only ever
+  // existing inside a prose sentence.
+  pendingCandidates: Array<{ id: number; name: string }> | null;
 }
 
 export interface LineItemExtraction {
