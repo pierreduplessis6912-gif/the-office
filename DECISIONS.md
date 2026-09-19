@@ -5271,3 +5271,13 @@ of — it never gets to auto-merge anything by itself.
 **Confirmed working, real data:** the exact failing phrase, said again, produced the honest message with no Confirm/Reject shown at all — correct, since nothing was created.
 
 **Real, named limit, on record rather than overstated:** this catches the failure after the fact; it doesn't fix the underlying language-understanding step, which is probabilistic and can mis-parse this sentence shape again in some other form. This is a safety net for one confirmed class of failure, not a guarantee against all of them.
+
+---
+
+## forget_last and the honest "Got it." fix, both confirmed working on real messages
+
+**forget_last:** real register-clearing test — a customer name set the register, "forget that, never mind" followed, response came back as a plain "Okay." Confirmed directly: `/debug/selections` came back empty afterward, proving the register genuinely cleared rather than just appearing to.
+
+**The honest fallback:** "for the flooring," said alone with no real customer or action attached, returned *"I didn't catch anything there I could act on"* — the exact honest message built to replace the old confident "Got it." for a message that genuinely captured nothing. No false success, no silent failure.
+
+Both items closed and confirmed on real device tests, not just deploy success.
