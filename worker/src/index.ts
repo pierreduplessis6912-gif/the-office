@@ -4881,14 +4881,34 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             captureId: number | null;
           };
 
-          if (payload.candidates.length !== 1) {
+          // Real, new extension, per direct instruction after real,
+          // live fragmentation: REJECT-creates-new was the only real
+          // way to resolve a multi-candidate case, and using it
+          // repeatedly split one real business across three separate
+          // customer records in a single evening. personId, optional,
+          // in the request body, lets CONFIRM specify exactly which
+          // real candidate was meant — usable today via a direct call
+          // even with no picker UI yet, and it's the same real
+          // mechanism a picker would call once built. The
+          // single-candidate case keeps its exact previous behavior,
+          // unchanged, when no personId is sent.
+          const body = (await request.json().catch(() => ({}))) as { personId?: number };
+
+          let chosenPersonId: number;
+          if (body.personId != null && payload.candidates.some((c) => c.id === body.personId)) {
+            chosenPersonId = body.personId;
+          } else if (payload.candidates.length === 1) {
+            chosenPersonId = payload.candidates[0].id;
+          } else {
             return Response.json(
-              { error: "This action has more than one real candidate — there's no picker for that yet, resolve it manually for now." },
+              {
+                error: "More than one real candidate — pass personId in the request body to specify which one.",
+                candidates: payload.candidates,
+              },
               { status: 400 }
             );
           }
 
-          const chosenPersonId = payload.candidates[0].id;
           if (payload.intendedRole === "customer") {
             await env.OFFICE_DB.prepare("INSERT INTO customers (name, person_id) VALUES (?, ?)").bind(payload.name, chosenPersonId).run();
           } else {
