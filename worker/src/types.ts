@@ -33,7 +33,7 @@ export interface Extraction {
   customer_name: string | null;
   character_name: string | null;
   character_relationship: string | null;
-  intent: "payment" | "invoice" | "quotation" | "convert_quote" | "price_scope" | "work_observation" | "lookup" | "reminder" | "task_complete" | "expense" | "note" | "purchase_order" | "goods_received" | "supplier_invoice" | "variance_disposition" | "supplier_payment" | "register_stock_item" | "stock_usage" | "stocktake" | "raise_snag" | "resolve_snag" | "raise_lead" | "lose_lead" | "supplier_statement" | "other";
+  intent: "payment" | "invoice" | "quotation" | "convert_quote" | "price_scope" | "work_observation" | "lookup" | "reminder" | "task_complete" | "expense" | "note" | "purchase_order" | "goods_received" | "supplier_invoice" | "variance_disposition" | "supplier_payment" | "register_stock_item" | "stock_usage" | "stocktake" | "raise_snag" | "resolve_snag" | "raise_lead" | "lose_lead" | "supplier_statement" | "forget_last" | "other";
   amount: number | null;
   fact_key: string | null;
   fact_value: string | null;
