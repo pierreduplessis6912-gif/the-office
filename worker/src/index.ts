@@ -3730,6 +3730,78 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ customers });
     }
 
+    // Real, idempotent migration, per direct instruction after a
+    // real, live fragmentation: one real business split into three
+    // separate customer records in a single evening, because
+    // REJECT-creates-new was the only usable path for a multi-
+    // candidate ambiguous_person hold before this. Nullable — most
+    // customers will never have this set.
+    if (url.pathname === "/debug/init-customer-merge" && request.method === "POST") {
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE customers ADD COLUMN merged_into_customer_id INTEGER").run();
+      } catch {
+        // Already exists — fine, that's what makes this idempotent.
+      }
+      return Response.json({ status: "ok" });
+    }
+
+    // Real, reusable merge, per direct instruction — not a one-off
+    // fix for this specific case, since the underlying cause (no way
+    // to resolve an already-created duplicate back into the real
+    // record) will happen again. Repoints every real, live-state
+    // table that references customer_id — payments, expenses,
+    // invoices, quotations, stock_usage_log, snags, projects, leads,
+    // job_scopes, tasks — from the losing id onto the surviving one.
+    // Deliberately does NOT touch captures.customer_id: a capture is
+    // the immutable record of what was actually believed true at the
+    // time it was made, same discipline as everywhere else in this
+    // project that refuses to rewrite raw history. The losing
+    // customer row is never deleted — only marked via
+    // merged_into_customer_id, so the fact a merge happened, and into
+    // what, stays real and inspectable rather than silently erased.
+    if (url.pathname === "/debug/merge-customers" && request.method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { fromId?: number; intoId?: number };
+      if (!body.fromId || !body.intoId) {
+        return Response.json({ error: "requires both fromId and intoId in the request body" }, { status: 400 });
+      }
+      if (body.fromId === body.intoId) {
+        return Response.json({ error: "fromId and intoId must be different" }, { status: 400 });
+      }
+
+      const tablesToRepoint = [
+        "payments",
+        "expenses",
+        "invoices",
+        "quotations",
+        "stock_usage_log",
+        "snags",
+        "projects",
+        "leads",
+        "job_scopes",
+        "tasks",
+      ];
+      const repointed: Record<string, number> = {};
+      for (const table of tablesToRepoint) {
+        try {
+          const result = await env.OFFICE_DB.prepare(`UPDATE ${table} SET customer_id = ? WHERE customer_id = ?`)
+            .bind(body.intoId, body.fromId)
+            .run();
+          repointed[table] = result.meta.changes ?? 0;
+        } catch {
+          // Real, honest skip — a table that doesn't have a
+          // customer_id column (or doesn't exist in this instance)
+          // simply contributes 0, not an error that blocks the rest.
+          repointed[table] = 0;
+        }
+      }
+
+      await env.OFFICE_DB.prepare("UPDATE customers SET merged_into_customer_id = ? WHERE id = ?")
+        .bind(body.intoId, body.fromId)
+        .run();
+
+      return Response.json({ status: "merged", fromId: body.fromId, intoId: body.intoId, repointed });
+    }
+
     if (url.pathname === "/debug/characters" && request.method === "GET") {
       const { results: characters } = await env.OFFICE_DB.prepare(
         "SELECT id, name, relationship, created_at FROM characters ORDER BY created_at DESC LIMIT 20"
