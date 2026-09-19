@@ -188,6 +188,12 @@ async function processOneExtraction(
   factPendingActionId: number | null;
   message: string;
   jobScopeIdForProjectResolution: number | null;
+  // Real, new field, per direct instruction: the raw candidate list
+  // for a genuinely multi-candidate ambiguous_person hold, so the
+  // client can render a real picker instead of the names only ever
+  // existing inside a prose sentence. null everywhere except the two
+  // real ambiguous_person branches below.
+  pendingCandidates: Array<{ id: number; name: string }> | null;
 }> {
   let customer: { id: number; name: string; matched: boolean } | null = null;
   let character: { id: number; name: string; matched: boolean } | null = null;
@@ -229,6 +235,7 @@ async function processOneExtraction(
       factPendingActionId: null,
       message: "Okay.",
       jobScopeIdForProjectResolution: null,
+      pendingCandidates: null,
     };
   }
 
@@ -279,6 +286,7 @@ async function processOneExtraction(
           factPendingActionId: null,
           message: `${collision.name} is already on file as a ${collision.existingRole} — is this the same ${collision.name}, now acting as a customer too, or did you mean someone else? (action #${held.id})`,
           jobScopeIdForProjectResolution: null,
+          pendingCandidates: null,
         };
       }
       // Real, deliberate guard, per direct instruction after a real,
@@ -305,14 +313,13 @@ async function processOneExtraction(
           // Real, honest split, per direct instruction after a real
           // UX bug: a single real candidate is genuinely a yes/no
           // question — CONFIRM and REJECT can answer it correctly.
-          // Two or more is genuinely multiple-choice, and this app has
-          // no picker UI for that anywhere yet (project_ambiguity has
-          // the same real, unbuilt gap) — said honestly here rather
-          // than offering a confirm button that can't work yet.
+          // Two or more is genuinely multiple-choice — now a real
+          // picker (see pendingCandidates below and the client side),
+          // not prose listing every name inline.
           const message =
             personCheck.candidates.length === 1
               ? `"${extraction.customer_name}" sounds like an existing customer, "${personCheck.candidates[0].name}" — is this the same one? (action #${held.id})`
-              : `"${extraction.customer_name}" could be more than one person already on file (${personCheck.candidates.map((c) => c.name).join(", ")}) — this needs manual resolution for now, there's no picker for more than one option yet (action #${held.id})`;
+              : `"${extraction.customer_name}" could be more than one person already on file — which one is this? (action #${held.id})`;
           return {
             customer: null,
             character: null,
@@ -320,6 +327,7 @@ async function processOneExtraction(
             factPendingActionId: null,
             message,
             jobScopeIdForProjectResolution: null,
+            pendingCandidates: personCheck.candidates,
           };
         }
       }
@@ -349,6 +357,7 @@ async function processOneExtraction(
           factPendingActionId: null,
           message: `${collision.name} is already on file as a ${collision.existingRole} — is this the same ${collision.name}, now acting as a ${extraction.character_relationship ?? "character"} too, or did you mean someone else? (action #${held.id})`,
           jobScopeIdForProjectResolution: null,
+          pendingCandidates: null,
         };
       }
       // Same real guard and honest single/multi-candidate split as the
@@ -368,7 +377,7 @@ async function processOneExtraction(
           const message =
             personCheck.candidates.length === 1
               ? `"${extraction.character_name}" sounds like an existing person, "${personCheck.candidates[0].name}" — is this the same one? (action #${held.id})`
-              : `"${extraction.character_name}" could be more than one person already on file (${personCheck.candidates.map((c) => c.name).join(", ")}) — this needs manual resolution for now, there's no picker for more than one option yet (action #${held.id})`;
+              : `"${extraction.character_name}" could be more than one person already on file — which one is this? (action #${held.id})`;
           return {
             customer: null,
             character: null,
@@ -376,6 +385,7 @@ async function processOneExtraction(
             factPendingActionId: null,
             message,
             jobScopeIdForProjectResolution: null,
+            pendingCandidates: personCheck.candidates,
           };
         }
       }
@@ -519,6 +529,7 @@ async function processOneExtraction(
       factPendingActionId: null,
       message: "Recording payments, invoices, quotations, or expenses isn't available for your role — let someone with that permission know.",
       jobScopeIdForProjectResolution: null,
+      pendingCandidates: null,
     };
   }
 
@@ -946,6 +957,7 @@ async function processOneExtraction(
           factPendingActionId: null,
           message: amendment.message,
           jobScopeIdForProjectResolution: null,
+          pendingCandidates: null,
         };
       }
 
@@ -1165,6 +1177,7 @@ async function processOneExtraction(
           factPendingActionId: null,
           message: amendment.message,
           jobScopeIdForProjectResolution: null,
+          pendingCandidates: null,
         };
       }
 
@@ -1777,6 +1790,7 @@ async function processOneExtraction(
     factPendingActionId,
     message,
     jobScopeIdForProjectResolution: workObservationResult?.jobScopeId ?? jobScopeIdForPricing ?? null,
+    pendingCandidates: null,
   };
 }
 // through processOneExtraction, same result. The only real difference
@@ -1802,6 +1816,7 @@ async function processTranscript(
     factPendingActionId: number | null;
     message: string;
     jobScopeIdForProjectResolution: number | null;
+    pendingCandidates: Array<{ id: number; name: string }> | null;
   }> = [];
 
   for (const item of items) {
@@ -1873,6 +1888,12 @@ async function processTranscript(
     message,
     rewrittenQuery: transcript,
     embers,
+    // Real, new field, per direct instruction: the raw candidate list
+    // for a genuinely multi-candidate ambiguous_person hold, so the
+    // client can render a real picker. Same "primary result" pattern
+    // already used for customer above — the common real case is one
+    // ambiguous hold in an otherwise simple message, not several.
+    pendingCandidates: primary?.pendingCandidates ?? null,
   };
 }
 
