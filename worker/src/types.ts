@@ -87,6 +87,12 @@ export interface ProcessResult {
   // client can render a real picker instead of names only ever
   // existing inside a prose sentence.
   pendingCandidates: Array<{ id: number; name: string }> | null;
+  // Real, new field, per direct instruction: the real pending_actions
+  // type string (e.g. "job_scope_amendment", "ambiguous_person",
+  // "invoice"), so the client can grade its own confirm/reject
+  // gesture by real stakes instead of treating every pending action
+  // identically.
+  pendingActionType: string | null;
 }
 
 export interface LineItemExtraction {
