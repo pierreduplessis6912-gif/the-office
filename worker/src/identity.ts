@@ -144,7 +144,18 @@ export async function reconcilePerson(
 > {
   if (!looksLikeAName(spokenName)) return null;
 
-  const exact = await env.OFFICE_DB.prepare("SELECT id, name FROM people WHERE name = ? COLLATE NOCASE")
+  // Real, deliberate exclusion, per direct instruction after a real,
+  // confirmed gap: a customer-level merge (see merge-customers) never
+  // touched the underlying people table, so a merged duplicate's name
+  // kept surfacing as its own separate candidate in every match below
+  // — confirmed directly as the real reason "bon waterfront" still
+  // showed three candidates after the Bon Hotel Waterfront merge,
+  // when it should have shown two. merged_into_person_id IS NULL on
+  // every real query here means a merged person is treated as
+  // genuinely gone for future matching, not just renamed elsewhere.
+  const exact = await env.OFFICE_DB.prepare(
+    "SELECT id, name FROM people WHERE name = ? COLLATE NOCASE AND merged_into_person_id IS NULL"
+  )
     .bind(spokenName)
     .all<{ id: number; name: string }>();
   if (exact.results.length === 1) {
@@ -155,7 +166,9 @@ export async function reconcilePerson(
   }
 
   const firstToken = spokenName.trim().split(/\s+/)[0];
-  const weak = await env.OFFICE_DB.prepare(`SELECT id, name FROM people WHERE ${wholeWordClause("name")}`)
+  const weak = await env.OFFICE_DB.prepare(
+    `SELECT id, name FROM people WHERE ${wholeWordClause("name")} AND merged_into_person_id IS NULL`
+  )
     .bind(...wholeWordBindings(firstToken))
     .all<{ id: number; name: string }>();
 
@@ -169,7 +182,9 @@ export async function reconcilePerson(
     // auto-matched — a phonetic hit only ever becomes "ambiguous" for
     // a human to resolve, same as every other real candidate list in
     // this function.
-    const allPeople = await env.OFFICE_DB.prepare("SELECT id, name FROM people").all<{ id: number; name: string }>();
+    const allPeople = await env.OFFICE_DB.prepare(
+      "SELECT id, name FROM people WHERE merged_into_person_id IS NULL"
+    ).all<{ id: number; name: string }>();
     const targetCode = soundex(firstToken);
     const phoneticMatches = allPeople.results.filter((p) => soundex(p.name.trim().split(/\s+/)[0]) === targetCode);
     if (phoneticMatches.length > 0) {
@@ -193,13 +208,23 @@ export async function checkCrossRoleCollision(
 ): Promise<{ id: number; name: string; existingRole: "customer" | "character" } | null> {
   const ownTable = intendedRole === "customer" ? "customers" : "characters";
   const otherTable = intendedRole === "customer" ? "characters" : "customers";
+  // Real, deliberate exclusion, matching reconcilePerson's own —
+  // characters has no merge column at all yet, only customers does,
+  // so this is only ever applied to whichever side is really
+  // "customers" in this particular call.
+  const ownMergeFilter = ownTable === "customers" ? " AND merged_into_customer_id IS NULL" : "";
+  const otherMergeFilter = otherTable === "customers" ? " AND merged_into_customer_id IS NULL" : "";
 
-  const existsInOwnTable = await env.OFFICE_DB.prepare(`SELECT id FROM ${ownTable} WHERE name = ? COLLATE NOCASE`)
+  const existsInOwnTable = await env.OFFICE_DB.prepare(
+    `SELECT id FROM ${ownTable} WHERE name = ? COLLATE NOCASE${ownMergeFilter}`
+  )
     .bind(name)
     .first();
   if (existsInOwnTable) return null;
 
-  const collision = await env.OFFICE_DB.prepare(`SELECT id, name FROM ${otherTable} WHERE name = ? COLLATE NOCASE`)
+  const collision = await env.OFFICE_DB.prepare(
+    `SELECT id, name FROM ${otherTable} WHERE name = ? COLLATE NOCASE${otherMergeFilter}`
+  )
     .bind(name)
     .first<{ id: number; name: string }>();
   if (!collision) return null;
@@ -250,7 +275,7 @@ export async function reconcileCustomer(env: Env, spokenName: string): Promise<{
     const firstName = tokens[0];
     const lastName = tokens[tokens.length - 1];
     const existingFull = await env.OFFICE_DB.prepare(
-      "SELECT id, name FROM customers WHERE name LIKE ? AND name LIKE ? LIMIT 1"
+      "SELECT id, name FROM customers WHERE name LIKE ? AND name LIKE ? AND merged_into_customer_id IS NULL LIMIT 1"
     )
       .bind(`%${firstName}%`, `%${lastName}%`)
       .first<{ id: number; name: string }>();
@@ -267,7 +292,9 @@ export async function reconcileCustomer(env: Env, spokenName: string): Promise<{
   }
 
   const firstToken = tokens[0];
-  const existing = await env.OFFICE_DB.prepare(`SELECT id, name FROM customers WHERE ${wholeWordClause("name")} LIMIT 1`)
+  const existing = await env.OFFICE_DB.prepare(
+    `SELECT id, name FROM customers WHERE ${wholeWordClause("name")} AND merged_into_customer_id IS NULL LIMIT 1`
+  )
     .bind(...wholeWordBindings(firstToken))
     .first<{ id: number; name: string }>();
 
