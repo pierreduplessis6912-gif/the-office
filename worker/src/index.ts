@@ -194,10 +194,19 @@ async function processOneExtraction(
   // existing inside a prose sentence. null everywhere except the two
   // real ambiguous_person branches below.
   pendingCandidates: Array<{ id: number; name: string }> | null;
+  pendingActionType: string | null;
 }> {
   let customer: { id: number; name: string; matched: boolean } | null = null;
   let character: { id: number; name: string; matched: boolean } | null = null;
   let pendingActionId: number | null = null;
+  // Real, new variable, per direct instruction: tracks the real
+  // pending_actions type string alongside pendingActionId, at every
+  // real site that sets it — so the client can grade its own
+  // confirm/reject gesture by real stakes (hold by default; a tap
+  // only for the one type actually reviewed and confirmed low-stakes,
+  // job_scope_amendment) instead of guessing from prose or treating
+  // every pending action identically.
+  let pendingActionType: string | null = null;
 
   // Real, new intent, per direct instruction: reasoned through as
   // what a real listener actually does with "forget that last one" —
@@ -236,6 +245,7 @@ async function processOneExtraction(
       message: "Okay.",
       jobScopeIdForProjectResolution: null,
       pendingCandidates: null,
+      pendingActionType: null,
     };
   }
 
@@ -298,6 +308,7 @@ async function processOneExtraction(
             message: `"${extraction.customer_name}" is already on file as someone who does the work, not a customer — that might not have come through fully. Try saying it again?`,
             jobScopeIdForProjectResolution: null,
             pendingCandidates: null,
+            pendingActionType: null,
           };
         }
         const held = await holdForConfirmation(
@@ -314,6 +325,7 @@ async function processOneExtraction(
           message: `${collision.name} is already on file as a ${collision.existingRole} — is this the same ${collision.name}, now acting as a customer too, or did you mean someone else? (action #${held.id})`,
           jobScopeIdForProjectResolution: null,
           pendingCandidates: null,
+          pendingActionType: "identity_collision",
         };
       }
       // Real, deliberate guard, per direct instruction after a real,
@@ -355,6 +367,7 @@ async function processOneExtraction(
             message,
             jobScopeIdForProjectResolution: null,
             pendingCandidates: personCheck.candidates,
+            pendingActionType: "ambiguous_person",
           };
         }
       }
@@ -385,6 +398,7 @@ async function processOneExtraction(
           message: `${collision.name} is already on file as a ${collision.existingRole} — is this the same ${collision.name}, now acting as a ${extraction.character_relationship ?? "character"} too, or did you mean someone else? (action #${held.id})`,
           jobScopeIdForProjectResolution: null,
           pendingCandidates: null,
+          pendingActionType: "identity_collision",
         };
       }
       // Same real guard and honest single/multi-candidate split as the
@@ -413,6 +427,7 @@ async function processOneExtraction(
             message,
             jobScopeIdForProjectResolution: null,
             pendingCandidates: personCheck.candidates,
+            pendingActionType: "ambiguous_person",
           };
         }
       }
@@ -557,6 +572,7 @@ async function processOneExtraction(
       message: "Recording payments, invoices, quotations, or expenses isn't available for your role — let someone with that permission know.",
       jobScopeIdForProjectResolution: null,
       pendingCandidates: null,
+      pendingActionType: null,
     };
   }
 
@@ -568,6 +584,7 @@ async function processOneExtraction(
       transcript
     );
     pendingActionId = held.id;
+    pendingActionType = "payment";
   }
 
   // Real bug found live 2026-07-12: this required a named supplier
@@ -594,6 +611,7 @@ async function processOneExtraction(
       transcript
     );
     pendingActionId = held.id;
+    pendingActionType = "expense";
   }
 
   // Real feature 2026-07-24 — the real prerequisite for Aged
@@ -610,6 +628,7 @@ async function processOneExtraction(
         transcript
       );
       pendingActionId = held.id;
+      pendingActionType = "supplier_payment";
     } else {
       supplierPaymentNoSupplier = true;
     }
@@ -657,6 +676,7 @@ async function processOneExtraction(
           transcript
         );
         pendingActionId = held.id;
+        pendingActionType = "goods_received";
         goodsReceivedSupplierName = character.name;
       } else {
         goodsReceivedNoOpenPo = true;
@@ -691,6 +711,7 @@ async function processOneExtraction(
           transcript
         );
         pendingActionId = held.id;
+        pendingActionType = "supplier_invoice";
         supplierInvoiceSupplierName = character.name;
       } else {
         supplierInvoiceNoOpenPo = true;
@@ -737,6 +758,7 @@ async function processOneExtraction(
               transcript
             );
             pendingActionId = held.id;
+            pendingActionType = "variance_disposition";
             dispositionPendingSupplierName = character.name;
           } else {
             const recordedByEmail = recordingUserEmail;
@@ -950,6 +972,7 @@ async function processOneExtraction(
         transcript
       );
       pendingActionId = held.id;
+      pendingActionType = "invoice";
     }
 
     // Mirrors the quotation/price_scope fallback exactly (same
@@ -985,6 +1008,7 @@ async function processOneExtraction(
           message: amendment.message,
           jobScopeIdForProjectResolution: null,
           pendingCandidates: null,
+          pendingActionType: "job_scope_amendment",
         };
       }
 
@@ -1106,6 +1130,7 @@ async function processOneExtraction(
         transcript
       );
       pendingActionId = held.id;
+      pendingActionType = isScopeInvoice ? "invoice" : "quotation";
     }
   }
 
@@ -1138,6 +1163,7 @@ async function processOneExtraction(
         transcript
       );
       pendingActionId = held.id;
+      pendingActionType = "convert_quote";
     }
   }
 
@@ -1205,6 +1231,7 @@ async function processOneExtraction(
           message: amendment.message,
           jobScopeIdForProjectResolution: null,
           pendingCandidates: null,
+          pendingActionType: "job_scope_amendment",
         };
       }
 
@@ -1243,6 +1270,7 @@ async function processOneExtraction(
             transcript
           );
           pendingActionId = held.id;
+          pendingActionType = "quotation";
         }
       }
     }
@@ -1818,6 +1846,7 @@ async function processOneExtraction(
     message,
     jobScopeIdForProjectResolution: workObservationResult?.jobScopeId ?? jobScopeIdForPricing ?? null,
     pendingCandidates: null,
+    pendingActionType: pendingActionType,
   };
 }
 // through processOneExtraction, same result. The only real difference
@@ -1844,6 +1873,7 @@ async function processTranscript(
     message: string;
     jobScopeIdForProjectResolution: number | null;
     pendingCandidates: Array<{ id: number; name: string }> | null;
+    pendingActionType: string | null;
   }> = [];
 
   for (const item of items) {
@@ -1921,6 +1951,11 @@ async function processTranscript(
     // already used for customer above — the common real case is one
     // ambiguous hold in an otherwise simple message, not several.
     pendingCandidates: primary?.pendingCandidates ?? null,
+    // Real, new field, per direct instruction: the real pending_actions
+    // type string, same "primary result" pattern as customer and
+    // pendingCandidates above — so the client can grade its own
+    // confirm/reject gesture by real stakes.
+    pendingActionType: primary?.pendingActionType ?? null,
   };
 }
 
