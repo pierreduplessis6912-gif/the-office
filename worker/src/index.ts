@@ -3851,6 +3851,19 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ status: "ok" });
     }
 
+    // Real, companion migration, per direct instruction after a real,
+    // confirmed gap: customers.merged_into_customer_id alone wasn't
+    // enough — the underlying people-table identity needed the exact
+    // same treatment. Nullable, same as its customer-level twin.
+    if (url.pathname === "/debug/init-people-merge" && request.method === "POST") {
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE people ADD COLUMN merged_into_person_id INTEGER").run();
+      } catch {
+        // Already exists — fine, that's what makes this idempotent.
+      }
+      return Response.json({ status: "ok" });
+    }
+
     // Real, reusable merge, per direct instruction — not a one-off
     // fix for this specific case, since the underlying cause (no way
     // to resolve an already-created duplicate back into the real
@@ -3905,7 +3918,53 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         .bind(body.intoId, body.fromId)
         .run();
 
-      return Response.json({ status: "merged", fromId: body.fromId, intoId: body.intoId, repointed });
+      // Real, new step, per direct instruction after a real, confirmed
+      // gap: merging the customer record alone left the underlying
+      // people-table identity unmerged, so the losing customer's name
+      // kept surfacing as its own separate candidate in every future
+      // ambiguous-name check (see identity.ts's own comment on this —
+      // the confirmed real reason "bon waterfront" still showed three
+      // candidates after this exact merge, when it should have shown
+      // two). Reads each side's real person_id, repoints anything else
+      // that referenced the losing person onto the surviving one, and
+      // marks the losing person via the same merged_into_* pattern
+      // already proven for customers — never deleted, always
+      // inspectable.
+      const fromCustomer = await env.OFFICE_DB.prepare("SELECT person_id FROM customers WHERE id = ?")
+        .bind(body.fromId)
+        .first<{ person_id: number | null }>();
+      const intoCustomer = await env.OFFICE_DB.prepare("SELECT person_id FROM customers WHERE id = ?")
+        .bind(body.intoId)
+        .first<{ person_id: number | null }>();
+
+      let peopleMerged: { fromPersonId: number; intoPersonId: number } | null = null;
+      if (fromCustomer?.person_id != null && intoCustomer?.person_id != null && fromCustomer.person_id !== intoCustomer.person_id) {
+        const fromPersonId = fromCustomer.person_id;
+        const intoPersonId = intoCustomer.person_id;
+        for (const table of ["customers", "characters", "leads"]) {
+          try {
+            await env.OFFICE_DB.prepare(`UPDATE ${table} SET person_id = ? WHERE person_id = ?`)
+              .bind(intoPersonId, fromPersonId)
+              .run();
+          } catch {
+            // Real, honest skip — same discipline as the table
+            // repoint loop above.
+          }
+        }
+        await env.OFFICE_DB.prepare("UPDATE people SET merged_into_person_id = ? WHERE id = ?")
+          .bind(intoPersonId, fromPersonId)
+          .run();
+        peopleMerged = { fromPersonId, intoPersonId };
+      } else if (fromCustomer?.person_id != null && intoCustomer?.person_id == null) {
+        // The surviving customer never had a person_id at all —
+        // simplest, safest real fix: just adopt the losing customer's,
+        // since there's nothing to merge away, only to inherit.
+        await env.OFFICE_DB.prepare("UPDATE customers SET person_id = ? WHERE id = ?")
+          .bind(fromCustomer.person_id, body.intoId)
+          .run();
+      }
+
+      return Response.json({ status: "merged", fromId: body.fromId, intoId: body.intoId, repointed, peopleMerged });
     }
 
     if (url.pathname === "/debug/characters" && request.method === "GET") {
