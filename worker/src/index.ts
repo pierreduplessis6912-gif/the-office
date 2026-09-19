@@ -273,6 +273,33 @@ async function processOneExtraction(
       // actually get created.
       const collision = await checkCrossRoleCollision(env, extraction.customer_name, "customer");
       if (collision) {
+        // Real, deterministic check, per direct instruction after a
+        // real, confirmed extraction bug: "let's schedule stylish for
+        // the bon waterfront installation" extracted customer_name:
+        // "Stylish" (an existing installer), character_name: null —
+        // the real customer ("bon waterfront") was never captured as
+        // any field at all, not just mislabeled. A field swap can't
+        // recover data that was never extracted in the first place.
+        // When a work_observation message names someone already on
+        // file as a character, with no character_name of its own,
+        // that's real, strong evidence the extraction dropped the
+        // real customer — asking the generic "is this a role change"
+        // question here would be asking the wrong thing about a
+        // broken extraction. Honest instead: say so, and let a clean
+        // re-say recover it, the same way it already worked twice
+        // earlier tonight once the sentence named the installer
+        // explicitly ("...to install for...").
+        if (extraction.intent === "work_observation" && !extraction.character_name) {
+          return {
+            customer: null,
+            character: null,
+            pendingActionId: null,
+            factPendingActionId: null,
+            message: `"${extraction.customer_name}" is already on file as someone who does the work, not a customer — that might not have come through fully. Try saying it again?`,
+            jobScopeIdForProjectResolution: null,
+            pendingCandidates: null,
+          };
+        }
         const held = await holdForConfirmation(
           env,
           "identity_collision",
