@@ -193,6 +193,45 @@ async function processOneExtraction(
   let character: { id: number; name: string; matched: boolean } | null = null;
   let pendingActionId: number | null = null;
 
+  // Real, new intent, per direct instruction: reasoned through as
+  // what a real listener actually does with "forget that last one" —
+  // not erase a memory, just stop treating it as live. Clears the
+  // register (selections) so the next thing said isn't assumed to
+  // still be about whoever/whatever was just active, and abandons the
+  // most recent still-open pending action so nothing half-decided
+  // keeps waiting. Deliberately NOT routed through reject, which has
+  // real, different, type-specific side effects (creating a new
+  // person, a new job) that "forget" should never trigger — this is a
+  // genuinely new pending_actions status, zero side effects of its
+  // own. Captures are never touched — the immutable record of what
+  // was actually said stays exactly that; this changes what happens
+  // next, not what already happened. Response stays minimal on
+  // purpose — a real listener doesn't narrate everything they just
+  // let go of.
+  if (extraction?.intent === "forget_last") {
+    await env.OFFICE_DB.prepare("DELETE FROM selections").run();
+
+    const mostRecentPending = await env.OFFICE_DB.prepare(
+      "SELECT id FROM pending_actions WHERE status = 'pending' ORDER BY created_at DESC LIMIT 1"
+    ).first<{ id: number }>();
+    if (mostRecentPending) {
+      await env.OFFICE_DB.prepare(
+        "UPDATE pending_actions SET status = 'abandoned', resolved_at = datetime('now') WHERE id = ?"
+      )
+        .bind(mostRecentPending.id)
+        .run();
+    }
+
+    return {
+      customer: null,
+      character: null,
+      pendingActionId: null,
+      factPendingActionId: null,
+      message: "Okay.",
+      jobScopeIdForProjectResolution: null,
+    };
+  }
+
   // Real bug found via external review 2026-07-11, confirmed against
   // the actual code: reconcileCustomer/reconcileCharacter create a
   // new row on no-match, and were being called unconditionally for
