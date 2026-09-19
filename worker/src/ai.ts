@@ -383,6 +383,12 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             'delivery being billed. A statement covers the whole real account, not one delivery. Same ' +
             'character_name convention — the supplier goes in character_name with character_relationship ' +
             '"supplier". ' +
+            'intent is "forget_last" if the message asks to disregard, undo, or move on from whatever was ' +
+            'just said — "forget that last one", "never mind", "ignore that", "scratch that", "let\'s move ' +
+            'on" — with no real new business content of its own. This is about the PREVIOUS message, not ' +
+            'this one — a real correction to something new ("actually it\'s Thabo, not Sipho") is NOT ' +
+            'forget_last, it\'s a normal message with its own real content. All other fields should be ' +
+            'null for forget_last — it carries no business content of its own. ' +
             'intent is "task_complete" if the message reports a personal errand or reminder as DONE — ' +
             '"got the dog food", "picked up the kids", "phoned my mother" — past tense, something ' +
             'finished, not a new request. This includes bare, pronoun-only completions with no concrete ' +
@@ -479,6 +485,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             '"fixed the loose seam on Jenny\'s carpet" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"resolve_snag","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"Sipho enquired about carpet for his lounge" -> {"customer_name":"Sipho","character_name":null,"character_relationship":null,"intent":"raise_lead","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"lost the Sipho enquiry" -> {"customer_name":"Sipho","character_name":null,"character_relationship":null,"intent":"lose_lead","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
+            '"okay forget that last one let\'s just move on" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"forget_last","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"got Floornet\'s statement" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"supplier_statement","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"bought glue for R850 at BUCO for Jenny\'s job" -> {"customer_name":"Jenny","character_name":"BUCO","character_relationship":"supplier","intent":"expense","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"Sipho has a driver\'s license" -> {"customer_name":null,"character_name":"Sipho","character_relationship":"installer","intent":"note","amount":null,"fact_key":"license","fact_value":"driver\'s license","personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
@@ -501,7 +508,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             "Return ONLY JSON, no markdown, no explanation: " +
             '{"customer_name": string or null, "character_name": string or null, "character_relationship": ' +
             'string or null, "intent": "payment" or "invoice" or "quotation" or "convert_quote" or ' +
-            '"price_scope" or "work_observation" or "lookup" or "reminder" or "task_complete" or "expense" or "note" or "purchase_order" or "goods_received" or "supplier_invoice" or "variance_disposition" or "supplier_payment" or "register_stock_item" or "stock_usage" or "stocktake" or "raise_snag" or "resolve_snag" or "raise_lead" or "lose_lead" or "supplier_statement" or "other", "amount": number or null, ' +
+            '"price_scope" or "work_observation" or "lookup" or "reminder" or "task_complete" or "expense" or "note" or "purchase_order" or "goods_received" or "supplier_invoice" or "variance_disposition" or "supplier_payment" or "register_stock_item" or "stock_usage" or "stocktake" or "raise_snag" or "resolve_snag" or "raise_lead" or "lose_lead" or "supplier_statement" or "forget_last" or "other", "amount": number or null, ' +
             '"fact_key": string or null, "fact_value": string or null, "personal_note": string or null, ' +
             '"query_scope": "customer" or "character" or "personal" or "business" or null, "deposit_percent": ' +
             'number or null, "scope_document_type": "quotation" or "invoice" or null, "due_date_raw": ' +
