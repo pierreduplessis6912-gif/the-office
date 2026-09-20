@@ -5545,15 +5545,27 @@ class _ActiveResponseState extends State<_ActiveResponse> with SingleTickerProvi
     // risk of touching. Both cases now share the same bottom-center
     // anchor, above the orb, rather than pinned top-left like a
     // notification that arrived.
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: hasPending ? 16 : 32, vertical: 8),
-        child: Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.center,
-          children: [
-            // The real content — deliberately delayed relative to the
+    //
+    // Real, second, more complete fix, per direct instruction after a
+    // real screen recording showed the actual scope of the bug: this
+    // whole region — the pending message, any editable fields,
+    // Confirm/Reject, all of it — was getting squeezed and hidden
+    // whenever ANY keyboard opened anywhere on screen, not just while
+    // editing a specific field. The narrower fix inside
+    // _EditableChangesList only protected its own small TextField;
+    // this protects the entire region it sits inside, at the root,
+    // regardless of why the keyboard is open.
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: hasPending ? 16 : 32, vertical: 8),
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              // The real content — deliberately delayed relative to the
             // particles (Interval starts at 0.35, not 0.0) so the
             // light visibly gathers first, then resolves into
             // readable words, rather than both cross-fading in at the
@@ -5592,6 +5604,7 @@ class _ActiveResponseState extends State<_ActiveResponse> with SingleTickerProvi
             ),
           ],
         ),
+      ),
       ),
     );
   }
