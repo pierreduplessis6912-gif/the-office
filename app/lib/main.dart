@@ -6087,7 +6087,7 @@ class _EditableChangesListState extends State<_EditableChangesList> {
                   // this pushes just the active edit field up by
                   // exactly the keyboard's real height, every frame
                   // it changes, so it's always sitting clear of it.
-                  padding: EdgeInsets.only(vertical: 3, bottom: MediaQuery.of(context).viewInsets.bottom),
+                  padding: EdgeInsets.only(top: 3, bottom: MediaQuery.of(context).viewInsets.bottom + 3),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
