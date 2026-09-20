@@ -141,6 +141,17 @@ class PendingCandidate {
   const PendingCandidate({required this.id, required this.name});
 }
 
+// Real, new model, per direct instruction: one real, changed field on
+// a job_scope_amendment hold — a label a person recognizes and the
+// actual typed value, not a raw id. This is what tap-to-edit operates
+// on.
+class PendingChange {
+  final String field;
+  final String label;
+  final String displayValue;
+  const PendingChange({required this.field, required this.label, required this.displayValue});
+}
+
 class PendingItem {
   final int id;
   PendingStatus status;
@@ -157,6 +168,9 @@ class PendingItem {
   // "invoice"). Used to grade the confirm/reject gesture by real
   // stakes — see _requiresHold below.
   final String? type;
+  // Real, new field: populated only for job_scope_amendment — the
+  // real, human-readable changed fields, tappable to edit in place.
+  final List<PendingChange> changes;
   PendingItem({
     required this.id,
     this.status = PendingStatus.pending,
@@ -164,6 +178,7 @@ class PendingItem {
     this.pdfUrl,
     this.candidates = const [],
     this.type,
+    this.changes = const [],
   });
 }
 
@@ -775,7 +790,19 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       // Real, new parsing, per direct instruction: same "primary
       // pendingActionId only" rule as candidates above.
       final rawType = data['pendingActionType'];
-      items.add(PendingItem(id: pendingActionId, candidates: candidates, type: rawType is String ? rawType : null));
+      final rawChanges = data['pendingChanges'];
+      final changes = rawChanges is List
+          ? rawChanges
+              .whereType<Map>()
+              .map((c) => PendingChange(field: c['field'] as String, label: c['label'] as String, displayValue: c['displayValue'] as String))
+              .toList()
+          : const <PendingChange>[];
+      items.add(PendingItem(
+        id: pendingActionId,
+        candidates: candidates,
+        type: rawType is String ? rawType : null,
+        changes: changes,
+      ));
     }
     final factPendingActionId = data['factPendingActionId'];
     if (factPendingActionId is int) items.add(PendingItem(id: factPendingActionId));
@@ -1164,6 +1191,34 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     _officeState.transitionTo(OfficeState.idle);
   }
 
+  // Real, new method, per direct instruction: "tap and edit," not
+  // "send a new message." Calls the real, confirm-loop-safe endpoint
+  // directly — never touches confirm/reject, never risks creating a
+  // second pending action. Returns the raw decoded response so the
+  // calling widget can update its own local display (a corrected
+  // value, or a bounded set of candidates to pick from) without this
+  // method needing to know anything about how that gets shown.
+  Future<Map<String, dynamic>?> _editPendingField(int itemId, String field, {String? value, int? personId}) async {
+    try {
+      final uri = Uri.parse('$officeApiBase/actions/$itemId/edit-field');
+      final response = await http.post(
+        uri,
+        headers: _authHeaders({'Content-Type': 'application/json'}),
+        body: jsonEncode({
+          'field': field,
+          if (value != null) 'value': value,
+          if (personId != null) 'personId': personId,
+        }),
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1239,6 +1294,8 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
                                 onConfirm: (itemId, {personId}) =>
                                     _resolvePendingItem(_activeMessageId, itemId, true, personId: personId),
                                 onReject: (itemId) => _resolvePendingItem(_activeMessageId, itemId, false),
+                                onEditField: (itemId, field, {value, personId}) =>
+                                    _editPendingField(itemId, field, value: value, personId: personId),
                                 onDismissed: () {
                                   if (mounted) setState(() => _activeMessageId = null);
                                 },
@@ -5353,11 +5410,13 @@ class _ActiveResponse extends StatefulWidget {
   final ChatMessage? message;
   final void Function(int itemId, {int? personId}) onConfirm;
   final void Function(int itemId) onReject;
+  final Future<Map<String, dynamic>?> Function(int itemId, String field, {String? value, int? personId}) onEditField;
   final VoidCallback onDismissed;
   const _ActiveResponse({
     required this.message,
     required this.onConfirm,
     required this.onReject,
+    required this.onEditField,
     required this.onDismissed,
   });
 
@@ -5505,7 +5564,7 @@ class _ActiveResponseState extends State<_ActiveResponse> with SingleTickerProvi
                 curve: const Interval(0.35, 1.0, curve: Curves.easeOut),
               ),
               child: hasPending
-                  ? _MessageLine(message: msg, onConfirm: widget.onConfirm, onReject: widget.onReject)
+                  ? _MessageLine(message: msg, onConfirm: widget.onConfirm, onReject: widget.onReject, onEditField: widget.onEditField)
                   : Text(
                       msg.text,
                       textAlign: TextAlign.center,
@@ -5580,8 +5639,9 @@ class _MessageLine extends StatelessWidget {
   final ChatMessage message;
   final void Function(int itemId, {int? personId}) onConfirm;
   final void Function(int itemId) onReject;
+  final Future<Map<String, dynamic>?> Function(int itemId, String field, {String? value, int? personId}) onEditField;
 
-  const _MessageLine({required this.message, required this.onConfirm, required this.onReject});
+  const _MessageLine({required this.message, required this.onConfirm, required this.onReject, required this.onEditField});
 
   // Real cleanup, 2026-08-07: this used to dispatch across a plain
   // labeled line, a status placeholder, and the stamp — back when
@@ -5636,7 +5696,19 @@ class _MessageLine extends StatelessWidget {
             style: GoogleFonts.workSans(fontSize: 15, color: _paper, height: 1.35),
           ),
           const SizedBox(height: 12),
-          ...message.pendingItems.map(_buildActionRow),
+          // Real, new insertion, per direct instruction: "tap and
+          // edit," shown only for a still-pending item that actually
+          // has real changes to show — an already-resolved item just
+          // gets its plain outcome from _buildActionRow below, nothing
+          // to edit anymore.
+          for (final item in message.pendingItems) ...[
+            if (item.status == PendingStatus.pending && item.changes.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _EditableChangesList(item: item, onEditField: onEditField),
+              ),
+            _buildActionRow(item),
+          ],
         ],
       ),
     );
@@ -5853,3 +5925,181 @@ class _HoldActionState extends State<_HoldAction> with SingleTickerProviderState
   }
 }
 
+// Real, new widget, per direct instruction: "tap and edit," not "send
+// a new message." Renders each real changed field as plain text with
+// a soft, dotted underline — tappable, but still reading as words in
+// the world rather than a form. A date opens the real native picker;
+// anything else opens a small inline text field in place. Calls the
+// real, confirm-loop-safe edit endpoint directly; a corrected name
+// that comes back ambiguous is shown as a small, bounded set of
+// choices right here, resolved by one more tap — never a new pending
+// action, never a second confirmation stacked on this one.
+class _EditableChangesList extends StatefulWidget {
+  final PendingItem item;
+  final Future<Map<String, dynamic>?> Function(int itemId, String field, {String? value, int? personId}) onEditField;
+  const _EditableChangesList({required this.item, required this.onEditField});
+
+  @override
+  State<_EditableChangesList> createState() => _EditableChangesListState();
+}
+
+class _EditableChangesListState extends State<_EditableChangesList> {
+  late List<PendingChange> _changes;
+  String? _editingField;
+  final _editController = TextEditingController();
+  String? _ambiguousField;
+  List<PendingCandidate>? _ambiguousCandidates;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _changes = List.of(widget.item.changes);
+  }
+
+  @override
+  void dispose() {
+    _editController.dispose();
+    super.dispose();
+  }
+
+  void _applyResult(Map<String, dynamic> result) {
+    final rawChanges = result['changes'];
+    if (rawChanges is! List) return;
+    final updated = rawChanges
+        .whereType<Map>()
+        .map((c) => PendingChange(field: c['field'] as String, label: c['label'] as String, displayValue: c['displayValue'] as String))
+        .toList();
+    setState(() {
+      for (final u in updated) {
+        final idx = _changes.indexWhere((c) => c.field == u.field);
+        if (idx != -1) {
+          _changes[idx] = u;
+        } else {
+          _changes.add(u);
+        }
+      }
+    });
+  }
+
+  Future<void> _submit(String field, {String? value, int? personId}) async {
+    setState(() => _busy = true);
+    final result = await widget.onEditField(widget.item.id, field, value: value, personId: personId);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _editingField = null;
+      _ambiguousField = null;
+      _ambiguousCandidates = null;
+    });
+    if (result == null) return;
+    if (result['status'] == 'ambiguous') {
+      final rawCandidates = result['candidates'];
+      setState(() {
+        _ambiguousField = field;
+        _ambiguousCandidates = rawCandidates is List
+            ? rawCandidates.whereType<Map>().map((c) => PendingCandidate(id: c['id'] as int, name: c['name'] as String)).toList()
+            : const [];
+      });
+      return;
+    }
+    if (result['status'] == 'edited') {
+      _applyResult(result);
+    }
+  }
+
+  Future<void> _pickDate(PendingChange change) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(context: context, initialDate: now, firstDate: now, lastDate: now.add(const Duration(days: 365)));
+    if (picked == null) return;
+    final formatted = '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+    await _submit(change.field, value: formatted);
+  }
+
+  Widget _dottedValue(PendingChange change) {
+    return InkWell(
+      onTap: _busy
+          ? null
+          : () {
+              if (change.field == 'scheduled_date_raw') {
+                _pickDate(change);
+              } else {
+                setState(() {
+                  _editingField = change.field;
+                  _editController.text = change.displayValue;
+                });
+              }
+            },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(text: '${change.label}: ', style: GoogleFonts.workSans(fontSize: 14, color: _muted)),
+              TextSpan(
+                text: change.displayValue,
+                style: GoogleFonts.workSans(
+                  fontSize: 14,
+                  color: _paper,
+                  decoration: TextDecoration.underline,
+                  decorationColor: _muted,
+                  decorationStyle: TextDecorationStyle.dotted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_ambiguousCandidates != null) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final c in _ambiguousCandidates!)
+            InkWell(
+              onTap: _busy ? null : () => _submit(_ambiguousField!, personId: c.id),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Text(c.name, style: GoogleFonts.ibmPlexMono(fontSize: 13, color: _confirmedGreen)),
+              ),
+            ),
+        ],
+      );
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final change in _changes)
+          _editingField == change.field
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 140,
+                        child: TextField(
+                          controller: _editController,
+                          autofocus: true,
+                          style: GoogleFonts.workSans(fontSize: 14, color: _paper),
+                          decoration: const InputDecoration(isDense: true, border: UnderlineInputBorder()),
+                          onSubmitted: (v) => _submit(change.field, value: v),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.check, size: 16, color: _confirmedGreen),
+                        onPressed: () => _submit(change.field, value: _editController.text),
+                      ),
+                    ],
+                  ),
+                )
+              : _dottedValue(change),
+      ],
+    );
+  }
+}
