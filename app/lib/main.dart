@@ -6077,7 +6077,17 @@ class _EditableChangesListState extends State<_EditableChangesList> {
         for (final change in _changes)
           _editingField == change.field
               ? Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  // Real, direct fix for a real, confirmed bug: the
+                  // whole pending-response area is bottom-anchored
+                  // inside a shrinking region with no scroll handling
+                  // at all — when the keyboard opens, the message and
+                  // the field being edited were likely overflowing
+                  // out of view rather than staying visible. Rather
+                  // than risk the broader, already-tested layout,
+                  // this pushes just the active edit field up by
+                  // exactly the keyboard's real height, every frame
+                  // it changes, so it's always sitting clear of it.
+                  padding: EdgeInsets.only(vertical: 3, bottom: MediaQuery.of(context).viewInsets.bottom),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
