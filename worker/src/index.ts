@@ -195,6 +195,12 @@ async function processOneExtraction(
   // real ambiguous_person branches below.
   pendingCandidates: Array<{ id: number; name: string }> | null;
   pendingActionType: string | null;
+  // Real, new field, per direct instruction: the real, structured
+  // list of changed fields for a job_scope_amendment hold, so the
+  // client has something concrete to show and tap-to-edit instead of
+  // the values only ever existing inside prose. null for every other
+  // type — the one type actually reviewed and given this treatment.
+  pendingChanges: Array<{ field: string; oldValue: string | null; newValue: string | null }> | null;
 }> {
   let customer: { id: number; name: string; matched: boolean } | null = null;
   let character: { id: number; name: string; matched: boolean } | null = null;
@@ -246,6 +252,7 @@ async function processOneExtraction(
       jobScopeIdForProjectResolution: null,
       pendingCandidates: null,
       pendingActionType: null,
+      pendingChanges: null,
     };
   }
 
@@ -309,6 +316,7 @@ async function processOneExtraction(
             jobScopeIdForProjectResolution: null,
             pendingCandidates: null,
             pendingActionType: null,
+            pendingChanges: null,
           };
         }
         const held = await holdForConfirmation(
@@ -326,6 +334,7 @@ async function processOneExtraction(
           jobScopeIdForProjectResolution: null,
           pendingCandidates: null,
           pendingActionType: "identity_collision",
+          pendingChanges: null,
         };
       }
       // Real, deliberate guard, per direct instruction after a real,
@@ -368,6 +377,7 @@ async function processOneExtraction(
             jobScopeIdForProjectResolution: null,
             pendingCandidates: personCheck.candidates,
             pendingActionType: "ambiguous_person",
+            pendingChanges: null,
           };
         }
       }
@@ -399,6 +409,7 @@ async function processOneExtraction(
           jobScopeIdForProjectResolution: null,
           pendingCandidates: null,
           pendingActionType: "identity_collision",
+          pendingChanges: null,
         };
       }
       // Same real guard and honest single/multi-candidate split as the
@@ -428,6 +439,7 @@ async function processOneExtraction(
             jobScopeIdForProjectResolution: null,
             pendingCandidates: personCheck.candidates,
             pendingActionType: "ambiguous_person",
+            pendingChanges: null,
           };
         }
       }
@@ -573,6 +585,7 @@ async function processOneExtraction(
       jobScopeIdForProjectResolution: null,
       pendingCandidates: null,
       pendingActionType: null,
+      pendingChanges: null,
     };
   }
 
@@ -998,7 +1011,7 @@ async function processOneExtraction(
       // comment in finance.ts. Built once, called from every real
       // site that can produce a pure-logistics observation, not
       // patched into this one call site alone.
-      const amendment = await checkForJobScopeAmendment(env, customer.id, observation, installerId, transcript, captureId);
+      const amendment = await checkForJobScopeAmendment(env, customer.id, observation, installerId, observation.installer_name, transcript, captureId);
       if (amendment) {
         return {
           customer,
@@ -1009,6 +1022,7 @@ async function processOneExtraction(
           jobScopeIdForProjectResolution: null,
           pendingCandidates: null,
           pendingActionType: "job_scope_amendment",
+          pendingChanges: amendment.changes,
         };
       }
 
@@ -1221,7 +1235,7 @@ async function processOneExtraction(
       // like "Richards Hotel job, let's schedule that for next
       // Wednesday" lands here, not the customer_name-driven block
       // above, and was never checked before this.
-      const amendment = await checkForJobScopeAmendment(env, customer?.id ?? null, observation, installerId, transcript, captureId);
+      const amendment = await checkForJobScopeAmendment(env, customer?.id ?? null, observation, installerId, observation.installer_name, transcript, captureId);
       if (amendment) {
         return {
           customer,
@@ -1232,6 +1246,7 @@ async function processOneExtraction(
           jobScopeIdForProjectResolution: null,
           pendingCandidates: null,
           pendingActionType: "job_scope_amendment",
+          pendingChanges: amendment.changes,
         };
       }
 
@@ -1847,6 +1862,7 @@ async function processOneExtraction(
     jobScopeIdForProjectResolution: workObservationResult?.jobScopeId ?? jobScopeIdForPricing ?? null,
     pendingCandidates: null,
     pendingActionType: pendingActionType,
+    pendingChanges: null,
   };
 }
 // through processOneExtraction, same result. The only real difference
@@ -1874,6 +1890,7 @@ async function processTranscript(
     jobScopeIdForProjectResolution: number | null;
     pendingCandidates: Array<{ id: number; name: string }> | null;
     pendingActionType: string | null;
+    pendingChanges: Array<{ field: string; label: string; displayValue: string }> | null;
   }> = [];
 
   for (const item of items) {
@@ -1956,6 +1973,10 @@ async function processTranscript(
     // pendingCandidates above — so the client can grade its own
     // confirm/reject gesture by real stakes.
     pendingActionType: primary?.pendingActionType ?? null,
+    // Real, new field, per direct instruction: the real, structured
+    // changed-field list for a job_scope_amendment hold, same
+    // "primary result" pattern as everything else above.
+    pendingChanges: primary?.pendingChanges ?? null,
   };
 }
 
@@ -5072,6 +5093,133 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         "SELECT id, type, payload, source_transcript, created_at FROM pending_actions WHERE status = 'pending' ORDER BY created_at DESC"
       ).all();
       return Response.json({ pending: results });
+    }
+
+    // Real, new endpoint, per direct instruction: "tap and edit,"
+    // not "send a new message." Deliberately scoped to
+    // job_scope_amendment only, the one type actually reviewed
+    // tonight — same default-deny discipline as gesture grading.
+    // The real guarantee this whole endpoint exists to hold: an edit
+    // can NEVER create a new pending action. It only ever updates the
+    // one you're already looking at, in place, same id throughout.
+    // The one bounded exception — a corrected name that's itself
+    // ambiguous — is handled as a single, self-contained pick
+    // (candidates returned directly in this response, resolved by a
+    // second call to this same endpoint with a real personId), never
+    // by spawning a second, separate pending action stacked on the
+    // first.
+    if (url.pathname.match(/^\/actions\/\d+\/edit-field$/) && request.method === "POST") {
+      const id = Number(url.pathname.split("/")[2]);
+      const body = (await request.json().catch(() => ({}))) as { field?: string; value?: string; personId?: number };
+      if (!body.field || (body.value == null && body.personId == null)) {
+        return Response.json({ error: "requires field, and either value or personId, in the request body" }, { status: 400 });
+      }
+
+      const action = await env.OFFICE_DB.prepare("SELECT id, type, payload, status FROM pending_actions WHERE id = ?")
+        .bind(id)
+        .first<{ id: number; type: string; payload: string; status: string }>();
+      if (!action || action.status !== "pending") {
+        return Response.json({ error: "no pending action with that id" }, { status: 404 });
+      }
+      if (action.type !== "job_scope_amendment") {
+        return Response.json({ error: "editing isn't available for this action type yet" }, { status: 400 });
+      }
+
+      const payload = JSON.parse(action.payload) as {
+        jobScopeId: number;
+        jobScopeDescription: string;
+        changes: Array<{ field: string; oldValue: string | null; newValue: string | null }>;
+        customerId: number;
+        observation: WorkObservationExtraction;
+        installerId: number | null;
+        transcript: string;
+        captureId: number | null;
+      };
+
+      if (body.field === "scheduled_date_raw" && body.value) {
+        // Real, deliberate simplicity: the client sends an exact date
+        // from a real native date picker, not more natural language
+        // to re-parse — nothing ambiguous here, so this updates
+        // directly, no re-resolution needed.
+        payload.observation.scheduled_date_raw = body.value;
+        const existing = payload.changes.find((c) => c.field === "scheduled_date_raw");
+        if (existing) {
+          existing.newValue = body.value;
+        } else {
+          payload.changes.push({ field: "scheduled_date_raw", oldValue: null, newValue: body.value });
+        }
+        await env.OFFICE_DB.prepare("UPDATE pending_actions SET payload = ? WHERE id = ?").bind(JSON.stringify(payload), id).run();
+        return Response.json({
+          status: "edited",
+          field: "scheduled_date_raw",
+          changes: [{ field: "scheduled_date_raw", label: "Date", displayValue: body.value }],
+        });
+      }
+
+      if (body.field === "installer_id") {
+        let resolvedId: number;
+        let resolvedName: string;
+
+        if (body.personId != null) {
+          // Real, direct resolution: a specific candidate was already
+          // picked (the bounded second step below), not a name to
+          // re-check — skip straight to linking it, the same real
+          // "does a real row already exist for this person" pattern
+          // already used in the ambiguous_person CONFIRM handler.
+          const existingCharacter = await env.OFFICE_DB.prepare("SELECT id, name FROM characters WHERE person_id = ?")
+            .bind(body.personId)
+            .first<{ id: number; name: string }>();
+          if (existingCharacter) {
+            resolvedId = existingCharacter.id;
+            resolvedName = existingCharacter.name;
+          } else {
+            const person = await env.OFFICE_DB.prepare("SELECT name FROM people WHERE id = ?")
+              .bind(body.personId)
+              .first<{ name: string }>();
+            const inserted = await env.OFFICE_DB.prepare(
+              "INSERT INTO characters (name, relationship, person_id) VALUES (?, ?, ?) RETURNING id"
+            )
+              .bind(person?.name ?? "installer", "installer", body.personId)
+              .first<{ id: number }>();
+            resolvedId = inserted!.id;
+            resolvedName = person?.name ?? "installer";
+          }
+        } else {
+          // Real re-resolution, per direct instruction: a typed
+          // correction to a name must go through the same real
+          // reconciliation as anywhere else in this system, never
+          // trusted at face value. If this is itself ambiguous, it's
+          // returned here, bounded, on this same action id — never
+          // spawning a new pending action of its own.
+          const personCheck = await reconcilePerson(env, body.value!);
+          if (personCheck?.status === "ambiguous") {
+            return Response.json({ status: "ambiguous", field: "installer_id", candidates: personCheck.candidates });
+          }
+          const installer = await reconcileCharacter(env, body.value!, "installer");
+          if (!installer) {
+            return Response.json({ error: "couldn't resolve that name" }, { status: 400 });
+          }
+          resolvedId = installer.id;
+          resolvedName = installer.name;
+        }
+
+        payload.installerId = resolvedId;
+        payload.observation.installer_name = resolvedName;
+        const existing = payload.changes.find((c) => c.field === "installer_id");
+        if (existing) {
+          existing.newValue = String(resolvedId);
+        } else {
+          payload.changes.push({ field: "installer_id", oldValue: null, newValue: String(resolvedId) });
+        }
+        await env.OFFICE_DB.prepare("UPDATE pending_actions SET payload = ? WHERE id = ?").bind(JSON.stringify(payload), id).run();
+        return Response.json({
+          status: "edited",
+          field: "installer_id",
+          changes: [{ field: "installer_id", label: "Installer", displayValue: resolvedName }],
+        });
+      }
+
+      return Response.json({ error: "unknown field" }, { status: 400 });
     }
 
     if (url.pathname.match(/^\/actions\/\d+\/confirm$/) && request.method === "POST") {
