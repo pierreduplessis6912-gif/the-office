@@ -93,6 +93,11 @@ export interface ProcessResult {
   // gesture by real stakes instead of treating every pending action
   // identically.
   pendingActionType: string | null;
+  // Real, new field, per direct instruction: the real, structured
+  // changed-field list for a job_scope_amendment hold — a label a
+  // person recognizes and the actual typed value, not a raw id —
+  // so the client has something concrete to show and tap-to-edit.
+  pendingChanges: Array<{ field: string; label: string; displayValue: string }> | null;
 }
 
 export interface LineItemExtraction {
