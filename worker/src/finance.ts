@@ -962,9 +962,18 @@ export async function checkForJobScopeAmendment(
   customerId: number | null,
   observation: { components: unknown[]; tasks: unknown[]; scheduled_date_raw: string | null },
   installerId: number | null,
+  // Real, new parameter, per direct instruction: the actual typed
+  // installer name, not just its resolved id — needed so the real,
+  // human-readable value ("Liam") can be shown and tap-to-edited,
+  // rather than a raw database id no one would recognize.
+  installerName: string | null,
   transcript: string,
   captureId: number | null
-): Promise<{ pendingActionId: number; message: string } | null> {
+): Promise<{
+  pendingActionId: number;
+  message: string;
+  changes: Array<{ field: string; label: string; displayValue: string }>;
+} | null> {
   if (customerId === null) return null;
   if (observation.components.length !== 0 || observation.tasks.length !== 0) return null;
   if (!observation.scheduled_date_raw && installerId === null) return null;
@@ -977,11 +986,19 @@ export async function checkForJobScopeAmendment(
     .first<{ scheduled_date_raw: string | null; installer_id: number | null }>();
 
   const changes: Array<{ field: string; oldValue: string | null; newValue: string | null }> = [];
+  // Real, new companion array, per direct instruction: the same real
+  // changes, in human-readable form — a label a person would
+  // recognize, and the actual typed value rather than a raw id. This
+  // is what the client shows and lets someone tap-to-edit; `changes`
+  // above stays the exact real audit shape already proven and logged.
+  const displayChanges: Array<{ field: string; label: string; displayValue: string }> = [];
   if (observation.scheduled_date_raw) {
     changes.push({ field: "scheduled_date_raw", oldValue: currentFields?.scheduled_date_raw ?? null, newValue: observation.scheduled_date_raw });
+    displayChanges.push({ field: "scheduled_date_raw", label: "Date", displayValue: observation.scheduled_date_raw });
   }
   if (installerId !== null && installerId !== currentFields?.installer_id) {
     changes.push({ field: "installer_id", oldValue: currentFields?.installer_id != null ? String(currentFields.installer_id) : null, newValue: String(installerId) });
+    displayChanges.push({ field: "installer_id", label: "Installer", displayValue: installerName ?? String(installerId) });
   }
   if (changes.length === 0) return null;
 
@@ -993,7 +1010,8 @@ export async function checkForJobScopeAmendment(
   );
   return {
     pendingActionId: held.id,
-    message: `This sounds like a change to job scope #${existingJobScope.id} ("${existingJobScope.description}") — update it, or create this as a separate new job? (action #${held.id})`,
+    message: `Job #${existingJobScope.id} ("${existingJobScope.description}") — update it, or create this as a separate new job?`,
+    changes: displayChanges,
   };
 }
 
