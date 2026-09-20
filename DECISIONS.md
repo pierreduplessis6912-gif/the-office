@@ -5293,3 +5293,15 @@ Both items closed and confirmed on real device tests, not just deploy success.
 2. `index.ts` — `/debug/init-people-merge` (new column) and `/debug/merge-customers` extended to actually perform the people-level merge: reads each side's real `person_id`, repoints anything else referencing the losing person onto the survivor, and marks the losing person via `merged_into_person_id` — never deleted, same inspectable pattern as the customer-level merge.
 
 **Confirmed working, real data, the exact case that exposed the gap:** re-running the Bon Hotel Waterfront merge (215 → 41) returned `peopleMerged: {fromPersonId: 221, intoPersonId: 29}`. Saying "bon waterfront" again afterward produced a real picker with exactly two candidates — "SCHOONIES SEWE T/A BON WATERFRONT" and "Bon Hotel Empangeni" — with "Bon hotel waterfront" genuinely gone. Full loop closed: the same real sentence that caused the original fragmentation now resolves correctly.
+
+---
+
+## Step 2 of the pending redesign — gesture graded by real stakes, confirmed working
+
+**The real, honest starting point:** a full sweep found 12 distinct pending action types across 20 real `holdForConfirmation` call sites in this codebase — not just the three types touched earlier tonight. Grading a gesture by "stakes" only means something if every type is correctly classified, and only three had ever actually been read.
+
+**The real, deliberate design choice, argued through before writing anything:** starting from an empty "needs a hold" list and defaulting everything else to a tap would silently leave the other 11 types — including every financial document type: payment, invoice, quotation, expense, supplier invoice, purchase order, variance disposition — exactly as easy to mis-tap as today, dressed up as if they'd been reviewed when they hadn't. Built the other way around instead: hold is the floor for everything, and a type only drops to a quick tap once it's individually reviewed and confirmed low-stakes. Tonight, that's exactly one type — `job_scope_amendment`.
+
+**The real build:** `pendingActionType` threaded through every one of `processOneExtraction`'s real return points and `processTranscript`, the same real pattern already proven for `pendingCandidates`. Client-side, `_requiresHold` is the single real gate (`true` for anything except `job_scope_amendment`), and a new `_HoldAction` widget — a quiet underline filling in under the label as it's held, cancels cleanly on early release — replaces the plain tap for everything on the safe-by-default side. Applied uniformly to the plain Confirm/Reject row and to every option in the multi-candidate picker, including "None of these."
+
+**Confirmed working, real device tests:** a `job_scope_amendment` still resolves on a plain, quick tap, unchanged. Everything else — tested directly — does nothing at all on a quick tap; only an actual sustained hold, with the fill visibly completing, fires the real action.
