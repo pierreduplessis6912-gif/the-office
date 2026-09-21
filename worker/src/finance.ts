@@ -1882,23 +1882,24 @@ async function drawLogoIfPresent(env: Env, pdfDoc: PDFDocument, page: PDFPage, y
 
     // Real, deliberate scaling — never distort the real logo's aspect
     // ratio, only ever shrink to fit within the real space available.
-    // Enlarged per direct instruction, now that the business name text
-    // is skipped whenever a logo is drawn — the logo genuinely takes
-    // up the real space that line used to occupy, not just a narrow
-    // margin above it.
-    const maxWidth = 200;
-    const maxHeight = 39;
+    // Enlarged again per direct instruction ("needs to be bigger") —
+    // now anchored near the true top of the page rather than where
+    // the old text's cap-height sat, so it fills the real available
+    // header space instead of only growing downward from a fixed
+    // point sized for text.
+    const maxWidth = 260;
+    const maxHeight = 60;
     const scale = Math.min(maxWidth / image.width, maxHeight / image.height, 1);
     const width = image.width * scale;
     const height = image.height * scale;
     // Real, corrected position, per direct instruction after a real,
-    // confirmed bug found on a real generated document: top-left,
-    // aligned with where the business's own name used to sit, not
+    // confirmed bug found on a real generated document: top-left, not
     // top-right (every one of these documents already puts the
-    // *recipient's* details there). `top` roughly matches the name
-    // text's own cap-height above its baseline (y), so the logo's
-    // visual top lands where the name's own top would have been.
-    const top = y + 14;
+    // *recipient's* details there). `top` sits close to the true page
+    // edge (841.89), leaving a small real margin, so a taller logo has
+    // real room to grow into rather than being capped at the old
+    // text's own height.
+    const top = 836;
     const bottom = top - height;
     page.drawImage(image, { x: 50, y: bottom, width, height });
     // Real gap before whatever line comes next, same role `y -= 18`
