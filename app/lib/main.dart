@@ -1256,6 +1256,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         onSnagsTap: _showSnagsSheet,
         onLeadsTap: _showLeadsSheet,
         onProjectsTap: _showProjectsSheet,
+        onStockTap: _showStockSheet,
       ),
       body: SafeArea(
         child: Stack(
@@ -1962,6 +1963,24 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     );
   }
 
+  // Real, new room, per direct instruction, part of the real
+  // discoverability-plus-audit pass, fifth real domain — same real
+  // pattern as everything else above. _emberPurple matches the
+  // existing comment grouping "Consumables Stock" under the
+  // Suppliers/purple concept, the same real, already-established
+  // association, not a new one invented here.
+  Future<void> _showStockSheet(Offset origin) async {
+    await _igniteEmber(origin, _emberPurple);
+    if (!mounted) return;
+    await showOfficeRoom(
+      context: context,
+      officeState: _officeState,
+      origin: origin,
+      accentColor: _emberPurple,
+      builder: (context) => _StockRoomContent(authHeaders: _authHeaders()),
+    );
+  }
+
   // Real, direct feedback: "when I tap an ember, does my brain
   // perceive that ember as the thing opening the room? Not tap →
   // ember animation → dialog → room animation. One event propagating
@@ -2095,6 +2114,7 @@ class _OfficeDrawer extends StatelessWidget {
   final void Function(Offset) onSnagsTap;
   final void Function(Offset) onLeadsTap;
   final void Function(Offset) onProjectsTap;
+  final void Function(Offset) onStockTap;
   const _OfficeDrawer({
     required this.onReportsTap,
     required this.onPeopleTap,
@@ -2103,6 +2123,7 @@ class _OfficeDrawer extends StatelessWidget {
     required this.onSnagsTap,
     required this.onLeadsTap,
     required this.onProjectsTap,
+    required this.onStockTap,
   });
 
   @override
@@ -2137,6 +2158,7 @@ class _OfficeDrawer extends StatelessWidget {
             _drawerItem(Icons.report_problem_outlined, 'Snags', onSnagsTap, context),
             _drawerItem(Icons.trending_up_outlined, 'Leads', onLeadsTap, context),
             _drawerItem(Icons.account_tree_outlined, 'Projects', onProjectsTap, context),
+            _drawerItem(Icons.inventory_2_outlined, 'Stock', onStockTap, context),
           ],
         ),
       ),
@@ -4921,6 +4943,128 @@ class _ProjectsRoomContentState extends State<_ProjectsRoomContent> {
                                   ),
                                 ),
                             ],
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Real, new room content, per direct instruction, part of the real
+// discoverability-plus-audit pass, fifth real domain: getTrackedStockItems
+// has been real, working data since 2026-07-25 with no discoverable
+// surface anywhere in the app. Deliberately scoped to current levels
+// only, read-only — no resolve action to build, and the related
+// discrepancy-resolution piece is deliberately left for a real
+// extension of the Suppliers room, not folded in here.
+class _StockRoomContent extends StatefulWidget {
+  final Map<String, String> authHeaders;
+  const _StockRoomContent({required this.authHeaders});
+
+  @override
+  State<_StockRoomContent> createState() => _StockRoomContentState();
+}
+
+class _StockRoomContentState extends State<_StockRoomContent> {
+  List<dynamic> _items = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    setState(() => _loading = true);
+    try {
+      final uri = Uri.parse('$officeApiBase/stock');
+      final response = await http.get(uri, headers: widget.authHeaders);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        if (!mounted) return;
+        setState(() {
+          _items = data['stockItems'] as List? ?? [];
+          _loading = false;
+          _error = null;
+        });
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = 'Could not load Stock right now.';
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Could not load Stock right now.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: _void,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('STOCK', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    color: _muted,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (_loading)
+                const Padding(padding: EdgeInsets.only(top: 24), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+              else if (_error != null)
+                Padding(padding: const EdgeInsets.only(top: 24), child: Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else if (_items.isEmpty)
+                Padding(padding: const EdgeInsets.only(top: 24), child: Text('No stock items tracked yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.only(top: 8),
+                    itemCount: _items.length,
+                    separatorBuilder: (_, __) => Divider(height: 1, color: _textTertiary.withOpacity(0.1)),
+                    itemBuilder: (context, index) {
+                      final item = _items[index] as Map<String, dynamic>;
+                      final unit = item['unit'] as String?;
+                      final qty = item['quantity_on_hand'];
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              item['name'] as String? ?? '',
+                              style: GoogleFonts.workSans(color: _paper, fontSize: 14, fontWeight: FontWeight.w600),
+                            ),
+                            Text(
+                              '$qty${unit != null && unit.isNotEmpty ? ' $unit' : ''}',
+                              style: GoogleFonts.ibmPlexMono(color: _emberPurple, fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
                           ],
                         ),
                       );
