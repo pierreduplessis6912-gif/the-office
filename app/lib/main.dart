@@ -1254,6 +1254,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         onHistoryTap: (_) => _showHistorySheet(),
         onBusinessProfileTap: (_) => _showBusinessProfileSheet(),
         onSnagsTap: _showSnagsSheet,
+        onLeadsTap: _showLeadsSheet,
       ),
       body: SafeArea(
         child: Stack(
@@ -1918,6 +1919,21 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     );
   }
 
+  // Real, new room, per direct instruction, part of the real
+  // discoverability-plus-audit pass — same real pattern as Snags,
+  // right above.
+  Future<void> _showLeadsSheet(Offset origin) async {
+    await _igniteEmber(origin, _emberAmber);
+    if (!mounted) return;
+    await showOfficeRoom(
+      context: context,
+      officeState: _officeState,
+      origin: origin,
+      accentColor: _emberAmber,
+      builder: (context) => _LeadsRoomContent(authHeaders: _authHeaders()),
+    );
+  }
+
   // Real, direct feedback: "when I tap an ember, does my brain
   // perceive that ember as the thing opening the room? Not tap →
   // ember animation → dialog → room animation. One event propagating
@@ -2049,12 +2065,14 @@ class _OfficeDrawer extends StatelessWidget {
   final void Function(Offset) onHistoryTap;
   final void Function(Offset) onBusinessProfileTap;
   final void Function(Offset) onSnagsTap;
+  final void Function(Offset) onLeadsTap;
   const _OfficeDrawer({
     required this.onReportsTap,
     required this.onPeopleTap,
     required this.onHistoryTap,
     required this.onBusinessProfileTap,
     required this.onSnagsTap,
+    required this.onLeadsTap,
   });
 
   @override
@@ -2087,6 +2105,7 @@ class _OfficeDrawer extends StatelessWidget {
             // working feature since 2026-07-25 — voice-only, no
             // discoverable surface anywhere in the app until now.
             _drawerItem(Icons.report_problem_outlined, 'Snags', onSnagsTap, context),
+            _drawerItem(Icons.trending_up_outlined, 'Leads', onLeadsTap, context),
           ],
         ),
       ),
@@ -4524,6 +4543,203 @@ class _SnagsRoomContentState extends State<_SnagsRoomContent> {
                                 'RESOLVED',
                                 style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 1),
                               ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Real, new room content, per direct instruction, part of the real
+// discoverability-plus-audit pass: leads has been a real, working
+// feature since 2026-07-25 — including a real, automatic transition
+// from 'enquired' to 'quoted' once a real quotation is recorded for
+// the same name — with no discoverable surface anywhere in the app.
+// Same real fetch/loading/error pattern as _SnagsRoomContent above.
+// The one real manual action available is marking a lead lost — there
+// is no separate "won" action to build, since a lead becomes a real
+// customer automatically through the same quotation/invoice machinery
+// already proven elsewhere, not through anything this room does.
+class _LeadsRoomContent extends StatefulWidget {
+  final Map<String, String> authHeaders;
+  const _LeadsRoomContent({required this.authHeaders});
+
+  @override
+  State<_LeadsRoomContent> createState() => _LeadsRoomContentState();
+}
+
+class _LeadsRoomContentState extends State<_LeadsRoomContent> {
+  List<dynamic> _items = [];
+  bool _loading = true;
+  String? _error;
+  int? _markingLostId;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    setState(() => _loading = true);
+    try {
+      final uri = Uri.parse('$officeApiBase/leads');
+      final response = await http.get(uri, headers: widget.authHeaders);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        if (!mounted) return;
+        setState(() {
+          _items = data['leads'] as List? ?? [];
+          _loading = false;
+          _error = null;
+        });
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = 'Could not load Leads right now.';
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Could not load Leads right now.';
+      });
+    }
+  }
+
+  Future<void> _markLost(int id) async {
+    setState(() => _markingLostId = id);
+    try {
+      final uri = Uri.parse('$officeApiBase/leads/$id/mark-lost');
+      final response = await http.post(uri, headers: widget.authHeaders);
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        await _fetch();
+      } else {
+        setState(() => _markingLostId = null);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _markingLostId = null);
+    }
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'lost':
+        return _textTertiary;
+      case 'quoted':
+        return _confirmedGreen;
+      default:
+        return _emberAmber;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final openCount = _items.where((l) {
+      final status = (l as Map<String, dynamic>)['status'] as String?;
+      return status == 'enquired' || status == 'quoted';
+    }).length;
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: _void,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('LEADS', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    color: _muted,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              if (!_loading && _error == null && _items.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Text(
+                  '$openCount open of ${_items.length}',
+                  style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 1),
+                ),
+              ],
+              const SizedBox(height: 8),
+              if (_loading)
+                const Padding(padding: EdgeInsets.only(top: 24), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+              else if (_error != null)
+                Padding(padding: const EdgeInsets.only(top: 24), child: Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else if (_items.isEmpty)
+                Padding(padding: const EdgeInsets.only(top: 24), child: Text('No leads on file.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.only(top: 8),
+                    itemCount: _items.length,
+                    separatorBuilder: (_, __) => Divider(height: 1, color: _textTertiary.withOpacity(0.1)),
+                    itemBuilder: (context, index) {
+                      final lead = _items[index] as Map<String, dynamic>;
+                      final id = lead['id'] as int;
+                      final status = lead['status'] as String? ?? 'enquired';
+                      final canMarkLost = status == 'enquired' || status == 'quoted';
+                      final busy = _markingLostId == id;
+                      final interest = lead['interest'] as String?;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        lead['name'] as String? ?? '',
+                                        style: GoogleFonts.workSans(color: _paper, fontSize: 14, fontWeight: FontWeight.w600),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        status.toUpperCase(),
+                                        style: GoogleFonts.ibmPlexMono(color: _statusColor(status), fontSize: 9.5, letterSpacing: 0.8),
+                                      ),
+                                    ],
+                                  ),
+                                  if (interest != null && interest.isNotEmpty) ...[
+                                    const SizedBox(height: 3),
+                                    Text(interest, style: GoogleFonts.workSans(color: _muted, fontSize: 13)),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            if (canMarkLost)
+                              busy
+                                  ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: _textTertiary))
+                                  : InkWell(
+                                      onTap: () => _markLost(id),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                        child: Text(
+                                          'MARK LOST',
+                                          style: GoogleFonts.ibmPlexMono(color: _muted, fontSize: 10, letterSpacing: 0.8, fontWeight: FontWeight.w600),
+                                        ),
+                                      ),
+                                    ),
                           ],
                         ),
                       );
