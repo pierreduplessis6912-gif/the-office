@@ -2381,6 +2381,108 @@ export async function generateAgedDebtorsPdf(env: Env): Promise<Uint8Array> {
   return await pdfDoc.save();
 }
 
+// Real, new function, per direct instruction, part of the real
+// discoverability-plus-audit pass: getAgedCreditorsReport has real,
+// proven data (including a real fix for negative-expense credits) but
+// no PDF generator at all, despite generateAgedDebtorsPdf existing for
+// the opposite direction of money since 2026-07-12. A faithful mirror
+// of that function — same real visual family, same FIFO convention,
+// same page layout — for suppliers instead of customers.
+export async function generateAgedCreditorsPdf(env: Env): Promise<Uint8Array> {
+  const business = await env.OFFICE_DB.prepare("SELECT name, trading_as, vat_no, address FROM business_profile WHERE id = 1").first<{
+    name: string | null;
+    trading_as: string | null;
+    vat_no: string | null;
+    address: string | null;
+  }>();
+
+  const rows = await getAgedCreditorsReport(env);
+
+  const pdfDoc = await PDFDocument.create();
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const grey = rgb(0.45, 0.45, 0.45);
+  const black = rgb(0, 0, 0);
+
+  const pageWidth = 595.28;
+  const pageHeight = 841.89;
+  const left = 50;
+
+  let page = pdfDoc.addPage([pageWidth, pageHeight]);
+  let y = 792;
+
+  const drawHeader = async () => {
+    const logoResult = await drawLogoIfPresent(env, pdfDoc, page, y);
+    y = logoResult.y;
+    if (!logoResult.drew) {
+      page.drawText(business?.name ?? "[Business name not set]", { x: left, y, size: 14, font: bold });
+      y -= 18;
+    }
+    if (business?.trading_as) {
+      page.drawText(`T/A ${business.trading_as}`, { x: left, y, size: 10, font });
+      y -= 14;
+    }
+    y -= 16;
+    page.drawText("AGED CREDITORS ANALYSIS", { x: left, y, size: 16, font: bold });
+    y -= 16;
+    page.drawText(
+      "Payments are allocated oldest-expense-first (FIFO) — payments aren't linked to a specific expense in this system.",
+      { x: left, y, size: 8, font, color: grey, maxWidth: 495 }
+    );
+    y -= 26;
+
+    page.drawText("SUPPLIER", { x: left, y, size: 9, font: bold, color: grey });
+    page.drawText("CURRENT", { x: 230, y, size: 9, font: bold, color: grey });
+    page.drawText("30-60", { x: 300, y, size: 9, font: bold, color: grey });
+    page.drawText("60-90", { x: 360, y, size: 9, font: bold, color: grey });
+    page.drawText("90+", { x: 420, y, size: 9, font: bold, color: grey });
+    page.drawText("TOTAL", { x: 480, y, size: 9, font: bold, color: grey });
+    y -= 8;
+    page.drawLine({ start: { x: left, y }, end: { x: 545, y }, thickness: 1, color: grey });
+    y -= 18;
+  };
+
+  await drawHeader();
+
+  if (rows.length === 0) {
+    page.drawText("No outstanding creditors on file.", { x: left, y, size: 10, font, color: grey });
+  }
+
+  const totals = { current: 0, days30: 0, days60: 0, days90Plus: 0, total: 0 };
+
+  for (const row of rows) {
+    if (y < 80) {
+      page = pdfDoc.addPage([pageWidth, pageHeight]);
+      y = 792;
+      await drawHeader();
+    }
+    page.drawText(row.supplierName, { x: left, y, size: 9, font, maxWidth: 175 });
+    page.drawText(`${formatRand(row.current)}`, { x: 230, y, size: 9, font });
+    page.drawText(`${formatRand(row.days30)}`, { x: 300, y, size: 9, font });
+    page.drawText(`${formatRand(row.days60)}`, { x: 360, y, size: 9, font });
+    page.drawText(`${formatRand(row.days90Plus)}`, { x: 420, y, size: 9, font });
+    page.drawText(`${formatRand(row.total)}`, { x: 480, y, size: 9, font: bold, color: black });
+    y -= 20;
+
+    totals.current += row.current;
+    totals.days30 += row.days30;
+    totals.days60 += row.days60;
+    totals.days90Plus += row.days90Plus;
+    totals.total += row.total;
+  }
+
+  y -= 8;
+  page.drawLine({ start: { x: left, y: y + 12 }, end: { x: 545, y: y + 12 }, thickness: 0.5, color: grey });
+  page.drawText("TOTAL", { x: left, y, size: 10, font: bold });
+  page.drawText(`${formatRand(totals.current)}`, { x: 230, y, size: 10, font: bold });
+  page.drawText(`${formatRand(totals.days30)}`, { x: 300, y, size: 10, font: bold });
+  page.drawText(`${formatRand(totals.days60)}`, { x: 360, y, size: 10, font: bold });
+  page.drawText(`${formatRand(totals.days90Plus)}`, { x: 420, y, size: 10, font: bold });
+  page.drawText(`${formatRand(totals.total)}`, { x: 480, y, size: 10, font: bold, color: black });
+
+  return await pdfDoc.save();
+}
+
 // Real feature 2026-07-12 — the final report of the accounting-
 // capability roadmap. Same visual family as the other three. Real
 // conventions stated directly on the page, not buried in a footnote —
