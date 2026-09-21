@@ -1253,6 +1253,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         onPeopleTap: _showPeopleSheet,
         onHistoryTap: (_) => _showHistorySheet(),
         onBusinessProfileTap: (_) => _showBusinessProfileSheet(),
+        onSnagsTap: _showSnagsSheet,
       ),
       body: SafeArea(
         child: Stack(
@@ -1902,6 +1903,21 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     );
   }
 
+  // Real, new room, per direct instruction, part of the real
+  // discoverability-plus-audit pass — same real "born from the ember"
+  // opening as People, right above.
+  Future<void> _showSnagsSheet(Offset origin) async {
+    await _igniteEmber(origin, _stampRed);
+    if (!mounted) return;
+    await showOfficeRoom(
+      context: context,
+      officeState: _officeState,
+      origin: origin,
+      accentColor: _stampRed,
+      builder: (context) => _SnagsRoomContent(authHeaders: _authHeaders()),
+    );
+  }
+
   // Real, direct feedback: "when I tap an ember, does my brain
   // perceive that ember as the thing opening the room? Not tap →
   // ember animation → dialog → room animation. One event propagating
@@ -2032,11 +2048,13 @@ class _OfficeDrawer extends StatelessWidget {
   final void Function(Offset) onPeopleTap;
   final void Function(Offset) onHistoryTap;
   final void Function(Offset) onBusinessProfileTap;
+  final void Function(Offset) onSnagsTap;
   const _OfficeDrawer({
     required this.onReportsTap,
     required this.onPeopleTap,
     required this.onHistoryTap,
     required this.onBusinessProfileTap,
+    required this.onSnagsTap,
   });
 
   @override
@@ -2064,6 +2082,11 @@ class _OfficeDrawer extends StatelessWidget {
             // earlier session, not a real feature. Same real drawer
             // pattern as everything else here, not a new mechanism.
             _drawerItem(Icons.storefront_outlined, 'Business Profile', onBusinessProfileTap, context),
+            // Real, new item, per direct instruction, part of the
+            // discoverability-plus-audit pass: snags has been a real,
+            // working feature since 2026-07-25 — voice-only, no
+            // discoverable surface anywhere in the app until now.
+            _drawerItem(Icons.report_problem_outlined, 'Snags', onSnagsTap, context),
           ],
         ),
       ),
@@ -4330,6 +4353,188 @@ class _PeopleRoomContentState extends State<_PeopleRoomContent> {
     _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+}
+
+// Real, new room content, per direct instruction, part of the real
+// discoverability-plus-audit pass: snags has been a real, working
+// feature since 2026-07-25 (voice-only raise_snag/resolve_snag,
+// already tied into real retention release) with no discoverable
+// surface anywhere in the app — the exact class of gap named earlier
+// tonight. Same real fetch/loading/error pattern as _PeopleRoomContent
+// above; the genuinely new piece is a real, tappable "Resolve" action
+// per open item, calling the same real resolveSnag path the voice
+// intent already uses — one real resolution mechanism, not two.
+class _SnagsRoomContent extends StatefulWidget {
+  final Map<String, String> authHeaders;
+  const _SnagsRoomContent({required this.authHeaders});
+
+  @override
+  State<_SnagsRoomContent> createState() => _SnagsRoomContentState();
+}
+
+class _SnagsRoomContentState extends State<_SnagsRoomContent> {
+  List<dynamic> _items = [];
+  bool _loading = true;
+  String? _error;
+  int? _resolvingId;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    setState(() => _loading = true);
+    try {
+      final uri = Uri.parse('$officeApiBase/snags');
+      final response = await http.get(uri, headers: widget.authHeaders);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        if (!mounted) return;
+        setState(() {
+          _items = data['snags'] as List? ?? [];
+          _loading = false;
+          _error = null;
+        });
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = 'Could not load Snags right now.';
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Could not load Snags right now.';
+      });
+    }
+  }
+
+  Future<void> _resolve(int id) async {
+    setState(() => _resolvingId = id);
+    try {
+      final uri = Uri.parse('$officeApiBase/snags/$id/resolve');
+      final response = await http.post(uri, headers: widget.authHeaders);
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        // Real, deliberate full re-fetch rather than a local status
+        // flip — resolving the last open snag can make a real
+        // retention releasable, a fact worth showing accurately from
+        // the real server response, not assumed client-side.
+        await _fetch();
+      } else {
+        setState(() => _resolvingId = null);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _resolvingId = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final openCount = _items.where((s) => (s as Map<String, dynamic>)['status'] == 'open').length;
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: _void,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('SNAGS', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    color: _muted,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              if (!_loading && _error == null && _items.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Text(
+                  '$openCount open of ${_items.length}',
+                  style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 1),
+                ),
+              ],
+              const SizedBox(height: 8),
+              if (_loading)
+                const Padding(padding: EdgeInsets.only(top: 24), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+              else if (_error != null)
+                Padding(padding: const EdgeInsets.only(top: 24), child: Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else if (_items.isEmpty)
+                Padding(padding: const EdgeInsets.only(top: 24), child: Text('No snags on file.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.only(top: 8),
+                    itemCount: _items.length,
+                    separatorBuilder: (_, __) => Divider(height: 1, color: _textTertiary.withOpacity(0.1)),
+                    itemBuilder: (context, index) {
+                      final snag = _items[index] as Map<String, dynamic>;
+                      final id = snag['id'] as int;
+                      final status = snag['status'] as String? ?? 'open';
+                      final isOpen = status == 'open';
+                      final busy = _resolvingId == id;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    snag['customer_name'] as String? ?? '',
+                                    style: GoogleFonts.workSans(color: _paper, fontSize: 13, fontWeight: FontWeight.w600),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    snag['description'] as String? ?? '',
+                                    style: GoogleFonts.workSans(color: _paper, fontSize: 14),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            if (isOpen)
+                              busy
+                                  ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: _stampRed))
+                                  : InkWell(
+                                      onTap: () => _resolve(id),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                        child: Text(
+                                          'RESOLVE',
+                                          style: GoogleFonts.ibmPlexMono(color: _confirmedGreen, fontSize: 10.5, letterSpacing: 1, fontWeight: FontWeight.w700),
+                                        ),
+                                      ),
+                                    )
+                            else
+                              Text(
+                                'RESOLVED',
+                                style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 1),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
