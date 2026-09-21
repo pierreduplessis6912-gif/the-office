@@ -1877,12 +1877,25 @@ async function drawLogoIfPresent(env: Env, pdfDoc: PDFDocument, page: PDFPage): 
     // Real, deliberate scaling — never distort the real logo's aspect
     // ratio, only ever shrink to fit within the real margin space.
     const maxWidth = 120;
-    const maxHeight = 45;
+    const maxHeight = 26;
     const scale = Math.min(maxWidth / image.width, maxHeight / image.height, 1);
     const width = image.width * scale;
     const height = image.height * scale;
-    const pageWidth = page.getWidth();
-    page.drawImage(image, { x: pageWidth - 50 - width, y: 841.89 - 40 - height, width, height });
+    // Real, corrected position, per direct instruction after a real,
+    // confirmed bug found on a real generated document: the earlier
+    // math placed the image's bottom edge below y=792 — exactly where
+    // "BILL TO" and the customer's own address already sit — so the
+    // logo overlapped real content instead of sitting above it.
+    // Moved to top-left, aligned with the business's own name, not
+    // top-right, which is where every one of these documents already
+    // puts the *recipient's* details — a business's own logo belongs
+    // beside its own name, and this also means it can never collide
+    // with a customer's information again. Bottom edge fixed at
+    // y=810 — real clearance above the business name's own glyph
+    // height (drawn at y=792, 14pt bold, whose visible top sits
+    // several points above that baseline), not just above the
+    // baseline itself, so it can't visually crowd the text below it.
+    page.drawImage(image, { x: 50, y: 810, width, height });
   } catch {
     // Real, deliberate swallow — see comment above.
   }
