@@ -2920,6 +2920,20 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ stockItems: items });
     }
 
+    // Real, new endpoint, per direct instruction, part of the real
+    // discoverability-plus-audit pass — Stock, the fifth real domain.
+    // Deliberately scoped to current levels only: the related
+    // discrepancy-resolution piece (getOpenDiscrepanciesForSupplier,
+    // recordVarianceDisposition) is naturally per-supplier, so it
+    // belongs as a real extension of the existing Suppliers room, not
+    // folded into this one — a separate, later piece of real work,
+    // not built here. Reuses getTrackedStockItems directly, the exact
+    // same function the debug endpoint above already calls.
+    if (url.pathname === "/stock" && request.method === "GET") {
+      const items = await getTrackedStockItems(env);
+      return Response.json({ stockItems: items });
+    }
+
     if (url.pathname === "/debug/stocktakes" && request.method === "GET") {
       const { results } = await env.OFFICE_DB.prepare(
         `SELECT stl.id, stl.quantity_counted, stl.quantity_expected, stl.variance, si.name, si.unit, st.created_at
