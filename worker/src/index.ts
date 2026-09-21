@@ -2558,6 +2558,58 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ projects: enriched });
     }
 
+    // Real, new endpoint, per direct instruction, part of the real
+    // discoverability-plus-audit pass, third and final domain: projects
+    // has been a real, working feature since 2026-07-22 (job scopes
+    // linked through project_id, with a real total quoted/invoiced
+    // value already computed) with no discoverable surface anywhere in
+    // the app. Same real enriched shape as /debug/projects just above,
+    // without the debug-only LIMIT — this is a real, production
+    // endpoint, not a debug one. Read-only, deliberately: there's no
+    // real "resolve" or "complete" action for a project anywhere in
+    // this backend to wire up, unlike Snags or Leads — a project's own
+    // completeness is implied by its job scopes', not tracked
+    // separately, so building a UI action here would be inventing
+    // capability that doesn't actually exist server-side.
+    if (url.pathname === "/projects" && request.method === "GET") {
+      const { results: projects } = await env.OFFICE_DB.prepare(
+        `SELECT p.id, p.customer_id, c.name as customer_name, p.description, p.created_at
+         FROM projects p
+         LEFT JOIN customers c ON c.id = p.customer_id
+         ORDER BY p.created_at DESC`
+      ).all();
+      const enriched = await Promise.all(
+        (projects as Array<{ id: number }>).map(async (project) => {
+          const { results: jobScopes } = await env.OFFICE_DB.prepare(
+            "SELECT id, description, capture_id, created_at FROM job_scopes WHERE project_id = ?"
+          )
+            .bind(project.id)
+            .all();
+          const totalQuoted = await env.OFFICE_DB.prepare(
+            `SELECT COALESCE(SUM(q.amount), 0) as total FROM quotations q
+             JOIN job_scopes js ON js.id = q.job_scope_id
+             WHERE js.project_id = ?`
+          )
+            .bind(project.id)
+            .first<{ total: number }>();
+          const totalInvoiced = await env.OFFICE_DB.prepare(
+            `SELECT COALESCE(SUM(i.amount), 0) as total FROM invoices i
+             JOIN job_scopes js ON js.id = i.job_scope_id
+             WHERE js.project_id = ?`
+          )
+            .bind(project.id)
+            .first<{ total: number }>();
+          return {
+            ...project,
+            totalQuoted: totalQuoted?.total ?? 0,
+            totalInvoiced: totalInvoiced?.total ?? 0,
+            jobScopes,
+          };
+        })
+      );
+      return Response.json({ projects: enriched });
+    }
+
     // Real feature 2026-07-21 — closing a real, verified gap: tasks
     // only ever had open/done, no due time at all. Same
     // scheduled_date_raw/scheduled_date pattern already proven for
