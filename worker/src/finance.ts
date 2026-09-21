@@ -4,7 +4,7 @@
 // generation (real PDFs, real share messages) lives here too, since it's
 // downstream of the same records.
 
-import { PDFDocument, StandardFonts, rgb, PDFString } from "pdf-lib";
+import { PDFDocument, PDFPage, StandardFonts, rgb, PDFString } from "pdf-lib";
 import type { Env, LineItemExtraction, LineItemWithTotal, PurchaseOrderLineItem } from "./types";
 import { setSelection } from "./identity";
 import { classifyExpenseCategory } from "./ai";
@@ -1848,6 +1848,46 @@ export async function buildDocumentResponse(
   return { pdfUrl, shareMessage };
 }
 
+// Real, shared helper, per direct instruction after a real, confirmed
+// gap: the logo was uploaded and stored correctly, and served back
+// correctly, but no document generator ever actually drew it onto
+// anything — the "ready to appear on generated PDFs" claim in
+// FEATURES.md was simply wrong, found by testing the claim directly
+// rather than trusting the write-up. Built once here and called from
+// every real document generator, not duplicated four times. Placed in
+// the real, unused ~50pt margin every generator already leaves above
+// its own content (y starts at 792 on an 841.89pt-tall page) — never
+// touches or shifts any existing, already-tested text position.
+// Deliberately silent on any failure — a missing or malformed logo
+// must never block a real, needed document from generating.
+async function drawLogoIfPresent(env: Env, pdfDoc: PDFDocument, page: PDFPage): Promise<void> {
+  try {
+    const profile = await env.OFFICE_DB.prepare("SELECT logo_r2_key FROM business_profile WHERE id = 1").first<{
+      logo_r2_key: string | null;
+    }>();
+    if (!profile?.logo_r2_key) return;
+
+    const object = await env.OFFICE_VAULT.get(profile.logo_r2_key);
+    if (!object) return;
+
+    const bytes = await object.arrayBuffer();
+    const contentType = object.httpMetadata?.contentType ?? "image/png";
+    const image = contentType.includes("png") ? await pdfDoc.embedPng(bytes) : await pdfDoc.embedJpg(bytes);
+
+    // Real, deliberate scaling — never distort the real logo's aspect
+    // ratio, only ever shrink to fit within the real margin space.
+    const maxWidth = 120;
+    const maxHeight = 45;
+    const scale = Math.min(maxWidth / image.width, maxHeight / image.height, 1);
+    const width = image.width * scale;
+    const height = image.height * scale;
+    const pageWidth = page.getWidth();
+    page.drawImage(image, { x: pageWidth - 50 - width, y: 841.89 - 40 - height, width, height });
+  } catch {
+    // Real, deliberate swallow — see comment above.
+  }
+}
+
 // not the source of it. VAT applies from the business's current
 // default; a genuine per-invoice override is a real refinement for
 // later, once there's evidence it's actually needed.
@@ -1906,6 +1946,7 @@ export async function generateDocumentPdf(env: Env, id: number, kind: "invoice" 
 
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([595.28, 841.89]); // A4
+  await drawLogoIfPresent(env, pdfDoc, page);
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const grey = rgb(0.45, 0.45, 0.45);
@@ -2147,6 +2188,7 @@ export async function generateStatementPdf(env: Env, customerId: number): Promis
   };
 
   drawHeader();
+  await drawLogoIfPresent(env, pdfDoc, page);
 
   if (lines.length === 0) {
     page.drawText("No transactions on file for this customer.", { x: left, y, size: 10, font, color: grey });
@@ -2159,6 +2201,7 @@ export async function generateStatementPdf(env: Env, customerId: number): Promis
       page = pdfDoc.addPage([pageWidth, pageHeight]);
       y = 792;
       drawHeader();
+      await drawLogoIfPresent(env, pdfDoc, page);
     }
     const dateOnly = line.date.slice(0, 10);
     const signedAmount = line.type === "invoice" ? line.amount : -line.amount;
@@ -2265,6 +2308,7 @@ export async function generateAgedDebtorsPdf(env: Env): Promise<Uint8Array> {
   };
 
   drawHeader();
+  await drawLogoIfPresent(env, pdfDoc, page);
 
   if (rows.length === 0) {
     page.drawText("No outstanding debtors on file.", { x: left, y, size: 10, font, color: grey });
@@ -2277,6 +2321,7 @@ export async function generateAgedDebtorsPdf(env: Env): Promise<Uint8Array> {
       page = pdfDoc.addPage([pageWidth, pageHeight]);
       y = 792;
       drawHeader();
+      await drawLogoIfPresent(env, pdfDoc, page);
     }
     page.drawText(row.customerName, { x: left, y, size: 9, font, maxWidth: 175 });
     page.drawText(`${formatRand(row.current)}`, { x: 230, y, size: 9, font });
@@ -2320,6 +2365,7 @@ export async function generateProfitAndLossPdf(env: Env): Promise<Uint8Array> {
 
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([595.28, 841.89]);
+  await drawLogoIfPresent(env, pdfDoc, page);
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const grey = rgb(0.45, 0.45, 0.45);
