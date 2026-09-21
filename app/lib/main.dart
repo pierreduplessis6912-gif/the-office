@@ -1252,6 +1252,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         onReportsTap: (_) => _showReportsSheet(),
         onPeopleTap: _showPeopleSheet,
         onHistoryTap: (_) => _showHistorySheet(),
+        onBusinessProfileTap: (_) => _showBusinessProfileSheet(),
       ),
       body: SafeArea(
         child: Stack(
@@ -1799,6 +1800,59 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   // agreed dev-URL build list. Reports opens the real, already-proven
   // PDF endpoints directly, exact real routes confirmed against the
   // manifesto's own tested implementation.
+  // Real, new sheet, per direct instruction: the actual, discoverable
+  // home for uploading the business's real logo — same real bottom-
+  // sheet pattern as _showReportsSheet right above, not a new
+  // mechanism. Picks from the gallery, not the camera, since a real
+  // logo is almost always already a saved image file (exported from a
+  // design tool, emailed over), not something to photograph live the
+  // way a supplier invoice or delivery note is.
+  void _showBusinessProfileSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _charcoal,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.image_outlined, color: _muted),
+              title: Text('Upload Logo', style: GoogleFonts.workSans(color: _paper)),
+              subtitle: Text(
+                'Appears on invoices, quotations, statements, and reports',
+                style: GoogleFonts.workSans(color: _muted, fontSize: 12),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _pickAndUploadLogo();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickAndUploadLogo() async {
+    final XFile? picked = await _imagePicker.pickImage(source: ImageSource.gallery, imageQuality: 90);
+    if (picked == null) return;
+    try {
+      final uri = Uri.parse('$officeApiBase/business-profile/logo');
+      final request = http.MultipartRequest('POST', uri);
+      request.headers.addAll(_authHeaders());
+      request.files.add(await http.MultipartFile.fromPath('logo', picked.path));
+      final streamed = await request.send();
+      final response = await http.Response.fromStream(streamed);
+      if (response.statusCode == 200) {
+        _addMessage(MessageRole.office, 'Logo saved — it will appear on documents from now on.');
+      } else {
+        _addMessage(MessageRole.office, 'Could not save the logo — try again.');
+      }
+    } catch (_) {
+      _addMessage(MessageRole.office, 'Could not reach the Office to save the logo.');
+    }
+  }
+
   void _showReportsSheet() {
     showModalBottomSheet(
       context: context,
@@ -1977,7 +2031,13 @@ class _OfficeDrawer extends StatelessWidget {
   final void Function(Offset) onReportsTap;
   final void Function(Offset) onPeopleTap;
   final void Function(Offset) onHistoryTap;
-  const _OfficeDrawer({required this.onReportsTap, required this.onPeopleTap, required this.onHistoryTap});
+  final void Function(Offset) onBusinessProfileTap;
+  const _OfficeDrawer({
+    required this.onReportsTap,
+    required this.onPeopleTap,
+    required this.onHistoryTap,
+    required this.onBusinessProfileTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1996,6 +2056,14 @@ class _OfficeDrawer extends StatelessWidget {
             ),
             _drawerItem(Icons.description_outlined, 'Reports & Documents', onReportsTap, context),
             _drawerItem(Icons.history, 'History', onHistoryTap, context),
+            // Real, new item, per direct instruction after a real,
+            // confirmed gap: the logo could be stored and served back
+            // correctly, but there was never a real, discoverable way
+            // to actually upload one — the tiny placeholder found on
+            // file almost certainly came from a raw test call in an
+            // earlier session, not a real feature. Same real drawer
+            // pattern as everything else here, not a new mechanism.
+            _drawerItem(Icons.storefront_outlined, 'Business Profile', onBusinessProfileTap, context),
           ],
         ),
       ),
