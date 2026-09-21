@@ -1882,13 +1882,15 @@ async function drawLogoIfPresent(env: Env, pdfDoc: PDFDocument, page: PDFPage, y
 
     // Real, deliberate scaling — never distort the real logo's aspect
     // ratio, only ever shrink to fit within the real space available.
-    // Enlarged again per direct instruction ("needs to be bigger") —
-    // now anchored near the true top of the page rather than where
-    // the old text's cap-height sat, so it fills the real available
-    // header space instead of only growing downward from a fixed
-    // point sized for text.
-    const maxWidth = 260;
-    const maxHeight = 60;
+    // Enlarged a third time per direct instruction, with a real photo
+    // of the actual generated document circled to show the intended
+    // size. Both bounds raised substantially — real business logos
+    // are often wide, short lockups (mark + name + address/phone in
+    // one horizontal band), so width was very likely the binding
+    // constraint capping the rendered size well under the real height
+    // room available, not height itself.
+    const maxWidth = 300;
+    const maxHeight = 85;
     const scale = Math.min(maxWidth / image.width, maxHeight / image.height, 1);
     const width = image.width * scale;
     const height = image.height * scale;
