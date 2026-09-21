@@ -1880,6 +1880,18 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
                 launchUrl(Uri.parse('$officeApiBase/reports/aged-debtors/pdf'), webOnlyWindowName: '_blank');
               },
             ),
+            // Real, new item, per direct instruction, part of the real
+            // discoverability-plus-audit pass — the fourth real
+            // domain, Aged Creditors, the direct mirror of the item
+            // right above.
+            ListTile(
+              leading: const Icon(Icons.description_outlined, color: _muted),
+              title: Text('Aged Creditors', style: GoogleFonts.workSans(color: _paper)),
+              onTap: () {
+                Navigator.pop(context);
+                launchUrl(Uri.parse('$officeApiBase/reports/aged-creditors/pdf'), webOnlyWindowName: '_blank');
+              },
+            ),
           ],
         ),
       ),
