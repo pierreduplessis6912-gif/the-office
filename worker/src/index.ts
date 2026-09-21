@@ -2972,6 +2972,34 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ leads: results });
     }
 
+    // Real, new endpoints, per direct instruction, part of the real
+    // discoverability-plus-audit pass: leads has been a real, working
+    // feature since 2026-07-25 (voice-only, with a real, automatic
+    // enquired -> quoted transition once a real quotation is recorded
+    // for the same name) with no discoverable surface anywhere in the
+    // app. Reuses markLeadLost directly rather than duplicating its
+    // logic — one real path, whether it's reached by voice or a tap.
+    if (url.pathname === "/leads" && request.method === "GET") {
+      const { results } = await env.OFFICE_DB.prepare(
+        `SELECT id, name, interest, source, status, customer_id, created_at FROM leads
+         ORDER BY (status IN ('enquired', 'quoted')) DESC, created_at DESC`
+      ).all();
+      return Response.json({ leads: results });
+    }
+
+    if (url.pathname.match(/^\/leads\/\d+\/mark-lost$/) && request.method === "POST") {
+      const id = Number(url.pathname.split("/")[2]);
+      const lead = await env.OFFICE_DB.prepare("SELECT status FROM leads WHERE id = ?").bind(id).first<{ status: string }>();
+      if (!lead) {
+        return Response.json({ error: "no such lead" }, { status: 404 });
+      }
+      if (lead.status === "lost") {
+        return Response.json({ error: "already marked lost" }, { status: 400 });
+      }
+      await markLeadLost(env, id);
+      return Response.json({ status: "lost" });
+    }
+
     // Real feature 2026-07-24 — the real prerequisite for Aged
     // Creditors, mirroring the payments table exactly, just for
     // suppliers. Built in certain anticipation of a real, recurring
