@@ -4036,6 +4036,43 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ customers });
     }
 
+    // Real, new endpoint, per direct instruction, part of the real
+    // discoverability-plus-audit pass: customers had no real,
+    // discoverable list anywhere in the app — confirmed directly, the
+    // same real finding the comment above already made once for the
+    // debug version. Same real search/pagination pattern as
+    // /debug/characters-list, and the same real merged_into_customer_id
+    // exclusion already proven in reconcileCustomer and
+    // checkCrossRoleCollision — a merged, defunct duplicate should
+    // never appear in a real list either, for the same real reason.
+    if (url.pathname === "/customers" && request.method === "GET") {
+      const search = url.searchParams.get("search")?.trim() || null;
+      const limit = Math.min(Number(url.searchParams.get("limit")) || 50, 200);
+      const offset = Number(url.searchParams.get("offset")) || 0;
+      const like = search ? `%${search}%` : null;
+
+      const { results: customers } = await env.OFFICE_DB.prepare(
+        `SELECT id, name, address, created_at FROM customers
+         WHERE merged_into_customer_id IS NULL AND (?1 IS NULL OR name LIKE ?2 OR address LIKE ?2)
+         ORDER BY name ASC
+         LIMIT ?3 OFFSET ?4`
+      )
+        .bind(search, like, limit, offset)
+        .all<{ id: number; name: string; address: string | null; created_at: string }>();
+
+      return Response.json({ items: customers, limit, offset });
+    }
+
+    // Real, new endpoint, per direct instruction: getJobProfitability
+    // has been real, working data since 2026-07-22, only ever
+    // surfaced as the answer to one specific spoken business question
+    // — never browsable for a given customer. Reuses it directly.
+    if (url.pathname.match(/^\/customers\/\d+\/profitability$/) && request.method === "GET") {
+      const id = Number(url.pathname.split("/")[2]);
+      const result = await getJobProfitability(env, id);
+      return Response.json({ profitability: result });
+    }
+
     // Real, idempotent migration, per direct instruction after a
     // real, live fragmentation: one real business split into three
     // separate customer records in a single evening, because
