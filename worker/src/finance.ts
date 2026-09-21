@@ -1854,50 +1854,58 @@ export async function buildDocumentResponse(
 // anything — the "ready to appear on generated PDFs" claim in
 // FEATURES.md was simply wrong, found by testing the claim directly
 // rather than trusting the write-up. Built once here and called from
-// every real document generator, not duplicated four times. Placed in
-// the real, unused ~50pt margin every generator already leaves above
-// its own content (y starts at 792 on an 841.89pt-tall page) — never
-// touches or shifts any existing, already-tested text position.
+// every real document generator, not duplicated four times.
+//
+// Returns whether a logo was actually drawn, per direct instruction:
+// the business name text is genuinely redundant once a real logo
+// exists (the logo already carries the business's own name as part
+// of its own design), so every real caller uses this to decide
+// whether to skip drawing that separate line and reclaim its real
+// vertical space for a larger logo instead — while still falling
+// back to the plain name text whenever no logo is on file, so a
+// business with no logo yet never loses its own name off a document.
 // Deliberately silent on any failure — a missing or malformed logo
 // must never block a real, needed document from generating.
-async function drawLogoIfPresent(env: Env, pdfDoc: PDFDocument, page: PDFPage): Promise<void> {
+async function drawLogoIfPresent(env: Env, pdfDoc: PDFDocument, page: PDFPage, y: number): Promise<{ y: number; drew: boolean }> {
   try {
     const profile = await env.OFFICE_DB.prepare("SELECT logo_r2_key FROM business_profile WHERE id = 1").first<{
       logo_r2_key: string | null;
     }>();
-    if (!profile?.logo_r2_key) return;
+    if (!profile?.logo_r2_key) return { y, drew: false };
 
     const object = await env.OFFICE_VAULT.get(profile.logo_r2_key);
-    if (!object) return;
+    if (!object) return { y, drew: false };
 
     const bytes = await object.arrayBuffer();
     const contentType = object.httpMetadata?.contentType ?? "image/png";
     const image = contentType.includes("png") ? await pdfDoc.embedPng(bytes) : await pdfDoc.embedJpg(bytes);
 
     // Real, deliberate scaling — never distort the real logo's aspect
-    // ratio, only ever shrink to fit within the real margin space.
-    const maxWidth = 120;
-    const maxHeight = 26;
+    // ratio, only ever shrink to fit within the real space available.
+    // Enlarged per direct instruction, now that the business name text
+    // is skipped whenever a logo is drawn — the logo genuinely takes
+    // up the real space that line used to occupy, not just a narrow
+    // margin above it.
+    const maxWidth = 200;
+    const maxHeight = 39;
     const scale = Math.min(maxWidth / image.width, maxHeight / image.height, 1);
     const width = image.width * scale;
     const height = image.height * scale;
     // Real, corrected position, per direct instruction after a real,
-    // confirmed bug found on a real generated document: the earlier
-    // math placed the image's bottom edge below y=792 — exactly where
-    // "BILL TO" and the customer's own address already sit — so the
-    // logo overlapped real content instead of sitting above it.
-    // Moved to top-left, aligned with the business's own name, not
-    // top-right, which is where every one of these documents already
-    // puts the *recipient's* details — a business's own logo belongs
-    // beside its own name, and this also means it can never collide
-    // with a customer's information again. Bottom edge fixed at
-    // y=810 — real clearance above the business name's own glyph
-    // height (drawn at y=792, 14pt bold, whose visible top sits
-    // several points above that baseline), not just above the
-    // baseline itself, so it can't visually crowd the text below it.
-    page.drawImage(image, { x: 50, y: 810, width, height });
+    // confirmed bug found on a real generated document: top-left,
+    // aligned with where the business's own name used to sit, not
+    // top-right (every one of these documents already puts the
+    // *recipient's* details there). `top` roughly matches the name
+    // text's own cap-height above its baseline (y), so the logo's
+    // visual top lands where the name's own top would have been.
+    const top = y + 14;
+    const bottom = top - height;
+    page.drawImage(image, { x: 50, y: bottom, width, height });
+    // Real gap before whatever line comes next, same role `y -= 18`
+    // played for the text this replaces.
+    return { y: bottom - 10, drew: true };
   } catch {
-    // Real, deliberate swallow — see comment above.
+    return { y, drew: false };
   }
 }
 
@@ -1959,7 +1967,6 @@ export async function generateDocumentPdf(env: Env, id: number, kind: "invoice" 
 
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([595.28, 841.89]); // A4
-  await drawLogoIfPresent(env, pdfDoc, page);
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const grey = rgb(0.45, 0.45, 0.45);
@@ -1969,8 +1976,12 @@ export async function generateDocumentPdf(env: Env, id: number, kind: "invoice" 
   const left = 50;
   const right = 400;
 
-  page.drawText(business?.name ?? "[Business name not set]", { x: left, y, size: 14, font: bold });
-  y -= 18;
+  const logoResult = await drawLogoIfPresent(env, pdfDoc, page, y);
+  y = logoResult.y;
+  if (!logoResult.drew) {
+    page.drawText(business?.name ?? "[Business name not set]", { x: left, y, size: 14, font: bold });
+    y -= 18;
+  }
   if (business?.trading_as) {
     page.drawText(`T/A ${business.trading_as}`, { x: left, y, size: 10, font });
     y -= 14;
@@ -2160,9 +2171,13 @@ export async function generateStatementPdf(env: Env, customerId: number): Promis
   let page = pdfDoc.addPage([pageWidth, pageHeight]);
   let y = 792;
 
-  const drawHeader = () => {
-    page.drawText(business?.name ?? "[Business name not set]", { x: left, y, size: 14, font: bold });
-    y -= 18;
+  const drawHeader = async () => {
+    const logoResult = await drawLogoIfPresent(env, pdfDoc, page, y);
+    y = logoResult.y;
+    if (!logoResult.drew) {
+      page.drawText(business?.name ?? "[Business name not set]", { x: left, y, size: 14, font: bold });
+      y -= 18;
+    }
     if (business?.trading_as) {
       page.drawText(`T/A ${business.trading_as}`, { x: left, y, size: 10, font });
       y -= 14;
@@ -2200,8 +2215,7 @@ export async function generateStatementPdf(env: Env, customerId: number): Promis
     y -= 18;
   };
 
-  drawHeader();
-  await drawLogoIfPresent(env, pdfDoc, page);
+  await drawHeader();
 
   if (lines.length === 0) {
     page.drawText("No transactions on file for this customer.", { x: left, y, size: 10, font, color: grey });
@@ -2213,8 +2227,7 @@ export async function generateStatementPdf(env: Env, customerId: number): Promis
     if (y < 80) {
       page = pdfDoc.addPage([pageWidth, pageHeight]);
       y = 792;
-      drawHeader();
-      await drawLogoIfPresent(env, pdfDoc, page);
+      await drawHeader();
     }
     const dateOnly = line.date.slice(0, 10);
     const signedAmount = line.type === "invoice" ? line.amount : -line.amount;
@@ -2293,9 +2306,13 @@ export async function generateAgedDebtorsPdf(env: Env): Promise<Uint8Array> {
   let page = pdfDoc.addPage([pageWidth, pageHeight]);
   let y = 792;
 
-  const drawHeader = () => {
-    page.drawText(business?.name ?? "[Business name not set]", { x: left, y, size: 14, font: bold });
-    y -= 18;
+  const drawHeader = async () => {
+    const logoResult = await drawLogoIfPresent(env, pdfDoc, page, y);
+    y = logoResult.y;
+    if (!logoResult.drew) {
+      page.drawText(business?.name ?? "[Business name not set]", { x: left, y, size: 14, font: bold });
+      y -= 18;
+    }
     if (business?.trading_as) {
       page.drawText(`T/A ${business.trading_as}`, { x: left, y, size: 10, font });
       y -= 14;
@@ -2320,8 +2337,7 @@ export async function generateAgedDebtorsPdf(env: Env): Promise<Uint8Array> {
     y -= 18;
   };
 
-  drawHeader();
-  await drawLogoIfPresent(env, pdfDoc, page);
+  await drawHeader();
 
   if (rows.length === 0) {
     page.drawText("No outstanding debtors on file.", { x: left, y, size: 10, font, color: grey });
@@ -2333,8 +2349,7 @@ export async function generateAgedDebtorsPdf(env: Env): Promise<Uint8Array> {
     if (y < 80) {
       page = pdfDoc.addPage([pageWidth, pageHeight]);
       y = 792;
-      drawHeader();
-      await drawLogoIfPresent(env, pdfDoc, page);
+      await drawHeader();
     }
     page.drawText(row.customerName, { x: left, y, size: 9, font, maxWidth: 175 });
     page.drawText(`${formatRand(row.current)}`, { x: 230, y, size: 9, font });
@@ -2378,7 +2393,6 @@ export async function generateProfitAndLossPdf(env: Env): Promise<Uint8Array> {
 
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([595.28, 841.89]);
-  await drawLogoIfPresent(env, pdfDoc, page);
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const grey = rgb(0.45, 0.45, 0.45);
@@ -2387,8 +2401,12 @@ export async function generateProfitAndLossPdf(env: Env): Promise<Uint8Array> {
   const left = 50;
   let y = 792;
 
-  page.drawText(business?.name ?? "[Business name not set]", { x: left, y, size: 14, font: bold });
-  y -= 18;
+  const logoResult = await drawLogoIfPresent(env, pdfDoc, page, y);
+  y = logoResult.y;
+  if (!logoResult.drew) {
+    page.drawText(business?.name ?? "[Business name not set]", { x: left, y, size: 14, font: bold });
+    y -= 18;
+  }
   if (business?.trading_as) {
     page.drawText(`T/A ${business.trading_as}`, { x: left, y, size: 10, font });
     y -= 14;
