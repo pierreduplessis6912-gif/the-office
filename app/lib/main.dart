@@ -1255,6 +1255,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         onBusinessProfileTap: (_) => _showBusinessProfileSheet(),
         onSnagsTap: _showSnagsSheet,
         onLeadsTap: _showLeadsSheet,
+        onProjectsTap: _showProjectsSheet,
       ),
       body: SafeArea(
         child: Stack(
@@ -1934,6 +1935,21 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     );
   }
 
+  // Real, new room, per direct instruction, part of the real
+  // discoverability-plus-audit pass, third and final domain — same
+  // real pattern as Snags and Leads, above.
+  Future<void> _showProjectsSheet(Offset origin) async {
+    await _igniteEmber(origin, _emberBlue);
+    if (!mounted) return;
+    await showOfficeRoom(
+      context: context,
+      officeState: _officeState,
+      origin: origin,
+      accentColor: _emberBlue,
+      builder: (context) => _ProjectsRoomContent(authHeaders: _authHeaders()),
+    );
+  }
+
   // Real, direct feedback: "when I tap an ember, does my brain
   // perceive that ember as the thing opening the room? Not tap →
   // ember animation → dialog → room animation. One event propagating
@@ -2066,6 +2082,7 @@ class _OfficeDrawer extends StatelessWidget {
   final void Function(Offset) onBusinessProfileTap;
   final void Function(Offset) onSnagsTap;
   final void Function(Offset) onLeadsTap;
+  final void Function(Offset) onProjectsTap;
   const _OfficeDrawer({
     required this.onReportsTap,
     required this.onPeopleTap,
@@ -2073,6 +2090,7 @@ class _OfficeDrawer extends StatelessWidget {
     required this.onBusinessProfileTap,
     required this.onSnagsTap,
     required this.onLeadsTap,
+    required this.onProjectsTap,
   });
 
   @override
@@ -2106,6 +2124,7 @@ class _OfficeDrawer extends StatelessWidget {
             // discoverable surface anywhere in the app until now.
             _drawerItem(Icons.report_problem_outlined, 'Snags', onSnagsTap, context),
             _drawerItem(Icons.trending_up_outlined, 'Leads', onLeadsTap, context),
+            _drawerItem(Icons.account_tree_outlined, 'Projects', onProjectsTap, context),
           ],
         ),
       ),
@@ -4740,6 +4759,156 @@ class _LeadsRoomContentState extends State<_LeadsRoomContent> {
                                         ),
                                       ),
                                     ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Real, new room content, per direct instruction, part of the real
+// discoverability-plus-audit pass, third and final domain: projects
+// has been a real, working feature since 2026-07-22 (job scopes
+// linked through project_id, with a real total quoted/invoiced value
+// already computed) with no discoverable surface anywhere in the app.
+// Deliberately read-only, same reasoning as the real /projects
+// endpoint itself — no "resolve" or "complete" action exists
+// server-side for a project, so none gets invented here either.
+class _ProjectsRoomContent extends StatefulWidget {
+  final Map<String, String> authHeaders;
+  const _ProjectsRoomContent({required this.authHeaders});
+
+  @override
+  State<_ProjectsRoomContent> createState() => _ProjectsRoomContentState();
+}
+
+class _ProjectsRoomContentState extends State<_ProjectsRoomContent> {
+  List<dynamic> _items = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    setState(() => _loading = true);
+    try {
+      final uri = Uri.parse('$officeApiBase/projects');
+      final response = await http.get(uri, headers: widget.authHeaders);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        if (!mounted) return;
+        setState(() {
+          _items = data['projects'] as List? ?? [];
+          _loading = false;
+          _error = null;
+        });
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = 'Could not load Projects right now.';
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Could not load Projects right now.';
+      });
+    }
+  }
+
+  String _rand(num? value) => 'R${(value ?? 0).toStringAsFixed(2)}';
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: _void,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('PROJECTS', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    color: _muted,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              if (!_loading && _error == null && _items.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Text(
+                  '${_items.length} ${_items.length == 1 ? 'project' : 'projects'}',
+                  style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 1),
+                ),
+              ],
+              const SizedBox(height: 8),
+              if (_loading)
+                const Padding(padding: EdgeInsets.only(top: 24), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+              else if (_error != null)
+                Padding(padding: const EdgeInsets.only(top: 24), child: Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else if (_items.isEmpty)
+                Padding(padding: const EdgeInsets.only(top: 24), child: Text('No projects on file.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.only(top: 8),
+                    itemCount: _items.length,
+                    separatorBuilder: (_, __) => Divider(height: 1, color: _textTertiary.withOpacity(0.1)),
+                    itemBuilder: (context, index) {
+                      final project = _items[index] as Map<String, dynamic>;
+                      final jobScopes = project['jobScopes'] as List? ?? [];
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              project['customer_name'] as String? ?? 'No customer',
+                              style: GoogleFonts.workSans(color: _paper, fontSize: 14, fontWeight: FontWeight.w600),
+                            ),
+                            if ((project['description'] as String?)?.isNotEmpty ?? false) ...[
+                              const SizedBox(height: 3),
+                              Text(project['description'] as String, style: GoogleFonts.workSans(color: _muted, fontSize: 13)),
+                            ],
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Text('Quoted ${_rand(project['totalQuoted'] as num?)}', style: GoogleFonts.ibmPlexMono(color: _emberBlue, fontSize: 10.5)),
+                                const SizedBox(width: 16),
+                                Text('Invoiced ${_rand(project['totalInvoiced'] as num?)}', style: GoogleFonts.ibmPlexMono(color: _confirmedGreen, fontSize: 10.5)),
+                              ],
+                            ),
+                            if (jobScopes.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              for (final js in jobScopes)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 3),
+                                  child: Text(
+                                    '· ${(js as Map<String, dynamic>)['description'] as String? ?? ''}',
+                                    style: GoogleFonts.workSans(color: _textTertiary, fontSize: 12.5),
+                                  ),
+                                ),
+                            ],
                           ],
                         ),
                       );
