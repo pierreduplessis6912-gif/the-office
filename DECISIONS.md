@@ -5335,3 +5335,17 @@ Both items closed and confirmed on real device tests, not just deploy success.
 - **Projects:** `GET /projects`, deliberately read-only — there is no real "resolve" or "complete" action for a project anywhere in the backend, so none was invented client-side either. Shows each project's real customer, description, linked job scopes, and computed total quoted/invoiced.
 
 **Confirmed working, real device test, all three at once, after one real rebuild:** described directly as "genuinely rich."
+
+---
+
+## Aged Creditors, Stock, and Customers — the second discoverability-plus-audit batch, confirmed working
+
+**The real trigger:** asked directly what else sat in the same sphere after the first batch landed. Audited rather than guessed, the same way every real finding tonight got made — checked each real backend function against whether a real, non-debug endpoint and a real UI surface actually existed for it.
+
+- **Aged Creditors:** `getAgedCreditorsReport` had real, proven data (including a real fix for negative-expense credits) but no PDF generator at all, despite `generateAgedDebtorsPdf` existing for the opposite direction of money since 2026-07-12. Built as a faithful mirror — same visual family, same FIFO convention — and added as a third item in the existing Reports sheet.
+- **Stock:** `getTrackedStockItems` had been real, working data since 2026-07-25, entirely voice-only. Deliberately scoped to current levels only — the related discrepancy-resolution piece (`getOpenDiscrepanciesForSupplier`, `recordVarianceDisposition`) is naturally per-supplier and was deliberately left as a real, separate extension of the existing Suppliers room rather than folded in here.
+- **Customers — the real, unexpected sixth domain**, found while trying to place Job Profitability (which takes a `customerId` and needs a real detail view to live in): "People" turned out to only ever show characters. Customers had no real list anywhere in the app at all. Built a full new room mirroring People's exact real search pattern, with a real detail dialog that fetches Job Profitability fresh on open — real data since 2026-07-22, previously only reachable as the answer to one specific spoken business question.
+
+**Confirmed working, real device test, all three at once, after one real rebuild:** "All up and running."
+
+**Total real ledger for the whole discoverability-plus-audit pass tonight: six real domains** (Snags, Leads, Projects, Aged Creditors, Stock, Customers) that had real, working backend logic and zero discoverable surface, all now reachable.
