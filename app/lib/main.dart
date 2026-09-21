@@ -1257,6 +1257,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         onLeadsTap: _showLeadsSheet,
         onProjectsTap: _showProjectsSheet,
         onStockTap: _showStockSheet,
+        onCustomersTap: _showCustomersSheet,
       ),
       body: SafeArea(
         child: Stack(
@@ -1981,6 +1982,24 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     );
   }
 
+  // Real, new room, per direct instruction — the real, unexpected
+  // sixth domain found while trying to place Job Profitability:
+  // customers had no real, discoverable list anywhere in the app.
+  // _emberRed matches the existing comment establishing "Finance
+  // stays customer-side (receivables)" — the same real,
+  // already-established association, not a new one invented here.
+  Future<void> _showCustomersSheet(Offset origin) async {
+    await _igniteEmber(origin, _emberRed);
+    if (!mounted) return;
+    await showOfficeRoom(
+      context: context,
+      officeState: _officeState,
+      origin: origin,
+      accentColor: _emberRed,
+      builder: (context) => _CustomersRoomContent(authHeaders: _authHeaders()),
+    );
+  }
+
   // Real, direct feedback: "when I tap an ember, does my brain
   // perceive that ember as the thing opening the room? Not tap →
   // ember animation → dialog → room animation. One event propagating
@@ -2115,6 +2134,7 @@ class _OfficeDrawer extends StatelessWidget {
   final void Function(Offset) onLeadsTap;
   final void Function(Offset) onProjectsTap;
   final void Function(Offset) onStockTap;
+  final void Function(Offset) onCustomersTap;
   const _OfficeDrawer({
     required this.onReportsTap,
     required this.onPeopleTap,
@@ -2124,6 +2144,7 @@ class _OfficeDrawer extends StatelessWidget {
     required this.onLeadsTap,
     required this.onProjectsTap,
     required this.onStockTap,
+    required this.onCustomersTap,
   });
 
   @override
@@ -2159,6 +2180,10 @@ class _OfficeDrawer extends StatelessWidget {
             _drawerItem(Icons.trending_up_outlined, 'Leads', onLeadsTap, context),
             _drawerItem(Icons.account_tree_outlined, 'Projects', onProjectsTap, context),
             _drawerItem(Icons.inventory_2_outlined, 'Stock', onStockTap, context),
+            // Real, new item, per direct instruction — the real,
+            // unexpected sixth domain: customers had no real,
+            // discoverable list anywhere in the app at all until now.
+            _drawerItem(Icons.people_alt_outlined, 'Customers', onCustomersTap, context),
           ],
         ),
       ),
@@ -4425,6 +4450,283 @@ class _PeopleRoomContentState extends State<_PeopleRoomContent> {
     _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+}
+
+// Real, new room content, per direct instruction — the real,
+// unexpected sixth domain found while trying to place Job
+// Profitability: "People" only ever showed characters; customers had
+// no real, discoverable list anywhere in the app at all. Same real
+// search/fetch pattern as _PeopleRoomContent above. The genuinely new
+// piece: tapping a customer opens a real detail dialog that fetches
+// Job Profitability fresh — real data since 2026-07-22, previously
+// only ever reachable as the answer to one specific spoken business
+// question, never browsable for a given customer.
+class _CustomersRoomContent extends StatefulWidget {
+  final Map<String, String> authHeaders;
+  const _CustomersRoomContent({required this.authHeaders});
+
+  @override
+  State<_CustomersRoomContent> createState() => _CustomersRoomContentState();
+}
+
+class _CustomersRoomContentState extends State<_CustomersRoomContent> {
+  final _searchController = TextEditingController();
+  Timer? _debounce;
+  List<dynamic> _items = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch({String? search}) async {
+    setState(() => _loading = true);
+    try {
+      final queryParams = <String, String>{};
+      if (search != null && search.trim().isNotEmpty) {
+        queryParams['search'] = search.trim();
+      }
+      final uri = Uri.parse('$officeApiBase/customers').replace(
+        queryParameters: queryParams.isEmpty ? null : queryParams,
+      );
+      final response = await http.get(uri, headers: widget.authHeaders);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        if (!mounted) return;
+        setState(() {
+          _items = data['items'] as List? ?? [];
+          _loading = false;
+          _error = null;
+        });
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = 'Could not load Customers right now.';
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Could not load Customers right now.';
+      });
+    }
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () => _fetch(search: value));
+  }
+
+  void _showCustomerDetail(Map<String, dynamic> customer) {
+    showDialog(
+      context: context,
+      builder: (context) => _CustomerDetailDialog(customer: customer, authHeaders: widget.authHeaders),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: _void,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('CUSTOMERS', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    color: _muted,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _searchController,
+                onChanged: _onSearchChanged,
+                style: GoogleFonts.workSans(color: _paper, fontSize: 14),
+                cursorColor: _breathe,
+                decoration: InputDecoration(
+                  prefixIcon: Icon(Icons.search, size: 17, color: _textTertiary),
+                  prefixIconConstraints: const BoxConstraints(minWidth: 30),
+                  hintText: 'Search customers\u2026',
+                  hintStyle: GoogleFonts.workSans(color: _textTertiary, fontSize: 14),
+                  isDense: true,
+                  border: UnderlineInputBorder(borderSide: BorderSide(color: _textTertiary.withOpacity(0.25))),
+                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _textTertiary.withOpacity(0.25))),
+                  focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _breathe.withOpacity(0.6))),
+                ),
+              ),
+              if (!_loading && _error == null && _items.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Text('${_items.length} ${_items.length == 1 ? 'customer' : 'customers'}', style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 1)),
+              ],
+              const SizedBox(height: 8),
+              if (_loading)
+                const Padding(padding: EdgeInsets.only(top: 24), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+              else if (_error != null)
+                Padding(padding: const EdgeInsets.only(top: 24), child: Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else if (_items.isEmpty)
+                Padding(padding: const EdgeInsets.only(top: 24), child: Text('No customers on file yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.only(top: 8),
+                    itemCount: _items.length,
+                    separatorBuilder: (_, __) => Divider(height: 1, color: _textTertiary.withOpacity(0.1)),
+                    itemBuilder: (context, index) {
+                      final customer = _items[index] as Map<String, dynamic>;
+                      final address = customer['address'] as String?;
+                      return InkWell(
+                        onTap: () => _showCustomerDetail(customer),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(customer['name'] as String? ?? '', style: GoogleFonts.workSans(color: _paper, fontSize: 15, fontWeight: FontWeight.w500)),
+                              if (address != null && address.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(address, style: GoogleFonts.workSans(color: _textTertiary, fontSize: 12.5)),
+                              ],
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+}
+
+// Real, new detail dialog, per direct instruction: fetches Job
+// Profitability fresh when opened — a live lookup, not data carried
+// over from the list, since profitability is real, current money and
+// should never be shown stale.
+class _CustomerDetailDialog extends StatefulWidget {
+  final Map<String, dynamic> customer;
+  final Map<String, String> authHeaders;
+  const _CustomerDetailDialog({required this.customer, required this.authHeaders});
+
+  @override
+  State<_CustomerDetailDialog> createState() => _CustomerDetailDialogState();
+}
+
+class _CustomerDetailDialogState extends State<_CustomerDetailDialog> {
+  bool _loading = true;
+  String? _fact;
+  String? _caveat;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchProfitability();
+  }
+
+  Future<void> _fetchProfitability() async {
+    try {
+      final id = widget.customer['id'] as int;
+      final uri = Uri.parse('$officeApiBase/customers/$id/profitability');
+      final response = await http.get(uri, headers: widget.authHeaders);
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final profitability = data['profitability'] as Map<String, dynamic>?;
+        setState(() {
+          _loading = false;
+          _fact = profitability?['fact'] as String?;
+          _caveat = profitability?['caveat'] as String?;
+        });
+      } else {
+        setState(() {
+          _loading = false;
+          _error = 'Could not load profitability right now.';
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = 'Could not load profitability right now.';
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final address = widget.customer['address'] as String?;
+    return Dialog(
+      backgroundColor: _void,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _textTertiary.withOpacity(0.2))),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              (widget.customer['name'] as String? ?? 'CUSTOMER').toUpperCase(),
+              style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 1.2),
+            ),
+            if (address != null && address.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(address, style: GoogleFonts.workSans(color: _muted, fontSize: 13)),
+            ],
+            const SizedBox(height: 16),
+            Text('JOB PROFITABILITY', style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 1)),
+            const SizedBox(height: 8),
+            if (_loading)
+              const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 8), child: SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))))
+            else if (_error != null)
+              Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic, fontSize: 13))
+            else if (_fact == null)
+              Text('No invoices or expenses linked to this customer yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic, fontSize: 13))
+            else ...[
+              Text(_fact!, style: GoogleFonts.workSans(color: _paper, fontSize: 14)),
+              if (_caveat != null) ...[
+                const SizedBox(height: 6),
+                Text(_caveat!, style: GoogleFonts.workSans(color: _textTertiary, fontSize: 11.5, fontStyle: FontStyle.italic)),
+              ],
+            ],
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text('Close', style: GoogleFonts.workSans(color: _breathe, fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
