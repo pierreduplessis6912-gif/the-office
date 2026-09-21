@@ -2915,6 +2915,39 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ snags: results });
     }
 
+    // Real, new endpoints, per direct instruction, part of the real
+    // discoverability-plus-audit pass: snags has been a real, working
+    // feature since 2026-07-25 (voice-only raise_snag/resolve_snag,
+    // already tied into real retention release) with no discoverable
+    // surface anywhere in the app — the exact class of gap named
+    // earlier tonight. Reuses resolveSnag directly rather than
+    // duplicating its logic — one real resolution path, whether it's
+    // reached by voice or by a tap here.
+    if (url.pathname === "/snags" && request.method === "GET") {
+      const { results } = await env.OFFICE_DB.prepare(
+        `SELECT sn.id, sn.description, sn.status, sn.created_at, sn.resolved_at, sn.customer_id, c.name as customer_name
+         FROM snags sn
+         JOIN customers c ON c.id = sn.customer_id
+         ORDER BY (sn.status = 'open') DESC, sn.created_at DESC`
+      ).all();
+      return Response.json({ snags: results });
+    }
+
+    if (url.pathname.match(/^\/snags\/\d+\/resolve$/) && request.method === "POST") {
+      const id = Number(url.pathname.split("/")[2]);
+      const snag = await env.OFFICE_DB.prepare("SELECT customer_id, status FROM snags WHERE id = ?")
+        .bind(id)
+        .first<{ customer_id: number; status: string }>();
+      if (!snag) {
+        return Response.json({ error: "no such snag" }, { status: 404 });
+      }
+      if (snag.status === "resolved") {
+        return Response.json({ error: "already resolved" }, { status: 400 });
+      }
+      const result = await resolveSnag(env, id, snag.customer_id);
+      return Response.json({ status: "resolved", ...result });
+    }
+
     // Real feature 2026-07-25 — the lead/enquiry stage, the fourth
     // real gap named from the full lead-to-warranty lifecycle walk.
     if (url.pathname === "/debug/init-leads" && request.method === "POST") {
