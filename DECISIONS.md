@@ -5322,3 +5322,16 @@ Both items closed and confirmed on real device tests, not just deploy success.
 - **New discoverability, built the same real way as every other room:** "Business Profile" added as a fourth item in the existing drawer, opening a real "Upload Logo" action using the gallery picker (a real logo is almost always already a saved file, not something to photograph live).
 
 **Confirmed working, real device tests, multiple rounds:** the logo now renders correctly — properly sized, properly positioned, no overlap, no redundant text — on a real generated invoice, with the business's actual logo, uploaded through the actual new feature rather than a raw API call. Confirmed directly: "Its good for now."
+
+---
+
+## Snags, Leads, and Projects — the first full discoverability-plus-audit pass, confirmed working
+
+**The real premise, applied for real this time:** each of these three had been a genuinely working backend feature for months — real schemas, real deterministic logic, in Snags' case a real tie to retention release, in Projects' case a real computed total quoted/invoiced — with zero discoverable surface anywhere in the app. Voice-only, or reachable only via a raw `/debug/*` call.
+
+**Built the same real way for all three:** a real, non-debug endpoint (or two, where a real action exists), reusing the exact same functions the voice intents already call rather than duplicating logic, plus a real drawer entry and room following the exact established `_PeopleRoomContent` pattern — ember-born opening, real fetch/loading/error states.
+- **Snags:** `GET /snags`, `POST /snags/:id/resolve` (reuses `resolveSnag` directly). Real tap-to-resolve, open items first.
+- **Leads:** `GET /leads`, `POST /leads/:id/mark-lost` (reuses `markLeadLost` directly). No "mark won" action built — a lead becomes a real customer automatically through the existing quotation/invoice machinery, not through anything this room does.
+- **Projects:** `GET /projects`, deliberately read-only — there is no real "resolve" or "complete" action for a project anywhere in the backend, so none was invented client-side either. Shows each project's real customer, description, linked job scopes, and computed total quoted/invoiced.
+
+**Confirmed working, real device test, all three at once, after one real rebuild:** described directly as "genuinely rich."
