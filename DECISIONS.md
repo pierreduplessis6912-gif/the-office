@@ -5368,3 +5368,15 @@ Both items closed and confirmed on real device tests, not just deploy success.
 1. An ordinary quotation with no product or room mentioned ("General repairs") — both fields correctly stayed null, nothing regressed.
 2. A quotation with a real product and room ("vinyl," "main bedroom") — both fields populated correctly, a new real product row created.
 3. The same product said differently ("vinyl flooring") on a separate quotation — resolved to the exact same `product_id`, not a second, fragmented one — proof the whole-word matching genuinely works, not exact-string luck.
+
+---
+
+## The products foundation, complete on both sides — real proof through the actual document-upload path
+
+**Extended past the sell side:** `po_line_items.product_id` and `supplier_invoice_line_items.product_id` added, mirroring the customer-facing work exactly. `recordPurchaseOrder` resolves a real product via the same `resolveProductId` helper the sell side already uses. `recordSupplierInvoice` deliberately doesn't re-resolve — it inherits `product_id` directly from the matched PO line, since a supplier invoice is always reconciled against a PO line that already has this once it's been ordered.
+
+**Tested through the real, physical pathway a supplier invoice actually arrives by, not just a spoken sentence:** a realistic Floornet invoice PDF generated to match a real placed PO exactly (50 sqm vinyl, no variance, isolating the one real question — does `product_id` inherit correctly). Uploaded through the app's real document path.
+
+**A real, honest finding along the way, not a bug:** the first upload attempt, with no caption, correctly did nothing beyond storing the file — confirmed directly against the code, this is a deliberate design principle ("never guess a subject from the file itself, only ever from something actually said about it"), not a missed case. The supplier's name being printed on the letterhead was never going to be enough on its own. Re-uploaded with a caption naming the supplier, which correctly triggered the real chain: find Floornet's open PO, extract the invoice against its real line items, hold for confirmation.
+
+**Confirmed working, real device test, the complete real chain:** the new supplier invoice line item shows `product_id: 1`, `product_name: "vinyl"` — the exact same product as the original purchase order and every customer-facing quotation earlier tonight. One real product, one real identity, reachable from voice, text, and a genuine uploaded document, on both the buy side and the sell side. The products foundation is complete.
