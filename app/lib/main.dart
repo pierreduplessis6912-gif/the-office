@@ -12,6 +12,7 @@ import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_native_calendar/native_calendar.dart';
+import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -1059,7 +1060,22 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       final uri = Uri.parse('$officeApiBase/files/$endpoint');
       final request = http.MultipartRequest('POST', uri);
       request.headers.addAll(_authHeaders());
-      request.files.add(await http.MultipartFile.fromPath(fieldName, path));
+      // Real fix, per direct instruction, for a real, confirmed bug:
+      // MultipartFile.fromPath's own automatic MIME-type guessing
+      // silently fell back to application/octet-stream for a real
+      // uploaded PDF — the server only runs real PDF text extraction
+      // when the content type is exactly application/pdf, so the
+      // invoice's real content was never read at all. Never trust the
+      // implicit guess again; determine it explicitly from the file's
+      // own real extension instead.
+      final extension = path.split('.').last.toLowerCase();
+      final contentType = switch (extension) {
+        'pdf' => MediaType('application', 'pdf'),
+        'png' => MediaType('image', 'png'),
+        'jpg' || 'jpeg' => MediaType('image', 'jpeg'),
+        _ => MediaType('application', 'octet-stream'),
+      };
+      request.files.add(await http.MultipartFile.fromPath(fieldName, path, contentType: contentType));
       final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);
       _stopThinking();
@@ -1845,7 +1861,13 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       final uri = Uri.parse('$officeApiBase/business-profile/logo');
       final request = http.MultipartRequest('POST', uri);
       request.headers.addAll(_authHeaders());
-      request.files.add(await http.MultipartFile.fromPath('logo', picked.path));
+      // Real fix, same real bug as _uploadFile: never trust
+      // MultipartFile.fromPath's implicit MIME-type guessing, which
+      // silently fell back to application/octet-stream for a real
+      // uploaded document tonight.
+      final extension = picked.path.split('.').last.toLowerCase();
+      final contentType = extension == 'png' ? MediaType('image', 'png') : MediaType('image', 'jpeg');
+      request.files.add(await http.MultipartFile.fromPath('logo', picked.path, contentType: contentType));
       final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);
       if (response.statusCode == 200) {
@@ -2760,7 +2782,9 @@ class _FinanceRoomContentState extends State<_FinanceRoomContent> {
       final uri = Uri.parse('$officeApiBase/files/customers-csv-import');
       final request = http.MultipartRequest('POST', uri);
       request.headers.addAll(widget.authHeaders);
-      request.files.add(await http.MultipartFile.fromPath('csv', path));
+      // Real fix, same real bug as elsewhere: never trust
+      // MultipartFile.fromPath's implicit MIME-type guessing.
+      request.files.add(await http.MultipartFile.fromPath('csv', path, contentType: MediaType('text', 'csv')));
       final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);
       if (!mounted) return;
@@ -2867,7 +2891,9 @@ class _FinanceRoomContentState extends State<_FinanceRoomContent> {
       final uri = Uri.parse('$officeApiBase/files/invoices-csv-import');
       final request = http.MultipartRequest('POST', uri);
       request.headers.addAll(widget.authHeaders);
-      request.files.add(await http.MultipartFile.fromPath('csv', path));
+      // Real fix, same real bug as elsewhere: never trust
+      // MultipartFile.fromPath's implicit MIME-type guessing.
+      request.files.add(await http.MultipartFile.fromPath('csv', path, contentType: MediaType('text', 'csv')));
       final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);
       if (!mounted) return;
