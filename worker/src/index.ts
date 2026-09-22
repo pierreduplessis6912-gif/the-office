@@ -4408,6 +4408,30 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ lineItems: results });
     }
 
+    // Real, temporary diagnostic, per direct instruction: the same
+    // real row-level check as /debug/recent-line-items, for the buy
+    // side — real proof the two halves of the products foundation
+    // actually connect, not just that the columns exist.
+    if (url.pathname === "/debug/recent-po-line-items" && request.method === "GET") {
+      const { results } = await env.OFFICE_DB.prepare(
+        `SELECT po.id, po.description, po.product_id, p.name as product_name, po.purchase_order_id
+         FROM po_line_items po
+         LEFT JOIN products p ON p.id = po.product_id
+         ORDER BY po.id DESC LIMIT 10`
+      ).all();
+      return Response.json({ poLineItems: results });
+    }
+
+    if (url.pathname === "/debug/recent-supplier-invoice-line-items" && request.method === "GET") {
+      const { results } = await env.OFFICE_DB.prepare(
+        `SELECT sil.id, sil.description, sil.product_id, p.name as product_name, sil.po_line_item_id, sil.supplier_invoice_id
+         FROM supplier_invoice_line_items sil
+         LEFT JOIN products p ON p.id = sil.product_id
+         ORDER BY sil.id DESC LIMIT 10`
+      ).all();
+      return Response.json({ supplierInvoiceLineItems: results });
+    }
+
     // Real feature 2026-07-14 — step 1 of the phased auth scope
     // (Constitution Principles 25-27): real Google sign-in on the
     // existing instance. Google verifies who someone is; this Worker
