@@ -201,6 +201,74 @@ export async function reconcilePerson(
   return { status: "ambiguous", candidates: weak.results };
 }
 
+// Real, new function, per direct instruction: the exact same real,
+// proven structure as reconcilePerson right above — exact match,
+// then whole-word, then phonetic, holding for a human the moment
+// confidence runs out — applied to a real entity this project never
+// had until now: the product or material itself. "Vinyl" said today
+// and "vinyl flooring" said next month need to resolve to the same
+// real thing before any real business intelligence about materials
+// is possible, the same real fragmentation risk already confirmed
+// and solved for people's names, just for a different category of
+// entity. Deliberately not reusing looksLikeAName — that's a
+// people-specific heuristic (capitalized, proper-noun-shaped); a
+// product name like "vinyl" or "screed" is an ordinary common noun
+// and would fail that check incorrectly.
+export async function reconcileProduct(
+  env: Env,
+  spokenName: string
+): Promise<
+  | { status: "matched"; id: number; name: string }
+  | { status: "ambiguous"; candidates: Array<{ id: number; name: string }> }
+  | { status: "new" }
+  | null
+> {
+  const trimmed = spokenName.trim();
+  if (trimmed.length === 0) return null;
+
+  const exact = await env.OFFICE_DB.prepare(
+    "SELECT id, name FROM products WHERE name = ? COLLATE NOCASE AND merged_into_product_id IS NULL"
+  )
+    .bind(trimmed)
+    .all<{ id: number; name: string }>();
+  if (exact.results.length === 1) {
+    return { status: "matched", id: exact.results[0].id, name: exact.results[0].name };
+  }
+  if (exact.results.length > 1) {
+    return { status: "ambiguous", candidates: exact.results };
+  }
+
+  const firstToken = trimmed.split(/\s+/)[0];
+  const weak = await env.OFFICE_DB.prepare(
+    `SELECT id, name FROM products WHERE ${wholeWordClause("name")} AND merged_into_product_id IS NULL`
+  )
+    .bind(...wholeWordBindings(firstToken))
+    .all<{ id: number; name: string }>();
+
+  if (weak.results.length === 0) {
+    // Real phonetic pass, same real reasoning as reconcilePerson's own
+    // — computed in JS over a real, small table, not a build-time
+    // SQLite extension. Never auto-matched — a phonetic hit only ever
+    // becomes "ambiguous" for a human to resolve.
+    const allProducts = await env.OFFICE_DB.prepare(
+      "SELECT id, name FROM products WHERE merged_into_product_id IS NULL"
+    ).all<{ id: number; name: string }>();
+    const targetCode = soundex(firstToken);
+    const phoneticMatches = allProducts.results.filter((p) => soundex(p.name.trim().split(/\s+/)[0]) === targetCode);
+    if (phoneticMatches.length > 0) {
+      return { status: "ambiguous", candidates: phoneticMatches };
+    }
+    return { status: "new" };
+  }
+  if (firstToken.length < 8) {
+    return { status: "ambiguous", candidates: weak.results };
+  }
+  if (weak.results.length === 1) {
+    return { status: "matched", id: weak.results[0].id, name: weak.results[0].name };
+  }
+  return { status: "ambiguous", candidates: weak.results };
+}
+
 export async function checkCrossRoleCollision(
   env: Env,
   name: string,
