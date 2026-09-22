@@ -4297,6 +4297,19 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ table, columns: results });
     }
 
+    // Real, temporary diagnostic, per direct instruction, for a real
+    // BI-readiness audit: checking whether line_items.description has
+    // the same free-text fragmentation risk already confirmed and
+    // solved for people's names ("Sipho"/"Sipo"/"Sepo") — here for
+    // products instead. Real evidence before any aggregate (a "most
+    // common product" query) gets built on top of this column.
+    if (url.pathname === "/debug/description-frequency" && request.method === "GET") {
+      const { results } = await env.OFFICE_DB.prepare(
+        "SELECT description, COUNT(*) as count FROM line_items GROUP BY description ORDER BY count DESC LIMIT 60"
+      ).all();
+      return Response.json({ descriptions: results });
+    }
+
     // Real feature 2026-07-14 — step 1 of the phased auth scope
     // (Constitution Principles 25-27): real Google sign-in on the
     // existing instance. Google verifies who someone is; this Worker
