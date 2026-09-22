@@ -6,7 +6,7 @@
 
 import { PDFDocument, PDFPage, StandardFonts, rgb, PDFString } from "pdf-lib";
 import type { Env, LineItemExtraction, LineItemWithTotal, PurchaseOrderLineItem } from "./types";
-import { setSelection } from "./identity";
+import { reconcileProduct, setSelection } from "./identity";
 import { classifyExpenseCategory } from "./ai";
 
 // Real fix found live 2026-07-19, testing reports against real data
@@ -147,14 +147,37 @@ export async function recordInvoice(
   const invoiceId = inserted!.id;
 
   for (const item of lineItems) {
+    const productId = await resolveProductId(env, item.product);
     await env.OFFICE_DB.prepare(
-      "INSERT INTO line_items (invoice_id, description, note, quantity, unit, unit_price, line_total, discount_percent) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO line_items (invoice_id, description, note, quantity, unit, unit_price, line_total, discount_percent, product_id, room) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
-      .bind(invoiceId, item.description, item.note, item.quantity, item.unit, item.unit_price, item.line_total, item.discount_percent ?? null)
+      .bind(invoiceId, item.description, item.note, item.quantity, item.unit, item.unit_price, item.line_total, item.discount_percent ?? null, productId, item.room ?? null)
       .run();
   }
 
   return { id: invoiceId, customerId, amount, retentionAmount };
+}
+
+// Real, new helper, per direct instruction: resolves a real product_id
+// for a line item, using reconcileProduct's exact same real, proven
+// resolution — exact match, then whole-word, then phonetic. On a
+// genuine match, uses that real id. On "new", creates a real product
+// row. On "ambiguous", deliberately leaves this line item unlinked
+// rather than guessing — no real evidence yet that product-name
+// collisions are a live problem the way people's names were, so this
+// stays the safe default until real evidence says otherwise.
+async function resolveProductId(env: Env, productName: string | null | undefined): Promise<number | null> {
+  if (!productName) return null;
+  const result = await reconcileProduct(env, productName);
+  if (!result) return null;
+  if (result.status === "matched") return result.id;
+  if (result.status === "new") {
+    const inserted = await env.OFFICE_DB.prepare("INSERT INTO products (name) VALUES (?) RETURNING id")
+      .bind(productName.trim())
+      .first<{ id: number }>();
+    return inserted?.id ?? null;
+  }
+  return null;
 }
 
 export async function recordQuotation(
@@ -178,10 +201,11 @@ export async function recordQuotation(
   const quotationId = inserted!.id;
 
   for (const item of lineItems) {
+    const productId = await resolveProductId(env, item.product);
     await env.OFFICE_DB.prepare(
-      "INSERT INTO line_items (quotation_id, description, note, quantity, unit, unit_price, line_total, discount_percent) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO line_items (quotation_id, description, note, quantity, unit, unit_price, line_total, discount_percent, product_id, room) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
-      .bind(quotationId, item.description, item.note, item.quantity, item.unit, item.unit_price, item.line_total, item.discount_percent ?? null)
+      .bind(quotationId, item.description, item.note, item.quantity, item.unit, item.unit_price, item.line_total, item.discount_percent ?? null, productId, item.room ?? null)
       .run();
   }
 
