@@ -4173,6 +4173,21 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       } catch {
         // Already exists — fine, that's what makes this idempotent.
       }
+      // Real, new columns, per direct instruction: the real, missing
+      // buy-side half of the products foundation. Without these, only
+      // what a product sells for would ever be known, never what it
+      // actually cost — "profit margin on vinyl" stays unanswerable
+      // regardless of how good the sell-side wiring is.
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE po_line_items ADD COLUMN product_id INTEGER").run();
+      } catch {
+        // Already exists — fine, that's what makes this idempotent.
+      }
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE supplier_invoice_line_items ADD COLUMN product_id INTEGER").run();
+      } catch {
+        // Already exists — fine, that's what makes this idempotent.
+      }
       return Response.json({ status: "ok" });
     }
 
