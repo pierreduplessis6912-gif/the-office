@@ -4067,10 +4067,49 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // has been real, working data since 2026-07-22, only ever
     // surfaced as the answer to one specific spoken business question
     // — never browsable for a given customer. Reuses it directly.
+    // Real, second phase, per direct instruction: getCustomerFinancialSummary
+    // folded into this same response rather than a second round-trip
+    // — the natural, direct extension of the same real customer detail
+    // this endpoint already serves.
     if (url.pathname.match(/^\/customers\/\d+\/profitability$/) && request.method === "GET") {
       const id = Number(url.pathname.split("/")[2]);
       const result = await getJobProfitability(env, id);
-      return Response.json({ profitability: result });
+      const financialSummary = await getCustomerFinancialSummary(env, id);
+      return Response.json({ profitability: result, financialSummary });
+    }
+
+    // Real, new endpoints, per direct instruction, real phase 2 of the
+    // discoverability-plus-audit pass: the stock-discrepancy piece
+    // deliberately deferred out of the new Stock room earlier tonight
+    // — naturally per-supplier, so it belongs as a real extension of
+    // the existing Suppliers room instead. Reuses
+    // getOpenDiscrepanciesForSupplier and recordVarianceDisposition
+    // directly, the exact same functions the voice intent already
+    // calls — one real resolution path, not two.
+    if (url.pathname.match(/^\/suppliers\/\d+\/discrepancies$/) && request.method === "GET") {
+      const supplierId = Number(url.pathname.split("/")[2]);
+      const discrepancies = await getOpenDiscrepanciesForSupplier(env, supplierId);
+      return Response.json({ discrepancies });
+    }
+
+    if (url.pathname.match(/^\/suppliers\/discrepancies\/\d+\/resolve$/) && request.method === "POST") {
+      const grnLineItemId = Number(url.pathname.split("/")[3]);
+      const body = (await request.json().catch(() => ({}))) as {
+        reason?: string;
+        resolution?: string;
+        creditAmount?: number;
+      };
+      if (!body.resolution) {
+        return Response.json({ error: "requires resolution in the request body" }, { status: 400 });
+      }
+      const result = await recordVarianceDisposition(
+        env,
+        grnLineItemId,
+        body.reason ?? null,
+        body.resolution,
+        body.creditAmount ?? null
+      );
+      return Response.json({ status: "resolved", ...result });
     }
 
     // Real, idempotent migration, per direct instruction after a
