@@ -116,6 +116,19 @@ export interface LineItemExtraction {
   // paths (the price_scope/work_observation pricing flow) have no
   // discount concept at all and shouldn't be forced to set one.
   discount_percent?: number | null;
+  // Real, new fields, per direct instruction, part of the real
+  // BI-readiness work: additive only — description keeps working
+  // exactly as it always has for everything that already reads it
+  // (PDFs, existing displays). These are new, optional, separate
+  // fields, not a replacement for anything. product is the specific
+  // material this line item is for ("vinyl", "screed"), extracted
+  // separately so reconcileProduct has something real to resolve
+  // against instead of a whole job narrative. room is the specific
+  // room or area, real structure instead of being smeared into the
+  // same free-text description as everything else. Both null when
+  // genuinely not stated — never guessed.
+  product?: string | null;
+  room?: string | null;
 }
 
 export interface ScopePricingItem {
