@@ -4140,6 +4140,37 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ status: "ok" });
     }
 
+    // Real, new migration, per direct instruction: the real products
+    // entity for the BI-readiness audit, built the same real way as
+    // every other identity-bearing table in this project — a name and
+    // a merged_into column, ready for the same real merge tooling
+    // already proven for customers and people, once real evidence
+    // ever demands it. category is deliberately loose (a plain string,
+    // not an enum) until real use shows what categories actually
+    // matter — the same "don't invent structure ahead of evidence"
+    // discipline as everything else built tonight.
+    if (url.pathname === "/debug/init-products" && request.method === "POST") {
+      try {
+        await env.OFFICE_DB.prepare(
+          `CREATE TABLE IF NOT EXISTS products (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            category TEXT,
+            merged_into_product_id INTEGER,
+            created_at TEXT DEFAULT (datetime('now'))
+          )`
+        ).run();
+      } catch {
+        // Already exists — fine, that's what makes this idempotent.
+      }
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE line_items ADD COLUMN product_id INTEGER").run();
+      } catch {
+        // Already exists — fine, that's what makes this idempotent.
+      }
+      return Response.json({ status: "ok" });
+    }
+
     // Real, reusable merge, per direct instruction — not a one-off
     // fix for this specific case, since the underlying cause (no way
     // to resolve an already-created duplicate back into the real
