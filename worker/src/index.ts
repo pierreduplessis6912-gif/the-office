@@ -4168,6 +4168,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       } catch {
         // Already exists — fine, that's what makes this idempotent.
       }
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE line_items ADD COLUMN room TEXT").run();
+      } catch {
+        // Already exists — fine, that's what makes this idempotent.
+      }
       return Response.json({ status: "ok" });
     }
 
