@@ -247,10 +247,11 @@ export async function recordPurchaseOrder(
   const purchaseOrderId = inserted!.id;
 
   for (const item of lineItems) {
+    const productId = await resolveProductId(env, item.product);
     await env.OFFICE_DB.prepare(
-      "INSERT INTO po_line_items (purchase_order_id, description, quantity_ordered, unit, unit_price_expected) VALUES (?, ?, ?, ?, ?)"
+      "INSERT INTO po_line_items (purchase_order_id, description, quantity_ordered, unit, unit_price_expected, product_id) VALUES (?, ?, ?, ?, ?, ?)"
     )
-      .bind(purchaseOrderId, item.description, item.quantity_ordered, item.unit, item.unit_price_expected)
+      .bind(purchaseOrderId, item.description, item.quantity_ordered, item.unit, item.unit_price_expected, productId)
       .run();
   }
 
@@ -279,12 +280,28 @@ export async function findLatestOpenPurchaseOrder(
 export async function getPurchaseOrderLineItems(
   env: Env,
   purchaseOrderId: number
-): Promise<Array<{ id: number; description: string; quantity_ordered: number; unit: string | null; unit_price_expected: number | null }>> {
+): Promise<
+  Array<{
+    id: number;
+    description: string;
+    quantity_ordered: number;
+    unit: string | null;
+    unit_price_expected: number | null;
+    product_id: number | null;
+  }>
+> {
   const { results } = await env.OFFICE_DB.prepare(
-    "SELECT id, description, quantity_ordered, unit, unit_price_expected FROM po_line_items WHERE purchase_order_id = ?"
+    "SELECT id, description, quantity_ordered, unit, unit_price_expected, product_id FROM po_line_items WHERE purchase_order_id = ?"
   )
     .bind(purchaseOrderId)
-    .all<{ id: number; description: string; quantity_ordered: number; unit: string | null; unit_price_expected: number | null }>();
+    .all<{
+      id: number;
+      description: string;
+      quantity_ordered: number;
+      unit: string | null;
+      unit_price_expected: number | null;
+      product_id: number | null;
+    }>();
   return results ?? [];
 }
 
@@ -575,6 +592,13 @@ export async function recordSupplierInvoice(
     quantityVarianceVsOrdered: number | null;
     priceVariance: number | null;
     lineTotal: number;
+    // Real, new field, per direct instruction: the real, missing
+    // buy-side half of the products foundation. Inherited directly
+    // from the matched PO line item — a supplier invoice line never
+    // needs its own separate product resolution, since it's always
+    // reconciled against a PO line that already has this real, once
+    // it's been ordered through recordPurchaseOrder.
+    productId: number | null;
   }> = [];
 
   for (const item of lineItems) {
@@ -631,6 +655,7 @@ export async function recordSupplierInvoice(
       quantityVarianceVsOrdered,
       priceVariance,
       lineTotal,
+      productId: matchedPoLine?.product_id ?? null,
     });
   }
 
@@ -644,7 +669,7 @@ export async function recordSupplierInvoice(
 
   for (const item of resolvedLineItems) {
     await env.OFFICE_DB.prepare(
-      "INSERT INTO supplier_invoice_line_items (supplier_invoice_id, po_line_item_id, description, quantity_billed, unit_price_billed, quantity_variance, price_variance, line_total) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO supplier_invoice_line_items (supplier_invoice_id, po_line_item_id, description, quantity_billed, unit_price_billed, quantity_variance, price_variance, line_total, product_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
       .bind(
         supplierInvoiceId,
@@ -654,7 +679,8 @@ export async function recordSupplierInvoice(
         item.unitPriceBilled,
         item.quantityVariance,
         item.priceVariance,
-        item.lineTotal
+        item.lineTotal,
+        item.productId
       )
       .run();
   }
