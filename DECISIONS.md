@@ -5349,3 +5349,22 @@ Both items closed and confirmed on real device tests, not just deploy success.
 **Confirmed working, real device test, all three at once, after one real rebuild:** "All up and running."
 
 **Total real ledger for the whole discoverability-plus-audit pass tonight: six real domains** (Snags, Leads, Projects, Aged Creditors, Stock, Customers) that had real, working backend logic and zero discoverable surface, all now reachable.
+
+---
+
+## The BI foundation — products, reconcileProduct, and the real extraction that feeds it, confirmed working
+
+**The real starting point:** a request for date-ranged reports and analytical queries ("most common product for a customer") led to a real, systematic audit of the data model itself, not just the report functions. `/debug/table-schema` (already real, already existed) confirmed every core transaction table already has a real `created_at` — the date-range gap is purely that report functions never filter on it, a smaller fix than first assumed. A new, temporary `/debug/description-frequency` endpoint then confirmed the real, deeper gap: `line_items.description` held job narratives ("Thabo upstairs," "Jenny's lounge"), not product references — the concept of a product didn't exist in this schema at all.
+
+**Built the same real way as every other identity-bearing entity in this project:**
+- `reconcileProduct` in `identity.ts` — exact match, then whole-word, then phonetic, mirroring `reconcilePerson` precisely, deliberately not reusing `looksLikeAName` (a people-specific heuristic that would incorrectly reject an ordinary noun like "vinyl").
+- A real `products` table and `line_items.product_id`/`room` columns, added via the same `/debug/init-*` idempotent pattern as everything else.
+- `extractLineItems` extended additively — `product` and `room` as new, separate, nullable fields; `description` instruction explicitly left unchanged ("should still read naturally and completely on its own, the same as always") so nothing that already reads it broke.
+- `recordInvoice`/`recordQuotation` wired to a new `resolveProductId` helper: matched → real id, new → creates a real product row, ambiguous → deliberately left unlinked rather than guessed, since there's no real evidence yet of product-name collisions the way there was for people's names. `convertQuoteToInvoice`'s synthetic "balance due" line correctly left untouched — no real product is being purchased there.
+
+**A real bug found and fixed during smoke testing, not glossed over:** the `room` column addition never actually made it into the live migration handler — an earlier push overwrote that specific edit without carrying it forward, confirmed directly by diffing against the real deployed file, not assumed. Action #129 (and a duplicate #130 created by a retry during the failure) were left genuinely stuck in `pending_actions` as a result — real data recovered via a temporary direct-call diagnostic endpoint (`/debug/retry-quotation`) rather than lost.
+
+**Confirmed working, three real smoke tests, in order:**
+1. An ordinary quotation with no product or room mentioned ("General repairs") — both fields correctly stayed null, nothing regressed.
+2. A quotation with a real product and room ("vinyl," "main bedroom") — both fields populated correctly, a new real product row created.
+3. The same product said differently ("vinyl flooring") on a separate quotation — resolved to the exact same `product_id`, not a second, fragmented one — proof the whole-word matching genuinely works, not exact-string luck.
