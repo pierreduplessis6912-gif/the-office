@@ -58,6 +58,13 @@ export interface PurchaseOrderLineItem {
   quantity_ordered: number;
   unit: string | null;
   unit_price_expected: number | null;
+  // Real, new field, per direct instruction: the real, missing other
+  // half of the products foundation — the sell side (recordInvoice/
+  // recordQuotation) already resolves this; the buy side needs the
+  // exact same treatment, or "profit margin on vinyl" can never be
+  // answered, since only what it sells for would ever be known, never
+  // what it actually cost. Additive, nullable, never guessed.
+  product?: string | null;
 }
 
 export interface PurchaseOrderExtraction {
