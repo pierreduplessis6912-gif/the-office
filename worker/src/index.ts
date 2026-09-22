@@ -4328,6 +4328,39 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ table, columns: results });
     }
 
+    // Real, temporary diagnostic, per direct instruction: action #129
+    // failed to confirm with only a generic "could not confirm" error
+    // surfaced to the client — this calls recordQuotation directly,
+    // with the exact same real payload, and returns the actual
+    // underlying error instead of swallowing it, so the real cause can
+    // be seen rather than guessed at.
+    if (url.pathname === "/debug/retry-quotation" && request.method === "POST") {
+      try {
+        const body = (await request.json()) as {
+          customerId: number;
+          description: string;
+          amount: number;
+          lineItems?: LineItemWithTotal[];
+          jobScopeId?: number | null;
+        };
+        const quotation = await recordQuotation(
+          env,
+          body.customerId,
+          body.description,
+          body.amount,
+          "debug-retry",
+          body.lineItems ?? [],
+          body.jobScopeId ?? null
+        );
+        return Response.json({ status: "ok", quotation });
+      } catch (err) {
+        return Response.json(
+          { error: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null },
+          { status: 500 }
+        );
+      }
+    }
+
     // Real, temporary diagnostic, per direct instruction, for a real
     // BI-readiness audit: checking whether line_items.description has
     // the same free-text fragmentation risk already confirmed and
