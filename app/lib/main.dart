@@ -3734,6 +3734,30 @@ class _SuppliersRoomContentState extends State<_SuppliersRoomContent> {
                   ),
                 ),
               const SizedBox(height: 16),
+              // Real, second phase, per direct instruction: the
+              // stock-discrepancy piece deliberately deferred out of
+              // the new Stock room — naturally per-supplier, so it
+              // lives here instead, reusing this same real dialog
+              // rather than a new top-level screen.
+              Align(
+                alignment: Alignment.centerLeft,
+                child: InkWell(
+                  onTap: () {
+                    final supplierId = order['supplier_id'];
+                    if (supplierId is int) {
+                      showDialog(
+                        context: context,
+                        builder: (context) => _DiscrepanciesDialog(supplierId: supplierId, authHeaders: widget.authHeaders),
+                      );
+                    }
+                  },
+                  child: Text(
+                    'View Discrepancies',
+                    style: GoogleFonts.workSans(color: _officeAccent, fontWeight: FontWeight.w600, decoration: TextDecoration.underline),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
@@ -3860,6 +3884,201 @@ class _SuppliersRoomContentState extends State<_SuppliersRoomContent> {
     _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+}
+
+// Real, new dialog, per direct instruction, discoverability phase 2:
+// lists real open discrepancies for one supplier and lets each be
+// resolved in place — reason, resolution, and an optional credit
+// amount, matching recordVarianceDisposition's real parameters
+// directly rather than inventing a different shape. A resolved item
+// disappears from the list on success, since getOpenDiscrepanciesForSupplier
+// only ever returns genuinely open ones.
+class _DiscrepanciesDialog extends StatefulWidget {
+  final int supplierId;
+  final Map<String, String> authHeaders;
+  const _DiscrepanciesDialog({required this.supplierId, required this.authHeaders});
+
+  @override
+  State<_DiscrepanciesDialog> createState() => _DiscrepanciesDialogState();
+}
+
+class _DiscrepanciesDialogState extends State<_DiscrepanciesDialog> {
+  List<dynamic> _items = [];
+  bool _loading = true;
+  String? _error;
+  int? _resolvingId;
+  final Map<int, TextEditingController> _reasonControllers = {};
+  final Map<int, TextEditingController> _resolutionControllers = {};
+  final Map<int, TextEditingController> _creditControllers = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  @override
+  void dispose() {
+    for (final c in _reasonControllers.values) c.dispose();
+    for (final c in _resolutionControllers.values) c.dispose();
+    for (final c in _creditControllers.values) c.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetch() async {
+    setState(() => _loading = true);
+    try {
+      final uri = Uri.parse('$officeApiBase/suppliers/${widget.supplierId}/discrepancies');
+      final response = await http.get(uri, headers: widget.authHeaders);
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        setState(() {
+          _items = data['discrepancies'] as List? ?? [];
+          _loading = false;
+          _error = null;
+        });
+      } else {
+        setState(() {
+          _loading = false;
+          _error = 'Could not load discrepancies right now.';
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = 'Could not load discrepancies right now.';
+        });
+      }
+    }
+  }
+
+  Future<void> _resolve(int grnLineItemId) async {
+    final resolution = _resolutionControllers[grnLineItemId]?.text.trim() ?? '';
+    if (resolution.isEmpty) return;
+    setState(() => _resolvingId = grnLineItemId);
+    try {
+      final reason = _reasonControllers[grnLineItemId]?.text.trim();
+      final creditText = _creditControllers[grnLineItemId]?.text.trim();
+      final creditAmount = creditText != null && creditText.isNotEmpty ? double.tryParse(creditText) : null;
+      final uri = Uri.parse('$officeApiBase/suppliers/discrepancies/$grnLineItemId/resolve');
+      final response = await http.post(
+        uri,
+        headers: {...widget.authHeaders, 'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'resolution': resolution,
+          if (reason != null && reason.isNotEmpty) 'reason': reason,
+          if (creditAmount != null) 'creditAmount': creditAmount,
+        }),
+      );
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        await _fetch();
+        setState(() => _resolvingId = null);
+      } else {
+        setState(() => _resolvingId = null);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _resolvingId = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: _void,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _textTertiary.withOpacity(0.2))),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.7),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('DISCREPANCIES', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
+              const SizedBox(height: 16),
+              if (_loading)
+                const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 8), child: SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))))
+              else if (_error != null)
+                Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic, fontSize: 13))
+              else if (_items.isEmpty)
+                Text('No open discrepancies for this supplier.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic, fontSize: 13))
+              else
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: _items.length,
+                    separatorBuilder: (_, __) => Divider(height: 1, color: _textTertiary.withOpacity(0.1)),
+                    itemBuilder: (context, index) {
+                      final item = _items[index] as Map<String, dynamic>;
+                      final id = item['grnLineItemId'] as int;
+                      final variance = (item['variance'] as num?)?.toDouble() ?? 0;
+                      final busy = _resolvingId == id;
+                      _reasonControllers.putIfAbsent(id, () => TextEditingController());
+                      _resolutionControllers.putIfAbsent(id, () => TextEditingController());
+                      _creditControllers.putIfAbsent(id, () => TextEditingController());
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(item['description'] as String? ?? '', style: GoogleFonts.workSans(color: _paper, fontSize: 14)),
+                            const SizedBox(height: 3),
+                            Text('Variance: $variance', style: GoogleFonts.ibmPlexMono(color: _emberPurple, fontSize: 11)),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _reasonControllers[id],
+                              style: GoogleFonts.workSans(color: _paper, fontSize: 13),
+                              decoration: InputDecoration(isDense: true, hintText: 'Reason (optional)', hintStyle: GoogleFonts.workSans(color: _textTertiary, fontSize: 13), border: const UnderlineInputBorder()),
+                            ),
+                            const SizedBox(height: 6),
+                            TextField(
+                              controller: _resolutionControllers[id],
+                              style: GoogleFonts.workSans(color: _paper, fontSize: 13),
+                              decoration: InputDecoration(isDense: true, hintText: 'Resolution (e.g. accepted, credit, write-off)', hintStyle: GoogleFonts.workSans(color: _textTertiary, fontSize: 13), border: const UnderlineInputBorder()),
+                            ),
+                            const SizedBox(height: 6),
+                            TextField(
+                              controller: _creditControllers[id],
+                              keyboardType: TextInputType.number,
+                              style: GoogleFonts.workSans(color: _paper, fontSize: 13),
+                              decoration: InputDecoration(isDense: true, hintText: 'Credit amount (optional)', hintStyle: GoogleFonts.workSans(color: _textTertiary, fontSize: 13), border: const UnderlineInputBorder()),
+                            ),
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: busy
+                                  ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                  : InkWell(
+                                      onTap: () => _resolve(id),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                        child: Text('RESOLVE', style: GoogleFonts.ibmPlexMono(color: _confirmedGreen, fontSize: 10.5, letterSpacing: 0.8, fontWeight: FontWeight.w700)),
+                                      ),
+                                    ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('Close', style: GoogleFonts.workSans(color: _breathe, fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -4641,6 +4860,7 @@ class _CustomerDetailDialogState extends State<_CustomerDetailDialog> {
   bool _loading = true;
   String? _fact;
   String? _caveat;
+  String? _financialSummary;
   String? _error;
 
   @override
@@ -4662,6 +4882,7 @@ class _CustomerDetailDialogState extends State<_CustomerDetailDialog> {
           _loading = false;
           _fact = profitability?['fact'] as String?;
           _caveat = profitability?['caveat'] as String?;
+          _financialSummary = data['financialSummary'] as String?;
         });
       } else {
         setState(() {
@@ -4682,6 +4903,7 @@ class _CustomerDetailDialogState extends State<_CustomerDetailDialog> {
   @override
   Widget build(BuildContext context) {
     final address = widget.customer['address'] as String?;
+    final id = widget.customer['id'] as int;
     return Dialog(
       backgroundColor: _void,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _textTertiary.withOpacity(0.2))),
@@ -4700,28 +4922,47 @@ class _CustomerDetailDialogState extends State<_CustomerDetailDialog> {
               Text(address, style: GoogleFonts.workSans(color: _muted, fontSize: 13)),
             ],
             const SizedBox(height: 16),
-            Text('JOB PROFITABILITY', style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 1)),
-            const SizedBox(height: 8),
+            // Real, second phase, per direct instruction: financial
+            // summary folded into this same dialog, right alongside
+            // profitability — the natural, direct extension of the
+            // real detail already built here, not a new screen.
             if (_loading)
               const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 8), child: SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))))
-            else if (_error != null)
-              Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic, fontSize: 13))
-            else if (_fact == null)
-              Text('No invoices or expenses linked to this customer yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic, fontSize: 13))
             else ...[
-              Text(_fact!, style: GoogleFonts.workSans(color: _paper, fontSize: 14)),
-              if (_caveat != null) ...[
-                const SizedBox(height: 6),
-                Text(_caveat!, style: GoogleFonts.workSans(color: _textTertiary, fontSize: 11.5, fontStyle: FontStyle.italic)),
+              if (_financialSummary != null) ...[
+                Text(_financialSummary!, style: GoogleFonts.workSans(color: _paper, fontSize: 14)),
+                const SizedBox(height: 16),
+              ],
+              Text('JOB PROFITABILITY', style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 1)),
+              const SizedBox(height: 8),
+              if (_error != null)
+                Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic, fontSize: 13))
+              else if (_fact == null)
+                Text('No invoices or expenses linked to this customer yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic, fontSize: 13))
+              else ...[
+                Text(_fact!, style: GoogleFonts.workSans(color: _paper, fontSize: 14)),
+                if (_caveat != null) ...[
+                  const SizedBox(height: 6),
+                  Text(_caveat!, style: GoogleFonts.workSans(color: _textTertiary, fontSize: 11.5, fontStyle: FontStyle.italic)),
+                ],
               ],
             ],
             const SizedBox(height: 16),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text('Close', style: GoogleFonts.workSans(color: _breathe, fontWeight: FontWeight.w600)),
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                InkWell(
+                  onTap: () => launchUrl(Uri.parse('$officeApiBase/customers/$id/statement/pdf'), webOnlyWindowName: '_blank'),
+                  child: Text(
+                    'View Statement',
+                    style: GoogleFonts.workSans(color: _officeAccent, fontWeight: FontWeight.w600, decoration: TextDecoration.underline),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('Close', style: GoogleFonts.workSans(color: _breathe, fontWeight: FontWeight.w600)),
+                ),
+              ],
             ),
           ],
         ),
