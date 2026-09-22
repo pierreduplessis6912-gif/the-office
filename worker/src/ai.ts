@@ -1328,24 +1328,28 @@ export async function extractPurchaseOrder(env: Env, transcript: string): Promis
               "description is a short summary of the overall order (e.g. 'carpet tile and underlay for " +
               "the Calypso job'). line_items is every distinct material or product being ordered, each " +
               "with: description (what's being ordered), quantity_ordered (a plain number), unit (e.g. " +
-              "'sqm', 'roll', 'length', 'each', or null if not stated), and unit_price_expected (the rate " +
+              "'sqm', 'roll', 'length', 'each', or null if not stated), unit_price_expected (the rate " +
               "or price PER UNIT if one was actually stated for this item, or null if no price was " +
               "mentioned — an order is often placed with no price discussed at all, and that's a real, " +
-              "valid case, never invent one). Extract numbers exactly as stated — never calculate a total " +
-              "yourself, that always happens afterward, in code. Return ONLY JSON: " +
+              "valid case, never invent one), and product (the specific material itself, e.g. 'vinyl', " +
+              "'underlay', 'skirting' — usually the same as description here since a purchase order line " +
+              "is normally already just the material, but extracted separately so it resolves the same " +
+              "real way every other product reference in this system does; null only if the line " +
+              "genuinely isn't a single identifiable material). Extract numbers exactly as stated — never " +
+              "calculate a total yourself, that always happens afterward, in code. Return ONLY JSON: " +
               '{"supplier_name": string or null, "description": string, "line_items": [{"description": ' +
               'string, "quantity_ordered": number, "unit": string or null, "unit_price_expected": number ' +
-              "or null}]}\n\n" +
+              'or null, "product": string or null}]}\n\n' +
               "Examples:\n" +
               '"order 50 square meters of vinyl, a hundred square meter roll of underlay, and 10 lengths of skirting from Floornet" -> ' +
               '{"supplier_name":"Floornet","description":"Vinyl, underlay, and skirting","line_items":[' +
-              '{"description":"Vinyl","quantity_ordered":50,"unit":"sqm","unit_price_expected":null},' +
-              '{"description":"Underlay","quantity_ordered":100,"unit":"sqm","unit_price_expected":null},' +
-              '{"description":"Skirting","quantity_ordered":10,"unit":"length","unit_price_expected":null}' +
+              '{"description":"Vinyl","quantity_ordered":50,"unit":"sqm","unit_price_expected":null,"product":"vinyl"},' +
+              '{"description":"Underlay","quantity_ordered":100,"unit":"sqm","unit_price_expected":null,"product":"underlay"},' +
+              '{"description":"Skirting","quantity_ordered":10,"unit":"length","unit_price_expected":null,"product":"skirting"}' +
               "]}\n" +
               '"order 160 square meters of carpet tile from Floornet at R380 a square meter" -> ' +
               '{"supplier_name":"Floornet","description":"Carpet tile","line_items":[' +
-              '{"description":"Carpet tile","quantity_ordered":160,"unit":"sqm","unit_price_expected":380}' +
+              '{"description":"Carpet tile","quantity_ordered":160,"unit":"sqm","unit_price_expected":380,"product":"carpet tile"}' +
               "]}",
           },
           { role: "user", content: transcript },
