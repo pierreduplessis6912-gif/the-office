@@ -4379,6 +4379,20 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ descriptions: results });
     }
 
+    // Real, temporary diagnostic, per direct instruction: seeing the
+    // actual product_id/room values on real, individual rows — not
+    // just confirming the columns exist — to complete the real smoke
+    // test for the product/room wiring.
+    if (url.pathname === "/debug/recent-line-items" && request.method === "GET") {
+      const { results } = await env.OFFICE_DB.prepare(
+        `SELECT li.id, li.description, li.room, li.product_id, p.name as product_name, li.created_at
+         FROM line_items li
+         LEFT JOIN products p ON p.id = li.product_id
+         ORDER BY li.id DESC LIMIT 10`
+      ).all();
+      return Response.json({ lineItems: results });
+    }
+
     // Real feature 2026-07-14 — step 1 of the phased auth scope
     // (Constitution Principles 25-27): real Google sign-in on the
     // existing instance. Google verifies who someone is; this Worker
