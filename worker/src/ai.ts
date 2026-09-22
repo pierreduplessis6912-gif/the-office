@@ -555,16 +555,25 @@ export async function extractLineItems(env: Env, transcript: string): Promise<Li
             "quantity is 1 and no per-unit rate was given), and discount_percent (a stated percentage " +
             "discount applying to this specific line item, e.g. \"give them 10% off the carpet\" — " +
             "extract exactly the number stated, or null if no discount was mentioned for this item). " +
+            "Also extract product (the specific material or product this line item is actually for, " +
+            "e.g. 'vinyl', 'carpet', 'screed' — the material itself, not the job or the room; null if " +
+            "the line item genuinely isn't about a single identifiable material, e.g. a flat labour " +
+            "charge with no material named) and room (the specific room or area this line item applies " +
+            "to, e.g. 'main bedroom', 'lounge', 'kitchen'; null if no room or area was stated). " +
+            "description should still read naturally and completely on its own, the same as always — " +
+            "product and room are extracted separately in addition to that, not instead of it. " +
             "Never calculate a total or a discounted amount yourself — only " +
             'extract numbers actually stated. Return ONLY JSON: {"line_items": [{"description": ' +
             'string, "note": string or null, "quantity": number, "unit": string or null, "unit_price": ' +
-            'number, "discount_percent": number or null}]}\n\n' +
+            'number, "discount_percent": number or null, "product": string or null, "room": string or ' +
+            'null}]}\n\n' +
             "Example:\n" +
             '"carpet for the main bedroom at R18700, give them 10% off that, plus uplift and restretch for R15120" -> ' +
             '{"line_items": [' +
-            '{"description":"Supply and install carpet, main bedroom","note":null,"quantity":1,"unit":null,"unit_price":18700,"discount_percent":10},' +
-            '{"description":"Uplift carpet, uplift tile, rescreed and restretch carpet","note":null,"quantity":1,"unit":null,"unit_price":15120,"discount_percent":null}' +
+            '{"description":"Supply and install carpet, main bedroom","note":null,"quantity":1,"unit":null,"unit_price":18700,"discount_percent":10,"product":"carpet","room":"main bedroom"},' +
+            '{"description":"Uplift carpet, uplift tile, rescreed and restretch carpet","note":null,"quantity":1,"unit":null,"unit_price":15120,"discount_percent":null,"product":"carpet","room":"main bedroom"}' +
             "]}",
+
         },
         { role: "user", content: transcript },
       ],
