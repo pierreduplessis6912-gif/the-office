@@ -19,7 +19,11 @@ jobs:
 
       - name: Install dependencies
         working-directory: worker
-        run: npm install
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: worker
+        run: npm run typecheck
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
