@@ -2011,6 +2011,46 @@ async function signSession(env: Env, email: string): Promise<string> {
   const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payloadB64));
   return `${payloadB64}.${base64UrlEncode(signature)}`;
 }
+// Real, new, per direct instruction — stage 2. Every PDF link is
+// exposed to a real audience that a session cookie cannot reach: a
+// customer who has never signed in, and — a real finding, not
+// assumed — the owner's own in-app taps too, since launchUrl opens an
+// external browser tab that carries no session at all. A signature
+// tied to the exact path, not a bare secret query param, is what stops
+// copying one document's link onto another id. Reuses SESSION_SECRET
+// and hmacKey rather than a new secret needing its own Cloudflare setup.
+async function signDocumentPath(env: Env, path: string, ttlMs: number): Promise<string> {
+  const payload = JSON.stringify({ path, exp: Date.now() + ttlMs });
+  const payloadB64 = base64UrlEncode(new TextEncoder().encode(payload));
+  const key = await hmacKey(env.SESSION_SECRET);
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payloadB64));
+  return `${payloadB64}.${base64UrlEncode(signature)}`;
+}
+
+async function verifyDocumentToken(env: Env, path: string, token: string | null): Promise<boolean> {
+  if (!token) return false;
+  const parts = token.split(".");
+  if (parts.length !== 2) return false;
+  const [payloadB64, sigB64] = parts;
+  try {
+    const key = await hmacKey(env.SESSION_SECRET);
+    const valid = await crypto.subtle.verify(
+      "HMAC",
+      key,
+      base64UrlDecode(sigB64),
+      new TextEncoder().encode(payloadB64)
+    );
+    if (!valid) return false;
+    const decoded = JSON.parse(new TextDecoder().decode(base64UrlDecode(payloadB64))) as { path: string; exp: number };
+    if (Date.now() > decoded.exp) return false;
+    // Tied to the exact request path — a valid signature for invoice 3
+    // must never also open invoice 4.
+    return decoded.path === path;
+  } catch {
+    return false; // malformed token — never trust something that fails to parse cleanly
+  }
+}
+
 async function verifySession(env: Env, token: string | null): Promise<{ email: string } | null> {
   if (!token) return null;
   const parts = token.split(".");
@@ -2212,6 +2252,20 @@ const ROUTE_RULES: Array<{ method: string; path: RegExp; anyOf: string[] }> = [
 
 const ACTION_ROUTE = /^\/actions\/(\d+)\/(confirm|reject|edit-field)$/;
 
+// Real, new, per direct instruction: the allowlist for /documents/sign.
+// Every real PDF route in this project, matched to whichever
+// capability already governs the equivalent JSON data elsewhere —
+// money documents need can_manage_invoices or can_know_profit/debtors,
+// same as the REST routes for the same underlying data.
+const SIGNABLE_DOCUMENT_PATHS: Array<{ pattern: RegExp; anyOf: string[] }> = [
+  { pattern: /^\/invoices\/\d+\/pdf$/, anyOf: ["can_manage_invoices"] },
+  { pattern: /^\/quotations\/\d+\/pdf$/, anyOf: ["can_manage_invoices"] },
+  { pattern: /^\/customers\/\d+\/statement\/pdf$/, anyOf: ["can_manage_invoices", "can_know_profit"] },
+  { pattern: /^\/reports\/aged-debtors\/pdf$/, anyOf: ["can_know_debtors", "can_know_profit"] },
+  { pattern: /^\/reports\/aged-creditors\/pdf$/, anyOf: ["can_manage_invoices"] },
+  { pattern: /^\/reports\/profit-and-loss\/pdf$/, anyOf: ["can_know_profit"] },
+];
+
 function denyForRole(): Response {
   return Response.json({ error: "not available for your role" }, { status: 403 });
 }
@@ -2297,9 +2351,22 @@ async function authGate(request: Request, env: Env, url: URL): Promise<Response 
     return null; // admin-key holders bypass session/role entirely, same as /admin/ always has.
   }
 
+  // Stage 2, real, per direct instruction: also deliberately
+  // independent of ENFORCE_APP_AUTH, same real reasoning as the
+  // admin-key check above — this must keep refusing an unsigned or
+  // wrong-path link even if stage 1 is ever switched off, not quietly
+  // stop being checked along with it. A signed link, verified against
+  // this exact path, is required instead of a blanket exemption — a
+  // customer link and the owner's own in-app tap (via launchUrl, which
+  // carries no session at all) both rely on this, not on being signed in.
+  if (path.endsWith("/pdf")) {
+    const sig = url.searchParams.get("sig");
+    const ok = await verifyDocumentToken(env, path, sig);
+    return ok ? null : Response.json({ error: "this link is missing or has expired" }, { status: 403 });
+  }
+
   if (!ENFORCE_APP_AUTH) return null;
   if (PUBLIC_ROUTES.has(path)) return null;
-  if (path.endsWith("/pdf")) return null; // stage 2
 
   const session = await verifySession(env, getSessionToken(request));
   if (!session) {
@@ -4647,6 +4714,39 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // migration that touches a constraint. Guessing at a schema from
     // memory of the code that reads it is exactly how a table
     // recreation migration could silently lose a real column.
+// Real, new, per direct instruction — stage 2. The app calls this,
+    // already signed in normally, right before opening any PDF link;
+    // the signature it hands back is what actually lets that external-
+    // browser tap through. A small allowlist of real, known document
+    // paths, each with the capability that already governs it
+    // elsewhere — never an open "sign anything" endpoint. Owner
+    // always passes, same as ROUTE_RULES.
+    if (url.pathname === "/documents/sign" && request.method === "GET") {
+      const target = url.searchParams.get("path");
+      if (!target) {
+        return Response.json({ error: "requires path" }, { status: 400 });
+      }
+      const rule = SIGNABLE_DOCUMENT_PATHS.find((r) => r.pattern.test(target));
+      if (!rule) {
+        return Response.json({ error: "not a real, signable document path" }, { status: 400 });
+      }
+      if (ENFORCE_CAPABILITIES) {
+        const ctx = await getMemberContext(request, env);
+        if (!ctx) {
+          return Response.json({ error: "sign in required" }, { status: 401 });
+        }
+        if (ctx.role !== "owner" && !rule.anyOf.some((c) => ctx.caps.includes(c))) {
+          return denyForRole();
+        }
+      }
+      // 10 minutes — this is for an immediate, interactive tap, not a
+      // link meant to be reopened later. Customer-facing links (built
+      // server-side when a quote or invoice is confirmed) sign with a
+      // long expiry instead, in finance.ts, never through this route.
+      const signed = await signDocumentPath(env, target, 10 * 60 * 1000);
+      return Response.json({ url: `${url.origin}${target}?sig=${signed}` });
+    }
+
     if (url.pathname === "/debug/table-schema" && request.method === "GET") {
       const table = url.searchParams.get("table") ?? "";
       const { results } = await env.OFFICE_DB.prepare(`PRAGMA table_info(${table})`).all();
@@ -6307,7 +6407,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             "invoice",
             invoice.id,
             payload.customerName,
-            invoice.amount
+            invoice.amount,
+            (p) => signDocumentPath(env, p, 365 * 24 * 60 * 60 * 1000)
           );
           return Response.json({ status: "confirmed", invoice, pdfUrl, shareMessage });
         }
@@ -6341,7 +6442,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             "quotation",
             quotation.id,
             payload.customerName,
-            quotation.amount
+            quotation.amount,
+            (p) => signDocumentPath(env, p, 365 * 24 * 60 * 60 * 1000)
           );
           return Response.json({ status: "confirmed", quotation, pdfUrl, shareMessage });
         }
@@ -6377,7 +6479,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             "invoice",
             result.invoiceId,
             payload.customerName,
-            payload.remainingBalance
+            payload.remainingBalance,
+            (p) => signDocumentPath(env, p, 365 * 24 * 60 * 60 * 1000)
           );
           return Response.json({ status: "confirmed", invoice: result, pdfUrl, shareMessage });
         }
