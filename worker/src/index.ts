@@ -2068,6 +2068,58 @@ const ROLE_CAPABILITIES: Record<string, string[]> = {
   accountant: ["can_know_profit", "can_know_debtors", "can_know_payroll", "can_know_banking", "can_manage_invoices", "can_know_materials"],
 };
 
+// Real, new, per direct instruction — the first real item on
+// SECURITY_AND_OPERATIONAL_READINESS.md's urgent tier, confirmed against
+// the live code: 118 of 161 routes are /debug or /admin with no auth
+// check at all, and only 2 of the other 43 had one. The fix is one
+// central, default-deny gate rather than 37 separate edits — which is
+// also the fix for the *class* of mistake, not just the instances:
+// every endpoint added since has been open by default, including six
+// added in a single session. Anything not on PUBLIC_ROUTES now needs a
+// valid session with an active membership.
+//
+// Deliberately staged, and deliberately off until switched on:
+//   Stage 1 (this) — every app-facing JSON route.
+//   Stage 2 — /.../pdf routes, exempted below because they open in an
+//     external viewer via launchUrl and cannot send an Authorization
+//     header; they need short-lived signed links, a real second step.
+//   Stage 3 — /debug/* and /admin/*, exempted below because gating
+//     them today would break the curl workflow used to run this whole
+//     system; they need a separate admin secret first.
+// Flipping this constant is a one-line change through the same deploy
+// pipeline, and so is reverting it — neither depends on the app being
+// able to reach the backend, so a lockout can never trap the fix.
+const ENFORCE_APP_AUTH = false;
+
+const PUBLIC_ROUTES = new Set([
+  "/",
+  "/health",
+  "/auth/google/login",
+  "/auth/google/callback",
+  "/auth/logout",
+  "/auth/me",
+]);
+
+async function authGate(request: Request, env: Env, url: URL): Promise<Response | null> {
+  if (!ENFORCE_APP_AUTH) return null;
+  const path = url.pathname;
+  if (PUBLIC_ROUTES.has(path)) return null;
+  if (path.startsWith("/debug/") || path.startsWith("/admin/")) return null; // stage 3
+  if (path.endsWith("/pdf")) return null; // stage 2
+
+  const session = await verifySession(env, getSessionToken(request));
+  if (!session) {
+    return Response.json({ error: "sign in required" }, { status: 401 });
+  }
+  const membership = await env.OFFICE_DB.prepare("SELECT status FROM memberships WHERE google_email = ?")
+    .bind(session.email)
+    .first<{ status: string }>();
+  if (!membership || membership.status !== "active") {
+    return Response.json({ error: "no active membership" }, { status: 403 });
+  }
+  return null;
+}
+
 // Real feature 2026-07-14 — step 4 of the phased auth scope
 // (Constitution Principle 26): resolving what the asker's membership
 // actually permits, before any synthesis happens. Real, honest gap
@@ -2081,7 +2133,11 @@ const ROLE_CAPABILITIES: Record<string, string[]> = {
 async function resolveCapabilities(request: Request, env: Env): Promise<{ email: string | null; role: string | null; capabilities: string[] }> {
   const session = await verifySession(env, getSessionToken(request));
   if (!session) {
-    return { email: null, role: null, capabilities: ROLE_CAPABILITIES.owner };
+    // Fails closed once ENFORCE_APP_AUTH is on: the standing "no
+    // session means Owner" default documented above stops being
+    // reachable, instead of just being made unreachable on the routes
+    // the gate happens to cover.
+    return { email: null, role: null, capabilities: ENFORCE_APP_AUTH ? [] : ROLE_CAPABILITIES.owner };
   }
   const membership = await env.OFFICE_DB.prepare("SELECT role, status FROM memberships WHERE google_email = ?")
     .bind(session.email)
@@ -2117,6 +2173,13 @@ function getSessionToken(request: Request): string | null {
 
 async function handleRequest(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+
+    // Inside handleRequest, not the outer fetch wrapper, so a 401/403
+    // still passes through the wrapper and picks up CORS headers — the
+    // web preview shows a readable "sign in required" instead of an
+    // opaque blocked-by-CORS failure.
+    const gate = await authGate(request, env, url);
+    if (gate) return gate;
 
     if (url.pathname === "/" || url.pathname === "/health") {
       return Response.json({ status: "ok", service: "office-api" });
@@ -6963,8 +7026,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
 // security.
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
 export default {
