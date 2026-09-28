@@ -24,7 +24,7 @@ the list below rather than treated as a separate problem.
 
 ## Actually urgent — real people's real data is exposed right now
 
-- [ ] Auth check on every real data-returning endpoint, starting with the
+- [x] Auth check on every real data-returning endpoint, starting with the
   six added tonight (`/snags`, `/leads`, `/projects`, `/stock`,
   `/customers`, `/reports/aged-creditors/pdf`,
   `/suppliers/:id/discrepancies`, `/suppliers/discrepancies/:id/resolve`,
@@ -244,3 +244,40 @@ stage 1 and 2 are switched on and their mechanics verified offline, but
 neither role has actually signed in and been checked against the real
 system yet. That's the one item left before this tier of the checklist
 is genuinely closed, not just built.
+
+### Both roles live-verified — this tier genuinely closed
+
+**Installer (Liam, id 16):** Customers scoped correctly to his three
+real jobs (Bon Waterfront, Richards Hotel, Bond Empangeni). Projects and
+Snags came back empty — checked directly against the unscoped owner
+view first, confirming no project or snag row exists for any of his
+customers at all, for anyone. The empty room was the scoping working
+correctly, not a bug — proven, not assumed.
+
+**Accountant (Pauline, gmclaughlin613@gmail.com, real membership id 5,
+created live via `/debug/create-membership`):** confirmed working exactly
+as designed — profitability and invoices visible and unscoped across
+every customer, Snags/Projects/Leads refused.
+
+**What this closes:** identity (stage 1), roles (stage 2), and
+`/debug`/`/admin` (stage 3) are now switched on and live-verified end to
+end, not just built and offline-tested. Anonymous access to `/customers`
+returns 401. Both restricted roles were checked against the real system,
+not test data — installer scoped correctly to his own jobs and refused
+money; accountant saw all customers and money and was refused jobs. The
+original finding this tier started from — that identity, once proven,
+still was not authorization — is now a closed gap, not an open one.
+
+**What is still real and open, named plainly rather than folded into
+"done":**
+- Stage 2's PDF exemption — document links still need short-lived
+  signed URLs rather than staying openly guessable; not built.
+- The dictation-side test never explicitly run: an installer or
+  accountant *saying* something outside their role (a job-scope change
+  for the accountant, a quotation for the installer) and getting refused
+  by `capabilities.includes(...)` in the message path itself, rather than
+  only the REST routes checked here.
+- Two duplicate installer records under different capitalisation
+  (Jabulani/jabulani, Stylish/stylish, Sipo/sipo) — flagged earlier
+  tonight, not yet cleaned up. Real risk for scoping specifically: a job
+  assigned to one spelling will not show for a login linked to the other.
