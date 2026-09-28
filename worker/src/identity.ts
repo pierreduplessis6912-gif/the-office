@@ -277,11 +277,13 @@ export async function checkCrossRoleCollision(
   const ownTable = intendedRole === "customer" ? "customers" : "characters";
   const otherTable = intendedRole === "customer" ? "characters" : "customers";
   // Real, deliberate exclusion, matching reconcilePerson's own —
-  // characters has no merge column at all yet, only customers does,
-  // so this is only ever applied to whichever side is really
-  // "customers" in this particular call.
-  const ownMergeFilter = ownTable === "customers" ? " AND merged_into_customer_id IS NULL" : "";
-  const otherMergeFilter = otherTable === "customers" ? " AND merged_into_customer_id IS NULL" : "";
+  // Real, updated, per direct instruction: characters now has a real
+  // merge column too (merged_into_character_id), matching customers,
+  // so both sides get their own real exclusion instead of the
+  // customers-only special case this used to be.
+  const mergeColumn = (table: string) => (table === "customers" ? "merged_into_customer_id" : "merged_into_character_id");
+  const ownMergeFilter = ` AND ${mergeColumn(ownTable)} IS NULL`;
+  const otherMergeFilter = ` AND ${mergeColumn(otherTable)} IS NULL`;
 
   const existsInOwnTable = await env.OFFICE_DB.prepare(
     `SELECT id FROM ${ownTable} WHERE name = ? COLLATE NOCASE${ownMergeFilter}`
@@ -399,7 +401,7 @@ export async function reconcileCharacter(
     const firstName = tokens[0];
     const lastName = tokens[tokens.length - 1];
     const existingFull = await env.OFFICE_DB.prepare(
-      "SELECT id, name FROM characters WHERE name LIKE ? AND name LIKE ? LIMIT 1"
+      "SELECT id, name FROM characters WHERE name LIKE ? AND name LIKE ? AND merged_into_character_id IS NULL LIMIT 1"
     )
       .bind(`%${firstName}%`, `%${lastName}%`)
       .first<{ id: number; name: string }>();
@@ -417,7 +419,7 @@ export async function reconcileCharacter(
     return { id: insertedFull!.id, name: insertedFull!.name, matched: false };
   }
 
-  const existing = await env.OFFICE_DB.prepare(`SELECT id, name FROM characters WHERE ${wholeWordClause("name")} LIMIT 1`)
+  const existing = await env.OFFICE_DB.prepare(`SELECT id, name FROM characters WHERE ${wholeWordClause("name")} AND merged_into_character_id IS NULL LIMIT 1`)
     .bind(...wholeWordBindings(tokens[0]))
     .first<{ id: number; name: string }>();
 
@@ -476,10 +478,10 @@ export async function findExistingCharacterByName(
   const lastToken = tokens[tokens.length - 1];
   const row =
     tokens.length >= 2
-      ? await env.OFFICE_DB.prepare("SELECT id, name FROM characters WHERE name LIKE ? AND name LIKE ? LIMIT 1")
+      ? await env.OFFICE_DB.prepare("SELECT id, name FROM characters WHERE name LIKE ? AND name LIKE ? AND merged_into_character_id IS NULL LIMIT 1")
           .bind(`%${firstToken}%`, `%${lastToken}%`)
           .first<{ id: number; name: string }>()
-      : await env.OFFICE_DB.prepare(`SELECT id, name FROM characters WHERE ${wholeWordClause("name")} LIMIT 1`)
+      : await env.OFFICE_DB.prepare(`SELECT id, name FROM characters WHERE ${wholeWordClause("name")} AND merged_into_character_id IS NULL LIMIT 1`)
           .bind(...wholeWordBindings(firstToken))
           .first<{ id: number; name: string }>();
   return row ?? null;
@@ -515,10 +517,10 @@ export async function findExistingEntityByName(
 
   const characterRow =
     tokens.length >= 2
-      ? await env.OFFICE_DB.prepare("SELECT id, name FROM characters WHERE name LIKE ? AND name LIKE ? LIMIT 1")
+      ? await env.OFFICE_DB.prepare("SELECT id, name FROM characters WHERE name LIKE ? AND name LIKE ? AND merged_into_character_id IS NULL LIMIT 1")
           .bind(`%${firstToken}%`, `%${lastToken}%`)
           .first<{ id: number; name: string }>()
-      : await env.OFFICE_DB.prepare(`SELECT id, name FROM characters WHERE ${wholeWordClause("name")} LIMIT 1`)
+      : await env.OFFICE_DB.prepare(`SELECT id, name FROM characters WHERE ${wholeWordClause("name")} AND merged_into_character_id IS NULL LIMIT 1`)
           .bind(...wholeWordBindings(firstToken))
           .first<{ id: number; name: string }>();
   if (characterRow) return { type: "character", id: characterRow.id, name: characterRow.name };
