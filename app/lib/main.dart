@@ -27,6 +27,36 @@ import 'runtime/word_field.dart';
 /// Changing this one line is the entire cost of a future domain swap.
 const officeApiBase = 'https://office.websitehub.co.za';
 
+// Real, new, per direct instruction — stage 2. Every PDF link now
+// requires a signature the server checks against its own exact path;
+// launchUrl opens an external browser tab that carries no session at
+// all, so a raw, unsigned path (what every call site used to build
+// directly) would just get refused. This fetches a freshly signed one
+// first, through the normal, already-authenticated API call, then
+// opens that instead — the one real change every existing "View X"
+// tap needed once the server side stopped trusting a bare path.
+Future<void> openSignedDocument(String rawPath, Map<String, String> authHeaders) async {
+  try {
+    final signUri = Uri.parse('$officeApiBase/documents/sign?path=${Uri.encodeQueryComponent(rawPath)}');
+    final response = await http.get(signUri, headers: authHeaders);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final signedUrl = data['url'] as String?;
+      if (signedUrl != null) {
+        await launchUrl(Uri.parse(signedUrl), webOnlyWindowName: '_blank');
+      }
+    }
+    // A non-200 here means the role genuinely may not open this
+    // document — correctly nothing happens, rather than falling back
+    // to the old, unsigned link.
+  } catch (_) {
+    // Best effort — if the sign call itself fails (offline, etc.),
+    // there is no unsigned fallback to reach for; that would defeat
+    // the point of requiring a signature at all.
+  }
+}
+
+
 // Design tokens — real, decisive rebuild toward
 // DESIGN_CONSTITUTION_V2.md, the most architecturally authoritative
 // of the three real design documents. "Background: true black. Not
@@ -1893,7 +1923,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
               title: Text('Profit & Loss', style: GoogleFonts.workSans(color: _paper)),
               onTap: () {
                 Navigator.pop(context);
-                launchUrl(Uri.parse('$officeApiBase/reports/profit-and-loss/pdf'), webOnlyWindowName: '_blank');
+                openSignedDocument('/reports/profit-and-loss/pdf', _authHeaders());
               },
             ),
             ListTile(
@@ -1901,7 +1931,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
               title: Text('Aged Debtors', style: GoogleFonts.workSans(color: _paper)),
               onTap: () {
                 Navigator.pop(context);
-                launchUrl(Uri.parse('$officeApiBase/reports/aged-debtors/pdf'), webOnlyWindowName: '_blank');
+                openSignedDocument('/reports/aged-debtors/pdf', _authHeaders());
               },
             ),
             // Real, new item, per direct instruction, part of the real
@@ -1913,7 +1943,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
               title: Text('Aged Creditors', style: GoogleFonts.workSans(color: _paper)),
               onTap: () {
                 Navigator.pop(context);
-                launchUrl(Uri.parse('$officeApiBase/reports/aged-creditors/pdf'), webOnlyWindowName: '_blank');
+                openSignedDocument('/reports/aged-creditors/pdf', _authHeaders());
               },
             ),
           ],
@@ -3200,10 +3230,10 @@ class _FinanceRoomContentState extends State<_FinanceRoomContent> {
                           final statusBg = statusColor.withOpacity(0.14);
 
                           final documentId = row['id'];
-                          final pdfUrl = '$officeApiBase/${isInvoice ? 'invoices' : 'quotations'}/$documentId/pdf';
+                          final pdfUrl = '/${isInvoice ? 'invoices' : 'quotations'}/$documentId/pdf';
 
                           return InkWell(
-                            onTap: () => launchUrl(Uri.parse(pdfUrl), webOnlyWindowName: '_blank'),
+                            onTap: () => openSignedDocument(pdfUrl, widget.authHeaders),
                             child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             child: Row(
@@ -4978,7 +5008,7 @@ class _CustomerDetailDialogState extends State<_CustomerDetailDialog> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 InkWell(
-                  onTap: () => launchUrl(Uri.parse('$officeApiBase/customers/$id/statement/pdf'), webOnlyWindowName: '_blank'),
+                  onTap: () => openSignedDocument('/customers/$id/statement/pdf', widget.authHeaders),
                   child: Text(
                     'View Statement',
                     style: GoogleFonts.workSans(color: _officeAccent, fontWeight: FontWeight.w600, decoration: TextDecoration.underline),
