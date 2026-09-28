@@ -107,3 +107,58 @@ the list below rather than treated as a separate problem.
 - How much of the "lowest stakes" section ever gets done versus
   permanently deprioritized — named honestly as real, not pretended to
   be equally urgent as the rest of this list.
+
+---
+
+## Progress log
+
+Entries record what was *verified*, not just what was ticked. Nothing on
+the checklist above is marked done until it is enabled and proven.
+
+### Urgent tier, item 1 — auth on every data-returning route
+
+**Audit, checked against the live code (a static scan, cross-checked by
+reading the confirm handler and `/debug/stock-items` directly):**
+161 routes in total. 118 are `/debug` or `/admin`, none with any auth
+check. Of the other 43, only 2 had one — leaving about 37 real data or
+action routes open once the 4 intentionally public ones (health check and
+the login flow) are set aside. That includes `POST /messages/text`,
+`POST /actions/:id/confirm` and `/reject` (the call that executes a held
+financial write), the `PATCH` routes for invoices, quotations and
+customers, both upload routes, both CSV imports, and every PDF.
+
+**Built, deployed OFF:** a central default-deny gate (`authGate`,
+`ENFORCE_APP_AUTH = false`) — one check at the top of the handler rather
+than 37 edits, which also fixes the class of mistake (every endpoint added
+since has been open by default). Stage 1 covers the app-facing JSON
+routes. Stage 2 is the PDF routes, exempt until they have short-lived
+signed links (they open through an external viewer, which cannot send an
+Authorization header). Stage 3 is `/debug` and `/admin`, exempt until
+there is an admin secret (gating them now would break the curl workflow).
+`resolveCapabilities` now fails closed when enforcement is on. Switching
+it on, or reverting, is a one-line deploy that does not depend on the app
+being able to reach the backend, so a lockout cannot trap the fix.
+
+**Verified before enabling:** every one of the app's 29 HTTP calls and 4
+uploads sends the session token; the owner's membership exists and is
+active.
+
+**Found along the way:**
+- Two restricted members have existed since 14 July — an installer and an
+  accountant. Until enforcement is on, anyone can hold Owner powers simply
+  by not signing in, so their restrictions are currently bypassable.
+- **The gate proves who someone is, not what they may do.** The message
+  path already enforces capabilities (it is what stops an installer
+  dictating an invoice), but the REST routes check none, and the app
+  itself only *displays* the signed-in role — it hides no rooms. So once
+  signed in, a restricted member would still reach every route directly.
+  Restricted access is not real until a route-to-capability layer exists.
+- A real CORS bug: `Access-Control-Allow-Headers` omitted `Authorization`
+  and `Allow-Methods` omitted `PATCH`, which blocked the web preview's
+  login token and every PATCH route in a browser (the native app is
+  unaffected). Fixed in the same change.
+
+**Still to do before stage 1 is switched on:** the installer and
+accountant signed in on a build that has sign-in (sessions are stateless,
+so this cannot be verified from the server), and an agreed
+route-to-capability matrix so restricted access actually binds.
