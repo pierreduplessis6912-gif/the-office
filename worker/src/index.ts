@@ -2277,14 +2277,28 @@ async function getJobScope(request: Request, env: Env): Promise<{ scoped: boolea
 }
 
 async function authGate(request: Request, env: Env, url: URL): Promise<Response | null> {
-  if (!ENFORCE_APP_AUTH) return null;
   const path = url.pathname;
+
+  // Real, moved here after a real bug found live: this used to sit as
+  // a separate check further down in handleRequest's sequential
+  // if-chain, which only protects whichever routes happen to be
+  // defined AFTER it in the file — 88 of 120 debug/admin routes were
+  // defined earlier and returned before ever reaching it, completely
+  // unprotected. authGate is the one place guaranteed to run first,
+  // for every request, regardless of where a route's own handler
+  // sits in the file. Deliberately independent of ENFORCE_APP_AUTH —
+  // this is the same real protection that has covered /admin since
+  // 13 July, and it must keep working even while stage 1 is off.
+  if ((path.startsWith("/admin/") || path.startsWith("/debug/")) && !APP_DEBUG_ROUTES.has(path)) {
+    const providedKey = request.headers.get("X-Admin-Key");
+    if (!providedKey || providedKey !== env.ADMIN_KEY) {
+      return Response.json({ error: "unauthorized" }, { status: 401 });
+    }
+    return null; // admin-key holders bypass session/role entirely, same as /admin/ always has.
+  }
+
+  if (!ENFORCE_APP_AUTH) return null;
   if (PUBLIC_ROUTES.has(path)) return null;
-  // Stage 3: only the routes the app itself does not use are exempt
-  // here — those get the X-Admin-Key check downstream instead. The
-  // app's own 7 debug routes fall through to normal session + role
-  // enforcement below, same as any other route.
-  if ((path.startsWith("/debug/") || path.startsWith("/admin/")) && !APP_DEBUG_ROUTES.has(path)) return null;
   if (path.endsWith("/pdf")) return null; // stage 2
 
   const session = await verifySession(env, getSessionToken(request));
@@ -4854,27 +4868,6 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         status: 200,
         headers: { "Set-Cookie": "office_session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0" },
       });
-    }
-
-    // Real admin tooling 2026-07-13 — genuine, reusable capability,
-    // not a one-off debug hack. The minimal, immediate protection
-    // layer (a real admin key, checked here) before the full
-    // Google-auth system exists — a deletion capability this
-    // consequential can't wait for that larger build to be safe.
-    // Real, widened, per direct instruction — stage 3: the same real
-    // check that has protected /admin since 13 July now also covers
-    // every /debug route the app itself does not depend on (about 110
-    // of them), reusing the one existing secret rather than adding a
-    // second one. The app's own 7 are handled by authGate's normal
-    // session + role path instead, never reaching here.
-    if (
-      url.pathname.startsWith("/admin/") ||
-      (url.pathname.startsWith("/debug/") && !APP_DEBUG_ROUTES.has(url.pathname))
-    ) {
-      const providedKey = request.headers.get("X-Admin-Key");
-      if (!providedKey || providedKey !== env.ADMIN_KEY) {
-        return Response.json({ error: "unauthorized" }, { status: 401 });
-      }
     }
 
     // Real testing tool 2026-07-14 — admin-gated, since minting a
