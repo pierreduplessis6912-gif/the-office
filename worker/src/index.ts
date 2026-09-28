@@ -2100,6 +2100,24 @@ const PUBLIC_ROUTES = new Set([
   "/auth/me",
 ]);
 
+// Real, new, per direct instruction — stage 3. The app itself depends on
+// exactly these 7 /debug routes (found by grepping main.dart, not
+// assumed), so they cannot get the blanket /debug exemption below —
+// they need real session + role rules like any other route, added to
+// ROUTE_RULES. Everything else under /debug or /admin instead needs the
+// existing X-Admin-Key check further down, the same real mechanism
+// already protecting /admin since 13 July, now reused rather than
+// duplicated with a second secret.
+const APP_DEBUG_ROUTES = new Set([
+  "/debug/financial-snapshot",
+  "/debug/schedule",
+  "/debug/captures",
+  "/debug/tasks-list",
+  "/debug/suppliers-list",
+  "/debug/finance-list",
+  "/debug/characters-list",
+]);
+
 // Real, new, per direct instruction — the second layer. The gate above
 // proves *who* someone is; this decides *what they may do*, and it is
 // what makes a restricted role real: the message path already enforced
@@ -2175,6 +2193,16 @@ const ROUTE_RULES: Array<{ method: string; path: RegExp; anyOf: string[] }> = [
   // The customer list: both roles genuinely need it, but an installer's
   // is scoped in the handler to customers on their own jobs.
   { method: "GET", path: /^\/customers$/, anyOf: ["can_know_jobs", "can_manage_invoices"] },
+  // Stage 3 — the app's own 7 debug routes. /debug/captures is
+  // deliberately absent: it is the raw, unfiltered dictation history
+  // for every member, so it stays Owner-only by default-deny, per
+  // direct instruction, rather than guessed at.
+  { method: "GET", path: /^\/debug\/financial-snapshot$/, anyOf: ["can_know_profit", "can_know_debtors"] },
+  { method: "GET", path: /^\/debug\/suppliers-list$/, anyOf: ["can_manage_invoices"] },
+  { method: "GET", path: /^\/debug\/finance-list$/, anyOf: ["can_manage_invoices"] },
+  { method: "GET", path: /^\/debug\/schedule$/, anyOf: ["can_know_jobs"] },
+  { method: "GET", path: /^\/debug\/tasks-list$/, anyOf: ["can_know_jobs"] },
+  { method: "GET", path: /^\/debug\/characters-list$/, anyOf: ["can_know_jobs", "can_manage_invoices"] },
   // Owner only: nothing a restricted role holds includes can_manage_settings.
   { method: "GET", path: /^\/leads$/, anyOf: ["can_manage_settings"] },
   { method: "POST", path: /^\/leads\/\d+\/mark-lost$/, anyOf: ["can_manage_settings"] },
@@ -2252,7 +2280,11 @@ async function authGate(request: Request, env: Env, url: URL): Promise<Response 
   if (!ENFORCE_APP_AUTH) return null;
   const path = url.pathname;
   if (PUBLIC_ROUTES.has(path)) return null;
-  if (path.startsWith("/debug/") || path.startsWith("/admin/")) return null; // stage 3
+  // Stage 3: only the routes the app itself does not use are exempt
+  // here — those get the X-Admin-Key check downstream instead. The
+  // app's own 7 debug routes fall through to normal session + role
+  // enforcement below, same as any other route.
+  if ((path.startsWith("/debug/") || path.startsWith("/admin/")) && !APP_DEBUG_ROUTES.has(path)) return null;
   if (path.endsWith("/pdf")) return null; // stage 2
 
   const session = await verifySession(env, getSessionToken(request));
@@ -4829,7 +4861,16 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // layer (a real admin key, checked here) before the full
     // Google-auth system exists — a deletion capability this
     // consequential can't wait for that larger build to be safe.
-    if (url.pathname.startsWith("/admin/")) {
+    // Real, widened, per direct instruction — stage 3: the same real
+    // check that has protected /admin since 13 July now also covers
+    // every /debug route the app itself does not depend on (about 110
+    // of them), reusing the one existing secret rather than adding a
+    // second one. The app's own 7 are handled by authGate's normal
+    // session + role path instead, never reaching here.
+    if (
+      url.pathname.startsWith("/admin/") ||
+      (url.pathname.startsWith("/debug/") && !APP_DEBUG_ROUTES.has(url.pathname))
+    ) {
       const providedKey = request.headers.get("X-Admin-Key");
       if (!providedKey || providedKey !== env.ADMIN_KEY) {
         return Response.json({ error: "unauthorized" }, { status: 401 });
