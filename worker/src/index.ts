@@ -2100,6 +2100,152 @@ const PUBLIC_ROUTES = new Set([
   "/auth/me",
 ]);
 
+// Real, new, per direct instruction — the second layer. The gate above
+// proves *who* someone is; this decides *what they may do*, and it is
+// what makes a restricted role real: the message path already enforced
+// roles per write, but every REST route checked nothing, and the app
+// itself only displays the role — it hides no rooms. Same discipline as
+// the gate: deployed off, switched on deliberately.
+//
+// Two rules do most of the work. The owner always passes, checked by role
+// rather than by capability list (the owner's list deliberately lacks
+// can_capture_voice_notes, so a capability-only check could lock the
+// owner out). And anything a restricted role is not explicitly allowed is
+// denied by default, so an endpoint added later is owner-only until
+// someone decides otherwise — the same default-deny that fixed the
+// original problem, one layer down.
+const ENFORCE_CAPABILITIES = false;
+
+// Who may confirm, reject or edit a held action, by its type. Creating a
+// held action is harmless — that is why uploads are open to every member
+// — executing one is what needs a role. Derived from the 17 types the
+// confirm handler dispatches on. Deliberately absent, so owner-only:
+// character_fact (staff and supplier details), imported_invoice, and
+// schema_candidate — and any type added in future, until classified.
+const ACTION_TYPE_CAPABILITY: Record<string, string[]> = {
+  invoice: ["can_manage_invoices"],
+  quotation: ["can_manage_invoices"],
+  convert_quote: ["can_manage_invoices"],
+  payment: ["can_manage_invoices"],
+  expense: ["can_manage_invoices"],
+  supplier_invoice: ["can_manage_invoices"],
+  supplier_payment: ["can_manage_invoices"],
+  variance_disposition: ["can_manage_invoices"],
+  // Installers receive deliveries on site; accountants reconcile them.
+  goods_received: ["can_manage_invoices", "can_know_materials"],
+  job_scope_amendment: ["can_know_jobs"],
+  project_ambiguity: ["can_know_jobs"],
+  // Identity questions can come up in either role's dictation.
+  ambiguous_person: ["can_know_jobs", "can_manage_invoices"],
+  identity_collision: ["can_know_jobs", "can_manage_invoices"],
+  customer_fact: ["can_know_jobs", "can_manage_invoices"],
+};
+
+// Any active member, whatever their role. Uploads are safe here because
+// they only ever create a held action; the confirmation is what is
+// checked, by type, below.
+const MEMBER_OPEN_ROUTES: Array<{ method: string; path: RegExp }> = [
+  { method: "POST", path: /^\/messages\/text$/ },
+  { method: "POST", path: /^\/files\/(photo|document)$/ },
+  { method: "GET", path: /^\/actions\/pending$/ },
+  { method: "GET", path: /^\/embers\/pending$/ },
+  { method: "GET", path: /^\/business-profile\/logo$/ },
+];
+
+const ROUTE_RULES: Array<{ method: string; path: RegExp; anyOf: string[] }> = [
+  // Money — accountant and owner.
+  { method: "GET", path: /^\/customers\/\d+\/profitability$/, anyOf: ["can_know_profit"] },
+  { method: "PATCH", path: /^\/(invoices|quotations|customers)\/\d+$/, anyOf: ["can_manage_invoices"] },
+  { method: "GET", path: /^\/suppliers\/\d+\/discrepancies$/, anyOf: ["can_manage_invoices"] },
+  { method: "POST", path: /^\/suppliers\/discrepancies\/\d+\/resolve$/, anyOf: ["can_manage_invoices"] },
+  { method: "GET", path: /^\/embers\/finance$/, anyOf: ["can_know_debtors", "can_know_profit"] },
+  { method: "GET", path: /^\/embers\/expenses$/, anyOf: ["can_know_profit", "can_manage_invoices"] },
+  { method: "GET", path: /^\/embers\/suppliers$/, anyOf: ["can_manage_invoices"] },
+  // Jobs — installer and owner. The handlers further scope these to the
+  // installer's own jobs.
+  { method: "GET", path: /^\/projects$/, anyOf: ["can_know_jobs"] },
+  { method: "GET", path: /^\/snags$/, anyOf: ["can_know_jobs"] },
+  { method: "POST", path: /^\/snags\/\d+\/resolve$/, anyOf: ["can_know_jobs"] },
+  { method: "POST", path: /^\/tasks\/\d+\/done$/, anyOf: ["can_know_jobs"] },
+  { method: "GET", path: /^\/embers\/(tasks|scheduler)$/, anyOf: ["can_know_jobs"] },
+  // Materials.
+  { method: "GET", path: /^\/stock$/, anyOf: ["can_know_materials"] },
+  // The customer list: both roles genuinely need it, but an installer's
+  // is scoped in the handler to customers on their own jobs.
+  { method: "GET", path: /^\/customers$/, anyOf: ["can_know_jobs", "can_manage_invoices"] },
+  // Owner only: nothing a restricted role holds includes can_manage_settings.
+  { method: "GET", path: /^\/leads$/, anyOf: ["can_manage_settings"] },
+  { method: "POST", path: /^\/leads\/\d+\/mark-lost$/, anyOf: ["can_manage_settings"] },
+  { method: "POST", path: /^\/business-profile\/logo$/, anyOf: ["can_manage_settings"] },
+  { method: "POST", path: /^\/files\/(customers|invoices)-csv-import$/, anyOf: ["can_manage_settings"] },
+];
+
+const ACTION_ROUTE = /^\/actions\/(\d+)\/(confirm|reject|edit-field)$/;
+
+function denyForRole(): Response {
+  return Response.json({ error: "not available for your role" }, { status: 403 });
+}
+
+async function authorizeRestrictedMember(request: Request, env: Env, url: URL, role: string): Promise<Response | null> {
+  if (!ENFORCE_CAPABILITIES || role === "owner") return null;
+  const caps = ROLE_CAPABILITIES[role] ?? [];
+  const method = request.method;
+  const path = url.pathname;
+
+  if (MEMBER_OPEN_ROUTES.some((r) => r.method === method && r.path.test(path))) return null;
+
+  const rule = ROUTE_RULES.find((r) => r.method === method && r.path.test(path));
+  if (rule) return rule.anyOf.some((c) => caps.includes(c)) ? null : denyForRole();
+
+  const actionMatch = path.match(ACTION_ROUTE);
+  if (actionMatch && method === "POST") {
+    const row = await env.OFFICE_DB.prepare("SELECT type FROM pending_actions WHERE id = ?")
+      .bind(Number(actionMatch[1]))
+      .first<{ type: string }>();
+    const needed = row ? ACTION_TYPE_CAPABILITY[row.type] : undefined;
+    return needed && needed.some((c) => caps.includes(c)) ? null : denyForRole();
+  }
+
+  return denyForRole();
+}
+
+// The signed-in member, or null. Used by handlers that need to know more
+// than "is this allowed" — which installer this login is.
+async function getMemberContext(
+  request: Request,
+  env: Env
+): Promise<{ email: string; role: string; caps: string[]; characterId: number | null } | null> {
+  const session = await verifySession(env, getSessionToken(request));
+  if (!session) return null;
+  const membership = await env.OFFICE_DB.prepare("SELECT role, status FROM memberships WHERE google_email = ?")
+    .bind(session.email)
+    .first<{ role: string; status: string }>();
+  if (!membership || membership.status !== "active") return null;
+  let characterId: number | null = null;
+  try {
+    const link = await env.OFFICE_DB.prepare("SELECT character_id FROM memberships WHERE google_email = ?")
+      .bind(session.email)
+      .first<{ character_id: number | null }>();
+    characterId = link?.character_id ?? null;
+  } catch {
+    // Safe to swallow, and deliberately fails closed: if the column has
+    // not been migrated yet, an installer resolves to no linked
+    // installer, which the scoped queries turn into "no jobs" — never
+    // into "all jobs".
+  }
+  return { email: session.email, role: membership.role, caps: ROLE_CAPABILITIES[membership.role] ?? [], characterId };
+}
+
+// "Installers see their own jobs only." Returns a no-op scope whenever
+// enforcement is off, so with the switch off there are no extra queries
+// and no change in behavior at all.
+async function getJobScope(request: Request, env: Env): Promise<{ scoped: boolean; characterId: number | null }> {
+  if (!ENFORCE_CAPABILITIES) return { scoped: false, characterId: null };
+  const ctx = await getMemberContext(request, env);
+  if (!ctx || ctx.role !== "installer") return { scoped: false, characterId: null };
+  return { scoped: true, characterId: ctx.characterId };
+}
+
 async function authGate(request: Request, env: Env, url: URL): Promise<Response | null> {
   if (!ENFORCE_APP_AUTH) return null;
   const path = url.pathname;
@@ -2111,13 +2257,13 @@ async function authGate(request: Request, env: Env, url: URL): Promise<Response 
   if (!session) {
     return Response.json({ error: "sign in required" }, { status: 401 });
   }
-  const membership = await env.OFFICE_DB.prepare("SELECT status FROM memberships WHERE google_email = ?")
+  const membership = await env.OFFICE_DB.prepare("SELECT role, status FROM memberships WHERE google_email = ?")
     .bind(session.email)
-    .first<{ status: string }>();
+    .first<{ role: string; status: string }>();
   if (!membership || membership.status !== "active") {
     return Response.json({ error: "no active membership" }, { status: 403 });
   }
-  return null;
+  return authorizeRestrictedMember(request, env, url, membership.role);
 }
 
 // Real feature 2026-07-14 — step 4 of the phased auth scope
@@ -2635,12 +2781,16 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // separately, so building a UI action here would be inventing
     // capability that doesn't actually exist server-side.
     if (url.pathname === "/projects" && request.method === "GET") {
+      const jobScope = await getJobScope(request, env);
       const { results: projects } = await env.OFFICE_DB.prepare(
         `SELECT p.id, p.customer_id, c.name as customer_name, p.description, p.created_at
          FROM projects p
          LEFT JOIN customers c ON c.id = p.customer_id
+         WHERE (?2 = 0 OR p.customer_id IN (SELECT customer_id FROM job_scopes WHERE installer_id = ?1))
          ORDER BY p.created_at DESC`
-      ).all();
+      )
+        .bind(jobScope.characterId, jobScope.scoped ? 1 : 0)
+        .all();
       const enriched = await Promise.all(
         (projects as Array<{ id: number }>).map(async (project) => {
           const { results: jobScopes } = await env.OFFICE_DB.prepare(
@@ -3053,12 +3203,16 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // duplicating its logic — one real resolution path, whether it's
     // reached by voice or by a tap here.
     if (url.pathname === "/snags" && request.method === "GET") {
+      const jobScope = await getJobScope(request, env);
       const { results } = await env.OFFICE_DB.prepare(
         `SELECT sn.id, sn.description, sn.status, sn.created_at, sn.resolved_at, sn.customer_id, c.name as customer_name
          FROM snags sn
          JOIN customers c ON c.id = sn.customer_id
+         WHERE (?2 = 0 OR sn.customer_id IN (SELECT customer_id FROM job_scopes WHERE installer_id = ?1))
          ORDER BY (sn.status = 'open') DESC, sn.created_at DESC`
-      ).all();
+      )
+        .bind(jobScope.characterId, jobScope.scoped ? 1 : 0)
+        .all();
       return Response.json({ snags: results });
     }
 
@@ -3072,6 +3226,15 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       }
       if (snag.status === "resolved") {
         return Response.json({ error: "already resolved" }, { status: 400 });
+      }
+      const jobScope = await getJobScope(request, env);
+      if (jobScope.scoped) {
+        const ownsJob = await env.OFFICE_DB.prepare(
+          "SELECT 1 FROM job_scopes WHERE installer_id = ? AND customer_id = ? LIMIT 1"
+        )
+          .bind(jobScope.characterId, snag.customer_id)
+          .first();
+        if (!ownsJob) return denyForRole();
       }
       const result = await resolveSnag(env, id, snag.customer_id);
       return Response.json({ status: "resolved", ...result });
@@ -3375,6 +3538,35 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         size: object?.size ?? null,
         contentType: object?.httpMetadata?.contentType ?? null,
       });
+    }
+
+    // Real, new, per direct instruction: linking a login to the installer
+    // it actually is. A membership was only ever a Google email and a
+    // role; "installers see their own jobs" needs to know that this login
+    // is Liam.
+    if (url.pathname === "/debug/init-membership-character" && request.method === "POST") {
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE memberships ADD COLUMN character_id INTEGER").run();
+      } catch {
+        // Already exists — fine, that's what makes this idempotent.
+      }
+      return Response.json({ status: "ok" });
+    }
+
+    if (url.pathname === "/debug/set-membership-character" && request.method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { email?: string; characterId?: number | null };
+      if (!body.email) {
+        return Response.json({ error: "requires email in the request body" }, { status: 400 });
+      }
+      await env.OFFICE_DB.prepare("UPDATE memberships SET character_id = ? WHERE google_email = ?")
+        .bind(body.characterId ?? null, body.email)
+        .run();
+      const row = await env.OFFICE_DB.prepare(
+        "SELECT id, google_email, role, character_id FROM memberships WHERE google_email = ?"
+      )
+        .bind(body.email)
+        .first();
+      return Response.json({ status: "ok", membership: row });
     }
 
     if (url.pathname === "/debug/memberships" && request.method === "GET") {
@@ -4114,13 +4306,15 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       const offset = Number(url.searchParams.get("offset")) || 0;
       const like = search ? `%${search}%` : null;
 
+      const jobScope = await getJobScope(request, env);
       const { results: customers } = await env.OFFICE_DB.prepare(
         `SELECT id, name, address, created_at FROM customers
          WHERE merged_into_customer_id IS NULL AND (?1 IS NULL OR name LIKE ?2 OR address LIKE ?2)
+           AND (?6 = 0 OR id IN (SELECT customer_id FROM job_scopes WHERE installer_id = ?5))
          ORDER BY name ASC
          LIMIT ?3 OFFSET ?4`
       )
-        .bind(search, like, limit, offset)
+        .bind(search, like, limit, offset, jobScope.characterId, jobScope.scoped ? 1 : 0)
         .all<{ id: number; name: string; address: string | null; created_at: string }>();
 
       return Response.json({ items: customers, limit, offset });
@@ -5510,7 +5704,18 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       const { results } = await env.OFFICE_DB.prepare(
         "SELECT id, type, payload, source_transcript, created_at FROM pending_actions WHERE status = 'pending' ORDER BY created_at DESC"
       ).all();
-      return Response.json({ pending: results });
+      // A restricted member only sees the held actions they could act on.
+      let visible = results;
+      if (ENFORCE_CAPABILITIES) {
+        const ctx = await getMemberContext(request, env);
+        if (ctx && ctx.role !== "owner") {
+          visible = results.filter((a) => {
+            const needed = ACTION_TYPE_CAPABILITY[(a as { type: string }).type];
+            return needed !== undefined && needed.some((c) => ctx.caps.includes(c));
+          });
+        }
+      }
+      return Response.json({ pending: visible });
     }
 
     // Real, new endpoint, per direct instruction: "tap and edit,"
