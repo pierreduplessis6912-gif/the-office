@@ -201,3 +201,46 @@ setting `ADMIN_SECRET` in the Cloudflare dashboard.
 The document links are the ones sent to customers ("view it here"), so they
 must stay openable without an account. They need short-lived signed links,
 not a login — a customer can open theirs; nobody can guess the next number.
+
+### Stage 3 switched on — a real bug found and fixed live, then verified
+
+**Built:** the app's 7 real `/debug` dependencies (found by grepping
+`main.dart`, not assumed) given normal session + role rules —
+`financial-snapshot`/`suppliers-list`/`finance-list` to accountant,
+`schedule`/`tasks-list` to installer, `characters-list` to both,
+`captures` left owner-only by omission, per direct instruction (it is
+the raw, unfiltered dictation history for every member). The other
+roughly 110 `/debug` routes, and `/admin`, reuse the exact same
+`X-Admin-Key` check that has protected `/admin` since 13 July — no
+second secret. 165 of 165 role decisions verified offline before this
+went live, up from 144; the same test fails when the owner-only rule
+for `captures` is accidentally removed.
+
+**A real, live bug, found by direct testing, not by review:** the admin-
+key check was placed as a second, later check inside `handleRequest`'s
+long sequential `if` chain. Since a route's own `if` returns before
+anything placed later in the file can run, only the routes *after* that
+point in the file were actually protected — 32 of 120. The other 88,
+including `/debug/table-schema`, returned real data with no key and with
+a wrong key both, confirmed live with a direct request before the fix.
+
+**Fixed:** moved the check into `authGate`, which runs first for every
+request regardless of where a route's handler sits in the file, and
+deleted the now-redundant duplicate — one canonical enforcement point.
+Deliberately kept independent of `ENFORCE_APP_AUTH`, so it protects
+`/admin` exactly as it always has even if stage 1 is ever switched off.
+
+**Verified live, after the fix, three direct requests:** no key —
+`401`. A wrong key — `401`. The real key — the real schema, `200`. The
+first two are the exact request that returned real data before the fix.
+
+**Lesson worth keeping, not just fixing:** a check's correctness depends
+on *where* it sits in a sequential handler, not just its own logic being
+right — reviewing the check in isolation would have missed this
+entirely; it only showed up by testing the actual live behavior.
+
+**Still open:** live tests of the installer and accountant logins —
+stage 1 and 2 are switched on and their mechanics verified offline, but
+neither role has actually signed in and been checked against the real
+system yet. That's the one item left before this tier of the checklist
+is genuinely closed, not just built.
