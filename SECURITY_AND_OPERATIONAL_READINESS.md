@@ -60,9 +60,9 @@ the list below rather than treated as a separate problem.
   (342KB), `ai.ts` (121KB), `finance.ts` (114KB), `main.dart` (319KB) —
   same behavior, organized by real domain instead of one growing file
   each
-- [ ] A real lockfile (`worker/package-lock.json`) and `npm ci` in CI
+- [x] A real lockfile (`worker/package-lock.json`) and `npm ci` in CI
   instead of `npm install`
-- [ ] At least a typecheck step in CI (`tsc --noEmit`) — real tests are
+- [x] At least a typecheck step in CI (`tsc --noEmit`) — real tests are
   the bigger, later piece, but even this catches a real class of
   mistake before it deploys
 - [ ] Silent error-swallowing audited one by one — each `catch {}` block
@@ -319,3 +319,46 @@ between for anyone using the app in that window.
 it takes effect at all — nothing here has been tested against the real,
 rebuilt app yet. That live test is what would actually close this item,
 not this push.
+
+### CI typecheck and lockfile — built, real bugs found, live-verified
+
+**Built:** `worker/tsconfig.json` (deliberately excludes the DOM lib —
+including it conflicts with `@cloudflare/workers-types`' own definitions
+of the same globals, which was inflating the error count before this was
+diagnosed). `worker/scripts/check-types.js` compares a fresh `tsc` run
+against a committed baseline, normalized to ignore line/column numbers,
+and fails only on a genuinely new error. `worker/package-lock.json` —
+this project's first — and `npm ci` in place of `npm install`.
+
+**Two real, live bugs found by running this for the first time, not
+review — fixed before the baseline was ever written, so neither shows
+up in it:**
+1. A genuine `ReferenceError`-in-waiting: `recorded`, in the work-
+   observation path, was declared inside the `else` branch of an
+   `if/else` and used afterward, outside both branches — unconditionally
+   out of scope regardless of which branch ran. Every real attempt to
+   dictate a job's pricing in the same breath as the job itself (the
+   exact feature a 2026-07-15 comment describes) would have thrown,
+   for anyone with `can_manage_invoices`. Fixed by hoisting the
+   declaration to the scope that actually contains both branches.
+2. `WorkObservationExtraction`, used as a type annotation in `index.ts`,
+   was never imported from `types.ts`. Harmless at runtime (erased at
+   compile time), but a real gap in what the compiler could ever have
+   caught here.
+
+**The baseline itself: 44 known, tolerated errors, none of them live
+bugs** — confirmed by category, not assumed: ~15 Workers AI model calls
+typed as `Record<string, unknown>` across many different models (real
+future work to tighten properly, not tonight's), a Vectorize binding
+type-narrowing gap, `instanceof File` losing its DOM-lib type as a
+direct consequence of excluding DOM to fix the conflict above, and two
+spots of real, low-stakes union-type looseness.
+
+**Verified before pushing, and live in CI, not just locally:** a full
+dry run (`npm ci` then `npm run typecheck`) from a clean scratch
+directory; the checker proven to have teeth by reintroducing the exact
+`recorded` bug (fails with 6 real errors) and reverting (clean again);
+every one of the 7 real commits this required deployed successfully,
+including the final one — checked at the step level, not just the job
+level, that "Typecheck" ran as its own distinct step and passed before
+"Deploy to Cloudflare Workers" ever ran.
