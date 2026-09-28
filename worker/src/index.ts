@@ -1,4 +1,4 @@
-import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult } from "./types";
+import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult, WorkObservationExtraction } from "./types";
 import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, classifyDashboardIntent, containsBackwardReference, describeImage, embedText, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractSupplierStatement, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, splitIntoTopics, storeUnscopedMemory, transcribe, transcribeWithNameHints } from "./ai";
 import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, logInteractionEdge, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, reconcilePerson, setSelection } from "./identity";
 import { attachToSiblingJobScope, completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveScheduledDate, resolveTaskCompletion } from "./scheduler";
@@ -1209,6 +1209,15 @@ async function processOneExtraction(
     // already resolved earlier in this same function; workObservationResult
     // is populated here and the function's own existing, natural flow
     // builds the final message exactly as it already does today.
+    // Real, second fix, found by direct testing (a real, live
+    // ReferenceError, not a style note): declared here, at the scope
+    // that actually contains both branches below, rather than inside
+    // the else branch alone — the later pricing check needed it too,
+    // and was unconditionally out of scope before this, regardless of
+    // which branch ran. null in the "attached to a sibling" branch is
+    // correct, not a gap: that path has no fresh computedComponents to
+    // price against, so "nothing to price here" is the honest answer.
+    let recorded: Awaited<ReturnType<typeof recordWorkObservation>> | null = null;
     const scheduledDateForAttach = resolveScheduledDate(observation.scheduled_date_raw, nowInBusinessTimezone());
     const attached =
       !customer && observation.components.length === 0 && observation.tasks.length === 0
@@ -1250,7 +1259,7 @@ async function processOneExtraction(
         };
       }
 
-      const recorded = await recordWorkObservation(env, customer?.id ?? null, observation, transcript, installerId, captureId);
+      recorded = await recordWorkObservation(env, customer?.id ?? null, observation, transcript, installerId, captureId);
       workObservationResult = {
         jobScopeId: recorded.jobScopeId,
         componentCount: observation.components.length,
@@ -1271,7 +1280,7 @@ async function processOneExtraction(
     // Gated the same as every other financial write: the measurement
     // itself still records regardless of role, but the nested
     // quotation this pricing produces requires can_manage_invoices.
-    if (customer && canManageInvoicesForWrites && transcriptMentionsPricing(transcript)) {
+    if (recorded && customer && canManageInvoicesForWrites && transcriptMentionsPricing(transcript)) {
       const pricedItems = await extractScopePricing(env, transcript, recorded.computedComponents, observation.tasks);
       if (pricedItems.length > 0) {
         const lineItems = buildQuotationLineItems(pricedItems, recorded.computedComponents, recorded.computedTasks);
