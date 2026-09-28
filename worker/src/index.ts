@@ -2089,7 +2089,7 @@ const ROLE_CAPABILITIES: Record<string, string[]> = {
 // Flipping this constant is a one-line change through the same deploy
 // pipeline, and so is reverting it — neither depends on the app being
 // able to reach the backend, so a lockout can never trap the fix.
-const ENFORCE_APP_AUTH = false;
+const ENFORCE_APP_AUTH = true;
 
 const PUBLIC_ROUTES = new Set([
   "/",
@@ -2114,7 +2114,7 @@ const PUBLIC_ROUTES = new Set([
 // denied by default, so an endpoint added later is owner-only until
 // someone decides otherwise — the same default-deny that fixed the
 // original problem, one layer down.
-const ENFORCE_CAPABILITIES = false;
+const ENFORCE_CAPABILITIES = true;
 
 // Who may confirm, reject or edit a held action, by its type. Creating a
 // held action is harmless — that is why uploads are open to every member
@@ -2146,7 +2146,9 @@ const ACTION_TYPE_CAPABILITY: Record<string, string[]> = {
 // checked, by type, below.
 const MEMBER_OPEN_ROUTES: Array<{ method: string; path: RegExp }> = [
   { method: "POST", path: /^\/messages\/text$/ },
-  { method: "POST", path: /^\/files\/(photo|document)$/ },
+  // Voice is the same input as text, and the message path already checks
+  // capabilities per write, so it is open to every member exactly as text is.
+  { method: "POST", path: /^\/files\/(audio|photo|document)$/ },
   { method: "GET", path: /^\/actions\/pending$/ },
   { method: "GET", path: /^\/embers\/pending$/ },
   { method: "GET", path: /^\/business-profile\/logo$/ },
