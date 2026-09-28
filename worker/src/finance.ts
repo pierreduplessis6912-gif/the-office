@@ -1889,9 +1889,19 @@ export async function buildDocumentResponse(
   kind: "invoice" | "quotation",
   documentId: number,
   customerName: string | undefined,
-  amount: number
+  amount: number,
+  // Real, new, per direct instruction — stage 2. Passed in from
+  // index.ts rather than imported, deliberately: signDocumentPath
+  // lives in index.ts, which already imports heavily from this file,
+  // so importing back the other way would be a real circular
+  // dependency. A customer-facing link needs a long expiry (a
+  // customer may reasonably open theirs weeks later) — different from
+  // the short one the app's own interactive taps use via
+  // /documents/sign, so this is never routed through that endpoint.
+  signPath: (path: string) => Promise<string>
 ): Promise<{ pdfUrl: string; shareMessage: string | null }> {
-  const pdfUrl = `${origin}/${kind}s/${documentId}/pdf`;
+  const documentPath = `/${kind}s/${documentId}/pdf`;
+  const pdfUrl = `${origin}${documentPath}?sig=${await signPath(documentPath)}`;
   const shareMessage = customerName ? await generateShareMessage(env, kind, customerName, amount, pdfUrl) : null;
   const label = customerName ? `${kind} for ${customerName} (${formatRand(amount)})` : `${kind} (${formatRand(amount)})`;
   await setSelection(env, kind, documentId, label);
