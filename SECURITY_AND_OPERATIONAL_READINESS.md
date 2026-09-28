@@ -162,3 +162,42 @@ active.
 accountant signed in on a build that has sign-in (sessions are stateless,
 so this cannot be verified from the server), and an agreed
 route-to-capability matrix so restricted access actually binds.
+
+### Stage 1 switched on — verified live
+
+Identity gate and role layer are both on. **Verified:** signed in as the
+owner, the app works; an unauthenticated request to `/customers` — which
+returned the full customer list earlier the same day — now returns
+`401 sign in required`. The exposure on the app's own routes is closed.
+
+**Role layer:** tested offline, 144 of 144 decisions correct, run against
+the actual deployed decision code with the switches on (installer,
+accountant, owner and an unknown role; every route the app calls;
+confirm, reject and edit-field by action type; default-deny for unknown
+types and nonexistent actions). The same test fails 2 of 144 when a bug is
+put back, so it can fail. It is committed as `tools/role-matrix.test.js`.
+
+**Caught before switching on:** `/files/audio` was missing from the allow
+list and would have refused installers their voice capture — the one thing
+the role exists for. Found by checking the route list against the matrix,
+not by the SQL tests, which is why both kinds of check are worth having.
+
+**Still open, so the checklist item is not ticked:** live tests of the
+installer and accountant logins; stage 2; stage 3.
+
+### Stage 3 design — `/debug` and `/admin`, not yet built
+
+The app itself calls exactly **7** `/debug` routes (`financial-snapshot`,
+`schedule`, `captures`, `tasks-list`, `suppliers-list`, `finance-list`,
+`characters-list`). The server has about 120 debug and admin routes, so
+over 110 are never used by the app. Plan: the 7 get role rules like every
+other route, session plus capability. Everything else requires an owner
+session **or** an `X-Admin-Secret` header matching a Worker secret, and
+fails closed if that secret is not set. Needs one step from the owner:
+setting `ADMIN_SECRET` in the Cloudflare dashboard.
+
+### Stage 2 design — PDF links, not yet built
+
+The document links are the ones sent to customers ("view it here"), so they
+must stay openable without an account. They need short-lived signed links,
+not a login — a customer can open theirs; nobody can guess the next number.
