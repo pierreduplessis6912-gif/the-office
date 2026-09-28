@@ -362,3 +362,35 @@ every one of the 7 real commits this required deployed successfully,
 including the final one — checked at the step level, not just the job
 level, that "Typecheck" ran as its own distinct step and passed before
 "Deploy to Cloudflare Workers" ever ran.
+
+### Dictation-side capability check — audited directly, a real gap found and fixed
+
+**Not just "verified already real" — audited the same way as the REST
+layer earlier tonight, by listing every actual extraction intent value
+and checking each one against the enforcement list, rather than trusting
+that the list was already complete.**
+
+**Found:** `FINANCIAL_WRITE_INTENTS` gated `payment`, `expense`,
+`invoice`, `quotation`, `price_scope`, and `convert_quote` — but
+`supplier_invoice`, `supplier_payment`, `goods_received`,
+`purchase_order`, and `variance_disposition` were real, distinct
+intents, already gated on *confirm* by `ACTION_TYPE_CAPABILITY` (the
+same `can_manage_invoices`), yet never gated at *creation*. An installer
+could dictate "pay Floornet R10000" and it would sit held, waiting —
+REST-layer confirm would correctly refuse them personally, but a
+misleading held action would still exist for whoever else looked. Fixed
+by widening the same list.
+
+**A parallel, smaller gap fixed alongside it:** leads are owner-only at
+the REST layer, but dictating a lead as lost had no equivalent check.
+Added.
+
+**Verified:** typecheck clean against the baseline, diff against live
+showed only the intended widening plus pure additions, the full role
+matrix still 165/165.
+
+**Live test still open, same as it was for the REST layer before Liam
+and Pauline actually signed in:** this has been checked by direct code
+audit and offline typecheck, not yet by an installer or accountant
+actually trying to dictate one of these and being refused. Worth doing
+once there's a real, low-cost moment to.
