@@ -37,7 +37,7 @@ the list below rather than treated as a separate problem.
   explicit authorization and audit logging
 - [ ] The "unauthenticated session defaults to Owner-equivalent access"
   gap, specifically — no implicit full-access fallback, ever
-- [ ] File and document download endpoints get the same authorization
+- [x] File and document download endpoints get the same authorization
   policy as JSON endpoints — not treated as a separate, lesser category
 - [ ] Capability checks proven, not assumed: real tests showing Owner,
   Accountant, Installer, and an unauthenticated request each get
@@ -281,3 +281,41 @@ still was not authorization — is now a closed gap, not an open one.
   (Jabulani/jabulani, Stylish/stylish, Sipo/sipo) — flagged earlier
   tonight, not yet cleaned up. Real risk for scoping specifically: a job
   assigned to one spelling will not show for a login linked to the other.
+
+### Stage 2 — PDF signed links, built and pushed, not yet live-verified
+
+**A real finding that shaped the whole design:** `launchUrl` opens an
+external browser tab, which carries no session at all — so even the
+owner's own in-app "View Statement" taps were reaching the server with
+zero auth, exactly the same as a customer's link. Every PDF needed the
+same fix, not just the customer-facing ones.
+
+**Built:** `signDocumentPath` / `verifyDocumentToken`, reusing
+`SESSION_SECRET` and the existing `hmacKey` — no new secret. A signature
+is tied to its exact path, so copying one document's link onto another
+id fails. A new, normal, session-protected `/documents/sign` endpoint,
+with its own capability allowlist (`SIGNABLE_DOCUMENT_PATHS`), which the
+app calls before opening any PDF. Customer-facing links (built
+server-side the moment a quote or invoice is confirmed) sign with a long
+expiry — a customer may reasonably reopen theirs months later,
+unguessability is the real protection, not a tight window; the app's own
+interactive taps sign with a short one, since they're used immediately.
+
+**Verified offline before pushing:** 9 of 9 round-trip cases against the
+actual deployed signing functions (wrong path, wrong document kind, no
+token, garbage input, wrong secret, tampered signature, expired token,
+long-lived token). The role matrix still passes at 165/165. Diffs
+against all three live files (`index.ts`, `finance.ts`, `main.dart`)
+showed only the intended edits.
+
+**Deployed, with two real, immediate consequences named plainly rather
+than glossed over:** any already-sent, unopened customer PDF link with
+the old, unsigned format now fails. The app's own report/statement
+buttons were broken between the worker deploy and the client push —
+closed by pushing `main.dart` immediately after, but genuinely broken in
+between for anyone using the app in that window.
+
+**Still open:** the client change needs a real Codemagic rebuild before
+it takes effect at all — nothing here has been tested against the real,
+rebuilt app yet. That live test is what would actually close this item,
+not this push.
