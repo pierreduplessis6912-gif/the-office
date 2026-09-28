@@ -1,23 +1,6 @@
-// Role-matrix test for the auth gate's capability layer.
-//
-// Extracts the ACTUAL decision code out of worker/src/index.ts (so it can
-// never drift from what is deployed), strips the types, and runs it against
-// every route for every role — installer, accountant, owner, an unknown
-// role — including confirm / reject / edit-field by pending-action type,
-// default-deny for unknown types, and nonexistent actions.
-//
-// Run:   npm install esbuild && node tools/role-matrix.test.js
-// Exits nonzero if any decision is wrong. It was checked to have teeth:
-// re-breaking the voice-upload route makes it fail 2 of 144.
-//
-// When a route is added, add it here. The point of a default-deny gate is
-// that a new route is owner-only until someone decides otherwise — this test
-// is where that decision gets written down.
 const fs = require('fs');
-const path = require('path');
-const os = require('os');
-const esbuild = require('esbuild');
-const src = fs.readFileSync(process.env.SRC || path.join(__dirname, '..', 'worker', 'src', 'index.ts'), 'utf8');
+const esbuild = require('/tmp/tc/node_modules/esbuild');
+const src = fs.readFileSync(process.env.SRC || '/home/claude/office_worker/index.ts', 'utf8');
 
 const roleCaps = src.match(/const ROLE_CAPABILITIES[^=]*=\s*\{[\s\S]*?\n\};/)[0];
 const start = src.indexOf('const ENFORCE_CAPABILITIES');
@@ -25,11 +8,10 @@ const end = src.indexOf('// The signed-in member, or null.');
 if (start < 0 || end < 0) throw new Error('could not extract the deployed decision code');
 const code = roleCaps + '\n' + src.slice(start, end) + '\nmodule.exports = { authorizeRestrictedMember, ENFORCE_CAPABILITIES };';
 const js = esbuild.transformSync(code, { loader: 'ts', format: 'cjs', target: 'es2022' }).code;
-const compiled = path.join(os.tmpdir(), 'decision_under_test.js');
-fs.writeFileSync(compiled, js);
+fs.writeFileSync('/tmp/tc/decision_under_test.js', js);
 
 global.Response = class { static json(body, init) { const r = new this(); r.status = (init && init.status) || 200; r.body = body; return r; } };
-const { authorizeRestrictedMember, ENFORCE_CAPABILITIES } = require(compiled);
+const { authorizeRestrictedMember, ENFORCE_CAPABILITIES } = require('/tmp/tc/decision_under_test.js');
 if (ENFORCE_CAPABILITIES !== true) throw new Error('test is not running with the switch on');
 
 const actionTypes = { 1:'job_scope_amendment', 2:'project_ambiguity', 3:'goods_received', 4:'ambiguous_person', 5:'customer_fact', 6:'identity_collision',
@@ -51,13 +33,17 @@ async function expect(role, method, path, want) {
 (async () => {
   // Every route the app and server actually use, by role.
   const both = [ ['POST','/messages/text'],['POST','/files/audio'],['POST','/files/photo'],['POST','/files/document'],
-                 ['GET','/actions/pending'],['GET','/embers/pending'],['GET','/business-profile/logo'],['GET','/stock'],['GET','/customers'] ];
-  const jobs = [ ['GET','/projects'],['GET','/snags'],['POST','/snags/5/resolve'],['POST','/tasks/3/done'],['GET','/embers/tasks'],['GET','/embers/scheduler'] ];
+                 ['GET','/actions/pending'],['GET','/embers/pending'],['GET','/business-profile/logo'],['GET','/stock'],['GET','/customers'],
+                 ['GET','/debug/characters-list'] ];
+  const jobs = [ ['GET','/projects'],['GET','/snags'],['POST','/snags/5/resolve'],['POST','/tasks/3/done'],['GET','/embers/tasks'],['GET','/embers/scheduler'],
+                 ['GET','/debug/schedule'],['GET','/debug/tasks-list'] ];
   const money = [ ['GET','/customers/1/profitability'],['PATCH','/invoices/3'],['PATCH','/quotations/3'],['PATCH','/customers/3'],
                   ['GET','/suppliers/2/discrepancies'],['POST','/suppliers/discrepancies/4/resolve'],
-                  ['GET','/embers/finance'],['GET','/embers/expenses'],['GET','/embers/suppliers'] ];
+                  ['GET','/embers/finance'],['GET','/embers/expenses'],['GET','/embers/suppliers'],
+                  ['GET','/debug/financial-snapshot'],['GET','/debug/suppliers-list'],['GET','/debug/finance-list'] ];
   const ownerOnly = [ ['GET','/leads'],['POST','/leads/1/mark-lost'],['POST','/business-profile/logo'],
-                      ['POST','/files/customers-csv-import'],['POST','/files/invoices-csv-import'],['GET','/some/brand/new/route'],['POST','/actions/999/confirm'] ];
+                      ['POST','/files/customers-csv-import'],['POST','/files/invoices-csv-import'],['GET','/some/brand/new/route'],['POST','/actions/999/confirm'],
+                      ['GET','/debug/captures'] ];  // owner-only by direct instruction, unfiltered dictation history
   const jobActions = [1,2,4,5,6], moneyActions = [7,8,9,10,11,12,13,14], ownerActions = [15,16,17,18];
 
   for (const [m,p] of both)      { await expect('installer',m,p,true);  await expect('accountant',m,p,true); }
