@@ -4675,6 +4675,98 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ status: "merged", fromId: body.fromId, intoId: body.intoId, repointed, peopleMerged });
     }
 
+    // Real, new migration, per direct instruction: the real, missing
+    // merge column for characters — confirmed live duplicates exist
+    // under different capitalisation (Jabulani/jabulani, Stylish/
+    // stylish, Sipo/sipo), the same real fragmentation risk already
+    // solved for customers, just never closed on this side.
+    if (url.pathname === "/debug/init-character-merge" && request.method === "POST") {
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE characters ADD COLUMN merged_into_character_id INTEGER").run();
+      } catch {
+        // Already exists — fine, that's what makes this idempotent.
+      }
+      return Response.json({ status: "ok" });
+    }
+
+    // Real, new, per direct instruction: the exact same real merge
+    // mirrored for characters — a duplicate installer or supplier is
+    // exactly as real a case as a duplicate customer, and this project
+    // already knows how to do this properly: repoint every real table,
+    // mark the loser via merged_into_*, never delete, and merge the
+    // underlying people row too, the same real lesson learned the hard
+    // way on the customer side (a customer-level merge alone left the
+    // people-table identity behind, so the losing name kept surfacing
+    // as its own candidate in future ambiguous-name checks).
+    if (url.pathname === "/debug/merge-characters" && request.method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { fromId?: number; intoId?: number };
+      if (!body.fromId || !body.intoId) {
+        return Response.json({ error: "requires both fromId and intoId in the request body" }, { status: 400 });
+      }
+      if (body.fromId === body.intoId) {
+        return Response.json({ error: "fromId and intoId must be different" }, { status: 400 });
+      }
+
+      const tablesToRepoint: Array<{ table: string; column: string }> = [
+        { table: "character_facts", column: "character_id" },
+        { table: "expenses", column: "character_id" },
+        { table: "supplier_payments", column: "character_id" },
+        { table: "memberships", column: "character_id" },
+        { table: "goods_received_notes", column: "supplier_id" },
+        { table: "purchase_orders", column: "supplier_id" },
+        { table: "supplier_invoices", column: "supplier_id" },
+        { table: "job_scopes", column: "installer_id" },
+      ];
+      const repointed: Record<string, number> = {};
+      for (const { table, column } of tablesToRepoint) {
+        try {
+          const result = await env.OFFICE_DB.prepare(`UPDATE ${table} SET ${column} = ? WHERE ${column} = ?`)
+            .bind(body.intoId, body.fromId)
+            .run();
+          repointed[`${table}.${column}`] = result.meta.changes ?? 0;
+        } catch {
+          // Real, honest skip — same discipline as merge-customers.
+          repointed[`${table}.${column}`] = 0;
+        }
+      }
+
+      await env.OFFICE_DB.prepare("UPDATE characters SET merged_into_character_id = ? WHERE id = ?")
+        .bind(body.intoId, body.fromId)
+        .run();
+
+      const fromCharacter = await env.OFFICE_DB.prepare("SELECT person_id FROM characters WHERE id = ?")
+        .bind(body.fromId)
+        .first<{ person_id: number | null }>();
+      const intoCharacter = await env.OFFICE_DB.prepare("SELECT person_id FROM characters WHERE id = ?")
+        .bind(body.intoId)
+        .first<{ person_id: number | null }>();
+
+      let peopleMerged: { fromPersonId: number; intoPersonId: number } | null = null;
+      if (fromCharacter?.person_id != null && intoCharacter?.person_id != null && fromCharacter.person_id !== intoCharacter.person_id) {
+        const fromPersonId = fromCharacter.person_id;
+        const intoPersonId = intoCharacter.person_id;
+        for (const table of ["customers", "characters", "leads"]) {
+          try {
+            await env.OFFICE_DB.prepare(`UPDATE ${table} SET person_id = ? WHERE person_id = ?`)
+              .bind(intoPersonId, fromPersonId)
+              .run();
+          } catch {
+            // Real, honest skip — same discipline as merge-customers.
+          }
+        }
+        await env.OFFICE_DB.prepare("UPDATE people SET merged_into_person_id = ? WHERE id = ?")
+          .bind(intoPersonId, fromPersonId)
+          .run();
+        peopleMerged = { fromPersonId, intoPersonId };
+      } else if (fromCharacter?.person_id != null && intoCharacter?.person_id == null) {
+        await env.OFFICE_DB.prepare("UPDATE characters SET person_id = ? WHERE id = ?")
+          .bind(fromCharacter.person_id, body.intoId)
+          .run();
+      }
+
+      return Response.json({ status: "merged", fromId: body.fromId, intoId: body.intoId, repointed, peopleMerged });
+    }
+
     if (url.pathname === "/debug/characters" && request.method === "GET") {
       const { results: characters } = await env.OFFICE_DB.prepare(
         "SELECT id, name, relationship, created_at FROM characters ORDER BY created_at DESC LIMIT 20"
