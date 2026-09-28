@@ -574,14 +574,56 @@ async function processOneExtraction(
   // financial write that only Peter's own confirmation happens to
   // catch later.
   const canManageInvoicesForWrites = capabilities.includes("can_manage_invoices");
-  const FINANCIAL_WRITE_INTENTS = ["payment", "expense", "invoice", "quotation", "price_scope", "convert_quote"];
+  // Real, widened, per direct instruction — found by auditing every
+  // real extraction intent against this list directly, the same
+  // discipline as the REST-layer audit earlier tonight, not assumed
+  // complete because the list existed. supplier_invoice,
+  // supplier_payment, goods_received, purchase_order, and
+  // variance_disposition are all real, distinct intents this project
+  // already gates on CONFIRM (ACTION_TYPE_CAPABILITY, same real
+  // can_manage_invoices) but were never gated at CREATION — an
+  // installer could dictate "pay Floornet R10000" and it would sit
+  // held, waiting, with nothing at the point of creation to say it
+  // never should have been.
+  const FINANCIAL_WRITE_INTENTS = [
+    "payment",
+    "expense",
+    "invoice",
+    "quotation",
+    "price_scope",
+    "convert_quote",
+    "supplier_invoice",
+    "supplier_payment",
+    "goods_received",
+    "purchase_order",
+    "variance_disposition",
+  ];
   if (FINANCIAL_WRITE_INTENTS.includes(extraction?.intent ?? "") && !canManageInvoicesForWrites) {
     return {
       customer,
       character,
       pendingActionId: null,
       factPendingActionId: null,
-      message: "Recording payments, invoices, quotations, or expenses isn't available for your role — let someone with that permission know.",
+      message: "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+      jobScopeIdForProjectResolution: null,
+      pendingCandidates: null,
+      pendingActionType: null,
+      pendingChanges: null,
+    };
+  }
+
+  // Real, new, per direct instruction: leads are owner-only at the
+  // REST layer (can_manage_settings — neither installer nor
+  // accountant holds it), but dictating "mark that lead as lost" had
+  // no equivalent check at all — the same real gap as above, one
+  // capability over.
+  if (extraction?.intent === "lose_lead" && !capabilities.includes("can_manage_settings")) {
+    return {
+      customer,
+      character,
+      pendingActionId: null,
+      factPendingActionId: null,
+      message: "Managing leads isn't available for your role — let someone with that permission know.",
       jobScopeIdForProjectResolution: null,
       pendingCandidates: null,
       pendingActionType: null,
