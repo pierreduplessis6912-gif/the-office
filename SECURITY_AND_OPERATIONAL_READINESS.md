@@ -469,3 +469,43 @@ switched on and verified live: the real preview origin gets a matching
 `access-control-allow-origin`; an unrelated origin gets none at all;
 both still return `200` — the request itself is never blocked, only a
 browser's ability to read the response from an unrecognized origin.
+
+### Silent error-swallowing — a real, scoped first pass, not the full audit
+
+Audited all 32 completely silent (`catch {}`, no error variable at all)
+blocks in `index.ts` — the highest-risk category, since nothing there
+even names the error, let alone acts on it. Most were already
+well-designed and correctly labeled (malformed-token parsing, the
+idempotency race, the merge tooling's deliberate per-table skips) — no
+changes needed.
+
+**One real, systemic finding, fixed:** ~20 migration `ALTER`/`CREATE`
+blocks swallowed *any* error under a comment that only ever meant
+"already exists." Checked the real, live error text directly
+(`/debug/probe-duplicate-column`, a temporary diagnostic, removed after)
+before writing the check — a genuine duplicate-column `ALTER` on this
+project's own D1 returns exactly `"D1_ERROR: duplicate column name:
+...: SQLITE_ERROR"`. New `runIdempotentMigration` helper treats only
+that specific, real case as safe; anything else now propagates as a
+real failure instead of a silently reassuring `{"status":"ok"}`. Applied
+to all 19 real `ALTER` sites.
+
+**A further, more important finding along the way:** 4 of those wrapped
+`CREATE TABLE IF NOT EXISTS`, which SQLite's own `IF NOT EXISTS` clause
+already makes idempotent — a catch there was never really catching
+"already exists" at all, since SQLite never throws for that reason in
+the first place; it was silently masking whatever genuinely unexpected
+error actually occurred. Those 4 had the try/catch removed entirely
+rather than routed through the helper, since no error there is ever the
+expected case.
+
+**Verified live, not just offline:** re-ran an already-applied migration
+(`merged_into_person_id`, genuinely already existing) — correctly still
+returns `{"status":"ok"}`, confirming the real "duplicate column" case
+is recognized correctly, not just in theory.
+
+**Honestly scoped, not the full checklist item:** this covers the
+silent (`catch {}`) category in `index.ts` only. The 39 `catch (err)`
+blocks in the same file, and every block in `finance.ts`, `ai.ts`,
+`identity.ts`, and `memory.ts`, remain unaudited. Real progress, not
+completion.
