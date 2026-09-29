@@ -4,12 +4,6 @@ The API is the Office. Everything else — this Flutter app, a future PWA,
 WhatsApp, email, voice — is just a client of it. See `worker/` for the
 backend, `app/` for the first native client.
 
-# The Office
-
-The API is the Office. Everything else — this Flutter app, a future PWA,
-WhatsApp, email, voice — is just a client of it. See `worker/` for the
-backend, `app/` for the first native client.
-
 **For the current, real state of the system — schema, what's built,
 what's deliberately deferred, known bugs and their fixes — see
 [`STATUS.md`](./STATUS.md). Read that before starting any new work;
