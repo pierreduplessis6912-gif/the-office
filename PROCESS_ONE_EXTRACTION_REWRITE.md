@@ -93,18 +93,29 @@ per-intent-type table (`canExecute`), checked once per intent before any
 handler runs, rather than a standalone array someone has to remember to
 keep in sync by hand.
 
-## The one real, open gap this document does not resolve
+## The real answer to the open gap — a single source of truth
 
-`canExecute` (creation-time gating) and `auth.ts`'s
-`ACTION_TYPE_CAPABILITY` (confirmation-time gating) are naturally related
-— often near-mirrors of each other, which is exactly why the original
-bug was possible: two lists that were supposed to agree, maintained
-independently. Introducing `canExecute` without a real, automated way to
-keep it consistent with `ACTION_TYPE_CAPABILITY` would just be building
-the same failure mode in a cleaner shape. Before this is built, there
-needs to be a real answer — most likely a single test that walks both
-maps and asserts they agree wherever an intent type appears in both, not
-a promise to be careful a second time.
+A single, real map — `INTENT_CAPABILITIES: Record<string, { creation?:
+string; confirm?: string }>` — with both `canExecute` (creation-time) and
+`ACTION_TYPE_CAPABILITY` (confirmation-time) *derived* from it, rather
+than maintained as two separate lists. This is the concrete fix for the
+gap named above, not just a plan to be careful a second time.
+
+**The real assertion needs to be stronger than "both are defined,"
+though.** Two intents could each have `creation` and `confirm` set to
+*different* capabilities and still pass a check that only asks whether
+both exist — which would be just as real a bug as the original omission,
+just a mismatch instead of a gap. The real test: wherever both fields
+apply to the same intent, they must be the *same* capability, not merely
+both present.
+
+**Where this single source of truth actually lives is a real, open
+decision, not assumed here.** `ACTION_TYPE_CAPABILITY` already lives in
+`auth.ts`; `canExecute` would live in `intents/dispatcher.ts`. Locating
+`INTENT_CAPABILITIES` in `auth.ts` keeps the import direction clean —
+`intents/` importing from `auth.ts` matches how `debug.ts` already does
+tonight, with no circularity risk. A third, new location is possible but
+adds a file and a decision this document doesn't make.
 
 ## The real, honest first step of the eventual build — not glossed over
 
@@ -143,18 +154,41 @@ discipline already proven twice tonight (`auth.ts`, `debug.ts`): verify
 before moving, verify after, never trust an extraction that hasn't been
 tested against the real, current behavior.
 
+## The real, concrete validation work before Phase 1 — not vague
+
+Sized honestly, roughly a session's worth of upfront work, not a "do
+this tonight" add-on:
+
+1. **Trace `ProcessingResult` against real intent logic.** Pick 3–4 real
+   branches (`payment`, `invoice`, `quotation`, `work_observation`),
+   trace their actual Pass 2 logic line by line, catalog every variable
+   read that Pass 1 set, and confirm the proposed contract can represent
+   all of them. If it can't, `ProcessingResult` gets redesigned before
+   anything else proceeds — not patched around after the fact.
+2. **Audit the six proposed handler groupings for real cohesion**, not
+   assumed from conceptual similarity. Do the intents inside
+   `payments.ts` genuinely share the same preamble logic, the same D1
+   tables, the same confirmation flow — or does one of them have a
+   genuinely separate path that belongs in its own file instead?
+3. **Design `INTENT_CAPABILITIES`** as the real single source of truth
+   described above, including where it lives and the same-capability
+   assertion, before Phase 1 starts.
+4. **Write a concrete Phase 1 scaffold example** — what `intents/
+   dispatcher.ts` actually looks like on day one (dispatching to the
+   still-live `processOneExtraction`, or to stubs that throw "not
+   implemented"?), what a stub handler's real signature looks like, and
+   explicit, checkable success criteria for each phase (most plainly:
+   code compiles, and the full existing test suite still passes) — so
+   "ready to move to the next phase" is a real, verifiable statement,
+   not a feeling.
+
 ## What this document does not settle
 
-- The real, field-by-field trace of every intent branch's current
-  message-building logic against the proposed `ProcessingResult` shape —
-  deliberately left as real, upcoming work, not assumed complete here.
-- The exact mechanism for keeping `canExecute` and `ACTION_TYPE_CAPABILITY`
-  consistent — named as a real, required open question, not designed in
-  this pass.
-- Whether the six proposed handler groupings (payments, financial,
-  procurement, jobs, memory, identity) are the right real boundaries —
-  a reasonable starting hypothesis, not verified against how cleanly
-  each of the ~30 real intents actually separates along them.
+- The results of the four validation items above — real, upcoming work,
+  not assumed complete here.
+- Whether the six proposed handler groupings are the right real
+  boundaries — a reasonable starting hypothesis, pending the cohesion
+  audit above.
 - Timing — this is explicitly not scoped for the same session it was
-  designed in. The scaffold-and-verify work described here is real,
-  substantial work in its own right.
+  designed in. The validation work above is real, substantial work in
+  its own right, before any scaffold code gets written.
