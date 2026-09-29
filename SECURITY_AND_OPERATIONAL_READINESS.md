@@ -81,20 +81,37 @@ the list below rather than treated as a separate problem.
 
 ## Real, but genuinely the lowest stakes on this list
 
-- [ ] Remove the duplicated `# The Office` heading in the README
+- [x] Remove the duplicated `# The Office` heading in the README
 - [ ] Consolidate the large documentation set — `DECISIONS.md`,
   `OFFICE_CONSTITUTION.md`, `STATUS.md`, `FEATURES.md`, `ATLAS.md`, and
   the various architecture docs (including the two pinned tonight) —
   into a smaller, clearer hierarchy, with older material archived
-  rather than deleted
-- [ ] A real feature/status/test matrix, so a new contributor (or a
+  rather than deleted. Genuinely still open — the doc set grew tonight
+  (five new architecture docs, this checklist, the feature matrix), not
+  shrunk; a real consolidation deserves its own deliberate pass, not a
+  rushed one at the end of a long session.
+- [x] A real feature/status/test matrix, so a new contributor (or a
   future session) doesn't need to read the full historical narrative
-  first
-- [ ] Commit the Android project instead of generating it dynamically in
-  CI (`flutter create` on a missing `android/` directory is fine for
-  prototyping, fragile long-term)
-- [ ] Pin build environments deliberately (Flutter, Java, Android SDK,
-  Gradle, Kotlin versions) instead of riding `stable`
+  first — `FEATURE_STATUS_MATRIX.md`, built from genuine, verified
+  evidence, not aspiration.
+- [ ] ~~Commit the Android project instead of generating it dynamically
+  in CI~~ — **considered and explicitly declined, not simply undone.**
+  `codemagic.yaml`'s own comments document a real, previously-live bug:
+  Flutter's `stable` channel moved forward and silently broke a static,
+  regex-based Kotlin-version patch that assumed an older template
+  shape. The fix already in place — a CLI bypass flag, not a pinned
+  file — was chosen specifically because it is more resilient against
+  Flutter's own evolving templates than a committed, hand-maintained
+  `android/` folder would be. Committing it now would reintroduce the
+  exact fragility this project already got burned by once and
+  deliberately moved away from.
+- [ ] ~~Pin build environments deliberately~~ — **declined for the same
+  real reason.** The current design rides `flutter: stable` on purpose;
+  pinning to a specific version trades one real risk (an unexpected
+  upstream template change) for another real one (a hard-pinned old
+  version silently falling behind a plugin's actual requirements), and
+  the project has direct, documented evidence of the *template drift*
+  risk actually happening, not the pinned-version one.
 
 ---
 
@@ -773,3 +790,29 @@ still passing, diff against live showing only the intended lines, the
 real CI pipeline (Typecheck → Role-matrix test → Deploy) all green, and
 a real, live request against the deployed worker afterward confirming
 normal behavior.
+
+### Documentation tier — closed honestly, not forced
+
+Two items genuinely done: the README duplication (a real, one-line
+fix) and `FEATURE_STATUS_MATRIX.md` (a real, compact, evidence-based
+built/tested table, distinct from the existing `FEATURES.md`'s
+narrative, by-department lens).
+
+**Two items explicitly declined, not silently skipped or falsely
+ticked** — checked against the real, live `codemagic.yaml` before
+deciding, not assumed from the original review's generic framing.
+Committing the Android project and pinning build environments would
+both reintroduce a specific, real fragility this project already hit
+and fixed: a comment in `codemagic.yaml` itself documents Flutter's
+`stable` channel moving forward and silently breaking a static,
+regex-based patch that assumed an older template shape, fixed by
+switching to a CLI bypass flag *because* it is more resilient against
+exactly this kind of upstream drift. A committed `android/` folder or a
+hard-pinned toolchain version would trade a real, already-solved
+problem for a different one this project has no evidence of actually
+having. Recorded as a real, considered decision, not left ambiguous
+between "not started" and "not needed."
+
+**One item honestly still open, not attempted tonight:** the full
+documentation consolidation. The doc set grew this session, not
+shrank — a real consolidation deserves its own deliberate pass.
