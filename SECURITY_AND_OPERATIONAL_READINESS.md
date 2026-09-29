@@ -633,3 +633,46 @@ run (checked at the step level after the correction); the live,
 deployed worker confirmed afterward with a real request — `/health`
 with the real preview `Origin` header still returns the correct
 `access-control-allow-origin`, exactly as before the split.
+
+### File-splitting, second real step — worker/src/debug.ts extracted
+
+The much harder case: unlike `auth.ts`, the 120 `/debug`/`/admin`
+routes turned out to be interleaved throughout the file with real,
+non-debug application routes in between, not one contiguous block.
+Found and verified their exact boundaries using the real TypeScript
+parser directly (`ts.createSourceFile`, walking the real AST for every
+`if` statement matching the pathname pattern) rather than text-based
+guessing, which would have been genuinely risky at this scale and
+shape.
+
+**One real, deliberate exception, not an oversight:** `/debug/reprocess`
+stays in `index.ts` — it genuinely calls `processTranscript`, the core
+message pipeline, and moving it too would have meant a real circular
+import between the two files for the sake of a single route. 119 of
+120 moved; the 120th has a real, structural reason not to.
+
+**Two real, genuinely new issues found and fixed before this was
+trusted, not assumed clean from a first pass:**
+1. `getRealTableNames`, a helper the original code relied on as a
+   closure over `handleRequest`'s own `env` parameter, moved with its
+   two real callers (`/admin/export`, `/admin/flush`) but lost that
+   closure access — given an explicit `env` parameter instead, since
+   it's no longer nested inside the same scope.
+2. **A real CI failure on the first push, correctly caught by the
+   pipeline built earlier tonight, not glossed over:** the committed
+   `check-types.js` does exact text matching, including the file path
+   — several already-tolerated error categories were still attributed
+   to `src/index.ts` in the committed baseline, so the exact-match
+   check correctly flagged them as new the moment the code producing
+   them genuinely moved to `debug.ts`. Not a new problem — the same 44
+   known, tolerated errors, now correctly attributed to wherever they
+   actually live. Regenerated the baseline and verified it directly
+   against the real, committed script before pushing again: "Typecheck
+   clean: 44 known, tolerated error(s), 0 new."
+
+**Live-verified twice over:** the real CI run confirmed at the step
+level (Typecheck, Role-matrix test, and Deploy all succeeded on the
+corrected push); and, separately, a real request against the actual
+deployed worker — `/debug/job-scopes` with the real admin key —
+confirmed returning the same real, correct data it always has, proving
+the actual moved code works in production, not just that CI was green.
