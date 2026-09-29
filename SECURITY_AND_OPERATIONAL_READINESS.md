@@ -509,3 +509,28 @@ silent (`catch {}`) category in `index.ts` only. The 39 `catch (err)`
 blocks in the same file, and every block in `finance.ts`, `ai.ts`,
 `identity.ts`, and `memory.ts`, remain unaudited. Real progress, not
 completion.
+
+### index.ts error-handling audit — now genuinely complete
+
+Continued into the 39 `catch (err)` blocks, since naming the error isn't
+the same as handling it correctly. Most were already right: every real
+PDF route, every `PATCH` route, the debug diagnostics, the KV/R2 flush
+tooling, the PDF text-extraction fallback, and the confirm handler's
+outer catch (already a deliberate fix from earlier, explicitly commented
+— the handler "never had error handling wrapped around it at all" before
+that, producing Cloudflare's generic crash page with no way to see what
+broke).
+
+**But 14 more instances of the exact same migration-swallowing issue
+turned up** — the earlier fix was real but incomplete, not wrong; these
+were the identical unsafe pattern under `catch (err)` instead of the
+bare `catch {}` the first regex matched. Some even returned a
+misleading `status: "ok"` alongside a `note`/`detail` field that, if
+actually read, might have revealed a genuine failure. All 14 now route
+through the same `runIdempotentMigration` helper — confirmed none of
+those specific debug routes are called by the client before
+consolidating their response shape.
+
+**`index.ts` is now genuinely, fully audited** — both the silent and
+the named catch categories. `finance.ts`, `ai.ts`, `identity.ts`, and
+`memory.ts` remain open.
