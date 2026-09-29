@@ -2387,6 +2387,31 @@ async function getJobScope(request: Request, env: Env): Promise<{ scoped: boolea
 // anywhere ever actually sent this key, for this route or any other —
 // the protection had been sitting dormant, unused, in production. This
 // is the shared half of making it real everywhere it is needed.
+// Real, new, per direct instruction: a real audit found roughly 20
+// migration catch blocks across this file swallowing ANY error under
+// a comment that only ever meant "already exists" — some of them
+// wrapping CREATE TABLE IF NOT EXISTS, which SQLite's own IF NOT
+// EXISTS clause already makes idempotent on its own, so a catch there
+// was never really about "already exists" at all; it was silently
+// masking whatever genuinely unexpected error actually occurred
+// instead. Checked directly against the real, live error text before
+// writing this — a genuine duplicate-column ALTER on this project's
+// own D1 database returns exactly "D1_ERROR: duplicate column name:
+// ...: SQLITE_ERROR" — so that specific, real case is the only one
+// treated as safe; anything else is a real, unexpected failure and is
+// never silently reported as "ok".
+async function runIdempotentMigration(env: Env, sql: string): Promise<void> {
+  try {
+    await env.OFFICE_DB.prepare(sql).run();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/duplicate column/i.test(message)) {
+      return; // Genuinely already exists — the one real, expected case.
+    }
+    throw err; // Anything else is real and unexpected — never silently ok.
+  }
+}
+
 async function checkIdempotencyKey(env: Env, key: string | null): Promise<Response | null> {
   if (!key) return null;
   const existing = await env.OFFICE_DB.prepare("SELECT status, result FROM idempotency_keys WHERE key = ?")
@@ -2729,11 +2754,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // pattern as the captures FK migration.
     if (url.pathname === "/debug/init-tasks-fk" && request.method === "POST") {
       for (const column of ["customer_id INTEGER", "character_id INTEGER"]) {
-        try {
-          await env.OFFICE_DB.prepare(`ALTER TABLE tasks ADD COLUMN ${column}`).run();
-        } catch {
-          // Already exists — fine, that's what makes this idempotent.
-        }
+        await runIdempotentMigration(env, `ALTER TABLE tasks ADD COLUMN ${column}`);
       }
       return Response.json({ status: "ok" });
     }
@@ -2759,11 +2780,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // distinguishing cost of sales from operating expenses in a
     // formal P&L. Idempotent, same pattern as every other ALTER here.
     if (url.pathname === "/debug/init-expenses-category" && request.method === "POST") {
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE expenses ADD COLUMN category TEXT").run();
-      } catch {
-        // Already exists — fine, that's what makes this idempotent.
-      }
+      await runIdempotentMigration(env, "ALTER TABLE expenses ADD COLUMN category TEXT");
       return Response.json({ status: "ok" });
     }
 
@@ -2771,11 +2788,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // profitability (getJobProfitability). Idempotent, same pattern
     // as every other ALTER here.
     if (url.pathname === "/debug/init-expenses-jobcost" && request.method === "POST") {
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE expenses ADD COLUMN customer_id INTEGER").run();
-      } catch {
-        // Already exists — fine, that's what makes this idempotent.
-      }
+      await runIdempotentMigration(env, "ALTER TABLE expenses ADD COLUMN customer_id INTEGER");
       return Response.json({ status: "ok" });
     }
 
@@ -2783,11 +2796,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // support: linking a job to who's actually assigned to do it.
     // Idempotent, same pattern as every other ALTER here.
     if (url.pathname === "/debug/init-jobscopes-installer" && request.method === "POST") {
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE job_scopes ADD COLUMN installer_id INTEGER").run();
-      } catch {
-        // Already exists — fine, that's what makes this idempotent.
-      }
+      await runIdempotentMigration(env, "ALTER TABLE job_scopes ADD COLUMN installer_id INTEGER");
       return Response.json({ status: "ok" });
     }
 
@@ -3760,11 +3769,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // role; "installers see their own jobs" needs to know that this login
     // is Liam.
     if (url.pathname === "/debug/init-membership-character" && request.method === "POST") {
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE memberships ADD COLUMN character_id INTEGER").run();
-      } catch {
-        // Already exists — fine, that's what makes this idempotent.
-      }
+      await runIdempotentMigration(env, "ALTER TABLE memberships ADD COLUMN character_id INTEGER");
       return Response.json({ status: "ok" });
     }
 
@@ -4591,11 +4596,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // candidate ambiguous_person hold before this. Nullable — most
     // customers will never have this set.
     if (url.pathname === "/debug/init-customer-merge" && request.method === "POST") {
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE customers ADD COLUMN merged_into_customer_id INTEGER").run();
-      } catch {
-        // Already exists — fine, that's what makes this idempotent.
-      }
+      await runIdempotentMigration(env, "ALTER TABLE customers ADD COLUMN merged_into_customer_id INTEGER");
       return Response.json({ status: "ok" });
     }
 
@@ -4604,11 +4605,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // enough — the underlying people-table identity needed the exact
     // same treatment. Nullable, same as its customer-level twin.
     if (url.pathname === "/debug/init-people-merge" && request.method === "POST") {
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE people ADD COLUMN merged_into_person_id INTEGER").run();
-      } catch {
-        // Already exists — fine, that's what makes this idempotent.
-      }
+      await runIdempotentMigration(env, "ALTER TABLE people ADD COLUMN merged_into_person_id INTEGER");
       return Response.json({ status: "ok" });
     }
 
@@ -4622,44 +4619,29 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // matter — the same "don't invent structure ahead of evidence"
     // discipline as everything else built tonight.
     if (url.pathname === "/debug/init-products" && request.method === "POST") {
-      try {
-        await env.OFFICE_DB.prepare(
-          `CREATE TABLE IF NOT EXISTS products (
-            id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL,
-            category TEXT,
-            merged_into_product_id INTEGER,
-            created_at TEXT DEFAULT (datetime('now'))
-          )`
-        ).run();
-      } catch {
-        // Already exists — fine, that's what makes this idempotent.
-      }
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE line_items ADD COLUMN product_id INTEGER").run();
-      } catch {
-        // Already exists — fine, that's what makes this idempotent.
-      }
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE line_items ADD COLUMN room TEXT").run();
-      } catch {
-        // Already exists — fine, that's what makes this idempotent.
-      }
+      // Real, per direct instruction: IF NOT EXISTS already makes
+      // this idempotent at the SQL level — a try/catch swallowing
+      // "already exists" here was never really catching that, since
+      // SQLite never throws for it in the first place. Any real error
+      // now propagates naturally instead of being silently masked.
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS products (
+          id INTEGER PRIMARY KEY,
+          name TEXT NOT NULL,
+          category TEXT,
+          merged_into_product_id INTEGER,
+          created_at TEXT DEFAULT (datetime('now'))
+        )`
+      ).run();
+      await runIdempotentMigration(env, "ALTER TABLE line_items ADD COLUMN product_id INTEGER");
+      await runIdempotentMigration(env, "ALTER TABLE line_items ADD COLUMN room TEXT");
       // Real, new columns, per direct instruction: the real, missing
       // buy-side half of the products foundation. Without these, only
       // what a product sells for would ever be known, never what it
       // actually cost — "profit margin on vinyl" stays unanswerable
       // regardless of how good the sell-side wiring is.
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE po_line_items ADD COLUMN product_id INTEGER").run();
-      } catch {
-        // Already exists — fine, that's what makes this idempotent.
-      }
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE supplier_invoice_line_items ADD COLUMN product_id INTEGER").run();
-      } catch {
-        // Already exists — fine, that's what makes this idempotent.
-      }
+      await runIdempotentMigration(env, "ALTER TABLE po_line_items ADD COLUMN product_id INTEGER");
+      await runIdempotentMigration(env, "ALTER TABLE supplier_invoice_line_items ADD COLUMN product_id INTEGER");
       return Response.json({ status: "ok" });
     }
 
@@ -4772,11 +4754,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // stylish, Sipo/sipo), the same real fragmentation risk already
     // solved for customers, just never closed on this side.
     if (url.pathname === "/debug/init-character-merge" && request.method === "POST") {
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE characters ADD COLUMN merged_into_character_id INTEGER").run();
-      } catch {
-        // Already exists — fine, that's what makes this idempotent.
-      }
+      await runIdempotentMigration(env, "ALTER TABLE characters ADD COLUMN merged_into_character_id INTEGER");
       return Response.json({ status: "ok" });
     }
 
@@ -4943,20 +4921,6 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       const table = url.searchParams.get("table") ?? "";
       const { results } = await env.OFFICE_DB.prepare(`PRAGMA table_info(${table})`).all();
       return Response.json({ table, columns: results });
-    }
-
-    // Real, temporary diagnostic, per direct instruction: seeing the
-    // exact real error message SQLite/D1 gives for a genuine
-    // duplicate-column ALTER, before writing a regex to detect it —
-    // every real /debug/init-* route already catches and swallows
-    // this, so it can't be observed any other way.
-    if (url.pathname === "/debug/probe-duplicate-column" && request.method === "POST") {
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE people ADD COLUMN merged_into_person_id INTEGER").run();
-        return Response.json({ threw: false });
-      } catch (err) {
-        return Response.json({ threw: true, message: err instanceof Error ? err.message : String(err) });
-      }
     }
 
     // Real, temporary diagnostic, per direct instruction: action #129
@@ -5385,11 +5349,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // actual resolved calendar date. Same idempotent ALTER pattern as
     // every other schema-init route here.
     if (url.pathname === "/debug/init-job-scopes-date" && request.method === "POST") {
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE job_scopes ADD COLUMN scheduled_date TEXT").run();
-      } catch {
-        // Already exists — fine, that's what makes this idempotent.
-      }
+      await runIdempotentMigration(env, "ALTER TABLE job_scopes ADD COLUMN scheduled_date TEXT");
       return Response.json({ status: "ok" });
     }
 
@@ -5486,11 +5446,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         "invoices", "quotations",
       ];
       for (const table of tables) {
-        try {
-          await env.OFFICE_DB.prepare(`ALTER TABLE ${table} ADD COLUMN capture_id INTEGER`).run();
-        } catch {
-          // Already exists — fine, that's what makes this idempotent.
-        }
+        await runIdempotentMigration(env, `ALTER TABLE ${table} ADD COLUMN capture_id INTEGER`);
       }
       return Response.json({ status: "ok", tables });
     }
@@ -5710,21 +5666,21 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // exact capture that caused it, per the amendment design just
     // logic'd out and now being built.
     if (url.pathname === "/debug/init-job-scope-amendments" && request.method === "POST") {
-      try {
-        await env.OFFICE_DB.prepare(
-          `CREATE TABLE IF NOT EXISTS job_scope_amendments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            job_scope_id INTEGER NOT NULL,
-            capture_id INTEGER,
-            field_name TEXT NOT NULL,
-            old_value TEXT,
-            new_value TEXT,
-            created_at TEXT NOT NULL DEFAULT (datetime('now'))
-          )`
-        ).run();
-      } catch {
-        // Already exists — fine, that's what makes this idempotent.
-      }
+      // Real, per direct instruction: same real fix as products above
+      // — IF NOT EXISTS already makes this idempotent at the SQL
+      // level, so any real error now propagates rather than being
+      // silently masked.
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS job_scope_amendments (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          job_scope_id INTEGER NOT NULL,
+          capture_id INTEGER,
+          field_name TEXT NOT NULL,
+          old_value TEXT,
+          new_value TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`
+      ).run();
       return Response.json({ status: "ok" });
     }
 
@@ -5883,11 +5839,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     }
 
     if (url.pathname === "/debug/init-invoices-due-date" && request.method === "POST") {
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE invoices ADD COLUMN due_date TEXT").run();
-      } catch {
-        // Already exists — fine, that's what makes this idempotent.
-      }
+      await runIdempotentMigration(env, "ALTER TABLE invoices ADD COLUMN due_date TEXT");
       return Response.json({ status: "ok" });
     }
 
@@ -5908,42 +5860,29 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // vat_exempt, leads.capture_id), applied to the identity layer's
     // own foundation before any reconciliation logic changes at all.
     if (url.pathname === "/debug/init-identity-layer" && request.method === "POST") {
-      try {
-        await env.OFFICE_DB.prepare(
-          `CREATE TABLE IF NOT EXISTS people (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            created_at TEXT NOT NULL DEFAULT (datetime('now'))
-          )`
-        ).run();
-      } catch {
-        // Already exists — fine, that's what makes this idempotent.
-      }
+      // Real, per direct instruction: same real fix as above — IF NOT
+      // EXISTS already makes this idempotent at the SQL level, so any
+      // real error now propagates rather than being silently masked.
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS people (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`
+      ).run();
       // Real, persistent flag for a real, ambiguous, needs-review
       // match found during backfill or ongoing reconciliation - so it
       // can always be found and resolved later via a simple, direct
       // query, rather than lost to a one-time API response.
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE people ADD COLUMN needs_merge_review INTEGER DEFAULT 0").run();
-      } catch {
-        // Already exists — fine, that's what makes this idempotent.
-      }
+      await runIdempotentMigration(env, "ALTER TABLE people ADD COLUMN needs_merge_review INTEGER DEFAULT 0");
       for (const table of ["customers", "characters", "leads"]) {
-        try {
-          await env.OFFICE_DB.prepare(`ALTER TABLE ${table} ADD COLUMN person_id INTEGER`).run();
-        } catch {
-          // Already exists — fine, that's what makes this idempotent.
-        }
+        await runIdempotentMigration(env, `ALTER TABLE ${table} ADD COLUMN person_id INTEGER`);
       }
       return Response.json({ status: "ok" });
     }
 
     if (url.pathname === "/debug/init-leads-capture-id" && request.method === "POST") {
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE leads ADD COLUMN capture_id INTEGER").run();
-      } catch {
-        // Already exists — fine, that's what makes this idempotent.
-      }
+      await runIdempotentMigration(env, "ALTER TABLE leads ADD COLUMN capture_id INTEGER");
       return Response.json({ status: "ok" });
     }
 
@@ -5957,22 +5896,21 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // logInteractionEdge's own comment in identity.ts for why it's
     // deliberately entity-type/id based rather than person_id based.
     if (url.pathname === "/debug/init-interaction-edges" && request.method === "POST") {
-      try {
-        await env.OFFICE_DB.prepare(
-          `CREATE TABLE IF NOT EXISTS interaction_edges (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            capture_id INTEGER,
-            entity_type_a TEXT NOT NULL,
-            entity_id_a INTEGER NOT NULL,
-            entity_type_b TEXT NOT NULL,
-            entity_id_b INTEGER NOT NULL,
-            relation_type TEXT NOT NULL,
-            created_at TEXT NOT NULL DEFAULT (datetime('now'))
-          )`
-        ).run();
-      } catch {
-        // Already exists — fine, that's what makes this idempotent.
-      }
+      // Real, per direct instruction: same real fix as above — IF NOT
+      // EXISTS already makes this idempotent at the SQL level, so any
+      // real error now propagates rather than being silently masked.
+      await env.OFFICE_DB.prepare(
+        `CREATE TABLE IF NOT EXISTS interaction_edges (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          capture_id INTEGER,
+          entity_type_a TEXT NOT NULL,
+          entity_id_a INTEGER NOT NULL,
+          entity_type_b TEXT NOT NULL,
+          entity_id_b INTEGER NOT NULL,
+          relation_type TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`
+      ).run();
       return Response.json({ status: "ok" });
     }
 
@@ -5998,11 +5936,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
 
     if (url.pathname === "/debug/init-captures-fk" && request.method === "POST") {
       for (const column of ["customer_id INTEGER", "character_id INTEGER"]) {
-        try {
-          await env.OFFICE_DB.prepare(`ALTER TABLE captures ADD COLUMN ${column}`).run();
-        } catch {
-          // Already exists — fine, that's what makes this idempotent.
-        }
+        await runIdempotentMigration(env, `ALTER TABLE captures ADD COLUMN ${column}`);
       }
       return Response.json({ status: "ok" });
     }
