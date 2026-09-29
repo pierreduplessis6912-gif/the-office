@@ -392,9 +392,19 @@ export async function runConsolidation(env: Env): Promise<{ flushed: number; sch
         .bind(...ids)
         .run();
     } catch (err) {
-      await env.OFFICE_DB.prepare("INSERT INTO memory_errors (customer_id, text, error) VALUES (NULL, ?, ?)")
-        .bind(`consolidation batch of ${results.length}`, err instanceof Error ? err.message : String(err))
-        .run();
+      // Real, small fix, per direct instruction: the one place in this
+      // file logging a failure durably without the same "nothing
+      // further to do if even the error log fails" safety net every
+      // other durable-error-logging site here already has — if this
+      // INSERT itself failed, the whole consolidation run would throw
+      // uncaught instead of degrading the same way its nine siblings do.
+      try {
+        await env.OFFICE_DB.prepare("INSERT INTO memory_errors (customer_id, text, error) VALUES (NULL, ?, ?)")
+          .bind(`consolidation batch of ${results.length}`, err instanceof Error ? err.message : String(err))
+          .run();
+      } catch {
+        // Nothing further to do if even the error log fails.
+      }
     }
   }
 
