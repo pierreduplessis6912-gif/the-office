@@ -353,15 +353,29 @@ export async function updateCaptureHint(
 // the real hourly cron and a manual debug trigger for testing today.
 export async function runConsolidation(env: Env): Promise<{ flushed: number; schemaCandidates: string[] }> {
   const { results } = await env.OFFICE_DB.prepare(
-    "SELECT id, customer_id, text FROM pending_memory_flush ORDER BY id LIMIT 500"
-  ).all<{ id: number; customer_id: number | null; text: string }>();
+    "SELECT id, customer_id, text, created_at FROM pending_memory_flush ORDER BY id LIMIT 500"
+  ).all<{ id: number; customer_id: number | null; text: string; created_at: string }>();
 
   let flushed = 0;
   if (results.length > 0) {
     try {
+      // Real fix, per direct instruction: a random UUID per attempt
+      // meant a retry after a partial failure (upsert succeeds, the
+      // following delete does not) would insert the same real memory
+      // again under a brand-new id next run — a genuine, silent
+      // duplicate, never cleaned up. Derived instead from the row's
+      // own id and created_at: the same row, retried, produces the
+      // same vector id, so Vectorize's own upsert-by-id semantics make
+      // the retry a real overwrite, not a duplicate. id is a plain
+      // INTEGER PRIMARY KEY here, not AUTOINCREMENT — confirmed
+      // directly against the live schema — so it could in principle
+      // be reused after the table goes fully empty; created_at is
+      // included alongside it so that a genuinely new row landing on
+      // a reused id still gets a distinct vector id, since its
+      // timestamp will differ from whatever occupied that id before.
       const vectors = await Promise.all(
         results.map(async (row) => ({
-          id: crypto.randomUUID(),
+          id: `pmf-${row.id}-${row.created_at}`,
           values: await embedText(env, row.text),
           metadata: {
             customerId: row.customer_id != null ? String(row.customer_id) : "",
