@@ -593,3 +593,42 @@ cleanly, zero errors — not just written and assumed correct.
 A real README explains the going-forward process: a schema change
 becomes a new numbered file, idempotent, applied by hand for now (no
 automated runner yet), never editing the baseline or an earlier file.
+
+### File-splitting, real first step — worker/src/auth.ts extracted
+
+Not the full domain-by-domain restructure at once — a real, deliberately
+staged first step: the entire auth/security layer (sessions, roles and
+capabilities, document-link signing, idempotency, safe migrations,
+CORS — 15 exported functions, 5 exported constants, 4 functions and 8
+constants kept properly module-private) pulled out of `index.ts` into
+its own file.
+
+**Verified thoroughly before the push, not assumed safe:** confirmed no
+hidden dependency on anything else in `index.ts` beyond the `Env` type
+and standard Web APIs; confirmed every real external call site to build
+the minimal, correct export list rather than exporting everything
+defensively; typecheck clean against the baseline on both files
+together; the full existing test suite (165-case role matrix, 9-case
+PDF signing round-trip, 4-case CORS allowlist, 5-case live-bug
+regression) all re-extracted from the new file and re-verified passing.
+
+**Two real, separate bugs found and fixed while wiring this back up,
+not part of the plan going in:**
+1. The committed role-matrix test had two hardcoded absolute paths
+   pointing at my local sandbox — would have failed the moment it ran
+   anywhere else, including real CI. Fixed to be genuinely portable,
+   verified in a full simulation of the real CI sequence (a fresh
+   `npm ci`, cross-directory `require` and all) before trusting it.
+2. That same test had never actually been wired into the deploy
+   workflow at all — only the typecheck step ran. Worse: the workflow
+   file update to add it was built and verified locally, then never
+   actually pushed on the first attempt — caught because the next
+   deploy's step list was checked directly rather than assumed to
+   match what was intended.
+
+**Live-verified end to end, not just CI-green:** the role-matrix test
+confirmed running as its own real step in the actual GitHub Actions
+run (checked at the step level after the correction); the live,
+deployed worker confirmed afterward with a real request — `/health`
+with the real preview `Origin` header still returns the correct
+`access-control-allow-origin`, exactly as before the split.
