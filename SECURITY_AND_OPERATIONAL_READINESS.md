@@ -45,7 +45,7 @@ the list below rather than treated as a separate problem.
 
 ## Real, worth doing soon — not actively bleeding today
 
-- [ ] Idempotency on every retryable write — audio uploads, photo
+- [x] Idempotency on every retryable write — audio uploads, photo
   uploads, document uploads, confirmation actions, payment creation,
   invoice creation, quotation conversion. Text messages already have
   this; voice upload routes reportedly don't yet.
@@ -410,3 +410,44 @@ reused id still gets a distinct one, since its timestamp will differ.
 
 Verified: typecheck clean against the baseline, diff against live showed
 only the three lines that needed to change.
+
+### Idempotency — a much bigger finding than assumed, built end to end, rebuild pending
+
+**Not "voice upload routes don't have this yet" — none of it was ever
+real.** The server-side mechanism for `/messages/text` had existed since
+2026-07-15, well-built, but a full audit of the client found it never
+sent an `idempotency_key` for anything, ever. The protection had been
+sitting completely dormant in production the whole time.
+
+**Built, both sides:** `checkIdempotencyKey`/`completeIdempotencyKey`
+extracted as shared server helpers from the exact, unchanged
+`/messages/text` logic, then applied to `/files/audio`, `/files/photo`,
+and `/files/document` — checked before any real work starts, completed
+once at each handler's one real success return. Client-side, a real key
+is now generated and sent for every text send and every upload — content
+plus a rounded 30-second window (the real, considered design, matching
+how Stripe and most payment systems handle exactly this: the same words
+within the window are almost certainly an accidental resend; the same
+words minutes later are almost certainly a second, genuine action, and
+correctly get treated as one). Uploads use the local file path alone as
+the content signal — deliberately not file size or bytes, since
+`dart:io`'s `File` class is unavailable on web and this app supports web.
+
+**A real, named, deliberately separate gap, not folded into "done":**
+`/actions/:id/confirm` already refuses a retry arriving *after* the
+original fully completed (`status !== 'pending'`), but two
+near-simultaneous requests could still race *during* processing, before
+that status update lands — the existing check isn't atomic protection
+against that. This function branches into 17 different action types
+doing genuinely different real work; retrofitting the same pattern
+safely needs its own dedicated pass, not a rushed one tonight.
+
+**Verified before pushing:** typecheck clean against the baseline; the
+full role matrix and PDF signing round-trip both still pass; diffs
+against live showed only the intended changes on both the server and
+client side.
+
+**Still open:** the client change needs a real rebuild before any of
+this is live-verified — nothing here has been tested against actual
+retried requests yet, same as the PDF and role work before their own
+rebuilds confirmed them.
