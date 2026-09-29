@@ -572,3 +572,24 @@ they used `catch (err)` instead of bare `catch {}`).
 every real source file in the worker has been read block by block, not
 sampled, with 30 real fixes across two files and everything else
 confirmed correct by direct review rather than assumed.
+
+### Migrations as real files — the baseline established
+
+Not a retroactive rewrite of the ~20 already-applied `/debug/init-*`
+routes into history — the real, valuable move was establishing the
+pattern going forward. Captured the true, live schema directly from
+SQLite's own `sqlite_master` (a temporary diagnostic, removed after),
+not reconstructed from source, which would have missed every column a
+later `ALTER TABLE` added — confirmed this mattered directly:
+`variance_dispositions` has a real `capture_id` column that a
+source-only reconstruction would have missed entirely.
+
+`worker/migrations/0001_baseline.sql` — all 41 real tables, every
+statement `CREATE TABLE IF NOT EXISTS`, safe to run against the real,
+live database which already has all of them. Verified by actually
+running it against a fresh, empty SQLite database: all 41 created
+cleanly, zero errors — not just written and assumed correct.
+
+A real README explains the going-forward process: a schema change
+becomes a new numbered file, idempotent, applied by hand for now (no
+automated runner yet), never editing the baseline or an earlier file.
