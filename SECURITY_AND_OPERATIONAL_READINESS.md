@@ -49,7 +49,7 @@ the list below rather than treated as a separate problem.
   uploads, document uploads, confirmation actions, payment creation,
   invoice creation, quotation conversion. Text messages already have
   this; voice upload routes reportedly don't yet.
-- [ ] Migrations as real, versioned files (`worker/migrations/0001_*.sql`
+- [x] Migrations as real, versioned files (`worker/migrations/0001_*.sql`
   onward) instead of `/debug/init-*` POST routes — every real table and
   column added tonight (`products`, `line_items.product_id`,
   `line_items.room`, and everything before it) went through this exact
