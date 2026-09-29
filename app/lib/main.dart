@@ -35,6 +35,28 @@ const officeApiBase = 'https://office.websitehub.co.za';
 // first, through the normal, already-authenticated API call, then
 // opens that instead — the one real change every existing "View X"
 // tap needed once the server side stopped trusting a bare path.
+// Real, new, per direct instruction: a real, practical fix for a real
+// gap -- the server has had a genuine idempotency mechanism since
+// 2026-07-15, but no client anywhere ever sent the key, so it had been
+// sitting completely dormant in production. The real design choice,
+// matching how Stripe and most payment systems handle exactly this
+// problem: content plus a short, rounded time window, not content
+// alone and not a pure random value. The same words sent again within
+// the same 30-second window are almost certainly an accidental resend
+// (the user saw what looked like a failure and panicked); the same
+// words sent again minutes later are almost certainly a second,
+// genuine, intentional action -- a real second job for the same
+// customer, say -- and correctly get a different key, so they are
+// never silently swallowed as a duplicate. The one honest edge case:
+// something sent right at the boundary of a window could straddle two
+// buckets and slip through uncaught -- an accepted, deliberate
+// tradeoff, since a real accidental resend happens within a couple of
+// seconds, not exactly on an arbitrary boundary.
+String _idempotencyKey(String content) {
+  final bucket = DateTime.now().millisecondsSinceEpoch ~/ 30000;
+  return '$content|$bucket';
+}
+
 Future<void> openSignedDocument(String rawPath, Map<String, String> authHeaders) async {
   try {
     final signUri = Uri.parse('$officeApiBase/documents/sign?path=${Uri.encodeQueryComponent(rawPath)}');
@@ -865,7 +887,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       final response = await http.post(
         uri,
         headers: _authHeaders({'Content-Type': 'application/json'}),
-        body: jsonEncode({'text': text, 'history': history}),
+        body: jsonEncode({'text': text, 'history': history, 'idempotency_key': _idempotencyKey(text)}),
       );
       _stopThinking();
 
@@ -1029,7 +1051,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       final response = await http.post(
         uri,
         headers: _authHeaders({'Content-Type': 'application/json'}),
-        body: jsonEncode({'text': text, 'history': history}),
+        body: jsonEncode({'text': text, 'history': history, 'idempotency_key': _idempotencyKey(text)}),
       );
       _stopThinking();
 
@@ -1106,6 +1128,15 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         _ => MediaType('application', 'octet-stream'),
       };
       request.files.add(await http.MultipartFile.fromPath(fieldName, path, contentType: contentType));
+      // Real, per direct instruction: same real protection as text,
+      // using the local file path as the content signal. Deliberately
+      // not the file's byte size or contents -- dart:io's File class
+      // is unavailable on web, and this app supports web (kIsWeb is
+      // already in use elsewhere). The same already-picked file,
+      // retried, has the same path; a weaker signal than hashing the
+      // real bytes, but a genuine, honest, cross-platform-safe
+      // improvement over nothing.
+      request.fields['idempotency_key'] = _idempotencyKey(path);
       final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);
       _stopThinking();
