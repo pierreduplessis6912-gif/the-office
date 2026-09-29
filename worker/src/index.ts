@@ -7556,7 +7556,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
 // directly: only the-office-preview.pages.dev is real and in use; the
 // AB-experiment domain is deliberately excluded, confirmed not in
 // use, not an oversight.
-const ENFORCE_CORS_ALLOWLIST = false;
+const ENFORCE_CORS_ALLOWLIST = true;
 const ALLOWED_ORIGINS = ["https://the-office-preview.pages.dev"];
 
 const CORS_STATIC_HEADERS = {
