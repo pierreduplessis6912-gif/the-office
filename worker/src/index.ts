@@ -2381,6 +2381,55 @@ async function getJobScope(request: Request, env: Env): Promise<{ scoped: boolea
   return { scoped: true, characterId: ctx.characterId };
 }
 
+// Real, extracted, per direct instruction: the exact same logic that
+// already protected /messages/text since 2026-07-15, made reusable.
+// Found by a real audit, not assumed already sufficient: no client
+// anywhere ever actually sent this key, for this route or any other —
+// the protection had been sitting dormant, unused, in production. This
+// is the shared half of making it real everywhere it is needed.
+async function checkIdempotencyKey(env: Env, key: string | null): Promise<Response | null> {
+  if (!key) return null;
+  const existing = await env.OFFICE_DB.prepare("SELECT status, result FROM idempotency_keys WHERE key = ?")
+    .bind(key)
+    .first<{ status: string; result: string | null }>();
+  if (existing) {
+    if (existing.status === "completed" && existing.result) {
+      // The exact same result as the original — never reprocessed,
+      // whether this is a genuine retry or a duplicate request
+      // arriving late.
+      return new Response(existing.result, { headers: { "Content-Type": "application/json" } });
+    }
+    // Still processing — either a genuinely concurrent duplicate, or
+    // the original attempt is still running server-side even though
+    // the client gave up on it. Never start a second copy of the same
+    // work.
+    return Response.json(
+      { status: "still_processing", message: "This exact request is already being processed. Wait and check again rather than resubmitting." },
+      { status: 409 }
+    );
+  }
+  try {
+    // Marked processing BEFORE any real work starts — a genuinely
+    // concurrent request with the same key will fail this INSERT on
+    // the primary key constraint itself, caught below, rather than
+    // both proceeding.
+    await env.OFFICE_DB.prepare("INSERT INTO idempotency_keys (key, status) VALUES (?, 'processing')").bind(key).run();
+  } catch {
+    return Response.json(
+      { status: "still_processing", message: "This exact request is already being processed. Wait and check again rather than resubmitting." },
+      { status: 409 }
+    );
+  }
+  return null; // Genuinely new — the caller proceeds with the real work.
+}
+
+async function completeIdempotencyKey(env: Env, key: string | null, responseBody: string): Promise<void> {
+  if (!key) return;
+  await env.OFFICE_DB.prepare("UPDATE idempotency_keys SET status = 'completed', result = ? WHERE key = ?")
+    .bind(responseBody, key)
+    .run();
+}
+
 async function authGate(request: Request, env: Env, url: URL): Promise<Response | null> {
   const path = url.pathname;
 
@@ -6791,6 +6840,16 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       const formData = await request.formData();
       const audio = formData.get("audio");
       const historyRaw = formData.get("history");
+      // Real, per direct instruction — extending the same real
+      // idempotency protection to the upload path: a real network drop
+      // after the server has already stored the file and done real
+      // work, but before the response reaches the client, looks
+      // identical to total failure from the app's side — without this,
+      // the same audio/photo/document would be captured and processed
+      // twice.
+      const idempotencyKey = (formData.get("idempotency_key") as string | null) ?? null;
+      const idempotencyResult = await checkIdempotencyKey(env, idempotencyKey);
+      if (idempotencyResult) return idempotencyResult;
       let history: HistoryTurn[] = [];
       if (typeof historyRaw === "string") {
         try {
@@ -6830,7 +6889,9 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
             rewrittenQuery: "",
           };
 
-      return Response.json({ status: "stored", key, transcript, transcriptionError, ...processed });
+      const audioResponseBody = JSON.stringify({ status: "stored", key, transcript, transcriptionError, ...processed });
+      await completeIdempotencyKey(env, idempotencyKey, audioResponseBody);
+      return new Response(audioResponseBody, { headers: { "Content-Type": "application/json" } });
     }
 
     // Photo capture. The raw image itself is what was actually
@@ -7023,6 +7084,12 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       const formData = await request.formData();
       const document = formData.get("document");
       const caption = formData.get("caption");
+      // Real, per direct instruction — same real protection as audio:
+      // a network drop after real work is already done but before the
+      // response arrives looks identical to total failure client-side.
+      const idempotencyKey = (formData.get("idempotency_key") as string | null) ?? null;
+      const idempotencyResult = await checkIdempotencyKey(env, idempotencyKey);
+      if (idempotencyResult) return idempotencyResult;
 
       if (!(document instanceof File)) {
         return Response.json({ error: "missing document file" }, { status: 400 });
@@ -7183,13 +7250,21 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         }
       }
 
-      return Response.json({ status: "stored", key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction });
+      const docResponseBody = JSON.stringify({ status: "stored", key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction });
+      await completeIdempotencyKey(env, idempotencyKey, docResponseBody);
+      return new Response(docResponseBody, { headers: { "Content-Type": "application/json" } });
     }
 
     if (url.pathname === "/files/photo" && request.method === "POST") {
       const formData = await request.formData();
       const photo = formData.get("photo");
       const caption = formData.get("caption");
+      // Real, per direct instruction — same real protection as audio:
+      // a network drop after real work is already done but before the
+      // response arrives looks identical to total failure client-side.
+      const idempotencyKey = (formData.get("idempotency_key") as string | null) ?? null;
+      const idempotencyResult = await checkIdempotencyKey(env, idempotencyKey);
+      if (idempotencyResult) return idempotencyResult;
 
       if (!(photo instanceof File)) {
         return Response.json({ error: "missing photo file" }, { status: 400 });
@@ -7306,7 +7381,9 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         }
       }
 
-      return Response.json({ status: "stored", key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction });
+      const photoResponseBody = JSON.stringify({ status: "stored", key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction });
+      await completeIdempotencyKey(env, idempotencyKey, photoResponseBody);
+      return new Response(photoResponseBody, { headers: { "Content-Type": "application/json" } });
     }
 
     // Real, permanent production routes — not debug — behind each
@@ -7430,7 +7507,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       const body = (await request.json()) as { text?: string; history?: HistoryTurn[]; idempotency_key?: string };
       const text = body.text?.trim();
       const history = Array.isArray(body.history) ? body.history : [];
-      const idempotencyKey = body.idempotency_key;
+      const idempotencyKey = body.idempotency_key ?? null;
 
       if (!text) {
         return Response.json({ error: "missing text" }, { status: 400 });
@@ -7440,61 +7517,20 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       // safety. Found live 2026-07-15 — a request that looked like it
       // had failed to the client (a blank response) had actually kept
       // running server-side and written real data; retrying on the
-      // assumption of failure silently duplicated it. Checked before
-      // any real work starts, not after, using a stable key the
-      // caller reuses across a genuine retry of the same action.
-      if (idempotencyKey) {
-        const existing = await env.OFFICE_DB.prepare("SELECT status, result FROM idempotency_keys WHERE key = ?")
-          .bind(idempotencyKey)
-          .first<{ status: string; result: string | null }>();
-        if (existing) {
-          if (existing.status === "completed" && existing.result) {
-            // The exact same result as the original — never
-            // reprocessed, whether this is a genuine retry or a
-            // duplicate request arriving late.
-            return new Response(existing.result, { headers: { "Content-Type": "application/json" } });
-          }
-          // Still processing — either a genuinely concurrent
-          // duplicate, or the original attempt is still running
-          // server-side even though the client gave up on it. Never
-          // start a second copy of the same work.
-          return Response.json(
-            {
-              status: "still_processing",
-              message: "This exact request is already being processed. Wait and check again rather than resubmitting.",
-            },
-            { status: 409 }
-          );
-        }
-        try {
-          // Marked processing BEFORE any real work starts — a
-          // genuinely concurrent request with the same key will fail
-          // this INSERT on the primary key constraint itself, caught
-          // below, rather than both proceeding.
-          await env.OFFICE_DB.prepare("INSERT INTO idempotency_keys (key, status) VALUES (?, 'processing')")
-            .bind(idempotencyKey)
-            .run();
-        } catch {
-          return Response.json(
-            {
-              status: "still_processing",
-              message: "This exact request is already being processed. Wait and check again rather than resubmitting.",
-            },
-            { status: 409 }
-          );
-        }
-      }
+      // assumption of failure silently duplicated it. Refactored to
+      // the shared checkIdempotencyKey/completeIdempotencyKey helpers
+      // (found by a later audit: no client anywhere actually sent this
+      // key, for this route or any other, so this protection had been
+      // sitting dormant, unused, since it was written) — same real
+      // logic, now reusable for every other retryable write.
+      const idempotencyResult = await checkIdempotencyKey(env, idempotencyKey);
+      if (idempotencyResult) return idempotencyResult;
 
       const { capabilities, email: textEmail } = await resolveCapabilities(request, env);
       const processed = await processTranscript(env, text, ctx, history, "text", null, capabilities, textEmail);
       const responseBody = JSON.stringify({ status: "processed", transcript: text, ...processed });
 
-      if (idempotencyKey) {
-        await env.OFFICE_DB.prepare("UPDATE idempotency_keys SET status = 'completed', result = ? WHERE key = ?")
-          .bind(responseBody, idempotencyKey)
-          .run();
-      }
-
+      await completeIdempotencyKey(env, idempotencyKey, responseBody);
       return new Response(responseBody, { headers: { "Content-Type": "application/json" } });
     }
 
