@@ -4865,6 +4865,20 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ table, columns: results });
     }
 
+    // Real, temporary diagnostic, per direct instruction: the true,
+    // current CREATE TABLE text for every real table, straight from
+    // SQLite's own sqlite_master — this reflects every ALTER TABLE
+    // applied since a table was first created, unlike grepping the
+    // source for the original CREATE statement, which would miss
+    // every column added since. This is what makes a real, accurate
+    // baseline migration file possible at all.
+    if (url.pathname === "/debug/real-schema" && request.method === "GET") {
+      const { results } = await env.OFFICE_DB.prepare(
+        "SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name NOT LIKE 'd1_%' ORDER BY name"
+      ).all();
+      return Response.json({ tables: results });
+    }
+
     // Real, temporary diagnostic, per direct instruction: action #129
     // failed to confirm with only a generic "could not confirm" error
     // surfaced to the client — this calls recordQuotation directly,
