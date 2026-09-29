@@ -75,6 +75,9 @@ the list below rather than treated as a separate problem.
 - [x] Stable, derived vector IDs for memory consolidation (from the
   source record) instead of a new random UUID per attempt — makes
   retries safe instead of risking duplicate insertion
+- [x] Structured logging and request correlation IDs — named in the
+  original review's numbered list but never actually added as a
+  tracked item until now
 
 ## Real, but genuinely the lowest stakes on this list
 
@@ -739,3 +742,34 @@ omission (documented in the code itself), not an oversight.
 alone.** Every route has a real, checkable reason for its access level.
 This closes the last item in the urgent tier — the whole tier is now
 genuinely, completely done.
+
+### Structured logging — built, live-verified, the one review item that had never actually been tracked
+
+Not previously a real checklist item at all — present only in the
+original review's numbered list, never converted into something this
+document could actually tick. Added properly this time, then closed in
+the same pass.
+
+**Built:** a real `log()` helper — one JSON line per call (timestamp,
+level, requestId, message, fields), not an ad-hoc string — and a real
+UUID generated once per request, in the one place every real request
+genuinely passes through (the `fetch` wrapper), logged at request start
+and end with real status and latency. Threaded into `handleRequest` so
+deeper logging ties back to the exact same request. Wired into the
+confirm handler's existing outer catch as the first real, concrete use —
+a confirm failure is now searchable afterward by its own request id, not
+only visible if someone happened to be watching the live log stream at
+the exact moment it broke.
+
+**A real bug caught before it ever deployed, not after:** `id` was
+declared with `const` inside the `try` block, genuinely out of scope in
+the `catch` block the new log call needed it in — the same category of
+scoping mistake already caught once tonight elsewhere, caught this time
+by the same typecheck discipline before pushing, not live. Fixed by
+declaring `id` in the scope both blocks actually share.
+
+**Verified:** typecheck clean against the baseline, the full role matrix
+still passing, diff against live showing only the intended lines, the
+real CI pipeline (Typecheck → Role-matrix test → Deploy) all green, and
+a real, live request against the deployed worker afterward confirming
+normal behavior.
