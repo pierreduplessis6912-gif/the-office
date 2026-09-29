@@ -25,6 +25,11 @@ jobs:
         working-directory: worker
         run: npm run typecheck
 
+      - name: Role-matrix test
+        run: node tools/role-matrix.test.js
+        env:
+          NODE_PATH: worker/node_modules
+
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
