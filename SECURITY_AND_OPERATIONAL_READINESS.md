@@ -54,7 +54,7 @@ the list below rather than treated as a separate problem.
   column added tonight (`products`, `line_items.product_id`,
   `line_items.room`, and everything before it) went through this exact
   pattern and should eventually be captured as a real migration history
-- [ ] Replace wildcard CORS with explicit, known origins — development
+- [x] Replace wildcard CORS with explicit, known origins — development
   and production distinguished
 - [ ] Split the large files into smaller domain modules — `index.ts`
   (342KB), `ai.ts` (121KB), `finance.ts` (114KB), `main.dart` (319KB) —
@@ -451,3 +451,21 @@ client side.
 this is live-verified — nothing here has been tested against actual
 retried requests yet, same as the PDF and role work before their own
 rebuilds confirmed them.
+
+### CORS allowlist — switched on, live-verified
+
+Confirmed directly which origin is real before building anything:
+`the-office-preview.pages.dev` is genuinely in use; the AB-experiment
+domain is confirmed not in use, deliberately excluded rather than
+assumed stale. CORS is purely browser-enforced — the native app's HTTP
+client ignores these headers entirely, so this only ever affects the
+web preview, never the app itself.
+
+Verified offline first (4 real cases against the extracted, actual
+function: the real preview origin, the excluded AB domain, an unrelated
+origin, no Origin header at all — plus the deployed-off default
+confirmed to still return the exact prior wildcard behavior), then
+switched on and verified live: the real preview origin gets a matching
+`access-control-allow-origin`; an unrelated origin gets none at all;
+both still return `200` — the request itself is never blocked, only a
+browser's ability to read the response from an unrecognized origin.
