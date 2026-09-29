@@ -7547,21 +7547,54 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
 // cookie-based auth to protect — every route is either public or will
 // get its own real auth later, not relying on origin-checking for
 // security.
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
+// Real, staged, per direct instruction: deployed off first, same
+// discipline as every other real security change tonight. Wildcard
+// CORS only ever mattered for a browser context — the native app's
+// HTTP client ignores these headers entirely, since CORS is a
+// browser-enforced policy, not a server one, so tightening this can
+// only affect the web preview, never the native app. Confirmed
+// directly: only the-office-preview.pages.dev is real and in use; the
+// AB-experiment domain is deliberately excluded, confirmed not in
+// use, not an oversight.
+const ENFORCE_CORS_ALLOWLIST = false;
+const ALLOWED_ORIGINS = ["https://the-office-preview.pages.dev"];
+
+const CORS_STATIC_HEADERS = {
   "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
+// A request with no Origin header at all (the native app, curl, a
+// server-to-server call) is never subject to CORS enforcement by any
+// browser in the first place — the value returned here is harmless
+// either way for those. Only a real browser, sending a real Origin,
+// is actually affected by what this returns.
+function corsHeadersFor(request: Request): Record<string, string> {
+  const origin = request.headers.get("Origin");
+  const headers: Record<string, string> = { ...CORS_STATIC_HEADERS };
+  if (!ENFORCE_CORS_ALLOWLIST) {
+    headers["Access-Control-Allow-Origin"] = "*";
+  } else if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    headers["Access-Control-Allow-Origin"] = origin;
+  }
+  // Enforced and no match: the header is left unset, not set to
+  // something wrong — the request itself still succeeds (this is
+  // never a security boundary against the request reaching the
+  // server), but a browser from an origin that isn't the real,
+  // known preview can no longer read the response.
+  return headers;
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const corsHeaders = corsHeadersFor(request);
     if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: CORS_HEADERS });
+      return new Response(null, { status: 204, headers: corsHeaders });
     }
 
     const response = await handleRequest(request, env, ctx);
     const newHeaders = new Headers(response.headers);
-    for (const [key, value] of Object.entries(CORS_HEADERS)) {
+    for (const [key, value] of Object.entries(corsHeaders)) {
       newHeaders.set(key, value);
     }
     // Real fix, found live via the logo-retrieval feature: streaming
