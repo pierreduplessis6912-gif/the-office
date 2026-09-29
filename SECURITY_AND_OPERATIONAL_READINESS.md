@@ -57,7 +57,8 @@ the list below rather than treated as a separate problem.
 - [x] Replace wildcard CORS with explicit, known origins — development
   and production distinguished
 - [ ] Split the large files into smaller domain modules — `index.ts`
-  (342KB), `ai.ts` (121KB), `finance.ts` (114KB), `main.dart` (319KB) —
+  (342KB), `ai.ts` (121KB), `finance.ts` (114KB), `main.dart` (319KB)
+  (started: `worker/src/auth.ts` extracted, see below) —
   same behavior, organized by real domain instead of one growing file
   each
 - [x] A real lockfile (`worker/package-lock.json`) and `npm ci` in CI
