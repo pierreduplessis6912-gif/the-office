@@ -2038,7 +2038,26 @@ async function processTranscript(
   };
 }
 
-async function handleRequest(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+// Real, new, per direct instruction — structured logging with a real
+// request correlation ID. Cloudflare's live log stream already exists
+// (used directly, by hand, many times tonight to debug a live issue as
+// it happened) — this doesn't replace that, it makes it genuinely
+// searchable afterward instead of only useful if someone happened to
+// be watching at the exact moment something broke. One real JSON shape
+// per line, not an ad-hoc string, specifically so a real log platform
+// (or a plain text search) can filter by requestId and see every line
+// from one real request together, even when Cloudflare interleaves
+// many concurrent requests in the same stream.
+function log(level: "info" | "error", requestId: string, message: string, fields?: Record<string, unknown>): void {
+  const line = { timestamp: new Date().toISOString(), level, requestId, message, ...fields };
+  if (level === "error") {
+    console.error(JSON.stringify(line));
+  } else {
+    console.log(JSON.stringify(line));
+  }
+}
+
+async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, requestId: string): Promise<Response> {
     const url = new URL(request.url);
 
     // Inside handleRequest, not the outer fetch wrapper, so a 401/403
@@ -3646,8 +3665,14 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     }
 
     if (url.pathname.match(/^\/actions\/\d+\/confirm$/) && request.method === "POST") {
+      // Real fix, found by the typecheck catching it before this ever
+      // deployed: id was declared with const inside the try block,
+      // genuinely out of scope in the catch block below where the new
+      // error log needed it — the same category of scoping mistake
+      // already caught once tonight elsewhere. Declared here instead,
+      // in the scope both blocks actually share.
+      const id = Number(url.pathname.split("/")[2]);
       try {
-        const id = Number(url.pathname.split("/")[2]);
         const action = await env.OFFICE_DB.prepare(
           "SELECT id, type, payload, source_transcript, status FROM pending_actions WHERE id = ?"
         )
@@ -4200,10 +4225,13 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
         // This handler never had error handling wrapped around it at
         // all — an uncaught exception here just produced Cloudflare's
         // generic crash page, with no way to see what actually broke.
-        return Response.json(
-          { error: "confirm handler threw", detail: err instanceof Error ? err.message : String(err) },
-          { status: 500 }
-        );
+        // Real, added tonight: also logged with the same requestId as
+        // the request that triggered it, searchable afterward, not
+        // only visible if someone happened to be watching the live
+        // stream at the exact moment this specific confirm broke.
+        const detail = err instanceof Error ? err.message : String(err);
+        log("error", requestId, "confirm handler threw", { actionId: id, detail });
+        return Response.json({ error: "confirm handler threw", detail }, { status: 500 });
       }
     }
 
@@ -5021,7 +5049,19 @@ export default {
       return new Response(null, { status: 204, headers: corsHeaders });
     }
 
-    const response = await handleRequest(request, env, ctx);
+    // Real, new, per direct instruction: one real ID per request,
+    // generated here — the one place every real request genuinely
+    // passes through — and threaded into handleRequest so any deeper
+    // logging (the confirm handler's own real error log, for one) can
+    // tie back to the exact same request without re-deriving anything.
+    const requestId = crypto.randomUUID();
+    const startedAt = Date.now();
+    const url = new URL(request.url);
+    log("info", requestId, "request start", { method: request.method, path: url.pathname });
+
+    const response = await handleRequest(request, env, ctx, requestId);
+    log("info", requestId, "request end", { status: response.status, durationMs: Date.now() - startedAt });
+
     const newHeaders = new Headers(response.headers);
     for (const [key, value] of Object.entries(corsHeaders)) {
       newHeaders.set(key, value);
