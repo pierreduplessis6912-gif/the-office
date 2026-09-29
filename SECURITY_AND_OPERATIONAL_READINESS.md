@@ -71,7 +71,7 @@ the list below rather than treated as a separate problem.
   error on a confirmation write is a different kind of problem than one
   on best-effort capture enrichment, and the code currently doesn't
   distinguish them.
-- [ ] Stable, derived vector IDs for memory consolidation (from the
+- [x] Stable, derived vector IDs for memory consolidation (from the
   source record) instead of a new random UUID per attempt — makes
   retries safe instead of risking duplicate insertion
 
@@ -394,3 +394,19 @@ and Pauline actually signed in:** this has been checked by direct code
 audit and offline typecheck, not yet by an installer or accountant
 actually trying to dictate one of these and being refused. Worth doing
 once there's a real, low-cost moment to.
+
+### Stable vector IDs — fixed, checked against the real live schema first
+
+Checked the real schema directly before deciding how to derive the id,
+rather than assume: `pending_memory_flush.id` is a plain `INTEGER PRIMARY
+KEY`, not `AUTOINCREMENT`, so it could in principle be reused after the
+table goes fully empty. Derived the vector id from both `id` and
+`created_at` together, not `id` alone — the same row, retried after a
+partial failure (upsert succeeds, the following delete does not), keeps
+the same timestamp and produces the same vector id, so the retry becomes
+a real overwrite through Vectorize's own upsert-by-id semantics rather
+than a silent duplicate; a genuinely new row that happens to land on a
+reused id still gets a distinct one, since its timestamp will differ.
+
+Verified: typecheck clean against the baseline, diff against live showed
+only the three lines that needed to change.
