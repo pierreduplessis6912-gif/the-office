@@ -4945,6 +4945,20 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       return Response.json({ table, columns: results });
     }
 
+    // Real, temporary diagnostic, per direct instruction: seeing the
+    // exact real error message SQLite/D1 gives for a genuine
+    // duplicate-column ALTER, before writing a regex to detect it —
+    // every real /debug/init-* route already catches and swallows
+    // this, so it can't be observed any other way.
+    if (url.pathname === "/debug/probe-duplicate-column" && request.method === "POST") {
+      try {
+        await env.OFFICE_DB.prepare("ALTER TABLE people ADD COLUMN merged_into_person_id INTEGER").run();
+        return Response.json({ threw: false });
+      } catch (err) {
+        return Response.json({ threw: true, message: err instanceof Error ? err.message : String(err) });
+      }
+    }
+
     // Real, temporary diagnostic, per direct instruction: action #129
     // failed to confirm with only a generic "could not confirm" error
     // surfaced to the client — this calls recordQuotation directly,
