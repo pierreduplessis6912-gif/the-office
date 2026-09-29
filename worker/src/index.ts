@@ -2863,12 +2863,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // ADD COLUMN IF NOT EXISTS, so this is wrapped to stay safe to
     // re-run rather than fail if it's ever called twice.
     if (url.pathname === "/debug/init-discount-column" && request.method === "POST") {
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE line_items ADD COLUMN discount_percent REAL").run();
-        return Response.json({ status: "ok", added: true });
-      } catch (err) {
-        return Response.json({ status: "ok", added: false, note: "column likely already exists", detail: err instanceof Error ? err.message : String(err) });
-      }
+      await runIdempotentMigration(env, "ALTER TABLE line_items ADD COLUMN discount_percent REAL");
+      return Response.json({ status: "ok" });
     }
 
     // Real feature 2026-07-20 (Layer 2 / Project design, verified via
@@ -2879,12 +2875,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // processing pipeline. This is the honest prerequisite, not the
     // whole design.
     if (url.pathname === "/debug/init-capture-id-column" && request.method === "POST") {
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE job_scopes ADD COLUMN capture_id INTEGER").run();
-        return Response.json({ status: "ok", added: true });
-      } catch (err) {
-        return Response.json({ status: "ok", added: false, note: "column likely already exists", detail: err instanceof Error ? err.message : String(err) });
-      }
+      await runIdempotentMigration(env, "ALTER TABLE job_scopes ADD COLUMN capture_id INTEGER");
+      return Response.json({ status: "ok" });
     }
 
     // Real feature 2026-07-22 — Layer 2 (Project), same-breath
@@ -2902,11 +2894,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
           created_at TEXT NOT NULL DEFAULT (datetime('now'))
         )`
       ).run();
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE job_scopes ADD COLUMN project_id INTEGER").run();
-      } catch (err) {
-        // Likely already exists — safe to re-run.
-      }
+      await runIdempotentMigration(env, "ALTER TABLE job_scopes ADD COLUMN project_id INTEGER");
       return Response.json({ status: "ok" });
     }
 
@@ -2915,16 +2903,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // priced from, closing the exact gap the Fable 5 design review
     // correctly identified in the Layer 2 design pin.
     if (url.pathname === "/debug/init-job-scope-links" && request.method === "POST") {
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE quotations ADD COLUMN job_scope_id INTEGER").run();
-      } catch (err) {
-        // Likely already exists — safe to re-run.
-      }
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE invoices ADD COLUMN job_scope_id INTEGER").run();
-      } catch (err) {
-        // Same.
-      }
+      await runIdempotentMigration(env, "ALTER TABLE quotations ADD COLUMN job_scope_id INTEGER");
+      await runIdempotentMigration(env, "ALTER TABLE invoices ADD COLUMN job_scope_id INTEGER");
       return Response.json({ status: "ok" });
     }
 
@@ -3052,17 +3032,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // scheduled_date_raw/scheduled_date pattern already proven for
     // job_scopes, reused here rather than inventing a new one.
     if (url.pathname === "/debug/init-task-due-date-columns" && request.method === "POST") {
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE tasks ADD COLUMN due_date_raw TEXT").run();
-      } catch (err) {
-        // Likely already exists — continue to the second column
-        // regardless, since each ALTER is independent.
-      }
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE tasks ADD COLUMN due_date TEXT").run();
-      } catch (err) {
-        // Same — safe to re-run.
-      }
+      await runIdempotentMigration(env, "ALTER TABLE tasks ADD COLUMN due_date_raw TEXT");
+      await runIdempotentMigration(env, "ALTER TABLE tasks ADD COLUMN due_date TEXT");
       return Response.json({ status: "ok" });
     }
 
@@ -3073,12 +3044,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // overrides the business-wide VAT default entirely for their
     // documents.
     if (url.pathname === "/debug/init-vat-exempt-column" && request.method === "POST") {
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE customers ADD COLUMN vat_exempt INTEGER NOT NULL DEFAULT 0").run();
-        return Response.json({ status: "ok", added: true });
-      } catch (err) {
-        return Response.json({ status: "ok", added: false, note: "column likely already exists", detail: err instanceof Error ? err.message : String(err) });
-      }
+      await runIdempotentMigration(env, "ALTER TABLE customers ADD COLUMN vat_exempt INTEGER NOT NULL DEFAULT 0");
+      return Response.json({ status: "ok" });
     }
 
     // Real feature 2026-07-21 — a real, urgent need: an active
@@ -3087,22 +3054,9 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // rate, plus the real, computed withheld amount stored on every
     // invoice it applies to.
     if (url.pathname === "/debug/init-retention-columns" && request.method === "POST") {
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE customers ADD COLUMN retention_percent REAL").run();
-      } catch (err) {
-        // Likely already exists — continue regardless, each ALTER is
-        // independent.
-      }
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE invoices ADD COLUMN retention_percent REAL").run();
-      } catch (err) {
-        // Same — safe to re-run.
-      }
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE invoices ADD COLUMN retention_amount REAL NOT NULL DEFAULT 0").run();
-      } catch (err) {
-        // Same.
-      }
+      await runIdempotentMigration(env, "ALTER TABLE customers ADD COLUMN retention_percent REAL");
+      await runIdempotentMigration(env, "ALTER TABLE invoices ADD COLUMN retention_percent REAL");
+      await runIdempotentMigration(env, "ALTER TABLE invoices ADD COLUMN retention_amount REAL NOT NULL DEFAULT 0");
       return Response.json({ status: "ok" });
     }
 
@@ -3268,12 +3222,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     // Real design decision: who actually recorded a delivery is now a
     // real, permanent, traceable fact.
     if (url.pathname === "/debug/init-grn-recorded-by" && request.method === "POST") {
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE goods_received_notes ADD COLUMN recorded_by TEXT").run();
-        return Response.json({ status: "ok", added: true });
-      } catch (err) {
-        return Response.json({ status: "ok", added: false, note: "column likely already exists", detail: err instanceof Error ? err.message : String(err) });
-      }
+      await runIdempotentMigration(env, "ALTER TABLE goods_received_notes ADD COLUMN recorded_by TEXT");
+      return Response.json({ status: "ok" });
     }
 
     // Real feature 2026-07-24 — Variance Disposition, the real, first
@@ -3659,11 +3609,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       // Real migration 2026-07-25 — business_profile already exists
       // with real data, so CREATE TABLE IF NOT EXISTS alone would
       // never add this new column to it.
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE business_profile ADD COLUMN logo_r2_key TEXT").run();
-      } catch (err) {
-        // Column likely already exists — safe to re-run.
-      }
+      await runIdempotentMigration(env, "ALTER TABLE business_profile ADD COLUMN logo_r2_key TEXT");
       await env.OFFICE_DB.prepare(
         `INSERT INTO business_profile (id, name, trading_as, vat_no, address, phone, email, banking_details, vat_registered, vat_rate)
          VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -3703,11 +3649,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
       // SQL error on the UPDATE below. Run here too, idempotent and
       // safe to re-run, so this route never depends on another one
       // having been called first.
-      try {
-        await env.OFFICE_DB.prepare("ALTER TABLE business_profile ADD COLUMN logo_r2_key TEXT").run();
-      } catch (err) {
-        // Column likely already exists — safe to re-run.
-      }
+      await runIdempotentMigration(env, "ALTER TABLE business_profile ADD COLUMN logo_r2_key TEXT");
       const formData = await request.formData();
       const logo = formData.get("logo");
       if (!(logo instanceof File)) {
