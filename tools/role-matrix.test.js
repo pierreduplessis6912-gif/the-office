@@ -1,6 +1,8 @@
 const fs = require('fs');
-const esbuild = require('/tmp/tc/node_modules/esbuild');
-const src = fs.readFileSync(process.env.SRC || '/home/claude/office_worker/index.ts', 'utf8');
+const path = require('path');
+const os = require('os');
+const esbuild = require('esbuild');
+const src = fs.readFileSync(process.env.SRC || path.join(__dirname, '..', 'worker', 'src', 'auth.ts'), 'utf8');
 
 const roleCaps = src.match(/const ROLE_CAPABILITIES[^=]*=\s*\{[\s\S]*?\n\};/)[0];
 const start = src.indexOf('const ENFORCE_CAPABILITIES');
@@ -8,10 +10,11 @@ const end = src.indexOf('// The signed-in member, or null.');
 if (start < 0 || end < 0) throw new Error('could not extract the deployed decision code');
 const code = roleCaps + '\n' + src.slice(start, end) + '\nmodule.exports = { authorizeRestrictedMember, ENFORCE_CAPABILITIES };';
 const js = esbuild.transformSync(code, { loader: 'ts', format: 'cjs', target: 'es2022' }).code;
-fs.writeFileSync('/tmp/tc/decision_under_test.js', js);
+const compiled = path.join(os.tmpdir(), 'role-matrix-decision-under-test.js');
+fs.writeFileSync(compiled, js);
 
 global.Response = class { static json(body, init) { const r = new this(); r.status = (init && init.status) || 200; r.body = body; return r; } };
-const { authorizeRestrictedMember, ENFORCE_CAPABILITIES } = require('/tmp/tc/decision_under_test.js');
+const { authorizeRestrictedMember, ENFORCE_CAPABILITIES } = require(compiled);
 if (ENFORCE_CAPABILITIES !== true) throw new Error('test is not running with the switch on');
 
 const actionTypes = { 1:'job_scope_amendment', 2:'project_ambiguity', 3:'goods_received', 4:'ambiguous_person', 5:'customer_fact', 6:'identity_collision',
