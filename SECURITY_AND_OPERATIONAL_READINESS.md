@@ -31,15 +31,15 @@ the list below rather than treated as a separate problem.
   `/customers/:id/profitability`, `/customers/:id/statement/pdf`)
 - [ ] Every other real, already-existing production endpoint audited the
   same way — not assumed safe just because it predates tonight
-- [ ] `/debug/*` and `/admin/*` routes locked down or removed from what's
+- [x] `/debug/*` and `/admin/*` routes locked down or removed from what's
   publicly reachable — compiled out of production, or behind real,
   strong admin auth with destructive routes specifically requiring
   explicit authorization and audit logging
-- [ ] The "unauthenticated session defaults to Owner-equivalent access"
+- [x] The "unauthenticated session defaults to Owner-equivalent access"
   gap, specifically — no implicit full-access fallback, ever
 - [x] File and document download endpoints get the same authorization
   policy as JSON endpoints — not treated as a separate, lesser category
-- [ ] Capability checks proven, not assumed: real tests showing Owner,
+- [x] Capability checks proven, not assumed: real tests showing Owner,
   Accountant, Installer, and an unauthenticated request each get
   genuinely different results on the same endpoint
 
@@ -676,3 +676,25 @@ corrected push); and, separately, a real request against the actual
 deployed worker — `/debug/job-scopes` with the real admin key —
 confirmed returning the same real, correct data it always has, proving
 the actual moved code works in production, not just that CI was green.
+
+### Three items ticked retroactively — verified against the real, live code just now, not assumed from memory
+
+Found while reviewing the checklist fresh: three urgent-tier items were
+genuinely satisfied by work already done and verified tonight, but never
+explicitly ticked, since each update was scoped to whatever specific task
+was active at the time rather than cross-checked against every related
+checkbox. Re-verified each directly before ticking, not from memory:
+
+- **`/debug`/`/admin` locked down** — confirmed live: `ENFORCE_APP_AUTH =
+  true`, and the one route still living in `index.ts` (`/debug/reprocess`)
+  goes through the exact same `authGate` check as everything in
+  `debug.ts`, since the gate runs on path prefix, not on which file a
+  route's body happens to live in.
+- **The Owner-fallback gap** — confirmed directly in `resolveCapabilities`:
+  `capabilities: ENFORCE_APP_AUTH ? [] : ROLE_CAPABILITIES.owner` — with
+  `ENFORCE_APP_AUTH` genuinely `true` live, an unauthenticated request
+  gets zero capabilities, never Owner's.
+- **Capability checks proven** — the 165-case role matrix plus the live
+  tests with Liam (installer, scoped correctly to his own jobs, refused
+  money) and Pauline (accountant, saw all customers and money, refused
+  jobs) already proved exactly this, in production, not just offline.
