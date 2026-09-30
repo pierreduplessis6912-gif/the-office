@@ -5380,3 +5380,58 @@ Both items closed and confirmed on real device tests, not just deploy success.
 **A real, honest finding along the way, not a bug:** the first upload attempt, with no caption, correctly did nothing beyond storing the file — confirmed directly against the code, this is a deliberate design principle ("never guess a subject from the file itself, only ever from something actually said about it"), not a missed case. The supplier's name being printed on the letterhead was never going to be enough on its own. Re-uploaded with a caption naming the supplier, which correctly triggered the real chain: find Floornet's open PO, extract the invoice against its real line items, hold for confirmation.
 
 **Confirmed working, real device test, the complete real chain:** the new supplier invoice line item shows `product_id: 1`, `product_name: "vinyl"` — the exact same product as the original purchase order and every customer-facing quotation earlier tonight. One real product, one real identity, reachable from voice, text, and a genuine uploaded document, on both the buy side and the sell side. The products foundation is complete.
+
+---
+
+## A real, live splitIntoTopics bug — fragmentation, wrong pricing, and why the first fix wasn't enough
+
+**The real starting point:** a real, live dictation for Dr Van der Walt —
+four room measurements (3x3 store, 1.2x1.2 kitchen, 7x5 main, 3.5x2.5)
+followed by the customer's name and a per-square-meter price — produced
+three separate job scopes, one component each, and no quotation at all.
+Traced directly, not guessed: `extractMultipleIntents` calls
+`splitIntoTopics` first, then runs extraction separately on each
+resulting piece — and `splitIntoTopics` had wrongly treated each bare
+room measurement as its own topic, since nothing grammatically tied them
+together the way the existing July fix's "and"-joined example did.
+`extractWorkObservation`'s own `components` field was already correctly
+designed as an array, built to hold every measured part of one job — it
+never got the chance, because the input was fragmented before it ever
+ran.
+
+**First fix, a prompt addition — insufficient, confirmed by a real,
+live retest, not assumed adequate:** a new rule and a new example added
+to `splitIntoTopics`'s prompt, teaching it that a bare sequence of
+room-plus-dimension statements is still building up ONE observation, the
+same as if "and" had joined them. Typechecked, deployed, verified through
+CI — and then redictating the same real message still produced five
+fragmented job scopes sharing one `capture_id`, not one. The earlier
+"and" bug had a concrete, syntactic trigger to key off; this pattern has
+none, and the model didn't reliably make the same nuanced judgment call
+a second time even with explicit new instructions.
+
+**The real, working fix — deterministic, not another prompt attempt:**
+`mergeBareMeasurementFragments` in `ai.ts`, run on `splitIntoTopics`'s
+output before extraction. A short fragment (six words or fewer)
+containing a real dimension pattern and nothing else is never mistaken
+for a complete, standalone topic, and gets merged with whatever segment
+follows it — almost always the one supplying the missing customer and
+price. Deliberately conservative in one direction only: the real risk
+accepted is over-merging two genuinely separate, back-to-back bare
+room-quote jobs, rarer and far less costly than the silent fragmentation
+this replaces. Verified with a real, standalone test extracted directly
+from the source — the exact live failure, the existing "and"-joined
+case, unrelated real topics, and a complete separate quote that happens
+to contain a dimension, all behaving correctly, 5/5.
+
+**Confirmed live, the real way, after a real false start:** the first
+retest showed the identical old data — same ids, same timestamps down to
+the second — because no new dictation had actually happened; caught by
+checking the real timestamps rather than trusting the report of a
+retest. Once genuinely redictated fresh: one job scope, four real
+components with correct areas (9, 1.44, 35, 8.75 sqm), and Quotation #29
+— R750/m² correctly applied per room, R40,642.50 subtotal, R46,738.875
+total. The quotation math was never a second, separate bug — it was a
+downstream symptom of the same fragmentation; once the real, complete
+set of components reached the pricing step together, the math was
+correct on its own.
