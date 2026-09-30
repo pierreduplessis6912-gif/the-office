@@ -142,7 +142,22 @@ export async function splitIntoTopics(env: Env, transcript: string): Promise<str
               "live 2026-07-17: \"Quote for Jenny — supply and fit vinyl for R8000, give her 10 percent " +
               "off that\" was wrongly split at the comma, separating a discount from the exact price it " +
               "modifies — \"that\" refers directly to the R8000 quote just stated, so the whole thing " +
-              "stays one segment, never two. If the whole message is about ONE topic, " +
+              "stays one segment, never two. A related, real bug found live 2026-09-30: four separate " +
+              "room measurements stated one after another with no connecting word at all — \"3x3 store. " +
+              "1.2x1.2 kitchen. 7x5 main. 3.5 by 2.5. Dr Van der Walt's rooms, measured in meters, quote " +
+              "to install series 540 oak cloud at R750 a square meter\" — was wrongly split into several " +
+              "separate topics, one per room, each losing the customer name and the pricing that only " +
+              "appeared once, at the end, and was meant to apply to all of them. A bare, unconnected " +
+              "sequence of measurements is not automatically several topics just because the model has " +
+              "no explicit \"and\" or pronoun to lean on — a job description this way of speaking is just " +
+              "as common as one joined by \"and\", especially when someone is reading off a list of room " +
+              "sizes. The real test is still the same one already given above: does the message move to " +
+              "a genuinely different SUBJECT (a different customer, a different kind of thing entirely — " +
+              "an expense, a reminder), or is it still building up the same one (more rooms for the same " +
+              "job, more detail for the same quote)? Several bare measurements followed by one customer " +
+              "name and one price is still building up ONE observation, the same as if \"and\" had joined " +
+              "them — never split a sequence of measurements away from the name and price that govern " +
+              "all of them just because nothing grammatically ties them together. If the whole message is about ONE topic, " +
               "return it as a single segment, unchanged. Rewrite a segment only to carry over context it " +
               "would otherwise lose by being separated (e.g. an implied subject) — never add information " +
               "that wasn't actually stated. Return ONLY a JSON array of strings.\n\n" +
@@ -156,6 +171,10 @@ export async function splitIntoTopics(env: Env, transcript: string): Promise<str
               'measuring the hospital and theatre one is three by two"]\n' +
               '"bought glue for R850 at BUCO" -> ["bought glue for R850 at BUCO"]\n' +
               '"Jenny paid R500" -> ["Jenny paid R500"]\n' +
+              '"3x3 store, 1.2x1.2 kitchen, 7x5 main, 3.5 by 2.5, Dr Van der Walt\'s rooms measured in ' +
+              'meters, quote to install series 540 oak cloud at R750 a square meter" -> ["3x3 store, ' +
+              '1.2x1.2 kitchen, 7x5 main, 3.5 by 2.5, Dr Van der Walt\'s rooms measured in meters, quote ' +
+              'to install series 540 oak cloud at R750 a square meter"]\n' +
               '"Quote for Jenny - supply and fit vinyl for R8000, give her 10 percent off that" -> ' +
               '["Quote for Jenny - supply and fit vinyl for R8000, give her 10 percent off that"]',
           },
