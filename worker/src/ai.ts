@@ -198,11 +198,73 @@ export async function splitIntoTopics(env: Env, transcript: string): Promise<str
   }
 }
 
+// Real, new, per direct instruction — a deterministic safeguard,
+// found necessary live 2026-09-30 after the prompt-only fix to
+// splitIntoTopics (added the same night) turned out not to be
+// reliable enough on its own. The earlier "and"-joined bug had a
+// concrete, syntactic trigger to key off — the literal word "and".
+// This pattern has none: a bare sequence of room-plus-dimension
+// fragments, spoken with pauses instead of connecting words, gives
+// the model no clear syntactic signal to lean on, and it kept
+// splitting them apart even with an explicit new rule and example
+// added. Rather than keep tuning a prompt for a judgment call an LLM
+// won't reliably make every time, this catches the exact, real shape
+// of the failure deterministically: a short fragment that's
+// basically just "name + dimension" is almost certainly part of a
+// larger job description, not a genuinely separate topic on its own.
+//
+// Deliberately conservative in one direction only: a short phrase
+// with a real dimension in it and nothing else is never mistaken for
+// a complete, standalone topic (nothing that short and bare-boned
+// legitimately stands alone — a real invoice, expense, or reminder
+// always has more than a name and two numbers in it). The one real
+// risk this accepts is over-merging two genuinely separate,
+// back-to-back bare room-quote jobs into one — rarer, and far less
+// costly, than the silent fragmentation and lost pricing this
+// replaces.
+const DIMENSION_PATTERN = /\d+(\.\d+)?\s*(x|by)\s*\d+(\.\d+)?/i;
+const BARE_FRAGMENT_MAX_WORDS = 6;
+
+function looksLikeBareMeasurementFragment(segment: string): boolean {
+  if (!DIMENSION_PATTERN.test(segment)) return false;
+  const wordCount = segment.trim().split(/\s+/).filter(Boolean).length;
+  return wordCount <= BARE_FRAGMENT_MAX_WORDS;
+}
+
+function mergeBareMeasurementFragments(segments: string[]): string[] {
+  const merged: string[] = [];
+  let i = 0;
+  while (i < segments.length) {
+    if (looksLikeBareMeasurementFragment(segments[i])) {
+      const run: string[] = [];
+      while (i < segments.length && looksLikeBareMeasurementFragment(segments[i])) {
+        run.push(segments[i]);
+        i++;
+      }
+      // The segment right after a run of bare fragments is almost
+      // always what supplies the missing context (the customer, the
+      // job, the price) the fragments themselves lack — absorbed
+      // into the same segment rather than left to be extracted on
+      // its own with nothing to attach to.
+      if (i < segments.length) {
+        run.push(segments[i]);
+        i++;
+      }
+      merged.push(run.join(". "));
+    } else {
+      merged.push(segments[i]);
+      i++;
+    }
+  }
+  return merged;
+}
+
 export async function extractMultipleIntents(
   env: Env,
   transcript: string
 ): Promise<Array<{ segment: string; extraction: Extraction | null; raw: unknown; rawText: string | null }>> {
-  const segments = await splitIntoTopics(env, transcript);
+  const rawSegments = await splitIntoTopics(env, transcript);
+  const segments = mergeBareMeasurementFragments(rawSegments);
   const results: Array<{ segment: string; extraction: Extraction | null; raw: unknown; rawText: string | null }> = [];
   for (const segment of segments) {
     const result = await extractIntent(env, segment);
