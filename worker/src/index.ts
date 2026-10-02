@@ -1585,6 +1585,25 @@ async function processOneExtraction(
     message = `Supplier payment noted for ${character!.name} of R${extraction.amount} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
   } else if (extraction?.intent === "supplier_payment" && supplierPaymentNoSupplier) {
     message = "Recognized a supplier payment, but no supplier was named — try naming who it's to.";
+  } else if (
+    (extraction?.intent === "invoice" || extraction?.intent === "quotation" || extraction?.intent === "payment") &&
+    !customer &&
+    !pendingActionId
+  ) {
+    // Real gap found live 2026-10-02: "invoice site service R5000 for
+    // repairs" (lower case, an existing customer "Site Services") came
+    // back with extraction intent=invoice, amount=5000, but
+    // customer_name=null — confirmed directly via /debug/intent-test.
+    // These three intents all require a resolved customer, and with
+    // none, no branch above or below matched, so a correctly
+    // understood R5000 invoice fell through to the generic "didn't
+    // catch anything" message — the same silent-loss shape the
+    // supplier intents already avoid with their own "no supplier was
+    // named" branches. Said honestly now: what was heard, and what is
+    // missing.
+    const heard =
+      extraction.intent === "invoice" ? "an invoice" : extraction.intent === "quotation" ? "a quotation" : "a payment";
+    message = `I heard ${heard}${extraction.amount ? ` for R${extraction.amount}` : ""}, but no customer name came through — who is it for?`;
   } else if (pendingActionId) {
     // price_scope's actual destination document depends on
     // scope_document_type, decided the same tense-based way as the
