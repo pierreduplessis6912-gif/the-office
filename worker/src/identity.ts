@@ -18,7 +18,15 @@ import type { Env } from "./types";
 // cases (a name where the token IS the whole first name, the whole
 // last name, or the entire name) before being placed here.
 function wholeWordClause(column: string): string {
-  return `(${column} = ? OR ${column} LIKE ? OR ${column} LIKE ? OR ${column} LIKE ?)`;
+  // Real bug found live 2026-10-02: "Alfons" and "alfons" became two
+  // separate customers. SQLite's LIKE ignores ASCII case but plain `=`
+  // does not, and a single-word name can only ever match through the
+  // `=` branch (the LIKE patterns all need a space) — so a one-word
+  // name that differed only in capitalisation never matched, and a
+  // duplicate got created. The speech recogniser capitalises the same
+  // spoken name inconsistently, so this was reachable by ordinary use.
+  // COLLATE NOCASE makes `=` agree with the LIKE branches.
+  return `(${column} = ? COLLATE NOCASE OR ${column} LIKE ? OR ${column} LIKE ? OR ${column} LIKE ?)`;
 }
 function wholeWordBindings(token: string): [string, string, string, string] {
   return [token, `${token} %`, `% ${token}`, `% ${token} %`];
