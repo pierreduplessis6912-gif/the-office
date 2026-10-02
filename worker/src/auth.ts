@@ -11,7 +11,7 @@
 // test suite (the 165-case role matrix, the PDF-signing round-trip,
 // the CORS allowlist test, and the live-bug regression test) all
 // re-extract from this file now and still pass.
-import { Env } from "./types";
+import { Env, Extraction } from "./types";
 
 // Real feature 2026-07-14 — session signing/verification, step 1 of
 // the phased auth scope (Constitution Principles 25-27). A session
@@ -231,6 +231,106 @@ export const ACTION_TYPE_CAPABILITY: Record<string, string[]> = {
   identity_collision: ["can_know_jobs", "can_manage_invoices"],
   customer_fact: ["can_know_jobs", "can_manage_invoices"],
 };
+
+// Who may DICTATE (create) each intent — the creation-time counterpart to
+// ACTION_TYPE_CAPABILITY above, which says who may CONFIRM a held action.
+// Until now creation was gated by a hand-kept list in index.ts that was
+// open by default: an intent nobody remembered to list was silently
+// allowed, which is exactly how five real financial intents went
+// ungated until they were audited by hand (see
+// PROCESS_ONE_EXTRACTION_REWRITE.md, validation results, Step 3).
+//
+// This table is exhaustive by construction. It is typed
+// Record<intent, ...>, so adding a value to the intent union in
+// types.ts without a row here is a compile error, and
+// tools/role-matrix.test.js (which loads this very file) asserts the
+// same at test time. "Open" is therefore always a written-down choice,
+// never an omission.
+//
+//   produces — the held action types this intent can create ([] means it
+//              records directly, or only reads). Nested outputs count.
+//   create   — any-of capabilities, or "open" (deliberately ungated).
+//   refusal  — what a refused role is told.
+//   reason   — REQUIRED whenever create and confirm disagree for a role
+//              (a role that can create but never confirm, or confirm but
+//              not create); the test enforces this, so a disagreement is
+//              always a recorded decision rather than an accident.
+//
+// A value that is not an intent at all (null, or something the model
+// invented) is not gated here: nothing handles it, so there is nothing
+// to protect; that is the same behaviour as before this table existed.
+export interface IntentRule {
+  produces: string[];
+  create: string[] | "open";
+  refusal?: string;
+  reason?: string;
+}
+
+const MONEY_REFUSAL =
+  "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.";
+const LEADS_REFUSAL = "Managing leads isn't available for your role — let someone with that permission know.";
+
+export const INTENT_RULES: Record<Extraction["intent"], IntentRule> = {
+  // Money.
+  payment: { produces: ["payment"], create: ["can_manage_invoices"], refusal: MONEY_REFUSAL },
+  expense: { produces: ["expense"], create: ["can_manage_invoices"], refusal: MONEY_REFUSAL },
+  invoice: {
+    produces: ["invoice", "job_scope_amendment"],
+    create: ["can_manage_invoices"],
+    refusal: MONEY_REFUSAL,
+    reason:
+      "The invoice branch also records a job scope and can raise a job_scope_amendment, which installers may confirm; only the invoice itself needs can_manage_invoices.",
+  },
+  quotation: { produces: ["quotation"], create: ["can_manage_invoices"], refusal: MONEY_REFUSAL },
+  price_scope: { produces: ["invoice", "quotation"], create: ["can_manage_invoices"], refusal: MONEY_REFUSAL },
+  convert_quote: { produces: ["convert_quote"], create: ["can_manage_invoices"], refusal: MONEY_REFUSAL },
+  supplier_invoice: { produces: ["supplier_invoice"], create: ["can_manage_invoices"], refusal: MONEY_REFUSAL },
+  supplier_payment: { produces: ["supplier_payment"], create: ["can_manage_invoices"], refusal: MONEY_REFUSAL },
+  variance_disposition: { produces: ["variance_disposition"], create: ["can_manage_invoices"], refusal: MONEY_REFUSAL },
+  // A direct write with no held action: this creation gate is its ONLY gate.
+  purchase_order: { produces: [], create: ["can_manage_invoices"], refusal: MONEY_REFUSAL },
+  goods_received: {
+    produces: ["goods_received"],
+    create: ["can_manage_invoices"],
+    refusal: MONEY_REFUSAL,
+    reason:
+      "Known mismatch, recorded 2026-10-02: installers may confirm a delivery (can_know_materials) but cannot dictate one. To be resolved by an explicit decision, not left implicit.",
+  },
+  // Owner-only, matching the REST layer (leads need can_manage_settings).
+  lose_lead: { produces: [], create: ["can_manage_settings"], refusal: LEADS_REFUSAL },
+
+  // Deliberately open today. Each is a direct write or a read, not a held action.
+  work_observation: {
+    produces: ["quotation", "job_scope_amendment"],
+    create: "open",
+    reason:
+      "A measurement records regardless of role; the quotation it can nest is gated inline on can_manage_invoices, and an amendment hold is confirmed by can_know_jobs.",
+  },
+  raise_snag: { produces: [], create: "open" },
+  resolve_snag: { produces: [], create: "open" },
+  raise_lead: { produces: [], create: "open" },
+  register_stock_item: { produces: [], create: "open" },
+  stock_usage: { produces: [], create: "open" },
+  stocktake: { produces: [], create: "open" },
+  lookup: { produces: [], create: "open", reason: "Read-only; read access is gated per fact set inside the lookup itself." },
+  reminder: { produces: [], create: "open" },
+  task_complete: { produces: [], create: "open" },
+  note: { produces: [], create: "open" },
+  supplier_statement: { produces: [], create: "open" },
+  forget_last: { produces: [], create: "open" },
+  other: { produces: [], create: "open" },
+};
+
+// The refusal message for a role that may not create this intent, or null
+// if it may. Anything that is not a known intent is allowed through (see above).
+export function intentCreationRefusal(intent: string | null | undefined, capabilities: string[]): string | null {
+  const key = intent ?? "";
+  if (!Object.prototype.hasOwnProperty.call(INTENT_RULES, key)) return null;
+  const rule = INTENT_RULES[key as Extraction["intent"]];
+  if (rule.create === "open") return null;
+  if (rule.create.some((c) => capabilities.includes(c))) return null;
+  return rule.refusal ?? MONEY_REFUSAL;
+}
 
 // Any active member, whatever their role. Uploads are safe here because
 // they only ever create a held action; the confirmation is what is
