@@ -122,6 +122,18 @@ async function expect(role, method, path, want) {
       if (DECIDED_DIFFERENCES.has(`${role}:${intent}`)) continue;
       check((intentCreationRefusal(intent, caps) === null) === oldAllows(intent, caps), `creation decision changed for ${role} / ${String(intent)} (old logic ${oldAllows(intent, caps) ? 'allowed' : 'refused'})`);
     }
+  // Decision 3 (2026-10-02): the permission check must run before ANYTHING that can write for a
+  // name. reconcileCustomer/reconcileCharacter insert rows, and the identity checks hold actions.
+  // Asserted on source order inside processOneExtraction, so a later edit cannot quietly reorder it.
+  const fnStart = indexSrc.indexOf('async function processOneExtraction(');
+  const fnBody = indexSrc.slice(fnStart);
+  const gateAt = fnBody.indexOf('intentCreationRefusal(extraction?.intent, capabilities)');
+  check(fnStart > 0 && gateAt > 0, 'could not find the creation gate inside processOneExtraction');
+  for (const writer of ['await reconcileCustomer(', 'await reconcileCharacter(', 'holdForConfirmation(', 'ctx.waitUntil(setSelection(', 'ctx.waitUntil(updateCaptureHint(']) {
+    const at = fnBody.indexOf(writer);
+    check(at < 0 || gateAt < at, `the creation gate must run before "${writer}" inside processOneExtraction, but it comes after`);
+  }
+
   // The decided differences themselves, asserted explicitly so they cannot drift silently.
   check(intentCreationRefusal('goods_received', RC.installer) === null, 'decision 1: an installer must be able to dictate goods received');
   check(intentCreationRefusal('goods_received', RC.accountant) === null && intentCreationRefusal('goods_received', RC.owner) === null, 'goods_received must stay allowed for accountant and owner');
