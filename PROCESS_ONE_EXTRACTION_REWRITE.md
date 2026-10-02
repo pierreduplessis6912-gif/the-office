@@ -278,3 +278,13 @@ Assertions (all runnable in `role-matrix.test.js`, since the data lives in `auth
 2. Which philosophy is the rule: held actions are harmless to create, or creation must be gated? (Determines whether upload paths should be gated.)
 3. Approve moving the capability check ahead of `reconcileCustomer`, accepting it as a recorded behaviour change.
 4. Should an installer's scheduling message labelled `invoice` still be refused outright?
+
+
+### Addendum (same day) — correction to Step 3, items 6 and 7: the upload path is looser than described
+
+Traced after the fact, in `POST /files/document` (index.ts ~4800–4860), by reading. The earlier text said only that uploads are "not gated by this list". More precisely:
+
+- An uploaded supplier document can create a **held `supplier_invoice`** for *any* member, installer included. That is exactly the "misleading held action" the dictation-time gate exists to prevent, so the creation gate is not a real boundary today; it applies to one channel only.
+- An uploaded delivery note (no real prices) is **recorded directly** as a goods-received note via `recordGoodsReceived`, with no hold and no confirmation, again for any member.
+- So for goods received, dictation is the *stricter* channel (hold plus confirm, and refused outright for installers), while upload is a direct, unconfirmed write open to everyone. Refusing installers on dictation alone protects nothing the upload path does not already allow.
+- This reframes decision 2. Held actions are inert until confirmed, which is the coherent reading of `auth.ts`'s "creating a held action is harmless". The real exposure is **direct writes**: uploaded GRNs, and dictated `purchase_order` (whose creation gate is its only gate). A consistent rule is likelier to be "gate creation of direct writes that move money or stock; held actions may stay open", rather than "gate everything at creation", which would also block installers photographing delivery notes.
