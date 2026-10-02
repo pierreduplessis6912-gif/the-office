@@ -816,3 +816,57 @@ between "not started" and "not needed."
 **One item honestly still open, not attempted tonight:** the full
 documentation consolidation. The doc set grew this session, not
 shrank — a real consolidation deserves its own deliberate pass.
+
+### The confirm/reject/edit-field race condition — closed, both real shapes
+
+The gap named earlier tonight as deliberately deferred, not rushed: the
+existing `status !== 'pending'` check on `confirm` and `reject` only
+protects against a retry arriving *after* the original fully completed,
+not two near-simultaneous requests racing *during* processing, before
+either has updated the status yet.
+
+**Confirm and reject — an atomic claim.** `UPDATE pending_actions SET
+status = 'processing' WHERE id = ? AND status = 'pending'`, checked via
+`.meta.changes`, right after the existing 404/409 checks. Every one of
+confirm's 17 real action-type branches keeps its own existing
+`'confirmed'` transition unchanged — it already works correctly
+transitioning from `'processing'` the same as it always did from
+`'pending'`. Reject's two special cases (`ambiguous_person`,
+`job_scope_amendment`) had the same real race, since both do real,
+consequential work — creating a real person/customer/character row, or a
+real job scope — before the fix; its generic fallback was already safe
+on its own. Two revert-on-failure paths added (confirm's unknown-type
+fallback, and a new catch block in reject, which had no error handling
+at all before this) so a genuine failure never leaves an action
+permanently stuck at `'processing'`.
+
+**Edit-field — a genuinely different shape, found while scoping the
+first fix, not forced into the same pattern.** Edit-field is meant to be
+called more than once, editing different fields before an eventual
+confirm, so an atomic claim would refuse a second, legitimate edit as
+readily as a genuine race. Its real risk is a lost update: two edits
+reading the same payload, each writing their own change, whichever
+writes last silently erasing the other's. Fixed with optimistic
+concurrency instead — the original payload text, already read at the top
+of the handler, as the lock: `UPDATE pending_actions SET payload = ?
+WHERE id = ? AND payload = ?`. A write only succeeds if nothing else
+changed the payload in between; otherwise a real 409 tells the caller to
+reload and retry.
+
+**Both verified the same, real way — against actual SQLite behavior, not
+just read and trusted:** a simulated race for confirm/reject (a second
+claim attempt on an already-claimed row correctly affects zero rows) and
+for edit-field (a second, stale write is correctly refused and the first
+edit's change survives intact), plus a simulated failure-then-retry for
+confirm/reject (a reverted action is correctly claimable again) and the
+ordinary, non-conflicting sequential-edit case for edit-field (completely
+unaffected). Typecheck clean against the baseline and the full role
+matrix unaffected on both pushes.
+
+A real, live side-effect found along the way, not part of the original
+plan: confirming an `identity_collision` action correctly replays the
+original request and can create a brand-new, separate pending action of
+its own — but the app was silently discarding the server's own
+explanation of this, leaving correct, working behavior looking like a
+silent failure. Fixed on the client (`main.dart`) to actually surface
+the server's real `message` field; recorded in full in `DECISIONS.md`.
