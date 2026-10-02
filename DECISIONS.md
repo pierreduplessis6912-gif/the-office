@@ -5478,3 +5478,25 @@ recorded, an installer conflict) actually reaches the person doing the
 confirming. The generic "Confirmed."/"Rejected." fallback is skipped
 when a real message is available, since the real message already
 implies success on its own.
+
+---
+
+## Date-ranging in the report functions, built and confirmed live — the first real prerequisite for conversational BI
+
+**The real starting point:** `CONVERSATIONAL_BI_ARCHITECTURE.md` named date-ranging as the missing foundation under its flagship example, "compare April to March": every report function was all-time only, with no date filter anywhere in the codebase. Picked as the smallest, most contained item on the remaining-work list.
+
+**What was built:** an optional `DateRange` (`from`/`to`, inclusive, `YYYY-MM-DD`) on `getProfitAndLoss`, `getProfitAndLossSummary`, `getFinancialSnapshot`, `getExpenseSummary` and `getQuotationsSummary`, plus `parseDateRange` for validation and a read-only `GET /debug/profit-and-loss?from=&to=` route for live checking. With no range, every function behaves exactly as before, so no existing caller changed.
+
+**Two real decisions, named rather than buried:**
+(1) *Timezone.* `created_at` is stored in UTC (`datetime('now')`), but a business month is a South African local month. South Africa is a fixed UTC+2 with no daylight saving, so each local calendar day is converted to an exact half-open UTC window. A record made at 23:30 local on 31 March counts as March, not April.
+(2) *Which date.* Ranges apply to `created_at`, the date a record was entered, because it is the only date every one of these tables genuinely has. Ranged output says so in a note. A later CSV import of historical invoices would land in the month it was imported, not the month the invoice was originally issued. Real business dates (invoice date, payment date) would be their own, separate piece of work.
+
+Malformed, impossible (`2026-02-30`) or reversed dates throw a readable error rather than silently falling back to all-time, since a plausible-looking wrong report is worse than a visible failure. Dates are validated and bound as parameters, never interpolated into SQL.
+
+**Verified, the real way:** typecheck clean against the baseline (44 known, 0 new), role matrix 165/165, and 10 checks against a real SQLite database, including the exact midnight boundaries in both directions, a Feb + Mar + Apr partition that sums to the all-time total, single-day and open-ended ranges, an empty period returning zeros rather than an error, and deep-equality of every function's no-range output against the original code. Diffed against a fresh fetch before each push; CI green on both pushes (Typecheck, Role-matrix, Deploy).
+
+**Confirmed live:** all-time figures matched the previous output; a full-2026 range matched all-time (all current data is from 2026); October 2026 returned R98,000 revenue against R10.8M all-time, which is the Thanda Royal invoice from the confirm-guidance fix, so a fresh, distinguishable result rather than a stale one; a malformed date returned a 400.
+
+**Noticed along the way, not touched:** the all-time P&L shows `materials` at R-500, a negative expense, which pulls Cost of Sales below zero. Likely a credit or refund entered as an expense, but not traced yet. Worth a look before the BI layer reports on it. Also not done: the P&L PDF does not take a range yet, and the aged debtors/creditors reports are "as at today" by nature, so ranging does not apply to them.
+
+**What this unblocks:** the BI document's second prerequisite, grouping by product rather than the unpopulated category column.
