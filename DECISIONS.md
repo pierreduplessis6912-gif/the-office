@@ -5500,3 +5500,16 @@ Malformed, impossible (`2026-02-30`) or reversed dates throw a readable error ra
 **Noticed along the way, not touched:** the all-time P&L shows `materials` at R-500, a negative expense, which pulls Cost of Sales below zero. Likely a credit or refund entered as an expense, but not traced yet. Worth a look before the BI layer reports on it. Also not done: the P&L PDF does not take a range yet, and the aged debtors/creditors reports are "as at today" by nature, so ranging does not apply to them.
 
 **What this unblocks:** the BI document's second prerequisite, grouping by product rather than the unpopulated category column.
+
+
+---
+
+## processOneExtraction validation steps — done; the real shape is different from the plan in four ways
+
+**The real starting point:** `PROCESS_ONE_EXTRACTION_REWRITE.md` named four validation steps to complete before any code moves. All four are done, against the real code, and recorded in full at the end of that document. No production code was changed.
+
+**What the evidence changed.** (1) `ProcessingResult` cannot be a single outcome: one call can hold a quotation or invoice *and* record a job scope; the function also returns early from 10 places, and `payment` has no Pass 2 branch of its own (it relies on a catch-all). (2) The six-group split does not cohere: `invoice`, `price_scope` and `work_observation` each carry their own, differently-behaving copy of the same observation-recording block, and three real intents (stock) plus the 236-line `lookup` have no home. (3) `INTENT_CAPABILITIES` as proposed is insufficient: the creation gate is a default-open denylist where REST is default-deny, `purchase_order` is a direct write whose creation gate is its only gate (the earlier "already gated on confirm" note was wrong for it), and intent is not action type. (4) The creation gate has no test coverage; the 165-case matrix compiles only `auth.ts`.
+
+**Verification:** the analysis is mechanical (TypeScript compiler AST over the real `index.ts`; capability tables loaded from the compiled real `auth.ts`), with items traced only by reading marked as such. One possible bug, an invoice hold orphaned by the amendment early-return, is recorded as unreproduced.
+
+**Four decisions left to Pierre** are listed at the end of the rewrite document; the safe first step regardless of those answers is Phase 0: `INTENT_RULES` in `auth.ts`, behaviour-identical, with the existing test harness extended to cover it.
