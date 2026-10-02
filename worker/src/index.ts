@@ -3590,7 +3590,23 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         } else {
           payload.changes.push({ field: "scheduled_date_raw", oldValue: null, newValue: body.value });
         }
-        await env.OFFICE_DB.prepare("UPDATE pending_actions SET payload = ? WHERE id = ?").bind(JSON.stringify(payload), id).run();
+        // Real, new, per direct instruction — edit-field's own real
+        // race, a different shape from confirm/reject's: this route is
+        // genuinely meant to be called more than once, editing
+        // different fields before an eventual confirm, so the same
+        // atomic-claim pattern doesn't fit here — it would refuse a
+        // second, legitimate edit just as readily as a genuine race.
+        // The real risk is a lost update: two edits reading the same
+        // payload, each writing their own change, whichever writes
+        // last silently erasing the other's. The original payload text
+        // itself, read above, is the optimistic lock — this write only
+        // succeeds if nothing else changed it in between.
+        const result = await env.OFFICE_DB.prepare("UPDATE pending_actions SET payload = ? WHERE id = ? AND payload = ?")
+          .bind(JSON.stringify(payload), id, action.payload)
+          .run();
+        if (result.meta.changes !== 1) {
+          return Response.json({ error: "this action was edited by someone else just now — reload it and try again" }, { status: 409 });
+        }
         return Response.json({
           status: "edited",
           field: "scheduled_date_raw",
@@ -3653,7 +3669,17 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         } else {
           payload.changes.push({ field: "installer_id", oldValue: null, newValue: String(resolvedId) });
         }
-        await env.OFFICE_DB.prepare("UPDATE pending_actions SET payload = ? WHERE id = ?").bind(JSON.stringify(payload), id).run();
+        // Real, new, per direct instruction — the same real, lost-update
+        // protection as the scheduled_date_raw branch above, for the
+        // same real reason: the original payload text read at the top
+        // of this handler is the optimistic lock, so a concurrent edit
+        // to a different field never gets silently erased by this one.
+        const result = await env.OFFICE_DB.prepare("UPDATE pending_actions SET payload = ? WHERE id = ? AND payload = ?")
+          .bind(JSON.stringify(payload), id, action.payload)
+          .run();
+        if (result.meta.changes !== 1) {
+          return Response.json({ error: "this action was edited by someone else just now — reload it and try again" }, { status: 409 });
+        }
         return Response.json({
           status: "edited",
           field: "installer_id",
