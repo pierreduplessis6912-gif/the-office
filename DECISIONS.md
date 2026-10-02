@@ -5513,3 +5513,24 @@ Malformed, impossible (`2026-02-30`) or reversed dates throw a readable error ra
 **Verification:** the analysis is mechanical (TypeScript compiler AST over the real `index.ts`; capability tables loaded from the compiled real `auth.ts`), with items traced only by reading marked as such. One possible bug, an invoice hold orphaned by the amendment early-return, is recorded as unreproduced.
 
 **Four decisions left to Pierre** are listed at the end of the rewrite document; the safe first step regardless of those answers is Phase 0: `INTENT_RULES` in `auth.ts`, behaviour-identical, with the existing test harness extended to cover it.
+
+
+---
+
+## A real, live duplicate-customer bug, and the silent drop it exposed next to it
+
+**The real starting point:** a live dictation, "invoice Alfons R5000 for repairs", produced a second customer alongside the existing "Alfons", differing only in capitalisation. The first question was why the "is this the same person?" check never fired.
+
+**Traced directly, then reproduced on a real SQLite database rather than assumed:** `wholeWordClause` (identity.ts), the shared single-word name matcher, is `column = ? OR column LIKE ? OR ...`. SQLite's `LIKE` ignores ASCII case, but plain `=` does not, and a one-word name can only ever match through the `=` branch (the other three patterns all need a space). So `alfons` against a stored `Alfons` found nothing. Multi-word names such as "Jenny Smith" were never affected, since they match through `LIKE`. The reason the ask-first check stayed silent is that two checks in the same flow disagreed: the preamble's own existence check uses `COLLATE NOCASE`, found "Alfons", and so skipped the ambiguity question, while `reconcileCustomer` then used the case-sensitive matcher, found nothing, and inserted a new row. The speech recogniser capitalises the same spoken name inconsistently, so this was reachable by ordinary use.
+
+**Fixed:** `COLLATE NOCASE` on the `=` branch, one line. The same helper serves customers, characters, people and products, so all four are fixed together. Verified against a real database: the reported case now matches; results for exact-case names are identical to before for every first and last token tested; the earlier Andre/Juandre and partial-word fixes still hold. Typecheck clean against the baseline, role matrix 165/165, CI green.
+
+**Confirmed live:** an existing customer "Sheriff", dictated as lower-case "sheriff", matched the existing customer and produced a confirmation rather than a new row.
+
+**Not done, deliberately:** the one existing "Alfons"/"alfons" duplicate is not merged by this fix. A merge route already exists (`/debug/merge-customers`, repoints records and marks the losing row, never deletes); a spoken "merge X into Y" intent was judged not worth building yet, since the cause is fixed and other name variants already trigger the ask-first question.
+
+**The second finding, found while chasing a suspected regression:** "invoice site service R5000 for repairs", typed in lower case against an existing "Site Services", returned "I didn't catch anything there I could act on." A suspected regression from the day's deploys was ruled out directly: `/debug/intent-test` (extraction only, no identity code) showed `customer_name: null` for that text, and the correctly capitalised "Site Services" extracted fine, with intent `invoice` and amount 5000 read correctly both times. So the AI missed the name; nothing we deployed was involved. The real gap was downstream: `invoice`, `quotation` and `payment` all require a resolved customer, and with none, no Pass 2 branch matched, so a correctly understood R5000 invoice fell through to the generic nothing-happened message. The supplier intents already avoid this with their own "no supplier was named" branches; these three did not.
+
+**Fixed:** a new branch, placed before the generic catch-all, says what was heard and what is missing ("I heard an invoice for R5000, but no customer name came through — who is it for?"). Checked mechanically that it reads only `customer` and `pendingActionId` and sits ahead of the catch-all. One behaviour change to note: a payment with only a supplier name resolved used to say "Found existing: X" and quietly do nothing; it now asks for a customer. Typecheck clean, role matrix 165/165, CI green. **Live check of the new message itself is still pending**, so it is not claimed as confirmed.
+
+**Still open:** the AI can still miss lower-case names. A deterministic fallback matching the typed words against existing customers, held for confirmation in the same ask-first style, was proposed but not built.
