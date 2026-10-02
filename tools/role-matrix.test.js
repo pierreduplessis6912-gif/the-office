@@ -108,7 +108,13 @@ async function expect(role, method, path, want) {
   // since; anything not listed there must still match the old logic exactly.
   const OLD_FINANCIAL = ['payment', 'expense', 'invoice', 'quotation', 'price_scope', 'convert_quote', 'supplier_invoice', 'supplier_payment', 'goods_received', 'purchase_order', 'variance_disposition'];
   const oldAllows = (intent, caps) => OLD_FINANCIAL.includes(intent ?? '') ? caps.includes('can_manage_invoices') : intent === 'lose_lead' ? caps.includes('can_manage_settings') : true;
-  const DECIDED_DIFFERENCES = new Set([]);
+  const DECIDED_DIFFERENCES = new Set([
+    // Decision 1 (2026-10-02): installers may dictate goods received.
+    'installer:goods_received',
+    // Decision 2 (2026-10-02): money and stock are gated at creation. Stock now needs
+    // can_know_materials, which every real role holds, so only a role with no capabilities changes.
+    'stranger:register_stock_item', 'stranger:stock_usage', 'stranger:stocktake',
+  ]);
   const probes = [...unionIntents, null, undefined, '', 'some_future_intent', 'constructor', '__proto__', 'toString'];
   for (const role of ['owner', 'accountant', 'installer', 'stranger'])
     for (const intent of probes) {
@@ -116,6 +122,15 @@ async function expect(role, method, path, want) {
       if (DECIDED_DIFFERENCES.has(`${role}:${intent}`)) continue;
       check((intentCreationRefusal(intent, caps) === null) === oldAllows(intent, caps), `creation decision changed for ${role} / ${String(intent)} (old logic ${oldAllows(intent, caps) ? 'allowed' : 'refused'})`);
     }
+  // The decided differences themselves, asserted explicitly so they cannot drift silently.
+  check(intentCreationRefusal('goods_received', RC.installer) === null, 'decision 1: an installer must be able to dictate goods received');
+  check(intentCreationRefusal('goods_received', RC.accountant) === null && intentCreationRefusal('goods_received', RC.owner) === null, 'goods_received must stay allowed for accountant and owner');
+  check(intentCreationRefusal('goods_received', RC.stranger || []) !== null, 'goods_received must stay refused for a role with no capabilities');
+  for (const i of ['register_stock_item', 'stock_usage', 'stocktake']) {
+    for (const role of ['owner', 'accountant', 'installer']) check(intentCreationRefusal(i, RC[role]) === null, `${role} must still be able to dictate ${i}`);
+    check(/Recording stock isn't available/.test(intentCreationRefusal(i, []) || ''), `${i} must be refused, with the stock wording, for a role with no capabilities`);
+  }
+  check(intentCreationRefusal('purchase_order', RC.installer) !== null, 'purchase_order (a direct write; this gate is its only gate) must stay refused for installers');
   // And the refusal wording that people actually see is unchanged.
   check(/payments, invoices, quotations, or supplier transactions/.test(intentCreationRefusal('payment', RC.installer) || ''), 'money refusal wording changed');
   check(/Managing leads isn't available/.test(intentCreationRefusal('lose_lead', RC.accountant) || ''), 'leads refusal wording changed');
