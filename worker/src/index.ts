@@ -4794,10 +4794,26 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       // is the correct, real path, unguarded and recorded directly,
       // matching GRN's own precedent exactly (quantity-only, no money
       // moving, traceable rather than gated).
+      // Decision recorded 2026-10-02 (Pierre): money and stock are gated at
+      // creation, here as well as for dictation, from the same INTENT_RULES
+      // table. Uploads stay open to every member for storing the file and
+      // the capture; what a role may NOT trigger is: a held supplier invoice
+      // (money), a supplier statement reconciliation (a money read that
+      // returns the real balance owed), or a recorded goods-received note
+      // unless they hold can_manage_invoices or can_know_materials (stock;
+      // installers do). A refused upload still stores the file, and the
+      // response carries `refusal` so a client can say why nothing happened.
+      const { capabilities: uploadCapabilities } = await resolveCapabilities(request, env);
+      const statementRefusal = intentCreationRefusal("supplier_statement", uploadCapabilities);
+      const supplierInvoiceRefusal = intentCreationRefusal("supplier_invoice", uploadCapabilities);
+      const goodsReceivedRefusal = intentCreationRefusal("goods_received", uploadCapabilities);
+      let uploadRefusal: string | null = null;
       let supplierInvoiceAction: { pendingActionId: number; supplierName: string } | null = null;
       let goodsReceivedAction: { grnId: number; supplierName: string } | null = null;
       let supplierStatementAction: { supplierName: string; claimedBalance: number; realBalance: number; difference: number } | null = null;
-      if (subjectCharacterId && captionIntent === "supplier_statement") {
+      if (subjectCharacterId && captionIntent === "supplier_statement" && statementRefusal) {
+        uploadRefusal = statementRefusal;
+      } else if (subjectCharacterId && captionIntent === "supplier_statement") {
         // Real feature 2026-07-25 — Supplier Statement Reconciliation,
         // the real, buildable version of the original ERP research
         // example. A statement covers the whole real account, not one
@@ -4821,7 +4837,9 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           const poLineItems = await getPurchaseOrderLineItems(env, openPo.id);
           const siExtraction = await extractSupplierInvoice(env, description, poLineItems);
           const hasRealPricing = siExtraction.line_items.some((li) => li.unit_price_billed != null);
-          if (siExtraction.line_items.length > 0 && hasRealPricing) {
+          if (siExtraction.line_items.length > 0 && hasRealPricing && supplierInvoiceRefusal) {
+            uploadRefusal = supplierInvoiceRefusal;
+          } else if (siExtraction.line_items.length > 0 && hasRealPricing) {
             const held = await holdForConfirmation(
               env,
               "supplier_invoice",
@@ -4837,7 +4855,9 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             supplierInvoiceAction = { pendingActionId: held.id, supplierName: subjectHint ?? "supplier" };
           } else {
             const grnExtraction = await extractGoodsReceived(env, description, poLineItems);
-            if (grnExtraction.line_items.length > 0) {
+            if (grnExtraction.line_items.length > 0 && goodsReceivedRefusal) {
+              uploadRefusal = goodsReceivedRefusal;
+            } else if (grnExtraction.line_items.length > 0) {
               const recorded = await recordGoodsReceived(
                 env,
                 openPo.id,
@@ -4851,7 +4871,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         }
       }
 
-      const docResponseBody = JSON.stringify({ status: "stored", key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction });
+      const docResponseBody = JSON.stringify({ status: "stored", refusal: uploadRefusal, key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction });
       await completeIdempotencyKey(env, idempotencyKey, docResponseBody);
       return new Response(docResponseBody, { headers: { "Content-Type": "application/json" } });
     }
@@ -4925,10 +4945,26 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       // any matched line item means this is a delivery note, not an
       // invoice — GRN is the correct, real path, unguarded and
       // recorded directly, matching GRN's own precedent exactly.
+      // Decision recorded 2026-10-02 (Pierre): money and stock are gated at
+      // creation, here as well as for dictation, from the same INTENT_RULES
+      // table. Uploads stay open to every member for storing the file and
+      // the capture; what a role may NOT trigger is: a held supplier invoice
+      // (money), a supplier statement reconciliation (a money read that
+      // returns the real balance owed), or a recorded goods-received note
+      // unless they hold can_manage_invoices or can_know_materials (stock;
+      // installers do). A refused upload still stores the file, and the
+      // response carries `refusal` so a client can say why nothing happened.
+      const { capabilities: uploadCapabilities } = await resolveCapabilities(request, env);
+      const statementRefusal = intentCreationRefusal("supplier_statement", uploadCapabilities);
+      const supplierInvoiceRefusal = intentCreationRefusal("supplier_invoice", uploadCapabilities);
+      const goodsReceivedRefusal = intentCreationRefusal("goods_received", uploadCapabilities);
+      let uploadRefusal: string | null = null;
       let supplierInvoiceAction: { pendingActionId: number; supplierName: string } | null = null;
       let goodsReceivedAction: { grnId: number; supplierName: string } | null = null;
       let supplierStatementAction: { supplierName: string; claimedBalance: number; realBalance: number; difference: number } | null = null;
-      if (subjectCharacterId && captionIntent === "supplier_statement") {
+      if (subjectCharacterId && captionIntent === "supplier_statement" && statementRefusal) {
+        uploadRefusal = statementRefusal;
+      } else if (subjectCharacterId && captionIntent === "supplier_statement") {
         // Real feature 2026-07-25 — Supplier Statement Reconciliation,
         // the real, buildable version of the original ERP research
         // example. A statement covers the whole real account, not one
@@ -4952,7 +4988,9 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           const poLineItems = await getPurchaseOrderLineItems(env, openPo.id);
           const siExtraction = await extractSupplierInvoice(env, description, poLineItems);
           const hasRealPricing = siExtraction.line_items.some((li) => li.unit_price_billed != null);
-          if (siExtraction.line_items.length > 0 && hasRealPricing) {
+          if (siExtraction.line_items.length > 0 && hasRealPricing && supplierInvoiceRefusal) {
+            uploadRefusal = supplierInvoiceRefusal;
+          } else if (siExtraction.line_items.length > 0 && hasRealPricing) {
             const held = await holdForConfirmation(
               env,
               "supplier_invoice",
@@ -4968,7 +5006,9 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             supplierInvoiceAction = { pendingActionId: held.id, supplierName: subjectHint ?? "supplier" };
           } else {
             const grnExtraction = await extractGoodsReceived(env, description, poLineItems);
-            if (grnExtraction.line_items.length > 0) {
+            if (grnExtraction.line_items.length > 0 && goodsReceivedRefusal) {
+              uploadRefusal = goodsReceivedRefusal;
+            } else if (grnExtraction.line_items.length > 0) {
               const recorded = await recordGoodsReceived(
                 env,
                 openPo.id,
@@ -4982,7 +5022,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         }
       }
 
-      const photoResponseBody = JSON.stringify({ status: "stored", key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction });
+      const photoResponseBody = JSON.stringify({ status: "stored", refusal: uploadRefusal, key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction });
       await completeIdempotencyKey(env, idempotencyKey, photoResponseBody);
       return new Response(photoResponseBody, { headers: { "Content-Type": "application/json" } });
     }
