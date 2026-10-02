@@ -5562,3 +5562,18 @@ Malformed, impossible (`2026-02-30`) or reversed dates throw a readable error ra
 **Not verified live, stated plainly:** only the owner role can be exercised from the app. The refusal paths and the installer goods-received change are proven by tests against the real tables, not by a live installer session.
 
 **Still open:** the upload path (`POST /files/document`) does not use this table. By decision 2 it should: an uploaded priced supplier invoice creates a held `supplier_invoice` for any member (money), while an uploaded delivery note records a goods-received note directly (stock, which installers are now allowed). Gating the former is a behaviour change on that path and has not been done.
+
+
+---
+
+## The upload path now uses the same permission table
+
+**The real starting point:** Phase 0 left one gap on purpose: `POST /files/document` and `POST /files/photo` did not use `INTENT_RULES`. Traced by reading, they let any member trigger three things: a held supplier invoice (money), a goods-received note recorded directly with no confirmation (stock), and a supplier statement comparison. The last was not on the earlier list: it returns both the supplier's claimed balance and the real amount owed in its response, and installers cannot see supplier balances anywhere else (`/embers/suppliers` needs `can_manage_invoices`), so it was a money read open to everyone.
+
+**What was built:** both handlers read the caller's capabilities and ask the same table, keyed by what the upload would do (`supplier_invoice`, `goods_received`, `supplier_statement`), because they decide by the supplier an upload resolves to and not by a spoken intent. Under Pierre's decisions: installers may upload a delivery note (recorded as a goods-received note) but not a priced supplier invoice or a statement; owner and accountant are unchanged. The file and capture are always stored. A refused upload now carries `refusal` in its response. `supplier_statement` became a gated money row, which also means a *spoken* statement from an installer is refused (it recorded nothing before).
+
+**Verified:** the role-matrix suite is now 412 checks: the three outputs for each role against the real table, source-pattern guards that both handlers keep every refusal branch ahead of its write, and `supplier_statement` listed by name as a decided difference. Each guard was removed in turn, in each handler, and the suite failed every time (the first photo-handler checks accidentally hit the document handler, so they were redone against the photo handler specifically). Typecheck unchanged at the 44 tolerated baseline; CI green on both deploys.
+
+**Not verified live, and one known gap:** only the owner can be exercised from the app, so the refusals are proven by tests against the real tables, not a live installer session. And the app ignores `refusal`: `main.dart` falls through to "Stored — nothing real to reconcile it against yet." for a refused upload. That is misleading but claims nothing false. Showing the real reason is a two-line change in `main.dart` that needs a Codemagic rebuild; not made.
+
+**Deliberately not changed:** the upload handlers still call `reconcileCustomer` and `reconcileCharacter` before anything is gated, which can create a customer or character row from a caption. Customers and characters are neither money nor stock, so by the decision that was left alone.
