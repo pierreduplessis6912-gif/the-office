@@ -5435,3 +5435,46 @@ total. The quotation math was never a second, separate bug — it was a
 downstream symptom of the same fragmentation; once the real, complete
 set of components reached the pricing step together, the math was
 correct on its own.
+
+---
+
+## A real, live UX gap: the app silently discarded the server's own confirm guidance
+
+**The real starting point:** right after the confirm/reject race-condition
+fix deployed, a real, live request — "generate an invoice for Thanda
+Royal Game Reserve for sisal carpet installation, R98000 excluding VAT"
+— correctly triggered an `identity_collision` check ("Thanda Royal sounds
+like an existing customer, confirm?"). After confirming, no invoice
+appeared, and it reasonably looked like something had just broken.
+
+**Traced directly rather than assumed related to the race fix just
+pushed:** `identity_collision`'s confirm handler does exactly what it's
+supposed to — creates the real customer record, then replays the
+original request through `processOneExtraction`. Since invoice creation
+is itself a consequential write requiring its own confirmation, this
+replay correctly created a *second*, separate pending action — an
+"invoice" one — rather than an immediate, final invoice. Confirmed live,
+through the app's own real "Pending" ember (`/embers/pending`, the same
+member-open route every real member can already reach): the invoice
+action was there, waiting, and confirming it produced the real invoice
+correctly.
+
+**The real gap wasn't the backend — it was the client silently
+discarding what the backend already said.** `processOneExtraction`'s own
+return shape already includes a real, clear `message` field —
+`"Invoice noted for Thanda Royal of R98000 — needs your confirmation
+(action #X) before it's recorded."` — confirmed directly in the real
+source. `main.dart`'s confirm handler only ever read `pdfUrl` from a
+successful confirm response; `message` was never read or shown at all,
+regardless of whether the tapped pending item was found locally or not.
+Every confirm that triggers a replay and creates a new, follow-up
+pending action — not just this one — left the person with zero
+indication anything further was needed.
+
+**Fixed on the client:** `message` is now read and shown whenever
+present, in addition to the existing local status update, so real,
+substantive server guidance (a new pending action, a job scope also
+recorded, an installer conflict) actually reaches the person doing the
+confirming. The generic "Confirmed."/"Rejected." fallback is skipped
+when a real message is available, since the real message already
+implies success on its own.
