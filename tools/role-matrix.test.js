@@ -8,7 +8,7 @@ const roleCaps = src.match(/const ROLE_CAPABILITIES[^=]*=\s*\{[\s\S]*?\n\};/)[0]
 const start = src.indexOf('const ENFORCE_CAPABILITIES');
 const end = src.indexOf('// The signed-in member, or null.');
 if (start < 0 || end < 0) throw new Error('could not extract the deployed decision code');
-const code = roleCaps + '\n' + src.slice(start, end) + '\nmodule.exports = { authorizeRestrictedMember, ENFORCE_CAPABILITIES };';
+const code = roleCaps + '\n' + src.slice(start, end) + '\nmodule.exports = { authorizeRestrictedMember, ENFORCE_CAPABILITIES, INTENT_RULES, intentCreationRefusal, ACTION_TYPE_CAPABILITY, ROLE_CAPABILITIES };';
 const js = esbuild.transformSync(code, { loader: 'ts', format: 'cjs', target: 'es2022' }).code;
 const compiled = path.join(os.tmpdir(), 'role-matrix-decision-under-test.js');
 fs.writeFileSync(compiled, js);
@@ -66,6 +66,59 @@ async function expect(role, method, path, want) {
   // An unknown role gets nothing beyond the open routes.
   await expect('stranger','GET','/customers',false);
   await expect('stranger','POST','/messages/text',true);
+
+  // ---- Creation-time rules (INTENT_RULES) --------------------------------
+  // The 165 cases above only ever covered CONFIRM-time and REST decisions.
+  // Creation-time gating lived in index.ts and had no coverage at all, which
+  // is how five financial intents went ungated while this suite stayed green.
+  const { INTENT_RULES, intentCreationRefusal, ACTION_TYPE_CAPABILITY, ROLE_CAPABILITIES: RC } = require(compiled);
+  const srcDir = path.dirname(process.env.SRC || path.join(__dirname, '..', 'worker', 'src', 'auth.ts'));
+  const typesSrc = fs.readFileSync(path.join(srcDir, 'types.ts'), 'utf8');
+  const indexSrc = fs.readFileSync(path.join(srcDir, 'index.ts'), 'utf8');
+  const unionIntents = typesSrc.match(/intent:\s*((?:"[a-z_]+"\s*\|?\s*)+);/)[1].match(/"([a-z_]+)"/g).map((x) => x.replace(/"/g, ''));
+  const check = (cond, msg) => { total++; if (!cond) { fails++; console.log('FAIL  ' + msg); } };
+  const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+
+  // (a) Exhaustive both ways: every intent has a row, and no row is an orphan.
+  check(unionIntents.length >= 20, `could not read the intent union from types.ts (got ${unionIntents.length})`);
+  for (const i of unionIntents) check(has(INTENT_RULES, i), `intent "${i}" has no row in INTENT_RULES`);
+  for (const i of Object.keys(INTENT_RULES)) check(unionIntents.includes(i), `INTENT_RULES has a row "${i}" that is not in the intent union`);
+
+  // (b) Every held action type an intent produces is one the confirm side knows about.
+  const ownerOnlyTypes = ['character_fact', 'imported_invoice', 'schema_candidate'];
+  for (const [i, r] of Object.entries(INTENT_RULES))
+    for (const t of r.produces) check(has(ACTION_TYPE_CAPABILITY, t) || ownerOnlyTypes.includes(t), `"${i}" produces "${t}", which ACTION_TYPE_CAPABILITY does not know`);
+
+  // (c)+(d) Any create-vs-confirm disagreement must be a recorded decision (a reason), never an accident.
+  const canConfirm = (type, role) => role === 'owner' || (ACTION_TYPE_CAPABILITY[type] || []).some((c) => (RC[role] || []).includes(c));
+  for (const [i, r] of Object.entries(INTENT_RULES)) {
+    if (r.produces.length === 0) continue;
+    for (const role of ['accountant', 'installer']) {
+      const create = intentCreationRefusal(i, RC[role]) === null;
+      const confirm = r.produces.some((t) => canConfirm(t, role));
+      if (create !== confirm) check(Boolean(r.reason), `"${i}": ${role} can ${create ? 'create but never confirm' : 'confirm but not create'} it, and the row carries no reason`);
+    }
+  }
+
+  // The old hand-kept list must not come back as a second source of truth.
+  check(!/FINANCIAL_WRITE_INTENTS/.test(indexSrc), 'index.ts still defines or uses FINANCIAL_WRITE_INTENTS; creation gating belongs in INTENT_RULES only');
+
+  // Equivalence with the logic INTENT_RULES replaced (Phase 0a: no behaviour change).
+  // DECIDED_DIFFERENCES lists, by name, every case where behaviour was changed ON PURPOSE
+  // since; anything not listed there must still match the old logic exactly.
+  const OLD_FINANCIAL = ['payment', 'expense', 'invoice', 'quotation', 'price_scope', 'convert_quote', 'supplier_invoice', 'supplier_payment', 'goods_received', 'purchase_order', 'variance_disposition'];
+  const oldAllows = (intent, caps) => OLD_FINANCIAL.includes(intent ?? '') ? caps.includes('can_manage_invoices') : intent === 'lose_lead' ? caps.includes('can_manage_settings') : true;
+  const DECIDED_DIFFERENCES = new Set([]);
+  const probes = [...unionIntents, null, undefined, '', 'some_future_intent', 'constructor', '__proto__', 'toString'];
+  for (const role of ['owner', 'accountant', 'installer', 'stranger'])
+    for (const intent of probes) {
+      const caps = RC[role] || [];
+      if (DECIDED_DIFFERENCES.has(`${role}:${intent}`)) continue;
+      check((intentCreationRefusal(intent, caps) === null) === oldAllows(intent, caps), `creation decision changed for ${role} / ${String(intent)} (old logic ${oldAllows(intent, caps) ? 'allowed' : 'refused'})`);
+    }
+  // And the refusal wording that people actually see is unchanged.
+  check(/payments, invoices, quotations, or supplier transactions/.test(intentCreationRefusal('payment', RC.installer) || ''), 'money refusal wording changed');
+  check(/Managing leads isn't available/.test(intentCreationRefusal('lose_lead', RC.accountant) || ''), 'leads refusal wording changed');
 
   console.log(`\n${total - fails}/${total} decisions correct` + (fails ? `  —  ${fails} WRONG` : '  —  all correct'));
   process.exit(fails ? 1 : 0);
