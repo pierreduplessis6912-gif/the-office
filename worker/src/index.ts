@@ -3684,6 +3684,28 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           return Response.json({ error: `action already ${action.status}` }, { status: 409 });
         }
 
+        // Real, new, per direct instruction — the real, named gap from
+        // earlier tonight: the status check above only protects against
+        // a retry arriving AFTER the original fully completed, not two
+        // near-simultaneous requests racing DURING processing, before
+        // either has updated the status yet. An atomic claim closes
+        // that gap precisely: this UPDATE can only ever genuinely
+        // affect one row for one real request, even if two requests for
+        // the same id reach this exact point at the same instant — the
+        // second one to actually execute finds status is no longer
+        // 'pending' and claims nothing. Every one of the 17 real action
+        // types below keeps its own existing 'confirmed' transition
+        // unchanged; it already works correctly from 'processing' the
+        // same as it always did from 'pending'.
+        const claim = await env.OFFICE_DB.prepare(
+          "UPDATE pending_actions SET status = 'processing' WHERE id = ? AND status = 'pending'"
+        )
+          .bind(id)
+          .run();
+        if (claim.meta.changes !== 1) {
+          return Response.json({ error: "already being processed" }, { status: 409 });
+        }
+
         if (action.type === "identity_collision") {
           const payload = JSON.parse(action.payload) as {
             name: string;
@@ -4220,6 +4242,13 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           });
         }
 
+        // Real, new, per direct instruction: this action was genuinely
+        // claimed above (now 'processing'), but no real type matched,
+        // so nothing actually happened — reverted back to 'pending'
+        // rather than left stuck, so a future, correct confirm attempt
+        // (after a real code fix adds support for this type, say)
+        // isn't permanently blocked by a claim that did no real work.
+        await env.OFFICE_DB.prepare("UPDATE pending_actions SET status = 'pending' WHERE id = ?").bind(id).run();
         return Response.json({ error: `unknown pending action type: ${action.type}` }, { status: 400 });
       } catch (err) {
         // This handler never had error handling wrapped around it at
@@ -4229,49 +4258,139 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         // the request that triggered it, searchable afterward, not
         // only visible if someone happened to be watching the live
         // stream at the exact moment this specific confirm broke.
+        //
+        // Also reverted back to 'pending' here, per direct instruction
+        // — a genuine failure partway through real work must not
+        // leave the action permanently stuck at 'processing', unable
+        // to ever be confirmed or retried again. Best-effort: if even
+        // this revert fails, there's nothing further to do beyond
+        // what's already logged above.
         const detail = err instanceof Error ? err.message : String(err);
         log("error", requestId, "confirm handler threw", { actionId: id, detail });
+        try {
+          await env.OFFICE_DB.prepare("UPDATE pending_actions SET status = 'pending' WHERE id = ?").bind(id).run();
+        } catch {
+          // Nothing further to do if even the revert fails.
+        }
         return Response.json({ error: "confirm handler threw", detail }, { status: 500 });
       }
     }
 
     if (url.pathname.match(/^\/actions\/\d+\/reject$/) && request.method === "POST") {
       const id = Number(url.pathname.split("/")[2]);
+      try {
+        // Real, deliberate difference from every other action type's
+        // reject, per direct instruction after a real, live UX bug:
+        // "no, it's a different person" must still complete the real
+        // message it came from — discarding it entirely, this action
+        // type's only behavior until now, would silently lose "Sepo
+        // doing the install" along with the identity question, not just
+        // decline the match. Every other action type keeps the real,
+        // original discard-only behavior below, unchanged.
+        const action = await env.OFFICE_DB.prepare(
+          "SELECT id, type, payload, status FROM pending_actions WHERE id = ?"
+        )
+          .bind(id)
+          .first<{ id: number; type: string; payload: string; status: string }>();
 
-      // Real, deliberate difference from every other action type's
-      // reject, per direct instruction after a real, live UX bug:
-      // "no, it's a different person" must still complete the real
-      // message it came from — discarding it entirely, this action
-      // type's only behavior until now, would silently lose "Sepo
-      // doing the install" along with the identity question, not just
-      // decline the match. Every other action type keeps the real,
-      // original discard-only behavior below, unchanged.
-      const action = await env.OFFICE_DB.prepare(
-        "SELECT id, type, payload, status FROM pending_actions WHERE id = ?"
-      )
-        .bind(id)
-        .first<{ id: number; type: string; payload: string; status: string }>();
+        if (!action) return Response.json({ error: "no such pending action" }, { status: 404 });
+        if (action.status !== "pending") {
+          return Response.json({ error: `action already ${action.status}` }, { status: 409 });
+        }
 
-      if (action && action.status === "pending" && action.type === "ambiguous_person") {
-        const payload = JSON.parse(action.payload) as {
-          name: string;
-          intendedRole: "customer" | "character";
-          extraction: Extraction;
-          transcript: string;
-          captureId: number | null;
-        };
+        // Real, new, per direct instruction — the same real gap as
+        // confirm, found and fixed in the same pass: ambiguous_person
+        // and job_scope_amendment below both do real, consequential
+        // work (creating a real person/customer/character row, or a
+        // real job scope) after only a non-atomic read of status, the
+        // exact shape that let two near-simultaneous requests both
+        // pass the check before either updated it. The plain fallback
+        // path further down was already safe on its own (a direct
+        // UPDATE ... WHERE status = 'pending'), but claiming here
+        // first, for all three paths alike, is simpler and more
+        // consistent than reasoning about two different protections
+        // for two different shapes.
+        const claim = await env.OFFICE_DB.prepare(
+          "UPDATE pending_actions SET status = 'processing' WHERE id = ? AND status = 'pending'"
+        )
+          .bind(id)
+          .run();
+        if (claim.meta.changes !== 1) {
+          return Response.json({ error: "already being processed" }, { status: 409 });
+        }
 
-        const insertedPerson = await env.OFFICE_DB.prepare("INSERT INTO people (name) VALUES (?) RETURNING id")
-          .bind(payload.name)
-          .first<{ id: number }>();
-        const newPersonId = insertedPerson!.id;
+        if (action.type === "ambiguous_person") {
+          const payload = JSON.parse(action.payload) as {
+            name: string;
+            intendedRole: "customer" | "character";
+            extraction: Extraction;
+            transcript: string;
+            captureId: number | null;
+          };
 
-        if (payload.intendedRole === "customer") {
-          await env.OFFICE_DB.prepare("INSERT INTO customers (name, person_id) VALUES (?, ?)").bind(payload.name, newPersonId).run();
-        } else {
-          await env.OFFICE_DB.prepare("INSERT INTO characters (name, relationship, person_id) VALUES (?, ?, ?)")
-            .bind(payload.name, payload.extraction.character_relationship ?? null, newPersonId)
+          const insertedPerson = await env.OFFICE_DB.prepare("INSERT INTO people (name) VALUES (?) RETURNING id")
+            .bind(payload.name)
+            .first<{ id: number }>();
+          const newPersonId = insertedPerson!.id;
+
+          if (payload.intendedRole === "customer") {
+            await env.OFFICE_DB.prepare("INSERT INTO customers (name, person_id) VALUES (?, ?)").bind(payload.name, newPersonId).run();
+          } else {
+            await env.OFFICE_DB.prepare("INSERT INTO characters (name, relationship, person_id) VALUES (?, ?, ?)")
+              .bind(payload.name, payload.extraction.character_relationship ?? null, newPersonId)
+              .run();
+          }
+
+          await env.OFFICE_DB.prepare(
+            "UPDATE pending_actions SET status = 'rejected', resolved_at = datetime('now') WHERE id = ?"
+          )
+            .bind(id)
             .run();
+
+          const { capabilities: reprocessCapabilities, email: reprocessEmail } = await resolveCapabilities(request, env);
+          const outcome = await processOneExtraction(
+            env,
+            payload.transcript,
+            payload.extraction,
+            [],
+            ctx,
+            payload.captureId,
+            reprocessCapabilities,
+            reprocessEmail
+          );
+          return Response.json({ status: "rejected_as_new_person", newPersonId, ...outcome });
+        }
+
+        // Real, new branch, per direct instruction: "no, it's a separate
+        // new job" must actually create that job — exactly what would
+        // have happened had the amendment check never fired — not just
+        // discard the real content of the message the way this
+        // action type's reject would otherwise do.
+        if (action.type === "job_scope_amendment") {
+          const payload = JSON.parse(action.payload) as {
+            customerId: number;
+            observation: WorkObservationExtraction;
+            installerId: number | null;
+            transcript: string;
+            captureId: number | null;
+          };
+
+          const recorded = await recordWorkObservation(
+            env,
+            payload.customerId,
+            payload.observation,
+            payload.transcript,
+            payload.installerId,
+            payload.captureId
+          );
+
+          await env.OFFICE_DB.prepare(
+            "UPDATE pending_actions SET status = 'rejected', resolved_at = datetime('now') WHERE id = ?"
+          )
+            .bind(id)
+            .run();
+
+          return Response.json({ status: "rejected_as_new_job", newJobScopeId: recorded.jobScopeId });
         }
 
         await env.OFFICE_DB.prepare(
@@ -4279,59 +4398,25 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         )
           .bind(id)
           .run();
-
-        const { capabilities: reprocessCapabilities, email: reprocessEmail } = await resolveCapabilities(request, env);
-        const outcome = await processOneExtraction(
-          env,
-          payload.transcript,
-          payload.extraction,
-          [],
-          ctx,
-          payload.captureId,
-          reprocessCapabilities,
-          reprocessEmail
-        );
-        return Response.json({ status: "rejected_as_new_person", newPersonId, ...outcome });
+        return Response.json({ status: "rejected", id });
+      } catch (err) {
+        // Real, new, per direct instruction — the same real gap as
+        // confirm, fixed the same way: this handler never had error
+        // handling wrapped around it at all before now. Logged with
+        // the same requestId as the request that triggered it, and
+        // reverted back to 'pending' rather than left stuck at
+        // 'processing' forever if a genuine failure happens partway
+        // through real work (creating the new person, recording the
+        // new job scope).
+        const detail = err instanceof Error ? err.message : String(err);
+        log("error", requestId, "reject handler threw", { actionId: id, detail });
+        try {
+          await env.OFFICE_DB.prepare("UPDATE pending_actions SET status = 'pending' WHERE id = ?").bind(id).run();
+        } catch {
+          // Nothing further to do if even the revert fails.
+        }
+        return Response.json({ error: "reject handler threw", detail }, { status: 500 });
       }
-
-      // Real, new branch, per direct instruction: "no, it's a separate
-      // new job" must actually create that job — exactly what would
-      // have happened had the amendment check never fired — not just
-      // discard the real content of the message the way this
-      // action type's reject would otherwise do.
-      if (action && action.status === "pending" && action.type === "job_scope_amendment") {
-        const payload = JSON.parse(action.payload) as {
-          customerId: number;
-          observation: WorkObservationExtraction;
-          installerId: number | null;
-          transcript: string;
-          captureId: number | null;
-        };
-
-        const recorded = await recordWorkObservation(
-          env,
-          payload.customerId,
-          payload.observation,
-          payload.transcript,
-          payload.installerId,
-          payload.captureId
-        );
-
-        await env.OFFICE_DB.prepare(
-          "UPDATE pending_actions SET status = 'rejected', resolved_at = datetime('now') WHERE id = ?"
-        )
-          .bind(id)
-          .run();
-
-        return Response.json({ status: "rejected_as_new_job", newJobScopeId: recorded.jobScopeId });
-      }
-
-      await env.OFFICE_DB.prepare(
-        "UPDATE pending_actions SET status = 'rejected', resolved_at = datetime('now') WHERE id = ? AND status = 'pending'"
-      )
-        .bind(id)
-        .run();
-      return Response.json({ status: "rejected", id });
     }
 
     // "Talk" mode. Full pipeline: store audio, transcribe, extract,
