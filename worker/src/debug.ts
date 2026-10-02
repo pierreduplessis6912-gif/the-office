@@ -26,7 +26,7 @@ import {
 } from "./identity";
 import { getInstallerActivity, nowInBusinessTimezone, resolveScheduledDate } from "./scheduler";
 import { getCharacterFacts, getCharacterNotes, runConsolidation } from "./memory";
-import { getAgedCreditorsReport, getProfitAndLoss, getTrackedStockItems, recordQuotation } from "./finance";
+import { getAgedCreditorsReport, getFinancialSnapshot, getProfitAndLoss, getTrackedStockItems, parseDateRange, recordQuotation } from "./finance";
 import { runIdempotentMigration, signSession, ROLE_CAPABILITIES } from "./auth";
 
 // The one non-route helper these routes needed, moved with its real
@@ -1213,6 +1213,21 @@ if (url.pathname === "/debug/characters-list" && request.method === "GET") {
       );
 
       return Response.json({ items: enriched, limit, offset });
+    }
+
+// Real, read-only check for the date-ranged report functions — the
+// live way to confirm a range actually narrows the numbers, against
+// the real deployed database. ?from=YYYY-MM-DD&to=YYYY-MM-DD, both
+// optional and inclusive; no params returns the all-time figures.
+if (url.pathname === "/debug/profit-and-loss" && request.method === "GET") {
+      let range;
+      try {
+        range = parseDateRange(url.searchParams.get("from"), url.searchParams.get("to"));
+      } catch (err) {
+        return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 400 });
+      }
+      const [profitAndLoss, snapshot] = await Promise.all([getProfitAndLoss(env, range), getFinancialSnapshot(env, range)]);
+      return Response.json({ period: range, profitAndLoss, snapshot });
     }
 
 if (url.pathname === "/debug/financial-snapshot" && request.method === "GET") {
