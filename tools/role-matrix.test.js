@@ -114,6 +114,9 @@ async function expect(role, method, path, want) {
     // Decision 2 (2026-10-02): money and stock are gated at creation. Stock now needs
     // can_know_materials, which every real role holds, so only a role with no capabilities changes.
     'stranger:register_stock_item', 'stranger:stock_usage', 'stranger:stocktake',
+    // Decision 2, upload path (2026-10-02): a supplier statement returns the real balance owed to
+    // a supplier, so it is money and needs can_manage_invoices. (A spoken one records nothing.)
+    'installer:supplier_statement', 'stranger:supplier_statement',
   ]);
   const probes = [...unionIntents, null, undefined, '', 'some_future_intent', 'constructor', '__proto__', 'toString'];
   for (const role of ['owner', 'accountant', 'installer', 'stranger'])
@@ -143,6 +146,30 @@ async function expect(role, method, path, want) {
     check(/Recording stock isn't available/.test(intentCreationRefusal(i, []) || ''), `${i} must be refused, with the stock wording, for a role with no capabilities`);
   }
   check(intentCreationRefusal('purchase_order', RC.installer) !== null, 'purchase_order (a direct write; this gate is its only gate) must stay refused for installers');
+  // ---- Upload path (decision 2, 2026-10-02) ---------------------------------
+  // /files/document and /files/photo decide by the supplier an upload resolves to, not by a spoken
+  // intent, so they ask the same table using three keys: supplier_invoice (a held money action),
+  // goods_received (a direct stock write) and supplier_statement (a money read).
+  const uploadOutputs = { supplier_invoice: { owner: true, accountant: true, installer: false },
+                          goods_received: { owner: true, accountant: true, installer: true },
+                          supplier_statement: { owner: true, accountant: true, installer: false } };
+  for (const [out, byRole] of Object.entries(uploadOutputs))
+    for (const [role, want] of Object.entries(byRole))
+      check((intentCreationRefusal(out, RC[role]) === null) === want, `upload output "${out}" for ${role}: expected ${want ? 'allowed' : 'refused'}`);
+  check(/Checking supplier statements isn't available/.test(intentCreationRefusal('supplier_statement', RC.installer) || ''), 'statement refusal wording changed');
+  // Source-pattern guards: both handlers must keep every guard. Crude on purpose, and mutation-checked.
+  const handlerSlice = (marker) => { const a = indexSrc.indexOf(marker); const b = indexSrc.indexOf('if (url.pathname === "', a + marker.length); return indexSrc.slice(a, b); };
+  for (const [name, marker, respVar] of [['/files/document', 'if (url.pathname === "/files/document"', 'docResponseBody'], ['/files/photo', 'if (url.pathname === "/files/photo"', 'photoResponseBody']]) {
+    const h = handlerSlice(marker);
+    check(h.length > 500, `could not isolate the ${name} handler`);
+    check(h.includes('resolveCapabilities(request, env)'), `${name}: must read the caller's capabilities`);
+    for (const [writer, guard] of [['holdForConfirmation(', '&& supplierInvoiceRefusal) {'], ['recordGoodsReceived(', '&& goodsReceivedRefusal) {'], ['getOutstandingBalanceForSupplier(', '&& statementRefusal) {']]) {
+      check(h.includes(guard), `${name}: missing the refusal branch "${guard}" ahead of ${writer}`);
+      check(h.indexOf(guard) < h.indexOf(writer), `${name}: the refusal branch must come before ${writer}`);
+    }
+    check(new RegExp(respVar + ' = JSON\\.stringify\\(\\{ status: "stored", refusal: uploadRefusal').test(h), `${name}: the response must carry the refusal`);
+  }
+
   // And the refusal wording that people actually see is unchanged.
   check(/payments, invoices, quotations, or supplier transactions/.test(intentCreationRefusal('payment', RC.installer) || ''), 'money refusal wording changed');
   check(/Managing leads isn't available/.test(intentCreationRefusal('lose_lead', RC.accountant) || ''), 'leads refusal wording changed');
