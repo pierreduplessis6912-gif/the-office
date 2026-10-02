@@ -256,6 +256,12 @@ export const ACTION_TYPE_CAPABILITY: Record<string, string[]> = {
 //              not create); the test enforces this, so a disagreement is
 //              always a recorded decision rather than an accident.
 //
+// The upload handlers (/files/document, /files/photo) use the same rows,
+// keyed by what the upload would do: supplier_invoice (a held money action),
+// goods_received (a direct stock write) and supplier_statement (a money
+// read). They decide by the supplier an upload resolves to, not by a spoken
+// intent, so they call intentCreationRefusal with those three keys.
+//
 // A value that is not an intent at all (null, or something the model
 // invented) is not gated here: nothing handles it, so there is nothing
 // to protect; that is the same behaviour as before this table existed.
@@ -269,6 +275,7 @@ export interface IntentRule {
 const MONEY_REFUSAL =
   "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.";
 const LEADS_REFUSAL = "Managing leads isn't available for your role — let someone with that permission know.";
+const STATEMENT_REFUSAL = "Checking supplier statements isn't available for your role — let someone with that permission know.";
 const STOCK_REFUSAL = "Recording stock isn't available for your role — let someone with that permission know.";
 
 export const INTENT_RULES: Record<Extraction["intent"], IntentRule> = {
@@ -309,6 +316,12 @@ export const INTENT_RULES: Record<Extraction["intent"], IntentRule> = {
   register_stock_item: { produces: [], create: ["can_know_materials"], refusal: STOCK_REFUSAL },
   stock_usage: { produces: [], create: ["can_know_materials"], refusal: STOCK_REFUSAL },
   stocktake: { produces: [], create: ["can_know_materials"], refusal: STOCK_REFUSAL },
+  // Decision recorded 2026-10-02 (Pierre): money is gated. A supplier
+  // statement upload compares the supplier's claimed balance with the real
+  // amount owed and RETURNS both, so reading it is a money read; installers
+  // cannot see supplier balances anywhere else (/embers/suppliers needs
+  // can_manage_invoices), so they must not get them through an upload.
+  supplier_statement: { produces: [], create: ["can_manage_invoices"], refusal: STATEMENT_REFUSAL },
   // Owner-only, matching the REST layer (leads need can_manage_settings).
   lose_lead: { produces: [], create: ["can_manage_settings"], refusal: LEADS_REFUSAL },
 
@@ -326,7 +339,6 @@ export const INTENT_RULES: Record<Extraction["intent"], IntentRule> = {
   reminder: { produces: [], create: "open" },
   task_complete: { produces: [], create: "open" },
   note: { produces: [], create: "open" },
-  supplier_statement: { produces: [], create: "open" },
   forget_last: { produces: [], create: "open" },
   other: { produces: [], create: "open" },
 };
