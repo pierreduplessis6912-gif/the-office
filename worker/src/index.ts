@@ -7,7 +7,7 @@ import {
   authGate, checkIdempotencyKey, completeIdempotencyKey, runIdempotentMigration, corsHeadersFor,
   signDocumentPath, resolveCapabilities, getMemberContext, getJobScope, denyForRole, signSession,
   verifySession, getSessionToken, getCookie, base64UrlEncode, ROLE_CAPABILITIES, ENFORCE_CAPABILITIES,
-  ACTION_TYPE_CAPABILITY, ROUTE_RULES, SIGNABLE_DOCUMENT_PATHS,
+  ACTION_TYPE_CAPABILITY, ROUTE_RULES, SIGNABLE_DOCUMENT_PATHS, intentCreationRefusal,
 } from "./auth";
 import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
@@ -580,57 +580,26 @@ async function processOneExtraction(
   // clear refusal instead of silently being allowed to trigger a real
   // financial write that only Peter's own confirmation happens to
   // catch later.
+  // Still needed below: the nested pricing inside work_observation is a
+  // financial write inside an intent that is otherwise open to every role.
   const canManageInvoicesForWrites = capabilities.includes("can_manage_invoices");
-  // Real, widened, per direct instruction — found by auditing every
-  // real extraction intent against this list directly, the same
-  // discipline as the REST-layer audit earlier tonight, not assumed
-  // complete because the list existed. supplier_invoice,
-  // supplier_payment, goods_received, purchase_order, and
-  // variance_disposition are all real, distinct intents this project
-  // already gates on CONFIRM (ACTION_TYPE_CAPABILITY, same real
-  // can_manage_invoices) but were never gated at CREATION — an
-  // installer could dictate "pay Floornet R10000" and it would sit
-  // held, waiting, with nothing at the point of creation to say it
-  // never should have been.
-  const FINANCIAL_WRITE_INTENTS = [
-    "payment",
-    "expense",
-    "invoice",
-    "quotation",
-    "price_scope",
-    "convert_quote",
-    "supplier_invoice",
-    "supplier_payment",
-    "goods_received",
-    "purchase_order",
-    "variance_disposition",
-  ];
-  if (FINANCIAL_WRITE_INTENTS.includes(extraction?.intent ?? "") && !canManageInvoicesForWrites) {
-    return {
-      customer,
-      character,
-      pendingActionId: null,
-      factPendingActionId: null,
-      message: "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
-      jobScopeIdForProjectResolution: null,
-      pendingCandidates: null,
-      pendingActionType: null,
-      pendingChanges: null,
-    };
-  }
 
-  // Real, new, per direct instruction: leads are owner-only at the
-  // REST layer (can_manage_settings — neither installer nor
-  // accountant holds it), but dictating "mark that lead as lost" had
-  // no equivalent check at all — the same real gap as above, one
-  // capability over.
-  if (extraction?.intent === "lose_lead" && !capabilities.includes("can_manage_settings")) {
+  // Creation-time gate, now driven by INTENT_RULES in auth.ts (the single,
+  // exhaustive, tested source of truth) instead of two hand-kept checks
+  // here. Behaviour is deliberately identical to what these two checks did
+  // (the financial intents need can_manage_invoices; lose_lead needs
+  // can_manage_settings), verified against the old logic in the role-matrix
+  // test. History of why creation is gated at all: the financial list here
+  // was widened by hand after an audit found five intents missing
+  // (SECURITY_AND_OPERATIONAL_READINESS.md).
+  const creationRefusal = intentCreationRefusal(extraction?.intent, capabilities);
+  if (creationRefusal) {
     return {
       customer,
       character,
       pendingActionId: null,
       factPendingActionId: null,
-      message: "Managing leads isn't available for your role — let someone with that permission know.",
+      message: creationRefusal,
       jobScopeIdForProjectResolution: null,
       pendingCandidates: null,
       pendingActionType: null,
