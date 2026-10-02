@@ -1128,6 +1128,93 @@ export async function convertQuoteToInvoice(
   return { invoiceId };
 }
 
+// Real feature — date-ranging for the report functions. Until now every
+// report here was all-time only, which made "compare April to March"
+// literally unanswerable (see CONVERSATIONAL_BI_ARCHITECTURE.md, first
+// real prerequisite). Deliberately small and additive: every ranged
+// function takes an OPTIONAL range, and with none supplied behaves
+// exactly as it always did, so no existing caller changes.
+//
+// Dates are South African LOCAL calendar dates (YYYY-MM-DD), both ends
+// INCLUSIVE ("2026-03-01" to "2026-03-31" is the whole of March).
+// created_at is stored in UTC (SQLite datetime('now')), and South Africa
+// is a fixed UTC+2 with no daylight saving, so a local day is converted
+// to an exact, half-open UTC window [start, next-day-start). That way a
+// record made at 23:30 local on 31 March counts as March, not April.
+// Ranges apply to when a record was ENTERED (created_at) — the only date
+// every one of these tables genuinely has.
+export interface DateRange {
+  from?: string;
+  to?: string;
+}
+
+const SA_UTC_OFFSET_HOURS = 2;
+
+function isRealDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, d] = value.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+
+function localDayStartUtc(value: string, addDays = 0): string {
+  const [y, m, d] = value.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + addDays, -SA_UTC_OFFSET_HOURS));
+  return dt.toISOString().slice(0, 19).replace("T", " ");
+}
+
+// Validates raw query-string style input. Throws a plain, readable Error
+// on anything malformed rather than silently ignoring it — a mistyped
+// date quietly falling back to all-time would produce a plausible,
+// wrong report, which is worse than a visible failure.
+export function parseDateRange(from: string | null | undefined, to: string | null | undefined): DateRange {
+  const range: DateRange = {};
+  if (from) {
+    if (!isRealDate(from)) throw new Error(`Invalid 'from' date "${from}" — expected a real date as YYYY-MM-DD.`);
+    range.from = from;
+  }
+  if (to) {
+    if (!isRealDate(to)) throw new Error(`Invalid 'to' date "${to}" — expected a real date as YYYY-MM-DD.`);
+    range.to = to;
+  }
+  if (range.from && range.to && range.from > range.to) {
+    throw new Error(`'from' (${range.from}) must not be after 'to' (${range.to}).`);
+  }
+  return range;
+}
+
+export function describeRange(range?: DateRange): string | null {
+  if (!range?.from && !range?.to) return null;
+  if (range.from && range.to) return `from ${range.from} to ${range.to}`;
+  if (range.from) return `from ${range.from} onward`;
+  return `up to ${range.to}`;
+}
+
+function dateFilter(
+  range: DateRange | undefined,
+  column: string,
+  keyword: "WHERE" | "AND"
+): { sql: string; binds: string[] } {
+  const parts: string[] = [];
+  const binds: string[] = [];
+  if (range?.from) {
+    parts.push(`${column} >= ?`);
+    binds.push(localDayStartUtc(range.from));
+  }
+  if (range?.to) {
+    parts.push(`${column} < ?`);
+    binds.push(localDayStartUtc(range.to, 1));
+  }
+  return { sql: parts.length ? ` ${keyword} ${parts.join(" AND ")}` : "", binds };
+}
+
+function withBinds(stmt: D1PreparedStatement, binds: string[]): D1PreparedStatement {
+  return binds.length ? stmt.bind(...binds) : stmt;
+}
+
+const RANGE_BASIS_NOTE =
+  "Periods are by the date each record was entered into the system, not a separately recorded business date.";
+
 // The real answer to "who owes me money" — a provable SQL aggregate,
 // not an LLM's guess at what a sentence meant. Simplest honest first
 // version: total invoiced per customer minus total paid per customer,
@@ -1155,20 +1242,25 @@ export async function getOutstandingInvoices(env: Env): Promise<string[]> {
 // existing. Same class of bug as getCustomerFinancialSummary above,
 // one level up: real data existed, nothing ever queried it for this
 // scope of question.
-export async function getQuotationsSummary(env: Env): Promise<string[]> {
-  const { results } = await env.OFFICE_DB.prepare(
-    `SELECT c.name as name, q.amount as amount, q.status as status
-     FROM quotations q JOIN customers c ON c.id = q.customer_id
+export async function getQuotationsSummary(env: Env, range?: DateRange): Promise<string[]> {
+  const period = describeRange(range);
+  const filter = dateFilter(range, "q.created_at", "WHERE");
+  const { results } = await withBinds(
+    env.OFFICE_DB.prepare(
+      `SELECT c.name as name, q.amount as amount, q.status as status
+     FROM quotations q JOIN customers c ON c.id = q.customer_id${filter.sql}
      ORDER BY q.created_at DESC`
+    ),
+    filter.binds
   ).all<{ name: string; amount: number; status: string }>();
 
-  if (results.length === 0) return ["No quotations on file."];
+  if (results.length === 0) return [period ? `No quotations on file ${period}.` : "No quotations on file."];
 
   const total = results.reduce((sum, r) => sum + r.amount, 0);
   const openCount = results.filter((r) => r.status !== "converted").length;
-  const summary = `There are ${results.length} quotations on file, totaling R${total}. ${openCount} still open, not yet converted to an invoice.`;
+  const summary = `There are ${results.length} quotations on file${period ? ` ${period}` : ""}, totaling R${total}. ${openCount} still open, not yet converted to an invoice.`;
   const perQuotation = results.map((r) => `${r.name}: R${r.amount} (${r.status}).`);
-  return [summary, ...perQuotation];
+  return period ? [summary, RANGE_BASIS_NOTE, ...perQuotation] : [summary, ...perQuotation];
 }
 
 // Real feature 2026-07-12 — the second concrete piece of the expense
@@ -1176,18 +1268,23 @@ export async function getQuotationsSummary(env: Env): Promise<string[]> {
 // getQuotationsSummary's exact shape for consistency. Real, deterministic
 // SQL aggregate, same as every other business-summary function here —
 // never an AI attempting to recall or total these from memory.
-export async function getExpenseSummary(env: Env): Promise<string[]> {
-  const { results } = await env.OFFICE_DB.prepare(
-    `SELECT COALESCE(c.name, 'an unnamed supplier') as name, e.amount as amount, e.description as description,
+export async function getExpenseSummary(env: Env, range?: DateRange): Promise<string[]> {
+  const period = describeRange(range);
+  const filter = dateFilter(range, "e.created_at", "WHERE");
+  const { results } = await withBinds(
+    env.OFFICE_DB.prepare(
+      `SELECT COALESCE(c.name, 'an unnamed supplier') as name, e.amount as amount, e.description as description,
             COALESCE(e.category, 'uncategorized') as category
-     FROM expenses e LEFT JOIN characters c ON c.id = e.character_id
+     FROM expenses e LEFT JOIN characters c ON c.id = e.character_id${filter.sql}
      ORDER BY e.created_at DESC`
+    ),
+    filter.binds
   ).all<{ name: string; amount: number | null; description: string; category: string }>();
 
-  if (results.length === 0) return ["No expenses on file."];
+  if (results.length === 0) return [period ? `No expenses on file ${period}.` : "No expenses on file."];
 
   const total = results.reduce((sum, r) => sum + (r.amount ?? 0), 0);
-  const summary = `There are ${results.length} expenses on file, totaling R${total}.`;
+  const summary = `There are ${results.length} expenses on file${period ? ` ${period}` : ""}, totaling R${total}.`;
 
   const byCategory = new Map<string, number>();
   for (const r of results) {
@@ -1198,7 +1295,7 @@ export async function getExpenseSummary(env: Env): Promise<string[]> {
     .join(", ")}.`;
 
   const perExpense = results.map((r) => `${r.name}: R${r.amount ?? 0} — ${r.description} (${r.category}).`);
-  return [summary, categoryBreakdown, ...perExpense];
+  return period ? [summary, RANGE_BASIS_NOTE, categoryBreakdown, ...perExpense] : [summary, categoryBreakdown, ...perExpense];
 }
 
 // Real feature 2026-07-12 — the first real view reading BOTH sides of
@@ -1210,11 +1307,22 @@ export async function getExpenseSummary(env: Env): Promise<string[]> {
 // (paid, not merely invoiced) since that's the most concretely real
 // number available — money that has actually moved, not what's owed
 // on paper.
-export async function getFinancialSnapshot(env: Env): Promise<string[]> {
+export async function getFinancialSnapshot(env: Env, range?: DateRange): Promise<string[]> {
+  const period = describeRange(range);
+  const filter = dateFilter(range, "created_at", "WHERE");
   const [invoicedRow, paidRow, expensesRow] = await Promise.all([
-    env.OFFICE_DB.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM invoices").first<{ total: number }>(),
-    env.OFFICE_DB.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM payments").first<{ total: number }>(),
-    env.OFFICE_DB.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM expenses").first<{ total: number }>(),
+    withBinds(
+      env.OFFICE_DB.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM invoices${filter.sql}`),
+      filter.binds
+    ).first<{ total: number }>(),
+    withBinds(
+      env.OFFICE_DB.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM payments${filter.sql}`),
+      filter.binds
+    ).first<{ total: number }>(),
+    withBinds(
+      env.OFFICE_DB.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM expenses${filter.sql}`),
+      filter.binds
+    ).first<{ total: number }>(),
   ]);
 
   const totalInvoiced = invoicedRow?.total ?? 0;
@@ -1222,16 +1330,20 @@ export async function getFinancialSnapshot(env: Env): Promise<string[]> {
   const totalExpenses = expensesRow?.total ?? 0;
   const roughPosition = totalPaid - totalExpenses;
 
+  const invoicedLabel = period ? `Total invoiced ${period}` : "Total invoiced to date";
+  const periodNote = period ? [RANGE_BASIS_NOTE] : [];
+
   return [
-    `Total invoiced to date: R${totalInvoiced}.`,
-    `Total actually received: R${totalPaid}.`,
-    `Total spent on expenses: R${totalExpenses}.`,
+    `${invoicedLabel}: R${totalInvoiced}.`,
+    `Total actually received${period ? ` ${period}` : ""}: R${totalPaid}.`,
+    `Total spent on expenses${period ? ` ${period}` : ""}: R${totalExpenses}.`,
     // Real fix 2026-07-12: this caveat had gone stale — expense
     // categories and job-cost linking both exist now. This is still
     // deliberately a cash-basis snapshot (received minus spent), not
     // the formal, accrual-based P&L below — different questions,
     // both real.
     `Rough cash position (received minus spent): R${roughPosition}. This is a cash-basis snapshot, not the formal profit and loss — see getProfitAndLoss for that.`,
+    ...periodNote,
   ];
 }
 
@@ -1242,6 +1354,9 @@ export interface ProfitAndLossReport {
   operatingExpenses: number;
   netProfit: number;
   categoryBreakdown: Record<string, number>;
+  // Only present when a range was requested — all-time reports keep
+  // exactly the shape they always had.
+  period?: DateRange;
 }
 
 // Real feature 2026-07-12 — the final piece of the accounting-
@@ -1261,14 +1376,21 @@ export interface ProfitAndLossReport {
 // anything uncategorized are treated as Operating Expenses (running
 // the business generally). Reasonable, not definitive — easily
 // revisited later if real use shows a different split fits better.
-export async function getProfitAndLoss(env: Env): Promise<ProfitAndLossReport> {
-  const revenueRow = await env.OFFICE_DB.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM invoices").first<{
+export async function getProfitAndLoss(env: Env, range?: DateRange): Promise<ProfitAndLossReport> {
+  const filter = dateFilter(range, "created_at", "WHERE");
+  const revenueRow = await withBinds(
+    env.OFFICE_DB.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM invoices${filter.sql}`),
+    filter.binds
+  ).first<{
     total: number;
   }>();
   const revenue = revenueRow?.total ?? 0;
 
-  const { results: categoryRows } = await env.OFFICE_DB.prepare(
-    "SELECT COALESCE(category, 'other') as category, COALESCE(SUM(amount), 0) as total FROM expenses GROUP BY COALESCE(category, 'other')"
+  const { results: categoryRows } = await withBinds(
+    env.OFFICE_DB.prepare(
+      `SELECT COALESCE(category, 'other') as category, COALESCE(SUM(amount), 0) as total FROM expenses${filter.sql} GROUP BY COALESCE(category, 'other')`
+    ),
+    filter.binds
   ).all<{ category: string; total: number }>();
 
   const categoryBreakdown: Record<string, number> = {};
@@ -1286,14 +1408,18 @@ export async function getProfitAndLoss(env: Env): Promise<ProfitAndLossReport> {
   const grossProfit = revenue - costOfSales;
   const netProfit = grossProfit - operatingExpenses;
 
-  return { revenue, costOfSales, grossProfit, operatingExpenses, netProfit, categoryBreakdown };
+  const report: ProfitAndLossReport = { revenue, costOfSales, grossProfit, operatingExpenses, netProfit, categoryBreakdown };
+  if (describeRange(range)) report.period = { ...range };
+  return report;
 }
 
-export async function getProfitAndLossSummary(env: Env): Promise<string[]> {
-  const report = await getProfitAndLoss(env);
+export async function getProfitAndLossSummary(env: Env, range?: DateRange): Promise<string[]> {
+  const report = await getProfitAndLoss(env, range);
+  const period = describeRange(range);
   const categoryLines = Object.entries(report.categoryBreakdown).map(([cat, amt]) => `${cat}: R${amt}`);
 
   return [
+    ...(period ? [`Profit and loss ${period}.`, RANGE_BASIS_NOTE] : []),
     `Revenue: R${report.revenue}.`,
     `Cost of Sales (materials, subcontractor): R${report.costOfSales}.`,
     `Gross Profit: R${report.grossProfit}.`,
