@@ -192,3 +192,89 @@ this tonight" add-on:
 - Timing — this is explicitly not scoped for the same session it was
   designed in. The validation work above is real, substantial work in
   its own right, before any scaffold code gets written.
+
+
+---
+
+# Validation results (2026-10-02) — the four steps, done against the real code
+
+Method, so it can be re-run rather than trusted: `index.ts` parsed with the TypeScript compiler API (`typescript` is already in `worker/`), `processOneExtraction` located by name (L182–1925 at the time), every function-scope variable catalogued, Pass 1 = statements before `let message`, Pass 2 = the `if/else if` chain from `let message` onward. Capability tables were loaded from the real, compiled `auth.ts`, not retyped. Items marked **(by reading)** were traced in source but not reproduced against the running system.
+
+## Step 1 — does `ProcessingResult` fit? Mostly, but not as first proposed
+
+**What the evidence shows.** 45 function-scope variables are set in Pass 1; 33 are read by Pass 2. About 28 of those are *private to one intent*: written by exactly one block, read only by that intent's Pass 2 branches (e.g. `goodsReceivedNoOpenPo`, `stocktakeResult`, `leadLostNoMatch`). Those map cleanly onto a per-intent outcome. The genuinely shared state is small and nameable:
+
+| Variable | Writers in Pass 1 | Note |
+|---|---|---|
+| `pendingActionId` / `pendingActionType` | 10 | Mutually exclusive by `intent` guard (payment, expense, supplier_payment, goods_received, supplier_invoice, variance_disposition, invoice, quotation/price_scope, convert_quote, work_observation), so a single `held: {id, type} \| null` is representable. |
+| `customer` / `character` | 2 each | Preamble, plus the lookup backward-reference fallback (L510–543). |
+| `workObservationResult` | 2 | Written by both the `invoice` branch and the `work_observation` branch. |
+| `snagNoCustomer` | 2 | Shared flag across raise_snag and resolve_snag. |
+| `factPendingActionId` | 2 | customer_fact and character_fact holds. |
+
+**Four findings that change the contract:**
+
+1. **An outcome is not one-of-N.** An `invoice` call can hold an invoice *and* record a job scope in the same invocation; Pass 2 handles this by appending to the catch-all branch (the 2026-08-09 fix). `ProcessingResult` therefore needs a held action *and* a list of recorded effects, not a single discriminated outcome.
+2. **Pass 1 returns early from 10 places**, each hand-building the same 8-field object (L253, 317, 335, 378, 410, 440, 609, 628, 1065, 1298), plus the final return. The contract needs an explicit "short-circuit" result kind, not just a fall-through value.
+3. **Pass 2 branch #37 (`else if (pendingActionId)`) is an unguarded catch-all** whose default label is `"Payment"`: the `payment` intent has *no branch of its own* and works only by falling into it. Moving or reordering branches silently changes payment messages. It also dereferences `customer!.name`. Today this is safe only because every intent that reaches it has a customer, a guarantee enforced by convention, not by types.
+4. **Side effects Pass 2 cannot see.** The `price_scope` fallback records a job scope but surfaces only its id (`jobScopeIdForPricing`), so the message never mentions it. `ProcessingResult` needs an explicit effects list so a message builder *can* say what was recorded.
+
+**Possible bug, by reading — not reproduced.** In the `invoice` branch (L1020–1086) the held invoice is created first (`pendingActionId = held.id`), and the amendment early-return can then fire (L1065), returning `amendment.pendingActionId` and an amendment-only message. Conditions: intent `invoice`, an amount, an observation with no components or tasks but a date or installer, and an existing job scope for that customer. In that case the invoice hold exists in `pending_actions` (visible in the Pending ember) but the response never mentions it and its id is replaced. Worth reproducing with a real dictation before any extraction work, and worth a regression test either way.
+
+## Step 2 — handler grouping: three of six groups do not cohere as drawn
+
+- **`procurement.ts` holds up.** `goods_received` and `supplier_invoice` are structurally near-identical (character → latest open PO → AI extraction → hold → supplier-name flag). Caveats: `purchase_order` is a *direct write*, not a hold; `variance_disposition` mixes a direct write (reason) with a hold (credit).
+- **`payments.ts` mostly holds up** (one hold each, no recording), with the catch-all coupling noted above for `payment`.
+- **`financial.ts` and `jobs.ts` do not hold as separate groups.** `invoice`, `price_scope` (fallback) and `work_observation` all contain their own copy of "extract observation → record it → maybe price it", with three different behaviours: `invoice` reconciles the installer and runs the amendment check; the `price_scope` fallback does neither; `work_observation` does both plus attach-to-sibling-scope plus inline pricing gated on `can_manage_invoices`. The comments say "mirrors exactly"; the code does not. They need a shared sub-module (`intents/observation.ts`), and its three variants' differences must be preserved by an equivalence test or changed *deliberately and visibly*, never as a side effect of a refactor.
+- **`jobs.ts` as drawn mixes unlike things.** Snags and leads are simple direct writes and cohere with each other; `work_observation` is the entangled one.
+- **Gaps in the plan's six groups.** `register_stock_item`, `stock_usage` and `stocktake` have no home. `lookup` is 236 lines (L1646–1882, about 13% of the function) with its own read-side capability regime and 10+ inline checks; it is not a "memory" handler. `supplier_statement` is a valid classifier output but is referenced only on the upload path (index.ts ~4810/4941), not in `processOneExtraction`, so a *spoken* one matches no branch (what message it falls to was not traced). Real count: 26 values in the `intent` union, 24 handled explicitly, not "~30".
+
+## Step 3 — `INTENT_CAPABILITIES`: the proposed shape is not enough
+
+Evidence from the real tables (matrix computed from compiled `auth.ts` plus the real `FINANCIAL_WRITE_INTENTS`):
+
+1. **The creation gate is a denylist; REST is default-deny.** An intent not on `FINANCIAL_WRITE_INTENTS` is open by default. This is the structural root of the five-entry drift, not a one-off slip. Six intents that write directly are open today (`register_stock_item`, `stock_usage`, `stocktake`, `raise_snag`, `resolve_snag`, `raise_lead`); some of that is surely intentional, but nothing distinguishes "deliberately open" from "forgotten".
+2. **`purchase_order` is a direct write with no held action, so it has no confirm-time gate at all.** The creation gate is its *only* gate. The earlier note that all five widened intents were "already gated on confirm" is wrong for it; the widening was load-bearing for `purchase_order`, not belt-and-braces.
+3. **Intent is not action type.** `price_scope` produces `invoice` *or* `quotation`; `work_observation` can produce a nested `quotation` and a `job_scope_amendment`; `invoice` can produce `job_scope_amendment`. A table keyed by intent cannot simply *derive* `ACTION_TYPE_CAPABILITY` (keyed by action type).
+4. **"Same capability" is the wrong assertion.** Confirm-time entries are any-of lists (`goods_received`: `can_manage_invoices` or `can_know_materials`); creation is a single capability. A strict equality check would either fail legitimately or force them identical.
+5. **One upfront check cannot express nested gating.** `work_observation` is deliberately *not* on the list (a measurement records regardless of role) but its nested quotation is gated inline (L1332). Handlers need a `canCreate(actionType)` function, not only a pre-dispatch yes/no.
+6. **Real create-vs-confirm disagreements today** (installer = `can_know_jobs`, `can_know_measurements`, `can_capture_voice_notes`, `can_know_materials`):
+   - `goods_received`: installer may *confirm* (via `can_know_materials`) but may not *dictate* it. `auth.ts` says "Installers receive deliveries on site." Photo/document uploads are open to every member and are not gated by this list, so the same action is creatable by an installer through one channel and refused through another.
+   - `invoice`: an installer's scheduling message that the classifier labels `invoice` is refused outright, though the branch's non-financial output (`job_scope_amendment`) is something installers may confirm.
+   - `work_observation`: an accountant may create it (and its amendment hold) but can never confirm a `job_scope_amendment` (needs `can_know_jobs`).
+7. **Two incompatible philosophies are in force.** `auth.ts`: "creating a held action is harmless", which is why uploads are open. `index.ts`: gate at creation so a "misleading held action" never exists. Both cannot be the rule. This is a decision for Pierre, not a refactor detail.
+8. **Authorization runs after side effects.** The preamble calls `reconcileCustomer` (`INSERT INTO customers`) and can create `identity_collision` / `ambiguous_person` holds, and writes `setSelection` / `updateCaptureHint`, all *before* the capability gate at L608. A restricted role dictating a financial message about an unknown name gets a customer row created, then a refusal. Moving the check upfront fixes this, but it is a **behaviour change**, so it must be done and recorded as one, separately from the structural move.
+9. **The creation gate has zero test coverage.** `tools/role-matrix.test.js` compiles `auth.ts` only and exercises `authorizeRestrictedMember`; `FINANCIAL_WRITE_INTENTS` lives in `index.ts`. The 165/165 test passed throughout the period when five intents were missing. The one concrete placement argument that matters: putting the rules in `auth.ts` puts creation-time gating inside the existing test harness for free.
+10. **Read-side gating is a third regime** (lookup, 10+ inline `can_know_*` checks) and should stay out of `INTENT_CAPABILITIES`; list it as its own audit surface.
+
+**Revised design.**
+
+```ts
+// auth.ts — default-deny, every intent listed, "open" must be explicit
+type Gate = { create: string[] | "open"; confirm?: ActionType[] };   // create = any-of
+export const INTENT_RULES: Record<Intent, {
+  produces: ActionType[];            // held types it may create; [] = direct write
+  create: string[] | "open";         // any-of capabilities, or deliberately open
+  reason?: string;                   // REQUIRED whenever create !== the confirm caps of what it produces
+}>;
+// derived, never hand-edited: creationGate(intent), and a check against ACTION_TYPE_CAPABILITY
+```
+
+Assertions (all runnable in `role-matrix.test.js`, since the data lives in `auth.ts`): (a) every member of the `Intent` union has a row (no silent omission); (b) every `produces` type exists in `ACTION_TYPE_CAPABILITY` or is declared owner-only; (c) any role that can *create* an intent but can *never confirm* anything it produces must carry a `reason`; (d) any role that can confirm but not create must carry a `reason`. This forces each current disagreement above to be a recorded decision rather than an accident.
+
+## Step 4 — concrete Phase 1 scaffold, with checkable criteria
+
+**Phase 0 (first, standalone, no extraction).** Build `INTENT_RULES` in `auth.ts`, make `index.ts` read its creation gate from it with *identical current behaviour* (reproduce the 11-intent list plus `lose_lead` exactly), and extend `role-matrix.test.js` with assertions (a)–(d). *Done when:* typecheck baseline unchanged; 165 existing cases plus the new ones pass; a test proves the derived creation gate equals today's hard-coded list for all 26 intents. Any of items 6–8 above are separate, later, labelled behaviour changes.
+
+**Phase 1 (scaffold, nothing moves).** `intents/result.ts` (revised `ProcessingResult`: `held`, `factHeld`, `recorded[]`, `outcome`, `ui`, `message`, plus a `shortCircuit` kind for the 10 early returns), `intents/dispatcher.ts` that on day one is an adapter calling the *live* `processOneExtraction` and mapping its 8-field return into `ProcessingResult`. Stub handlers throw "not implemented" and are not reachable. *Done when:* compiles; nothing in `index.ts` calls the scaffold; the adapter round-trips the real return shape losslessly.
+
+**Phase 2 (shadow mode, before any handler is real).** Run old and new side by side on the same input with the AI calls stubbed, compare results, log divergences, serve the old result. This builds the equivalence matrix from real behaviour. *Done when:* the matrix covers every one of the 24 handled intents across all three roles, with the three observation-recording variants characterised as they actually behave today.
+
+**Extraction order, lowest entanglement first:** procurement, then payments, then snags/leads/stock, then the shared `observation.ts` and the invoice/price_scope/work_observation trio, then lookup. Each phase ends with its own tests green and a live check, per the existing strangler discipline.
+
+## Open decisions for Pierre (cannot be settled by code)
+
+1. May an installer *dictate* goods received (matching what they may confirm and what uploads already allow), or must it stay owner/accountant-only?
+2. Which philosophy is the rule: held actions are harmless to create, or creation must be gated? (Determines whether upload paths should be gated.)
+3. Approve moving the capability check ahead of `reconcileCustomer`, accepting it as a recorded behaviour change.
+4. Should an installer's scheduling message labelled `invoice` still be refused outright?
