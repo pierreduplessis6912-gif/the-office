@@ -263,6 +263,31 @@ async function processOneExtraction(
     };
   }
 
+  // Creation-time permission check, driven by INTENT_RULES in auth.ts.
+  // Deliberately BEFORE any name is looked up or created. It used to run
+  // after the preamble below, and the preamble can write: reconcileCustomer
+  // inserts a customer row for an unknown name, and the identity checks can
+  // raise held actions. So a role that was about to be refused still left a
+  // real customer row behind first (found by tracing the order, recorded
+  // in PROCESS_ONE_EXTRACTION_REWRITE.md, Step 3 item 8; moved on Pierre's
+  // decision 2026-10-02). A refused role now causes no writes at all.
+  // customer and character are null in the refusal because nothing has
+  // been resolved yet, which is the point.
+  const creationRefusal = intentCreationRefusal(extraction?.intent, capabilities);
+  if (creationRefusal) {
+    return {
+      customer: null,
+      character: null,
+      pendingActionId: null,
+      factPendingActionId: null,
+      message: creationRefusal,
+      jobScopeIdForProjectResolution: null,
+      pendingCandidates: null,
+      pendingActionType: null,
+      pendingChanges: null,
+    };
+  }
+
   // Real bug found via external review 2026-07-11, confirmed against
   // the actual code: reconcileCustomer/reconcileCharacter create a
   // new row on no-match, and were being called unconditionally for
@@ -583,29 +608,6 @@ async function processOneExtraction(
   // Still needed below: the nested pricing inside work_observation is a
   // financial write inside an intent that is otherwise open to every role.
   const canManageInvoicesForWrites = capabilities.includes("can_manage_invoices");
-
-  // Creation-time gate, now driven by INTENT_RULES in auth.ts (the single,
-  // exhaustive, tested source of truth) instead of two hand-kept checks
-  // here. Behaviour is deliberately identical to what these two checks did
-  // (the financial intents need can_manage_invoices; lose_lead needs
-  // can_manage_settings), verified against the old logic in the role-matrix
-  // test. History of why creation is gated at all: the financial list here
-  // was widened by hand after an audit found five intents missing
-  // (SECURITY_AND_OPERATIONAL_READINESS.md).
-  const creationRefusal = intentCreationRefusal(extraction?.intent, capabilities);
-  if (creationRefusal) {
-    return {
-      customer,
-      character,
-      pendingActionId: null,
-      factPendingActionId: null,
-      message: creationRefusal,
-      jobScopeIdForProjectResolution: null,
-      pendingCandidates: null,
-      pendingActionType: null,
-      pendingChanges: null,
-    };
-  }
 
   if (extraction?.intent === "payment" && customer) {
     const held = await holdForConfirmation(
