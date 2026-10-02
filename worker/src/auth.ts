@@ -269,6 +269,7 @@ export interface IntentRule {
 const MONEY_REFUSAL =
   "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.";
 const LEADS_REFUSAL = "Managing leads isn't available for your role — let someone with that permission know.";
+const STOCK_REFUSAL = "Recording stock isn't available for your role — let someone with that permission know.";
 
 export const INTENT_RULES: Record<Extraction["intent"], IntentRule> = {
   // Money.
@@ -289,13 +290,25 @@ export const INTENT_RULES: Record<Extraction["intent"], IntentRule> = {
   variance_disposition: { produces: ["variance_disposition"], create: ["can_manage_invoices"], refusal: MONEY_REFUSAL },
   // A direct write with no held action: this creation gate is its ONLY gate.
   purchase_order: { produces: [], create: ["can_manage_invoices"], refusal: MONEY_REFUSAL },
+  // Decision recorded 2026-10-02 (Pierre): installers may dictate goods
+  // received. They already confirm deliveries on site, and the upload path
+  // already lets any member record a delivery note, so refusing dictation
+  // alone protected nothing. Creation now uses the same any-of set as
+  // confirmation (can_manage_invoices OR can_know_materials).
   goods_received: {
     produces: ["goods_received"],
-    create: ["can_manage_invoices"],
+    create: ["can_manage_invoices", "can_know_materials"],
     refusal: MONEY_REFUSAL,
-    reason:
-      "Known mismatch, recorded 2026-10-02: installers may confirm a delivery (can_know_materials) but cannot dictate one. To be resolved by an explicit decision, not left implicit.",
   },
+  // Decision recorded 2026-10-02 (Pierre): gate creation for money and
+  // stock only. Stock movements are direct writes, so they are gated here
+  // with can_know_materials, the capability the REST layer already uses for
+  // /stock. Owner, accountant and installer all hold it, so today this
+  // changes nothing for them; it makes the rule explicit and keeps a future
+  // role with no materials access from writing stock by dictation.
+  register_stock_item: { produces: [], create: ["can_know_materials"], refusal: STOCK_REFUSAL },
+  stock_usage: { produces: [], create: ["can_know_materials"], refusal: STOCK_REFUSAL },
+  stocktake: { produces: [], create: ["can_know_materials"], refusal: STOCK_REFUSAL },
   // Owner-only, matching the REST layer (leads need can_manage_settings).
   lose_lead: { produces: [], create: ["can_manage_settings"], refusal: LEADS_REFUSAL },
 
@@ -309,9 +322,6 @@ export const INTENT_RULES: Record<Extraction["intent"], IntentRule> = {
   raise_snag: { produces: [], create: "open" },
   resolve_snag: { produces: [], create: "open" },
   raise_lead: { produces: [], create: "open" },
-  register_stock_item: { produces: [], create: "open" },
-  stock_usage: { produces: [], create: "open" },
-  stocktake: { produces: [], create: "open" },
   lookup: { produces: [], create: "open", reason: "Read-only; read access is gated per fact set inside the lookup itself." },
   reminder: { produces: [], create: "open" },
   task_complete: { produces: [], create: "open" },
