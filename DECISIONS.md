@@ -5534,3 +5534,12 @@ Malformed, impossible (`2026-02-30`) or reversed dates throw a readable error ra
 **Fixed:** a new branch, placed before the generic catch-all, says what was heard and what is missing ("I heard an invoice for R5000, but no customer name came through — who is it for?"). Checked mechanically that it reads only `customer` and `pendingActionId` and sits ahead of the catch-all. One behaviour change to note: a payment with only a supplier name resolved used to say "Found existing: X" and quietly do nothing; it now asks for a customer. Typecheck clean, role matrix 165/165, CI green. **Live check of the new message itself is still pending**, so it is not claimed as confirmed.
 
 **Still open:** the AI can still miss lower-case names. A deterministic fallback matching the typed words against existing customers, held for confirmation in the same ask-first style, was proposed but not built.
+
+
+---
+
+## The confirm-guidance client fix, confirmed live on the rebuilt app
+
+**Confirmed, the real way, after the Codemagic rebuild:** with the rebuilt app installed, "invoice stylish R500" (a name already on file as a character) correctly raised the identity-collision question (action #141). Tapping Confirm then showed the server's own follow-up message on screen, "Invoice noted for stylish of R500 — needs your confirmation (action #142) before it's recorded.", and the replayed invoice appeared as its own new pending action, exactly the case that used to look like a silent failure. This closes the fix recorded under "the app silently discarded the server's own confirm guidance"; it was previously deployed but not verified on a device.
+
+**Two small things observed, neither a defect in the fix:** the customer row created by the confirm carries the spoken casing ("stylish", lower case) rather than the character's "Stylish", since the replay uses the name as extracted; this is cosmetic and the case-insensitive matcher now treats the two as the same name. And the test left a real customer row and a pending test invoice (#142) that need rejecting or merging by hand.
