@@ -1228,14 +1228,27 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       // Only invoice/quotation confirms carry a real pdfUrl — every
       // other confirm type (payment, customer_fact) simply won't have
       // one, which is fine, this stays null for those.
+      //
+      // Real, new, per direct instruction, after a real, live gap: a
+      // confirm that replays the original request (identity_collision
+      // confirming into a new customer, then re-running the original
+      // "generate an invoice" ask) can genuinely create a brand-new
+      // pending action of its own — the server already says so
+      // plainly in its own real message field ("needs your
+      // confirmation (action #X)"), but nothing here ever read or
+      // showed it, only pdfUrl. The person doing the confirming had no
+      // way to know anything further was waiting, and reasonably
+      // assumed something had broken instead.
       String? pdfUrl;
+      String? realMessage;
       if (response.statusCode == 200 && confirm) {
         try {
           final data = jsonDecode(response.body) as Map<String, dynamic>;
           pdfUrl = data['pdfUrl'] as String?;
+          realMessage = data['message'] as String?;
         } catch (_) {
-          // Body wasn't valid JSON or didn't have the field — fine,
-          // pdfUrl just stays null, nothing to surface.
+          // Body wasn't valid JSON or didn't have the fields — fine,
+          // both just stay null, nothing to surface.
         }
       }
       if (foundLocally) {
@@ -1247,12 +1260,24 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
                   : PendingStatus.pending;
           _messages[msgIndex].pendingItems[itemIndex].pdfUrl = pdfUrl;
         });
-      } else if (response.statusCode == 200) {
+      } else if (response.statusCode == 200 && (realMessage == null || realMessage.isEmpty)) {
         // Real fallback for exactly the case that used to fail
         // silently: the local item couldn't be found to update in
         // place, but the real, server-side action still succeeded —
-        // say so, rather than leaving the box looking unchanged.
+        // say so, rather than leaving the box looking unchanged. Only
+        // when there's no real message to show instead — that already
+        // implies success on its own, saying "Confirmed." first would
+        // just be redundant.
         _addMessage(MessageRole.office, confirm ? 'Confirmed.' : 'Rejected.');
+      }
+      // Shown either way the item was found, in addition to whatever
+      // happened above — the real, substantive guidance the server
+      // provided (a new pending action now waiting, a job scope also
+      // recorded, an installer conflict) is never just cosmetic
+      // feedback, so it's surfaced regardless of whether the tapped
+      // item was found locally.
+      if (response.statusCode == 200 && realMessage != null && realMessage.isNotEmpty) {
+        _addMessage(MessageRole.office, realMessage);
       }
       if (response.statusCode == 200) {
         _loadEmberCounts();
