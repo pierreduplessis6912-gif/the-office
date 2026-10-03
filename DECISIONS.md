@@ -5622,3 +5622,18 @@ Malformed, impossible (`2026-02-30`) or reversed dates throw a readable error ra
 **A flaw in my own checking, recorded because it matters:** the first batch of these mutation checks reported zero failures for every case. That was not success. The mutated copy had no `node_modules`, so the test crashed on bundling `finance.ts` before it could fail anything. It was caught only because "nothing failed" for a mutation that must fail is itself a signal. The harness now also confirms each run actually completed.
 
 **Left as it is, deliberately:** the one entry #144 created ("unmatched item", 2) stays; it affects no stock or variance, and there is no delete route. And a real design question this surfaced, not decided here: the delivery note was for stock that was never ordered, but goods received requires an open order to match against, so such a delivery can only be refused with an explanation. Whether to support an "unordered delivery" (recording the item's real name from the document) is a product decision for Pierre.
+
+
+---
+
+## Document-first goods received, confirmed live on a delivery that matches an order
+
+**Confirmed, the real way:** after placing an order for 2 boxes of marble carpet tiles with Floornet, uploading the real delivery note (photo, no caption) produced a held goods-received action (#145) that was confirmed. `/debug/pending-action?id=145` shows the held payload: purchase order 9, supplier Floornet, one line, `matched_description: "Marble charcoal carpet tile"`, `quantity_received: 2`. Three separate things worked together:
+
+- **Issuer to supplier:** the model read the issuer as "The Flooring Network T/A Floornet" and plain code matched it to the supplier "Floornet" (a partial match: the supplier's name is wholly contained in the printed one). The recipient, "Zululand Flooring & Blinds", was correctly not taken for the issuer.
+- **Item to order line, by meaning:** the printed item "[TBT/MAR/011] MARBLE CHARCOAL 011 5m2" was matched to the order line "Marble charcoal carpet tile" although no wording is the same, and the quantity read was the printed 2.00 Box, equal to the 2 ordered.
+- **Provenance:** the held action's source text begins with a line stating the document was read, not stated, and by whom it was matched; so the origin of the match is on the record.
+
+**This is the first complete pass of the chain without a caption, without a typed note, and without any fault to work around:** photo in, supplier and document type read from the document, items matched to the order, one confirmation, recorded.
+
+**Still unverified:** the unit question for tiles sold by the box (the order is a count of boxes here, so 2 equals 2; an order in square metres delivered in boxes would need a conversion that nothing does yet), and the open product decision recorded in the previous entry about deliveries of items that were never ordered.
