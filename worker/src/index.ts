@@ -9,7 +9,7 @@ import {
   verifySession, getSessionToken, getCookie, base64UrlEncode, ROLE_CAPABILITIES, ENFORCE_CAPABILITIES,
   ACTION_TYPE_CAPABILITY, ROUTE_RULES, SIGNABLE_DOCUMENT_PATHS, intentCreationRefusal,
 } from "./auth";
-import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
+import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, recordGoodsReceived, splitGoodsReceivedLines, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 import { handleDebugRoute } from "./debug";
 import { DOCUMENT_KIND_LABEL, inferDocumentSupplier } from "./documents";
@@ -691,6 +691,8 @@ async function processOneExtraction(
   // stock changes hands here, unlike the PO itself.
   let goodsReceivedNoSupplier = false;
   let goodsReceivedNoOpenPo = false;
+  let goodsReceivedNoMatchOnOrder: string | null = null;
+  let goodsReceivedLeftOut = 0;
   let goodsReceivedSupplierName: string | null = null;
   if (extraction?.intent === "goods_received") {
     if (character) {
@@ -698,20 +700,29 @@ async function processOneExtraction(
       if (openPo) {
         const poLineItems = await getPurchaseOrderLineItems(env, openPo.id);
         const grnExtraction = await extractGoodsReceived(env, transcript, poLineItems);
-        const held = await holdForConfirmation(
-          env,
-          "goods_received",
-          {
-            purchaseOrderId: openPo.id,
-            supplierId: character.id,
-            supplierName: character.name,
-            lineItems: grnExtraction.line_items,
-          },
-          transcript
-        );
-        pendingActionId = held.id;
-        pendingActionType = "goods_received";
-        goodsReceivedSupplierName = character.name;
+        // Only lines that match the order may be held (see splitGoodsReceivedLines):
+        // a delivery that matches nothing used to be held anyway, then recorded
+        // as an "unmatched item" with its real name lost.
+        const grnSplit = splitGoodsReceivedLines(grnExtraction.line_items, poLineItems);
+        if (grnSplit.matched.length > 0) {
+          const held = await holdForConfirmation(
+            env,
+            "goods_received",
+            {
+              purchaseOrderId: openPo.id,
+              supplierId: character.id,
+              supplierName: character.name,
+              lineItems: grnSplit.matched,
+            },
+            transcript
+          );
+          pendingActionId = held.id;
+          pendingActionType = "goods_received";
+          goodsReceivedSupplierName = character.name;
+          goodsReceivedLeftOut = grnSplit.unmatched.length;
+        } else {
+          goodsReceivedNoMatchOnOrder = poLineItems.map((p) => p.description).join(", ") || "nothing";
+        }
       } else {
         goodsReceivedNoOpenPo = true;
       }
@@ -1478,7 +1489,9 @@ async function processOneExtraction(
     // recognized-but-nothing-to-act-on case in this project.
     message = "Recognized a purchase order, but no supplier was named — try naming who it's from.";
   } else if (pendingActionId && extraction?.intent === "goods_received" && goodsReceivedSupplierName) {
-    message = `Delivery noted from ${goodsReceivedSupplierName} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
+    message = `Delivery noted from ${goodsReceivedSupplierName} — needs your confirmation (action #${pendingActionId}) before it's recorded.${goodsReceivedLeftOut > 0 ? ` ${goodsReceivedLeftOut} other item(s) didn't match the order and were left out.` : ""}`;
+  } else if (extraction?.intent === "goods_received" && goodsReceivedNoMatchOnOrder) {
+    message = `I heard a delivery from ${character!.name}, but nothing in it matches their open order (on order: ${goodsReceivedNoMatchOnOrder}), so nothing was noted.`;
   } else if (extraction?.intent === "goods_received" && goodsReceivedNoSupplier) {
     message = "Recognized a delivery, but no supplier was named — try naming who it's from.";
   } else if (extraction?.intent === "goods_received" && goodsReceivedNoOpenPo) {
@@ -4897,9 +4910,13 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             uploadMessage = `Supplier invoice noted from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""} — needs your confirmation (action #${held.id}) before it's recorded.`;
           } else {
             const grnExtraction = await extractGoodsReceived(env, description, poLineItems);
-            if (grnExtraction.line_items.length > 0 && goodsReceivedRefusal) {
+            // Only lines that match the order count (see splitGoodsReceivedLines).
+            const grnSplit = splitGoodsReceivedLines(grnExtraction.line_items, poLineItems);
+            const leftOutNote =
+              grnSplit.unmatched.length > 0 ? ` ${grnSplit.unmatched.length} other item(s) on it didn't match the order and were left out.` : "";
+            if (grnSplit.matched.length > 0 && goodsReceivedRefusal) {
               uploadRefusal = goodsReceivedRefusal;
-            } else if (grnExtraction.line_items.length > 0 && inferredFromDocument) {
+            } else if (grnSplit.matched.length > 0 && inferredFromDocument) {
               // The supplier was read from the document, not stated, so this
               // is held for one-tap confirmation rather than written directly.
               const heldGrn = await holdForConfirmation(
@@ -4909,23 +4926,25 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
                   purchaseOrderId: openPo.id,
                   supplierId: subjectCharacterId,
                   supplierName: subjectHint,
-                  lineItems: grnExtraction.line_items,
+                  lineItems: grnSplit.matched,
                 },
                 rawText
               );
               uploadHeldActionId = heldGrn.id;
-              uploadMessage = `Delivery noted from ${subjectHint ?? "the supplier"} (read from the document) — needs your confirmation (action #${heldGrn.id}) before it's recorded.`;
-            } else if (grnExtraction.line_items.length > 0) {
+              uploadMessage = `Delivery noted from ${subjectHint ?? "the supplier"} (read from the document) — needs your confirmation (action #${heldGrn.id}) before it's recorded.${leftOutNote}`;
+            } else if (grnSplit.matched.length > 0) {
               const recorded = await recordGoodsReceived(
                 env,
                 openPo.id,
                 subjectCharacterId,
                 rawText,
-                grnExtraction.line_items
+                grnSplit.matched
               );
               goodsReceivedAction = { grnId: recorded.grnId, supplierName: subjectHint ?? "supplier" };
+              if (leftOutNote) uploadMessage = `Delivery recorded (GRN #${recorded.grnId}).${leftOutNote}`;
             } else {
-              uploadMessage = `I read ${documentKindLabel} from ${subjectHint ?? "the supplier"}, but couldn't match any of its items to their open order, so nothing was recorded.`;
+              const onOrder = poLineItems.map((p) => p.description).join(", ") || "nothing";
+              uploadMessage = `I read ${documentKindLabel} from ${subjectHint ?? "the supplier"}, but none of its items match their open order (on order: ${onOrder}), so nothing was recorded.`;
             }
           }
         } else {
@@ -5109,9 +5128,13 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             uploadMessage = `Supplier invoice noted from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""} — needs your confirmation (action #${held.id}) before it's recorded.`;
           } else {
             const grnExtraction = await extractGoodsReceived(env, description, poLineItems);
-            if (grnExtraction.line_items.length > 0 && goodsReceivedRefusal) {
+            // Only lines that match the order count (see splitGoodsReceivedLines).
+            const grnSplit = splitGoodsReceivedLines(grnExtraction.line_items, poLineItems);
+            const leftOutNote =
+              grnSplit.unmatched.length > 0 ? ` ${grnSplit.unmatched.length} other item(s) on it didn't match the order and were left out.` : "";
+            if (grnSplit.matched.length > 0 && goodsReceivedRefusal) {
               uploadRefusal = goodsReceivedRefusal;
-            } else if (grnExtraction.line_items.length > 0 && inferredFromDocument) {
+            } else if (grnSplit.matched.length > 0 && inferredFromDocument) {
               // The supplier was read from the document, not stated, so this
               // is held for one-tap confirmation rather than written directly.
               const heldGrn = await holdForConfirmation(
@@ -5121,23 +5144,25 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
                   purchaseOrderId: openPo.id,
                   supplierId: subjectCharacterId,
                   supplierName: subjectHint,
-                  lineItems: grnExtraction.line_items,
+                  lineItems: grnSplit.matched,
                 },
                 rawText
               );
               uploadHeldActionId = heldGrn.id;
-              uploadMessage = `Delivery noted from ${subjectHint ?? "the supplier"} (read from the document) — needs your confirmation (action #${heldGrn.id}) before it's recorded.`;
-            } else if (grnExtraction.line_items.length > 0) {
+              uploadMessage = `Delivery noted from ${subjectHint ?? "the supplier"} (read from the document) — needs your confirmation (action #${heldGrn.id}) before it's recorded.${leftOutNote}`;
+            } else if (grnSplit.matched.length > 0) {
               const recorded = await recordGoodsReceived(
                 env,
                 openPo.id,
                 subjectCharacterId,
                 rawText,
-                grnExtraction.line_items
+                grnSplit.matched
               );
               goodsReceivedAction = { grnId: recorded.grnId, supplierName: subjectHint ?? "supplier" };
+              if (leftOutNote) uploadMessage = `Delivery recorded (GRN #${recorded.grnId}).${leftOutNote}`;
             } else {
-              uploadMessage = `I read ${documentKindLabel} from ${subjectHint ?? "the supplier"}, but couldn't match any of its items to their open order, so nothing was recorded.`;
+              const onOrder = poLineItems.map((p) => p.description).join(", ") || "nothing";
+              uploadMessage = `I read ${documentKindLabel} from ${subjectHint ?? "the supplier"}, but none of its items match their open order (on order: ${onOrder}), so nothing was recorded.`;
             }
           }
         } else {
