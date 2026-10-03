@@ -12,7 +12,7 @@ import {
 import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 import { handleDebugRoute } from "./debug";
-import { DOCUMENT_KIND_LABEL, deliveryHadExceptions, deliveryHeldMessage, deliveryRecordedMessage, inferDocumentSupplier, planDelivery } from "./documents";
+import { DOCUMENT_KIND_LABEL, asksAboutDeliveryExceptions, deliveryExceptionAnswer, deliveryHadExceptions, deliveryHeldMessage, deliveryRecordedMessage, inferDocumentSupplier, planDelivery } from "./documents";
 
 // Second layer of defense against storing questions as facts — never
 // trust intent classification alone for this, since it's been
@@ -1658,6 +1658,16 @@ async function processOneExtraction(
       } else {
         message = `No real supplier invoice on file yet mentions "${extraction.fact_value}" — nothing to base a price on.`;
       }
+    } else if (!customer && !character && asksAboutDeliveryExceptions(transcript)) {
+      // Decided 2026-10-03 (Pierre): the delivery exception report, asked for in words. It had only
+      // existed as a route and the app has no screen for it. Same permission as the report route
+      // (can_manage_invoices), checked here before anything is read. Answered in code, not
+      // paraphrased by a model, so the list is always complete and exact. Deliberately ahead of the
+      // general business branch, which would otherwise spend a classification call and answer from
+      // unrelated financial facts.
+      message = capabilities.includes("can_manage_invoices")
+        ? deliveryExceptionAnswer(await getDeliveryExceptions(env, "open"))
+        : "Delivery exception details exist for this business but are restricted for your role.";
     } else if (extraction?.query_scope === "business") {
       // Real, new routing step, per LOOKUP_ROUTING_ARCHITECTURE.md and
       // direct instruction to build it: checked first, before any of
