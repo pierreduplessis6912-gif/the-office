@@ -43,3 +43,53 @@ export async function inferDocumentSupplier(env: Env, documentText: string): Pro
   const suppliers = await getSupplierCandidates(env);
   return { kind: identity.document_type, issuer: identity.issuer_name, match: matchIssuerToSuppliers(suppliers, identity.issuer_name) };
 }
+
+// ---------------------------------------------------------------------------
+// Delivery planning (decided 2026-10-03, Pierre): a delivery note for items
+// that were never ordered is RECEIVED and reported as an exception, not
+// refused. These two functions are pure, so every branch of the decision is
+// tested without a database or a model; the three callers (document upload,
+// photo upload, spoken) only execute the plan.
+// ---------------------------------------------------------------------------
+export interface DeliveryPlan<T> {
+  action: "refuse" | "hold" | "record" | "none";
+  lines: T[];
+  matchedCount: number;
+  exceptionCount: number;
+}
+
+// mustHold — the supplier was read or heard rather than stated with a typed
+//            caption, so the delivery is held for one-tap confirmation
+//            instead of being recorded directly (a spoken delivery always is).
+// refused  — the caller may not record deliveries.
+export function planDelivery<T>(
+  classified: { matched: T[]; exceptions: T[] },
+  opts: { mustHold: boolean; refused: boolean }
+): DeliveryPlan<T> {
+  const lines = [...classified.matched, ...classified.exceptions];
+  const base = { lines, matchedCount: classified.matched.length, exceptionCount: classified.exceptions.length };
+  if (lines.length === 0) return { ...base, action: "none" };
+  if (opts.refused) return { ...base, action: "refuse" };
+  return { ...base, action: opts.mustHold ? "hold" : "record" };
+}
+
+export function deliveryHeldMessage(
+  plan: { matchedCount: number; exceptionCount: number },
+  supplier: string,
+  readFromDocument: boolean,
+  actionId: number,
+  hadOpenOrder: boolean
+): string {
+  const how = readFromDocument ? " (read from the document)" : "";
+  const exceptions =
+    plan.exceptionCount > 0 && plan.matchedCount > 0
+      ? ` ${plan.exceptionCount} item(s) aren't on the order and will be logged as delivery exceptions.`
+      : "";
+  if (plan.matchedCount > 0) {
+    return `Delivery noted from ${supplier}${how} — needs your confirmation (action #${actionId}) before it's recorded.${exceptions}`;
+  }
+  if (hadOpenOrder) {
+    return `Delivery from ${supplier}${how} has nothing that's on their open order — needs your confirmation (action #${actionId}) to log it as a delivery exception.`;
+  }
+  return `Delivery from ${supplier}${how}: they have no open order, so it will be logged as a delivery exception once you confirm (action #${actionId}).`;
+}
