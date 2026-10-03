@@ -771,20 +771,29 @@ export async function extractGoodsReceived(
               "the given order. supplier_name is who the delivery is from, exactly as named, or null if " +
               "not stated. For each item genuinely received, extract: matched_description (copied " +
               "EXACTLY from the given order line item) or null if it genuinely doesn't match anything " +
-              "given, and quantity_received (the plain number actually delivered — this is very often " +
+              "given, item_description (the item as written on the delivery itself, short, always " +
+              "filled in for every line even when it matches), unit (the unit the quantity is in, for " +
+              "example box or sqm, or null if none is stated), and quantity_received (the plain number actually delivered — this is very often " +
               "different from what was ordered; a real shortage or an exact match are both real, valid " +
               "outcomes, extract exactly what was said, never assume it matches the ordered quantity). " +
               "Return ONLY JSON: " +
               '{"supplier_name": string or null, "line_items": [{"matched_description": string or null, ' +
-              '"quantity_received": number}]}\n\n' +
+              '"item_description": string, "unit": string or null, "quantity_received": number}]}\n\n' +
               "Example:\n" +
               'Ordered: "Vinyl (ordered: 50 sqm), Underlay (ordered: 100 sqm), Skirting (ordered: 10 length)". ' +
               'Delivery: "the Floornet delivery arrived, 50 square meters of vinyl, but the underlay was only 50 square meters, and only 8 lengths of skirting" -> ' +
               '{"supplier_name":"Floornet","line_items":[' +
-              '{"matched_description":"Vinyl","quantity_received":50},' +
-              '{"matched_description":"Underlay","quantity_received":50},' +
-              '{"matched_description":"Skirting","quantity_received":8}' +
-              "]}",
+              '{"matched_description":"Vinyl","item_description":"vinyl","unit":"sqm","quantity_received":50},' +
+              '{"matched_description":"Underlay","item_description":"underlay","unit":"sqm","quantity_received":50},' +
+              '{"matched_description":"Skirting","item_description":"skirting","unit":"length","quantity_received":8}' +
+              "]}\n\n" +
+              "Example of something not on the order:\n" +
+              'Ordered: "Vinyl (ordered: 50 sqm)". Delivery: "50 sqm vinyl and 5 boxes of grout" -> ' +
+              '{"supplier_name":null,"line_items":[' +
+              '{"matched_description":"Vinyl","item_description":"vinyl","unit":"sqm","quantity_received":50},' +
+              '{"matched_description":null,"item_description":"grout","unit":"box","quantity_received":5}' +
+              "]}\n\n" +
+              'With nothing ordered ("none"), every delivered item has matched_description null.',
           },
           {
             role: "user",
@@ -799,7 +808,15 @@ export async function extractGoodsReceived(
     const parsed = JSON.parse(cleaned) as GoodsReceivedExtraction;
     return {
       supplier_name: parsed.supplier_name ?? null,
-      line_items: parsed.line_items ?? [],
+      // Sanitised: the model's output is a claim, not data. Quantities must be real
+      // numbers, text fields trimmed and bounded, and anything unusable is simply absent.
+      line_items: (Array.isArray(parsed.line_items) ? parsed.line_items : []).map((li) => ({
+        matched_description: typeof li.matched_description === "string" && li.matched_description.trim() ? li.matched_description : null,
+        quantity_received: Number(li.quantity_received),
+        item_description:
+          typeof li.item_description === "string" && li.item_description.trim() ? li.item_description.trim().slice(0, 160) : null,
+        unit: typeof li.unit === "string" && li.unit.trim() ? li.unit.trim().slice(0, 20) : null,
+      })),
     };
   } catch {
     return empty;
