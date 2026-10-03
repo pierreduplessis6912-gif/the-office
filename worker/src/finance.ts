@@ -448,12 +448,240 @@ export async function recordGoodsReceived(
   return { grnId, variances, exceptions };
 }
 
-// The delivery exception report (decided 2026-10-03): every delivered item
-// that was not on an order, across all suppliers, newest first. An exception
-// is a goods-received line with no order line and an ordered quantity of 0.
-// "Open" means no variance disposition has been raised for it yet, so
-// resolving one uses exactly the same routes and spoken flow as any other
-// discrepancy. purchase_order_id 0 means the supplier had no open order at all.
+// ---------------------------------------------------------------------------
+// Receiving against ALL of a supplier's outstanding orders (decided 2026-10-03,
+// Pierre: "best match across all outstanding orders from that supplier").
+//
+// Until now a delivery was matched against the supplier's single MOST RECENT
+// order, whether or not it had already been delivered, and every delivery was
+// compared with the FULL ordered quantity: 20 ordered, 15 then 5 arriving gave
+// a shortage of 5 and then a second, false shortage of 15. Both are fixed by
+// the same idea, already used by supplier-invoice reconciliation ("a real
+// delivery can arrive in more than one shipment"): what a line still expects
+// is what was ordered minus everything received against it so far.
+// ---------------------------------------------------------------------------
+const round4 = (n: number): number => Math.round(n * 10000) / 10000;
+
+export interface OutstandingLine {
+  poId: number;
+  poLineId: number;
+  description: string;
+  ordered: number;
+  received: number;
+  outstanding: number;
+  unit: string | null;
+}
+
+// Every order line of this supplier that still has something outstanding, oldest
+// order first (so a delivery fills the oldest order before the next).
+export async function getOutstandingOrderLines(env: Env, supplierId: number): Promise<OutstandingLine[]> {
+  const { results } = await env.OFFICE_DB.prepare(
+    `SELECT pl.id AS po_line_id, pl.purchase_order_id AS po_id, pl.description AS description,
+            pl.quantity_ordered AS ordered, pl.unit AS unit,
+            COALESCE((SELECT SUM(g.quantity_received) FROM grn_line_items g WHERE g.po_line_item_id = pl.id), 0) AS received
+       FROM po_line_items pl
+       JOIN purchase_orders po ON po.id = pl.purchase_order_id
+      WHERE po.supplier_id = ?
+      ORDER BY po.created_at ASC, po.id ASC, pl.id ASC`
+  )
+    .bind(supplierId)
+    .all<{ po_line_id: number; po_id: number; description: string; ordered: number; unit: string | null; received: number }>();
+  return (results ?? [])
+    .map((r) => ({
+      poId: r.po_id,
+      poLineId: r.po_line_id,
+      description: r.description,
+      ordered: r.ordered,
+      received: r.received,
+      outstanding: round4(r.ordered - r.received),
+      unit: r.unit,
+    }))
+    .filter((l) => l.outstanding > 0);
+}
+
+// What the extractor is shown to match a delivery against: one entry per distinct
+// item (case-insensitive), carrying the total still outstanding across orders.
+export function candidateOrderLines(
+  outstanding: OutstandingLine[]
+): Array<{ description: string; quantity_ordered: number; unit: string | null }> {
+  const byName = new Map<string, { description: string; quantity_ordered: number; unit: string | null }>();
+  for (const l of outstanding) {
+    const key = l.description.toLowerCase();
+    const existing = byName.get(key);
+    if (existing) existing.quantity_ordered = round4(existing.quantity_ordered + l.outstanding);
+    else byName.set(key, { description: l.description, quantity_ordered: l.outstanding, unit: l.unit });
+  }
+  return [...byName.values()];
+}
+
+// An order's delivery status, worked out on read from its lines (the "compute on read" choice from the
+// original design). Separate from the document status (delivery note / invoice present), which is
+// about which paperwork has arrived, not about quantities.
+export function orderDeliveryStatus(
+  lines: Array<{ ordered: number; received: number }>
+): "awaiting delivery" | "partially delivered" | "fully delivered" {
+  if (lines.length === 0 || lines.every((l) => l.received <= 0)) return "awaiting delivery";
+  return lines.every((l) => round4(l.ordered - l.received) <= 0) ? "fully delivered" : "partially delivered";
+}
+
+export interface DeliveryAllocation {
+  poId: number;
+  poLineId: number;
+  description: string;
+  unit: string | null;
+  ordered: number; // the line's full ordered quantity
+  expected: number; // what this line still expected just before this delivery
+  quantity: number; // what this delivery put against it
+  variance: number; // quantity - expected: negative is short, positive is over
+}
+
+// Pure. Puts each matched delivery line against the supplier's outstanding lines for that item, oldest
+// order first. Everything before the last allocation for an item is filled exactly, so only the last can
+// be short; anything beyond the total outstanding is over-delivery on the last line. A matched line of
+// quantity 0 is a real shortage, recorded against the first line that still expects something.
+export function allocateDelivery<T extends { matched_description: string | null; quantity_received: number }>(
+  matched: T[],
+  outstanding: OutstandingLine[]
+): DeliveryAllocation[] {
+  const left = new Map<number, number>(outstanding.map((l) => [l.poLineId, l.outstanding]));
+  const result: DeliveryAllocation[] = [];
+  for (const line of matched) {
+    const name = (line.matched_description ?? "").toLowerCase();
+    const candidates = outstanding.filter((l) => l.description.toLowerCase() === name);
+    if (candidates.length === 0) continue;
+    let remaining = round4(line.quantity_received);
+    const mine: DeliveryAllocation[] = [];
+    const make = (c: OutstandingLine, quantity: number, expected: number): DeliveryAllocation => ({
+      poId: c.poId,
+      poLineId: c.poLineId,
+      description: c.description,
+      unit: c.unit,
+      ordered: c.ordered,
+      expected,
+      quantity,
+      variance: round4(quantity - expected),
+    });
+    if (remaining === 0) {
+      const first = candidates.find((c) => (left.get(c.poLineId) ?? 0) > 0) ?? candidates[0];
+      result.push(make(first, 0, left.get(first.poLineId) ?? 0));
+      continue;
+    }
+    for (const c of candidates) {
+      if (remaining <= 0) break;
+      const expected = left.get(c.poLineId) ?? 0;
+      if (expected <= 0) continue;
+      const take = Math.min(remaining, expected);
+      mine.push(make(c, take, expected));
+      left.set(c.poLineId, round4(expected - take));
+      remaining = round4(remaining - take);
+    }
+    if (mine.length === 0) {
+      // Everything for this item was already filled earlier in this same delivery: it is all over-delivery.
+      mine.push(make(candidates[candidates.length - 1], remaining, 0));
+    } else if (remaining > 0) {
+      const last = mine[mine.length - 1];
+      last.quantity = round4(last.quantity + remaining);
+      last.variance = round4(last.quantity - last.expected);
+    }
+    result.push(...mine);
+  }
+  return result;
+}
+
+// Records a delivery against the supplier's outstanding orders. One goods-received note per order touched;
+// items that were on no outstanding order become exception lines on the supplier's most recent outstanding
+// order (or on order 0 when it has none). The allocation is worked out HERE, when the delivery is recorded,
+// not when it was held for confirmation: another delivery may have been confirmed in between.
+export async function recordDelivery(
+  env: Env,
+  supplierId: number,
+  sourceTranscript: string,
+  lines: Array<{ matched_description: string | null; quantity_received: number; item_description?: string | null; unit?: string | null }>,
+  recordedByEmail: string | null = null
+): Promise<{
+  grnId: number;
+  grnIds: number[];
+  variances: Array<{ description: string; expected: number; received: number; variance: number }>;
+  exceptions: Array<{ grnLineItemId: number; description: string; quantity: number }>;
+  shortCount: number;
+  overCount: number;
+}> {
+  const outstanding = await getOutstandingOrderLines(env, supplierId);
+  const classified = classifyGoodsReceivedLines(lines, candidateOrderLines(outstanding));
+  const allocations = allocateDelivery(classified.matched, outstanding);
+  const contextPoId = allocations[0]?.poId ?? (outstanding.length > 0 ? outstanding[outstanding.length - 1].poId : 0);
+
+  const headers = new Map<number, number>();
+  const headerFor = async (poId: number): Promise<number> => {
+    const existing = headers.get(poId);
+    if (existing != null) return existing;
+    const inserted = await env.OFFICE_DB.prepare(
+      "INSERT INTO goods_received_notes (purchase_order_id, supplier_id, source_transcript, recorded_by) VALUES (?, ?, ?, ?) RETURNING id"
+    )
+      .bind(poId, supplierId, sourceTranscript, recordedByEmail)
+      .first<{ id: number }>();
+    headers.set(poId, inserted!.id);
+    return inserted!.id;
+  };
+  const addStock = async (name: string, quantity: number) => {
+    // Same exact-name rule as before: only a stock item deliberately registered under this name.
+    const stockItem = await env.OFFICE_DB.prepare("SELECT id FROM stock_items WHERE name = ? COLLATE NOCASE")
+      .bind(name)
+      .first<{ id: number }>();
+    if (stockItem && quantity > 0) {
+      await env.OFFICE_DB.prepare("UPDATE stock_items SET quantity_on_hand = quantity_on_hand + ? WHERE id = ?")
+        .bind(quantity, stockItem.id)
+        .run();
+    }
+  };
+
+  const variances: Array<{ description: string; expected: number; received: number; variance: number }> = [];
+  const exceptions: Array<{ grnLineItemId: number; description: string; quantity: number }> = [];
+
+  for (const a of allocations) {
+    const grnId = await headerFor(a.poId);
+    await env.OFFICE_DB.prepare(
+      "INSERT INTO grn_line_items (grn_id, po_line_item_id, description, quantity_received, quantity_ordered, variance) VALUES (?, ?, ?, ?, ?, ?) RETURNING id"
+    )
+      .bind(grnId, a.poLineId, a.description, a.quantity, a.ordered, a.variance)
+      .first<{ id: number }>();
+    variances.push({ description: a.description, expected: a.expected, received: a.quantity, variance: a.variance });
+    await addStock(a.description, a.quantity);
+  }
+
+  for (const e of classified.exceptions) {
+    const name = (e.item_description ?? "").trim();
+    const grnId = await headerFor(contextPoId);
+    const inserted = await env.OFFICE_DB.prepare(
+      "INSERT INTO grn_line_items (grn_id, po_line_item_id, description, quantity_received, quantity_ordered, variance) VALUES (?, ?, ?, ?, ?, ?) RETURNING id"
+    )
+      .bind(grnId, null, `${name}${e.unit ? ` [${e.unit}]` : ""}`, e.quantity_received, 0, e.quantity_received)
+      .first<{ id: number }>();
+    exceptions.push({ grnLineItemId: inserted!.id, description: name, quantity: e.quantity_received });
+    await addStock(name, e.quantity_received);
+  }
+
+  const grnIds = [...headers.values()];
+  return {
+    grnId: grnIds[0] ?? 0,
+    grnIds,
+    variances,
+    exceptions,
+    shortCount: allocations.filter((a) => a.variance < 0).length,
+    overCount: allocations.filter((a) => a.variance > 0).length,
+  };
+}
+
+// The delivery exception report (decided 2026-10-03, Pierre): every way a delivery differed from what
+// was ordered, across all suppliers, newest first. Three kinds, all stored as goods-received lines:
+//   unordered — the item was on no order (no order line, ordered quantity 0)
+//   short     — less arrived than was still outstanding (negative variance)
+//   over      — more arrived than was still outstanding (positive variance on an order line)
+// "Open" means no variance disposition has been raised for it yet, so resolving one uses exactly the same
+// routes and spoken flow as any other discrepancy, and a shortage STAYS open until it is resolved
+// (Pierre's choice), even if a later delivery completes the order. purchase_order_id 0 means the supplier
+// had no outstanding order at all. "expected" is what the line still expected just before this delivery
+// (received minus variance), which is what the variance was measured against.
 export async function getDeliveryExceptions(
   env: Env,
   status: "open" | "all" = "open",
@@ -462,10 +690,13 @@ export async function getDeliveryExceptions(
   Array<{
     grnLineItemId: number;
     grnId: number;
+    kind: "unordered" | "short" | "over";
     supplierId: number | null;
     supplierName: string | null;
     description: string;
     quantityReceived: number;
+    expected: number;
+    variance: number;
     hadOpenOrder: boolean;
     recordedBy: string | null;
     receivedAt: string;
@@ -476,14 +707,16 @@ export async function getDeliveryExceptions(
 > {
   const { results } = await env.OFFICE_DB.prepare(
     `SELECT gli.id AS grn_line_item_id, grn.id AS grn_id, grn.supplier_id AS supplier_id, ch.name AS supplier_name,
-            gli.description AS description, gli.quantity_received AS quantity_received,
+            gli.description AS description, gli.quantity_received AS quantity_received, gli.quantity_ordered AS quantity_ordered,
+            gli.variance AS variance, gli.po_line_item_id AS po_line_item_id,
             grn.purchase_order_id AS purchase_order_id, grn.recorded_by AS recorded_by, grn.created_at AS created_at,
             vd.id AS disposition_id, vd.reason AS reason, vd.resolution AS resolution
        FROM grn_line_items gli
        JOIN goods_received_notes grn ON grn.id = gli.grn_id
        LEFT JOIN characters ch ON ch.id = grn.supplier_id
        LEFT JOIN variance_dispositions vd ON vd.grn_line_item_id = gli.id
-      WHERE gli.po_line_item_id IS NULL AND gli.quantity_ordered = 0
+      WHERE ((gli.po_line_item_id IS NULL AND gli.quantity_ordered = 0)
+             OR (gli.po_line_item_id IS NOT NULL AND gli.variance IS NOT NULL AND gli.variance != 0))
         AND (? = 'all' OR vd.id IS NULL)
       ORDER BY grn.created_at DESC, gli.id DESC
       LIMIT ?`
@@ -496,6 +729,9 @@ export async function getDeliveryExceptions(
       supplier_name: string | null;
       description: string;
       quantity_received: number;
+      quantity_ordered: number | null;
+      variance: number | null;
+      po_line_item_id: number | null;
       purchase_order_id: number;
       recorded_by: string | null;
       created_at: string;
@@ -503,20 +739,27 @@ export async function getDeliveryExceptions(
       reason: string | null;
       resolution: string | null;
     }>();
-  return (results ?? []).map((r) => ({
-    grnLineItemId: r.grn_line_item_id,
-    grnId: r.grn_id,
-    supplierId: r.supplier_id,
-    supplierName: r.supplier_name,
-    description: r.description,
-    quantityReceived: r.quantity_received,
-    hadOpenOrder: r.purchase_order_id !== 0,
-    recordedBy: r.recorded_by,
-    receivedAt: r.created_at,
-    status: r.disposition_id != null ? ("resolved" as const) : ("open" as const),
-    reason: r.reason,
-    resolution: r.resolution,
-  }));
+  return (results ?? []).map((r) => {
+    const unordered = r.po_line_item_id == null;
+    const variance = unordered ? r.quantity_received : r.variance ?? 0;
+    return {
+      grnLineItemId: r.grn_line_item_id,
+      grnId: r.grn_id,
+      kind: unordered ? ("unordered" as const) : variance < 0 ? ("short" as const) : ("over" as const),
+      supplierId: r.supplier_id,
+      supplierName: r.supplier_name,
+      description: r.description,
+      quantityReceived: r.quantity_received,
+      expected: round4(r.quantity_received - variance),
+      variance,
+      hadOpenOrder: r.purchase_order_id !== 0,
+      recordedBy: r.recorded_by,
+      receivedAt: r.created_at,
+      status: r.disposition_id != null ? ("resolved" as const) : ("open" as const),
+      reason: r.reason,
+      resolution: r.resolution,
+    };
+  });
 }
 
 // Real feature 2026-07-25 — Consumables Stock, the idea-tank review's
