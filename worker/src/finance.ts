@@ -305,6 +305,8 @@ export async function getPurchaseOrderLineItems(
   return results ?? [];
 }
 
+// TRANSITIONAL (removed in the next commit): the previous helper, kept for one deploy so
+// the callers can be moved over without a red build in between.
 // Real bug found live 2026-10-03: a confirmed delivery recorded a single
 // line called "unmatched item", quantity 2. The model, asked to match a
 // delivery to the order's lines, correctly answers matched_description:null
@@ -328,6 +330,45 @@ export function splitGoodsReceivedLines<T extends { matched_description: string 
   return { matched, unmatched };
 }
 
+// Decided 2026-10-03 (Pierre): a delivery note for items that were never
+// ordered is RECEIVED and treated as an exception report, not refused.
+// History: a confirmed delivery that matched nothing on the order was once
+// recorded as a single line called "unmatched item", quantity 2, with the real
+// item's name lost (the model rightly answered matched_description:null, and
+// callers only checked that SOME line existed). The fix is not to drop such
+// lines but to keep them WITH their real name, and to label them.
+//
+// matched    — the model's name is non-null AND actually on the order
+//              (case-insensitive, as recording does it).
+// exceptions — not on the order, but the delivery itself names the item and
+//              gives a real positive quantity. These are recorded as
+//              exception lines, using the item's name as printed.
+// dropped    — anything unusable (no name to record, or no sensible
+//              quantity). Never recorded; a line with no identity is noise.
+export function classifyGoodsReceivedLines<
+  T extends { matched_description: string | null; quantity_received: number; item_description?: string | null; unit?: string | null }
+>(lines: T[], poLineItems: Array<{ description: string }>): { matched: T[]; exceptions: T[]; dropped: T[] } {
+  const onOrder = new Set(poLineItems.map((p) => p.description.toLowerCase()));
+  const matched: T[] = [];
+  const exceptions: T[] = [];
+  const dropped: T[] = [];
+  for (const line of lines) {
+    const qty = Number(line.quantity_received);
+    const onTheOrder = Boolean(line.matched_description) && onOrder.has(line.matched_description!.toLowerCase());
+    if (onTheOrder && Number.isFinite(qty) && qty >= 0) {
+      matched.push(line);
+      continue;
+    }
+    const name = (line.item_description ?? "").trim() || (line.matched_description ?? "").trim();
+    if (name && Number.isFinite(qty) && qty > 0) {
+      exceptions.push({ ...line, item_description: name, matched_description: null });
+    } else {
+      dropped.push(line);
+    }
+  }
+  return { matched, exceptions, dropped };
+}
+
 // Real feature 2026-07-21 — Goods Received Notes, the second stage
 // of the real, three-way design pinned in DECISIONS.md. Guard()'d —
 // unlike the PO itself, this is where real stock actually changes
@@ -340,9 +381,13 @@ export async function recordGoodsReceived(
   purchaseOrderId: number,
   supplierId: number | null,
   sourceTranscript: string,
-  lineItems: Array<{ matched_description: string | null; quantity_received: number }>,
+  lineItems: Array<{ matched_description: string | null; quantity_received: number; item_description?: string | null; unit?: string | null }>,
   recordedByEmail: string | null = null
-): Promise<{ grnId: number; variances: Array<{ description: string; ordered: number; received: number; variance: number }> }> {
+): Promise<{
+  grnId: number;
+  variances: Array<{ description: string; ordered: number; received: number; variance: number }>;
+  exceptions: Array<{ grnLineItemId: number; description: string; quantity: number }>;
+}> {
   const poLineItems = await getPurchaseOrderLineItems(env, purchaseOrderId);
 
   // Real design decision 2026-07-21 — GRN capture stays open to
@@ -358,31 +403,48 @@ export async function recordGoodsReceived(
 
   const grnId = inserted!.id;
   const variances: Array<{ description: string; ordered: number; received: number; variance: number }> = [];
+  const exceptions: Array<{ grnLineItemId: number; description: string; quantity: number }> = [];
 
   for (const item of lineItems) {
     const matchedPoLine = item.matched_description
       ? poLineItems.find((p) => p.description.toLowerCase() === item.matched_description!.toLowerCase())
       : null;
-    const orderedQty = matchedPoLine?.quantity_ordered ?? null;
+    // Decided 2026-10-03: a delivered item that is not on the order is an
+    // exception line, not an anonymous "unmatched item". It keeps the name
+    // the delivery gave it and is recorded with an ordered quantity of 0, so
+    // its variance equals what arrived and it shows up as an open discrepancy
+    // everywhere discrepancies already do (the per-supplier list, the spoken
+    // disposition flow) and in the delivery exception report. A line with no
+    // name at all (an older held action) is recorded the old way.
+    const exceptionName = !matchedPoLine ? (item.item_description ?? "").trim() : "";
+    const isException = exceptionName.length > 0;
+    const orderedQty = matchedPoLine?.quantity_ordered ?? (isException ? 0 : null);
     // The real, deterministic point of this whole feature — a
     // quantity variance, computed here, in code, never asked of the
     // model.
     const variance = orderedQty != null ? item.quantity_received - orderedQty : null;
-    await env.OFFICE_DB.prepare(
-      "INSERT INTO grn_line_items (grn_id, po_line_item_id, description, quantity_received, quantity_ordered, variance) VALUES (?, ?, ?, ?, ?, ?)"
+    // The name this line is recorded (and reported) under.
+    const recordedDescription =
+      matchedPoLine?.description ??
+      (isException ? `${exceptionName}${item.unit ? ` [${item.unit}]` : ""}` : item.matched_description ?? "unmatched item");
+    const insertedLine = await env.OFFICE_DB.prepare(
+      "INSERT INTO grn_line_items (grn_id, po_line_item_id, description, quantity_received, quantity_ordered, variance) VALUES (?, ?, ?, ?, ?, ?) RETURNING id"
     )
       .bind(
         grnId,
         matchedPoLine?.id ?? null,
-        matchedPoLine?.description ?? item.matched_description ?? "unmatched item",
+        recordedDescription,
         item.quantity_received,
         orderedQty,
         variance
       )
-      .run();
+      .first<{ id: number }>();
+    if (isException) {
+      exceptions.push({ grnLineItemId: insertedLine!.id, description: exceptionName, quantity: item.quantity_received });
+    }
     if (orderedQty != null && variance != null) {
       variances.push({
-        description: matchedPoLine!.description,
+        description: recordedDescription,
         ordered: orderedQty,
         received: item.quantity_received,
         variance,
@@ -399,7 +461,7 @@ export async function recordGoodsReceived(
     const matchedStockItem = await env.OFFICE_DB.prepare(
       "SELECT id FROM stock_items WHERE name = ? COLLATE NOCASE"
     )
-      .bind(matchedPoLine?.description ?? item.matched_description ?? "")
+      .bind(matchedPoLine?.description ?? (isException ? exceptionName : item.matched_description) ?? "")
       .first<{ id: number }>();
     if (matchedStockItem) {
       await env.OFFICE_DB.prepare("UPDATE stock_items SET quantity_on_hand = quantity_on_hand + ? WHERE id = ?")
@@ -408,7 +470,78 @@ export async function recordGoodsReceived(
     }
   }
 
-  return { grnId, variances };
+  return { grnId, variances, exceptions };
+}
+
+// The delivery exception report (decided 2026-10-03): every delivered item
+// that was not on an order, across all suppliers, newest first. An exception
+// is a goods-received line with no order line and an ordered quantity of 0.
+// "Open" means no variance disposition has been raised for it yet, so
+// resolving one uses exactly the same routes and spoken flow as any other
+// discrepancy. purchase_order_id 0 means the supplier had no open order at all.
+export async function getDeliveryExceptions(
+  env: Env,
+  status: "open" | "all" = "open",
+  limit: number = 100
+): Promise<
+  Array<{
+    grnLineItemId: number;
+    grnId: number;
+    supplierId: number | null;
+    supplierName: string | null;
+    description: string;
+    quantityReceived: number;
+    hadOpenOrder: boolean;
+    recordedBy: string | null;
+    receivedAt: string;
+    status: "open" | "resolved";
+    reason: string | null;
+    resolution: string | null;
+  }>
+> {
+  const { results } = await env.OFFICE_DB.prepare(
+    `SELECT gli.id AS grn_line_item_id, grn.id AS grn_id, grn.supplier_id AS supplier_id, ch.name AS supplier_name,
+            gli.description AS description, gli.quantity_received AS quantity_received,
+            grn.purchase_order_id AS purchase_order_id, grn.recorded_by AS recorded_by, grn.created_at AS created_at,
+            vd.id AS disposition_id, vd.reason AS reason, vd.resolution AS resolution
+       FROM grn_line_items gli
+       JOIN goods_received_notes grn ON grn.id = gli.grn_id
+       LEFT JOIN characters ch ON ch.id = grn.supplier_id
+       LEFT JOIN variance_dispositions vd ON vd.grn_line_item_id = gli.id
+      WHERE gli.po_line_item_id IS NULL AND gli.quantity_ordered = 0
+        AND (? = 'all' OR vd.id IS NULL)
+      ORDER BY grn.created_at DESC, gli.id DESC
+      LIMIT ?`
+  )
+    .bind(status, Math.min(Math.max(limit, 1), 500))
+    .all<{
+      grn_line_item_id: number;
+      grn_id: number;
+      supplier_id: number | null;
+      supplier_name: string | null;
+      description: string;
+      quantity_received: number;
+      purchase_order_id: number;
+      recorded_by: string | null;
+      created_at: string;
+      disposition_id: number | null;
+      reason: string | null;
+      resolution: string | null;
+    }>();
+  return (results ?? []).map((r) => ({
+    grnLineItemId: r.grn_line_item_id,
+    grnId: r.grn_id,
+    supplierId: r.supplier_id,
+    supplierName: r.supplier_name,
+    description: r.description,
+    quantityReceived: r.quantity_received,
+    hadOpenOrder: r.purchase_order_id !== 0,
+    recordedBy: r.recorded_by,
+    receivedAt: r.created_at,
+    status: r.disposition_id != null ? ("resolved" as const) : ("open" as const),
+    reason: r.reason,
+    resolution: r.resolution,
+  }));
 }
 
 // Real feature 2026-07-25 — Consumables Stock, the idea-tank review's
