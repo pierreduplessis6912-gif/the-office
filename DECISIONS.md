@@ -5594,3 +5594,14 @@ Malformed, impossible (`2026-02-30`) or reversed dates throw a readable error ra
 **Not verified, stated plainly:** no live run on a real delivery note yet; how well the vision model reads a given photo is untested, and the earlier captionless upload's stored text can now be inspected with the new route. A scanned PDF with no text layer still yields nothing to read. The phone app needs a Codemagic rebuild before it shows the new messages and the confirmation buttons for an inferred delivery.
 
 **Deliberately not done:** a late caption for an earlier upload, and any guessing from recency. If the issuer cannot be read, the document is stored with an honest message and nothing is recorded.
+
+
+---
+
+## Document-first uploads, confirmed live on a real delivery note
+
+**Confirmed, the real way, on the rebuilt app:** a photo of a real Floornet delivery note uploaded with no caption (capture 483) was identified from the document alone and produced "Delivery noted from Floornet (read from the document) — needs your confirmation (action #144) before it's recorded.", with Confirm and Reject shown. The new inspection route showed exactly what the vision model read: the Floornet letterhead as the issuer, "Zululand Flooring & Blinds" (our own business) as the delivery address, the delivery order number, the item line and "2.00 Box". The issuer was picked correctly over the recipient. The earlier captionless upload of the same note (capture 481) had read it equally well; it was never lacking text, only a way to use it.
+
+**Also confirmed:** the app rebuild is the one running (the server message and the confirmation buttons both appear), and the supplier was matched from the document without a caption (the capture's own subject hint is deliberately left empty for an inferred match; the provenance is recorded on the held action instead).
+
+**Not yet verified:** the contents of the held action (which purchase-order lines it matched, and the quantity and unit it would record: the note says "2.00 Box" of a 5 m2 item, and the order may be in square metres) and the result of confirming it.
