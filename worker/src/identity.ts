@@ -620,3 +620,54 @@ export async function getCurrentSelection(env: Env): Promise<{ type: string; id:
   }>();
   return row ? { type: row.key, id: row.entity_id, name: row.label } : null;
 }
+
+// Real feature 2026-10-03 — matching the business a document says it came
+// from to a supplier that ALREADY EXISTS. Pure and deterministic on purpose
+// (no AI, no database writes), so it can be tested exhaustively: the AI only
+// reads the printed name; whether that name is one of our suppliers is decided
+// here, in code. It never creates anything. Legal suffixes and punctuation are
+// ignored ("Floornet (Pty) Ltd" is "Floornet"), case is ignored, and a match is
+// "exact" when the remaining words are the same set, or "partial" when one
+// side's words are wholly contained in the other's. Exact matches win over
+// partial ones; more than one candidate at the winning level is reported as
+// ambiguous rather than picked.
+export interface SupplierCandidate {
+  id: number;
+  name: string;
+}
+export type IssuerMatch =
+  | { kind: "one"; supplier: SupplierCandidate; strength: "exact" | "partial" }
+  | { kind: "many"; suppliers: SupplierCandidate[] }
+  | { kind: "none" };
+
+const BUSINESS_NOISE_WORDS = new Set(["pty", "ltd", "limited", "cc", "inc", "incorporated", "proprietary", "co", "company", "the", "and", "of", "sa", "za", "trading", "as"]);
+
+export function businessNameWords(name: string): string[] {
+  return name
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 2 && !BUSINESS_NOISE_WORDS.has(w));
+}
+
+export function matchIssuerToSuppliers(suppliers: SupplierCandidate[], issuer: string): IssuerMatch {
+  const issuerWords = new Set(businessNameWords(issuer));
+  if (issuerWords.size === 0) return { kind: "none" };
+  const exact: SupplierCandidate[] = [];
+  const partial: SupplierCandidate[] = [];
+  for (const supplier of suppliers) {
+    const words = new Set(businessNameWords(supplier.name));
+    if (words.size === 0) continue;
+    const sameSize = words.size === issuerWords.size;
+    const supplierInIssuer = [...words].every((w) => issuerWords.has(w));
+    const issuerInSupplier = [...issuerWords].every((w) => words.has(w));
+    if (sameSize && supplierInIssuer) exact.push(supplier);
+    else if (supplierInIssuer || issuerInSupplier) partial.push(supplier);
+  }
+  const pool = exact.length > 0 ? exact : partial;
+  if (pool.length === 0) return { kind: "none" };
+  if (pool.length > 1) return { kind: "many", suppliers: pool };
+  return { kind: "one", supplier: pool[0], strength: exact.length > 0 ? "exact" : "partial" };
+}
