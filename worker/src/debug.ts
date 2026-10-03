@@ -397,18 +397,21 @@ if (url.pathname === "/debug/suppliers-list" && request.method === "GET") {
         (orders as Array<{ id: number }>).map(async (order) => {
           const { results: rawLines } = await env.OFFICE_DB.prepare(
             `SELECT pl.id, pl.description, pl.quantity_ordered, pl.unit, pl.unit_price_expected,
-                    COALESCE((SELECT SUM(g.quantity_received) FROM grn_line_items g WHERE g.po_line_item_id = pl.id), 0) AS quantity_received
+                    COALESCE((SELECT SUM(g.quantity_received) FROM grn_line_items g WHERE g.po_line_item_id = pl.id), 0) AS quantity_received,
+                    COALESCE((SELECT SUM(-g.variance) FROM grn_line_items g
+                               WHERE g.po_line_item_id = pl.id AND g.variance < 0
+                                 AND EXISTS (SELECT 1 FROM variance_dispositions vd WHERE vd.grn_line_item_id = g.id AND vd.resolution = 'credit')), 0) AS quantity_written_off
                FROM po_line_items pl WHERE pl.purchase_order_id = ?`
           )
             .bind(order.id)
-            .all<{ id: number; description: string; quantity_ordered: number; unit: string | null; unit_price_expected: number | null; quantity_received: number }>();
+            .all<{ id: number; description: string; quantity_ordered: number; unit: string | null; unit_price_expected: number | null; quantity_received: number; quantity_written_off: number }>();
           // Order status by quantity, worked out on read (decided 2026-10-03): separate from the document
           // status below, which is about which paperwork has arrived.
           const lineItems = (rawLines ?? []).map((l) => ({
             ...l,
-            quantity_outstanding: Math.max(Math.round((l.quantity_ordered - l.quantity_received) * 10000) / 10000, 0),
+            quantity_outstanding: Math.max(Math.round((l.quantity_ordered - l.quantity_received - l.quantity_written_off) * 10000) / 10000, 0),
           }));
-          const deliveryStatus = orderDeliveryStatus((rawLines ?? []).map((l) => ({ ordered: l.quantity_ordered, received: l.quantity_received })));
+          const deliveryStatus = orderDeliveryStatus((rawLines ?? []).map((l) => ({ ordered: l.quantity_ordered, received: l.quantity_received, writtenOff: l.quantity_written_off })));
           const grnCount = await env.OFFICE_DB.prepare(
             "SELECT COUNT(*) as count FROM goods_received_notes WHERE purchase_order_id = ?"
           )
@@ -444,18 +447,21 @@ if (url.pathname === "/debug/purchase-orders" && request.method === "GET") {
         (orders as Array<{ id: number }>).map(async (order) => {
           const { results: rawLines } = await env.OFFICE_DB.prepare(
             `SELECT pl.id, pl.description, pl.quantity_ordered, pl.unit, pl.unit_price_expected,
-                    COALESCE((SELECT SUM(g.quantity_received) FROM grn_line_items g WHERE g.po_line_item_id = pl.id), 0) AS quantity_received
+                    COALESCE((SELECT SUM(g.quantity_received) FROM grn_line_items g WHERE g.po_line_item_id = pl.id), 0) AS quantity_received,
+                    COALESCE((SELECT SUM(-g.variance) FROM grn_line_items g
+                               WHERE g.po_line_item_id = pl.id AND g.variance < 0
+                                 AND EXISTS (SELECT 1 FROM variance_dispositions vd WHERE vd.grn_line_item_id = g.id AND vd.resolution = 'credit')), 0) AS quantity_written_off
                FROM po_line_items pl WHERE pl.purchase_order_id = ?`
           )
             .bind(order.id)
-            .all<{ id: number; description: string; quantity_ordered: number; unit: string | null; unit_price_expected: number | null; quantity_received: number }>();
+            .all<{ id: number; description: string; quantity_ordered: number; unit: string | null; unit_price_expected: number | null; quantity_received: number; quantity_written_off: number }>();
           // Order status by quantity, worked out on read (decided 2026-10-03): separate from the document
           // status below, which is about which paperwork has arrived.
           const lineItems = (rawLines ?? []).map((l) => ({
             ...l,
-            quantity_outstanding: Math.max(Math.round((l.quantity_ordered - l.quantity_received) * 10000) / 10000, 0),
+            quantity_outstanding: Math.max(Math.round((l.quantity_ordered - l.quantity_received - l.quantity_written_off) * 10000) / 10000, 0),
           }));
-          const deliveryStatus = orderDeliveryStatus((rawLines ?? []).map((l) => ({ ordered: l.quantity_ordered, received: l.quantity_received })));
+          const deliveryStatus = orderDeliveryStatus((rawLines ?? []).map((l) => ({ ordered: l.quantity_ordered, received: l.quantity_received, writtenOff: l.quantity_written_off })));
           // Real feature 2026-07-21 — the document-completeness
           // status pinned earlier tonight, built directly from that
           // design: computed live from real counts, the same
