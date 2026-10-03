@@ -9,10 +9,10 @@ import {
   verifySession, getSessionToken, getCookie, base64UrlEncode, ROLE_CAPABILITIES, ENFORCE_CAPABILITIES,
   ACTION_TYPE_CAPABILITY, ROUTE_RULES, SIGNABLE_DOCUMENT_PATHS, intentCreationRefusal,
 } from "./auth";
-import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, classifyGoodsReceivedLines, getDeliveryExceptions, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
+import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 import { handleDebugRoute } from "./debug";
-import { DOCUMENT_KIND_LABEL, deliveryHeldMessage, inferDocumentSupplier, planDelivery } from "./documents";
+import { DOCUMENT_KIND_LABEL, deliveryHadExceptions, deliveryHeldMessage, deliveryRecordedMessage, inferDocumentSupplier, planDelivery } from "./documents";
 
 // Second layer of defense against storing questions as facts — never
 // trust intent classification alone for this, since it's been
@@ -696,13 +696,14 @@ async function processOneExtraction(
   if (extraction?.intent === "goods_received") {
     if (character) {
       // Decided 2026-10-03 (Pierre): a delivery of items that were never
-      // ordered is RECEIVED and reported as a delivery exception, so having
-      // no open order, or an order with nothing in common, no longer ends
-      // here. A spoken delivery is always held for confirmation.
-      const openPo = await findLatestOpenPurchaseOrder(env, character.id);
-      const poLineItems = openPo ? await getPurchaseOrderLineItems(env, openPo.id) : [];
-      const grnExtraction = await extractGoodsReceived(env, transcript, poLineItems);
-      const grnPlan = planDelivery(classifyGoodsReceivedLines(grnExtraction.line_items, poLineItems), {
+      // ordered is RECEIVED and reported as a delivery exception, and a delivery is
+      // matched against ALL of the supplier's orders that still have items
+      // outstanding (oldest first), not just the most recent one. A spoken delivery
+      // is always held for confirmation.
+      const outstanding = await getOutstandingOrderLines(env, character.id);
+      const candidates = candidateOrderLines(outstanding);
+      const grnExtraction = await extractGoodsReceived(env, transcript, candidates);
+      const grnPlan = planDelivery(classifyGoodsReceivedLines(grnExtraction.line_items, candidates), {
         mustHold: true,
         refused: false,
       });
@@ -711,9 +712,10 @@ async function processOneExtraction(
           env,
           "goods_received",
           {
-            purchaseOrderId: openPo?.id ?? 0,
+            purchaseOrderId: outstanding.length > 0 ? outstanding[outstanding.length - 1].poId : 0,
             supplierId: character.id,
             supplierName: character.name,
+            allocate: true,
             lineItems: grnPlan.lines,
           },
           transcript
@@ -721,7 +723,7 @@ async function processOneExtraction(
         pendingActionId = held.id;
         pendingActionType = "goods_received";
         goodsReceivedSupplierName = character.name;
-        goodsReceivedMessage = deliveryHeldMessage(grnPlan, character.name, false, held.id, openPo != null);
+        goodsReceivedMessage = deliveryHeldMessage(grnPlan, character.name, false, held.id, outstanding.length > 0);
       } else {
         goodsReceivedNoItems = true;
       }
@@ -4040,6 +4042,9 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             purchaseOrderId: number;
             supplierId: number | null;
             supplierName?: string;
+            // Set on every hold made since 2026-10-03: the lines are placed against the supplier's
+            // outstanding orders when confirmed. Older held actions lack it and are recorded the old way.
+            allocate?: boolean;
             lineItems: Array<{ matched_description: string | null; quantity_received: number; item_description?: string | null; unit?: string | null }>;
           };
           // Real design decision 2026-07-21 — GRN capture stays open
@@ -4047,6 +4052,15 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           // no money involved), but who actually recorded it is a
           // real, permanent fact, not an anonymous action.
           const { email: recordedByEmail } = await resolveCapabilities(request, env);
+          if (payload.allocate && payload.supplierId != null) {
+            const delivered = await recordDelivery(env, payload.supplierId, action.source_transcript, payload.lineItems, recordedByEmail);
+            await env.OFFICE_DB.prepare(
+              "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+            )
+              .bind(id)
+              .run();
+            return Response.json({ status: "confirmed", goodsReceived: delivered, message: deliveryRecordedMessage(delivered) });
+          }
           const recorded = await recordGoodsReceived(
             env,
             payload.purchaseOrderId,
@@ -4882,13 +4896,15 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       // and reported as delivery exceptions; they are not refused. What is held
       // vs recorded, and what is told back, is decided by the pure planDelivery
       // (tested without a database); this only carries the plan out.
-      const reconcileDelivery = async (
-        supplierId: number,
-        orderId: number | null,
-        orderLines: Array<{ description: string; quantity_ordered: number; unit: string | null }>
-      ) => {
-        const grnExtraction = await extractGoodsReceived(env, description, orderLines);
-        const classified = classifyGoodsReceivedLines(grnExtraction.line_items, orderLines);
+      const reconcileDelivery = async (supplierId: number) => {
+        // Decided 2026-10-03 (Pierre): a delivery is matched against ALL of the supplier's orders
+        // that still have items outstanding, oldest first, not just the most recent order; and what a
+        // line expects is what is still outstanding, so a delivery that arrives in two parts is not
+        // flagged twice. A shortage stays on the exception report until it is resolved.
+        const outstanding = await getOutstandingOrderLines(env, supplierId);
+        const candidates = candidateOrderLines(outstanding);
+        const grnExtraction = await extractGoodsReceived(env, description, candidates);
+        const classified = classifyGoodsReceivedLines(grnExtraction.line_items, candidates);
         const plan = planDelivery(classified, { mustHold: inferredFromDocument, refused: Boolean(goodsReceivedRefusal) });
         const supplierLabel = subjectHint ?? "the supplier";
         if (plan.action === "refuse") {
@@ -4899,17 +4915,21 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           const heldGrn = await holdForConfirmation(
             env,
             "goods_received",
-            { purchaseOrderId: orderId ?? 0, supplierId, supplierName: subjectHint, lineItems: plan.lines },
+            {
+              purchaseOrderId: outstanding.length > 0 ? outstanding[outstanding.length - 1].poId : 0,
+              supplierId,
+              supplierName: subjectHint,
+              allocate: true,
+              lineItems: plan.lines,
+            },
             rawText
           );
           uploadHeldActionId = heldGrn.id;
-          uploadMessage = deliveryHeldMessage(plan, supplierLabel, inferredFromDocument, heldGrn.id, orderId != null);
+          uploadMessage = deliveryHeldMessage(plan, supplierLabel, inferredFromDocument, heldGrn.id, outstanding.length > 0);
         } else if (plan.action === "record") {
-          const recorded = await recordGoodsReceived(env, orderId ?? 0, supplierId, rawText, plan.lines);
+          const recorded = await recordDelivery(env, supplierId, rawText, plan.lines);
           goodsReceivedAction = { grnId: recorded.grnId, supplierName: supplierLabel };
-          if (plan.exceptionCount > 0) {
-            uploadMessage = `Delivery recorded (GRN #${recorded.grnId}). ${plan.exceptionCount} item(s) weren't on the order and were logged as delivery exceptions.`;
-          }
+          if (deliveryHadExceptions(recorded)) uploadMessage = deliveryRecordedMessage(recorded);
         } else {
           uploadMessage = `I read ${documentKindLabel} from ${supplierLabel}, but couldn't make out any items on it, so nothing was recorded.`;
         }
@@ -4962,7 +4982,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             uploadHeldActionId = held.id;
             uploadMessage = `Supplier invoice noted from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""} — needs your confirmation (action #${held.id}) before it's recorded.`;
           } else {
-            await reconcileDelivery(subjectCharacterId, openPo.id, poLineItems);
+            await reconcileDelivery(subjectCharacterId);
           }
         } else {
           // No open order. A delivery note for items that were never ordered is
@@ -4973,7 +4993,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             ? documentKind === "delivery_note"
             : (await extractDocumentIdentity(env, description)).document_type === "delivery_note";
           if (isDeliveryNote) {
-            await reconcileDelivery(subjectCharacterId, null, []);
+            await reconcileDelivery(subjectCharacterId);
           } else {
             uploadMessage = `I read ${documentKindLabel} from ${subjectHint ?? "the supplier"}, but there's no open order for them, so nothing was recorded.`;
           }
@@ -5114,13 +5134,15 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       // and reported as delivery exceptions; they are not refused. What is held
       // vs recorded, and what is told back, is decided by the pure planDelivery
       // (tested without a database); this only carries the plan out.
-      const reconcileDelivery = async (
-        supplierId: number,
-        orderId: number | null,
-        orderLines: Array<{ description: string; quantity_ordered: number; unit: string | null }>
-      ) => {
-        const grnExtraction = await extractGoodsReceived(env, description, orderLines);
-        const classified = classifyGoodsReceivedLines(grnExtraction.line_items, orderLines);
+      const reconcileDelivery = async (supplierId: number) => {
+        // Decided 2026-10-03 (Pierre): a delivery is matched against ALL of the supplier's orders
+        // that still have items outstanding, oldest first, not just the most recent order; and what a
+        // line expects is what is still outstanding, so a delivery that arrives in two parts is not
+        // flagged twice. A shortage stays on the exception report until it is resolved.
+        const outstanding = await getOutstandingOrderLines(env, supplierId);
+        const candidates = candidateOrderLines(outstanding);
+        const grnExtraction = await extractGoodsReceived(env, description, candidates);
+        const classified = classifyGoodsReceivedLines(grnExtraction.line_items, candidates);
         const plan = planDelivery(classified, { mustHold: inferredFromDocument, refused: Boolean(goodsReceivedRefusal) });
         const supplierLabel = subjectHint ?? "the supplier";
         if (plan.action === "refuse") {
@@ -5131,17 +5153,21 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           const heldGrn = await holdForConfirmation(
             env,
             "goods_received",
-            { purchaseOrderId: orderId ?? 0, supplierId, supplierName: subjectHint, lineItems: plan.lines },
+            {
+              purchaseOrderId: outstanding.length > 0 ? outstanding[outstanding.length - 1].poId : 0,
+              supplierId,
+              supplierName: subjectHint,
+              allocate: true,
+              lineItems: plan.lines,
+            },
             rawText
           );
           uploadHeldActionId = heldGrn.id;
-          uploadMessage = deliveryHeldMessage(plan, supplierLabel, inferredFromDocument, heldGrn.id, orderId != null);
+          uploadMessage = deliveryHeldMessage(plan, supplierLabel, inferredFromDocument, heldGrn.id, outstanding.length > 0);
         } else if (plan.action === "record") {
-          const recorded = await recordGoodsReceived(env, orderId ?? 0, supplierId, rawText, plan.lines);
+          const recorded = await recordDelivery(env, supplierId, rawText, plan.lines);
           goodsReceivedAction = { grnId: recorded.grnId, supplierName: supplierLabel };
-          if (plan.exceptionCount > 0) {
-            uploadMessage = `Delivery recorded (GRN #${recorded.grnId}). ${plan.exceptionCount} item(s) weren't on the order and were logged as delivery exceptions.`;
-          }
+          if (deliveryHadExceptions(recorded)) uploadMessage = deliveryRecordedMessage(recorded);
         } else {
           uploadMessage = `I read ${documentKindLabel} from ${supplierLabel}, but couldn't make out any items on it, so nothing was recorded.`;
         }
@@ -5194,7 +5220,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             uploadHeldActionId = held.id;
             uploadMessage = `Supplier invoice noted from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""} — needs your confirmation (action #${held.id}) before it's recorded.`;
           } else {
-            await reconcileDelivery(subjectCharacterId, openPo.id, poLineItems);
+            await reconcileDelivery(subjectCharacterId);
           }
         } else {
           // No open order. A delivery note for items that were never ordered is
@@ -5205,7 +5231,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             ? documentKind === "delivery_note"
             : (await extractDocumentIdentity(env, description)).document_type === "delivery_note";
           if (isDeliveryNote) {
-            await reconcileDelivery(subjectCharacterId, null, []);
+            await reconcileDelivery(subjectCharacterId);
           } else {
             uploadMessage = `I read ${documentKindLabel} from ${subjectHint ?? "the supplier"}, but there's no open order for them, so nothing was recorded.`;
           }
