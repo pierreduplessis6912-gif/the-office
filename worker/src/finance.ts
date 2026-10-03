@@ -305,6 +305,29 @@ export async function getPurchaseOrderLineItems(
   return results ?? [];
 }
 
+// Real bug found live 2026-10-03: a confirmed delivery recorded a single
+// line called "unmatched item", quantity 2. The model, asked to match a
+// delivery to the order's lines, correctly answers matched_description:null
+// for something that matches nothing, but the callers only checked that
+// SOME line existed, so a delivery that matched nothing was still held and
+// then recorded, with the item's real name lost. Only lines that match a
+// real line on the order may be held or recorded; the rest are reported,
+// not recorded. A name the model returns that is not actually on the order
+// counts as unmatched too (compared case-insensitively, as recording does).
+export function splitGoodsReceivedLines<T extends { matched_description: string | null }>(
+  lines: T[],
+  poLineItems: Array<{ description: string }>
+): { matched: T[]; unmatched: T[] } {
+  const onOrder = new Set(poLineItems.map((p) => p.description.toLowerCase()));
+  const matched: T[] = [];
+  const unmatched: T[] = [];
+  for (const line of lines) {
+    if (line.matched_description && onOrder.has(line.matched_description.toLowerCase())) matched.push(line);
+    else unmatched.push(line);
+  }
+  return { matched, unmatched };
+}
+
 // Real feature 2026-07-21 — Goods Received Notes, the second stage
 // of the real, three-way design pinned in DECISIONS.md. Guard()'d —
 // unlike the PO itself, this is where real stock actually changes
