@@ -613,6 +613,9 @@ export async function recordDelivery(
   exceptions: Array<{ grnLineItemId: number; description: string; quantity: number }>;
   shortCount: number;
   overCount: number;
+  // Items that arrived and are not a registered stock item (so nothing was added to stock). The caller
+  // asks whether to add them (decided 2026-10-03, Pierre: ask on delivery).
+  notInStock: Array<{ name: string; unit: string | null; quantity: number }>;
 }> {
   const outstanding = await getOutstandingOrderLines(env, supplierId);
   const classified = classifyGoodsReceivedLines(lines, candidateOrderLines(outstanding));
@@ -631,15 +634,23 @@ export async function recordDelivery(
     headers.set(poId, inserted!.id);
     return inserted!.id;
   };
-  const addStock = async (name: string, quantity: number) => {
-    // Same exact-name rule as before: only a stock item deliberately registered under this name.
+  const notInStock = new Map<string, { name: string; unit: string | null; quantity: number }>();
+  const addStock = async (name: string, quantity: number, unit: string | null) => {
+    // Same exact-name rule as before: only a stock item deliberately registered under this name
+    // gains stock automatically. Anything else is reported back, so the person can be asked.
     const stockItem = await env.OFFICE_DB.prepare("SELECT id FROM stock_items WHERE name = ? COLLATE NOCASE")
       .bind(name)
       .first<{ id: number }>();
-    if (stockItem && quantity > 0) {
+    if (quantity <= 0) return;
+    if (stockItem) {
       await env.OFFICE_DB.prepare("UPDATE stock_items SET quantity_on_hand = quantity_on_hand + ? WHERE id = ?")
         .bind(quantity, stockItem.id)
         .run();
+    } else {
+      const key = name.toLowerCase();
+      const existing = notInStock.get(key);
+      if (existing) existing.quantity = round4(existing.quantity + quantity);
+      else notInStock.set(key, { name, unit, quantity });
     }
   };
 
@@ -654,7 +665,7 @@ export async function recordDelivery(
       .bind(grnId, a.poLineId, a.description, a.quantity, a.ordered, a.variance)
       .first<{ id: number }>();
     variances.push({ description: a.description, expected: a.expected, received: a.quantity, variance: a.variance });
-    await addStock(a.description, a.quantity);
+    await addStock(a.description, a.quantity, a.unit);
   }
 
   for (const e of classified.exceptions) {
@@ -666,7 +677,7 @@ export async function recordDelivery(
       .bind(grnId, null, `${name}${e.unit ? ` [${e.unit}]` : ""}`, e.quantity_received, 0, e.quantity_received)
       .first<{ id: number }>();
     exceptions.push({ grnLineItemId: inserted!.id, description: name, quantity: e.quantity_received });
-    await addStock(name, e.quantity_received);
+    await addStock(name, e.quantity_received, e.unit ?? null);
   }
 
   const grnIds = [...headers.values()];
@@ -677,7 +688,66 @@ export async function recordDelivery(
     exceptions,
     shortCount: allocations.filter((a) => a.variance < 0).length,
     overCount: allocations.filter((a) => a.variance > 0).length,
+    notInStock: [...notInStock.values()],
   };
+}
+
+// ---------------------------------------------------------------------------
+// "Add this delivery to stock?" (decided 2026-10-03, Pierre: ask on delivery).
+// Stock items are still only ever created deliberately: a delivery never registers one by itself.
+// What changed is that the person is asked, with one tap, instead of having to register the item
+// first with a name that matches the order line exactly. One question per delivery, covering every
+// item that arrived and is not already stock. An item is not asked about again once it has been
+// declined (a rejected question stays on record) or while a question about it is still waiting.
+// ---------------------------------------------------------------------------
+export async function proposeStockAdditions(
+  env: Env,
+  items: Array<{ name: string; unit: string | null; quantity: number }>,
+  supplierName: string | null
+): Promise<{ id: number; message: string } | null> {
+  const fresh: Array<{ name: string; unit: string | null; quantity: number }> = [];
+  for (const item of items) {
+    if (!item.name.trim() || !(item.quantity > 0)) continue;
+    const seen = await env.OFFICE_DB.prepare(
+      `SELECT 1 AS hit FROM pending_actions pa, json_each(pa.payload, '$.items') je
+        WHERE pa.type = 'stock_add' AND pa.status IN ('pending', 'rejected')
+          AND lower(json_extract(je.value, '$.name')) = lower(?)
+        LIMIT 1`
+    )
+      .bind(item.name)
+      .first<{ hit: number }>();
+    if (!seen) fresh.push(item);
+  }
+  if (fresh.length === 0) return null;
+  const list = fresh.map((i) => `${i.name} (${i.quantity}${i.unit ? ` ${i.unit}` : ""})`).join(", ");
+  const question = `Add to stock? ${list}`;
+  // The question itself is stored as the action's text, because that is what the Pending room shows.
+  const held = await holdForConfirmation(env, "stock_add", { items: fresh, supplierName }, question);
+  return { id: held.id, message: `${question} (action #${held.id}).` };
+}
+
+// Confirming the question: registers each item that is not yet stock and adds what arrived. If it was
+// registered in the meantime, this delivery's quantity is still added, because it was not counted.
+export async function addDeliveredItemsToStock(
+  env: Env,
+  items: Array<{ name: string; unit: string | null; quantity: number }>
+): Promise<Array<{ name: string; unit: string | null; quantity: number }>> {
+  const added: Array<{ name: string; unit: string | null; quantity: number }> = [];
+  for (const item of items) {
+    const name = typeof item.name === "string" ? item.name.trim() : "";
+    const quantity = Number(item.quantity);
+    const unit = typeof item.unit === "string" && item.unit.trim() ? item.unit.trim().slice(0, 20) : null;
+    if (!name || !Number.isFinite(quantity) || quantity <= 0) continue;
+    const existing = await env.OFFICE_DB.prepare("SELECT id FROM stock_items WHERE name = ? COLLATE NOCASE")
+      .bind(name)
+      .first<{ id: number }>();
+    const id = existing?.id ?? (await registerStockItem(env, name, unit)).id;
+    await env.OFFICE_DB.prepare("UPDATE stock_items SET quantity_on_hand = quantity_on_hand + ? WHERE id = ?")
+      .bind(quantity, id)
+      .run();
+    added.push({ name, unit, quantity });
+  }
+  return added;
 }
 
 // The delivery exception report (decided 2026-10-03, Pierre): every way a delivery differed from what
