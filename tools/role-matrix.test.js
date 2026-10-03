@@ -247,14 +247,42 @@ async function expect(role, method, path, want) {
     const gate = h.indexOf('if (!subjectCharacterId && !subjectCustomerId) {');
     const call = h.indexOf('inferDocumentSupplier(env, description)');
     check(gate > 0 && call > gate, `${name}: document-first must run only when no subject was stated (caption wins)`);
-    const heldGrn = h.indexOf('line_items.length > 0 && inferredFromDocument) {');
+    const heldGrn = h.indexOf('grnSplit.matched.length > 0 && inferredFromDocument) {');
     check(heldGrn > 0 && h.indexOf('&& goodsReceivedRefusal) {') < heldGrn, `${name}: an inferred delivery must be considered after the permission check`);
     check(heldGrn > 0 && heldGrn < h.indexOf('recordGoodsReceived('), `${name}: an inferred delivery must be HELD before the direct-record path is reached`);
     const holdAfter = h.slice(heldGrn, h.indexOf('recordGoodsReceived('));
     check(/holdForConfirmation\(\s*env,\s*"goods_received"/.test(holdAfter), `${name}: the inferred delivery must be held as a goods_received confirmation`);
     check(/message: uploadRefusal \?\? uploadMessage, pendingActionId: uploadHeldActionId/.test(h), `${name}: the response must carry the message and the held action id`);
-    check(h.includes("there's no open order for them") && h.includes("couldn't match any of its items"), `${name}: the "nothing recorded" cases must explain themselves`);
+    check(h.includes("there's no open order for them") && h.includes("none of its items match their open order"), `${name}: the "nothing recorded" cases must explain themselves`);
   }
+  // Goods received: only lines that match the order may be held or recorded (found live 2026-10-03:
+  // a delivery matching nothing was held, then recorded as a single line called "unmatched item").
+  const { splitGoodsReceivedLines } = bundleTo('finance.ts', 'rm-finance.js');
+  const PO = [{ description: 'Vinyl' }, { description: 'Underlay' }];
+  const L = (d, q) => ({ matched_description: d, quantity_received: q });
+  let sp = splitGoodsReceivedLines([L(null, 2)], PO);
+  check(sp.matched.length === 0 && sp.unmatched.length === 1, 'a line the model could not match (null) must not count as matched');
+  sp = splitGoodsReceivedLines([L('Vinyl', 50), L('Underlay', 40)], PO);
+  check(sp.matched.length === 2 && sp.unmatched.length === 0, 'lines that match the order are all kept');
+  sp = splitGoodsReceivedLines([L('Vinyl', 50), L(null, 2)], PO);
+  check(sp.matched.length === 1 && sp.matched[0].matched_description === 'Vinyl' && sp.unmatched.length === 1, 'a mixed delivery keeps only the matched line and reports the other');
+  sp = splitGoodsReceivedLines([L('MARBLE CHARCOAL', 2)], PO);
+  check(sp.matched.length === 0 && sp.unmatched.length === 1, 'a name that is not actually on the order must count as unmatched, even if the model supplied one');
+  sp = splitGoodsReceivedLines([L('vinyl', 5)], PO);
+  check(sp.matched.length === 1, 'matching is case-insensitive, exactly as recording does it');
+  check(splitGoodsReceivedLines([], PO).matched.length === 0 && splitGoodsReceivedLines([L('Vinyl', 1)], []).matched.length === 0, 'no lines, or an order with no lines, matches nothing');
+  check(splitGoodsReceivedLines([L('', 3)], PO).matched.length === 0, 'an empty name is not a match');
+  // No path may pass raw, unfiltered lines to a hold or a record again: every use of the
+  // extraction's line_items in index.ts must be the argument to splitGoodsReceivedLines.
+  const rawUses = (indexSrc.match(/grnExtraction\.line_items/g) || []).length;
+  const splitUses = (indexSrc.match(/splitGoodsReceivedLines\(grnExtraction\.line_items, poLineItems\)/g) || []).length;
+  check(rawUses === 3 && splitUses === 3, `every goods-received path (document, photo, dictation) must filter through splitGoodsReceivedLines; raw uses ${rawUses}, filtered ${splitUses}`);
+  check(!/lineItems: grnExtraction\.line_items/.test(indexSrc), 'a hold must never be built from unfiltered goods-received lines');
+  const dictStart = indexSrc.indexOf('if (extraction?.intent === "goods_received") {');
+  const dictBody = indexSrc.slice(dictStart, indexSrc.indexOf('Supplier Invoices, the third and final', dictStart));
+  check(dictBody.indexOf('if (grnSplit.matched.length > 0) {') > 0 && dictBody.indexOf('if (grnSplit.matched.length > 0) {') < dictBody.indexOf('holdForConfirmation('), 'dictation: a goods-received hold may only be created when something matched the order');
+  check(/goods_received" && goodsReceivedNoMatchOnOrder\) \{/.test(indexSrc), 'dictation: a delivery that matches nothing must get its own honest reply');
+
   // The two inspection routes must stay admin-key only (not in the app's own route list).
   const appDebug = src.match(/const APP_DEBUG_ROUTES = new Set\(\[([\s\S]*?)\]\);/)[1];
   check(!/recent-captures|pending-action/.test(appDebug), 'the inspection routes must not be added to the app route list, which would put them behind a session instead of the admin key');
