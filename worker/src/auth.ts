@@ -372,6 +372,7 @@ export const ROUTE_RULES: Array<{ method: string; path: RegExp; anyOf: string[] 
   { method: "GET", path: /^\/customers\/\d+\/profitability$/, anyOf: ["can_know_profit"] },
   { method: "PATCH", path: /^\/(invoices|quotations|customers)\/\d+$/, anyOf: ["can_manage_invoices"] },
   { method: "GET", path: /^\/suppliers\/\d+\/discrepancies$/, anyOf: ["can_manage_invoices"] },
+  { method: "GET", path: /^\/delivery-exceptions$/, anyOf: ["can_manage_invoices"] },
   { method: "POST", path: /^\/suppliers\/discrepancies\/\d+\/resolve$/, anyOf: ["can_manage_invoices"] },
   { method: "GET", path: /^\/embers\/finance$/, anyOf: ["can_know_debtors", "can_know_profit"] },
   { method: "GET", path: /^\/embers\/expenses$/, anyOf: ["can_know_profit", "can_manage_invoices"] },
