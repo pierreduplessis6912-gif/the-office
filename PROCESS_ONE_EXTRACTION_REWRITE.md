@@ -304,3 +304,5 @@ Traced after the fact, in `POST /files/document` (index.ts ~4800–4860), by rea
 ### Status update (2026-10-03, later still): Phase 2 has started
 
 The characterization harness exists and runs in CI on Node 22. Recorded: the payments group and `convert_quote` (29 cases). It found and fixed a real leak (see "Rewrite Phase 2" in `DECISIONS.md`). **Next:** record the groups that need a scripted model (procurement, then invoicing and pricing, observations, lookups), then stock, snags and leads, and the identity holds. Only when a group is fully recorded does it become a candidate for Phase 3 (the first real handler, reproducing its recording exactly).
+
+**Open questions** for this work and the surrounding product are kept in one place: `OPEN_QUESTIONS.md` at the repository root. Read it before starting any phase.
