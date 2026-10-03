@@ -30,6 +30,14 @@ module.exports = async function runCharacterization({ check, bundleTo, srcDir, f
   check(groups.length >= 1, 'there must be at least one characterization group');
   for (const group of groups) {
     const specs = require(path.join(casesDir, group + '.js'))(caps);
+    // A malformed case (a missing argument is easy to write) must fail with its name, not with a database error.
+    for (const spec of specs) {
+      const ok = typeof spec.name === 'string' && typeof spec.transcript === 'string' && spec.extraction && typeof spec.extraction.intent === 'string' && Array.isArray(spec.capabilities) && typeof spec.seed === 'function' && (spec.ai === undefined || Array.isArray(spec.ai));
+      check(ok, `${group}: the case "${spec.name}" is malformed (it needs a name, a transcript, an extraction with an intent, a capabilities list, a seed, and an ai list if it has one)`);
+    }
+    const names = specs.map((x) => x.name);
+    check(names.length === new Set(names).size, `${group}: two cases share a name`);
+    if (specs.some((x) => typeof x.transcript !== 'string')) continue;
     const actual = {};
     for (const spec of specs) {
       const r = await runCase(processOne, workerDir, spec);
