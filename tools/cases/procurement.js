@@ -1,0 +1,118 @@
+// Characterization cases for the procurement group: purchase_order, goods_received, supplier_invoice,
+// variance_disposition, and a spoken supplier_statement. Each branch asks the model to read the sentence, so each case
+// scripts the model's reply (and some script a model that fails or finds nothing, because that behaviour is part of
+// what the rewritten handlers must reproduce).
+module.exports = function cases(caps) {
+  // Floornet (id 1) and Belgotex (id 2) are suppliers; Belgotex has never been ordered from.
+  const base = (db) => db.exec(`
+    INSERT INTO characters (name, relationship) VALUES ('Floornet', 'supplier'), ('Belgotex', 'supplier'), ('Jabulani', 'installer');
+  `);
+  // One open order with two lines, nothing delivered yet.
+  const withOrder = (db) => {
+    base(db);
+    db.exec(`
+      INSERT INTO purchase_orders (id, supplier_id, description, created_at) VALUES (1, 1, 'Vinyl and underlay', '2026-10-01 08:00:00');
+      INSERT INTO po_line_items (id, purchase_order_id, description, quantity_ordered, unit, unit_price_expected) VALUES (1, 1, 'Vinyl', 50, 'sqm', 180), (2, 1, 'Underlay', 100, 'sqm', 40);
+    `);
+  };
+  // The same order, delivered short on underlay: one open discrepancy.
+  const withOneDiscrepancy = (db) => {
+    withOrder(db);
+    db.exec(`
+      INSERT INTO goods_received_notes (id, purchase_order_id, supplier_id, created_at) VALUES (1, 1, 1, '2026-10-02 09:00:00');
+      INSERT INTO grn_line_items (grn_id, po_line_item_id, description, quantity_received, quantity_ordered, variance) VALUES (1, 1, 'Vinyl', 50, 50, 0), (1, 2, 'Underlay', 50, 100, -50);
+    `);
+  };
+  // Short on both lines: two open discrepancies.
+  const withTwoDiscrepancies = (db) => {
+    withOrder(db);
+    db.exec(`
+      INSERT INTO goods_received_notes (id, purchase_order_id, supplier_id, created_at) VALUES (1, 1, 1, '2026-10-02 09:00:00');
+      INSERT INTO grn_line_items (grn_id, po_line_item_id, description, quantity_received, quantity_ordered, variance) VALUES (1, 1, 'Vinyl', 40, 50, -10), (1, 2, 'Underlay', 50, 100, -50);
+    `);
+  };
+
+  const POAI = (reply) => ({ match: /line_items is every distinct material/, reply });
+  const GRAI = (reply) => ({ match: /quantity_received/, reply });
+  const SIAI = (reply) => ({ match: /quantity_billed/, reply });
+  const VDAI = (reply) => ({ match: /short_delivered/, reply });
+  const boom = () => { throw new Error('model unavailable'); };
+  const sup = (name = 'Floornet') => ({ character_name: name, character_relationship: 'supplier' });
+  const c = (name, role, seed, intent, extraction, transcript, ai) => ({ name, seed, transcript, extraction: { intent, ...extraction }, capabilities: caps[role], ai });
+
+  return [
+    // ---------------- purchase_order ----------------
+    c('purchase order: owner, existing supplier, three lines', 'owner', base, 'purchase_order', sup(), 'order 50 sqm vinyl, 100 sqm underlay and 10 lengths of skirting from Floornet',
+      [POAI({ supplier_name: 'Floornet', description: 'Vinyl, underlay and skirting', line_items: [
+        { description: 'Vinyl', quantity_ordered: 50, unit: 'sqm', unit_price_expected: null, product: 'vinyl' },
+        { description: 'Underlay', quantity_ordered: 100, unit: 'sqm', unit_price_expected: 40, product: 'underlay' },
+        { description: 'Skirting', quantity_ordered: 10, unit: 'length', unit_price_expected: null, product: 'skirting' }] })]),
+    c('purchase order: owner, a supplier nobody has heard of', 'owner', base, 'purchase_order', sup('Newco Supplies'), 'order 20 bags of adhesive from Newco Supplies',
+      [POAI({ supplier_name: 'Newco Supplies', description: 'Adhesive', line_items: [{ description: 'Adhesive', quantity_ordered: 20, unit: 'bag', unit_price_expected: null, product: 'adhesive' }] })]),
+    c('purchase order: owner, no supplier named', 'owner', base, 'purchase_order', {}, 'order 20 bags of adhesive', []),
+    c('purchase order: owner, the model finds no items', 'owner', base, 'purchase_order', sup(), 'order some stuff from Floornet',
+      [POAI({ supplier_name: 'Floornet', description: 'some stuff', line_items: [] })]),
+    c('purchase order: owner, the model fails', 'owner', base, 'purchase_order', sup(), 'order vinyl from Floornet', [POAI(boom)]),
+    c('purchase order: accountant', 'accountant', base, 'purchase_order', sup(), 'order 20 bags of adhesive from Floornet',
+      [POAI({ supplier_name: 'Floornet', description: 'Adhesive', line_items: [{ description: 'Adhesive', quantity_ordered: 20, unit: 'bag', unit_price_expected: null, product: 'adhesive' }] })]),
+    c('purchase order: installer is refused', 'installer', base, 'purchase_order', sup(), 'order 20 bags of adhesive from Floornet', []),
+
+    // ---------------- goods_received ----------------
+    c('goods received: owner, matches the open order', 'owner', withOrder, 'goods_received', sup(), 'Floornet delivered the vinyl, 50 square metres',
+      [GRAI({ supplier_name: 'Floornet', line_items: [{ matched_description: 'Vinyl', item_description: 'vinyl', unit: 'sqm', quantity_received: 50 }] })]),
+    c('goods received: owner, a short delivery', 'owner', withOrder, 'goods_received', sup(), 'Floornet delivered 40 square metres of vinyl',
+      [GRAI({ supplier_name: 'Floornet', line_items: [{ matched_description: 'Vinyl', item_description: 'vinyl', unit: 'sqm', quantity_received: 40 }] })]),
+    c('goods received: owner, something that was never ordered', 'owner', withOrder, 'goods_received', sup(), 'Floornet delivered 5 bags of grout',
+      [GRAI({ supplier_name: 'Floornet', line_items: [{ matched_description: null, item_description: 'grout', unit: 'bag', quantity_received: 5 }] })]),
+    c('goods received: owner, ordered and unordered items together', 'owner', withOrder, 'goods_received', sup(), 'Floornet delivered the vinyl and 5 bags of grout',
+      [GRAI({ supplier_name: 'Floornet', line_items: [{ matched_description: 'Vinyl', item_description: 'vinyl', unit: 'sqm', quantity_received: 50 }, { matched_description: null, item_description: 'grout', unit: 'bag', quantity_received: 5 }] })]),
+    c('goods received: owner, the supplier has no open order at all', 'owner', base, 'goods_received', sup('Belgotex'), 'Belgotex delivered 3 rolls of carpet',
+      [GRAI({ supplier_name: 'Belgotex', line_items: [{ matched_description: null, item_description: 'carpet', unit: 'roll', quantity_received: 3 }] })]),
+    c('goods received: owner, the model finds no items', 'owner', withOrder, 'goods_received', sup(), 'Floornet delivered something', [GRAI({ supplier_name: 'Floornet', line_items: [] })]),
+    c('goods received: owner, the model fails', 'owner', withOrder, 'goods_received', sup(), 'Floornet delivered the vinyl', [GRAI(boom)]),
+    c('goods received: owner, no supplier named', 'owner', withOrder, 'goods_received', {}, 'the vinyl was delivered', []),
+    c('goods received: accountant', 'accountant', withOrder, 'goods_received', sup(), 'Floornet delivered the vinyl, 50 square metres',
+      [GRAI({ supplier_name: 'Floornet', line_items: [{ matched_description: 'Vinyl', item_description: 'vinyl', unit: 'sqm', quantity_received: 50 }] })]),
+    c('goods received: installer takes the delivery (decided 2026-10-03)', 'installer', withOrder, 'goods_received', sup(), 'Floornet delivered the vinyl, 50 square metres',
+      [GRAI({ supplier_name: 'Floornet', line_items: [{ matched_description: 'Vinyl', item_description: 'vinyl', unit: 'sqm', quantity_received: 50 }] })]),
+    c('goods received: a role with no permissions is refused', 'stranger', withOrder, 'goods_received', sup(), 'Floornet delivered the vinyl', []),
+
+    // ---------------- supplier_invoice ----------------
+    c('supplier invoice: owner, open order, matched and priced', 'owner', withOrder, 'supplier_invoice', sup(), 'Floornet invoice INV-7731: 50 sqm vinyl at 185 and 100 sqm underlay at 40',
+      [SIAI({ supplier_name: 'Floornet', supplier_reference: 'INV-7731', line_items: [{ matched_description: 'Vinyl', quantity_billed: 50, unit_price_billed: 185 }, { matched_description: 'Underlay', quantity_billed: 100, unit_price_billed: 40 }] })]),
+    c('supplier invoice: owner, billed for something not on the order', 'owner', withOrder, 'supplier_invoice', sup(), 'Floornet invoice: 5 bags grout at 90',
+      [SIAI({ supplier_name: 'Floornet', supplier_reference: null, line_items: [{ matched_description: null, quantity_billed: 5, unit_price_billed: 90 }] })]),
+    c('supplier invoice: owner, the supplier has no open order', 'owner', base, 'supplier_invoice', sup('Belgotex'), 'Belgotex invoice for 3 rolls of carpet at 900', []),
+    c('supplier invoice: owner, no supplier named', 'owner', withOrder, 'supplier_invoice', {}, 'invoice for 50 sqm vinyl at 185', []),
+    c('supplier invoice: owner, the model fails', 'owner', withOrder, 'supplier_invoice', sup(), 'Floornet invoice for the vinyl', [SIAI(boom)]),
+    c('supplier invoice: accountant', 'accountant', withOrder, 'supplier_invoice', sup(), 'Floornet invoice: 50 sqm vinyl at 185',
+      [SIAI({ supplier_name: 'Floornet', supplier_reference: null, line_items: [{ matched_description: 'Vinyl', quantity_billed: 50, unit_price_billed: 185 }] })]),
+    c('supplier invoice: installer is refused', 'installer', withOrder, 'supplier_invoice', sup(), 'Floornet invoice: 50 sqm vinyl at 185', []),
+
+    // ---------------- variance_disposition ----------------
+    c('variance disposition: owner, a reason only', 'owner', withOneDiscrepancy, 'variance_disposition', sup(), 'the underlay shortage from Floornet was short delivered',
+      [VDAI({ matched_description: 'Underlay', reason: 'short_delivered', resolution: null, credit_amount: null })]),
+    c('variance disposition: owner, a back order', 'owner', withOneDiscrepancy, 'variance_disposition', sup(), 'Floornet will back order the 50 missing underlay',
+      [VDAI({ matched_description: 'Underlay', reason: 'short_delivered', resolution: 'back_order', credit_amount: null })]),
+    c('variance disposition: owner, a credit with an amount is held for confirmation', 'owner', withOneDiscrepancy, 'variance_disposition', sup(), 'Floornet is crediting us R2000 for the underlay shortage',
+      [VDAI({ matched_description: 'Underlay', reason: 'short_delivered', resolution: 'credit', credit_amount: 2000 })]),
+    c('variance disposition: owner, a credit with no amount stated', 'owner', withOneDiscrepancy, 'variance_disposition', sup(), 'Floornet will credit the underlay shortage',
+      [VDAI({ matched_description: 'Underlay', reason: 'short_delivered', resolution: 'credit', credit_amount: null })]),
+    c('variance disposition: owner, the model names nothing and there is one discrepancy', 'owner', withOneDiscrepancy, 'variance_disposition', sup(), 'that shortage was damaged stock',
+      [VDAI({ matched_description: null, reason: 'damaged', resolution: null, credit_amount: null })]),
+    c('variance disposition: owner, the model names nothing and there are two discrepancies', 'owner', withTwoDiscrepancies, 'variance_disposition', sup(), 'that shortage was damaged stock',
+      [VDAI({ matched_description: null, reason: 'damaged', resolution: null, credit_amount: null })]),
+    c('variance disposition: owner, the model names one of two', 'owner', withTwoDiscrepancies, 'variance_disposition', sup(), 'the vinyl shortage was short delivered',
+      [VDAI({ matched_description: 'Vinyl', reason: 'short_delivered', resolution: null, credit_amount: null })]),
+    c('variance disposition: owner, nothing is open for that supplier', 'owner', withOrder, 'variance_disposition', sup(), 'the shortage was damaged', []),
+    c('variance disposition: owner, no supplier named', 'owner', withOneDiscrepancy, 'variance_disposition', {}, 'the shortage was damaged', []),
+    c('variance disposition: owner, the model fails', 'owner', withOneDiscrepancy, 'variance_disposition', sup(), 'the underlay shortage was short delivered', [VDAI(boom)]),
+    c('variance disposition: accountant', 'accountant', withOneDiscrepancy, 'variance_disposition', sup(), 'the underlay shortage was short delivered',
+      [VDAI({ matched_description: 'Underlay', reason: 'short_delivered', resolution: null, credit_amount: null })]),
+    c('variance disposition: installer is refused', 'installer', withOneDiscrepancy, 'variance_disposition', sup(), 'the underlay shortage was short delivered', []),
+
+    // ---------------- supplier_statement, spoken ----------------
+    c('supplier statement, spoken: owner', 'owner', withOrder, 'supplier_statement', sup(), 'Floornet sent their statement, it says we owe R20000', []),
+    c('supplier statement, spoken: installer is refused', 'installer', withOrder, 'supplier_statement', sup(), 'Floornet sent their statement, it says we owe R20000', []),
+  ];
+};
