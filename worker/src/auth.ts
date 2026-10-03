@@ -346,6 +346,25 @@ export const INTENT_RULES: Record<Extraction["intent"], IntentRule> = {
   other: { produces: [], create: "open" },
 };
 
+// Whether an intent's data has structured, permission-gated storage of its own, so that its raw transcript must
+// NEVER also be left in a free-text note. Notes bypass every capability gate: a supplier's or customer's note is
+// read back to anyone who looks that person up. This was a hand-kept list of six intents in index.ts (fixed once,
+// 2026-07-17, for payments); the money intents added afterwards (supplier payments, supplier invoices, purchase
+// orders, credits, quote conversions, deliveries) were never added to it, so "paid Floornet R10000" went into
+// the supplier's note and an installer's lookup of that supplier was built from it (reproduced 2026-10-03 with
+// the characterization harness). It is now DERIVED from the table above, so a new money intent is covered the
+// moment it is gated: any intent a role needs can_manage_invoices to create is money. work_observation is the one
+// open intent that also has structured storage (a job scope), so it is named explicitly.
+const ALSO_STRUCTURED_BUT_OPEN: ReadonlySet<string> = new Set(["work_observation"]);
+
+export function intentKeepsOutOfNotes(intent: string | null | undefined): boolean {
+  const key = intent ?? "";
+  if (!Object.prototype.hasOwnProperty.call(INTENT_RULES, key)) return false;
+  if (ALSO_STRUCTURED_BUT_OPEN.has(key)) return true;
+  const rule = INTENT_RULES[key as Extraction["intent"]];
+  return Array.isArray(rule.create) && rule.create.includes("can_manage_invoices");
+}
+
 // The refusal message for a role that may not create this intent, or null
 // if it may. Anything that is not a known intent is allowed through (see above).
 export function intentCreationRefusal(intent: string | null | undefined, capabilities: string[]): string | null {
