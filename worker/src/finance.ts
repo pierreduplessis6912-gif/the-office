@@ -468,6 +468,10 @@ export interface OutstandingLine {
   description: string;
   ordered: number;
   received: number;
+  // Shortfalls the supplier has formally written off with a credit (variance disposition with resolution
+  // "credit"). A credited shortfall is not coming, so it stops counting as outstanding; a back order, or a
+  // reason with no resolution, does not: only an explicit credit closes the remainder.
+  writtenOff: number;
   outstanding: number;
   unit: string | null;
 }
@@ -478,14 +482,17 @@ export async function getOutstandingOrderLines(env: Env, supplierId: number): Pr
   const { results } = await env.OFFICE_DB.prepare(
     `SELECT pl.id AS po_line_id, pl.purchase_order_id AS po_id, pl.description AS description,
             pl.quantity_ordered AS ordered, pl.unit AS unit,
-            COALESCE((SELECT SUM(g.quantity_received) FROM grn_line_items g WHERE g.po_line_item_id = pl.id), 0) AS received
+            COALESCE((SELECT SUM(g.quantity_received) FROM grn_line_items g WHERE g.po_line_item_id = pl.id), 0) AS received,
+            COALESCE((SELECT SUM(-g.variance) FROM grn_line_items g
+                       WHERE g.po_line_item_id = pl.id AND g.variance < 0
+                         AND EXISTS (SELECT 1 FROM variance_dispositions vd WHERE vd.grn_line_item_id = g.id AND vd.resolution = 'credit')), 0) AS written_off
        FROM po_line_items pl
        JOIN purchase_orders po ON po.id = pl.purchase_order_id
       WHERE po.supplier_id = ?
       ORDER BY po.created_at ASC, po.id ASC, pl.id ASC`
   )
     .bind(supplierId)
-    .all<{ po_line_id: number; po_id: number; description: string; ordered: number; unit: string | null; received: number }>();
+    .all<{ po_line_id: number; po_id: number; description: string; ordered: number; unit: string | null; received: number; written_off?: number }>();
   return (results ?? [])
     .map((r) => ({
       poId: r.po_id,
@@ -493,7 +500,8 @@ export async function getOutstandingOrderLines(env: Env, supplierId: number): Pr
       description: r.description,
       ordered: r.ordered,
       received: r.received,
-      outstanding: round4(r.ordered - r.received),
+      writtenOff: r.written_off ?? 0,
+      outstanding: round4(r.ordered - r.received - (r.written_off ?? 0)),
       unit: r.unit,
     }))
     .filter((l) => l.outstanding > 0);
@@ -518,10 +526,10 @@ export function candidateOrderLines(
 // original design). Separate from the document status (delivery note / invoice present), which is
 // about which paperwork has arrived, not about quantities.
 export function orderDeliveryStatus(
-  lines: Array<{ ordered: number; received: number }>
+  lines: Array<{ ordered: number; received: number; writtenOff?: number }>
 ): "awaiting delivery" | "partially delivered" | "fully delivered" {
-  if (lines.length === 0 || lines.every((l) => l.received <= 0)) return "awaiting delivery";
-  return lines.every((l) => round4(l.ordered - l.received) <= 0) ? "fully delivered" : "partially delivered";
+  if (lines.length === 0 || lines.every((l) => l.received <= 0 && (l.writtenOff ?? 0) <= 0)) return "awaiting delivery";
+  return lines.every((l) => round4(l.ordered - l.received - (l.writtenOff ?? 0)) <= 0) ? "fully delivered" : "partially delivered";
 }
 
 export interface DeliveryAllocation {
