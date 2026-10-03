@@ -206,6 +206,12 @@ export interface HistoryTurn {
 export interface GoodsReceivedLineItem {
   matched_description: string | null;
   quantity_received: number;
+  // The item as written on the delivery itself (added 2026-10-03). Without it
+  // an item that is not on the order has no name at all, which is why such
+  // a line used to be recorded as the literal text "unmatched item". Set for
+  // every line, matched or not; optional so older held actions still load.
+  item_description?: string | null;
+  unit?: string | null;
 }
 
 export interface GoodsReceivedExtraction {
