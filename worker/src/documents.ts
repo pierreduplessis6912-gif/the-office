@@ -93,3 +93,20 @@ export function deliveryHeldMessage(
   }
   return `Delivery from ${supplier}${how}: they have no open order, so it will be logged as a delivery exception once you confirm (action #${actionId}).`;
 }
+
+// What is said back once a delivery has been recorded (decided 2026-10-03): which notes were created and,
+// in words, every way it differed from what was outstanding. Anything that differed is also on the
+// delivery exception report.
+export function deliveryRecordedMessage(r: { grnIds: number[]; exceptions: unknown[]; shortCount: number; overCount: number }): string {
+  const ids = r.grnIds.map((i) => `#${i}`).join(", ");
+  let msg = r.grnIds.length === 0 ? "Delivery recorded." : `Delivery recorded (GRN${r.grnIds.length > 1 ? "s" : ""} ${ids}).`;
+  if (r.exceptions.length > 0) msg += ` ${r.exceptions.length} item(s) weren't on any order and were logged as delivery exceptions.`;
+  if (r.shortCount > 0) msg += ` ${r.shortCount} item(s) came in short and were logged as delivery exceptions.`;
+  if (r.overCount > 0) msg += ` ${r.overCount} item(s) came in over what was outstanding and were logged as delivery exceptions.`;
+  return msg;
+}
+
+// True when a recorded delivery differed from the order in any way worth telling the person about.
+export function deliveryHadExceptions(r: { exceptions: unknown[]; shortCount: number; overCount: number }): boolean {
+  return r.exceptions.length + r.shortCount + r.overCount > 0;
+}
