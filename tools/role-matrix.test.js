@@ -19,7 +19,7 @@ if (ENFORCE_CAPABILITIES !== true) throw new Error('test is not running with the
 
 const actionTypes = { 1:'job_scope_amendment', 2:'project_ambiguity', 3:'goods_received', 4:'ambiguous_person', 5:'customer_fact', 6:'identity_collision',
   7:'payment', 8:'invoice', 9:'quotation', 10:'expense', 11:'supplier_invoice', 12:'supplier_payment', 13:'variance_disposition', 14:'convert_quote',
-  15:'character_fact', 16:'imported_invoice', 17:'schema_candidate', 18:'some_future_type' };
+  15:'character_fact', 16:'imported_invoice', 17:'schema_candidate', 18:'some_future_type', 19:'stock_add' };
 const env = { OFFICE_DB: { prepare: () => ({ bind: (id) => ({ first: async () => actionTypes[id] ? { type: actionTypes[id] } : null }) }) } };
 
 async function allowed(role, method, path) {
@@ -57,6 +57,8 @@ async function expect(role, method, path, want) {
   for (const id of [1,2])        for (const act of ['confirm','reject']) { await expect('accountant','POST',`/actions/${id}/${act}`,false); }
   for (const id of [4,5,6])      { await expect('accountant','POST',`/actions/${id}/confirm`,true); }
   await expect('installer','POST','/actions/3/confirm',true);   // goods received: installers take deliveries
+  for (const r of ['installer','accountant']) for (const act of ['confirm','reject']) await expect(r,'POST',`/actions/19/${act}`,true);   // "add this delivery to stock?": anyone who may know materials
+  await expect('stranger','POST','/actions/19/confirm',false);
   await expect('accountant','POST','/actions/3/confirm',true);
   for (const id of moneyActions.filter(i => i !== 3)) { await expect('installer','POST',`/actions/${id}/confirm`,false); await expect('accountant','POST',`/actions/${id}/confirm`,true); }
   for (const id of ownerActions) for (const r of ['installer','accountant']) await expect(r,'POST',`/actions/${id}/confirm`,false);
@@ -471,6 +473,69 @@ async function expect(role, method, path, want) {
   check(!/answerFromMemory|classifyBusinessTopic|classifyDashboardIntent/.test(exBody), 'the exception answer is built in code, with no model call');
   check(/"any delivery exceptions\?"/.test(fs.readFileSync(path.join(srcDir, 'ai.ts'), 'utf8')), 'the question classifier must have an example of this question');
 
+  // ---- "Add this delivery to stock?" (decided 2026-10-03, Pierre: ask on delivery) -----------------
+  const { proposeStockAdditions, addDeliveredItemsToStock } = finMod;
+  // recordDelivery reports what arrived but is not stock; a registered stock item still updates by itself.
+  let sd = mkRecvDb({ outstandingRows: [ { po_line_id: 1, po_id: 9, description: 'Marble charcoal carpet tile', ordered: 2, unit: 'box', received: 0 }, { po_line_id: 2, po_id: 9, description: 'Screed', ordered: 20, unit: 'bag', received: 0 } ], stock: [{ id: 3, name: 'Screed' }] });
+  let sres = await recordDelivery(sd.env, 11, 'src', [LN('Marble charcoal carpet tile', 2), LN('Screed', 5), LN(null, 4, 'Grout', 'bag'), LN(null, 3, 'grout', 'bag')]);
+  check(sd.log.stockUpdates.length === 1 && sd.log.stockUpdates[0][0] === 5, 'a registered stock item still gains stock by itself');
+  const nis = sres.notInStock.map((x) => `${x.name}:${x.quantity}:${x.unit}`).sort();
+  check(sameJson(nis, ['Grout:7:bag', 'Marble charcoal carpet tile:2:box']), 'items that are not stock are reported with their unit, and the same item twice in one delivery is totalled');
+  check(!sres.notInStock.some((x) => x.name === 'Screed'), 'a registered stock item is never asked about');
+  sd = mkRecvDb({ outstandingRows: [] });
+  sres = await recordDelivery(sd.env, 11, 'src', [LN(null, 0, 'Nothing', 'x')]);
+  check(sres.notInStock.length === 0, 'an item that did not actually arrive is never asked about');
+  // The question itself, against a fake database.
+  const mkAskDb = ({ seen = [] }) => { const log = { holds: [], seenSql: '' };
+    const stmt = (sql, b = []) => ({ bind: (...x) => stmt(sql, x), first: async () => {
+      if (/FROM pending_actions pa, json_each/.test(sql)) { log.seenSql = sql; return seen.some((n) => n.toLowerCase() === String(b[0]).toLowerCase()) ? { hit: 1 } : null; }
+      if (/INSERT INTO pending_actions/.test(sql)) { log.holds.push({ type: b[0], payload: JSON.parse(b[1]), source: b[2] }); return { id: 70 + log.holds.length }; }
+      return null; } });
+    return { env: { OFFICE_DB: { prepare: (sql) => stmt(sql) } }, log }; };
+  const IT = (name, quantity, unit) => ({ name, quantity, unit: unit || null });
+  let ak = mkAskDb({});
+  let aq = await proposeStockAdditions(ak.env, [IT('Marble charcoal carpet tile', 2, 'box'), IT('Grout', 7, 'bag')], 'Floornet');
+  check(aq && aq.id === 71 && aq.message === 'Add to stock? Marble charcoal carpet tile (2 box), Grout (7 bag) (action #71).', 'one question covers every item that arrived and is not stock');
+  check(ak.log.holds.length === 1 && ak.log.holds[0].type === 'stock_add' && ak.log.holds[0].payload.items.length === 2 && ak.log.holds[0].payload.supplierName === 'Floornet', 'the question is held as a stock_add action carrying the items and the supplier');
+  check(ak.log.holds[0].source === 'Add to stock? Marble charcoal carpet tile (2 box), Grout (7 bag)', 'the question itself is the stored text, because that is what the Pending room shows');
+  check(/pa\.type = 'stock_add'/.test(ak.log.seenSql) && /pa\.status IN \('pending', 'rejected'\)/.test(ak.log.seenSql) && /lower\(json_extract\(je\.value, '\$\.name'\)\) = lower\(\?\)/.test(ak.log.seenSql) && !/INSERT|UPDATE|DELETE/i.test(ak.log.seenSql), 'an item is skipped while a question about it waits AND once it has been declined, compared without regard to case; the check is read-only');
+  ak = mkAskDb({ seen: ['grout'] });
+  aq = await proposeStockAdditions(ak.env, [IT('Marble charcoal carpet tile', 2, 'box'), IT('Grout', 7, 'bag')], null);
+  check(aq && !/Grout/.test(aq.message) && ak.log.holds[0].payload.items.length === 1, 'a declined or already-asked item is left out of the question, whatever its capitalisation');
+  ak = mkAskDb({ seen: ['grout'] });
+  check((await proposeStockAdditions(ak.env, [IT('Grout', 7, 'bag')], null)) === null && ak.log.holds.length === 0, 'when every item was already asked about, nothing is asked and nothing is held');
+  ak = mkAskDb({});
+  check((await proposeStockAdditions(ak.env, [IT('  ', 1), IT('Zero', 0), IT('Negative', -1)], null)) === null && ak.log.holds.length === 0, 'blank, zero and negative items are never asked about');
+  // Confirming it.
+  const mkStockDb = (existing = []) => { const log = { registered: [], updates: [] }; let id = 50;
+    const stmt = (sql, b = []) => ({ bind: (...x) => stmt(sql, x), first: async () => {
+      if (/SELECT id FROM stock_items WHERE name/.test(sql)) { const hit = existing.find((e) => e.name.toLowerCase() === String(b[0]).toLowerCase()); return hit ? { id: hit.id } : null; }
+      if (/INSERT INTO stock_items/.test(sql)) { log.registered.push({ name: b[0], unit: b[1] }); return { id: ++id }; }
+      return null; },
+      run: async () => { if (/UPDATE stock_items/.test(sql)) log.updates.push({ qty: b[0], id: b[1] }); return {}; } });
+    return { env: { OFFICE_DB: { prepare: (sql) => stmt(sql) } }, log }; };
+  let sk = mkStockDb([{ id: 7, name: 'Screed' }]);
+  let added = await addDeliveredItemsToStock(sk.env, [IT('Marble charcoal carpet tile', 2, 'box'), IT('screed', 5, 'bag')]);
+  check(sk.log.registered.length === 1 && sk.log.registered[0].name === 'Marble charcoal carpet tile' && sk.log.registered[0].unit === 'box', 'confirming registers an item that is not yet stock, under the name it arrived with');
+  check(sk.log.updates.length === 2 && sk.log.updates[0].qty === 2 && sk.log.updates[0].id === 51 && sk.log.updates[1].qty === 5 && sk.log.updates[1].id === 7, 'confirming adds what arrived, to the new item and to one registered in the meantime (once each)');
+  check(added.length === 2, 'confirming reports what was added');
+  sk = mkStockDb();
+  added = await addDeliveredItemsToStock(sk.env, [IT('', 3), IT('Nails', -2), IT('Nails', NaN), IT('Brads', 1, 'x'.repeat(60))]);
+  check(added.length === 1 && added[0].name === 'Brads' && added[0].unit.length === 20 && sk.log.registered.length === 1, 'a payload is not trusted: blank, negative and non-numeric entries are ignored and units are bounded');
+  // Wiring: both the confirm step and the direct-record path ask, safely; the answer is a confirm branch of its own.
+  const confirmDelivery = indexSrc.slice(indexSrc.indexOf('if (payload.allocate && payload.supplierId != null) {'), indexSrc.indexOf('const recorded = await recordGoodsReceived('));
+  check(/try \{\s*stockAsk = await proposeStockAdditions\(env, delivered\.notInStock, payload\.supplierName \?\? null\);\s*\} catch/.test(confirmDelivery), 'confirming a delivery asks about stock only after recording it, and a failed question can never undo the delivery');
+  check(confirmDelivery.indexOf("UPDATE pending_actions SET status = 'confirmed'") < confirmDelivery.indexOf('proposeStockAdditions('), 'the delivery is marked confirmed before the question is raised');
+  check(/pendingActionId: stockAsk \? stockAsk\.id : null,\s*pendingActionType: stockAsk \? "stock_add" : null,/.test(confirmDelivery) && /\$\{deliveryRecordedMessage\(delivered\)\} \$\{stockAsk\.message\}/.test(confirmDelivery), 'the confirm response names the question and carries its id so the app can show buttons');
+  for (const [name, marker] of [['/files/document', 'if (url.pathname === "/files/document"'], ['/files/photo', 'if (url.pathname === "/files/photo"']]) {
+    const h = handlerSlice(marker);
+    check(/try \{\s*stockAsk = await proposeStockAdditions\(env, recorded\.notInStock, subjectHint\);\s*\} catch/.test(h) && /uploadHeldActionId = stockAsk\.id;/.test(h), `${name}: a delivery recorded straight away also asks about stock, safely, and the app is given the question to show`);
+  }
+  const stockAddBranch = indexSrc.slice(indexSrc.indexOf('if (action.type === "stock_add") {'), indexSrc.indexOf('if (action.type === "goods_received") {'));
+  check(stockAddBranch.length > 200 && /addDeliveredItemsToStock\(env,/.test(stockAddBranch) && /status = 'confirmed'/.test(stockAddBranch), 'confirming the question has its own branch that adds to stock and marks it confirmed');
+  check(ACTION_TYPE_CAPABILITY.stock_add && sameJson(ACTION_TYPE_CAPABILITY.stock_add, ['can_know_materials']), 'the stock question is answered by anyone who may know materials');
+  const dartSrc = fs.readFileSync(path.join(srcDir, '..', '..', 'app', 'lib', 'main.dart'), 'utf8');
+  check(/_extractPendingItems\(followUpData\)/.test(dartSrc) && /_updateMessage\(followUpId, text: realMessage, pendingItems: followUp\)/.test(dartSrc) && /confirmData = data;/.test(dartSrc), 'the app gives a follow-up question raised by a confirm its own Confirm/Reject buttons');
   // The extractor now carries the item's name and unit, sanitised.
   const extractGR = async (reply) => aiMod.extractGoodsReceived({ AI: { run: async () => ({ choices: [{ message: { content: reply } }] }) } }, 'text', []);
   let xg = await extractGR('{"supplier_name":"Floornet","line_items":[{"matched_description":null,"item_description":"  MARBLE CHARCOAL 011  ","unit":" Box ","quantity_received":2}]}');
@@ -494,7 +559,7 @@ async function expect(role, method, path, want) {
   check(dictBody.includes('mustHold: true') && dictBody.indexOf('grnPlan.action === "hold"') > 0 && dictBody.indexOf('grnPlan.action === "hold"') < dictBody.indexOf('holdForConfirmation('), 'dictation: a spoken delivery is always held, and only when the plan says to');
   check(/goods_received" && goodsReceivedNoItems\) \{/.test(indexSrc) && !/goodsReceivedNoOpenPo|goodsReceivedNoMatchOnOrder/.test(indexSrc), 'dictation: a delivery with nothing readable gets its own honest reply, and having no open order no longer ends the delivery');
   const confirmAt = indexSrc.indexOf('if (action.type === "goods_received") {');
-  check(/logged as delivery exceptions/.test(indexSrc.slice(confirmAt, confirmAt + 2500)), 'confirming a delivery says in words when items were logged as exceptions');
+  check(/logged as delivery exceptions/.test(indexSrc.slice(confirmAt, confirmAt + 6000)) && /logged as delivery exceptions/.test(fs.readFileSync(path.join(srcDir, 'documents.ts'), 'utf8')), 'confirming a delivery says in words when items were logged as exceptions, on both the current and the older held-action path');
   check(/url\.pathname === "\/delivery-exceptions" && request\.method === "GET"/.test(indexSrc), 'the delivery exception report route must exist');
 
   // The two inspection routes must stay admin-key only (not in the app's own route list).
