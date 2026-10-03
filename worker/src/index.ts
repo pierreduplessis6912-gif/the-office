@@ -7,7 +7,7 @@ import {
   authGate, checkIdempotencyKey, completeIdempotencyKey, runIdempotentMigration, corsHeadersFor,
   signDocumentPath, resolveCapabilities, getMemberContext, getJobScope, denyForRole, signSession,
   verifySession, getSessionToken, getCookie, base64UrlEncode, ROLE_CAPABILITIES, ENFORCE_CAPABILITIES,
-  ACTION_TYPE_CAPABILITY, ROUTE_RULES, SIGNABLE_DOCUMENT_PATHS, intentCreationRefusal,
+  ACTION_TYPE_CAPABILITY, ROUTE_RULES, SIGNABLE_DOCUMENT_PATHS, intentCreationRefusal, intentKeepsOutOfNotes,
 } from "./auth";
 import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
@@ -1410,26 +1410,18 @@ async function processOneExtraction(
   // because her job happened to be the reminder's trigger.
   const isQuestion = extraction?.intent === "lookup" || looksLikeAQuestion(transcript);
   const isPersonalErrand = extraction?.intent === "reminder" || extraction?.intent === "task_complete";
-  // Real fix found live 2026-07-17, via direct testing (Constitution
-  // Principle 26): any intent with real, structured storage of its
-  // own — payment, invoice, quotation, price_scope, expense,
-  // work_observation — was also having its raw transcript duplicated
-  // into this ungated note, purely redundant since the real data is
-  // already properly captured elsewhere, and a genuine leak, since
-  // that duplicate note bypassed every capability gate entirely.
-  // Proven directly: an Installer session was correctly refused the
-  // structured financial summary, then handed the same fact anyway —
-  // "Jenny paid R500" — verbatim from this exact note. The fallback
-  // now only fires for genuinely narrative facts that have no other
-  // structured home to live in.
-  const hasStructuredHomeAlready = [
-    "payment",
-    "invoice",
-    "quotation",
-    "price_scope",
-    "expense",
-    "work_observation",
-  ].includes(extraction?.intent ?? "");
+  // Real fix found live 2026-07-17, via direct testing (Constitution Principle 26): any intent with real,
+  // structured storage of its own was also having its raw transcript duplicated into this ungated note, purely
+  // redundant since the real data is already properly captured elsewhere, and a genuine leak, since that
+  // duplicate note bypassed every capability gate entirely. Proven directly: an Installer session was correctly
+  // refused the structured financial summary, then handed the same fact anyway, "Jenny paid R500", verbatim
+  // from this exact note. The fallback only fires for genuinely narrative facts that have no other structured
+  // home to live in.
+  //
+  // That fix was a hand-kept list of six intents, and the money intents added later were never added to it
+  // (a supplier payment's note was reproduced on 2026-10-03). The answer now comes from INTENT_RULES in
+  // auth.ts, so it cannot drift from what is gated again.
+  const hasStructuredHomeAlready = intentKeepsOutOfNotes(extraction?.intent);
   if (!isQuestion && !isPersonalErrand && !hasStructuredHomeAlready) {
     if (customer) {
       ctx.waitUntil(appendCustomerNote(env, customer.id, transcript));
