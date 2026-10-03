@@ -110,3 +110,49 @@ export function deliveryRecordedMessage(r: { grnIds: number[]; exceptions: unkno
 export function deliveryHadExceptions(r: { exceptions: unknown[]; shortCount: number; overCount: number }): boolean {
   return r.exceptions.length + r.shortCount + r.overCount > 0;
 }
+
+// ---------------------------------------------------------------------------
+// Asking for the delivery exception report in words (decided 2026-10-03). The report existed only as a
+// route, and the app has no screen for it, so it is answerable by voice or text as a business question.
+// The trigger is deterministic wording (the same accepted pattern as the "aged breakdown" check in the
+// business lookup), and the answer is built in code, not paraphrased by a model, so the list is always
+// complete and exact.
+// ---------------------------------------------------------------------------
+const DELIVERY_EXCEPTION_QUESTION =
+  /\b(exceptions?|discrepanc(?:y|ies)|unordered|(?:short|over)[- ]?deliver\w*|short[- ]?shipped|delivery shortages?|shortages? (?:on|in|from) (?:a |the )?(?:deliver\w*|orders?|suppliers?))\b/i;
+
+export function asksAboutDeliveryExceptions(text: string): boolean {
+  return DELIVERY_EXCEPTION_QUESTION.test(text);
+}
+
+export function deliveryExceptionAnswer(
+  exceptions: Array<{
+    kind: "unordered" | "short" | "over";
+    supplierName: string | null;
+    description: string;
+    quantityReceived: number;
+    expected: number;
+    variance: number;
+    hadOpenOrder: boolean;
+    receivedAt: string;
+  }>,
+  maxLines: number = 20
+): string {
+  if (exceptions.length === 0) return "There are no open delivery exceptions.";
+  const count = (k: string) => exceptions.filter((e) => e.kind === k).length;
+  const parts: string[] = [];
+  if (count("unordered") > 0) parts.push(`${count("unordered")} not on any order`);
+  if (count("short") > 0) parts.push(`${count("short")} short`);
+  if (count("over") > 0) parts.push(`${count("over")} over`);
+  const lines = exceptions.slice(0, maxLines).map((e) => {
+    const who = e.supplierName ?? "Unknown supplier";
+    const day = e.receivedAt.slice(0, 10);
+    if (e.kind === "unordered") {
+      return `- ${who}: ${e.description}, ${e.quantityReceived} received that was not on any order${e.hadOpenOrder ? "" : " (no outstanding order)"} (${day})`;
+    }
+    const by = Math.abs(e.variance);
+    return `- ${who}: ${e.description}, ${e.quantityReceived} received against ${e.expected} expected, ${e.kind === "short" ? "short" : "over"} by ${by} (${day})`;
+  });
+  const more = exceptions.length > maxLines ? `\n...and ${exceptions.length - maxLines} more.` : "";
+  return `${exceptions.length} open delivery exception${exceptions.length === 1 ? "" : "s"}: ${parts.join(", ")}.\n${lines.join("\n")}${more}`;
+}
