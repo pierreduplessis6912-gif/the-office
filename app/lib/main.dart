@@ -1251,9 +1251,11 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       // assumed something had broken instead.
       String? pdfUrl;
       String? realMessage;
+      Map<String, dynamic>? confirmData;
       if (response.statusCode == 200 && confirm) {
         try {
           final data = jsonDecode(response.body) as Map<String, dynamic>;
+          confirmData = data;
           pdfUrl = data['pdfUrl'] as String?;
           realMessage = data['message'] as String?;
         } catch (_) {
@@ -1287,7 +1289,15 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       // feedback, so it's surfaced regardless of whether the tapped
       // item was found locally.
       if (response.statusCode == 200 && realMessage != null && realMessage.isNotEmpty) {
-        _addMessage(MessageRole.office, realMessage);
+        final followUpId = _addMessage(MessageRole.office, realMessage);
+        // A confirm can leave a question of its own waiting (a replayed invoice needing confirmation,
+        // "add this delivery to stock?"). The server names it in the same response; until now only its
+        // words were shown, so the person had to go and find it. It now gets its own Confirm/Reject.
+        final followUpData = confirmData;
+        final followUp = followUpData == null ? <PendingItem>[] : _extractPendingItems(followUpData);
+        if (followUp.isNotEmpty) {
+          _updateMessage(followUpId, text: realMessage, pendingItems: followUp);
+        }
       }
       if (response.statusCode == 200) {
         _loadEmberCounts();
