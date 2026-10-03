@@ -1294,6 +1294,73 @@ export async function extractSupplierStatement(env: Env, documentText: string): 
   }
 }
 
+// Real feature 2026-10-03, per Pierre's challenge: a delivery note already
+// SAYS it is a delivery note and who issued it, so requiring someone to type
+// a caption saying so is a needless burden (and the app has no way to send
+// one). Reads only what is printed: what kind of document it is, and which
+// business ISSUED it (letterhead / sender / seller), never the recipient and
+// never a person's name from a signature. Deliberately conservative: when
+// nothing is clearly printed it says "other" / null, and the caller treats
+// that as "do nothing", exactly as before. The result is a CLAIM about the
+// document, not a fact: the caller matches the issuer only against suppliers
+// that already exist, and anything acted on this way goes through
+// confirmation rather than being written directly.
+export type DocumentKind = "delivery_note" | "supplier_invoice" | "supplier_statement" | "other";
+export interface DocumentIdentityExtraction {
+  document_type: DocumentKind;
+  issuer_name: string | null;
+}
+
+export async function extractDocumentIdentity(env: Env, documentText: string): Promise<DocumentIdentityExtraction> {
+  const empty: DocumentIdentityExtraction = { document_type: "other", issuer_name: null };
+  try {
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        temperature: 0,
+        chat_template_kwargs: { thinking: false },
+        messages: [
+          {
+            role: "system",
+            content:
+              "The text of a document, or a description of a photographed document, is given. Decide what " +
+              "kind of document it is and which business ISSUED it. document_type is one of: " +
+              '"delivery_note" (goods delivered: titled delivery note, delivery advice, packing slip or goods received note), ' +
+              '"supplier_invoice" (an invoice or tax invoice from a supplier asking to be paid), ' +
+              '"supplier_statement" (a statement of account showing a closing balance), or "other" (anything ' +
+              "else, including photos of floors, rooms, measurements or job sites, quotes, and anything you are " +
+              "not sure about). issuer_name is the business that SENT or SOLD: the letterhead, the 'From' or " +
+              "seller name, exactly as printed. It is NEVER the recipient ('Deliver to', 'Bill to', 'Customer', " +
+              "'Attention', 'Sold to') and never a person's name from a signature or a driver. Use null when no " +
+              "issuing business is clearly printed, and always null when document_type is \"other\". Never guess. " +
+              'Return ONLY JSON: {"document_type": string, "issuer_name": string or null}\n\n' +
+              "Examples:\n" +
+              '"DELIVERY NOTE No. 4471  FLOORNET (PTY) LTD  Deliver to: Zululand Flooring and Blinds  50 sqm vinyl" -> ' +
+              '{"document_type":"delivery_note","issuer_name":"Floornet (Pty) Ltd"}\n' +
+              '"TAX INVOICE  Acme Adhesives cc  Bill to: Zululand Flooring and Blinds  Total R3,450.00" -> ' +
+              '{"document_type":"supplier_invoice","issuer_name":"Acme Adhesives cc"}\n' +
+              '"Photo of a lounge floor, tape measure showing 4.2 m" -> {"document_type":"other","issuer_name":null}',
+          },
+          { role: "user", content: documentText },
+        ],
+      })
+    );
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const rawText = r.choices?.[0]?.message?.content ?? "";
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned) as { document_type?: unknown; issuer_name?: unknown };
+    const kinds: DocumentKind[] = ["delivery_note", "supplier_invoice", "supplier_statement", "other"];
+    const kind = kinds.find((k) => k === parsed.document_type) ?? "other";
+    const issuer =
+      typeof parsed.issuer_name === "string" && parsed.issuer_name.trim().length > 0 && parsed.issuer_name.trim().length <= 120
+        ? parsed.issuer_name.trim()
+        : null;
+    if (kind === "other") return empty;
+    return { document_type: kind, issuer_name: issuer };
+  } catch {
+    return empty;
+  }
+}
+
 // A generalization of "areas" — a named component of a job, which
 // SOMETIMES has dimensions and sometimes doesn't ("reception area" vs
 // "circuit 1" vs "repair work"). Deliberately not trade-specific.
