@@ -674,11 +674,19 @@ async function processOneExtraction(
   // for job scopes — a real commitment, not yet a transaction.
   let purchaseOrderResult: { purchaseOrderId: number; lineItemCount: number } | null = null;
   let purchaseOrderNoSupplier = false;
+  let purchaseOrderNoItems = false;
   if (extraction?.intent === "purchase_order") {
     if (character) {
       const poExtraction = await extractPurchaseOrder(env, transcript);
-      const recorded = await recordPurchaseOrder(env, character.id, poExtraction.description, transcript, poExtraction.line_items);
-      purchaseOrderResult = { purchaseOrderId: recorded.purchaseOrderId, lineItemCount: poExtraction.line_items.length };
+      if (poExtraction.line_items.length === 0) {
+        // Found by the characterization recordings 2026-10-03: when the model failed or found no items, an order
+        // with zero lines was recorded anyway, and as the supplier's most recent order it then became what a later
+        // supplier invoice is checked against, which matches nothing. Nothing usable is not an order.
+        purchaseOrderNoItems = true;
+      } else {
+        const recorded = await recordPurchaseOrder(env, character.id, poExtraction.description, transcript, poExtraction.line_items);
+        purchaseOrderResult = { purchaseOrderId: recorded.purchaseOrderId, lineItemCount: poExtraction.line_items.length };
+      }
     } else {
       // Honest, not silent — the same discipline as every other
       // recognized-but-nothing-to-act-on case in this project.
@@ -736,6 +744,7 @@ async function processOneExtraction(
   // stage. This is where real money moves, guard()'d the same as
   // every other financial write in this project.
   let supplierInvoiceNoSupplier = false;
+  let supplierInvoiceNoItems = false;
   let supplierInvoiceNoOpenPo = false;
   let supplierInvoiceSupplierName: string | null = null;
   if (extraction?.intent === "supplier_invoice") {
@@ -744,6 +753,11 @@ async function processOneExtraction(
       if (openPo) {
         const poLineItems = await getPurchaseOrderLineItems(env, openPo.id);
         const siExtraction = await extractSupplierInvoice(env, transcript, poLineItems);
+        if (siExtraction.line_items.length === 0) {
+          // Found by the characterization recordings 2026-10-03: with the model down, or nothing readable, an invoice
+          // with no lines was held for confirmation, which would have recorded an invoice of nothing.
+          supplierInvoiceNoItems = true;
+        } else {
         const held = await holdForConfirmation(
           env,
           "supplier_invoice",
@@ -759,6 +773,7 @@ async function processOneExtraction(
         pendingActionId = held.id;
         pendingActionType = "supplier_invoice";
         supplierInvoiceSupplierName = character.name;
+        }
       } else {
         supplierInvoiceNoOpenPo = true;
       }
@@ -775,6 +790,7 @@ async function processOneExtraction(
   // for confirmation instead, the same discipline as every other
   // financial write in this project.
   let dispositionNoSupplier = false;
+  let dispositionNothingSaid = false;
   let dispositionNoOpenDiscrepancy = false;
   let dispositionResult: { dispositionId: number; description: string; reason: string | null; resolution: string | null } | null = null;
   let dispositionPendingSupplierName: string | null = null;
@@ -788,7 +804,13 @@ async function processOneExtraction(
           : discrepancies.length === 1
           ? discrepancies[0]
           : null;
-        if (matched) {
+        if (matched && !vdExtraction.reason && !vdExtraction.resolution) {
+          // Found by the characterization recordings 2026-10-03: with the model down, a disposition row with no
+          // reason, no resolution and no credit was written for the shortage. Any disposition counts as resolved,
+          // so the shortage silently left the open list and the exception report with nothing actually recorded.
+          // Nothing said is not a resolution.
+          dispositionNothingSaid = true;
+        } else if (matched) {
           const isRealCredit = vdExtraction.resolution === "credit" && vdExtraction.credit_amount != null && vdExtraction.credit_amount > 0;
           if (isRealCredit) {
             const held = await holdForConfirmation(
@@ -1477,6 +1499,8 @@ async function processOneExtraction(
     message = `Found a job scope for ${customer!.name}, but couldn't match any priced item to it — try naming the component or task exactly as measured.`;
   } else if (extraction?.intent === "purchase_order" && purchaseOrderResult) {
     message = `Purchase order #${purchaseOrderResult.purchaseOrderId} recorded for ${character!.name} — ${purchaseOrderResult.lineItemCount} item(s).`;
+  } else if (extraction?.intent === "purchase_order" && purchaseOrderNoItems) {
+    message = `I heard an order for ${character!.name}, but couldn't make out any items on it, so nothing was recorded.`;
   } else if (extraction?.intent === "purchase_order" && purchaseOrderNoSupplier) {
     // Honest, not silent — the same discipline as every other
     // recognized-but-nothing-to-act-on case in this project.
@@ -1489,6 +1513,8 @@ async function processOneExtraction(
     message = `I heard a delivery from ${character!.name}, but couldn't make out any items in it, so nothing was noted.`;
   } else if (pendingActionId && extraction?.intent === "supplier_invoice" && supplierInvoiceSupplierName) {
     message = `Supplier invoice noted from ${supplierInvoiceSupplierName} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
+  } else if (extraction?.intent === "supplier_invoice" && supplierInvoiceNoItems) {
+    message = `I heard a supplier invoice from ${character!.name}, but couldn't make out any items on it, so nothing was noted.`;
   } else if (extraction?.intent === "supplier_invoice" && supplierInvoiceNoSupplier) {
     message = "Recognized a supplier invoice, but no supplier was named — try naming who it's from.";
   } else if (extraction?.intent === "supplier_invoice" && supplierInvoiceNoOpenPo) {
@@ -1501,6 +1527,8 @@ async function processOneExtraction(
     message = `Noted for ${dispositionResult.description} — ${reasonText}${resolutionText}.`;
   } else if (extraction?.intent === "variance_disposition" && dispositionNoSupplier) {
     message = "Recognized a discrepancy discussion, but no supplier was named — try naming who it's from.";
+  } else if (extraction?.intent === "variance_disposition" && dispositionNothingSaid) {
+    message = `I couldn't tell what happened with that shortage on ${character!.name}'s order. Say why it happened (short delivered, damaged and so on) or whether it is a back order or a credit, and I'll note it.`;
   } else if (extraction?.intent === "variance_disposition" && dispositionNoOpenDiscrepancy) {
     message = `I don't have an open, unresolved discrepancy on file for ${character!.name} to attach this to.`;
   } else if (extraction?.intent === "register_stock_item" && stockRegistrationResult) {

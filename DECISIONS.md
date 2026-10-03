@@ -5749,3 +5749,18 @@ Malformed, impossible (`2026-02-30`) or reversed dates throw a readable error ra
 **An incident, recorded because it is a process lesson:** while pushing this change GitHub's API stopped responding mid-batch. My script did not stop at the first failed push, so `index.ts` and the tests landed without `auth.ts` (which defines the function `index.ts` now imports). That commit failed its typecheck, so the pipeline never deployed it and production stayed on the last good build; the missing file was then pushed over plain git (a different host, which still worked) and the pipeline passed. The lesson is applied: multi-file changes now go as **one atomic commit over git**, so a half-applied state cannot exist, and the push step stops at the first failure.
 
 **Not done:** only two groups are recorded. The groups that call a model (procurement, invoicing and pricing, observations, lookups) need scripted replies and come next; stock, snags and leads, and the identity holds are further groups.
+
+
+---
+
+## Rewrite Phase 2, procurement: three more things the recordings found
+
+The procurement group (purchase order, goods received, supplier invoice, variance disposition, and a spoken supplier statement) is recorded in 39 cases, with a scripted model, including a model that fails and a model that finds nothing, because that behaviour is part of what rewritten handlers must reproduce. Reading the recordings critically found three places where "the model gave us nothing usable" was recorded as if it were something:
+
+1. **A model failure silently closed a shortage.** With the model down, a variance disposition row was written with no reason, no resolution and no credit. Any disposition counts as resolved, so the shortage dropped off the open list and the exception report with nothing actually recorded (the reply even said "Noted for Underlay, no reason stated"). Now nothing is written and the reply asks what happened (why it happened, back order or credit).
+2. **A supplier invoice with no lines was held for confirmation**, which would have recorded an invoice of nothing. Now nothing is held and the reply says it could not make out any items.
+3. **A purchase order with no lines was recorded**, and as the supplier's most recent order it then became what a later supplier invoice is checked against, which matches nothing. Now nothing is recorded and the reply says so.
+
+All three now behave like deliveries already did. Verified in the commit history: the first commit records today's behaviour, the second changes the code and the recordings, and the recording diff is **exactly four of the 39 cases** (the order with no items, the order when the model fails, the invoice when the model fails, the disposition when the model fails); the other 35 are identical, checked mechanically. Each fix was mutation-tested in both directions (removing it fails; making it too aggressive, for example refusing a reason with no resolution or refusing a one-item order, also fails). 964 checks.
+
+**Not changed, noted for a decision:** a disposition that records only a reason (no resolution) also counts as resolved, so it too leaves the open list. That looks deliberate (naming why a shortage happened is documentation) and was left alone, but it means a shortage can leave the exception report without being credited or back-ordered. A model that fails during a **goods received** or **supplier invoice with lines** reading is handled, but a model that fails during a purchase-order reading no longer records anything, so a person dictating an order while the model is down must say it again.

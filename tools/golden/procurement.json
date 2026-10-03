@@ -283,7 +283,7 @@
    },
    "pendingActionId": null,
    "factPendingActionId": null,
-   "message": "Purchase order #1 recorded for Floornet — 0 item(s).",
+   "message": "I heard an order for Floornet, but couldn't make out any items on it, so nothing was recorded.",
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
@@ -318,17 +318,6 @@
        "customer_id": null,
        "character_id": 1
       }
-     }
-    ]
-   },
-   "purchase_orders": {
-    "added": [
-     {
-      "id": 1,
-      "supplier_id": 1,
-      "description": "some stuff",
-      "source_transcript": "order some stuff from Floornet",
-      "capture_id": null
      }
     ]
    },
@@ -354,7 +343,7 @@
    },
    "pendingActionId": null,
    "factPendingActionId": null,
-   "message": "Purchase order #1 recorded for Floornet — 0 item(s).",
+   "message": "I heard an order for Floornet, but couldn't make out any items on it, so nothing was recorded.",
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
@@ -391,17 +380,6 @@
        "customer_id": null,
        "character_id": 1
       }
-     }
-    ]
-   },
-   "purchase_orders": {
-    "added": [
-     {
-      "id": 1,
-      "supplier_id": 1,
-      "description": "order vinyl from Floornet",
-      "source_transcript": "order vinyl from Floornet",
-      "capture_id": null
      }
     ]
    },
@@ -1464,12 +1442,12 @@
     "name": "Floornet",
     "matched": true
    },
-   "pendingActionId": 1,
+   "pendingActionId": null,
    "factPendingActionId": null,
-   "message": "Supplier invoice noted from Floornet — needs your confirmation (action #1) before it's recorded.",
+   "message": "I heard a supplier invoice from Floornet, but couldn't make out any items on it, so nothing was noted.",
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
-   "pendingActionType": "supplier_invoice",
+   "pendingActionType": null,
    "pendingChanges": null
   },
   "threw": null,
@@ -1503,17 +1481,6 @@
        "customer_id": null,
        "character_id": 1
       }
-     }
-    ]
-   },
-   "pending_actions": {
-    "added": [
-     {
-      "id": 1,
-      "type": "supplier_invoice",
-      "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":null,\"lineItems\":[]}",
-      "status": "pending",
-      "source_transcript": "Floornet invoice for the vinyl"
      }
     ]
    },
@@ -2227,7 +2194,7 @@
    },
    "pendingActionId": null,
    "factPendingActionId": null,
-   "message": "Noted for Underlay — no reason stated.",
+   "message": "I couldn't tell what happened with that shortage on Floornet's order. Say why it happened (short delivered, damaged and so on) or whether it is a back order or a credit, and I'll note it.",
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
@@ -2273,19 +2240,6 @@
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
-     }
-    ]
-   },
-   "variance_dispositions": {
-    "added": [
-     {
-      "id": 1,
-      "grn_line_item_id": 2,
-      "reason": null,
-      "resolution": null,
-      "credit_amount": null,
-      "recorded_by": "owner@example.com",
-      "capture_id": null
      }
     ]
    }
