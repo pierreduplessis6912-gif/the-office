@@ -5676,3 +5676,16 @@ Malformed, impossible (`2026-02-30`) or reversed dates throw a readable error ra
 **What this does to existing data, stated plainly:** older orders that were delivered short (for example the underlay at 50 of 100, the skirting at 8 of 10 and the grout at 15 of 20) now show as open shortages on the report and still count as **outstanding**, so a later delivery of those items will be matched to those old orders, oldest first. That is the model working as designed; resolve them with a credit to close them. The old "unmatched item" row stays out of the report (it has no ordered quantity and no variance).
 
 **Not verified live; known limits:** no live multi-order or partial delivery has been run yet. The app has no screen for the report. Supplier-invoice detection still looks at the supplier's **latest** order only, and an invoice is still reconciled against a single order. There is no explicit "close this order" action: an order completes by being delivered or credited. Resolving a shortage with a plain acceptance, or a reason alone, records it but leaves the quantity outstanding.
+
+
+---
+
+## The delivery exception report can be asked for in words
+
+**Why:** the report existed only as a route and the app has no screen for it, so on a phone it was unreachable. Rather than wait for a screen (which needs an app change and a rebuild), it is answerable as a business question by voice or text.
+
+**How it works:** a deterministic wording check (`asksAboutDeliveryExceptions`, the same accepted pattern as the "aged breakdown" check in the business lookup) catches questions such as "any delivery exceptions", "what discrepancies do we have", "any short deliveries" or "anything unordered come in"; it deliberately does not catch "except for Friday", "there is a material shortage on site" or ordinary financial questions. It is handled right after the material-price case and ahead of the general business branch, only when no customer or supplier was named. It needs `can_manage_invoices`, exactly like the report route, and is checked before anything is read; other roles are told it is restricted. The answer is built in code (`deliveryExceptionAnswer`), not paraphrased by a model: a count with the kinds (not on any order, short, over), then one line per exception naming the supplier, the item, what arrived against what was expected, and the date, cut at 20 lines with a count of the rest. With nothing open it says so. One extra example, "any delivery exceptions?", was added to the question classifier so the question is recognised as a business lookup.
+
+**Verified:** 580 checks (the trigger against ten questions it must match and nine it must not, the exact answer text for each kind, the 20-line cut, the permission, and that the branch comes before the general business branch and makes no model call); nine deliberate breakages, including making the trigger too broad and opening it to every role, were caught. CI green on all four pushes.
+
+**Not verified live, and the one real uncertainty:** whether the real model classifies a spoken "any delivery exceptions?" as a lookup. The wording check only runs once the message has been classified as a lookup, and that classification could not be tested offline; `/debug/intent-test` shows it directly. If it misclassifies, the fix is another example, not new code.
