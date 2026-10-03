@@ -575,6 +575,9 @@ async function expect(role, method, path, want) {
   // The rewrite scaffold (Phase 1): contract, adapters and the guards that stop it drifting from the live function.
   await require('./intents.test.js')({ check, bundleTo, srcDir, fs, path, indexSrc, sameJson });
 
+  // Characterization (rewrite Phase 2): the REAL processOneExtraction, against a real database, compared with recordings.
+  await require('./characterization.test.js')({ check, bundleTo, srcDir, fs, path, sameJson });
+
   // And the refusal wording that people actually see is unchanged.
   check(/payments, invoices, quotations, or supplier transactions/.test(intentCreationRefusal('payment', RC.installer) || ''), 'money refusal wording changed');
   check(/Managing leads isn't available/.test(intentCreationRefusal('lose_lead', RC.accountant) || ''), 'leads refusal wording changed');
