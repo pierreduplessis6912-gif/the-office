@@ -1151,9 +1151,19 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         final supplierInvoiceAction = data['supplierInvoiceAction'] as Map<String, dynamic>?;
         final goodsReceivedAction = data['goodsReceivedAction'] as Map<String, dynamic>?;
         final supplierStatementAction = data['supplierStatementAction'] as Map<String, dynamic>?;
+        // The server now says, in its own words, what happened to an
+        // upload (document-first identification, 2026-10-03): what it read,
+        // what it held for confirmation, or why nothing was recorded. Shown
+        // exactly as sent whenever present; the older fixed wording below
+        // stays as the fallback for any response that carries none.
+        final serverMessage = data['message'];
+        final heldActionId = data['pendingActionId'];
         String message;
         List<PendingItem> pendingItems = [];
-        if (supplierInvoiceAction != null) {
+        if (serverMessage is String && serverMessage.isNotEmpty) {
+          message = serverMessage;
+          if (heldActionId is int) pendingItems = [PendingItem(id: heldActionId)];
+        } else if (supplierInvoiceAction != null) {
           final id = supplierInvoiceAction['pendingActionId'];
           message = 'Supplier invoice noted — needs your confirmation.';
           if (id is int) pendingItems = [PendingItem(id: id)];
