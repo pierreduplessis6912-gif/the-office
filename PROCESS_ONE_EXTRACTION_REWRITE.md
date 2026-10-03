@@ -293,3 +293,10 @@ Traced after the fact, in `POST /files/document` (index.ts ~4800–4860), by rea
 ### Status update (2026-10-03): Phase 0 is done and deployed
 
 `INTENT_RULES` now lives in `auth.ts` (exhaustive by type and by test), `index.ts` reads its creation gate from it, the check runs before name resolution, goods received is open to installers, and money and stock are the gated domains. Role-matrix test: 386 checks, including equivalence with the old logic, mutation-checked. Full account under "Phase 0 of the processOneExtraction work" in `DECISIONS.md`. The four open decisions above are answered (1 yes, 2 money and stock only, 3 yes, 4 set aside). Phase 1 (the `ProcessingResult` scaffold) has not been started; the upload path still needs to adopt the same table.
+
+
+### Status update (2026-10-03, later): Phase 1 is done and deployed
+
+`worker/src/intents/result.ts` (the contract and lossless adapters) and `dispatcher.ts` (the input and handler types, the legacy adapter, and `INTENT_GROUP`) exist, are typechecked (the typecheck now covers subfolders), and are covered by a test file run from the existing CI step. Nothing calls them; the live function is untouched. Measured on the current code: 1,756 lines (183 to 1938), 10 return sites, a 9-field result, and the pending-field rules recorded in `DECISIONS.md` under "Rewrite Phase 1".
+
+**Phase 2 (next): the characterization harness, before any handler is real.** Make the live function runnable under test (it is not exported), drive it with scripted model replies and a database stand-in, and record what it returns and what it writes, intent by intent, as the equivalence matrix the new handlers must later reproduce. Start with the group that has the least shared state (payments). Open decision for Pierre: tests against a real database need `node:sqlite`, which CI's Node 20 lacks; either raise the pipeline's Node version to 22 or accept that those characterization tests run locally only and that CI runs a statement-recording stand-in.
