@@ -3,7 +3,7 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04.
+decision, and say where it was applied. Last updated 2026-10-04 (later).
 
 ## A. Decisions only Pierre can make
 
@@ -35,6 +35,11 @@ decision, and say where it was applied. Last updated 2026-10-04.
 10. **A payment with no amount is held for confirmation on purpose** (`payments.amount` is nullable and
     `recordPayment` accepts none). Confirmed as design in the code; listed in case Pierre would rather the amount
     be asked for.
+22. **When an invoice and an amendment question are both waiting, the app offers buttons for the amendment only.** The
+    reply now names the invoice and its action number, but answering it means opening the Pending room. *Option:* let
+    the app show both. (A Dart change and a rebuild.)
+23. **When the job-observation model fails, an invoice is still held but the job, installer and date part is silently
+    dropped**, and the reply says nothing about what was lost. *Option:* say so.
 11. **An installer's scheduling message that the classifier labels "invoice" is refused outright.** Set aside on
     2026-10-03 as unproven (it was only ever seen in a code comment). Reopen if a real one is refused.
 
@@ -48,10 +53,7 @@ decision, and say where it was applied. Last updated 2026-10-04.
 
 ## C. Unverified claims that the new harness can now settle
 
-15. **The invoice amendment orphan.** By reading the code, an `invoice` with an amount, plus a schedule or installer
-    change for a customer who already has a job scope, appears to hold the invoice and then return only the amendment,
-    so the invoice hold exists but is never mentioned. Never reproduced. It belongs to the invoicing group of the
-    characterization work, which will confirm or retire it.
+(none open: the one item here was settled on 2026-10-04, see below.)
 
 ## D. Housekeeping Pierre said not to worry about
 
@@ -63,8 +65,9 @@ decision, and say where it was applied. Last updated 2026-10-04.
 
 ## E. Engineering
 
-19. **Characterization coverage.** Recorded: payments, convert_quote, procurement (39 cases). To record: invoicing and
-    pricing, work observations, lookups, stock, snags and leads, identity holds (the preamble). Nothing moves in
+19. **Characterization coverage.** Recorded: payments, convert_quote, procurement (39 cases), invoicing and pricing
+    (29 cases: invoice, quotation, price_scope). To record: work observations, lookups, stock, snags and leads, identity
+    holds (the preamble). Nothing moves in
     Phase 3 until its group is fully recorded.
 20. **The upload handlers (`/files/document`, `/files/photo`) are not characterized**; they are separate code with
     their own tests by source pattern only.
@@ -72,6 +75,10 @@ decision, and say where it was applied. Last updated 2026-10-04.
 
 ## Settled (kept so the reasoning is not lost)
 
+- 2026-10-04: the invoice orphan was real (an invoice hold created and never mentioned when an amendment question was
+  returned instead). Reproduced with the harness and fixed in the reply. (`DECISIONS.md`, "Rewrite Phase 2, invoicing and pricing".)
+- 2026-10-04: a purchase order, supplier invoice or disposition built from nothing usable is no longer recorded, held or
+  filed as resolved. (`DECISIONS.md`, "Rewrite Phase 2, procurement".)
 - 2026-10-03: installers may dictate goods received. Gate creation for money and stock only. Move the permission
   check ahead of customer creation. (`DECISIONS.md`, "Phase 0".)
 - 2026-10-03: an unordered delivery is received and reported as an exception, not refused.

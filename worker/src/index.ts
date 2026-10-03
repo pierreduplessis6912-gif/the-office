@@ -1073,7 +1073,15 @@ async function processOneExtraction(
           character,
           pendingActionId: amendment.pendingActionId,
           factPendingActionId: null,
-          message: amendment.message,
+          // Found by the characterization recordings 2026-10-03: with an amount in the sentence, the invoice hold was
+          // created above and then this returned only the amendment question, so a pending invoice existed that the
+          // reply never mentioned (and the app only offered buttons for the amendment). The hold is still the
+          // second thing waiting; the reply now says so, with its number.
+          message:
+            amendment.message +
+            (pendingActionId !== null && extraction?.amount
+              ? ` Your invoice for ${customer?.name ?? "the customer"} of R${extraction.amount} is also waiting for confirmation (action #${pendingActionId}).`
+              : ""),
           jobScopeIdForProjectResolution: null,
           pendingCandidates: null,
           pendingActionType: "job_scope_amendment",
@@ -1306,7 +1314,15 @@ async function processOneExtraction(
           character,
           pendingActionId: amendment.pendingActionId,
           factPendingActionId: null,
-          message: amendment.message,
+          // Found by the characterization recordings 2026-10-03: with an amount in the sentence, the invoice hold was
+          // created above and then this returned only the amendment question, so a pending invoice existed that the
+          // reply never mentioned (and the app only offered buttons for the amendment). The hold is still the
+          // second thing waiting; the reply now says so, with its number.
+          message:
+            amendment.message +
+            (pendingActionId !== null && extraction?.amount
+              ? ` Your invoice for ${customer?.name ?? "the customer"} of R${extraction.amount} is also waiting for confirmation (action #${pendingActionId}).`
+              : ""),
           jobScopeIdForProjectResolution: null,
           pendingCandidates: null,
           pendingActionType: "job_scope_amendment",
@@ -1492,13 +1508,21 @@ async function processOneExtraction(
     message = customer
       ? `I don't have a job scope on file for ${customer.name} to price.`
       : "I don't have anything on file for that yet.";
-  } else if (extraction?.intent === "price_scope" && !pendingActionId) {
+  } else if (extraction?.intent === "price_scope" && customer && !pendingActionId) {
     // A job scope was found, but nothing spoken matched a real
     // component/task or produced a positive total — say so rather
-    // than silently doing nothing.
-    message = `Found a job scope for ${customer!.name}, but couldn't match any priced item to it — try naming the component or task exactly as measured.`;
+    // than silently doing nothing. (Needs a customer: with none named, this branch used to be reached anyway and
+    // crashed on customer!.name; found by the characterization recordings 2026-10-03. The no-customer reply is below.)
+    message = `Found a job scope for ${customer.name}, but couldn't match any priced item to it — try naming the component or task exactly as measured.`;
   } else if (extraction?.intent === "purchase_order" && purchaseOrderResult) {
     message = `Purchase order #${purchaseOrderResult.purchaseOrderId} recorded for ${character!.name} — ${purchaseOrderResult.lineItemCount} item(s).`;
+  } else if (extraction?.intent === "invoice" && customer && !pendingActionId && !workObservationResult) {
+    // Found by the characterization recordings 2026-10-03: an invoice with a named customer but no amount and nothing
+    // to record fell through to the generic "Found existing customer" reply, as if it had been a lookup.
+    message = `I heard an invoice for ${customer.name}, but no amount came through — how much is it for?`;
+  } else if (extraction?.intent === "quotation" && customer && !pendingActionId) {
+    // Same: a quotation with no readable items and no amount answered as a lookup.
+    message = `I heard a quotation for ${customer.name}, but couldn't make out any items or an amount.`;
   } else if (extraction?.intent === "purchase_order" && purchaseOrderNoItems) {
     message = `I heard an order for ${character!.name}, but couldn't make out any items on it, so nothing was recorded.`;
   } else if (extraction?.intent === "purchase_order" && purchaseOrderNoSupplier) {
@@ -1590,7 +1614,10 @@ async function processOneExtraction(
   } else if (extraction?.intent === "supplier_payment" && supplierPaymentNoSupplier) {
     message = "Recognized a supplier payment, but no supplier was named — try naming who it's to.";
   } else if (
-    (extraction?.intent === "invoice" || extraction?.intent === "quotation" || extraction?.intent === "payment") &&
+    (extraction?.intent === "invoice" ||
+      extraction?.intent === "quotation" ||
+      extraction?.intent === "payment" ||
+      extraction?.intent === "price_scope") &&
     !customer &&
     !pendingActionId
   ) {
@@ -1606,7 +1633,13 @@ async function processOneExtraction(
     // named" branches. Said honestly now: what was heard, and what is
     // missing.
     const heard =
-      extraction.intent === "invoice" ? "an invoice" : extraction.intent === "quotation" ? "a quotation" : "a payment";
+      extraction.intent === "invoice"
+        ? "an invoice"
+        : extraction.intent === "quotation"
+        ? "a quotation"
+        : extraction.intent === "price_scope"
+        ? "a price for a job"
+        : "a payment";
     message = `I heard ${heard}${extraction.amount ? ` for R${extraction.amount}` : ""}, but no customer name came through — who is it for?`;
   } else if (pendingActionId) {
     // price_scope's actual destination document depends on

@@ -70,6 +70,7 @@ module.exports = function cases(caps) {
        PRICE({ priced_items: [{ matched_name: 'lounge', description: 'Lounge', pricing_type: 'per_sqm', rate: 450 }] })]),
     c('price scope: owner, no measured job and nothing measured', 'owner', base, 'price_scope', {}, 'price Jenny\'s job', [OBS(nothingObserved)]),
     c('price scope: owner, the pricing model fails', 'owner', withScope, 'price_scope', {}, 'price Jenny\'s lounge at R450 a square metre', [PRICE(boom)]),
+    c('price scope: owner, no customer named', 'owner', withScope, 'price_scope', { customer_name: null }, 'price the lounge at R450 a square metre', []),
     c('price scope: installer is refused', 'installer', withScope, 'price_scope', {}, 'price Jenny\'s lounge at R450 a square metre', []),
   ];
 };
