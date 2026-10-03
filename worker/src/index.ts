@@ -1,5 +1,5 @@
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult, WorkObservationExtraction } from "./types";
-import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, classifyDashboardIntent, containsBackwardReference, describeImage, embedText, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractSupplierStatement, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, splitIntoTopics, storeUnscopedMemory, transcribe, transcribeWithNameHints } from "./ai";
+import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, classifyDashboardIntent, containsBackwardReference, describeImage, embedText, extractDocumentIdentity, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractSupplierStatement, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, splitIntoTopics, storeUnscopedMemory, transcribe, transcribeWithNameHints } from "./ai";
 import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, logInteractionEdge, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, reconcilePerson, setSelection } from "./identity";
 import { attachToSiblingJobScope, completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveScheduledDate, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
@@ -9,10 +9,10 @@ import {
   verifySession, getSessionToken, getCookie, base64UrlEncode, ROLE_CAPABILITIES, ENFORCE_CAPABILITIES,
   ACTION_TYPE_CAPABILITY, ROUTE_RULES, SIGNABLE_DOCUMENT_PATHS, intentCreationRefusal,
 } from "./auth";
-import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, recordGoodsReceived, splitGoodsReceivedLines, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
+import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, classifyGoodsReceivedLines, getDeliveryExceptions, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 import { handleDebugRoute } from "./debug";
-import { DOCUMENT_KIND_LABEL, inferDocumentSupplier } from "./documents";
+import { DOCUMENT_KIND_LABEL, deliveryHeldMessage, inferDocumentSupplier, planDelivery } from "./documents";
 
 // Second layer of defense against storing questions as facts — never
 // trust intent classification alone for this, since it's been
@@ -690,41 +690,40 @@ async function processOneExtraction(
   // Guard()'d, matching the original design's own distinction — real
   // stock changes hands here, unlike the PO itself.
   let goodsReceivedNoSupplier = false;
-  let goodsReceivedNoOpenPo = false;
-  let goodsReceivedNoMatchOnOrder: string | null = null;
-  let goodsReceivedLeftOut = 0;
+  let goodsReceivedNoItems = false;
+  let goodsReceivedMessage: string | null = null;
   let goodsReceivedSupplierName: string | null = null;
   if (extraction?.intent === "goods_received") {
     if (character) {
+      // Decided 2026-10-03 (Pierre): a delivery of items that were never
+      // ordered is RECEIVED and reported as a delivery exception, so having
+      // no open order, or an order with nothing in common, no longer ends
+      // here. A spoken delivery is always held for confirmation.
       const openPo = await findLatestOpenPurchaseOrder(env, character.id);
-      if (openPo) {
-        const poLineItems = await getPurchaseOrderLineItems(env, openPo.id);
-        const grnExtraction = await extractGoodsReceived(env, transcript, poLineItems);
-        // Only lines that match the order may be held (see splitGoodsReceivedLines):
-        // a delivery that matches nothing used to be held anyway, then recorded
-        // as an "unmatched item" with its real name lost.
-        const grnSplit = splitGoodsReceivedLines(grnExtraction.line_items, poLineItems);
-        if (grnSplit.matched.length > 0) {
-          const held = await holdForConfirmation(
-            env,
-            "goods_received",
-            {
-              purchaseOrderId: openPo.id,
-              supplierId: character.id,
-              supplierName: character.name,
-              lineItems: grnSplit.matched,
-            },
-            transcript
-          );
-          pendingActionId = held.id;
-          pendingActionType = "goods_received";
-          goodsReceivedSupplierName = character.name;
-          goodsReceivedLeftOut = grnSplit.unmatched.length;
-        } else {
-          goodsReceivedNoMatchOnOrder = poLineItems.map((p) => p.description).join(", ") || "nothing";
-        }
+      const poLineItems = openPo ? await getPurchaseOrderLineItems(env, openPo.id) : [];
+      const grnExtraction = await extractGoodsReceived(env, transcript, poLineItems);
+      const grnPlan = planDelivery(classifyGoodsReceivedLines(grnExtraction.line_items, poLineItems), {
+        mustHold: true,
+        refused: false,
+      });
+      if (grnPlan.action === "hold") {
+        const held = await holdForConfirmation(
+          env,
+          "goods_received",
+          {
+            purchaseOrderId: openPo?.id ?? 0,
+            supplierId: character.id,
+            supplierName: character.name,
+            lineItems: grnPlan.lines,
+          },
+          transcript
+        );
+        pendingActionId = held.id;
+        pendingActionType = "goods_received";
+        goodsReceivedSupplierName = character.name;
+        goodsReceivedMessage = deliveryHeldMessage(grnPlan, character.name, false, held.id, openPo != null);
       } else {
-        goodsReceivedNoOpenPo = true;
+        goodsReceivedNoItems = true;
       }
     } else {
       goodsReceivedNoSupplier = true;
@@ -1489,13 +1488,11 @@ async function processOneExtraction(
     // recognized-but-nothing-to-act-on case in this project.
     message = "Recognized a purchase order, but no supplier was named — try naming who it's from.";
   } else if (pendingActionId && extraction?.intent === "goods_received" && goodsReceivedSupplierName) {
-    message = `Delivery noted from ${goodsReceivedSupplierName} — needs your confirmation (action #${pendingActionId}) before it's recorded.${goodsReceivedLeftOut > 0 ? ` ${goodsReceivedLeftOut} other item(s) didn't match the order and were left out.` : ""}`;
-  } else if (extraction?.intent === "goods_received" && goodsReceivedNoMatchOnOrder) {
-    message = `I heard a delivery from ${character!.name}, but nothing in it matches their open order (on order: ${goodsReceivedNoMatchOnOrder}), so nothing was noted.`;
+    message = goodsReceivedMessage ?? `Delivery noted from ${goodsReceivedSupplierName} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
   } else if (extraction?.intent === "goods_received" && goodsReceivedNoSupplier) {
     message = "Recognized a delivery, but no supplier was named — try naming who it's from.";
-  } else if (extraction?.intent === "goods_received" && goodsReceivedNoOpenPo) {
-    message = `I don't have an open purchase order on file for ${character!.name} to match this delivery against.`;
+  } else if (extraction?.intent === "goods_received" && goodsReceivedNoItems) {
+    message = `I heard a delivery from ${character!.name}, but couldn't make out any items in it, so nothing was noted.`;
   } else if (pendingActionId && extraction?.intent === "supplier_invoice" && supplierInvoiceSupplierName) {
     message = `Supplier invoice noted from ${supplierInvoiceSupplierName} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
   } else if (extraction?.intent === "supplier_invoice" && supplierInvoiceNoSupplier) {
@@ -2957,6 +2954,13 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
     // getOpenDiscrepanciesForSupplier and recordVarianceDisposition
     // directly, the exact same functions the voice intent already
     // calls — one real resolution path, not two.
+    // The delivery exception report, decided 2026-10-03 (Pierre): every delivered item
+    // that was not on an order, across suppliers. Gated in ROUTE_RULES.
+    if (url.pathname === "/delivery-exceptions" && request.method === "GET") {
+      const status = url.searchParams.get("status") === "all" ? "all" : "open";
+      return Response.json({ exceptions: await getDeliveryExceptions(env, status) });
+    }
+
     if (url.pathname.match(/^\/suppliers\/\d+\/discrepancies$/) && request.method === "GET") {
       const supplierId = Number(url.pathname.split("/")[2]);
       const discrepancies = await getOpenDiscrepanciesForSupplier(env, supplierId);
@@ -4036,7 +4040,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             purchaseOrderId: number;
             supplierId: number | null;
             supplierName?: string;
-            lineItems: Array<{ matched_description: string | null; quantity_received: number }>;
+            lineItems: Array<{ matched_description: string | null; quantity_received: number; item_description?: string | null; unit?: string | null }>;
           };
           // Real design decision 2026-07-21 — GRN capture stays open
           // to anyone in the organisation on purpose (quantity-only,
@@ -4056,7 +4060,17 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           )
             .bind(id)
             .run();
-          return Response.json({ status: "confirmed", goodsReceived: recorded });
+          return Response.json({
+            status: "confirmed",
+            goodsReceived: recorded,
+            // Said in words so the app can show it (decided 2026-10-03): what was
+            // received, and that anything not on the order was logged as an exception.
+            message: `Delivery recorded (GRN #${recorded.grnId}).${
+              recorded.exceptions.length > 0
+                ? ` ${recorded.exceptions.length} item(s) weren't on the order and were logged as delivery exceptions.`
+                : ""
+            }`,
+          });
         }
 
         // Real feature 2026-07-21 — Supplier Invoices, the third and
@@ -4839,10 +4853,12 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       // confirmation instead of being recorded directly.
       let inferredFromDocument = false;
       let documentKindLabel = "this document";
+      let documentKind: "delivery_note" | "supplier_invoice" | "supplier_statement" | "other" = "other";
       if (!subjectCharacterId && !subjectCustomerId) {
         const inferred = await inferDocumentSupplier(env, description);
         if (inferred.kind !== "other") {
           documentKindLabel = DOCUMENT_KIND_LABEL[inferred.kind];
+          documentKind = inferred.kind;
           if (!inferred.issuer) {
             uploadMessage = `This looks like ${documentKindLabel}, but I couldn't tell who issued it, so I've only stored it.`;
           } else if (inferred.match?.kind === "one") {
@@ -4861,6 +4877,43 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       let supplierInvoiceAction: { pendingActionId: number; supplierName: string } | null = null;
       let goodsReceivedAction: { grnId: number; supplierName: string } | null = null;
       let supplierStatementAction: { supplierName: string; claimedBalance: number; realBalance: number; difference: number } | null = null;
+      // Receives a delivery note against an order, or against no order at all.
+      // Decided 2026-10-03 (Pierre): items that were never ordered are RECEIVED
+      // and reported as delivery exceptions; they are not refused. What is held
+      // vs recorded, and what is told back, is decided by the pure planDelivery
+      // (tested without a database); this only carries the plan out.
+      const reconcileDelivery = async (
+        supplierId: number,
+        orderId: number | null,
+        orderLines: Array<{ description: string; quantity_ordered: number; unit: string | null }>
+      ) => {
+        const grnExtraction = await extractGoodsReceived(env, description, orderLines);
+        const classified = classifyGoodsReceivedLines(grnExtraction.line_items, orderLines);
+        const plan = planDelivery(classified, { mustHold: inferredFromDocument, refused: Boolean(goodsReceivedRefusal) });
+        const supplierLabel = subjectHint ?? "the supplier";
+        if (plan.action === "refuse") {
+          uploadRefusal = goodsReceivedRefusal;
+        } else if (plan.action === "hold") {
+          // The supplier was read from the document, not stated, so this is held
+          // for one-tap confirmation rather than written directly.
+          const heldGrn = await holdForConfirmation(
+            env,
+            "goods_received",
+            { purchaseOrderId: orderId ?? 0, supplierId, supplierName: subjectHint, lineItems: plan.lines },
+            rawText
+          );
+          uploadHeldActionId = heldGrn.id;
+          uploadMessage = deliveryHeldMessage(plan, supplierLabel, inferredFromDocument, heldGrn.id, orderId != null);
+        } else if (plan.action === "record") {
+          const recorded = await recordGoodsReceived(env, orderId ?? 0, supplierId, rawText, plan.lines);
+          goodsReceivedAction = { grnId: recorded.grnId, supplierName: supplierLabel };
+          if (plan.exceptionCount > 0) {
+            uploadMessage = `Delivery recorded (GRN #${recorded.grnId}). ${plan.exceptionCount} item(s) weren't on the order and were logged as delivery exceptions.`;
+          }
+        } else {
+          uploadMessage = `I read ${documentKindLabel} from ${supplierLabel}, but couldn't make out any items on it, so nothing was recorded.`;
+        }
+      };
       if (subjectCharacterId && captionIntent === "supplier_statement" && statementRefusal) {
         uploadRefusal = statementRefusal;
       } else if (subjectCharacterId && captionIntent === "supplier_statement") {
@@ -4909,46 +4962,21 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             uploadHeldActionId = held.id;
             uploadMessage = `Supplier invoice noted from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""} — needs your confirmation (action #${held.id}) before it's recorded.`;
           } else {
-            const grnExtraction = await extractGoodsReceived(env, description, poLineItems);
-            // Only lines that match the order count (see splitGoodsReceivedLines).
-            const grnSplit = splitGoodsReceivedLines(grnExtraction.line_items, poLineItems);
-            const leftOutNote =
-              grnSplit.unmatched.length > 0 ? ` ${grnSplit.unmatched.length} other item(s) on it didn't match the order and were left out.` : "";
-            if (grnSplit.matched.length > 0 && goodsReceivedRefusal) {
-              uploadRefusal = goodsReceivedRefusal;
-            } else if (grnSplit.matched.length > 0 && inferredFromDocument) {
-              // The supplier was read from the document, not stated, so this
-              // is held for one-tap confirmation rather than written directly.
-              const heldGrn = await holdForConfirmation(
-                env,
-                "goods_received",
-                {
-                  purchaseOrderId: openPo.id,
-                  supplierId: subjectCharacterId,
-                  supplierName: subjectHint,
-                  lineItems: grnSplit.matched,
-                },
-                rawText
-              );
-              uploadHeldActionId = heldGrn.id;
-              uploadMessage = `Delivery noted from ${subjectHint ?? "the supplier"} (read from the document) — needs your confirmation (action #${heldGrn.id}) before it's recorded.${leftOutNote}`;
-            } else if (grnSplit.matched.length > 0) {
-              const recorded = await recordGoodsReceived(
-                env,
-                openPo.id,
-                subjectCharacterId,
-                rawText,
-                grnSplit.matched
-              );
-              goodsReceivedAction = { grnId: recorded.grnId, supplierName: subjectHint ?? "supplier" };
-              if (leftOutNote) uploadMessage = `Delivery recorded (GRN #${recorded.grnId}).${leftOutNote}`;
-            } else {
-              const onOrder = poLineItems.map((p) => p.description).join(", ") || "nothing";
-              uploadMessage = `I read ${documentKindLabel} from ${subjectHint ?? "the supplier"}, but none of its items match their open order (on order: ${onOrder}), so nothing was recorded.`;
-            }
+            await reconcileDelivery(subjectCharacterId, openPo.id, poLineItems);
           }
         } else {
-          uploadMessage = `I read ${documentKindLabel} from ${subjectHint ?? "the supplier"}, but there's no open order for them, so nothing was recorded.`;
+          // No open order. A delivery note for items that were never ordered is
+          // still received (decided 2026-10-03) and reported as an exception.
+          // Anything else, an invoice or a statement, still needs an order to
+          // be checked against.
+          const isDeliveryNote = inferredFromDocument
+            ? documentKind === "delivery_note"
+            : (await extractDocumentIdentity(env, description)).document_type === "delivery_note";
+          if (isDeliveryNote) {
+            await reconcileDelivery(subjectCharacterId, null, []);
+          } else {
+            uploadMessage = `I read ${documentKindLabel} from ${subjectHint ?? "the supplier"}, but there's no open order for them, so nothing was recorded.`;
+          }
         }
       }
 
@@ -5057,10 +5085,12 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       // confirmation instead of being recorded directly.
       let inferredFromDocument = false;
       let documentKindLabel = "this document";
+      let documentKind: "delivery_note" | "supplier_invoice" | "supplier_statement" | "other" = "other";
       if (!subjectCharacterId && !subjectCustomerId) {
         const inferred = await inferDocumentSupplier(env, description);
         if (inferred.kind !== "other") {
           documentKindLabel = DOCUMENT_KIND_LABEL[inferred.kind];
+          documentKind = inferred.kind;
           if (!inferred.issuer) {
             uploadMessage = `This looks like ${documentKindLabel}, but I couldn't tell who issued it, so I've only stored it.`;
           } else if (inferred.match?.kind === "one") {
@@ -5079,6 +5109,43 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       let supplierInvoiceAction: { pendingActionId: number; supplierName: string } | null = null;
       let goodsReceivedAction: { grnId: number; supplierName: string } | null = null;
       let supplierStatementAction: { supplierName: string; claimedBalance: number; realBalance: number; difference: number } | null = null;
+      // Receives a delivery note against an order, or against no order at all.
+      // Decided 2026-10-03 (Pierre): items that were never ordered are RECEIVED
+      // and reported as delivery exceptions; they are not refused. What is held
+      // vs recorded, and what is told back, is decided by the pure planDelivery
+      // (tested without a database); this only carries the plan out.
+      const reconcileDelivery = async (
+        supplierId: number,
+        orderId: number | null,
+        orderLines: Array<{ description: string; quantity_ordered: number; unit: string | null }>
+      ) => {
+        const grnExtraction = await extractGoodsReceived(env, description, orderLines);
+        const classified = classifyGoodsReceivedLines(grnExtraction.line_items, orderLines);
+        const plan = planDelivery(classified, { mustHold: inferredFromDocument, refused: Boolean(goodsReceivedRefusal) });
+        const supplierLabel = subjectHint ?? "the supplier";
+        if (plan.action === "refuse") {
+          uploadRefusal = goodsReceivedRefusal;
+        } else if (plan.action === "hold") {
+          // The supplier was read from the document, not stated, so this is held
+          // for one-tap confirmation rather than written directly.
+          const heldGrn = await holdForConfirmation(
+            env,
+            "goods_received",
+            { purchaseOrderId: orderId ?? 0, supplierId, supplierName: subjectHint, lineItems: plan.lines },
+            rawText
+          );
+          uploadHeldActionId = heldGrn.id;
+          uploadMessage = deliveryHeldMessage(plan, supplierLabel, inferredFromDocument, heldGrn.id, orderId != null);
+        } else if (plan.action === "record") {
+          const recorded = await recordGoodsReceived(env, orderId ?? 0, supplierId, rawText, plan.lines);
+          goodsReceivedAction = { grnId: recorded.grnId, supplierName: supplierLabel };
+          if (plan.exceptionCount > 0) {
+            uploadMessage = `Delivery recorded (GRN #${recorded.grnId}). ${plan.exceptionCount} item(s) weren't on the order and were logged as delivery exceptions.`;
+          }
+        } else {
+          uploadMessage = `I read ${documentKindLabel} from ${supplierLabel}, but couldn't make out any items on it, so nothing was recorded.`;
+        }
+      };
       if (subjectCharacterId && captionIntent === "supplier_statement" && statementRefusal) {
         uploadRefusal = statementRefusal;
       } else if (subjectCharacterId && captionIntent === "supplier_statement") {
@@ -5127,46 +5194,21 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             uploadHeldActionId = held.id;
             uploadMessage = `Supplier invoice noted from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""} — needs your confirmation (action #${held.id}) before it's recorded.`;
           } else {
-            const grnExtraction = await extractGoodsReceived(env, description, poLineItems);
-            // Only lines that match the order count (see splitGoodsReceivedLines).
-            const grnSplit = splitGoodsReceivedLines(grnExtraction.line_items, poLineItems);
-            const leftOutNote =
-              grnSplit.unmatched.length > 0 ? ` ${grnSplit.unmatched.length} other item(s) on it didn't match the order and were left out.` : "";
-            if (grnSplit.matched.length > 0 && goodsReceivedRefusal) {
-              uploadRefusal = goodsReceivedRefusal;
-            } else if (grnSplit.matched.length > 0 && inferredFromDocument) {
-              // The supplier was read from the document, not stated, so this
-              // is held for one-tap confirmation rather than written directly.
-              const heldGrn = await holdForConfirmation(
-                env,
-                "goods_received",
-                {
-                  purchaseOrderId: openPo.id,
-                  supplierId: subjectCharacterId,
-                  supplierName: subjectHint,
-                  lineItems: grnSplit.matched,
-                },
-                rawText
-              );
-              uploadHeldActionId = heldGrn.id;
-              uploadMessage = `Delivery noted from ${subjectHint ?? "the supplier"} (read from the document) — needs your confirmation (action #${heldGrn.id}) before it's recorded.${leftOutNote}`;
-            } else if (grnSplit.matched.length > 0) {
-              const recorded = await recordGoodsReceived(
-                env,
-                openPo.id,
-                subjectCharacterId,
-                rawText,
-                grnSplit.matched
-              );
-              goodsReceivedAction = { grnId: recorded.grnId, supplierName: subjectHint ?? "supplier" };
-              if (leftOutNote) uploadMessage = `Delivery recorded (GRN #${recorded.grnId}).${leftOutNote}`;
-            } else {
-              const onOrder = poLineItems.map((p) => p.description).join(", ") || "nothing";
-              uploadMessage = `I read ${documentKindLabel} from ${subjectHint ?? "the supplier"}, but none of its items match their open order (on order: ${onOrder}), so nothing was recorded.`;
-            }
+            await reconcileDelivery(subjectCharacterId, openPo.id, poLineItems);
           }
         } else {
-          uploadMessage = `I read ${documentKindLabel} from ${subjectHint ?? "the supplier"}, but there's no open order for them, so nothing was recorded.`;
+          // No open order. A delivery note for items that were never ordered is
+          // still received (decided 2026-10-03) and reported as an exception.
+          // Anything else, an invoice or a statement, still needs an order to
+          // be checked against.
+          const isDeliveryNote = inferredFromDocument
+            ? documentKind === "delivery_note"
+            : (await extractDocumentIdentity(env, description)).document_type === "delivery_note";
+          if (isDeliveryNote) {
+            await reconcileDelivery(subjectCharacterId, null, []);
+          } else {
+            uploadMessage = `I read ${documentKindLabel} from ${subjectHint ?? "the supplier"}, but there's no open order for them, so nothing was recorded.`;
+          }
         }
       }
 
