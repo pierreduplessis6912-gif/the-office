@@ -28,3 +28,10 @@ here: `0002_whatever_it_is.sql`, `0003_...`, and so on. Each one:
   a route that has to be found and remembered later.
 - Never edits `0001_baseline.sql` or any earlier file. History stays
   history.
+
+## The baseline is also a test dependency
+
+`tools/harness.js` builds its test database from `0001_baseline.sql`, so the characterization tests of
+`processOneExtraction` run against the real, live schema rather than one reconstructed from source. That is one more
+reason not to edit this file retroactively: a later change belongs in a new numbered file, and the harness should apply
+the new files after the baseline once there is one.
