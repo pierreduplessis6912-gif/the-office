@@ -391,6 +391,19 @@ async function expect(role, method, path, want) {
   const outstandingNow = await getOutstandingOrderLines(outEnv, 11);
   check(outstandingNow.length === 2 && outstandingNow[0].poLineId === 2 && outstandingNow[0].outstanding === 6 && outstandingNow[1].outstanding === 10, 'outstanding: a complete line drops out, a part-delivered one shows what remains, oldest order first');
   check(outBind[0] === 11 && /ORDER BY po\.created_at ASC/.test(outSql) && /SUM\(g\.quantity_received\)/.test(outSql) && !/INSERT|UPDATE|DELETE/i.test(outSql), 'outstanding: read-only, per supplier, oldest first, received summed across every delivery');
+  // A shortfall the supplier has formally CREDITED is not coming, so it stops counting as outstanding;
+  // a back order, or a reason with no resolution, stays outstanding. Only an explicit credit closes the remainder.
+  const woRows = [ { po_line_id: 1, po_id: 1, description: 'Grout', ordered: 20, unit: 'bag', received: 15, written_off: 5 }, { po_line_id: 2, po_id: 2, description: 'Underlay', ordered: 100, unit: 'roll', received: 50, written_off: 0 }, { po_line_id: 3, po_id: 3, description: 'Skirting', ordered: 10, unit: 'length', received: 8 } ];
+  let woSql = '';
+  const woEnv = { OFFICE_DB: { prepare: (sql) => ({ bind: () => { woSql = sql; return { all: async () => ({ results: woRows }) }; } }) } };
+  const woOut = await getOutstandingOrderLines(woEnv, 11);
+  check(!woOut.some((l) => l.description === 'Grout'), 'outstanding: a credited shortfall (15 of 20 received, 5 credited) is no longer outstanding');
+  check(woOut.find((l) => l.description === 'Underlay').outstanding === 50 && woOut.find((l) => l.description === 'Skirting').outstanding === 2, 'outstanding: an uncredited shortfall stays outstanding, and a missing write-off figure counts as none');
+  check(/vd\.resolution = 'credit'/.test(woSql) && /EXISTS \(SELECT 1 FROM variance_dispositions vd/.test(woSql) && /g\.variance < 0/.test(woSql), 'outstanding: only an explicit credit on a shortfall closes it, and a line resolved twice is not written off twice');
+  check(orderDeliveryStatus([{ ordered: 20, received: 15, writtenOff: 5 }]) === 'fully delivered', 'status: a credited remainder completes the order');
+  check(orderDeliveryStatus([{ ordered: 20, received: 15, writtenOff: 0 }]) === 'partially delivered' && orderDeliveryStatus([{ ordered: 20, received: 0, writtenOff: 0 }]) === 'awaiting delivery', 'status: without a credit the order is still partial or awaiting');
+  const dbgWo = fs.readFileSync(path.join(srcDir, 'debug.ts'), 'utf8');
+  check((dbgWo.match(/vd\.resolution = 'credit'/g) || []).length === 2 && (dbgWo.match(/writtenOff: l\.quantity_written_off/g) || []).length === 2, 'both purchase-order views must count credited shortfalls, so they agree with how deliveries are matched');
   // recordDelivery against a fake database
   const mkRecvDb = ({ outstandingRows = [], stock = [] }) => { const log = { headers: [], lines: [], stockUpdates: [] }; let hid = 40, lid = 200;
     const stmt = (sql, binds = []) => ({ bind: (...b) => stmt(sql, b),
