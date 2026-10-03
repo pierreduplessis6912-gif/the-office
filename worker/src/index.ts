@@ -9,7 +9,7 @@ import {
   verifySession, getSessionToken, getCookie, base64UrlEncode, ROLE_CAPABILITIES, ENFORCE_CAPABILITIES,
   ACTION_TYPE_CAPABILITY, ROUTE_RULES, SIGNABLE_DOCUMENT_PATHS, intentCreationRefusal,
 } from "./auth";
-import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
+import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 import { handleDebugRoute } from "./debug";
 import { DOCUMENT_KIND_LABEL, asksAboutDeliveryExceptions, deliveryExceptionAnswer, deliveryHadExceptions, deliveryHeldMessage, deliveryRecordedMessage, inferDocumentSupplier, planDelivery } from "./documents";
@@ -4047,6 +4047,27 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         // a real, deterministic quantity variance, computed in
         // recordGoodsReceived, returned here so Peter sees it
         // immediately, not buried in a debug route.
+        if (action.type === "stock_add") {
+          // Decided 2026-10-03 (Pierre): "Add to stock?" on delivery. Confirming registers each item
+          // that is not yet stock and adds what arrived; rejecting just leaves the question on record
+          // as declined, which is what stops it being asked again.
+          const payload = JSON.parse(action.payload) as { items?: Array<{ name: string; unit: string | null; quantity: number }> };
+          const added = await addDeliveredItemsToStock(env, Array.isArray(payload.items) ? payload.items : []);
+          await env.OFFICE_DB.prepare(
+            "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+          )
+            .bind(id)
+            .run();
+          return Response.json({
+            status: "confirmed",
+            addedToStock: added,
+            message:
+              added.length > 0
+                ? `Added to stock: ${added.map((a) => `${a.name} (${a.quantity}${a.unit ? ` ${a.unit}` : ""})`).join(", ")}.`
+                : "Nothing to add to stock.",
+          });
+        }
+
         if (action.type === "goods_received") {
           const payload = JSON.parse(action.payload) as {
             purchaseOrderId: number;
@@ -4069,7 +4090,21 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             )
               .bind(id)
               .run();
-            return Response.json({ status: "confirmed", goodsReceived: delivered, message: deliveryRecordedMessage(delivered) });
+            // Decided 2026-10-03 (Pierre): items that arrived and are not stock are asked about, once, with
+            // a tap. Asked only after the delivery is safely recorded, and never allowed to undo it.
+            let stockAsk: { id: number; message: string } | null = null;
+            try {
+              stockAsk = await proposeStockAdditions(env, delivered.notInStock, payload.supplierName ?? null);
+            } catch {
+              // The delivery itself is already recorded; a failed question is not a failed delivery.
+            }
+            return Response.json({
+              status: "confirmed",
+              goodsReceived: delivered,
+              message: stockAsk ? `${deliveryRecordedMessage(delivered)} ${stockAsk.message}` : deliveryRecordedMessage(delivered),
+              pendingActionId: stockAsk ? stockAsk.id : null,
+              pendingActionType: stockAsk ? "stock_add" : null,
+            });
           }
           const recorded = await recordGoodsReceived(
             env,
@@ -4939,7 +4974,19 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         } else if (plan.action === "record") {
           const recorded = await recordDelivery(env, supplierId, rawText, plan.lines);
           goodsReceivedAction = { grnId: recorded.grnId, supplierName: supplierLabel };
-          if (deliveryHadExceptions(recorded)) uploadMessage = deliveryRecordedMessage(recorded);
+          // Decided 2026-10-03 (Pierre): ask whether items that are not stock should be added.
+          let stockAsk: { id: number; message: string } | null = null;
+          try {
+            stockAsk = await proposeStockAdditions(env, recorded.notInStock, subjectHint);
+          } catch {
+            // The delivery is already recorded; a failed question is not a failed delivery.
+          }
+          if (stockAsk) {
+            uploadHeldActionId = stockAsk.id;
+            uploadMessage = `${deliveryRecordedMessage(recorded)} ${stockAsk.message}`;
+          } else if (deliveryHadExceptions(recorded)) {
+            uploadMessage = deliveryRecordedMessage(recorded);
+          }
         } else {
           uploadMessage = `I read ${documentKindLabel} from ${supplierLabel}, but couldn't make out any items on it, so nothing was recorded.`;
         }
@@ -5177,7 +5224,19 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         } else if (plan.action === "record") {
           const recorded = await recordDelivery(env, supplierId, rawText, plan.lines);
           goodsReceivedAction = { grnId: recorded.grnId, supplierName: supplierLabel };
-          if (deliveryHadExceptions(recorded)) uploadMessage = deliveryRecordedMessage(recorded);
+          // Decided 2026-10-03 (Pierre): ask whether items that are not stock should be added.
+          let stockAsk: { id: number; message: string } | null = null;
+          try {
+            stockAsk = await proposeStockAdditions(env, recorded.notInStock, subjectHint);
+          } catch {
+            // The delivery is already recorded; a failed question is not a failed delivery.
+          }
+          if (stockAsk) {
+            uploadHeldActionId = stockAsk.id;
+            uploadMessage = `${deliveryRecordedMessage(recorded)} ${stockAsk.message}`;
+          } else if (deliveryHadExceptions(recorded)) {
+            uploadMessage = deliveryRecordedMessage(recorded);
+          }
         } else {
           uploadMessage = `I read ${documentKindLabel} from ${supplierLabel}, but couldn't make out any items on it, so nothing was recorded.`;
         }
