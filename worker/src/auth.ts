@@ -224,6 +224,9 @@ export const ACTION_TYPE_CAPABILITY: Record<string, string[]> = {
   variance_disposition: ["can_manage_invoices"],
   // Installers receive deliveries on site; accountants reconcile them.
   goods_received: ["can_manage_invoices", "can_know_materials"],
+  // "Add this delivery to stock?" (decided 2026-10-03, Pierre: ask on delivery). Anyone who may know
+  // materials may answer it, since stock is gated by can_know_materials everywhere else too.
+  stock_add: ["can_know_materials"],
   job_scope_amendment: ["can_know_jobs"],
   project_ambiguity: ["can_know_jobs"],
   // Identity questions can come up in either role's dictation.
