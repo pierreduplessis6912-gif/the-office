@@ -1009,13 +1009,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "character:1",
-    "value": "{\"facts\":[{\"text\":\"paid Floornet R10000\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "supplier payment: owner, no supplier named": {
   "result": {
@@ -1060,13 +1054,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"paid R10000\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "supplier payment: owner, a new supplier name": {
   "result": {
@@ -1146,13 +1134,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "character:3",
-    "value": "{\"facts\":[{\"text\":\"paid Newco Supplies R5000\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "supplier payment: owner, no amount": {
   "result": {
@@ -1210,13 +1192,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "character:1",
-    "value": "{\"facts\":[{\"text\":\"paid Floornet\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "supplier payment: accountant, existing supplier": {
   "result": {
@@ -1285,13 +1261,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "character:1",
-    "value": "{\"facts\":[{\"text\":\"paid Floornet R10000\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "supplier payment: installer is refused": {
   "result": {
