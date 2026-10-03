@@ -41,7 +41,7 @@ async function expect(role, method, path, want) {
   const jobs = [ ['GET','/projects'],['GET','/snags'],['POST','/snags/5/resolve'],['POST','/tasks/3/done'],['GET','/embers/tasks'],['GET','/embers/scheduler'],
                  ['GET','/debug/schedule'],['GET','/debug/tasks-list'] ];
   const money = [ ['GET','/customers/1/profitability'],['PATCH','/invoices/3'],['PATCH','/quotations/3'],['PATCH','/customers/3'],
-                  ['GET','/suppliers/2/discrepancies'],['POST','/suppliers/discrepancies/4/resolve'],
+                  ['GET','/suppliers/2/discrepancies'],['POST','/suppliers/discrepancies/4/resolve'],['GET','/delivery-exceptions'],
                   ['GET','/embers/finance'],['GET','/embers/expenses'],['GET','/embers/suppliers'],
                   ['GET','/debug/financial-snapshot'],['GET','/debug/suppliers-list'],['GET','/debug/finance-list'] ];
   const ownerOnly = [ ['GET','/leads'],['POST','/leads/1/mark-lost'],['POST','/business-profile/logo'],
@@ -163,10 +163,15 @@ async function expect(role, method, path, want) {
     const h = handlerSlice(marker);
     check(h.length > 500, `could not isolate the ${name} handler`);
     check(h.includes('resolveCapabilities(request, env)'), `${name}: must read the caller's capabilities`);
-    for (const [writer, guard] of [['holdForConfirmation(', '&& supplierInvoiceRefusal) {'], ['recordGoodsReceived(', '&& goodsReceivedRefusal) {'], ['getOutstandingBalanceForSupplier(', '&& statementRefusal) {']]) {
-      check(h.includes(guard), `${name}: missing the refusal branch "${guard}" ahead of ${writer}`);
-      check(h.indexOf(guard) < h.indexOf(writer), `${name}: the refusal branch must come before ${writer}`);
-    }
+    // A held supplier invoice (money): its refusal branch must come before the hold that creates it.
+    const siHold = h.search(/holdForConfirmation\(\s*env,\s*"supplier_invoice"/);
+    check(h.includes('&& supplierInvoiceRefusal) {') && siHold > 0 && h.indexOf('&& supplierInvoiceRefusal) {') < siHold, `${name}: the supplier-invoice refusal branch must come before the hold it guards`);
+    // A statement reconciliation (a money read): its refusal branch must come before the balance is read.
+    check(h.includes('&& statementRefusal) {') && h.indexOf('&& statementRefusal) {') < h.indexOf('getOutstandingBalanceForSupplier('), `${name}: the statement refusal branch must come before the balance is read`);
+    // Goods received: the permission flows into the plan, and a refused plan is handled before anything is held or recorded.
+    check(h.includes('planDelivery(classified, { mustHold: inferredFromDocument, refused: Boolean(goodsReceivedRefusal) })'), `${name}: the delivery plan must carry both the permission and the inferred-supplier flag`);
+    const iRefuse = h.indexOf('plan.action === "refuse"'), iHold = h.indexOf('plan.action === "hold"'), iRecord = h.indexOf('plan.action === "record"');
+    check(iRefuse > 0 && iRefuse < iHold && iHold < iRecord && iRecord < h.indexOf('recordGoodsReceived('), `${name}: a delivery must be refused, then held, then recorded, in that order of checks`);
     check(new RegExp(respVar + ' = JSON\\.stringify\\(\\{ status: "stored", refusal: uploadRefusal').test(h), `${name}: the response must carry the refusal`);
   }
 
@@ -247,41 +252,128 @@ async function expect(role, method, path, want) {
     const gate = h.indexOf('if (!subjectCharacterId && !subjectCustomerId) {');
     const call = h.indexOf('inferDocumentSupplier(env, description)');
     check(gate > 0 && call > gate, `${name}: document-first must run only when no subject was stated (caption wins)`);
-    const heldGrn = h.indexOf('grnSplit.matched.length > 0 && inferredFromDocument) {');
-    check(heldGrn > 0 && h.indexOf('&& goodsReceivedRefusal) {') < heldGrn, `${name}: an inferred delivery must be considered after the permission check`);
-    check(heldGrn > 0 && heldGrn < h.indexOf('recordGoodsReceived('), `${name}: an inferred delivery must be HELD before the direct-record path is reached`);
-    const holdAfter = h.slice(heldGrn, h.indexOf('recordGoodsReceived('));
-    check(/holdForConfirmation\(\s*env,\s*"goods_received"/.test(holdAfter), `${name}: the inferred delivery must be held as a goods_received confirmation`);
+    check(h.includes('lineItems: plan.lines'), `${name}: a held delivery must carry exactly the planned lines`);
+    check(h.includes('mustHold: inferredFromDocument'), `${name}: a delivery whose supplier was read from the document must be held`);
+    const holdAt = h.indexOf('plan.action === "hold"');
+    check(/holdForConfirmation\(\s*env,\s*"goods_received"/.test(h.slice(holdAt, holdAt + 600)), `${name}: the held delivery must be a goods_received confirmation`);
+    check((h.match(/await reconcileDelivery\(/g) || []).length === 2, `${name}: a delivery must be reconciled both against an open order and, for a delivery note, against none`);
+    check(h.includes('await reconcileDelivery(subjectCharacterId, null, [])') && h.includes('extractDocumentIdentity(env, description)'), `${name}: a delivery note with no open order must still be received, and only a delivery note`);
+    check(/if \(isDeliveryNote\) \{\s*await reconcileDelivery\(subjectCharacterId, null, \[\]\)/.test(h), `${name}: with no open order, only a document that is a delivery note may be received (an invoice or statement must not be logged as a delivery)`);
+    check(h.includes('? documentKind === "delivery_note"') , `${name}: for a supplier read from the document, the delivery-note decision must come from the document's own kind`);
     check(/message: uploadRefusal \?\? uploadMessage, pendingActionId: uploadHeldActionId/.test(h), `${name}: the response must carry the message and the held action id`);
-    check(h.includes("there's no open order for them") && h.includes("none of its items match their open order"), `${name}: the "nothing recorded" cases must explain themselves`);
+    check(h.includes("there's no open order for them") && h.includes("couldn't make out any items"), `${name}: the "nothing recorded" cases must explain themselves`);
   }
-  // Goods received: only lines that match the order may be held or recorded (found live 2026-10-03:
-  // a delivery matching nothing was held, then recorded as a single line called "unmatched item").
-  const { splitGoodsReceivedLines } = bundleTo('finance.ts', 'rm-finance.js');
+  // Goods received (decided 2026-10-03, Pierre): a delivery of items that were never ordered is RECEIVED
+  // and reported as a delivery exception, not refused. History: such a line was once recorded as the
+  // literal text "unmatched item", its real name lost.
+  const finMod = bundleTo('finance.ts', 'rm-finance.js');
+  const { classifyGoodsReceivedLines, getDeliveryExceptions, recordGoodsReceived } = finMod;
   const PO = [{ description: 'Vinyl' }, { description: 'Underlay' }];
-  const L = (d, q) => ({ matched_description: d, quantity_received: q });
-  let sp = splitGoodsReceivedLines([L(null, 2)], PO);
-  check(sp.matched.length === 0 && sp.unmatched.length === 1, 'a line the model could not match (null) must not count as matched');
-  sp = splitGoodsReceivedLines([L('Vinyl', 50), L('Underlay', 40)], PO);
-  check(sp.matched.length === 2 && sp.unmatched.length === 0, 'lines that match the order are all kept');
-  sp = splitGoodsReceivedLines([L('Vinyl', 50), L(null, 2)], PO);
-  check(sp.matched.length === 1 && sp.matched[0].matched_description === 'Vinyl' && sp.unmatched.length === 1, 'a mixed delivery keeps only the matched line and reports the other');
-  sp = splitGoodsReceivedLines([L('MARBLE CHARCOAL', 2)], PO);
-  check(sp.matched.length === 0 && sp.unmatched.length === 1, 'a name that is not actually on the order must count as unmatched, even if the model supplied one');
-  sp = splitGoodsReceivedLines([L('vinyl', 5)], PO);
-  check(sp.matched.length === 1, 'matching is case-insensitive, exactly as recording does it');
-  check(splitGoodsReceivedLines([], PO).matched.length === 0 && splitGoodsReceivedLines([L('Vinyl', 1)], []).matched.length === 0, 'no lines, or an order with no lines, matches nothing');
-  check(splitGoodsReceivedLines([L('', 3)], PO).matched.length === 0, 'an empty name is not a match');
-  // No path may pass raw, unfiltered lines to a hold or a record again: every use of the
-  // extraction's line_items in index.ts must be the argument to splitGoodsReceivedLines.
+  const L = (m, q, d, u) => ({ matched_description: m, quantity_received: q, item_description: d === undefined ? m : d, unit: u || null });
+  let cl = classifyGoodsReceivedLines([L(null, 2, 'MARBLE CHARCOAL 011 5m2', 'Box')], PO);
+  check(cl.matched.length === 0 && cl.exceptions.length === 1 && cl.exceptions[0].item_description === 'MARBLE CHARCOAL 011 5m2', 'an item that matches nothing, but is named on the delivery, is an exception that keeps its real name');
+  cl = classifyGoodsReceivedLines([L('Vinyl', 50), L('Underlay', 40)], PO);
+  check(cl.matched.length === 2 && cl.exceptions.length === 0, 'lines that match the order stay matched');
+  cl = classifyGoodsReceivedLines([L('Vinyl', 50), L(null, 5, 'grout', 'bag')], PO);
+  check(cl.matched.length === 1 && cl.exceptions.length === 1 && cl.dropped.length === 0, 'a mixed delivery is split into matched lines and exceptions');
+  cl = classifyGoodsReceivedLines([L('MARBLE CHARCOAL', 2, 'marble charcoal tiles')], PO);
+  check(cl.matched.length === 0 && cl.exceptions.length === 1, 'a name the model supplied that is not on the order is an exception, never a match');
+  cl = classifyGoodsReceivedLines([L('Some Made Up Item', 2, null)], PO);
+  check(cl.exceptions.length === 1 && cl.exceptions[0].item_description === 'Some Made Up Item', 'with no item name on the delivery, the model\'s own wording is used rather than losing the line');
+  cl = classifyGoodsReceivedLines([L(null, 2, null)], PO);
+  check(cl.matched.length === 0 && cl.exceptions.length === 0 && cl.dropped.length === 1, 'a line with no name at all is dropped, never recorded as an anonymous item');
+  cl = classifyGoodsReceivedLines([L(null, 0, 'grout'), L(null, -3, 'grout'), L(null, NaN, 'grout')], PO);
+  check(cl.exceptions.length === 0 && cl.dropped.length === 3, 'an exception needs a real positive quantity');
+  cl = classifyGoodsReceivedLines([L('Vinyl', 0)], PO);
+  check(cl.matched.length === 1, 'a matched line with quantity 0 is a real shortage and stays matched');
+  cl = classifyGoodsReceivedLines([L('vinyl', 5)], PO);
+  check(cl.matched.length === 1, 'matching is case-insensitive, exactly as recording does it');
+  cl = classifyGoodsReceivedLines([L('Vinyl', 5), L(null, 1, 'trim')], []);
+  check(cl.matched.length === 0 && cl.exceptions.length === 2, 'with no order at all, every named item is an exception');
+
+  // The plan (pure): what is done, and by whom it must be confirmed.
+  const { planDelivery, deliveryHeldMessage } = docsMod;
+  const cls = (m, e) => ({ matched: new Array(m).fill(1), exceptions: new Array(e).fill(2) });
+  check(planDelivery(cls(0, 0), { mustHold: false, refused: false }).action === 'none', 'nothing usable: nothing is done');
+  check(planDelivery(cls(0, 0), { mustHold: false, refused: true }).action === 'none', 'nothing usable and refused: still just nothing');
+  check(planDelivery(cls(1, 0), { mustHold: false, refused: false }).action === 'record', 'a stated supplier with matched lines is recorded directly');
+  check(planDelivery(cls(1, 1), { mustHold: true, refused: false }).action === 'hold', 'a supplier that was read or heard is held for confirmation');
+  check(planDelivery(cls(0, 2), { mustHold: false, refused: false }).action === 'record', 'a delivery of only unordered items is received too');
+  check(planDelivery(cls(0, 2), { mustHold: true, refused: false }).action === 'hold', 'and held when the supplier was read');
+  check(planDelivery(cls(2, 0), { mustHold: true, refused: true }).action === 'refuse', 'a role that may not record deliveries is refused, before anything is held');
+  const pl = planDelivery(cls(2, 3), { mustHold: false, refused: false });
+  check(pl.lines.length === 5 && pl.matchedCount === 2 && pl.exceptionCount === 3, 'the plan carries every line and the counts');
+  check(/#12/.test(deliveryHeldMessage({ matchedCount: 1, exceptionCount: 0 }, 'Floornet', true, 12, true)) && /read from the document/.test(deliveryHeldMessage({ matchedCount: 1, exceptionCount: 0 }, 'Floornet', true, 12, true)), 'a held delivery says what it is, that it was read, and its action number');
+  check(!/read from the document/.test(deliveryHeldMessage({ matchedCount: 1, exceptionCount: 0 }, 'Floornet', false, 12, true)), 'a spoken delivery does not claim to have been read from a document');
+  check(/1 item\(s\) aren't on the order/.test(deliveryHeldMessage({ matchedCount: 2, exceptionCount: 1 }, 'Floornet', false, 5, true)), 'a mixed delivery says how many items are not on the order');
+  check(/nothing that's on their open order/.test(deliveryHeldMessage({ matchedCount: 0, exceptionCount: 2 }, 'Floornet', false, 5, true)) && /delivery exception/.test(deliveryHeldMessage({ matchedCount: 0, exceptionCount: 2 }, 'Floornet', false, 5, true)), 'a delivery with nothing on the order says so and that it will be logged as an exception');
+  check(/no open order/.test(deliveryHeldMessage({ matchedCount: 0, exceptionCount: 2 }, 'Floornet', false, 5, false)), 'a delivery from a supplier with no open order says that');
+
+  // recordGoodsReceived against a fake database (the real SQL is checked separately, on a real database).
+  // This caught nothing before it existed: the first version crashed on exactly this input, because an
+  // exception line has an ordered quantity of 0 (not null) but no order line to read a name from.
+  const mkGrnDb = ({ poLines = [], stock = [] }) => { const log = { header: [], lines: [], stockUpdates: [] }; let lineId = 100;
+    const stmt = (sql, binds = []) => ({ bind: (...b) => stmt(sql, b),
+      first: async () => { if (/INSERT INTO goods_received_notes/.test(sql)) { log.header.push(binds); return { id: 8 }; }
+        if (/INSERT INTO grn_line_items/.test(sql)) { log.lines.push({ po: binds[1], description: binds[2], received: binds[3], ordered: binds[4], variance: binds[5] }); return { id: ++lineId }; }
+        if (/FROM stock_items WHERE name/.test(sql)) { const hit = stock.find((s) => s.name.toLowerCase() === String(binds[0]).toLowerCase()); return hit ? { id: hit.id } : null; }
+        return null; },
+      all: async () => (/FROM po_line_items/.test(sql) ? { results: poLines } : { results: [] }),
+      run: async () => { if (/UPDATE stock_items/.test(sql)) log.stockUpdates.push(binds); return {}; } });
+    return { env: { OFFICE_DB: { prepare: (sql) => stmt(sql) } }, log }; };
+  const POLINES = [{ id: 1, description: 'Vinyl', quantity_ordered: 50, unit: 'sqm', unit_price_expected: null, product_id: null }];
+  let g = mkGrnDb({ poLines: POLINES, stock: [{ id: 3, name: 'Grout' }] });
+  let rg = await recordGoodsReceived(g.env, 9, 11, 'src', [L('Vinyl', 50, 'vinyl'), L(null, 5, 'Grout', 'bag')], 'p@x.com');
+  check(g.log.lines.length === 2 && g.log.lines[0].description === 'Vinyl' && g.log.lines[0].variance === 0, 'the matched line is recorded against its order line');
+  check(g.log.lines[1].description === 'Grout [bag]' && g.log.lines[1].ordered === 0 && g.log.lines[1].variance === 5 && g.log.lines[1].po === null, 'an unordered item is recorded under its real name with an ordered quantity of 0, so its variance is what arrived');
+  check(rg.exceptions.length === 1 && rg.exceptions[0].grnLineItemId === 102 && rg.exceptions[0].description === 'Grout', 'the exception is returned, with its line id');
+  check(rg.variances.length === 2 && rg.variances[1].description === 'Grout [bag]', 'the exception also appears among the variances, under the recorded name');
+  check(g.log.stockUpdates.length === 1 && g.log.stockUpdates[0][0] === 5, 'an unordered item that is a registered stock item still adds to stock, by exact name');
+  g = mkGrnDb({ poLines: [] });
+  rg = await recordGoodsReceived(g.env, 0, 14, 'src', [L(null, 3, 'Hercules 550 carpet', 'roll')]);
+  check(g.log.header[0][0] === 0 && rg.exceptions.length === 1 && g.log.lines[0].description === 'Hercules 550 carpet [roll]', 'a delivery against no order at all is recorded with order id 0 and its exception line');
+  g = mkGrnDb({ poLines: POLINES });
+  rg = await recordGoodsReceived(g.env, 9, 11, 'older held action', [{ matched_description: null, quantity_received: 1 }]);
+  check(rg.exceptions.length === 0 && g.log.lines[0].description === 'unmatched item' && g.log.lines[0].ordered === null && g.log.lines[0].variance === null, 'a line from an older held action, with no name, is still recorded the old way and is not an exception');
+
+  // The report: statuses, and the exception signature must not drift.
+  let reportBinds = null;
+  const reportEnv = { OFFICE_DB: { prepare: (sql) => ({ bind: (...b) => { reportBinds = b; reportSql = sql; return { all: async () => ({ results: [
+    { grn_line_item_id: 1, grn_id: 8, supplier_id: 11, supplier_name: 'Floornet', description: 'Grout [bag]', quantity_received: 5, purchase_order_id: 9, recorded_by: 'p@x.com', created_at: '2026-10-03', disposition_id: null, reason: null, resolution: null },
+    { grn_line_item_id: 2, grn_id: 9, supplier_id: 14, supplier_name: 'Belgotex', description: 'Carpet [roll]', quantity_received: 3, purchase_order_id: 0, recorded_by: null, created_at: '2026-10-02', disposition_id: 4, reason: 'extra', resolution: 'accepted' } ] }) }; } }) } };
+  let reportSql = '';
+  const rep1 = await getDeliveryExceptions(reportEnv, 'all');
+  check(rep1[0].status === 'open' && rep1[0].hadOpenOrder === true && rep1[1].status === 'resolved' && rep1[1].hadOpenOrder === false && rep1[1].resolution === 'accepted', 'the report marks open and resolved correctly, and whether there was an open order');
+  check(reportBinds[0] === 'all', 'the report passes its status filter as a bound parameter');
+  check(/po_line_item_id IS NULL AND gli\.quantity_ordered = 0/.test(reportSql) && /SELECT/i.test(reportSql) && !/INSERT|UPDATE|DELETE/i.test(reportSql), 'the report identifies exceptions by no order line and an ordered quantity of 0, and is read-only');
+  await getDeliveryExceptions(reportEnv);
+  check(reportBinds[0] === 'open', 'the report defaults to open exceptions only');
+
+  // The extractor now carries the item's name and unit, sanitised.
+  const extractGR = async (reply) => aiMod.extractGoodsReceived({ AI: { run: async () => ({ choices: [{ message: { content: reply } }] }) } }, 'text', []);
+  let xg = await extractGR('{"supplier_name":"Floornet","line_items":[{"matched_description":null,"item_description":"  MARBLE CHARCOAL 011  ","unit":" Box ","quantity_received":2}]}');
+  check(xg.line_items[0].item_description === 'MARBLE CHARCOAL 011' && xg.line_items[0].unit === 'Box' && xg.line_items[0].quantity_received === 2, 'extractor: the item name and unit are kept, trimmed');
+  xg = await extractGR('{"supplier_name":null,"line_items":[{"matched_description":"   ","item_description":42,"unit":{},"quantity_received":"7"}]}');
+  check(xg.line_items[0].matched_description === null && xg.line_items[0].item_description === null && xg.line_items[0].unit === null && xg.line_items[0].quantity_received === 7, 'extractor: blank or non-text fields become null and a numeric string becomes a number');
+  xg = await extractGR('{"supplier_name":null,"line_items":"none"}');
+  check(Array.isArray(xg.line_items) && xg.line_items.length === 0, 'extractor: a line_items that is not a list becomes an empty list');
+  xg = await extractGR('{"supplier_name":null,"line_items":[{"matched_description":null,"item_description":"' + 'x'.repeat(400) + '","unit":"' + 'u'.repeat(90) + '","quantity_received":1}]}');
+  check(xg.line_items[0].item_description.length === 160 && xg.line_items[0].unit.length === 20, 'extractor: over-long text is bounded');
+
+  // Every path hands the extraction's lines to the classifier, and nothing else ever builds a hold or a record from raw lines.
   const rawUses = (indexSrc.match(/grnExtraction\.line_items/g) || []).length;
-  const splitUses = (indexSrc.match(/splitGoodsReceivedLines\(grnExtraction\.line_items, poLineItems\)/g) || []).length;
-  check(rawUses === 3 && splitUses === 3, `every goods-received path (document, photo, dictation) must filter through splitGoodsReceivedLines; raw uses ${rawUses}, filtered ${splitUses}`);
-  check(!/lineItems: grnExtraction\.line_items/.test(indexSrc), 'a hold must never be built from unfiltered goods-received lines');
+  const classUses = (indexSrc.match(/classifyGoodsReceivedLines\(grnExtraction\.line_items, (orderLines|poLineItems)\)/g) || []).length;
+  check(rawUses === 3 && classUses === 3, `every goods-received path (document, photo, dictation) must classify through classifyGoodsReceivedLines; raw uses ${rawUses}, classified ${classUses}`);
+  check(!/lineItems: grnExtraction\.line_items/.test(indexSrc) && !/splitGoodsReceivedLines/.test(indexSrc), 'a hold must never be built from unclassified goods-received lines');
+  const finSrc = fs.readFileSync(path.join(srcDir, 'finance.ts'), 'utf8');
+  check(!/last_insert_rowid/.test(finSrc), 'finance.ts must read new ids with RETURNING id, not last_insert_rowid(), which D1 does not guarantee across statements');
   const dictStart = indexSrc.indexOf('if (extraction?.intent === "goods_received") {');
   const dictBody = indexSrc.slice(dictStart, indexSrc.indexOf('Supplier Invoices, the third and final', dictStart));
-  check(dictBody.indexOf('if (grnSplit.matched.length > 0) {') > 0 && dictBody.indexOf('if (grnSplit.matched.length > 0) {') < dictBody.indexOf('holdForConfirmation('), 'dictation: a goods-received hold may only be created when something matched the order');
-  check(/goods_received" && goodsReceivedNoMatchOnOrder\) \{/.test(indexSrc), 'dictation: a delivery that matches nothing must get its own honest reply');
+  check(dictBody.includes('mustHold: true') && dictBody.indexOf('grnPlan.action === "hold"') > 0 && dictBody.indexOf('grnPlan.action === "hold"') < dictBody.indexOf('holdForConfirmation('), 'dictation: a spoken delivery is always held, and only when the plan says to');
+  check(/goods_received" && goodsReceivedNoItems\) \{/.test(indexSrc) && !/goodsReceivedNoOpenPo|goodsReceivedNoMatchOnOrder/.test(indexSrc), 'dictation: a delivery with nothing readable gets its own honest reply, and having no open order no longer ends the delivery');
+  const confirmAt = indexSrc.indexOf('if (action.type === "goods_received") {');
+  check(/logged as delivery exceptions/.test(indexSrc.slice(confirmAt, confirmAt + 2500)), 'confirming a delivery says in words when items were logged as exceptions');
+  check(/url\.pathname === "\/delivery-exceptions" && request\.method === "GET"/.test(indexSrc), 'the delivery exception report route must exist');
 
   // The two inspection routes must stay admin-key only (not in the app's own route list).
   const appDebug = src.match(/const APP_DEBUG_ROUTES = new Set\(\[([\s\S]*?)\]\);/)[1];
