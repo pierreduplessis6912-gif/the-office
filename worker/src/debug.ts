@@ -26,7 +26,7 @@ import {
 } from "./identity";
 import { getInstallerActivity, nowInBusinessTimezone, resolveScheduledDate } from "./scheduler";
 import { getCharacterFacts, getCharacterNotes, runConsolidation } from "./memory";
-import { getAgedCreditorsReport, getFinancialSnapshot, getProfitAndLoss, getTrackedStockItems, parseDateRange, recordQuotation } from "./finance";
+import { getAgedCreditorsReport, getDeliveryExceptions, getFinancialSnapshot, getProfitAndLoss, getTrackedStockItems, parseDateRange, recordQuotation } from "./finance";
 import { runIdempotentMigration, signSession, ROLE_CAPABILITIES } from "./auth";
 
 // The one non-route helper these routes needed, moved with its real
@@ -2188,6 +2188,13 @@ if (url.pathname === "/debug/init-captures-fk" && request.method === "POST") {
 // see from a terminal what the system actually read from an upload. These
 // two show exactly that and write nothing. Not in the app's route list, so
 // they are admin-key only like every other /debug route.
+// The delivery exception report with the admin key, so it can be read from a terminal.
+// ?status=all includes the ones already resolved. Read-only.
+if (url.pathname === "/debug/delivery-exceptions" && request.method === "GET") {
+      const status = url.searchParams.get("status") === "all" ? "all" : "open";
+      return Response.json({ exceptions: await getDeliveryExceptions(env, status) });
+    }
+
 if (url.pathname === "/debug/recent-captures" && request.method === "GET") {
       const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 10) || 10, 1), 50);
       const { results } = await env.OFFICE_DB.prepare(
