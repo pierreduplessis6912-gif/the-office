@@ -12,6 +12,7 @@ import {
 import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 import { handleDebugRoute } from "./debug";
+import { DOCUMENT_KIND_LABEL, inferDocumentSupplier } from "./documents";
 
 // Second layer of defense against storing questions as facts — never
 // trust intent classification alone for this, since it's been
@@ -4808,6 +4809,42 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       const supplierInvoiceRefusal = intentCreationRefusal("supplier_invoice", uploadCapabilities);
       const goodsReceivedRefusal = intentCreationRefusal("goods_received", uploadCapabilities);
       let uploadRefusal: string | null = null;
+      let uploadMessage: string | null = null;
+      let uploadHeldActionId: number | null = null;
+
+      // Document-first identification, per Pierre 2026-10-03. A delivery note
+      // already says it is one and who issued it, so a caption is no longer
+      // needed to understand a supplier document (the app could not send one
+      // at all). This replaces the old rule of never reading a subject from
+      // the file, which was right for site photos and wrong for business
+      // documents. What is kept of that rule: a file with a stated subject
+      // (a caption that resolved a customer or supplier) is never second-
+      // guessed; anything that is not clearly a supplier document does
+      // nothing, exactly as before; the issuer is matched only against
+      // suppliers that ALREADY EXIST and never creates one; and because the
+      // supplier here was READ, not stated, a delivery note is held for
+      // confirmation instead of being recorded directly.
+      let inferredFromDocument = false;
+      let documentKindLabel = "this document";
+      if (!subjectCharacterId && !subjectCustomerId) {
+        const inferred = await inferDocumentSupplier(env, description);
+        if (inferred.kind !== "other") {
+          documentKindLabel = DOCUMENT_KIND_LABEL[inferred.kind];
+          if (!inferred.issuer) {
+            uploadMessage = `This looks like ${documentKindLabel}, but I couldn't tell who issued it, so I've only stored it.`;
+          } else if (inferred.match?.kind === "one") {
+            subjectCharacterId = inferred.match.supplier.id;
+            subjectHint = inferred.match.supplier.name;
+            inferredFromDocument = true;
+            if (inferred.kind === "supplier_statement") captionIntent = "supplier_statement";
+            rawText = `[Read from the document, not stated by anyone: ${documentKindLabel} issued by "${inferred.issuer}", matched to supplier ${inferred.match.supplier.name}]\n\n${rawText}`;
+          } else if (inferred.match?.kind === "many") {
+            uploadMessage = `I read ${documentKindLabel} from "${inferred.issuer}", which could be ${inferred.match.suppliers.map((sp) => sp.name).join(" or ")}, so nothing was recorded.`;
+          } else {
+            uploadMessage = `I read ${documentKindLabel} from "${inferred.issuer}", but I don't have them as a supplier, so nothing was recorded.`;
+          }
+        }
+      }
       let supplierInvoiceAction: { pendingActionId: number; supplierName: string } | null = null;
       let goodsReceivedAction: { grnId: number; supplierName: string } | null = null;
       let supplierStatementAction: { supplierName: string; claimedBalance: number; realBalance: number; difference: number } | null = null;
@@ -4830,6 +4867,9 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             realBalance,
             difference: Math.round((stmtExtraction.claimed_closing_balance - realBalance) * 100) / 100,
           };
+          uploadMessage = `Statement from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""}: they claim R${stmtExtraction.claimed_closing_balance}, our records show R${realBalance}.`;
+        } else {
+          uploadMessage = `I couldn't find a closing balance on this statement from ${subjectHint ?? "the supplier"}, so nothing was compared.`;
         }
       } else if (subjectCharacterId) {
         const openPo = await findLatestOpenPurchaseOrder(env, subjectCharacterId);
@@ -4853,10 +4893,28 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
               rawText
             );
             supplierInvoiceAction = { pendingActionId: held.id, supplierName: subjectHint ?? "supplier" };
+            uploadHeldActionId = held.id;
+            uploadMessage = `Supplier invoice noted from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""} — needs your confirmation (action #${held.id}) before it's recorded.`;
           } else {
             const grnExtraction = await extractGoodsReceived(env, description, poLineItems);
             if (grnExtraction.line_items.length > 0 && goodsReceivedRefusal) {
               uploadRefusal = goodsReceivedRefusal;
+            } else if (grnExtraction.line_items.length > 0 && inferredFromDocument) {
+              // The supplier was read from the document, not stated, so this
+              // is held for one-tap confirmation rather than written directly.
+              const heldGrn = await holdForConfirmation(
+                env,
+                "goods_received",
+                {
+                  purchaseOrderId: openPo.id,
+                  supplierId: subjectCharacterId,
+                  supplierName: subjectHint,
+                  lineItems: grnExtraction.line_items,
+                },
+                rawText
+              );
+              uploadHeldActionId = heldGrn.id;
+              uploadMessage = `Delivery noted from ${subjectHint ?? "the supplier"} (read from the document) — needs your confirmation (action #${heldGrn.id}) before it's recorded.`;
             } else if (grnExtraction.line_items.length > 0) {
               const recorded = await recordGoodsReceived(
                 env,
@@ -4866,12 +4924,16 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
                 grnExtraction.line_items
               );
               goodsReceivedAction = { grnId: recorded.grnId, supplierName: subjectHint ?? "supplier" };
+            } else {
+              uploadMessage = `I read ${documentKindLabel} from ${subjectHint ?? "the supplier"}, but couldn't match any of its items to their open order, so nothing was recorded.`;
             }
           }
+        } else {
+          uploadMessage = `I read ${documentKindLabel} from ${subjectHint ?? "the supplier"}, but there's no open order for them, so nothing was recorded.`;
         }
       }
 
-      const docResponseBody = JSON.stringify({ status: "stored", refusal: uploadRefusal, key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction });
+      const docResponseBody = JSON.stringify({ status: "stored", refusal: uploadRefusal, message: uploadRefusal ?? uploadMessage, pendingActionId: uploadHeldActionId, key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction });
       await completeIdempotencyKey(env, idempotencyKey, docResponseBody);
       return new Response(docResponseBody, { headers: { "Content-Type": "application/json" } });
     }
@@ -4959,6 +5021,42 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       const supplierInvoiceRefusal = intentCreationRefusal("supplier_invoice", uploadCapabilities);
       const goodsReceivedRefusal = intentCreationRefusal("goods_received", uploadCapabilities);
       let uploadRefusal: string | null = null;
+      let uploadMessage: string | null = null;
+      let uploadHeldActionId: number | null = null;
+
+      // Document-first identification, per Pierre 2026-10-03. A delivery note
+      // already says it is one and who issued it, so a caption is no longer
+      // needed to understand a supplier document (the app could not send one
+      // at all). This replaces the old rule of never reading a subject from
+      // the file, which was right for site photos and wrong for business
+      // documents. What is kept of that rule: a file with a stated subject
+      // (a caption that resolved a customer or supplier) is never second-
+      // guessed; anything that is not clearly a supplier document does
+      // nothing, exactly as before; the issuer is matched only against
+      // suppliers that ALREADY EXIST and never creates one; and because the
+      // supplier here was READ, not stated, a delivery note is held for
+      // confirmation instead of being recorded directly.
+      let inferredFromDocument = false;
+      let documentKindLabel = "this document";
+      if (!subjectCharacterId && !subjectCustomerId) {
+        const inferred = await inferDocumentSupplier(env, description);
+        if (inferred.kind !== "other") {
+          documentKindLabel = DOCUMENT_KIND_LABEL[inferred.kind];
+          if (!inferred.issuer) {
+            uploadMessage = `This looks like ${documentKindLabel}, but I couldn't tell who issued it, so I've only stored it.`;
+          } else if (inferred.match?.kind === "one") {
+            subjectCharacterId = inferred.match.supplier.id;
+            subjectHint = inferred.match.supplier.name;
+            inferredFromDocument = true;
+            if (inferred.kind === "supplier_statement") captionIntent = "supplier_statement";
+            rawText = `[Read from the document, not stated by anyone: ${documentKindLabel} issued by "${inferred.issuer}", matched to supplier ${inferred.match.supplier.name}]\n\n${rawText}`;
+          } else if (inferred.match?.kind === "many") {
+            uploadMessage = `I read ${documentKindLabel} from "${inferred.issuer}", which could be ${inferred.match.suppliers.map((sp) => sp.name).join(" or ")}, so nothing was recorded.`;
+          } else {
+            uploadMessage = `I read ${documentKindLabel} from "${inferred.issuer}", but I don't have them as a supplier, so nothing was recorded.`;
+          }
+        }
+      }
       let supplierInvoiceAction: { pendingActionId: number; supplierName: string } | null = null;
       let goodsReceivedAction: { grnId: number; supplierName: string } | null = null;
       let supplierStatementAction: { supplierName: string; claimedBalance: number; realBalance: number; difference: number } | null = null;
@@ -4981,6 +5079,9 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             realBalance,
             difference: Math.round((stmtExtraction.claimed_closing_balance - realBalance) * 100) / 100,
           };
+          uploadMessage = `Statement from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""}: they claim R${stmtExtraction.claimed_closing_balance}, our records show R${realBalance}.`;
+        } else {
+          uploadMessage = `I couldn't find a closing balance on this statement from ${subjectHint ?? "the supplier"}, so nothing was compared.`;
         }
       } else if (subjectCharacterId) {
         const openPo = await findLatestOpenPurchaseOrder(env, subjectCharacterId);
@@ -5004,10 +5105,28 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
               rawText
             );
             supplierInvoiceAction = { pendingActionId: held.id, supplierName: subjectHint ?? "supplier" };
+            uploadHeldActionId = held.id;
+            uploadMessage = `Supplier invoice noted from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""} — needs your confirmation (action #${held.id}) before it's recorded.`;
           } else {
             const grnExtraction = await extractGoodsReceived(env, description, poLineItems);
             if (grnExtraction.line_items.length > 0 && goodsReceivedRefusal) {
               uploadRefusal = goodsReceivedRefusal;
+            } else if (grnExtraction.line_items.length > 0 && inferredFromDocument) {
+              // The supplier was read from the document, not stated, so this
+              // is held for one-tap confirmation rather than written directly.
+              const heldGrn = await holdForConfirmation(
+                env,
+                "goods_received",
+                {
+                  purchaseOrderId: openPo.id,
+                  supplierId: subjectCharacterId,
+                  supplierName: subjectHint,
+                  lineItems: grnExtraction.line_items,
+                },
+                rawText
+              );
+              uploadHeldActionId = heldGrn.id;
+              uploadMessage = `Delivery noted from ${subjectHint ?? "the supplier"} (read from the document) — needs your confirmation (action #${heldGrn.id}) before it's recorded.`;
             } else if (grnExtraction.line_items.length > 0) {
               const recorded = await recordGoodsReceived(
                 env,
@@ -5017,12 +5136,16 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
                 grnExtraction.line_items
               );
               goodsReceivedAction = { grnId: recorded.grnId, supplierName: subjectHint ?? "supplier" };
+            } else {
+              uploadMessage = `I read ${documentKindLabel} from ${subjectHint ?? "the supplier"}, but couldn't match any of its items to their open order, so nothing was recorded.`;
             }
           }
+        } else {
+          uploadMessage = `I read ${documentKindLabel} from ${subjectHint ?? "the supplier"}, but there's no open order for them, so nothing was recorded.`;
         }
       }
 
-      const photoResponseBody = JSON.stringify({ status: "stored", refusal: uploadRefusal, key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction });
+      const photoResponseBody = JSON.stringify({ status: "stored", refusal: uploadRefusal, message: uploadRefusal ?? uploadMessage, pendingActionId: uploadHeldActionId, key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction });
       await completeIdempotencyKey(env, idempotencyKey, photoResponseBody);
       return new Response(photoResponseBody, { headers: { "Content-Type": "application/json" } });
     }
