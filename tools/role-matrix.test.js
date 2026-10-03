@@ -447,6 +447,30 @@ async function expect(role, method, path, want) {
   const dbgForStatus = fs.readFileSync(path.join(srcDir, 'debug.ts'), 'utf8');
   check(/orderDeliveryStatus\(/.test(dbgForStatus) && (dbgForStatus.match(/return \{ \.\.\.order, documentStatus, deliveryStatus,/g) || []).length === 2, 'both purchase-order views must return the order\'s delivery status, not just compute it');
 
+  // ---- Asking for the delivery exception report in words (decided 2026-10-03) -----------------------
+  const { asksAboutDeliveryExceptions, deliveryExceptionAnswer } = docsMod;
+  for (const q of ['any delivery exceptions?', 'Delivery exceptions', 'are there any exceptions', 'what discrepancies do we have', 'any short deliveries', 'show me the short-deliveries', 'did we get any over deliveries', 'anything unordered come in', 'shortages on the supplier orders', 'short shipped anything lately'])
+    check(asksAboutDeliveryExceptions(q) === true, `the question "${q}" must ask for the exception report`);
+  for (const q of ['who owes me money', 'what do I need to do today', 'invoice Jenny R500', 'how is Sipho doing', 'what did we order from Floornet', 'except for Friday I am free', 'there is a material shortage on site', 'schedule the install for tomorrow', 'last price paid for vinyl'])
+    check(asksAboutDeliveryExceptions(q) === false, `"${q}" must not be mistaken for a request for the exception report`);
+  const X = (kind, supplier, description, received, expected, variance, hadOpenOrder, day) => ({ kind, supplierName: supplier, description, quantityReceived: received, expected, variance, hadOpenOrder, receivedAt: `${day} 10:00:00` });
+  check(deliveryExceptionAnswer([]) === 'There are no open delivery exceptions.', 'with nothing open, say so plainly');
+  const ans = deliveryExceptionAnswer([ X('short', 'Floornet', 'Grout', 15, 20, -5, true, '2026-10-03'), X('over', 'Floornet', 'Underlay', 12, 10, 2, true, '2026-10-02'), X('unordered', 'Belgotex', 'Hercules carpet [roll]', 3, 0, 3, false, '2026-10-01') ]);
+  check(/^3 open delivery exceptions: 1 not on any order, 1 short, 1 over\./.test(ans), 'the answer starts with the count and the kinds');
+  check(ans.includes('- Floornet: Grout, 15 received against 20 expected, short by 5 (2026-10-03)') && ans.includes('- Floornet: Underlay, 12 received against 10 expected, over by 2 (2026-10-02)'), 'short and over lines say what arrived, what was expected and by how much');
+  check(ans.includes('- Belgotex: Hercules carpet [roll], 3 received that was not on any order (no outstanding order) (2026-10-01)'), 'an unordered line says so, and when the supplier had no outstanding order');
+  check(/^1 open delivery exception:/.test(deliveryExceptionAnswer([X('short', null, 'Grout', 1, 2, -1, true, '2026-10-03')])) && deliveryExceptionAnswer([X('short', null, 'Grout', 1, 2, -1, true, '2026-10-03')]).includes('Unknown supplier'), 'a single exception is singular, and a missing supplier name is handled');
+  const many = deliveryExceptionAnswer(new Array(25).fill(0).map((_, i) => X('short', 'S' + i, 'Item', 1, 2, -1, true, '2026-10-03')));
+  check(many.split('\n').filter((l) => l.startsWith('- ')).length === 20 && /\.\.\.and 5 more\./.test(many), 'a long list is cut at 20 lines and says how many more there are');
+  // The branch itself: ahead of the general business branch, gated by the same permission as the report route, and never paraphrased by a model.
+  const exBranch = indexSrc.indexOf('} else if (!customer && !character && asksAboutDeliveryExceptions(transcript)) {');
+  const bizBranch = indexSrc.indexOf('} else if (extraction?.query_scope === "business") {');
+  check(exBranch > 0 && bizBranch > exBranch, 'the exception question must be handled before the general business branch');
+  const exBody = indexSrc.slice(exBranch, bizBranch);
+  check(/capabilities\.includes\("can_manage_invoices"\)\s*\?\s*deliveryExceptionAnswer\(await getDeliveryExceptions\(env, "open"\)\)/.test(exBody) && /restricted for your role/.test(exBody), 'the report may only be read by a role that can manage invoices, exactly as the report route');
+  check(!/answerFromMemory|classifyBusinessTopic|classifyDashboardIntent/.test(exBody), 'the exception answer is built in code, with no model call');
+  check(/"any delivery exceptions\?"/.test(fs.readFileSync(path.join(srcDir, 'ai.ts'), 'utf8')), 'the question classifier must have an example of this question');
+
   // The extractor now carries the item's name and unit, sanitised.
   const extractGR = async (reply) => aiMod.extractGoodsReceived({ AI: { run: async () => ({ choices: [{ message: { content: reply } }] }) } }, 'text', []);
   let xg = await extractGR('{"supplier_name":"Floornet","line_items":[{"matched_description":null,"item_description":"  MARBLE CHARCOAL 011  ","unit":" Box ","quantity_received":2}]}');
