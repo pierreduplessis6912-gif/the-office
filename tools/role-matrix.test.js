@@ -8,7 +8,7 @@ const roleCaps = src.match(/const ROLE_CAPABILITIES[^=]*=\s*\{[\s\S]*?\n\};/)[0]
 const start = src.indexOf('const ENFORCE_CAPABILITIES');
 const end = src.indexOf('// The signed-in member, or null.');
 if (start < 0 || end < 0) throw new Error('could not extract the deployed decision code');
-const code = roleCaps + '\n' + src.slice(start, end) + '\nmodule.exports = { authorizeRestrictedMember, ENFORCE_CAPABILITIES, INTENT_RULES, intentCreationRefusal, ACTION_TYPE_CAPABILITY, ROLE_CAPABILITIES };';
+const code = roleCaps + '\n' + src.slice(start, end) + '\nmodule.exports = { authorizeRestrictedMember, ENFORCE_CAPABILITIES, INTENT_RULES, intentCreationRefusal, intentKeepsOutOfNotes, ACTION_TYPE_CAPABILITY, ROLE_CAPABILITIES };';
 const js = esbuild.transformSync(code, { loader: 'ts', format: 'cjs', target: 'es2022' }).code;
 const compiled = path.join(os.tmpdir(), 'role-matrix-decision-under-test.js');
 fs.writeFileSync(compiled, js);
@@ -571,6 +571,18 @@ async function expect(role, method, path, want) {
     const body = routeBody(needle);
     check(body.length > 100 && !/INSERT|UPDATE|DELETE|DROP|ALTER/i.test(body), `${needle}: an inspection route must be read-only`);
   }
+
+  // ---- Money intents must never also leave their transcript in a free-text note (found 2026-10-03) -----
+  // Notes bypass every capability gate and are read back to anyone who looks that person up. The old rule was a
+  // hand-kept list of six intents; supplier payments, supplier invoices, purchase orders, credits, quote
+  // conversions and deliveries were never added, and an installer's lookup of a supplier was built from
+  // "paid Floornet R10000" (reproduced with the characterization harness). The rule is now derived from INTENT_RULES.
+  const { intentKeepsOutOfNotes } = require(compiled);
+  const MONEY_AND_STRUCTURED = ['payment', 'expense', 'invoice', 'quotation', 'price_scope', 'convert_quote', 'supplier_invoice', 'supplier_payment', 'variance_disposition', 'purchase_order', 'goods_received', 'supplier_statement', 'work_observation'];   // supplier_statement is money-gated (it returns the real balance owed), so its words stay out of ungated notes too
+  for (const i of unionIntents) check(intentKeepsOutOfNotes(i) === MONEY_AND_STRUCTURED.includes(i), `intent "${i}": ${MONEY_AND_STRUCTURED.includes(i) ? 'must keep its transcript out of notes (it has structured, gated storage)' : 'is narrative and may still be noted'}`);
+  check([null, undefined, '', 'some_future_intent', 'constructor', '__proto__'].every((x) => intentKeepsOutOfNotes(x) === false), 'a value that is not an intent is never treated as having structured storage');
+  for (const [i, r] of Object.entries(INTENT_RULES)) if (Array.isArray(r.create) && r.create.includes('can_manage_invoices')) check(intentKeepsOutOfNotes(i) === true, `"${i}" needs can_manage_invoices to create, so it is money and must be kept out of notes (a new gated money intent is covered automatically)`);
+  check(!/hasStructuredHomeAlready\s*=\s*\[/.test(indexSrc) && /hasStructuredHomeAlready = intentKeepsOutOfNotes\(extraction\?\.intent\)/.test(indexSrc), 'index.ts must ask intentKeepsOutOfNotes, never carry its own list of intents again');
 
   // The rewrite scaffold (Phase 1): contract, adapters and the guards that stop it drifting from the live function.
   await require('./intents.test.js')({ check, bundleTo, srcDir, fs, path, indexSrc, sameJson });
