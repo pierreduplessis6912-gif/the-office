@@ -170,6 +170,101 @@ async function expect(role, method, path, want) {
     check(new RegExp(respVar + ' = JSON\\.stringify\\(\\{ status: "stored", refusal: uploadRefusal').test(h), `${name}: the response must carry the refusal`);
   }
 
+  // ---- Document-first identification (2026-10-03) -----------------------------------
+  // A supplier document says what it is and who issued it, so an upload no longer needs a caption.
+  // The AI only READS the printed kind and issuer; whether that is one of OUR suppliers is decided
+  // by plain code, tested here, and an inferred match is held for confirmation, never recorded directly.
+  const bundleTo = (entry, name) => { const out = path.join(os.tmpdir(), name); esbuild.buildSync({ entryPoints: [path.join(srcDir, entry)], bundle: true, platform: 'node', format: 'cjs', outfile: out, logLevel: 'silent' }); return require(out); };
+  const { matchIssuerToSuppliers, businessNameWords } = bundleTo('identity.ts', 'rm-identity.js');
+  const docsMod = bundleTo('documents.ts', 'rm-documents.js');
+  const S = (id, name) => ({ id, name });
+  const sameJson = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+  // The matcher: deterministic, existing suppliers only, never guesses between two.
+  let m = matchIssuerToSuppliers([S(1, 'Floornet')], 'FLOORNET (PTY) LTD');
+  check(m.kind === 'one' && m.supplier.id === 1 && m.strength === 'exact', 'issuer "FLOORNET (PTY) LTD" must match supplier "Floornet" exactly');
+  m = matchIssuerToSuppliers([S(1, 'Floornet (Pty) Ltd')], 'floornet');
+  check(m.kind === 'one' && m.strength === 'exact', 'legal suffixes and case must not matter, in either direction');
+  m = matchIssuerToSuppliers([S(1, 'Floornet')], 'Floornet Durban Branch');
+  check(m.kind === 'one' && m.strength === 'partial', 'a longer printed name that contains the supplier is a partial match');
+  m = matchIssuerToSuppliers([S(1, 'Floornet'), S(2, 'floornet')], 'Floornet');
+  check(m.kind === 'many' && m.suppliers.length === 2, 'two suppliers at the same level must be reported as ambiguous, never picked between');
+  m = matchIssuerToSuppliers([S(1, 'Floornet'), S(2, 'Floornet Durban')], 'Floornet');
+  check(m.kind === 'one' && m.supplier.id === 1 && m.strength === 'exact', 'an exact match must beat a partial one');
+  check(matchIssuerToSuppliers([S(1, 'Floornet')], 'Acme Adhesives').kind === 'none', 'an unrelated issuer matches nothing');
+  check(matchIssuerToSuppliers([S(1, 'Floornet')], 'Floor').kind === 'none', 'no substring matching: "Floor" must not match "Floornet"');
+  check(matchIssuerToSuppliers([S(1, 'Floornet')], '').kind === 'none' && matchIssuerToSuppliers([S(1, 'Floornet')], 'Pty Ltd').kind === 'none', 'an issuer with no real words matches nothing');
+  check(matchIssuerToSuppliers([S(1, 'The Company')], 'Floornet').kind === 'none', 'a supplier whose name is only noise words is never matched');
+  check(matchIssuerToSuppliers([], 'Floornet').kind === 'none', 'no suppliers, no match');
+  check(sameJson(businessNameWords('Floornet (Pty) Ltd.'), ['floornet']), 'name normalisation should reduce "Floornet (Pty) Ltd." to "floornet"');
+  check(sameJson(businessNameWords('Café Ünïcode & Sons'), ['cafe', 'unicode', 'sons']), 'accents and "&" should normalise');
+
+  // The inference helper, with a fake AI and a fake database.
+  const mkEnv = ({ reply, throws, suppliers }) => { const calls = { db: [] }; return { calls, env: {
+    AI: { run: async () => { if (throws) throw new Error('model unavailable'); return { choices: [{ message: { content: reply } }] }; } },
+    OFFICE_DB: { prepare: (sql) => ({ all: async () => { calls.db.push(sql); return { results: suppliers || [] }; } }) } } }; };
+  const infer = async (cfg) => { const { env, calls } = mkEnv(cfg); return { r: await docsMod.inferDocumentSupplier(env, 'document text'), calls }; };
+  let o = await infer({ reply: '{"document_type":"delivery_note","issuer_name":"Floornet (Pty) Ltd"}', suppliers: [S(7, 'Floornet')] });
+  check(o.r.kind === 'delivery_note' && o.r.match && o.r.match.kind === 'one' && o.r.match.supplier.id === 7, 'a delivery note from a known supplier must be recognised');
+  o = await infer({ reply: '```json\n{"document_type":"supplier_invoice","issuer_name":"Floornet"}\n```', suppliers: [S(7, 'Floornet')] });
+  check(o.r.kind === 'supplier_invoice' && o.r.match && o.r.match.kind === 'one', 'a code-fenced model reply must still parse');
+  o = await infer({ reply: '{"document_type":"other","issuer_name":null}', suppliers: [S(7, 'Floornet')] });
+  check(o.r.kind === 'other' && o.r.match === null && o.calls.db.length === 0, 'a site photo or anything else must do nothing, and never touch the supplier list');
+  o = await infer({ reply: '{"document_type":"other","issuer_name":"Floornet"}', suppliers: [S(7, 'Floornet')] });
+  check(o.r.kind === 'other' && o.r.issuer === null && o.calls.db.length === 0, 'an issuer given for an "other" document must be dropped');
+  o = await infer({ reply: '{"document_type":"receipt","issuer_name":"Floornet"}', suppliers: [S(7, 'Floornet')] });
+  check(o.r.kind === 'other', 'an unknown document type must become "other", never be trusted');
+  o = await infer({ reply: 'not json at all', suppliers: [S(7, 'Floornet')] });
+  check(o.r.kind === 'other' && o.calls.db.length === 0, 'an unparseable model reply must do nothing');
+  o = await infer({ throws: true, suppliers: [S(7, 'Floornet')] });
+  check(o.r.kind === 'other' && o.calls.db.length === 0, 'a failing model call must do nothing, not throw');
+  o = await infer({ reply: '{"document_type":"delivery_note","issuer_name":null}', suppliers: [S(7, 'Floornet')] });
+  check(o.r.kind === 'delivery_note' && o.r.issuer === null && o.r.match === null && o.calls.db.length === 0, 'a delivery note with no readable issuer must say so, without guessing');
+  o = await infer({ reply: JSON.stringify({ document_type: 'delivery_note', issuer_name: 'x'.repeat(200) }), suppliers: [S(7, 'Floornet')] });
+  check(o.r.issuer === null, 'an implausibly long issuer must be rejected');
+  o = await infer({ reply: '{"document_type":"delivery_note","issuer_name":"Acme Adhesives"}', suppliers: [S(7, 'Floornet')] });
+  check(o.r.match && o.r.match.kind === 'none', 'an issuer that is not one of our suppliers must match nothing, and must not create one');
+  o = await infer({ reply: '{"document_type":"supplier_statement","issuer_name":"Floornet"}', suppliers: [S(7, 'Floornet'), S(8, 'Floornet')] });
+  check(o.r.match && o.r.match.kind === 'many', 'two equally good suppliers must be reported as ambiguous');
+  const supplierSql = o.calls.db[0] || '';
+  check(/merged_into_character_id IS NULL/.test(supplierSql) && /purchase_orders/.test(supplierSql) && /supplier/i.test(supplierSql) && /^\s*SELECT/i.test(supplierSql), 'the supplier lookup must be a read-only SELECT that excludes merged duplicates and covers suppliers we have ordered from');
+
+  // The extractor on its own (not only through the helper, which would mask a regression here).
+  const aiMod = bundleTo('ai.ts', 'rm-ai.js');
+  const extract = async (reply) => aiMod.extractDocumentIdentity({ AI: { run: async () => ({ choices: [{ message: { content: reply } }] }) } }, 'text');
+  let e = await extract('{"document_type":"other","issuer_name":"Floornet"}');
+  check(e.document_type === 'other' && e.issuer_name === null, 'extractor: an "other" document must never carry an issuer');
+  e = await extract('{"document_type":"delivery_note","issuer_name":"  Floornet (Pty) Ltd  "}');
+  check(e.document_type === 'delivery_note' && e.issuer_name === 'Floornet (Pty) Ltd', 'extractor: the issuer is trimmed and otherwise kept as printed');
+  e = await extract('{"document_type":"delivery_note","issuer_name":42}');
+  check(e.document_type === 'delivery_note' && e.issuer_name === null, 'extractor: a non-text issuer must become null');
+  e = await extract('{"document_type":"DELIVERY_NOTE","issuer_name":"Floornet"}');
+  check(e.document_type === 'other', 'extractor: document types are matched exactly, never loosely');
+
+  // The handlers: both must use document-first only when nothing was stated, and an inferred delivery must be HELD.
+  for (const [name, marker] of [['/files/document', 'if (url.pathname === "/files/document"'], ['/files/photo', 'if (url.pathname === "/files/photo"']]) {
+    const h = handlerSlice(marker);
+    const gate = h.indexOf('if (!subjectCharacterId && !subjectCustomerId) {');
+    const call = h.indexOf('inferDocumentSupplier(env, description)');
+    check(gate > 0 && call > gate, `${name}: document-first must run only when no subject was stated (caption wins)`);
+    const heldGrn = h.indexOf('line_items.length > 0 && inferredFromDocument) {');
+    check(heldGrn > 0 && h.indexOf('&& goodsReceivedRefusal) {') < heldGrn, `${name}: an inferred delivery must be considered after the permission check`);
+    check(heldGrn > 0 && heldGrn < h.indexOf('recordGoodsReceived('), `${name}: an inferred delivery must be HELD before the direct-record path is reached`);
+    const holdAfter = h.slice(heldGrn, h.indexOf('recordGoodsReceived('));
+    check(/holdForConfirmation\(\s*env,\s*"goods_received"/.test(holdAfter), `${name}: the inferred delivery must be held as a goods_received confirmation`);
+    check(/message: uploadRefusal \?\? uploadMessage, pendingActionId: uploadHeldActionId/.test(h), `${name}: the response must carry the message and the held action id`);
+    check(h.includes("there's no open order for them") && h.includes("couldn't match any of its items"), `${name}: the "nothing recorded" cases must explain themselves`);
+  }
+  // The two inspection routes must stay admin-key only (not in the app's own route list).
+  const appDebug = src.match(/const APP_DEBUG_ROUTES = new Set\(\[([\s\S]*?)\]\);/)[1];
+  check(!/recent-captures|pending-action/.test(appDebug), 'the inspection routes must not be added to the app route list, which would put them behind a session instead of the admin key');
+  const dbgSrc = fs.readFileSync(path.join(srcDir, 'debug.ts'), 'utf8');
+  const routeBody = (needle) => { const a = dbgSrc.indexOf(needle); return dbgSrc.slice(a, dbgSrc.indexOf('\nif (url.pathname', a + 10)); };
+  for (const needle of ['url.pathname === "/debug/recent-captures"', 'url.pathname === "/debug/pending-action"']) {
+    const body = routeBody(needle);
+    check(body.length > 100 && !/INSERT|UPDATE|DELETE|DROP|ALTER/i.test(body), `${needle}: an inspection route must be read-only`);
+  }
+
   // And the refusal wording that people actually see is unchanged.
   check(/payments, invoices, quotations, or supplier transactions/.test(intentCreationRefusal('payment', RC.installer) || ''), 'money refusal wording changed');
   check(/Managing leads isn't available/.test(intentCreationRefusal('lose_lead', RC.accountant) || ''), 'leads refusal wording changed');
