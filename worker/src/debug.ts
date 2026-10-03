@@ -2182,6 +2182,44 @@ if (url.pathname === "/debug/init-captures-fk" && request.method === "POST") {
       return Response.json({ status: "ok" });
     }
 
+// Real, read-only inspection for the admin key, added 2026-10-03.
+// /debug/captures is one of the routes the app itself uses, so it needs a
+// signed-in session and the admin key cannot reach it; that left no way to
+// see from a terminal what the system actually read from an upload. These
+// two show exactly that and write nothing. Not in the app's route list, so
+// they are admin-key only like every other /debug route.
+if (url.pathname === "/debug/recent-captures" && request.method === "GET") {
+      const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 10) || 10, 1), 50);
+      const { results } = await env.OFFICE_DB.prepare(
+        `SELECT id, source, subject_hint, customer_id, character_id, extraction_status, r2_key, created_at,
+                length(raw_text) AS raw_text_length, substr(raw_text, 1, 1500) AS raw_text_start
+           FROM captures ORDER BY id DESC LIMIT ?`
+      )
+        .bind(limit)
+        .all();
+      return Response.json({ captures: results });
+    }
+
+if (url.pathname === "/debug/pending-action" && request.method === "GET") {
+      const id = Number(url.searchParams.get("id"));
+      if (!Number.isInteger(id) || id <= 0) {
+        return Response.json({ error: "id must be a positive whole number" }, { status: 400 });
+      }
+      const row = await env.OFFICE_DB.prepare(
+        "SELECT id, type, status, payload, source_transcript, created_at, resolved_at FROM pending_actions WHERE id = ?"
+      )
+        .bind(id)
+        .first<{ id: number; type: string; status: string; payload: string; source_transcript: string | null; created_at: string; resolved_at: string | null }>();
+      if (!row) return Response.json({ error: "no such pending action" }, { status: 404 });
+      let payload: unknown = row.payload;
+      try {
+        payload = JSON.parse(row.payload);
+      } catch {
+        // leave the raw text if it is not JSON
+      }
+      return Response.json({ ...row, payload });
+    }
+
 if (url.pathname === "/debug/captures" && request.method === "GET") {
       const status = url.searchParams.get("status");
       const customerId = url.searchParams.get("customerId");
