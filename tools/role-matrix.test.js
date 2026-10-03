@@ -572,6 +572,9 @@ async function expect(role, method, path, want) {
     check(body.length > 100 && !/INSERT|UPDATE|DELETE|DROP|ALTER/i.test(body), `${needle}: an inspection route must be read-only`);
   }
 
+  // The rewrite scaffold (Phase 1): contract, adapters and the guards that stop it drifting from the live function.
+  await require('./intents.test.js')({ check, bundleTo, srcDir, fs, path, indexSrc, sameJson });
+
   // And the refusal wording that people actually see is unchanged.
   check(/payments, invoices, quotations, or supplier transactions/.test(intentCreationRefusal('payment', RC.installer) || ''), 'money refusal wording changed');
   check(/Managing leads isn't available/.test(intentCreationRefusal('lose_lead', RC.accountant) || ''), 'leads refusal wording changed');
