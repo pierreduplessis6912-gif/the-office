@@ -1,0 +1,1314 @@
+{
+ "payment: owner, existing customer": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "payment",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jenny paid R500",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jenny paid R500",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "payment",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
+      "status": "pending",
+      "source_transcript": "Jenny paid R500"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "payment: owner, existing customer in a different case": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "payment",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "jenny smith paid R500",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "jenny smith paid R500",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "payment",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
+      "status": "pending",
+      "source_transcript": "jenny smith paid R500"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "payment: owner, a name nobody has heard of": {
+  "result": {
+   "customer": {
+    "id": 3,
+    "name": "Thandi Mokoena",
+    "matched": false
+   },
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Payment noted for Thandi Mokoena of R750 — needs your confirmation (action #1) before it's recorded.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "payment",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Thandi Mokoena paid R750",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Thandi Mokoena paid R750",
+       "source": "text",
+       "subject_hint": "Thandi Mokoena",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 3,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "customers": {
+    "added": [
+     {
+      "id": 3,
+      "name": "Thandi Mokoena",
+      "address": null,
+      "vat_exempt": 0,
+      "retention_percent": null,
+      "person_id": null,
+      "merged_into_customer_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "payment",
+      "payload": "{\"customerId\":3,\"customerName\":\"Thandi Mokoena\",\"amount\":750}",
+      "status": "pending",
+      "source_transcript": "Thandi Mokoena paid R750"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 3,
+      "label": "Thandi Mokoena"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "payment: owner, a near-match to an existing customer": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "\"Sipo Dlamini\" sounds like an existing customer, \"Sipho Dlamini\" — is this the same one? (action #1)",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": [
+    {
+     "id": 2,
+     "name": "Sipho Dlamini"
+    }
+   ],
+   "pendingActionType": "ambiguous_person",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "ambiguous_person",
+      "payload": "{\"name\":\"Sipo Dlamini\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":2,\"name\":\"Sipho Dlamini\"}],\"extraction\":{\"customer_name\":\"Sipo Dlamini\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":300,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipo Dlamini paid R300\",\"captureId\":1}",
+      "status": "pending",
+      "source_transcript": "Sipo Dlamini paid R300"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "payment: owner, no amount heard": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Payment noted for Jenny Smith — needs your confirmation (action #1) before it's recorded.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "payment",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jenny paid",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jenny paid",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "payment",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":null}",
+      "status": "pending",
+      "source_transcript": "Jenny paid"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "payment: owner, no customer named": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I heard a payment for R500, but no customer name came through — who is it for?",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "someone paid R500",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "someone paid R500",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "payment: owner, only a supplier named": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I heard a payment for R500, but no customer name came through — who is it for?",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Floornet paid R500",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Floornet paid R500",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "payment: accountant, existing customer": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "payment",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jenny paid R500",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jenny paid R500",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "payment",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
+      "status": "pending",
+      "source_transcript": "Jenny paid R500"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "payment: installer is refused": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "payment: a role with no capabilities is refused": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "payment: installer with an unknown name is refused before anything is created": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "expense: owner, no one named": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Expense noted of R650 — needs your confirmation (action #1) before it's recorded.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "expense",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "filled up the bakkie with diesel for R650",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "filled up the bakkie with diesel for R650",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "expense",
+      "payload": "{\"characterId\":null,\"customerId\":null,\"amount\":650,\"description\":\"filled up the bakkie with diesel for R650\"}",
+      "status": "pending",
+      "source_transcript": "filled up the bakkie with diesel for R650"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "expense: owner, an existing supplier named": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Expense noted for Floornet of R1200 — needs your confirmation (action #1) before it's recorded.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "expense",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "bought adhesive from Floornet for R1200",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "bought adhesive from Floornet for R1200",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "expense",
+      "payload": "{\"characterId\":1,\"characterName\":\"Floornet\",\"customerId\":null,\"amount\":1200,\"description\":\"bought adhesive from Floornet for R1200\"}",
+      "status": "pending",
+      "source_transcript": "bought adhesive from Floornet for R1200"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "expense: owner, a new supplier named": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 3,
+    "name": "Corner Hardware",
+    "matched": false
+   },
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Expense noted for Corner Hardware of R90 — needs your confirmation (action #1) before it's recorded.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "expense",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "screws from Corner Hardware R90",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "screws from Corner Hardware R90",
+       "source": "text",
+       "subject_hint": "Corner Hardware",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 3
+      }
+     }
+    ]
+   },
+   "characters": {
+    "added": [
+     {
+      "id": 3,
+      "name": "Corner Hardware",
+      "relationship": "supplier",
+      "person_id": null,
+      "merged_into_character_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "expense",
+      "payload": "{\"characterId\":3,\"characterName\":\"Corner Hardware\",\"customerId\":null,\"amount\":90,\"description\":\"screws from Corner Hardware R90\"}",
+      "status": "pending",
+      "source_transcript": "screws from Corner Hardware R90"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 3,
+      "label": "Corner Hardware"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "expense: owner, a customer named too": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Expense noted of R200 — needs your confirmation (action #1) before it's recorded.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "expense",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "R200 skirting for Jenny",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "R200 skirting for Jenny",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "expense",
+      "payload": "{\"characterId\":null,\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":200,\"description\":\"R200 skirting for Jenny\"}",
+      "status": "pending",
+      "source_transcript": "R200 skirting for Jenny"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "expense: owner, no amount": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I didn't catch anything there I could act on.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "bought some stuff",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "bought some stuff",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "expense: accountant": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Expense noted of R650 — needs your confirmation (action #1) before it's recorded.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "expense",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "filled up the bakkie with diesel for R650",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "filled up the bakkie with diesel for R650",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "expense",
+      "payload": "{\"characterId\":null,\"customerId\":null,\"amount\":650,\"description\":\"filled up the bakkie with diesel for R650\"}",
+      "status": "pending",
+      "source_transcript": "filled up the bakkie with diesel for R650"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "expense: installer is refused": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "supplier payment: owner, existing supplier": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Supplier payment noted for Floornet of R10000 — needs your confirmation (action #1) before it's recorded.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "supplier_payment",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "paid Floornet R10000",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "paid Floornet R10000",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "supplier_payment",
+      "payload": "{\"characterId\":1,\"characterName\":\"Floornet\",\"amount\":10000}",
+      "status": "pending",
+      "source_transcript": "paid Floornet R10000"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "character:1",
+    "value": "{\"facts\":[{\"text\":\"paid Floornet R10000\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "supplier payment: owner, no supplier named": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Recognized a supplier payment, but no supplier was named — try naming who it's to.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "paid R10000",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "paid R10000",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "life:2026-10-03",
+    "value": "{\"facts\":[{\"text\":\"paid R10000\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "supplier payment: owner, a new supplier name": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 3,
+    "name": "Newco Supplies",
+    "matched": false
+   },
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Supplier payment noted for Newco Supplies of R5000 — needs your confirmation (action #1) before it's recorded.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "supplier_payment",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "paid Newco Supplies R5000",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "paid Newco Supplies R5000",
+       "source": "text",
+       "subject_hint": "Newco Supplies",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 3
+      }
+     }
+    ]
+   },
+   "characters": {
+    "added": [
+     {
+      "id": 3,
+      "name": "Newco Supplies",
+      "relationship": "supplier",
+      "person_id": null,
+      "merged_into_character_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "supplier_payment",
+      "payload": "{\"characterId\":3,\"characterName\":\"Newco Supplies\",\"amount\":5000}",
+      "status": "pending",
+      "source_transcript": "paid Newco Supplies R5000"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 3,
+      "label": "Newco Supplies"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "character:3",
+    "value": "{\"facts\":[{\"text\":\"paid Newco Supplies R5000\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "supplier payment: owner, no amount": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Found existing: Floornet.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "paid Floornet",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "paid Floornet",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "character:1",
+    "value": "{\"facts\":[{\"text\":\"paid Floornet\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "supplier payment: accountant, existing supplier": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Supplier payment noted for Floornet of R10000 — needs your confirmation (action #1) before it's recorded.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "supplier_payment",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "paid Floornet R10000",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "paid Floornet R10000",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "supplier_payment",
+      "payload": "{\"characterId\":1,\"characterName\":\"Floornet\",\"amount\":10000}",
+      "status": "pending",
+      "source_transcript": "paid Floornet R10000"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "character:1",
+    "value": "{\"facts\":[{\"text\":\"paid Floornet R10000\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "supplier payment: installer is refused": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ }
+}
