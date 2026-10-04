@@ -47,6 +47,16 @@ module.exports = async function runCharacterization({ check, bundleTo, srcDir, f
       const r = spec.kind === 'route' ? await runRouteCase(fns, workerDir, spec) : spec.kind === 'transcript' ? await runTranscriptCase(processTranscript, workerDir, spec) : await runCase(processOne, workerDir, spec);
       actual[spec.name] = { result: r.result, threw: r.threw, aiCalls: r.aiCalls, backgroundErrors: r.backgroundErrors, writes: r.writes, effects: r.effects, ...(r.errorLogs && r.errorLogs.length ? { errorLogs: r.errorLogs } : {}) };
     }
+    // A group may declare pairs of cases that must behave IDENTICALLY (specs.pairs = [[nameA, nameB, [fields of result.body]]]):
+    // the same sentence through two copies of the same logic. They are compared with each other, not only with their recordings.
+    for (const [nameA, nameB, fields] of specs.pairs || []) {
+      const a = actual[nameA] && actual[nameA].result, b = actual[nameB] && actual[nameB].result;
+      check(Boolean(a && b), `${group}: the pair "${nameA}" / "${nameB}" must both have run`);
+      if (a && b) {
+        check(a.status === b.status, `${group}: "${nameA}" and "${nameB}" must give the same status (${a.status} against ${b.status})`);
+        for (const f of fields) check(sameJson(a.body && a.body[f], b.body && b.body[f]), `${group}: "${nameA}" and "${nameB}" must agree on "${f}" (${JSON.stringify(a.body && a.body[f])} against ${JSON.stringify(b.body && b.body[f])})`);
+      }
+    }
     const file = path.join(goldenDir, group + '.json');
     if (update) {
       fs.mkdirSync(goldenDir, { recursive: true });

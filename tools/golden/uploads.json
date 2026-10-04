@@ -1,0 +1,2734 @@
+{
+ "document: a delivery note, the supplier is read from the document, so it is held for confirmation": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Delivery noted from Floornet (read from the document) — needs your confirmation (action #1) before it's recorded.",
+    "pendingActionId": 1,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "The text of a document, or a description of a photographed document, i",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm",
+      "source": "document",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "goods_received",
+      "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_received\":50,\"item_description\":\"vinyl\",\"unit\":\"sqm\"}]}",
+      "status": "pending",
+      "source_transcript": "[Read from the document, not stated by anyone: a delivery note issued by \"Floornet (Pty) Ltd\", matched to supplier Floornet]\n\nFloornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: a delivery note read from the document by an installer is held too": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Delivery noted from Floornet (read from the document) — needs your confirmation (action #1) before it's recorded.",
+    "pendingActionId": 1,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "The text of a document, or a description of a photographed document, i",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm",
+      "source": "document",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "goods_received",
+      "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_received\":50,\"item_description\":\"vinyl\",\"unit\":\"sqm\"}]}",
+      "status": "pending",
+      "source_transcript": "[Read from the document, not stated by anyone: a delivery note issued by \"Floornet (Pty) Ltd\", matched to supplier Floornet]\n\nFloornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: a delivery note whose issuer is not a supplier on file": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "I read a delivery note from \"Mystery Traders\", but I don't have them as a supplier, so nothing was recorded.",
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Mystery Traders DELIVERY NOTE Vinyl 50 sqm",
+    "subjectHint": null,
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "The text of a document, or a description of a photographed document, i"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Mystery Traders DELIVERY NOTE Vinyl 50 sqm",
+      "source": "document",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: a delivery note whose issuer could be either of two suppliers": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "I read a delivery note from \"Floornet\", which could be Floornet Cape or Floornet Joburg, so nothing was recorded.",
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Floornet DELIVERY NOTE Vinyl 50 sqm",
+    "subjectHint": null,
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "The text of a document, or a description of a photographed document, i"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet DELIVERY NOTE Vinyl 50 sqm",
+      "source": "document",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: a delivery note with no issuer that can be read": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "This looks like a delivery note, but I couldn't tell who issued it, so I've only stored it.",
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "DELIVERY NOTE Vinyl 50 sqm",
+    "subjectHint": null,
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "The text of a document, or a description of a photographed document, i"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "DELIVERY NOTE Vinyl 50 sqm",
+      "source": "document",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: a document that is none of the supplier kinds is only stored": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": null,
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Happy birthday Jenny",
+    "subjectHint": null,
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "The text of a document, or a description of a photographed document, i"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Happy birthday Jenny",
+      "source": "document",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: the model that reads the document type fails": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": null,
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm",
+    "subjectHint": null,
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "The text of a document, or a description of a photographed document, i",
+   "The text of a document, or a description of a photographed document, i",
+   "The text of a document, or a description of a photographed document, i"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm",
+      "source": "document",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: a caption names the supplier, so a delivery note is recorded directly": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Delivery recorded (GRN #1). Add to stock? Vinyl (50 sqm) (action #1).",
+    "pendingActionId": 1,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": {
+     "grnId": 1,
+     "supplierName": "Floornet"
+    },
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet delivery\n\n[Document: Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm]",
+      "source": "document",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   },
+   "goods_received_notes": {
+    "added": [
+     {
+      "id": 1,
+      "purchase_order_id": 1,
+      "supplier_id": 1,
+      "source_transcript": "Floornet delivery\n\n[Document: Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm]",
+      "recorded_by": null,
+      "capture_id": null
+     }
+    ]
+   },
+   "grn_line_items": {
+    "added": [
+     {
+      "id": 1,
+      "grn_id": 1,
+      "po_line_item_id": 1,
+      "description": "Vinyl",
+      "quantity_received": 50,
+      "quantity_ordered": 50,
+      "variance": 0
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "stock_add",
+      "payload": "{\"items\":[{\"name\":\"Vinyl\",\"unit\":\"sqm\",\"quantity\":50}],\"supplierName\":\"Floornet\"}",
+      "status": "pending",
+      "source_transcript": "Add to stock? Vinyl (50 sqm)"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: a caption names the supplier and an installer uploads the delivery note": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Delivery recorded (GRN #1). Add to stock? Vinyl (50 sqm) (action #1).",
+    "pendingActionId": 1,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": {
+     "grnId": 1,
+     "supplierName": "Floornet"
+    },
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet delivery\n\n[Document: Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm]",
+      "source": "document",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   },
+   "goods_received_notes": {
+    "added": [
+     {
+      "id": 1,
+      "purchase_order_id": 1,
+      "supplier_id": 1,
+      "source_transcript": "Floornet delivery\n\n[Document: Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm]",
+      "recorded_by": null,
+      "capture_id": null
+     }
+    ]
+   },
+   "grn_line_items": {
+    "added": [
+     {
+      "id": 1,
+      "grn_id": 1,
+      "po_line_item_id": 1,
+      "description": "Vinyl",
+      "quantity_received": 50,
+      "quantity_ordered": 50,
+      "variance": 0
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "stock_add",
+      "payload": "{\"items\":[{\"name\":\"Vinyl\",\"unit\":\"sqm\",\"quantity\":50}],\"supplierName\":\"Floornet\"}",
+      "status": "pending",
+      "source_transcript": "Add to stock? Vinyl (50 sqm)"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: a caption names the supplier, and the order is not on the note": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Delivery recorded (GRN #1). 1 item(s) weren't on any order and were logged as delivery exceptions. Add to stock? grout (5 bag) (action #1).",
+    "pendingActionId": 1,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd DELIVERY NOTE Grout 5 bags",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": {
+     "grnId": 1,
+     "supplierName": "Floornet"
+    },
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet delivery\n\n[Document: Floornet (Pty) Ltd DELIVERY NOTE Grout 5 bags]",
+      "source": "document",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   },
+   "goods_received_notes": {
+    "added": [
+     {
+      "id": 1,
+      "purchase_order_id": 1,
+      "supplier_id": 1,
+      "source_transcript": "Floornet delivery\n\n[Document: Floornet (Pty) Ltd DELIVERY NOTE Grout 5 bags]",
+      "recorded_by": null,
+      "capture_id": null
+     }
+    ]
+   },
+   "grn_line_items": {
+    "added": [
+     {
+      "id": 1,
+      "grn_id": 1,
+      "po_line_item_id": null,
+      "description": "grout [bag]",
+      "quantity_received": 5,
+      "quantity_ordered": 0,
+      "variance": 5
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "stock_add",
+      "payload": "{\"items\":[{\"name\":\"grout\",\"unit\":\"bag\",\"quantity\":5}],\"supplierName\":\"Floornet\"}",
+      "status": "pending",
+      "source_transcript": "Add to stock? grout (5 bag)"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: a caption names the supplier and no items can be made out": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "I read this document from Floornet, but couldn't make out any items on it, so nothing was recorded.",
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet delivery\n\n[Document: Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm]",
+      "source": "document",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: a caption names a supplier with no open order, and it is a delivery note": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Delivery recorded (GRN #1). 1 item(s) weren't on any order and were logged as delivery exceptions. Add to stock? vinyl (50 sqm) (action #1).",
+    "pendingActionId": 1,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": {
+     "grnId": 1,
+     "supplierName": "Floornet"
+    },
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "The text of a document, or a description of a photographed document, i",
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet delivery\n\n[Document: Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm]",
+      "source": "document",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   },
+   "goods_received_notes": {
+    "added": [
+     {
+      "id": 1,
+      "purchase_order_id": 0,
+      "supplier_id": 1,
+      "source_transcript": "Floornet delivery\n\n[Document: Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm]",
+      "recorded_by": null,
+      "capture_id": null
+     }
+    ]
+   },
+   "grn_line_items": {
+    "added": [
+     {
+      "id": 1,
+      "grn_id": 1,
+      "po_line_item_id": null,
+      "description": "vinyl [sqm]",
+      "quantity_received": 50,
+      "quantity_ordered": 0,
+      "variance": 50
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "stock_add",
+      "payload": "{\"items\":[{\"name\":\"vinyl\",\"unit\":\"sqm\",\"quantity\":50}],\"supplierName\":\"Floornet\"}",
+      "status": "pending",
+      "source_transcript": "Add to stock? vinyl (50 sqm)"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: a caption names a supplier with no open order, and it is not a delivery note": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "I read this document from Floornet, but there's no open order for them, so nothing was recorded.",
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd Price list",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "The text of a document, or a description of a photographed document, i"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet delivery\n\n[Document: Floornet (Pty) Ltd Price list]",
+      "source": "document",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: a priced supplier invoice is held for confirmation": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Supplier invoice noted from Floornet — needs your confirmation (action #1) before it's recorded.",
+    "pendingActionId": 1,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd TAX INVOICE INV-7731 Vinyl 50 sqm at R185 Underlay 100 sqm at R40",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": {
+     "pendingActionId": 1,
+     "supplierName": "Floornet"
+    },
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real bill has arrived for a real, already-placed order — "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet invoice\n\n[Document: Floornet (Pty) Ltd TAX INVOICE INV-7731 Vinyl 50 sqm at R185 Underlay 100 sqm at R40]",
+      "source": "document",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "supplier_invoice",
+      "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185},{\"matched_description\":\"Underlay\",\"quantity_billed\":100,\"unit_price_billed\":40}]}",
+      "status": "pending",
+      "source_transcript": "Floornet invoice\n\n[Document: Floornet (Pty) Ltd TAX INVOICE INV-7731 Vinyl 50 sqm at R185 Underlay 100 sqm at R40]"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: a priced supplier invoice from an accountant": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Supplier invoice noted from Floornet — needs your confirmation (action #1) before it's recorded.",
+    "pendingActionId": 1,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd TAX INVOICE INV-7731 Vinyl 50 sqm at R185 Underlay 100 sqm at R40",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": {
+     "pendingActionId": 1,
+     "supplierName": "Floornet"
+    },
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real bill has arrived for a real, already-placed order — "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet invoice\n\n[Document: Floornet (Pty) Ltd TAX INVOICE INV-7731 Vinyl 50 sqm at R185 Underlay 100 sqm at R40]",
+      "source": "document",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "supplier_invoice",
+      "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185},{\"matched_description\":\"Underlay\",\"quantity_billed\":100,\"unit_price_billed\":40}]}",
+      "status": "pending",
+      "source_transcript": "Floornet invoice\n\n[Document: Floornet (Pty) Ltd TAX INVOICE INV-7731 Vinyl 50 sqm at R185 Underlay 100 sqm at R40]"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: a priced supplier invoice from an installer is refused": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd TAX INVOICE INV-7731 Vinyl 50 sqm at R185 Underlay 100 sqm at R40",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real bill has arrived for a real, already-placed order — "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet invoice\n\n[Document: Floornet (Pty) Ltd TAX INVOICE INV-7731 Vinyl 50 sqm at R185 Underlay 100 sqm at R40]",
+      "source": "document",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: a supplier invoice read from the document alone is held": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Supplier invoice noted from Floornet (read from the document) — needs your confirmation (action #1) before it's recorded.",
+    "pendingActionId": 1,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd TAX INVOICE INV-7731 Vinyl 50 sqm at R185 Underlay 100 sqm at R40",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": {
+     "pendingActionId": 1,
+     "supplierName": "Floornet"
+    },
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "The text of a document, or a description of a photographed document, i",
+   "A supplier's real bill has arrived for a real, already-placed order — "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet (Pty) Ltd TAX INVOICE INV-7731 Vinyl 50 sqm at R185 Underlay 100 sqm at R40",
+      "source": "document",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "supplier_invoice",
+      "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185},{\"matched_description\":\"Underlay\",\"quantity_billed\":100,\"unit_price_billed\":40}]}",
+      "status": "pending",
+      "source_transcript": "[Read from the document, not stated by anyone: a supplier invoice issued by \"Floornet (Pty) Ltd\", matched to supplier Floornet]\n\nFloornet (Pty) Ltd TAX INVOICE INV-7731 Vinyl 50 sqm at R185 Underlay 100 sqm at R40"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: a statement is compared with the books": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Statement from Floornet: they claim R20000, our records show R9250.",
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd STATEMENT OF ACCOUNT Closing Balance: R20,000.00",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": {
+     "supplierName": "Floornet",
+     "claimedBalance": 20000,
+     "realBalance": 9250,
+     "difference": 10750
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real monthly statement is given. Find the real, stated cl"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "statement from Floornet\n\n[Document: Floornet (Pty) Ltd STATEMENT OF ACCOUNT Closing Balance: R20,000.00]",
+      "source": "document",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: a statement read from the document alone is compared": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Statement from Floornet (read from the document): they claim R20000, our records show R9250.",
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd STATEMENT OF ACCOUNT Closing Balance: R20,000.00",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": {
+     "supplierName": "Floornet",
+     "claimedBalance": 20000,
+     "realBalance": 9250,
+     "difference": 10750
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "The text of a document, or a description of a photographed document, i",
+   "A supplier's real monthly statement is given. Find the real, stated cl"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet (Pty) Ltd STATEMENT OF ACCOUNT Closing Balance: R20,000.00",
+      "source": "document",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: a statement with no closing balance on it": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "I couldn't find a closing balance on this statement from Floornet, so nothing was compared.",
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd STATEMENT OF ACCOUNT",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real monthly statement is given. Find the real, stated cl"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "statement from Floornet\n\n[Document: Floornet (Pty) Ltd STATEMENT OF ACCOUNT]",
+      "source": "document",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: a statement from an installer is refused": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": "Checking supplier statements isn't available for your role — let someone with that permission know.",
+    "message": "Checking supplier statements isn't available for your role — let someone with that permission know.",
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd STATEMENT OF ACCOUNT Closing Balance: R20,000.00",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "statement from Floornet\n\n[Document: Floornet (Pty) Ltd STATEMENT OF ACCOUNT Closing Balance: R20,000.00]",
+      "source": "document",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: a scanned PDF with no text layer": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": null,
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "PDF document uploaded (scan.pdf) — no extractable text layer found (likely a scanned document with no OCR).",
+    "subjectHint": null,
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "The text of a document, or a description of a photographed document, i"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "PDF document uploaded (scan.pdf) — no extractable text layer found (likely a scanned document with no OCR).",
+      "source": "document",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: a plain text file": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": null,
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.bin",
+    "captureId": 1,
+    "description": "File uploaded (notes.txt, text/plain, 10 bytes).",
+    "subjectHint": null,
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "The text of a document, or a description of a photographed document, i"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "File uploaded (notes.txt, text/plain, 10 bytes).",
+      "source": "document",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.bin",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.bin"
+   }
+  ]
+ },
+ "document: an image": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": null,
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "A sheet of paper that reads: Happy birthday Jenny",
+    "subjectHint": null,
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "The text of a document, or a description of a photographed document, i"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "A sheet of paper that reads: Happy birthday Jenny",
+      "source": "document",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "document: an image the vision model cannot describe": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": null,
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "[image description failed: model unavailable]",
+    "subjectHint": null,
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "",
+   "",
+   "The text of a document, or a description of a photographed document, i"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "[image description failed: model unavailable]",
+      "source": "document",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "document: no file in the request": {
+  "result": {
+   "status": 400,
+   "body": {
+    "error": "missing document file"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "document: signed out": {
+  "result": {
+   "status": 401,
+   "body": {
+    "error": "sign in required"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "document: signed in but not a member": {
+  "result": {
+   "status": 403,
+   "body": {
+    "error": "no active membership"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "document: a caption names a customer not on file, and the customer is created before any permission check": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": null,
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Quote for the lounge",
+    "subjectHint": "Brand New Person",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Brand New Person lounge quote\n\n[Document: Quote for the lounge]",
+      "source": "document",
+      "subject_hint": "Brand New Person",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": 2,
+      "character_id": null
+     }
+    ]
+   },
+   "customers": {
+    "added": [
+     {
+      "id": 2,
+      "name": "Brand New Person",
+      "address": null,
+      "vat_exempt": 0,
+      "retention_percent": null,
+      "person_id": null,
+      "merged_into_customer_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: the same upload sent again is answered from the first": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Delivery noted from Floornet (read from the document) — needs your confirmation (action #1) before it's recorded.",
+    "pendingActionId": 1,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "The text of a document, or a description of a photographed document, i",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "photo: a delivery note read from the photo, held for confirmation": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Delivery noted from Floornet (read from the document) — needs your confirmation (action #1) before it's recorded.",
+    "pendingActionId": 1,
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "The text of a document, or a description of a photographed document, i",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm",
+      "source": "photo",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "goods_received",
+      "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_received\":50,\"item_description\":\"vinyl\",\"unit\":\"sqm\"}]}",
+      "status": "pending",
+      "source_transcript": "[Read from the document, not stated by anyone: a delivery note issued by \"Floornet (Pty) Ltd\", matched to supplier Floornet]\n\nFloornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "photo: a caption names the supplier, so a delivery is recorded directly": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Delivery recorded (GRN #1). Add to stock? Vinyl (50 sqm) (action #1).",
+    "pendingActionId": 1,
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": {
+     "grnId": 1,
+     "supplierName": "Floornet"
+    },
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet delivery\n\n[Photo description: Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm]",
+      "source": "photo",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   },
+   "goods_received_notes": {
+    "added": [
+     {
+      "id": 1,
+      "purchase_order_id": 1,
+      "supplier_id": 1,
+      "source_transcript": "Floornet delivery\n\n[Photo description: Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm]",
+      "recorded_by": null,
+      "capture_id": null
+     }
+    ]
+   },
+   "grn_line_items": {
+    "added": [
+     {
+      "id": 1,
+      "grn_id": 1,
+      "po_line_item_id": 1,
+      "description": "Vinyl",
+      "quantity_received": 50,
+      "quantity_ordered": 50,
+      "variance": 0
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "stock_add",
+      "payload": "{\"items\":[{\"name\":\"Vinyl\",\"unit\":\"sqm\",\"quantity\":50}],\"supplierName\":\"Floornet\"}",
+      "status": "pending",
+      "source_transcript": "Add to stock? Vinyl (50 sqm)"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "photo: a photographed delivery note whose issuer is not a supplier on file": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "I read a delivery note from \"Mystery Traders\", but I don't have them as a supplier, so nothing was recorded.",
+    "pendingActionId": null,
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "Mystery Traders DELIVERY NOTE Vinyl 50 sqm",
+    "subjectHint": null,
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "The text of a document, or a description of a photographed document, i"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Mystery Traders DELIVERY NOTE Vinyl 50 sqm",
+      "source": "photo",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "photo: a priced supplier invoice photographed by an installer is refused": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "pendingActionId": null,
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "Floornet TAX INVOICE Vinyl 50 sqm at R185",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real bill has arrived for a real, already-placed order — "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet invoice\n\n[Photo description: Floornet TAX INVOICE Vinyl 50 sqm at R185]",
+      "source": "photo",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "photo: an ordinary site photo with no caption": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": null,
+    "pendingActionId": null,
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "A half-laid vinyl floor in a lounge",
+    "subjectHint": null,
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "The text of a document, or a description of a photographed document, i"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "A half-laid vinyl floor in a lounge",
+      "source": "photo",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "photo: an ordinary site photo with a caption naming a customer": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": null,
+    "pendingActionId": null,
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "A half-laid vinyl floor in a lounge",
+    "subjectHint": "Jenny Smith",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny lounge so far\n\n[Photo description: A half-laid vinyl floor in a lounge]",
+      "source": "photo",
+      "subject_hint": "Jenny Smith",
+      "extraction_status": "processed",
+      "r2_key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": 1,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "photo: the vision model fails": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": null,
+    "pendingActionId": null,
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "[image description failed: model unavailable]",
+    "subjectHint": null,
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "",
+   "",
+   "The text of a document, or a description of a photographed document, i"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "[image description failed: model unavailable]",
+      "source": "photo",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "photo: no file in the request": {
+  "result": {
+   "status": 400,
+   "body": {
+    "error": "missing photo file"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "audio: a voice note is transcribed and processed": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "key": "voice-notes/1791028800000-00000000-0000-4000-8000-000000000001.m4a",
+    "transcript": "Jenny paid R500",
+    "transcriptionError": null,
+    "extraction": {
+     "customer_name": "Jenny Smith",
+     "character_name": null,
+     "character_relationship": null,
+     "intent": "payment",
+     "amount": 500,
+     "fact_key": null,
+     "fact_value": null,
+     "personal_note": null,
+     "query_scope": null,
+     "deposit_percent": null,
+     "scope_document_type": null,
+     "due_date_raw": null
+    },
+    "extractionRaw": {
+     "choices": [
+      {
+       "message": {
+        "content": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+       }
+      }
+     ]
+    },
+    "extractionRawText": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+    "customer": {
+     "id": 1,
+     "name": "Jenny Smith",
+     "matched": true
+    },
+    "pendingActionId": 1,
+    "pendingActionIds": [
+     1
+    ],
+    "factPendingActionId": null,
+    "message": "Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.",
+    "rewrittenQuery": "Jenny paid R500",
+    "embers": {
+     "tasks": 0,
+     "scheduler": 0,
+     "finance": 0,
+     "expenses": 0
+    },
+    "pendingCandidates": null,
+    "pendingActionType": "payment",
+    "pendingChanges": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny paid R500",
+      "source": "voice",
+      "subject_hint": "Jenny Smith",
+      "extraction_status": "processed",
+      "r2_key": "voice-notes/1791028800000-00000000-0000-4000-8000-000000000001.m4a",
+      "customer_id": 1,
+      "character_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "payment",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
+      "status": "pending",
+      "source_transcript": "Jenny paid R500"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "voice-notes/1791028800000-00000000-0000-4000-8000-000000000001.m4a"
+   }
+  ]
+ },
+ "audio: two topics in one voice note": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "key": "voice-notes/1791028800000-00000000-0000-4000-8000-000000000001.m4a",
+    "transcript": "Jenny paid R500 and diesel R650",
+    "transcriptionError": null,
+    "extraction": {
+     "customer_name": "Jenny Smith",
+     "character_name": null,
+     "character_relationship": null,
+     "intent": "payment",
+     "amount": 500,
+     "fact_key": null,
+     "fact_value": null,
+     "personal_note": null,
+     "query_scope": null,
+     "deposit_percent": null,
+     "scope_document_type": null,
+     "due_date_raw": null
+    },
+    "extractionRaw": {
+     "choices": [
+      {
+       "message": {
+        "content": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+       }
+      }
+     ]
+    },
+    "extractionRawText": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+    "customer": {
+     "id": 1,
+     "name": "Jenny Smith",
+     "matched": true
+    },
+    "pendingActionId": 1,
+    "pendingActionIds": [
+     1,
+     2
+    ],
+    "factPendingActionId": null,
+    "message": "- Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.\n- Expense noted of R650 — needs your confirmation (action #2) before it's recorded.",
+    "rewrittenQuery": "Jenny paid R500 and diesel R650",
+    "embers": {
+     "tasks": 0,
+     "scheduler": 0,
+     "finance": 0,
+     "expenses": 0
+    },
+    "pendingCandidates": null,
+    "pendingActionType": "payment",
+    "pendingChanges": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny paid R500 and diesel R650",
+      "source": "voice",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "voice-notes/1791028800000-00000000-0000-4000-8000-000000000001.m4a",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "payment",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
+      "status": "pending",
+      "source_transcript": "Jenny paid R500"
+     },
+     {
+      "id": 2,
+      "type": "expense",
+      "payload": "{\"characterId\":null,\"customerId\":null,\"amount\":650,\"description\":\"diesel R650\"}",
+      "status": "pending",
+      "source_transcript": "diesel R650"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "voice-notes/1791028800000-00000000-0000-4000-8000-000000000001.m4a"
+   }
+  ]
+ },
+ "audio: a voice note from an installer, a money topic is refused and a snag is recorded": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "key": "voice-notes/1791028800000-00000000-0000-4000-8000-000000000001.m4a",
+    "transcript": "Jenny paid R500. Jenny carpet has a loose seam",
+    "transcriptionError": null,
+    "extraction": {
+     "customer_name": "Jenny Smith",
+     "character_name": null,
+     "character_relationship": null,
+     "intent": "payment",
+     "amount": 500,
+     "fact_key": null,
+     "fact_value": null,
+     "personal_note": null,
+     "query_scope": null,
+     "deposit_percent": null,
+     "scope_document_type": null,
+     "due_date_raw": null
+    },
+    "extractionRaw": {
+     "choices": [
+      {
+       "message": {
+        "content": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+       }
+      }
+     ]
+    },
+    "extractionRawText": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+    "customer": {
+     "id": 1,
+     "name": "Jenny Smith",
+     "matched": true
+    },
+    "pendingActionId": null,
+    "pendingActionIds": [],
+    "factPendingActionId": null,
+    "message": "- Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.\n- Snag #1 noted for Jenny Smith: loose seam.",
+    "rewrittenQuery": "Jenny paid R500. Jenny carpet has a loose seam",
+    "embers": {
+     "tasks": 0,
+     "scheduler": 0,
+     "finance": 0,
+     "expenses": 0
+    },
+    "pendingCandidates": null,
+    "pendingActionType": null,
+    "pendingChanges": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A tradesperson is reporting a real, physical quality issue found on a "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny paid R500. Jenny carpet has a loose seam",
+      "source": "voice",
+      "subject_hint": "Jenny Smith",
+      "extraction_status": "processed",
+      "r2_key": "voice-notes/1791028800000-00000000-0000-4000-8000-000000000001.m4a",
+      "customer_id": 1,
+      "character_id": null
+     }
+    ]
+   },
+   "pending_memory_flush": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "text": "Jenny carpet has a loose seam"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
+   "snags": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "loose seam",
+      "status": "open",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "voice-notes/1791028800000-00000000-0000-4000-8000-000000000001.m4a"
+   },
+   {
+    "kv": "put",
+    "key": "customer:1",
+    "value": "{\"facts\":[{\"text\":\"Jenny carpet has a loose seam\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "audio: the transcription fails": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "key": "voice-notes/1791028800000-00000000-0000-4000-8000-000000000001.m4a",
+    "transcript": null,
+    "transcriptionError": "model unavailable",
+    "extraction": null,
+    "extractionRaw": null,
+    "extractionRawText": null,
+    "customer": null,
+    "pendingActionId": null,
+    "factPendingActionId": null,
+    "message": "Voice note received (transcription unavailable).",
+    "rewrittenQuery": ""
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "",
+   ""
+  ],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": [
+   {
+    "r2": "put",
+    "key": "voice-notes/1791028800000-00000000-0000-4000-8000-000000000001.m4a"
+   }
+  ]
+ },
+ "audio: the transcription is empty": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "key": "voice-notes/1791028800000-00000000-0000-4000-8000-000000000001.m4a",
+    "transcript": "",
+    "transcriptionError": null,
+    "extraction": null,
+    "extractionRaw": null,
+    "extractionRawText": null,
+    "customer": null,
+    "pendingActionId": null,
+    "factPendingActionId": null,
+    "message": "Voice note received (transcription unavailable).",
+    "rewrittenQuery": ""
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   ""
+  ],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": [
+   {
+    "r2": "put",
+    "key": "voice-notes/1791028800000-00000000-0000-4000-8000-000000000001.m4a"
+   }
+  ]
+ },
+ "audio: a follow-up uses the conversation sent with it": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "key": "voice-notes/1791028800000-00000000-0000-4000-8000-000000000001.m4a",
+    "transcript": "and her balance",
+    "transcriptionError": null,
+    "extraction": {
+     "customer_name": null,
+     "character_name": null,
+     "character_relationship": null,
+     "intent": "lookup",
+     "amount": null,
+     "fact_key": null,
+     "fact_value": null,
+     "personal_note": null,
+     "query_scope": "customer",
+     "deposit_percent": null,
+     "scope_document_type": null,
+     "due_date_raw": null
+    },
+    "extractionRaw": {
+     "choices": [
+      {
+       "message": {
+        "content": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"lookup\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":\"customer\",\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+       }
+      }
+     ]
+    },
+    "extractionRawText": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"lookup\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":\"customer\",\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+    "customer": {
+     "id": 1,
+     "name": "Jenny Smith",
+     "matched": true
+    },
+    "pendingActionId": null,
+    "pendingActionIds": [],
+    "factPendingActionId": null,
+    "message": "ANSWER FROM FACTS:\n- Jenny Smith is a known customer.",
+    "rewrittenQuery": "and her balance",
+    "embers": {
+     "tasks": 0,
+     "scheduler": 0,
+     "finance": 0,
+     "expenses": 0
+    },
+    "pendingCandidates": null,
+    "pendingActionType": null,
+    "pendingChanges": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "The new message may refer back to the STANDING TOPIC of the conversati",
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "and her balance",
+      "source": "voice",
+      "subject_hint": "Jenny Smith",
+      "extraction_status": "processed",
+      "r2_key": "voice-notes/1791028800000-00000000-0000-4000-8000-000000000001.m4a",
+      "customer_id": 1,
+      "character_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "voice-notes/1791028800000-00000000-0000-4000-8000-000000000001.m4a"
+   }
+  ]
+ },
+ "audio: no file in the request": {
+  "result": {
+   "status": 400,
+   "body": {
+    "error": "missing audio file"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "audio: the same voice note sent again is answered from the first": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "key": "voice-notes/1791028800000-00000000-0000-4000-8000-000000000001.m4a",
+    "transcript": "Jenny paid R500",
+    "transcriptionError": null,
+    "extraction": {
+     "customer_name": "Jenny Smith",
+     "character_name": null,
+     "character_relationship": null,
+     "intent": "payment",
+     "amount": 500,
+     "fact_key": null,
+     "fact_value": null,
+     "personal_note": null,
+     "query_scope": null,
+     "deposit_percent": null,
+     "scope_document_type": null,
+     "due_date_raw": null
+    },
+    "extractionRaw": {
+     "choices": [
+      {
+       "message": {
+        "content": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+       }
+      }
+     ]
+    },
+    "extractionRawText": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+    "customer": {
+     "id": 1,
+     "name": "Jenny Smith",
+     "matched": true
+    },
+    "pendingActionId": 1,
+    "pendingActionIds": [
+     1
+    ],
+    "factPendingActionId": null,
+    "message": "Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.",
+    "rewrittenQuery": "Jenny paid R500",
+    "embers": {
+     "tasks": 0,
+     "scheduler": 0,
+     "finance": 0,
+     "expenses": 0
+    },
+    "pendingCandidates": null,
+    "pendingActionType": "payment",
+    "pendingChanges": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": [
+   {
+    "r2": "put",
+    "key": "voice-notes/1791028800000-00000000-0000-4000-8000-000000000001.m4a"
+   }
+  ]
+ },
+ "document (image): a delivery note read from the image, held for confirmation": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Delivery noted from Floornet (read from the document) — needs your confirmation (action #1) before it's recorded.",
+    "pendingActionId": 1,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "The text of a document, or a description of a photographed document, i",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm",
+      "source": "document",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "goods_received",
+      "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_received\":50,\"item_description\":\"vinyl\",\"unit\":\"sqm\"}]}",
+      "status": "pending",
+      "source_transcript": "[Read from the document, not stated by anyone: a delivery note issued by \"Floornet (Pty) Ltd\", matched to supplier Floornet]\n\nFloornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "document (image): a caption names the supplier, so a delivery is recorded directly": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Delivery recorded (GRN #1). Add to stock? Vinyl (50 sqm) (action #1).",
+    "pendingActionId": 1,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": {
+     "grnId": 1,
+     "supplierName": "Floornet"
+    },
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet delivery\n\n[Document: Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm]",
+      "source": "document",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   },
+   "goods_received_notes": {
+    "added": [
+     {
+      "id": 1,
+      "purchase_order_id": 1,
+      "supplier_id": 1,
+      "source_transcript": "Floornet delivery\n\n[Document: Floornet (Pty) Ltd DELIVERY NOTE Vinyl 50 sqm]",
+      "recorded_by": null,
+      "capture_id": null
+     }
+    ]
+   },
+   "grn_line_items": {
+    "added": [
+     {
+      "id": 1,
+      "grn_id": 1,
+      "po_line_item_id": 1,
+      "description": "Vinyl",
+      "quantity_received": 50,
+      "quantity_ordered": 50,
+      "variance": 0
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "stock_add",
+      "payload": "{\"items\":[{\"name\":\"Vinyl\",\"unit\":\"sqm\",\"quantity\":50}],\"supplierName\":\"Floornet\"}",
+      "status": "pending",
+      "source_transcript": "Add to stock? Vinyl (50 sqm)"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "document (image): a delivery note whose issuer is not a supplier on file": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "I read a delivery note from \"Mystery Traders\", but I don't have them as a supplier, so nothing was recorded.",
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "Mystery Traders DELIVERY NOTE Vinyl 50 sqm",
+    "subjectHint": null,
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "The text of a document, or a description of a photographed document, i"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Mystery Traders DELIVERY NOTE Vinyl 50 sqm",
+      "source": "document",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "document (image): a priced supplier invoice from an installer is refused": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "Floornet TAX INVOICE Vinyl 50 sqm at R185",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real bill has arrived for a real, already-placed order — "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet invoice\n\n[Document: Floornet TAX INVOICE Vinyl 50 sqm at R185]",
+      "source": "document",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ }
+}

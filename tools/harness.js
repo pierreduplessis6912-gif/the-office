@@ -108,13 +108,14 @@ function scriptedAi(script) {
     inputs,
     run: async (model, input) => {
       const system = (input && input.messages && input.messages.find((m) => m.role === 'system') || {}).content || '';
-      const hay = system + '\n' + JSON.stringify(input);
+      const hay = `${model}\n${system}\n${JSON.stringify(input)}`;   // the model name too, so a script can match on it
       if (/bge/.test(String(model))) { calls.push('(embedding)'); return { data: [new Array(8).fill(0)] }; }
       calls.push(system.slice(0, 70).replace(/\s+/g, ' '));
       inputs.push(JSON.stringify(input));
       const hit = (script || []).find((s) => s.match.test(hay));
       if (!hit) throw new Error('unscripted AI call: ' + system.slice(0, 120).replace(/\s+/g, ' '));
       const reply = typeof hit.reply === 'function' ? hit.reply(input) : hit.reply;
+      if (hit.raw) return reply;   // some models (speech to text) do not answer in the chat-completion shape
       return { choices: [{ message: { content: typeof reply === 'string' ? reply : JSON.stringify(reply) } }] };
     },
   };
@@ -152,13 +153,46 @@ const EXTRACTION_DEFAULTS = { customer_name: null, character_name: null, charact
 // not match tomorrow's run. The clock is frozen for the duration of each case instead of masking times in the output.
 const FROZEN_NOW = Date.parse('2026-10-03T12:00:00.000Z');
 async function withFrozenClock(fn) {
+  // The upload handlers put crypto.randomUUID() in a storage key, which is echoed in the response, so a recording would
+  // differ on every run. Within a case it returns a counter instead (the same sequence each time).
+  const realUuid = Object.getOwnPropertyDescriptor(globalThis.crypto, 'randomUUID');
+  let uuidCounter = 0;
+  Object.defineProperty(globalThis.crypto, 'randomUUID', { value: () => `00000000-0000-4000-8000-${String(++uuidCounter).padStart(12, '0')}`, configurable: true, writable: true });
   const RealDate = globalThis.Date;
   class FrozenDate extends RealDate {
     constructor(...a) { if (a.length === 0) super(FROZEN_NOW); else super(...a); }
     static now() { return FROZEN_NOW; }
   }
   globalThis.Date = FrozenDate;
-  try { return await fn(); } finally { globalThis.Date = RealDate; }
+  try { return await fn(); } finally {
+    globalThis.Date = RealDate;
+    if (realUuid) Object.defineProperty(globalThis.crypto, 'randomUUID', realUuid); else delete globalThis.crypto.randomUUID;
+  }
+}
+
+// A real PDF with a text layer, built with the same library the product uses, so the upload handler's text extraction
+// is exercised for real. No lines gives a blank page: a scanned document with no text layer.
+async function makePdf(lines) {
+  const { PDFDocument, StandardFonts } = require('pdf-lib');
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const page = doc.addPage([595, 842]);
+  (lines || []).forEach((line, i) => page.drawText(line, { x: 50, y: 780 - i * 22, size: 12, font }));
+  return doc.save();
+}
+
+// A multipart body: { document: { name, type, pdfLines | text | base64 }, caption: '...', idempotency_key: '...' }.
+async function buildForm(spec) {
+  const form = new FormData();
+  for (const [key, value] of Object.entries(spec)) {
+    if (value && typeof value === 'object') {
+      const bytes = value.pdfLines !== undefined ? await makePdf(value.pdfLines) : value.base64 ? Buffer.from(value.base64, 'base64') : Buffer.from(value.text || '');
+      form.append(key, new File([bytes], value.name, { type: value.type }));
+    } else if (value !== undefined && value !== null) {
+      form.append(key, value);
+    }
+  }
+  return form;
 }
 
 async function runCase(processOne, workerDir, spec) {
@@ -228,9 +262,10 @@ async function runRouteCase(fns, workerDir, spec) {
   const effects = [];
   const env = { OFFICE_DB: d1(db), AI: ai, CUSTOMER_NOTES: fakeKv(effects, spec.kvSeed), OFFICE_VAULT: fakeR2(effects), MEMORY: fakeVectorize(effects), SESSION_SECRET: 'harness-session-secret', ADMIN_KEY: 'harness-admin-key', GOOGLE_CLIENT_ID: 'harness-client-id' };
   const call = async (step) => {
-    const headers = { 'content-type': 'application/json' };
+    const headers = step.form ? {} : { 'content-type': 'application/json' };   // a form sets its own boundary
     if (!step.noSession) headers.cookie = `office_session=${await auth.signSession(env, `${step.role || 'owner'}@example.com`)}`;
-    const request = new Request('https://office.test' + step.path, { method: step.method || 'POST', headers, body: step.body === undefined ? undefined : JSON.stringify(step.body) });
+    const payload = step.form ? await buildForm(step.form) : step.body === undefined ? undefined : JSON.stringify(step.body);
+    const request = new Request('https://office.test' + step.path, { method: step.method || 'POST', headers, body: payload });
     const response = await handleRequest(request, env, ctx, 'req-1');
     const text = await response.text();
     let body = text;
