@@ -1425,7 +1425,55 @@
   "writes": {},
   "effects": []
  },
- "document: a caption names a customer not on file, and the customer is created before any permission check": {
+ "document: an installer's caption naming a customer who is not on file creates nobody and says why": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Quote for the lounge",
+    "subjectHint": null,
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "The text of a document, or a description of a photographed document, i",
+   "The text of a document, or a description of a photographed document, i",
+   "The text of a document, or a description of a photographed document, i"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Brand New Person lounge quote\n\n[Document: Quote for the lounge]",
+      "source": "document",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: an owner's caption naming a customer who is not on file creates the customer": {
   "result": {
    "status": 200,
    "body": {
@@ -1472,6 +1520,157 @@
       "retention_percent": null,
       "person_id": null,
       "merged_into_customer_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: an installer's caption with an open intent naming a new customer still creates the customer (as dictation does)": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": null,
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Site notes",
+    "subjectHint": "Brand New Person",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Brand New Person site notes\n\n[Document: Site notes]",
+      "source": "document",
+      "subject_hint": "Brand New Person",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": 2,
+      "character_id": null
+     }
+    ]
+   },
+   "customers": {
+    "added": [
+     {
+      "id": 2,
+      "name": "Brand New Person",
+      "address": null,
+      "vat_exempt": 0,
+      "retention_percent": null,
+      "person_id": null,
+      "merged_into_customer_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: an installer's caption naming a customer already on file keeps the link and says why nothing else happened": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Quote for the lounge",
+    "subjectHint": "Jenny Smith",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny lounge quote\n\n[Document: Quote for the lounge]",
+      "source": "document",
+      "subject_hint": "Jenny Smith",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": 1,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: an installer's caption naming a new supplier with a money intent creates nobody": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Newco Supplies TAX INVOICE",
+    "subjectHint": null,
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "The text of a document, or a description of a photographed document, i",
+   "The text of a document, or a description of a photographed document, i",
+   "The text of a document, or a description of a photographed document, i"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Newco Supplies invoice\n\n[Document: Newco Supplies TAX INVOICE]",
+      "source": "document",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": null
      }
     ]
    }
@@ -2744,6 +2943,320 @@
    {
     "r2": "put",
     "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "document (image): an installer's caption naming a customer who is not on file creates nobody and says why": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "A quote sheet for a lounge",
+    "subjectHint": null,
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "The text of a document, or a description of a photographed document, i",
+   "The text of a document, or a description of a photographed document, i",
+   "The text of a document, or a description of a photographed document, i"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Brand New Person lounge quote\n\n[Document: A quote sheet for a lounge]",
+      "source": "document",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "photo: an installer's caption naming a customer who is not on file creates nobody and says why": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "pendingActionId": null,
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "A quote sheet for a lounge",
+    "subjectHint": null,
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "The text of a document, or a description of a photographed document, i",
+   "The text of a document, or a description of a photographed document, i",
+   "The text of a document, or a description of a photographed document, i"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Brand New Person lounge quote\n\n[Photo description: A quote sheet for a lounge]",
+      "source": "photo",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "document (image): an owner's caption naming a customer who is not on file creates the customer": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": null,
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "A quote sheet for a lounge",
+    "subjectHint": "Brand New Person",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Brand New Person lounge quote\n\n[Document: A quote sheet for a lounge]",
+      "source": "document",
+      "subject_hint": "Brand New Person",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": 2,
+      "character_id": null
+     }
+    ]
+   },
+   "customers": {
+    "added": [
+     {
+      "id": 2,
+      "name": "Brand New Person",
+      "address": null,
+      "vat_exempt": 0,
+      "retention_percent": null,
+      "person_id": null,
+      "merged_into_customer_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "photo: an owner's caption naming a customer who is not on file creates the customer": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": null,
+    "pendingActionId": null,
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "A quote sheet for a lounge",
+    "subjectHint": "Brand New Person",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Brand New Person lounge quote\n\n[Photo description: A quote sheet for a lounge]",
+      "source": "photo",
+      "subject_hint": "Brand New Person",
+      "extraction_status": "processed",
+      "r2_key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": 2,
+      "character_id": null
+     }
+    ]
+   },
+   "customers": {
+    "added": [
+     {
+      "id": 2,
+      "name": "Brand New Person",
+      "address": null,
+      "vat_exempt": 0,
+      "retention_percent": null,
+      "person_id": null,
+      "merged_into_customer_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "document (image): an installer's caption naming a new supplier with a money intent creates nobody": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "Newco Supplies TAX INVOICE",
+    "subjectHint": null,
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "The text of a document, or a description of a photographed document, i",
+   "The text of a document, or a description of a photographed document, i",
+   "The text of a document, or a description of a photographed document, i"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Newco Supplies invoice\n\n[Document: Newco Supplies TAX INVOICE]",
+      "source": "document",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "photo: an installer's caption naming a new supplier with a money intent creates nobody": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "pendingActionId": null,
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "Newco Supplies TAX INVOICE",
+    "subjectHint": null,
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "The text of a document, or a description of a photographed document, i",
+   "The text of a document, or a description of a photographed document, i",
+   "The text of a document, or a description of a photographed document, i"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Newco Supplies invoice\n\n[Photo description: Newco Supplies TAX INVOICE]",
+      "source": "photo",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png"
    }
   ]
  }

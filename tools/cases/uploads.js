@@ -90,7 +90,11 @@ module.exports = function cases(caps) {
     { ...up('document: signed in but not a member', 'nobody', withOrder, 'document', pdf(noteLines), {}, []) },
 
     // ---------------- a caption that names a customer, and a retry ----------------
-    up('document: a caption names a customer not on file, and the customer is created before any permission check', 'installer', withOrder, 'document', pdf(['Quote for the lounge']), { caption: 'Brand New Person lounge quote' }, [READ({ 'Brand New Person lounge quote': { intent: 'quotation', customer_name: 'Brand New Person' } })]),
+    up('document: an installer\'s caption naming a customer who is not on file creates nobody and says why', 'installer', withOrder, 'document', pdf(['Quote for the lounge']), { caption: 'Brand New Person lounge quote' }, [READ({ 'Brand New Person lounge quote': { intent: 'quotation', customer_name: 'Brand New Person' } })]),
+    up('document: an owner\'s caption naming a customer who is not on file creates the customer', 'owner', withOrder, 'document', pdf(['Quote for the lounge']), { caption: 'Brand New Person lounge quote' }, [READ({ 'Brand New Person lounge quote': { intent: 'quotation', customer_name: 'Brand New Person' } })]),
+    up('document: an installer\'s caption with an open intent naming a new customer still creates the customer (as dictation does)', 'installer', withOrder, 'document', pdf(['Site notes']), { caption: 'Brand New Person site notes' }, [READ({ 'Brand New Person site notes': { intent: 'note', customer_name: 'Brand New Person' } })]),
+    up('document: an installer\'s caption naming a customer already on file keeps the link and says why nothing else happened', 'installer', withOrder, 'document', pdf(['Quote for the lounge']), { caption: 'Jenny lounge quote' }, [READ({ 'Jenny lounge quote': { intent: 'quotation', customer_name: 'Jenny Smith' } })]),
+    up('document: an installer\'s caption naming a new supplier with a money intent creates nobody', 'installer', withOrder, 'document', pdf(['Newco Supplies', 'TAX INVOICE']), { caption: 'Newco Supplies invoice' }, [READ({ 'Newco Supplies invoice': { intent: 'supplier_invoice', character_name: 'Newco Supplies', character_relationship: 'supplier' } })]),
     { ...up('document: the same upload sent again is answered from the first', 'owner', withOrder, 'document', pdf(noteLines), { idempotency_key: 'upload-key-1' }, [IDENT({ document_type: 'delivery_note', issuer_name: 'Floornet (Pty) Ltd' }), delivery50]),
       before: [{ route: true, method: 'POST', path: '/files/document', role: 'owner', form: { document: pdf(noteLines), idempotency_key: 'upload-key-1' } }] },
 
@@ -144,7 +148,22 @@ module.exports = function cases(caps) {
     asImage('document (image): a delivery note whose issuer is not a supplier on file', 'owner', withOrder, {}, [DESCRIBE('Mystery Traders DELIVERY NOTE Vinyl 50 sqm'), IDENT({ document_type: 'delivery_note', issuer_name: 'Mystery Traders' })]),
     asImage('document (image): a priced supplier invoice from an installer is refused', 'installer', withOrder, { caption: 'Floornet invoice' }, [DESCRIBE('Floornet TAX INVOICE Vinyl 50 sqm at R185'), READ({ 'Floornet invoice': { intent: 'supplier_invoice', character_name: 'Floornet', character_relationship: 'supplier' } }), priced]),
   );
+  const newCustomerQuote = READ({ 'Brand New Person lounge quote': { intent: 'quotation', customer_name: 'Brand New Person' } });
+  specs.push(
+    asImage('document (image): an installer\'s caption naming a customer who is not on file creates nobody and says why', 'installer', withOrder, { caption: 'Brand New Person lounge quote' }, [DESCRIBE('A quote sheet for a lounge'), newCustomerQuote]),
+    up('photo: an installer\'s caption naming a customer who is not on file creates nobody and says why', 'installer', withOrder, 'photo', png, { caption: 'Brand New Person lounge quote' }, [DESCRIBE('A quote sheet for a lounge'), newCustomerQuote]),
+    asImage('document (image): an owner\'s caption naming a customer who is not on file creates the customer', 'owner', withOrder, { caption: 'Brand New Person lounge quote' }, [DESCRIBE('A quote sheet for a lounge'), newCustomerQuote]),
+    up('photo: an owner\'s caption naming a customer who is not on file creates the customer', 'owner', withOrder, 'photo', png, { caption: 'Brand New Person lounge quote' }, [DESCRIBE('A quote sheet for a lounge'), newCustomerQuote]),
+  );
+  const newSupplierInvoice = READ({ 'Newco Supplies invoice': { intent: 'supplier_invoice', character_name: 'Newco Supplies', character_relationship: 'supplier' } });
+  specs.push(
+    asImage('document (image): an installer\'s caption naming a new supplier with a money intent creates nobody', 'installer', withOrder, { caption: 'Newco Supplies invoice' }, [DESCRIBE('Newco Supplies TAX INVOICE'), newSupplierInvoice]),
+    up('photo: an installer\'s caption naming a new supplier with a money intent creates nobody', 'installer', withOrder, 'photo', png, { caption: 'Newco Supplies invoice' }, [DESCRIBE('Newco Supplies TAX INVOICE'), newSupplierInvoice]),
+  );
   specs.pairs = [
+    ['document (image): an installer\'s caption naming a new supplier with a money intent creates nobody', 'photo: an installer\'s caption naming a new supplier with a money intent creates nobody', same],
+    ['document (image): an installer\'s caption naming a customer who is not on file creates nobody and says why', 'photo: an installer\'s caption naming a customer who is not on file creates nobody and says why', same],
+    ['document (image): an owner\'s caption naming a customer who is not on file creates the customer', 'photo: an owner\'s caption naming a customer who is not on file creates the customer', same],
     ['document (image): a delivery note read from the image, held for confirmation', 'photo: a delivery note read from the photo, held for confirmation', same],
     ['document (image): a caption names the supplier, so a delivery is recorded directly', 'photo: a caption names the supplier, so a delivery is recorded directly', same],
     ['document (image): a delivery note whose issuer is not a supplier on file', 'photo: a photographed delivery note whose issuer is not a supplier on file', same],

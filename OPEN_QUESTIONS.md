@@ -3,7 +3,7 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (the permission grid built).
+decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 2 applied).
 
 ## A. Decisions only Pierre can make
 
@@ -27,11 +27,6 @@ decision, and say where it was applied. Last updated 2026-10-04 (the permission 
 7. **A spoken supplier statement now stays out of free-text notes** (it is money, and notes are ungated) and has no
    structured home, so the words survive only in the raw capture. *Question:* should a spoken statement be recorded
    somewhere, or is the capture enough?
-8. **Only money intents are kept out of notes.** Stock usage, stocktakes, snags, leads and "lose lead" sentences are still
-   copied into customer and supplier notes. That was out of scope (only money and stock were decided) but is a policy
-   question. (`DECISIONS.md`, "Rewrite Phase 2".)
-9. **Customer and supplier rows are created from an upload's caption before anything is gated.** Neither is money or
-   stock, so it was left alone by decision. Worth revisiting if phantom records become a nuisance.
 10. **A payment with no amount is held for confirmation on purpose** (`payments.amount` is nullable and
     `recordPayment` accepts none). Confirmed as design in the code; listed in case Pierre would rather the amount
     be asked for.
@@ -80,6 +75,7 @@ decision, and say where it was applied. Last updated 2026-10-04 (the permission 
     2026-10-03 as unproven (it was only ever seen in a code comment). Reopen if a real one is refused.
 
 
+
 ## B. Needs a live check only a phone can give
 
 12. **The Codemagic rebuild**: the Confirm/Reject buttons for a follow-up question raised by a confirm ("Add to stock?",
@@ -116,6 +112,12 @@ decision, and say where it was applied. Last updated 2026-10-04 (the permission 
     drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
 
 ## Settled (kept so the reasoning is not lost)
+
+- 2026-10-04, decided by Pierre (decisions session, round 2):
+  - **Stock, snag and lead sentences stay out of notes too** (they join the money intents). Applied; 53 recordings differ only
+    by notes no longer written.
+  - **An upload caption is permission-checked before it creates a customer or supplier,** in both the document and the photo
+    handler. A refused role creates nobody, keeps the link to anyone already on file, and is told why. Applied and paired.
 
 - 2026-10-04: **the permission grid was built** (backend and screen): the owner switches a role's permissions on and off, with
   guard rails, an audit trail and reset. With nothing switched, behaviour is identical to before. Round 2 questions 4 to 6
