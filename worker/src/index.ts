@@ -10,7 +10,7 @@ import {
   verifySession, getSessionToken, getCookie, base64UrlEncode, ROLE_CAPABILITIES, ENFORCE_CAPABILITIES,
   ACTION_TYPE_CAPABILITY, ROUTE_RULES, SIGNABLE_DOCUMENT_PATHS, canResolveActionType, intentCreationRefusal, intentKeepsOutOfNotes,
 } from "./auth";
-import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
+import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 import { handleDebugRoute } from "./debug";
 import { DOCUMENT_KIND_LABEL, asksAboutDeliveryExceptions, deliveryExceptionAnswer, deliveryHadExceptions, deliveryHeldMessage, deliveryRecordedMessage, inferDocumentSupplier, planDelivery } from "./documents";
@@ -306,7 +306,7 @@ async function processOneExtraction(
   // through the already-existing read-only findExistingEntityByName
   // instead of the create-or-find reconcile functions.
   if (extraction?.customer_name) {
-    if (extraction.intent === "lookup") {
+    if (extraction.intent === "lookup" || extraction.intent === "cancel_order") {
       const found = await findExistingCustomerByName(env, extraction.customer_name);
       if (found) {
         customer = { id: found.id, name: found.name, matched: true };
@@ -425,7 +425,7 @@ async function processOneExtraction(
   }
 
   if (extraction?.character_name) {
-    if (extraction.intent === "lookup") {
+    if (extraction.intent === "lookup" || extraction.intent === "cancel_order") {
       const found = await findExistingCharacterByName(env, extraction.character_name);
       if (found) {
         character = { id: found.id, name: found.name, matched: true };
@@ -680,6 +680,39 @@ async function processOneExtraction(
   // for job scopes — a real commitment, not yet a transaction.
   let purchaseOrderResult: { purchaseOrderId: number; lineItemCount: number } | null = null;
   let purchaseOrderNoSupplier = false;
+  // Cancelling an order (decided by Pierre 2026-10-04). A held action, never a direct write: cancelling is destructive, so it
+  // asks first and shows which order. The supplier must already be on file (the opening step only finds, never creates, for
+  // this intent). With several open orders nothing is guessed: the person names one ("cancel order 3").
+  let cancelOrderHold: { id: number; summary: string; supplierName: string } | null = null;
+  let cancelOrderNoSupplier = false;
+  let cancelOrderUnknownSupplier: string | null = null;
+  let cancelOrderNone = false;
+  let cancelOrderWhich: OpenOrder[] | null = null;
+  let cancelOrderNumberNotOpen: { wanted: number; open: OpenOrder[] } | null = null;
+  if (extraction?.intent === "cancel_order") {
+    if (!extraction.character_name) {
+      cancelOrderNoSupplier = true;
+    } else if (!character) {
+      cancelOrderUnknownSupplier = extraction.character_name;
+    } else {
+      const open = await getOpenOrdersForSupplier(env, character.id);
+      const wanted = parseOrderNumber(transcript);
+      const target = open.length === 0 ? null : wanted !== null ? open.find((o) => o.id === wanted) ?? null : open.length === 1 ? open[0] : null;
+      if (open.length === 0) {
+        cancelOrderNone = true;
+      } else if (target) {
+        const held = await holdForConfirmation(env, "cancel_order", { purchaseOrderId: target.id, supplierId: character.id, supplierName: character.name }, transcript);
+        pendingActionId = held.id;
+        pendingActionType = "cancel_order";
+        cancelOrderHold = { id: held.id, summary: describeOpenOrder(target), supplierName: character.name };
+      } else if (wanted !== null) {
+        cancelOrderNumberNotOpen = { wanted, open };
+      } else {
+        cancelOrderWhich = open;
+      }
+    }
+  }
+
   let purchaseOrderNoItems = false;
   if (extraction?.intent === "purchase_order") {
     if (character) {
@@ -1540,6 +1573,18 @@ async function processOneExtraction(
   } else if (extraction?.intent === "quotation" && customer && !pendingActionId) {
     // Same: a quotation with no readable items and no amount answered as a lookup.
     message = `I heard a quotation for ${customer.name}, but couldn't make out any items or an amount.`;
+  } else if (extraction?.intent === "cancel_order" && cancelOrderHold) {
+    message = `Cancel ${cancelOrderHold.supplierName} order ${cancelOrderHold.summary}? Needs your confirmation (action #${cancelOrderHold.id}) before it's cancelled.`;
+  } else if (extraction?.intent === "cancel_order" && cancelOrderNoSupplier) {
+    message = "I heard you want to cancel an order, but no supplier name came through — which supplier is it with?";
+  } else if (extraction?.intent === "cancel_order" && cancelOrderUnknownSupplier) {
+    message = `I don't have ${cancelOrderUnknownSupplier} as a supplier, so there is no order to cancel.`;
+  } else if (extraction?.intent === "cancel_order" && cancelOrderNone) {
+    message = `${character!.name} has no open orders to cancel.`;
+  } else if (extraction?.intent === "cancel_order" && cancelOrderNumberNotOpen) {
+    message = `${character!.name} has no open order #${cancelOrderNumberNotOpen.wanted}. Open orders: ${cancelOrderNumberNotOpen.open.map(describeOpenOrder).join("; ")}.`;
+  } else if (extraction?.intent === "cancel_order" && cancelOrderWhich) {
+    message = `${character!.name} has ${cancelOrderWhich.length} open orders: ${cancelOrderWhich.map(describeOpenOrder).join("; ")}. Say "cancel order" and its number to pick one.`;
   } else if (extraction?.intent === "purchase_order" && purchaseOrderNoItems) {
     message = `I heard an order for ${character!.name}, but couldn't make out any items on it, so nothing was recorded.`;
   } else if (extraction?.intent === "purchase_order" && purchaseOrderNoSupplier) {
@@ -4185,6 +4230,24 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         // a real, deterministic quantity variance, computed in
         // recordGoodsReceived, returned here so Peter sees it
         // immediately, not buried in a debug route.
+        if (action.type === "cancel_order") {
+          const payload = JSON.parse(action.payload) as { purchaseOrderId: number; supplierName?: string };
+          const { email: cancelledBy } = await resolveCapabilities(request, env);
+          const cancelled = await cancelPurchaseOrder(env, payload.purchaseOrderId, cancelledBy);
+          await env.OFFICE_DB.prepare(
+            "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+          )
+            .bind(id)
+            .run();
+          return Response.json({
+            status: "confirmed",
+            cancelled,
+            message: cancelled.alreadyCancelled
+              ? `${payload.supplierName ?? "That"} order #${payload.purchaseOrderId} was already cancelled.`
+              : `Cancelled ${payload.supplierName ?? "the"} order #${payload.purchaseOrderId}.${cancelled.closedShortages > 0 ? ` ${cancelled.closedShortages} open shortage${cancelled.closedShortages === 1 ? "" : "s"} on it closed with it.` : ""}`,
+          });
+        }
+
         if (action.type === "stock_add") {
           // Decided 2026-10-03 (Pierre): "Add to stock?" on delivery. Confirming registers each item
           // that is not yet stock and adds what arrived; rejecting just leaves the question on record

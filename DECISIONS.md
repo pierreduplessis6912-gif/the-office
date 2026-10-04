@@ -5965,3 +5965,22 @@ Round 2 (the remaining "who can see or create what" questions), decided by Pierr
 **Question 4 (person details and the unused pay permissions)** was answered by the permission grid: the payroll and banking switches cannot be flipped until something in the code checks them, so there is nothing to decide yet.
 
 **Verified:** 2,696 checks; typecheck unchanged.
+
+
+---
+
+## Decisions session, round 3: shortages and orders
+
+Round 3 (how the books behave), decided by Pierre:
+
+7. **A reason alone closes a shortage: kept as it is.** Saying only "it was damaged" still counts as resolving the shortage and removes it from the exception report.
+8. **Only a credit writes off a shortage: kept as it is.** Accepting a shortage leaves the missing quantity outstanding, so a later delivery of that item is matched to the old order.
+9. **Cancelling an order: built, as a spoken "cancel the Floornet order".**
+
+**How cancelling works.** A **held action**, never a direct write: it is destructive, so it asks first and shows which order ("Cancel Floornet order #1 Vinyl and underlay (50 sqm Vinyl, 100 sqm Underlay not yet received)? Needs your confirmation"). With one open order it offers that one; with several it **never guesses**: it lists them and asks for a number ("cancel order 3"); a number followed by a unit ("order 50 sqm") is a quantity, not an order number; a number that is not one of the open orders lists the ones that are. The supplier must already be on file: the opening step **finds and never creates** for this intent, so a cancel for a name nobody has heard of cannot create a supplier. Permission is the same as placing an order (the invoicing permission); the held action needs the same to confirm. Confirming records the cancellation and **closes that order's open shortages** (resolution "cancelled"), since the rest is no longer expected. A cancelled order stops attracting deliveries (a delivery confirmed afterwards is received as an exception), is no longer "the latest open order" an invoice is checked against, and is not offered for cancelling again. Orders have no status column, so a cancellation is its own small row, in a table created the first time it is needed (no migration to run by hand; remembered per database handle, because a process-wide flag would be wrong for any second database).
+
+**The property that matters: with nothing cancelled, nothing changes.** All 414 existing recordings across 13 files are **byte-identical**; only 23 new cases were added (15 dictation, 8 confirm and reject, including the chain where a delivery held before the cancellation is confirmed after it).
+
+**Verified:** 2,801 checks; typecheck unchanged. Nine deliberate breakages were each caught (a cancelled order still attracting deliveries or still being the invoice's order, an unknown supplier being created, cancelling that does nothing, a cancel that is never held, shortages left open, any role allowed to cancel, an accountant unable to confirm, and the whole order-number unit guard removed). **Two of my own checks were wrong first:** my "quantity" case read "order **of** 50 sqm", which the order-number reader never looked at, so it did not exercise the guard at all; and removing one unit word from the guard changed nothing because `sq` independently blocked "sqm". Both were found because the mutation survived, and fixed (a phrasing where the guard matters, and removing the whole guard).
+
+**Two honest limits.** The reader that classifies a spoken sentence is a real language model and could not be run here: its prompt now describes the intent and gives an example, but "cancel the Floornet order" needs one real try on the phone (recorded in `OPEN_QUESTIONS.md`). And the Pending room labels a held action by its raw type, so it shows "CANCEL_ORDER" with the original sentence, as it already shows "STOCK_ADD" and "IDENTITY_COLLISION".

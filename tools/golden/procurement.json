@@ -2337,6 +2337,827 @@
   "writes": {},
   "effects": []
  },
+ "cancel order: owner, the supplier has one open order": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Cancel Floornet order #1 Vinyl and underlay (50 sqm Vinyl, 100 sqm Underlay not yet received)? Needs your confirmation (action #1) before it's cancelled.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "cancel_order",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "cancel the Floornet order",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "cancel the Floornet order",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "cancel_order",
+      "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\"}",
+      "status": "pending",
+      "source_transcript": "cancel the Floornet order"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "cancel order: owner, several open orders and no number, so it asks which": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Floornet has 2 open orders: #1 Vinyl and underlay (50 sqm Vinyl, 100 sqm Underlay not yet received); #2 Grout (20 bag Grout not yet received). Say \"cancel order\" and its number to pick one.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "cancel the Floornet order",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "cancel the Floornet order",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "cancel order: owner, several open orders and a number picks one": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Cancel Floornet order #2 Grout (20 bag Grout not yet received)? Needs your confirmation (action #1) before it's cancelled.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "cancel_order",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "cancel order 2 with Floornet",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "cancel order 2 with Floornet",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "cancel_order",
+      "payload": "{\"purchaseOrderId\":2,\"supplierId\":1,\"supplierName\":\"Floornet\"}",
+      "status": "pending",
+      "source_transcript": "cancel order 2 with Floornet"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "cancel order: owner, a number that is not one of the open orders": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Floornet has no open order #9. Open orders: #1 Vinyl and underlay (50 sqm Vinyl, 100 sqm Underlay not yet received); #2 Grout (20 bag Grout not yet received).",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "cancel order 9 with Floornet",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "cancel order 9 with Floornet",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "cancel order: owner, a number that is really a quantity is not an order number": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Cancel Floornet order #1 Vinyl and underlay (50 sqm Vinyl, 100 sqm Underlay not yet received)? Needs your confirmation (action #1) before it's cancelled.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "cancel_order",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "cancel the order of 50 sqm vinyl from Floornet",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "cancel the order of 50 sqm vinyl from Floornet",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "cancel_order",
+      "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\"}",
+      "status": "pending",
+      "source_transcript": "cancel the order of 50 sqm vinyl from Floornet"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "cancel order: owner, a number followed by a unit is a quantity, not an order number": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Floornet has 2 open orders: #1 Vinyl and underlay (50 sqm Vinyl, 100 sqm Underlay not yet received); #2 Grout (20 bag Grout not yet received). Say \"cancel order\" and its number to pick one.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "cancel the Floornet order 50 sqm of vinyl",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "cancel the Floornet order 50 sqm of vinyl",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "cancel order: owner, the supplier has nothing outstanding": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Floornet has no open orders to cancel.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "cancel the Floornet order",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "cancel the Floornet order",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "cancel order: owner, an order already cancelled is not offered again": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Floornet has no open orders to cancel.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "cancel the Floornet order",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "cancel the Floornet order",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "cancel order: owner, no supplier named": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I heard you want to cancel an order, but no supplier name came through — which supplier is it with?",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "cancel the order",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "cancel the order",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "cancel order: owner, a supplier nobody has heard of is not created": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I don't have Nobody Known as a supplier, so there is no order to cancel.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "cancel the Nobody Known order",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "cancel the Nobody Known order",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "cancel order: accountant": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Cancel Floornet order #1 Vinyl and underlay (50 sqm Vinyl, 100 sqm Underlay not yet received)? Needs your confirmation (action #1) before it's cancelled.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "cancel_order",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "cancel the Floornet order",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "cancel the Floornet order",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "cancel_order",
+      "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\"}",
+      "status": "pending",
+      "source_transcript": "cancel the Floornet order"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "cancel order: installer is refused": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "cancel order: a role with no permissions is refused": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "goods received: a delivery after the order was cancelled has no open order to match": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Delivery from Floornet: they have no open order, so it will be logged as a delivery exception once you confirm (action #1).",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "goods_received",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Floornet delivered the vinyl, 50 square metres",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Floornet delivered the vinyl, 50 square metres",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "goods_received",
+      "payload": "{\"purchaseOrderId\":0,\"supplierId\":1,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":null,\"quantity_received\":50,\"item_description\":\"vinyl\",\"unit\":\"sqm\"}]}",
+      "status": "pending",
+      "source_transcript": "Floornet delivered the vinyl, 50 square metres"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "supplier invoice: the only order was cancelled, so there is no open order": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I don't have an open purchase order on file for Floornet to bill this invoice against.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Floornet invoice for 50 sqm vinyl at 185",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Floornet invoice for 50 sqm vinyl at 185",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
  "supplier statement, spoken: owner": {
   "result": {
    "customer": null,

@@ -1108,6 +1108,356 @@
   },
   "effects": []
  },
+ "confirm order cancellation: owner": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "cancelled": {
+     "alreadyCancelled": false,
+     "closedShortages": 0
+    },
+    "message": "Cancelled Floornet order #1."
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "cancel_order",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\"}",
+       "status": "pending",
+       "source_transcript": "cancel the Floornet order"
+      },
+      "after": {
+       "id": 1,
+       "type": "cancel_order",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\"}",
+       "status": "confirmed",
+       "source_transcript": "cancel the Floornet order"
+      }
+     }
+    ]
+   },
+   "purchase_order_cancellations": {
+    "added": [
+     {
+      "purchase_order_id": 1,
+      "cancelled_by": "owner@example.com"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm order cancellation: it closes the open shortages of that order": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "cancelled": {
+     "alreadyCancelled": false,
+     "closedShortages": 1
+    },
+    "message": "Cancelled Floornet order #1. 1 open shortage on it closed with it."
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "cancel_order",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\"}",
+       "status": "pending",
+       "source_transcript": "cancel the Floornet order"
+      },
+      "after": {
+       "id": 1,
+       "type": "cancel_order",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\"}",
+       "status": "confirmed",
+       "source_transcript": "cancel the Floornet order"
+      }
+     }
+    ]
+   },
+   "purchase_order_cancellations": {
+    "added": [
+     {
+      "purchase_order_id": 1,
+      "cancelled_by": "owner@example.com"
+     }
+    ]
+   },
+   "variance_dispositions": {
+    "added": [
+     {
+      "id": 1,
+      "grn_line_item_id": 2,
+      "reason": "order cancelled",
+      "resolution": "cancelled",
+      "credit_amount": null,
+      "recorded_by": "owner@example.com",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm order cancellation: accountant": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "cancelled": {
+     "alreadyCancelled": false,
+     "closedShortages": 0
+    },
+    "message": "Cancelled Floornet order #1."
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "cancel_order",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\"}",
+       "status": "pending",
+       "source_transcript": "cancel the Floornet order"
+      },
+      "after": {
+       "id": 1,
+       "type": "cancel_order",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\"}",
+       "status": "confirmed",
+       "source_transcript": "cancel the Floornet order"
+      }
+     }
+    ]
+   },
+   "purchase_order_cancellations": {
+    "added": [
+     {
+      "purchase_order_id": 1,
+      "cancelled_by": "accountant@example.com"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm order cancellation: an installer is refused at the gate": {
+  "result": {
+   "status": 403,
+   "body": {
+    "error": "not available for your role"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "confirm order cancellation: confirmed twice": {
+  "result": {
+   "status": 409,
+   "body": {
+    "error": "action already confirmed"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "confirm order cancellation: the order was cancelled meanwhile": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "cancelled": {
+     "alreadyCancelled": true,
+     "closedShortages": 0
+    },
+    "message": "Floornet order #1 was already cancelled."
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "cancel_order",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\"}",
+       "status": "pending",
+       "source_transcript": "cancel the Floornet order"
+      },
+      "after": {
+       "id": 1,
+       "type": "cancel_order",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\"}",
+       "status": "confirmed",
+       "source_transcript": "cancel the Floornet order"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "reject order cancellation: nothing is cancelled": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "rejected",
+    "id": 1
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "cancel_order",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\"}",
+       "status": "pending",
+       "source_transcript": "cancel the Floornet order"
+      },
+      "after": {
+       "id": 1,
+       "type": "cancel_order",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\"}",
+       "status": "rejected",
+       "source_transcript": "cancel the Floornet order"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm a delivery that was held before its order was cancelled: it is received as an exception": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "goodsReceived": {
+     "grnId": 1,
+     "grnIds": [
+      1
+     ],
+     "variances": [],
+     "exceptions": [
+      {
+       "grnLineItemId": 1,
+       "description": "vinyl",
+       "quantity": 50
+      }
+     ],
+     "shortCount": 0,
+     "overCount": 0,
+     "notInStock": [
+      {
+       "name": "vinyl",
+       "unit": "sqm",
+       "quantity": 50
+      }
+     ]
+    },
+    "message": "Delivery recorded (GRN #1). 1 item(s) weren't on any order and were logged as delivery exceptions. Add to stock? vinyl (50 sqm) (action #3).",
+    "pendingActionId": 3,
+    "pendingActionType": "stock_add"
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "goods_received_notes": {
+    "added": [
+     {
+      "id": 1,
+      "purchase_order_id": 0,
+      "supplier_id": 2,
+      "source_transcript": "Floornet delivered the vinyl",
+      "recorded_by": "owner@example.com",
+      "capture_id": null
+     }
+    ]
+   },
+   "grn_line_items": {
+    "added": [
+     {
+      "id": 1,
+      "grn_id": 1,
+      "po_line_item_id": null,
+      "description": "vinyl [sqm]",
+      "quantity_received": 50,
+      "quantity_ordered": 0,
+      "variance": 50
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 3,
+      "type": "stock_add",
+      "payload": "{\"items\":[{\"name\":\"vinyl\",\"unit\":\"sqm\",\"quantity\":50}],\"supplierName\":\"Floornet\"}",
+      "status": "pending",
+      "source_transcript": "Add to stock? vinyl (50 sqm)"
+     }
+    ],
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "goods_received",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_received\":50,\"item_description\":\"vinyl\",\"unit\":\"sqm\"}]}",
+       "status": "pending",
+       "source_transcript": "Floornet delivered the vinyl"
+      },
+      "after": {
+       "id": 1,
+       "type": "goods_received",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_received\":50,\"item_description\":\"vinyl\",\"unit\":\"sqm\"}]}",
+       "status": "confirmed",
+       "source_transcript": "Floornet delivered the vinyl"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
  "confirm identity question: owner, the name belongs to an installer": {
   "result": {
    "status": 200,

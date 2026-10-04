@@ -32,6 +32,24 @@ module.exports = function cases(caps) {
     `);
   };
 
+  // Cancelling an order (decided 2026-10-04). Orders have no status column, so a cancellation is its own row, in a table the
+  // code creates the first time it is needed; a seed that needs one already there creates it the same way.
+  const cancellationDdl = `CREATE TABLE IF NOT EXISTS purchase_order_cancellations (purchase_order_id INTEGER PRIMARY KEY, cancelled_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')));`;
+  const twoOrders = (db) => {
+    withOrder(db);
+    db.exec(`
+      INSERT INTO purchase_orders (id, supplier_id, description, created_at) VALUES (2, 1, 'Grout', '2026-10-02 08:00:00');
+      INSERT INTO po_line_items (id, purchase_order_id, description, quantity_ordered, unit) VALUES (3, 2, 'Grout', 20, 'bag');
+    `);
+  };
+  const fullyDelivered = (db) => {
+    withOrder(db);
+    db.exec(`
+      INSERT INTO goods_received_notes (id, purchase_order_id, supplier_id, created_at) VALUES (1, 1, 1, '2026-10-02 09:00:00');
+      INSERT INTO grn_line_items (grn_id, po_line_item_id, description, quantity_received, quantity_ordered, variance) VALUES (1, 1, 'Vinyl', 50, 50, 0), (1, 2, 'Underlay', 100, 100, 0);
+    `);
+  };
+  const alreadyCancelled = (db) => { withOrder(db); db.exec(cancellationDdl + ` INSERT INTO purchase_order_cancellations (purchase_order_id, cancelled_by) VALUES (1, 'owner@example.com');`); };
   const POAI = (reply) => ({ match: /line_items is every distinct material/, reply });
   const GRAI = (reply) => ({ match: /quantity_received/, reply });
   const SIAI = (reply) => ({ match: /quantity_billed/, reply });
@@ -110,6 +128,25 @@ module.exports = function cases(caps) {
     c('variance disposition: accountant', 'accountant', withOneDiscrepancy, 'variance_disposition', sup(), 'the underlay shortage was short delivered',
       [VDAI({ matched_description: 'Underlay', reason: 'short_delivered', resolution: null, credit_amount: null })]),
     c('variance disposition: installer is refused', 'installer', withOneDiscrepancy, 'variance_disposition', sup(), 'the underlay shortage was short delivered', []),
+
+    // ---------------- cancel_order (a held action: it asks first, and never guesses which order) ----------------
+    c('cancel order: owner, the supplier has one open order', 'owner', withOrder, 'cancel_order', sup(), 'cancel the Floornet order', []),
+    c('cancel order: owner, several open orders and no number, so it asks which', 'owner', twoOrders, 'cancel_order', sup(), 'cancel the Floornet order', []),
+    c('cancel order: owner, several open orders and a number picks one', 'owner', twoOrders, 'cancel_order', sup(), 'cancel order 2 with Floornet', []),
+    c('cancel order: owner, a number that is not one of the open orders', 'owner', twoOrders, 'cancel_order', sup(), 'cancel order 9 with Floornet', []),
+    c('cancel order: owner, a number that is really a quantity is not an order number', 'owner', withOrder, 'cancel_order', sup(), 'cancel the order of 50 sqm vinyl from Floornet', []),
+    c('cancel order: owner, a number followed by a unit is a quantity, not an order number', 'owner', twoOrders, 'cancel_order', sup(), 'cancel the Floornet order 50 sqm of vinyl', []),
+    c('cancel order: owner, the supplier has nothing outstanding', 'owner', fullyDelivered, 'cancel_order', sup(), 'cancel the Floornet order', []),
+    c('cancel order: owner, an order already cancelled is not offered again', 'owner', alreadyCancelled, 'cancel_order', sup(), 'cancel the Floornet order', []),
+    c('cancel order: owner, no supplier named', 'owner', withOrder, 'cancel_order', {}, 'cancel the order', []),
+    c('cancel order: owner, a supplier nobody has heard of is not created', 'owner', withOrder, 'cancel_order', sup('Nobody Known'), 'cancel the Nobody Known order', []),
+    c('cancel order: accountant', 'accountant', withOrder, 'cancel_order', sup(), 'cancel the Floornet order', []),
+    c('cancel order: installer is refused', 'installer', withOrder, 'cancel_order', sup(), 'cancel the Floornet order', []),
+    c('cancel order: a role with no permissions is refused', 'stranger', withOrder, 'cancel_order', sup(), 'cancel the Floornet order', []),
+    // what a cancelled order stops doing
+    c('goods received: a delivery after the order was cancelled has no open order to match', 'owner', alreadyCancelled, 'goods_received', sup(), 'Floornet delivered the vinyl, 50 square metres',
+      [GRAI({ supplier_name: 'Floornet', line_items: [{ matched_description: 'Vinyl', item_description: 'vinyl', unit: 'sqm', quantity_received: 50 }] })]),
+    c('supplier invoice: the only order was cancelled, so there is no open order', 'owner', alreadyCancelled, 'supplier_invoice', sup(), 'Floornet invoice for 50 sqm vinyl at 185', []),
 
     // ---------------- supplier_statement, spoken ----------------
     c('supplier statement, spoken: owner', 'owner', withOrder, 'supplier_statement', sup(), 'Floornet sent their statement, it says we owe R20000', []),

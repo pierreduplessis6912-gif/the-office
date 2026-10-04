@@ -3,23 +3,13 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 2 applied).
+decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 3 applied).
 
 ## A. Decisions only Pierre can make
 
-1. **Does a reason alone close a shortage?** Today any variance disposition counts as "resolved", including one that
-   records only a reason (for example "damaged") with no back order and no credit, so the shortage leaves the open list
-   and the exception report. It looks deliberate (naming why is documentation), but it means a shortage can leave the
-   report without being credited or back-ordered. *Options:* keep; or only a back order or a credit closes it, a bare
-   reason leaves it open. (`DECISIONS.md`, "Rewrite Phase 2, procurement".)
-2. **Does a plain acceptance write off the remainder?** A shortage resolved as accepted, or with a reason only, records
-   it but leaves the quantity *outstanding*, so a later delivery of that item is matched to that old order. Only an
-   explicit credit writes the remainder off. *Options:* keep (credit or nothing); or treat "accepted" as a write-off too.
 3. **Units do not convert.** A delivery in boxes against an order in square metres is compared number to number, and
    stock quantities are added in the delivery's unit. *Options:* a per-item conversion factor (a box is 5 m2) captured
    once; or require orders and deliveries in the same unit.
-4. **No explicit "close this order".** An order completes only by being delivered or credited. A cancelled or abandoned
-   order stays outstanding and keeps attracting deliveries. *Option:* a spoken "cancel the Floornet order".
 5. **Supplier invoices are checked against the latest order only**, and against a single order. Deliveries now match
    across all outstanding orders; invoices still do not. *Option:* the same oldest-first matching for invoices.
 6. **"Add to stock?" is one question per delivery**, all or nothing, and is not asked retroactively. Each new
@@ -76,6 +66,10 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
 
 
 
+
+39. **A cancelled order cannot be reopened.** To order the same thing again, place a new order. Cancelling is a held
+    action and is recorded with who cancelled it, but there is no "uncancel". *Option:* a spoken "reopen the Floornet
+    order".
 ## B. Needs a live check only a phone can give
 
 12. **The Codemagic rebuild**: the Confirm/Reject buttons for a follow-up question raised by a confirm ("Add to stock?",
@@ -84,6 +78,9 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     tests, never run on a real delivery note with two orders.
 15. **The Permissions screen on a real phone.** The web build compiles it; the phone build and a real tap-through are
     unverified (switch something off for the installer, then check on the installer's phone that the room is gone).
+14a. **A real "cancel the Floornet order".** The reader that classifies a spoken sentence is a real language model and could
+    not be run here; its prompt describes the new intent and gives an example, but it needs one real try on the phone, and
+    one with several open orders (it should list them and ask for a number).
 14. **A real "add to stock?" round trip** (order something that is not stock, deliver it, confirm the delivery, answer).
 
 ## C. Unverified claims that the new harness can now settle
@@ -112,6 +109,13 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
 
 ## Settled (kept so the reasoning is not lost)
+
+- 2026-10-04, decided by Pierre (decisions session, round 3):
+  - **A reason alone still closes a shortage** (kept as it is).
+  - **Only a credit writes off a shortage; accepting one does not** (kept as it is).
+  - **Cancelling an order: built** as a spoken, held action that names the order, never guesses between several, never
+    creates a supplier, closes the order's open shortages and stops the order attracting deliveries. All 414 existing
+    recordings are unchanged. (`DECISIONS.md`, "Decisions session, round 3".)
 
 - 2026-10-04, decided by Pierre (decisions session, round 2):
   - **Stock, snag and lead sentences stay out of notes too** (they join the money intents). Applied; 53 recordings differ only

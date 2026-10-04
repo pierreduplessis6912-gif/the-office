@@ -266,8 +266,9 @@ export async function findLatestOpenPurchaseOrder(
   env: Env,
   supplierId: number
 ): Promise<{ id: number; description: string } | null> {
+  await ensureCancellationTable(env);
   const result = await env.OFFICE_DB.prepare(
-    "SELECT id, description FROM purchase_orders WHERE supplier_id = ? ORDER BY created_at DESC LIMIT 1"
+    "SELECT id, description FROM purchase_orders WHERE supplier_id = ? AND id NOT IN (SELECT purchase_order_id FROM purchase_order_cancellations) ORDER BY created_at DESC LIMIT 1"
   )
     .bind(supplierId)
     .first<{ id: number; description: string }>();
@@ -479,6 +480,7 @@ export interface OutstandingLine {
 // Every order line of this supplier that still has something outstanding, oldest
 // order first (so a delivery fills the oldest order before the next).
 export async function getOutstandingOrderLines(env: Env, supplierId: number): Promise<OutstandingLine[]> {
+  await ensureCancellationTable(env);
   const { results } = await env.OFFICE_DB.prepare(
     `SELECT pl.id AS po_line_id, pl.purchase_order_id AS po_id, pl.description AS description,
             pl.quantity_ordered AS ordered, pl.unit AS unit,
@@ -489,6 +491,7 @@ export async function getOutstandingOrderLines(env: Env, supplierId: number): Pr
        FROM po_line_items pl
        JOIN purchase_orders po ON po.id = pl.purchase_order_id
       WHERE po.supplier_id = ?
+        AND po.id NOT IN (SELECT purchase_order_id FROM purchase_order_cancellations)
       ORDER BY po.created_at ASC, po.id ASC, pl.id ASC`
   )
     .bind(supplierId)
@@ -509,6 +512,97 @@ export async function getOutstandingOrderLines(env: Env, supplierId: number): Pr
 
 // What the extractor is shown to match a delivery against: one entry per distinct
 // item (case-insensitive), carrying the total still outstanding across orders.
+// ---------------------------------------------------------------------------------------------------------------------------
+// Cancelling an order. Decided by Pierre 2026-10-04: an order used to finish only by being delivered or credited, so an
+// abandoned one stayed outstanding for ever and kept attracting deliveries. A cancellation is its own small row (orders have
+// no status column), created the first time it is needed so there is no migration to run by hand. A cancelled order is no
+// longer outstanding, is no longer "the latest open order", and its open shortages are closed with it, because the rest is
+// no longer expected.
+// ---------------------------------------------------------------------------------------------------------------------------
+const cancellationTableReady = new WeakSet<object>();
+
+export async function ensureCancellationTable(env: Env): Promise<void> {
+  // Remembered per database handle, never per process: a different database (a test's, a fresh one) has not got the table.
+  if (cancellationTableReady.has(env.OFFICE_DB as unknown as object)) return;
+  await env.OFFICE_DB.prepare(
+    "CREATE TABLE IF NOT EXISTS purchase_order_cancellations (purchase_order_id INTEGER PRIMARY KEY, cancelled_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))"
+  ).run();
+  cancellationTableReady.add(env.OFFICE_DB as unknown as object);
+}
+
+export interface OpenOrder {
+  id: number;
+  description: string;
+  lines: Array<{ description: string; outstanding: number; unit: string | null }>;
+}
+
+// The supplier's orders that still have something outstanding, oldest first.
+export async function getOpenOrdersForSupplier(env: Env, supplierId: number): Promise<OpenOrder[]> {
+  const lines = await getOutstandingOrderLines(env, supplierId);
+  const ids = [...new Set(lines.map((l) => l.poId))];
+  if (ids.length === 0) return [];
+  const { results } = await env.OFFICE_DB.prepare(
+    `SELECT id, description FROM purchase_orders WHERE id IN (${ids.map(() => "?").join(",")})`
+  )
+    .bind(...ids)
+    .all<{ id: number; description: string }>();
+  const description = new Map((results ?? []).map((r) => [r.id, r.description]));
+  return ids.map((id) => ({
+    id,
+    description: description.get(id) ?? "",
+    lines: lines.filter((l) => l.poId === id).map((l) => ({ description: l.description, outstanding: l.outstanding, unit: l.unit })),
+  }));
+}
+
+export function describeOpenOrder(order: OpenOrder): string {
+  const left = order.lines.map((l) => `${l.outstanding}${l.unit ? ` ${l.unit}` : ""} ${l.description}`).join(", ");
+  return `#${order.id} ${order.description} (${left} not yet received)`;
+}
+
+// "cancel order 3", "cancel PO #3", "scrap order number 3". A number that is really a quantity ("cancel the order of 50
+// sqm vinyl") is not an order number, so a number followed by a unit is ignored. Whatever is read, the person is shown the
+// order before anything is cancelled, so a wrong reading is visible and can be rejected.
+export function parseOrderNumber(text: string): number | null {
+  const unit = "(?!\\s*(?:sqm|m2|m²|square|sq|metres?|meters?|bags?|rolls?|boxes|box|lengths?|tiles?|pcs|pieces|units|litres?|l\\b|kg))";
+  const named = text.match(new RegExp(`\\b(?:order|po|p\\.o\\.)\\s*(?:number|no\\.?|#)?\\s*#?\\s*(\\d{1,6})\\b${unit}`, "i"));
+  if (named) return Number(named[1]);
+  const hashed = text.match(new RegExp(`#\\s*(\\d{1,6})\\b${unit}`));
+  return hashed ? Number(hashed[1]) : null;
+}
+
+export async function cancelPurchaseOrder(
+  env: Env,
+  purchaseOrderId: number,
+  cancelledBy: string | null
+): Promise<{ alreadyCancelled: boolean; closedShortages: number }> {
+  await ensureCancellationTable(env);
+  const already = await env.OFFICE_DB.prepare("SELECT purchase_order_id FROM purchase_order_cancellations WHERE purchase_order_id = ?")
+    .bind(purchaseOrderId)
+    .first<{ purchase_order_id: number }>();
+  if (already) return { alreadyCancelled: true, closedShortages: 0 };
+  await env.OFFICE_DB.prepare("INSERT INTO purchase_order_cancellations (purchase_order_id, cancelled_by) VALUES (?, ?)")
+    .bind(purchaseOrderId, cancelledBy)
+    .run();
+  // A short delivery on an order that is now cancelled is no longer an exception: close each open shortage with the order.
+  const { results } = await env.OFFICE_DB.prepare(
+    `SELECT g.id AS id
+       FROM grn_line_items g
+       JOIN goods_received_notes n ON n.id = g.grn_id
+      WHERE n.purchase_order_id = ? AND g.variance < 0
+        AND NOT EXISTS (SELECT 1 FROM variance_dispositions vd WHERE vd.grn_line_item_id = g.id)`
+  )
+    .bind(purchaseOrderId)
+    .all<{ id: number }>();
+  for (const row of results ?? []) {
+    await env.OFFICE_DB.prepare(
+      "INSERT INTO variance_dispositions (grn_line_item_id, reason, resolution, recorded_by) VALUES (?, 'order cancelled', 'cancelled', ?)"
+    )
+      .bind(row.id, cancelledBy)
+      .run();
+  }
+  return { alreadyCancelled: false, closedShortages: (results ?? []).length };
+}
+
 export function candidateOrderLines(
   outstanding: OutstandingLine[]
 ): Array<{ description: string; quantity_ordered: number; unit: string | null }> {

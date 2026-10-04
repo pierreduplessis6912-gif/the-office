@@ -26,7 +26,7 @@ if (ENFORCE_CAPABILITIES !== true) throw new Error('test is not running with the
 
 const actionTypes = { 1:'job_scope_amendment', 2:'project_ambiguity', 3:'goods_received', 4:'ambiguous_person', 5:'customer_fact', 6:'identity_collision',
   7:'payment', 8:'invoice', 9:'quotation', 10:'expense', 11:'supplier_invoice', 12:'supplier_payment', 13:'variance_disposition', 14:'convert_quote',
-  15:'character_fact', 16:'imported_invoice', 17:'schema_candidate', 18:'some_future_type', 19:'stock_add' };
+  15:'character_fact', 16:'imported_invoice', 17:'schema_candidate', 18:'some_future_type', 19:'stock_add', 20:'cancel_order' };
 // A stand-in database: pending actions by id for the confirm routes, and no permission-grid overrides (the defaults apply).
 const env = { OFFICE_DB: { prepare: () => ({ run: async () => ({}), bind: (id) => ({ first: async () => actionTypes[id] ? { type: actionTypes[id] } : null, all: async () => ({ results: [] }), run: async () => ({}) }) }) } };
 
@@ -127,6 +127,9 @@ async function expect(role, method, path, want) {
     // Decision 2, upload path (2026-10-02): a supplier statement returns the real balance owed to
     // a supplier, so it is money and needs can_manage_invoices. (A spoken one records nothing.)
     'installer:supplier_statement', 'stranger:supplier_statement',
+    // Decision 9 (2026-10-04): a spoken order cancellation is money-gated like placing the order (the old logic allowed
+    // any intent it did not know).
+    'installer:cancel_order', 'stranger:cancel_order',
   ]);
   const probes = [...unionIntents, null, undefined, '', 'some_future_intent', 'constructor', '__proto__', 'toString'];
   for (const role of ['owner', 'accountant', 'installer', 'stranger'])
@@ -397,7 +400,7 @@ async function expect(role, method, path, want) {
   // the outstanding query, against a fake: only lines with something left, oldest order first, sums read from the database
   const outRows = [ { po_line_id: 1, po_id: 1, description: 'Grout', ordered: 20, unit: 'bag', received: 20 }, { po_line_id: 2, po_id: 2, description: 'Vinyl', ordered: 10, unit: 'sqm', received: 4 }, { po_line_id: 3, po_id: 3, description: 'Vinyl', ordered: 10, unit: 'sqm', received: 0 } ];
   let outSql = '', outBind = null;
-  const outEnv = { OFFICE_DB: { prepare: (sql) => ({ bind: (...b) => { outSql = sql; outBind = b; return { all: async () => ({ results: outRows }) }; } }) } };
+  const outEnv = { OFFICE_DB: { prepare: (sql) => ({ run: async () => ({}), bind: (...b) => { outSql = sql; outBind = b; return { all: async () => ({ results: outRows }) }; } }) } };
   const outstandingNow = await getOutstandingOrderLines(outEnv, 11);
   check(outstandingNow.length === 2 && outstandingNow[0].poLineId === 2 && outstandingNow[0].outstanding === 6 && outstandingNow[1].outstanding === 10, 'outstanding: a complete line drops out, a part-delivered one shows what remains, oldest order first');
   check(outBind[0] === 11 && /ORDER BY po\.created_at ASC/.test(outSql) && /SUM\(g\.quantity_received\)/.test(outSql) && !/INSERT|UPDATE|DELETE/i.test(outSql), 'outstanding: read-only, per supplier, oldest first, received summed across every delivery');
@@ -405,7 +408,7 @@ async function expect(role, method, path, want) {
   // a back order, or a reason with no resolution, stays outstanding. Only an explicit credit closes the remainder.
   const woRows = [ { po_line_id: 1, po_id: 1, description: 'Grout', ordered: 20, unit: 'bag', received: 15, written_off: 5 }, { po_line_id: 2, po_id: 2, description: 'Underlay', ordered: 100, unit: 'roll', received: 50, written_off: 0 }, { po_line_id: 3, po_id: 3, description: 'Skirting', ordered: 10, unit: 'length', received: 8 } ];
   let woSql = '';
-  const woEnv = { OFFICE_DB: { prepare: (sql) => ({ bind: () => { woSql = sql; return { all: async () => ({ results: woRows }) }; } }) } };
+  const woEnv = { OFFICE_DB: { prepare: (sql) => ({ run: async () => ({}), bind: () => { woSql = sql; return { all: async () => ({ results: woRows }) }; } }) } };
   const woOut = await getOutstandingOrderLines(woEnv, 11);
   check(!woOut.some((l) => l.description === 'Grout'), 'outstanding: a credited shortfall (15 of 20 received, 5 credited) is no longer outstanding');
   check(woOut.find((l) => l.description === 'Underlay').outstanding === 50 && woOut.find((l) => l.description === 'Skirting').outstanding === 2, 'outstanding: an uncredited shortfall stays outstanding, and a missing write-off figure counts as none');
@@ -586,7 +589,7 @@ async function expect(role, method, path, want) {
   // conversions and deliveries were never added, and an installer's lookup of a supplier was built from
   // "paid Floornet R10000" (reproduced with the characterization harness). The rule is now derived from INTENT_RULES.
   const { intentKeepsOutOfNotes } = require(compiled);
-  const MONEY_AND_STRUCTURED = ['payment', 'expense', 'invoice', 'quotation', 'price_scope', 'convert_quote', 'supplier_invoice', 'supplier_payment', 'variance_disposition', 'purchase_order', 'goods_received', 'supplier_statement', 'work_observation', 'register_stock_item', 'stock_usage', 'stocktake', 'raise_snag', 'resolve_snag', 'raise_lead', 'lose_lead'];   // the last seven: stock, snags and leads, decided by Pierre 2026-10-04   // supplier_statement is money-gated (it returns the real balance owed), so its words stay out of ungated notes too
+  const MONEY_AND_STRUCTURED = ['payment', 'expense', 'invoice', 'quotation', 'price_scope', 'convert_quote', 'supplier_invoice', 'supplier_payment', 'variance_disposition', 'purchase_order', 'goods_received', 'supplier_statement', 'work_observation', 'register_stock_item', 'stock_usage', 'stocktake', 'raise_snag', 'resolve_snag', 'raise_lead', 'lose_lead', 'cancel_order'];   // the last seven: stock, snags and leads, decided by Pierre 2026-10-04   // supplier_statement is money-gated (it returns the real balance owed), so its words stay out of ungated notes too
   for (const i of unionIntents) check(intentKeepsOutOfNotes(i) === MONEY_AND_STRUCTURED.includes(i), `intent "${i}": ${MONEY_AND_STRUCTURED.includes(i) ? 'must keep its transcript out of notes (it has structured, gated storage)' : 'is narrative and may still be noted'}`);
   check([null, undefined, '', 'some_future_intent', 'constructor', '__proto__'].every((x) => intentKeepsOutOfNotes(x) === false), 'a value that is not an intent is never treated as having structured storage');
   for (const [i, r] of Object.entries(INTENT_RULES)) if (Array.isArray(r.create) && r.create.includes('can_manage_invoices')) check(intentKeepsOutOfNotes(i) === true, `"${i}" needs can_manage_invoices to create, so it is money and must be kept out of notes (a new gated money intent is covered automatically)`);

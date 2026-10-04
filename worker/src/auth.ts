@@ -366,6 +366,7 @@ export const ACTION_TYPE_CAPABILITY: Record<string, string[]> = {
   // "Add this delivery to stock?" (decided 2026-10-03, Pierre: ask on delivery). Anyone who may know
   // materials may answer it, since stock is gated by can_know_materials everywhere else too.
   stock_add: ["can_know_materials"],
+  cancel_order: ["can_manage_invoices"],
   job_scope_amendment: ["can_know_jobs"],
   project_ambiguity: ["can_know_jobs"],
   // Identity questions can come up in either role's dictation.
@@ -451,6 +452,8 @@ export const INTENT_RULES: Record<Extraction["intent"], IntentRule> = {
   variance_disposition: { produces: ["variance_disposition"], create: ["can_manage_invoices"], refusal: MONEY_REFUSAL },
   // A direct write with no held action: this creation gate is its ONLY gate.
   purchase_order: { produces: [], create: ["can_manage_invoices"], refusal: MONEY_REFUSAL },
+  // Cancelling is a held action (destructive, so it asks first), gated like placing the order.
+  cancel_order: { produces: ["cancel_order"], create: ["can_manage_invoices"], refusal: MONEY_REFUSAL },
   // Decision recorded 2026-10-02 (Pierre): installers may dictate goods
   // received. They already confirm deliveries on site, and the upload path
   // already lets any member record a delivery note, so refusing dictation

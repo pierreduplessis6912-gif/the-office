@@ -464,6 +464,10 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             'delivery being billed. A statement covers the whole real account, not one delivery. Same ' +
             'character_name convention — the supplier goes in character_name with character_relationship ' +
             '"supplier". ' +
+            'intent is "cancel_order" if the message CANCELS or calls off an order that was already placed with a ' +
+            'supplier, for example "cancel the Floornet order", "call off the vinyl order with Floornet" or "scrap order 3". ' +
+            'Put the supplier in character_name with character_relationship "supplier" and leave customer_name null. This ' +
+            'differs from purchase_order, which PLACES an order. ' +
             'intent is "forget_last" if the message asks to disregard, undo, or move on from whatever was ' +
             'just said — "forget that last one", "never mind", "ignore that", "scratch that", "let\'s move ' +
             'on" — with no real new business content of its own. This is about the PREVIOUS message, not ' +
@@ -556,6 +560,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             '"Jenny paid R850" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"payment","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"bought glue for R850 at BUCO" -> {"customer_name":null,"character_name":"BUCO","character_relationship":"supplier","intent":"expense","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"paid Floornet R5000 off their account" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"supplier_payment","amount":5000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
+            '"cancel the Floornet order" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"cancel_order","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"order 160 square meters of carpet tile from Floornet at R380 a square meter" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"purchase_order","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"the Floornet delivery arrived, but the underlay was short" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"goods_received","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"got Floornet\'s invoice for that delivery" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"supplier_invoice","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
@@ -590,7 +595,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             "Return ONLY JSON, no markdown, no explanation: " +
             '{"customer_name": string or null, "character_name": string or null, "character_relationship": ' +
             'string or null, "intent": "payment" or "invoice" or "quotation" or "convert_quote" or ' +
-            '"price_scope" or "work_observation" or "lookup" or "reminder" or "task_complete" or "expense" or "note" or "purchase_order" or "goods_received" or "supplier_invoice" or "variance_disposition" or "supplier_payment" or "register_stock_item" or "stock_usage" or "stocktake" or "raise_snag" or "resolve_snag" or "raise_lead" or "lose_lead" or "supplier_statement" or "forget_last" or "other", "amount": number or null, ' +
+            '"price_scope" or "work_observation" or "lookup" or "reminder" or "task_complete" or "expense" or "note" or "purchase_order" or "goods_received" or "supplier_invoice" or "variance_disposition" or "supplier_payment" or "register_stock_item" or "stock_usage" or "stocktake" or "raise_snag" or "resolve_snag" or "raise_lead" or "lose_lead" or "cancel_order" or "supplier_statement" or "forget_last" or "other", "amount": number or null, ' +
             '"fact_key": string or null, "fact_value": string or null, "personal_note": string or null, ' +
             '"query_scope": "customer" or "character" or "personal" or "business" or null, "deposit_percent": ' +
             'number or null, "scope_document_type": "quotation" or "invoice" or null, "due_date_raw": ' +

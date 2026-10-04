@@ -45,6 +45,12 @@ module.exports = function cases(caps) {
   };
   const seededRow = (type, payload) => (db) => { base(db); db.prepare("INSERT INTO pending_actions (id, type, payload, source_transcript, status, created_at) VALUES (1, ?, ?, 'a seeded action', 'pending', '2026-10-03 10:00:00')").run(type, payload); };
 
+  const cancellationDdl = `CREATE TABLE IF NOT EXISTS purchase_order_cancellations (purchase_order_id INTEGER PRIMARY KEY, cancelled_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')));`;
+  const cancelledMeanwhile = (db) => {
+    withOrder(db);
+    db.exec(cancellationDdl + ` INSERT INTO purchase_order_cancellations (purchase_order_id, cancelled_by) VALUES (1, 'owner@example.com');
+      INSERT INTO pending_actions (id, type, payload, source_transcript, status, created_at) VALUES (1, 'cancel_order', '{"purchaseOrderId":1,"supplierId":2,"supplierName":"Floornet"}', 'cancel the Floornet order', 'pending', '2026-10-03 10:00:00');`);
+  };
   const OBS = (reply) => ({ match: /Extract the structure of a tradesperson's job observation/, reply });
   const LINES = (reply) => ({ match: /Extract every distinct line item from a tradesperson's quotation or invoice description/, reply });
   const GRAI = (reply) => ({ match: /quantity_received/, reply });
@@ -86,6 +92,17 @@ module.exports = function cases(caps) {
       [VDAI({ matched_description: 'Underlay', reason: 'short_delivered', resolution: 'credit', credit_amount: 2000 })]),
     r('confirm stock question: owner adds the delivered item to stock', withOrder, '/actions/2/confirm', [say('Floornet delivered the vinyl', { intent: 'goods_received', ...floornet }), confirm(1)], [vinylDelivery]),
     r('reject stock question: the item is declined', withOrder, '/actions/2/reject', [say('Floornet delivered the vinyl', { intent: 'goods_received', ...floornet }), confirm(1)], [vinylDelivery]),
+
+    // ---------------- cancelling an order ----------------
+    r('confirm order cancellation: owner', withOrder, '/actions/1/confirm', [say('cancel the Floornet order', { intent: 'cancel_order', ...floornet })], []),
+    r('confirm order cancellation: it closes the open shortages of that order', withDiscrepancy, '/actions/1/confirm', [say('cancel the Floornet order', { intent: 'cancel_order', ...floornet })], []),
+    r('confirm order cancellation: accountant', withOrder, '/actions/1/confirm', [say('cancel the Floornet order', { intent: 'cancel_order', ...floornet })], [], { role: 'accountant' }),
+    r('confirm order cancellation: an installer is refused at the gate', withOrder, '/actions/1/confirm', [say('cancel the Floornet order', { intent: 'cancel_order', ...floornet })], [], { role: 'installer' }),
+    r('confirm order cancellation: confirmed twice', withOrder, '/actions/1/confirm', [say('cancel the Floornet order', { intent: 'cancel_order', ...floornet }), confirm(1)], []),
+    r('confirm order cancellation: the order was cancelled meanwhile', cancelledMeanwhile, '/actions/1/confirm', [], []),
+    r('reject order cancellation: nothing is cancelled', withOrder, '/actions/1/reject', [say('cancel the Floornet order', { intent: 'cancel_order', ...floornet })], []),
+    r('confirm a delivery that was held before its order was cancelled: it is received as an exception', withOrder, '/actions/1/confirm',
+      [say('Floornet delivered the vinyl', { intent: 'goods_received', ...floornet }), say('cancel the Floornet order', { intent: 'cancel_order', ...floornet }), confirm(2)], [vinylDelivery]),
 
     // ---------------- who is this? ----------------
     r('confirm identity question: owner, the name belongs to an installer', base, '/actions/1/confirm', [say('Jabulani called about a job', { intent: 'note', customer_name: 'Jabulani' })], []),
