@@ -4678,6 +4678,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       // still using the default (full-access) capabilities, unlike
       // /messages/text, which already resolves the real session.
       const { capabilities: voiceCapabilities, email: voiceEmail } = await resolveCapabilities(request, env);
+      // Found by the characterization recordings 2026-10-04: when the transcription failed or came back empty, the audio was
+      // stored but NOTHING was written to the database, so no record pointed at the file and it could never be found or
+      // retried, while the person was told it had been received. Documents and photos have always logged a capture before
+      // anything else; audio only did so inside a successful transcription.
+      if (!transcript) await logCapture(env, "[voice note — transcription unavailable]", "voice", key);
       const processed = transcript
         ? await processTranscript(env, transcript, ctx, history, "voice", key, voiceCapabilities, voiceEmail)
         : {

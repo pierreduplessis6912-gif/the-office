@@ -3,7 +3,7 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (the function, its caller and the confirm and reject routes are characterized).
+decision, and say where it was applied. Last updated 2026-10-04 (dictation, confirmation and uploads are all characterized).
 
 ## A. Decisions only Pierre can make
 
@@ -105,16 +105,21 @@ decision, and say where it was applied. Last updated 2026-10-04 (the function, i
 
 ## E. Engineering
 
-19. **Characterization coverage.** All of `processOneExtraction` is recorded (about 260 cases), its first caller
-    `processTranscript` (19 cases), and the confirm and reject routes (51 cases, through the real request handler and
-    the real auth gate). **Still not recorded:** the upload handlers (item 20) and the remaining routes around them
-    (the list screens, the document downloads, sign-in).
-20. **The upload handlers (`/files/document`, `/files/photo`) are not characterized**; they are separate code with
-    their own tests by source pattern only.
-21. **Phase 3 itself** (the first real handler reproducing its recording exactly) has not started.
+19. **Characterization coverage.** All of `processOneExtraction` is recorded (about 260 cases), its caller
+    `processTranscript` (19), the confirm and reject routes (51) and the upload handlers (50: documents, photos, voice
+    notes, with real PDFs and document-versus-photo pairs). About 380 cases in all, run through the real request handler
+    and the real auth gate where a route is involved.
+20. **Not recorded: the remaining routes.** The list screens, the document downloads (the PDF renderer), sign-in, and the
+    `/admin` and `/debug` routes. The risky paths (dictation, confirmation, uploads) are all recorded.
+21. **Phase 3 itself** (the first real handler reproducing its recording exactly) has not started. **Recommended first
+    move:** the supplier-document decision section that exists twice, identically, in the document and photo upload
+    handlers (131 lines): it is fully recorded, duplicated, and a single shared function removes the chance of the copies
+    drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
 
 ## Settled (kept so the reasoning is not lost)
 
+- 2026-10-04: a voice note whose transcription failed left no database record (the file was stored and unfindable). It now
+  logs a capture, as documents and photos always did. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
 - 2026-10-04: a refused answer to a near-match or project question left the action stuck as "processing" for ever, and an
   installer could consume or reject a question about a payment they may not record, losing the payment. Both fixed.
   (`DECISIONS.md`, "Rewrite Phase 2, the confirm and reject routes".)

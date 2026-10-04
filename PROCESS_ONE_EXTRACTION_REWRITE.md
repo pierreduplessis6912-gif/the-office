@@ -306,3 +306,7 @@ Traced after the fact, in `POST /files/document` (index.ts ~4800–4860), by rea
 The characterization harness exists and runs in CI on Node 22. Recorded: the payments group and `convert_quote` (29 cases). It found and fixed a real leak (see "Rewrite Phase 2" in `DECISIONS.md`). **Next:** record the groups that need a scripted model (procurement, then invoicing and pricing, observations, lookups), then stock, snags and leads, and the identity holds. Only when a group is fully recorded does it become a candidate for Phase 3 (the first real handler, reproducing its recording exactly).
 
 **Open questions** for this work and the surrounding product are kept in one place: `OPEN_QUESTIONS.md` at the repository root. Read it before starting any phase.
+
+### Status update (2026-10-04, end of Phase 2)
+
+Phase 2 is complete for everything that matters: the function (about 260 cases), its caller (19), the confirm and reject routes (51) and the upload handlers (50) are recorded, through the real request handler and the real auth gate where a route is involved. It found and fixed roughly twenty real defects along the way (see `DECISIONS.md`). **Phase 3, the first real handler, is ready to start.** Recommended first move: the 131-line supplier-document decision section that exists twice, identically, in the document and photo upload handlers, because it is fully recorded, duplicated, and self-contained. The recordings are its specification: the new function must reproduce all 50 upload cases exactly, and the document-versus-photo pairs must keep passing.

@@ -2274,7 +2274,22 @@
    ""
   ],
   "backgroundErrors": [],
-  "writes": {},
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "[voice note — transcription unavailable]",
+      "source": "voice",
+      "subject_hint": null,
+      "extraction_status": "unprocessed",
+      "r2_key": "voice-notes/1791028800000-00000000-0000-4000-8000-000000000001.m4a",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
   "effects": [
    {
     "r2": "put",
@@ -2305,7 +2320,22 @@
    ""
   ],
   "backgroundErrors": [],
-  "writes": {},
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "[voice note — transcription unavailable]",
+      "source": "voice",
+      "subject_hint": null,
+      "extraction_status": "unprocessed",
+      "r2_key": "voice-notes/1791028800000-00000000-0000-4000-8000-000000000001.m4a",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
   "effects": [
    {
     "r2": "put",
