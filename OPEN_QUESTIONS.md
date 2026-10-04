@@ -3,7 +3,7 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (later).
+decision, and say where it was applied. Last updated 2026-10-04 (later still).
 
 ## A. Decisions only Pierre can make
 
@@ -47,6 +47,21 @@ decision, and say where it was applied. Last updated 2026-10-04 (later).
 26. **A job scope with no customer is recorded** when only an installer or a date is heard and there is nothing in the same
     message to attach it to. It is findable only by its installer or date. May be intended (to be attached later); worth
     confirming.
+27. **An installer can see expense totals and the aged-creditors breakdown (what we owe each supplier) through a business
+    question**, because both are gated by `can_know_materials`, while the supplier screen needs `can_manage_invoices`.
+    The same data is reachable at two different strengths. *Options:* gate the creditors part by `can_manage_invoices`; or
+    accept it for expenses and not for balances. (`DECISIONS.md`, "Rewrite Phase 2, lookups".)
+28. **Notes written before the notes fix still hold money and are still readable by an installer.** The fix stops new
+    leaks (supplier payments, quote conversions and so on) but does not clean what is stored. *Options:* a one-off admin
+    scrub of existing notes that look like money (list them first, then remove); or filter at read time.
+29. **A material's last price, and which supplier charged it, is ungated.** Any role, including one with no permissions,
+    can ask. *Option:* gate by `can_know_materials` or `can_manage_invoices`.
+30. **A person's details (cell, address and so on) are shown to every role, and `can_know_payroll` and `can_know_banking`
+    are defined but never checked anywhere.** Harmless while no payroll data is stored; a day rate or a bank detail saved
+    as a "detail" would be visible to everyone. *Option:* gate the sensitive detail keys, or use the two unused
+    capabilities for them.
+31. **A broad financial question from an installer still opens the snapshot screen** (its data is gated, so it shows
+    nothing). A cosmetic mismatch. Also: "There are 1 quotations on file" has a plural slip.
 11. **An installer's scheduling message that the classifier labels "invoice" is refused outright.** Set aside on
     2026-10-03 as unproven (it was only ever seen in a code comment). Reopen if a real one is refused.
 
@@ -73,7 +88,7 @@ decision, and say where it was applied. Last updated 2026-10-04 (later).
 ## E. Engineering
 
 19. **Characterization coverage.** Recorded: payments, convert_quote, procurement (39 cases), invoicing and pricing
-    (29 cases: invoice, quotation, price_scope), work observations (18 cases). To record: lookups, stock, snags and leads,
+    (29 cases: invoice, quotation, price_scope), work observations (18 cases), lookups (36 cases). To record: stock, snags and leads,
     identity holds (the preamble). Nothing moves in
     Phase 3 until its group is fully recorded.
 20. **The upload handlers (`/files/document`, `/files/photo`) are not characterized**; they are separate code with

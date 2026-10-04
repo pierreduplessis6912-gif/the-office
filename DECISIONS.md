@@ -5796,3 +5796,22 @@ Recorded: `work_observation` in 18 cases: a job with measurements, with and with
 **Verified:** typecheck unchanged; 1,229 checks. The recording diff is **exactly four of the 18 cases** (the two priced observations, and the two where nothing was observed); 14 are identical (checked mechanically). In the two priced cases the rows written are identical and only the noun changed; in the other two a job scope is no longer written. Five deliberate breakages were caught in both directions, including treating an installer-only or a date-only observation as "nothing" and removing the role gate on pricing. One mutation survived at first because no case had an observation with only an installer; a case was added and it is now caught.
 
 **Not changed, recorded in `OPEN_QUESTIONS.md`:** pricing skipped without a word when the pricing model fails or finds nothing; a date spoken as an ordinal word ("the seventeenth") is not parsed to a date at all, though "the 10th" is; and a customer-less job scope is recorded when only an installer or date is heard and there is nothing to attach it to.
+
+
+---
+
+## Rewrite Phase 2, lookups: recorded, and what the recordings say about who can see what
+
+Recorded: lookups in 36 cases, covering a material's last price, the delivery exception question, business-wide questions (which screen opens, and which facts each role's answer is built from, including follow-ups about quotations, invoices and expenses and a model that fails), a supplier or installer, a customer, and "what is on today", across owner, accountant, installer and a role with no permissions. The answer-writer is scripted to **echo the facts it is given**, so each recording shows exactly what each role's answer was built from; that is the point of recording a lookup, because the facts are where permissions are enforced. Lookups were confirmed to write nothing but the stored sentence and, for a named person, the selection context: no note, file or business row.
+
+**No code was changed.** The lookups behave as designed. What the recordings did was make visible, for the first time in one place, how open each answer actually is. Five things are recorded in `OPEN_QUESTIONS.md` for a decision, because they are policy, not defects:
+
+1. **An installer sees expense totals and the aged-creditors breakdown**, including what is owed to each supplier ("Floornet: R1200 total outstanding"), through a business question, because both are gated by `can_know_materials`. The supplier screen needs `can_manage_invoices`.
+2. **Notes written before the notes fix still contain money**, and are still readable by an installer (a supplier note with "paid Floornet R10000" was read back to one). The earlier fix stops new leaks; it does not clean what is already stored.
+3. **A material's last price (and which supplier charged it) is ungated**: any role, including one with no permissions, can ask.
+4. **A person's details are shown to every role**, and `can_know_payroll` and `can_know_banking` exist but nothing in the code ever checks them. Harmless today, since no payroll data is stored, but a day rate or a bank detail saved as a "detail" would be visible to everyone.
+5. Smaller: a broad financial question from an installer still opens the snapshot screen (the screen's own data is gated, so it shows nothing), and "There are 1 quotations on file" has a grammar slip.
+
+**Verified:** typecheck unchanged; 1,376 checks; stable across runs; the whole suite runs in about 30 seconds. Two earlier lookup fixes are already covered by these recordings (the delivery exception question is permission-gated; an installer is told it is restricted).
+
+**Not done:** stock, snags and leads, and the identity holds (the preamble that runs before every intent) remain to be recorded. After those the whole function is characterized.
