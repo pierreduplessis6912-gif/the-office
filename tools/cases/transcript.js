@@ -62,6 +62,18 @@ module.exports = function cases(caps) {
     t('transcript: owner, one job and an expense in one message, and the customer has two open projects', 'owner', twoProjects, 'Jenny lounge is 5 by 4 metres, laminate, and diesel for the bakkie R650', [
       SPLIT(['Jenny lounge is 5 by 4 metres, laminate', B]), READ({ 'Jenny lounge is 5 by 4 metres, laminate': { intent: 'work_observation', customer_name: 'Jenny Smith' }, [B]: diesel }), OBS(lounge())]),
 
+    // ---------------- several things waiting for an answer (the app shows a Confirm and Reject for each) ----------------
+    t('transcript: owner, an invoice and a date change for a customer who already has a job: both waiting actions are listed', 'owner', (db) => {
+      base(db);
+      db.exec(`
+        INSERT INTO job_scopes (id, customer_id, description, scheduled_date_raw, scheduled_date, created_at) VALUES (1, 1, 'Lounge laminate', 'the 10th', '2026-10-10', '2026-10-01 08:00:00');
+        INSERT INTO scope_components (id, job_scope_id, name, width_mm, length_mm, area_sqm) VALUES (1, 1, 'Lounge', 5000, 4000, 20);
+      `);
+    }, 'invoice Jenny R3000 and move the install to the 17th', [
+      SPLIT(['invoice Jenny R3000 and move the install to the 17th']),
+      READ({ 'invoice Jenny R3000 and move the install to the 17th': { intent: 'invoice', customer_name: 'Jenny Smith', amount: 3000 } }),
+      OBS({ ...nothing, scheduled_date_raw: 'the seventeenth' })]),
+
     // ---------------- roles ----------------
     t('transcript: installer, a money topic is refused and a snag in the same message is recorded', 'installer', base, `${A}. Jenny carpet has a loose seam`, [
       SPLIT([A, 'Jenny carpet has a loose seam']), READ({ [A]: pay, 'Jenny carpet has a loose seam': { intent: 'raise_snag', customer_name: 'Jenny Smith' } }), SNAG({ description: 'loose seam' })]),

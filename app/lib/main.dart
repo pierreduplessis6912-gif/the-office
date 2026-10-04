@@ -859,6 +859,23 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     }
     final factPendingActionId = data['factPendingActionId'];
     if (factPendingActionId is int) items.add(PendingItem(id: factPendingActionId));
+    // Decided by Pierre 2026-10-04: every action waiting for an answer gets its own Confirm and Reject, not only the primary
+    // one. The server lists them all, in order and with their types (pendingActions); the primary and the fact note are
+    // already added above, so only the others are added here. Before this, an invoice held alongside a job-change question
+    // was waiting but could not be answered from the message. A project question and a near-match question are left out:
+    // they need a chosen project or person, so a plain Confirm would only be refused, exactly as before.
+    final rawPendingActions = data['pendingActions'];
+    if (rawPendingActions is List) {
+      for (final entry in rawPendingActions) {
+        if (entry is! Map) continue;
+        final entryId = entry['id'];
+        if (entryId is! int) continue;
+        if (items.any((i) => i.id == entryId)) continue;
+        final entryType = entry['type'];
+        if (entryType == 'project_ambiguity' || entryType == 'ambiguous_person') continue;
+        items.add(PendingItem(id: entryId, type: entryType is String ? entryType : null));
+      }
+    }
     // Real, new step, per direct instruction: a genuine pending
     // confirmation now reacts the Orb itself, using the exact same
     // real, proven ignition mechanism already used for ember taps —
@@ -7544,6 +7561,13 @@ class _MessageLine extends StatelessWidget {
           // gets its plain outcome from _buildActionRow below, nothing
           // to edit anymore.
           for (final item in message.pendingItems) ...[
+            // With more than one thing waiting, say which is which above each Confirm and Reject.
+            if (message.pendingItems.length > 1 && item.type != null && item.status == PendingStatus.pending)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Text(_itemCaption(item),
+                    style: GoogleFonts.ibmPlexMono(fontSize: 10.5, color: _muted, fontWeight: FontWeight.w600)),
+              ),
             if (item.status == PendingStatus.pending && item.changes.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -7554,6 +7578,35 @@ class _MessageLine extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  // A short, plain name for a waiting action, shown only when a message has more than one.
+  String _itemCaption(PendingItem item) {
+    switch (item.type) {
+      case 'job_scope_amendment':
+        return 'Job change';
+      case 'invoice':
+        return 'Invoice';
+      case 'quotation':
+        return 'Quotation';
+      case 'payment':
+        return 'Payment';
+      case 'expense':
+        return 'Expense';
+      case 'supplier_payment':
+        return 'Supplier payment';
+      case 'supplier_invoice':
+        return 'Supplier invoice';
+      case 'goods_received':
+        return 'Delivery';
+      case 'cancel_order':
+        return 'Cancel order';
+      case 'customer_fact':
+      case 'character_fact':
+        return 'Note to keep';
+      default:
+        return item.type == null ? 'Also waiting' : item.type!.replaceAll('_', ' ');
+    }
   }
 
   Color _stampColorFor(List<PendingItem> items) {

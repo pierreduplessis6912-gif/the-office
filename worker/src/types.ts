@@ -105,6 +105,11 @@ export interface ProcessResult {
   // person recognizes and the actual typed value, not a raw id —
   // so the client has something concrete to show and tap-to-edit.
   pendingChanges: Array<{ field: string; label: string; displayValue: string }> | null;
+  // Decided by Pierre 2026-10-04: EVERY action waiting for an answer after this message, in order (the first is the primary one
+  // above), with its type, so the app can show a Confirm and Reject for each instead of for the primary one only. Before this a
+  // message that held an invoice and an amendment question exposed only the amendment's id, and the invoice existed but the
+  // app could not offer it. pendingActionIds above stays, as the ids of these.
+  pendingActions: Array<{ id: number; type: string | null }>;
 }
 
 export interface LineItemExtraction {
@@ -165,6 +170,9 @@ export interface WorkTask {
 }
 
 export interface WorkObservationExtraction {
+  // True only when the reader itself failed (the model errored or answered with something unreadable), so a reply can say
+  // that part was not read. Absent when the reader worked and simply found nothing to record.
+  readFailed?: boolean;
   job_description: string;
   components: WorkComponent[];
   tasks: WorkTask[];

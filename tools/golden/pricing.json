@@ -366,6 +366,12 @@
      "label": "Date",
      "displayValue": "the seventeenth"
     }
+   ],
+   "alsoPending": [
+    {
+     "id": 1,
+     "type": "invoice"
+    }
    ]
   },
   "threw": null,
@@ -624,7 +630,7 @@
    "character": null,
    "pendingActionId": 1,
    "factPendingActionId": null,
-   "message": "Invoice noted for Jenny Smith of R5000 — needs your confirmation (action #1) before it's recorded.",
+   "message": "Invoice noted for Jenny Smith of R5000 — needs your confirmation (action #1) before it's recorded. I couldn't read any job details (measurements, an installer or a date) from that, so only the invoice was noted. Say the job part again if you want it recorded.",
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": "invoice",
@@ -672,6 +678,68 @@
       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"invoice Jenny R5000 for repairs\",\"amount\":5000}",
       "status": "pending",
       "source_transcript": "invoice Jenny R5000 for repairs"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "invoice: owner, no amount and the observation model fails": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I heard an invoice for Jenny Smith, but no amount came through — how much is it for? I couldn't read any job details from that either, so say those again too.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip",
+   "Extract the structure of a tradesperson's job observation. job_descrip",
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "invoice Jenny, Sepo installs on Monday",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "invoice Jenny, Sepo installs on Monday",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
      }
     ]
    },

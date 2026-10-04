@@ -39,6 +39,7 @@ module.exports = function cases(caps) {
     c('invoice: owner, an amount and an installer nobody has heard of', 'owner', base, 'invoice', { amount: 4000 }, 'invoice Jenny R4000, Sepo will install it',
       [OBS(obs({ job_description: 'installation', tasks: [{ description: 'installation', component_name: null }], installer_name: 'Sepo' }))]),
     c('invoice: owner, an amount and the observation model fails', 'owner', base, 'invoice', { amount: 5000 }, 'invoice Jenny R5000 for repairs', [OBS(boom)]),
+    c('invoice: owner, no amount and the observation model fails', 'owner', base, 'invoice', {}, 'invoice Jenny, Sepo installs on Monday', [OBS(boom)]),
     c('invoice: owner, no amount and nothing observed', 'owner', base, 'invoice', {}, 'invoice Jenny', [OBS(nothingObserved)]),
     c('invoice: owner, a customer who is not on file', 'owner', base, 'invoice', { customer_name: 'Brand New Person', amount: 800 }, 'invoice Brand New Person R800', [OBS(nothingObserved)]),
     c('invoice: owner, no customer named', 'owner', base, 'invoice', { customer_name: null, amount: 5000 }, 'invoice R5000 for repairs', []),

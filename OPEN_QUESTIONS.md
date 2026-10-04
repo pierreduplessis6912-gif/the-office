@@ -3,7 +3,7 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 3 applied).
+decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 4 applied).
 
 ## A. Decisions only Pierre can make
 
@@ -20,13 +20,6 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
 10. **A payment with no amount is held for confirmation on purpose** (`payments.amount` is nullable and
     `recordPayment` accepts none). Confirmed as design in the code; listed in case Pierre would rather the amount
     be asked for.
-22. **When an invoice and an amendment question are both waiting, the app offers buttons for the amendment only.** The
-    reply now names the invoice and its action number, but answering it means opening the Pending room. *Option:* let
-    the app show both. (A Dart change and a rebuild.)
-23. **When the job-observation model fails, an invoice is still held but the job, installer and date part is silently
-    dropped**, and the reply says nothing about what was lost. *Option:* say so.
-24. **A spoken job observation that mentions prices silently produces no quotation when the pricing model fails or finds
-    nothing.** The job is recorded and the reply says nothing about the quote that was not made. *Option:* say so.
 25. **A date spoken as an ordinal word ("the seventeenth") is not parsed to a date**, though "the 10th" is. The words are
     kept but nothing is scheduled from them. Found while recording; not changed. *Option:* teach the date reader the words.
 26. **A job scope with no customer is recorded** when only an installer or a date is heard and there is nothing in the same
@@ -70,6 +63,7 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
 39. **A cancelled order cannot be reopened.** To order the same thing again, place a new order. Cancelling is a held
     action and is recorded with who cancelled it, but there is no "uncancel". *Option:* a spoken "reopen the Floornet
     order".
+
 ## B. Needs a live check only a phone can give
 
 12. **The Codemagic rebuild**: the Confirm/Reject buttons for a follow-up question raised by a confirm ("Add to stock?",
@@ -78,6 +72,9 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     tests, never run on a real delivery note with two orders.
 15. **The Permissions screen on a real phone.** The web build compiles it; the phone build and a real tap-through are
     unverified (switch something off for the installer, then check on the installer's phone that the room is gone).
+14b. **Both waiting actions on a phone.** The app now shows a Confirm and Reject for each thing waiting, with a caption.
+    Try "invoice Jenny R3000 and move the install to the 17th" for a customer who already has a job: expect two captioned
+    pairs, "Job change" and "Invoice". The web build compiles it; the phone build needs a Codemagic rebuild and a real tap.
 14a. **A real "cancel the Floornet order".** The reader that classifies a spoken sentence is a real language model and could
     not be run here; its prompt describes the new intent and gives an example, but it needs one real try on the phone, and
     one with several open orders (it should list them and ask for a number).
@@ -109,6 +106,13 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
 
 ## Settled (kept so the reasoning is not lost)
+
+- 2026-10-04, decided by Pierre (decisions session, round 4):
+  - **An invoice and a job-change question both waiting: the app shows both** (a Confirm and Reject for each, captioned). The
+    server now lists every waiting action with its type. A project question and a near-match question are not added as
+    items (they need a choice, not a plain Confirm). Applied; the app part is unverified on a phone.
+  - **Say so when the job part of an invoice could not be read** (only when the reader actually failed). Applied.
+  - **Say so when prices were mentioned and no quotation was made.** Applied; never shown to a role that is not priced for.
 
 - 2026-10-04, decided by Pierre (decisions session, round 3):
   - **A reason alone still closes a shortage** (kept as it is).

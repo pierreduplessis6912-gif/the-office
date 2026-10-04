@@ -1471,7 +1471,7 @@ export async function extractWorkObservation(env: Env, transcript: string): Prom
       installer_name: parsed.installer_name ?? null,
     };
   } catch {
-    return empty;
+    return { ...empty, readFailed: true };
   }
 }
 

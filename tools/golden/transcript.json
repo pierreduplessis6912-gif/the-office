@@ -34,6 +34,12 @@
    "pendingActionIds": [
     1
    ],
+   "pendingActions": [
+    {
+     "id": 1,
+     "type": "payment"
+    }
+   ],
    "factPendingActionId": null,
    "message": "Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.",
    "rewrittenQuery": "Jenny paid R500",
@@ -126,6 +132,16 @@
    "pendingActionIds": [
     1,
     2
+   ],
+   "pendingActions": [
+    {
+     "id": 1,
+     "type": "payment"
+    },
+    {
+     "id": 2,
+     "type": "expense"
+    }
    ],
    "factPendingActionId": null,
    "message": "- Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.\n- Expense noted of R650 — needs your confirmation (action #2) before it's recorded.",
@@ -227,6 +243,16 @@
    "pendingActionIds": [
     1,
     2
+   ],
+   "pendingActions": [
+    {
+     "id": 1,
+     "type": "payment"
+    },
+    {
+     "id": 2,
+     "type": "expense"
+    }
    ],
    "factPendingActionId": null,
    "message": "- Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.\n- I didn't catch anything there I could act on.\n- Expense noted of R650 — needs your confirmation (action #2) before it's recorded.",
@@ -335,6 +361,12 @@
    "pendingActionIds": [
     1
    ],
+   "pendingActions": [
+    {
+     "id": 1,
+     "type": "payment"
+    }
+   ],
    "factPendingActionId": null,
    "message": "Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.",
    "rewrittenQuery": "Jenny paid R500",
@@ -429,6 +461,12 @@
    "pendingActionIds": [
     1
    ],
+   "pendingActions": [
+    {
+     "id": 1,
+     "type": "payment"
+    }
+   ],
    "factPendingActionId": null,
    "message": "Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.",
    "rewrittenQuery": "Jenny paid R500",
@@ -520,6 +558,12 @@
    "pendingActionId": 1,
    "pendingActionIds": [
     1
+   ],
+   "pendingActions": [
+    {
+     "id": 1,
+     "type": "payment"
+    }
    ],
    "factPendingActionId": null,
    "message": "Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.",
@@ -613,6 +657,12 @@
    "pendingActionIds": [
     1
    ],
+   "pendingActions": [
+    {
+     "id": 1,
+     "type": "payment"
+    }
+   ],
    "factPendingActionId": null,
    "message": "Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.",
    "rewrittenQuery": "Jenny paid R500",
@@ -686,6 +736,7 @@
    "customer": null,
    "pendingActionId": null,
    "pendingActionIds": [],
+   "pendingActions": [],
    "factPendingActionId": null,
    "message": "I didn't catch anything there I could act on.",
    "rewrittenQuery": "Jenny paid R500",
@@ -745,6 +796,7 @@
    "customer": null,
    "pendingActionId": null,
    "pendingActionIds": [],
+   "pendingActions": [],
    "factPendingActionId": null,
    "message": "- I didn't catch anything there I could act on.\n- I didn't catch anything there I could act on.",
    "rewrittenQuery": "Jenny paid R500 and diesel for the bakkie R650",
@@ -827,6 +879,7 @@
    },
    "pendingActionId": null,
    "pendingActionIds": [],
+   "pendingActions": [],
    "factPendingActionId": null,
    "message": "Found existing customer: Jenny Smith.",
    "rewrittenQuery": "3x3 store. 1.2x1.2 kitchen. Jenny Smith rooms measured in metres",
@@ -922,6 +975,12 @@
    "pendingActionId": 1,
    "pendingActionIds": [
     1
+   ],
+   "pendingActions": [
+    {
+     "id": 1,
+     "type": "payment"
+    }
    ],
    "factPendingActionId": null,
    "message": "- ANSWER FROM FACTS:\n- No quotations on file.\n- No expenses on file.\n- Total invoiced to date: R0.\n- Total actually received: R0.\n- Total spent on expenses: R0.\n- Rough cash position (received minus spent): R0. This is a cash-basis snapshot, not the formal profit and loss — see getProfitAndLoss for that.\n- Revenue: R0.\n- Cost of Sales (materials, subcontractor): R0.\n- Gross Profit: R0.\n- Operating Expenses (fuel, tools, other): R0.\n- Net Profit: R0.\n- Expense breakdown by category: .\n- Revenue here is accrual-based (real invoiced amounts), not cash received — a different measure from the cash-position snapshot.\n- No outstanding debtors on file.\n- No outstanding creditors on file.\n- Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.",
@@ -1021,6 +1080,12 @@
    "pendingActionIds": [
     1
    ],
+   "pendingActions": [
+    {
+     "id": 1,
+     "type": "payment"
+    }
+   ],
    "factPendingActionId": null,
    "message": "Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.",
    "rewrittenQuery": "Jenny paid R500",
@@ -1111,6 +1176,7 @@
    },
    "pendingActionId": null,
    "pendingActionIds": [],
+   "pendingActions": [],
    "factPendingActionId": null,
    "message": "Job scope #1 recorded for Jenny Smith — 1 component measured, 1 task noted.",
    "rewrittenQuery": "Jenny lounge is 5 by 4 metres, laminate",
@@ -1229,6 +1295,12 @@
    "pendingActionId": 1,
    "pendingActionIds": [
     1
+   ],
+   "pendingActions": [
+    {
+     "id": 1,
+     "type": "project_ambiguity"
+    }
    ],
    "factPendingActionId": null,
    "message": "Job scope #1 recorded for Jenny Smith — 1 component measured, 1 task noted.\nThis customer has 2 open projects (Lounge floor, Kitchen refit) — which one is job scope #1? (action #1)",
@@ -1358,6 +1430,7 @@
    },
    "pendingActionId": null,
    "pendingActionIds": [],
+   "pendingActions": [],
    "factPendingActionId": null,
    "message": "Job scope #1 recorded for Jenny Smith — 1 component measured, 1 task noted.",
    "rewrittenQuery": "Jenny lounge is 5 by 4 metres, laminate",
@@ -1475,6 +1548,7 @@
    },
    "pendingActionId": null,
    "pendingActionIds": [],
+   "pendingActions": [],
    "factPendingActionId": null,
    "message": "- Job scope #1 recorded for Jenny Smith — 1 component measured, 1 task noted.\n- Job scope #2 recorded for Jenny Smith — 1 component measured, 1 task noted.",
    "rewrittenQuery": "Jenny lounge is 5 by 4 metres. Jenny kitchen is 3 by 3 metres.",
@@ -1633,6 +1707,16 @@
     1,
     2
    ],
+   "pendingActions": [
+    {
+     "id": 1,
+     "type": "expense"
+    },
+    {
+     "id": 2,
+     "type": "project_ambiguity"
+    }
+   ],
    "factPendingActionId": null,
    "message": "- Job scope #1 recorded for Jenny Smith — 1 component measured, 1 task noted.\n- Expense noted of R650 — needs your confirmation (action #1) before it's recorded.\nThis customer has 2 open projects (Lounge floor, Kitchen refit) — which one is job scope #1? (action #2)",
    "rewrittenQuery": "Jenny lounge is 5 by 4 metres, laminate, and diesel for the bakkie R650",
@@ -1736,6 +1820,123 @@
   },
   "effects": []
  },
+ "transcript: owner, an invoice and a date change for a customer who already has a job: both waiting actions are listed": {
+  "result": {
+   "extraction": {
+    "customer_name": "Jenny Smith",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "invoice",
+    "amount": 3000,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"invoice\",\"amount\":3000,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"invoice\",\"amount\":3000,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "pendingActionId": 2,
+   "pendingActionIds": [
+    2,
+    1
+   ],
+   "pendingActions": [
+    {
+     "id": 2,
+     "type": "job_scope_amendment"
+    },
+    {
+     "id": 1,
+     "type": "invoice"
+    }
+   ],
+   "factPendingActionId": null,
+   "message": "Job #1 (\"Lounge laminate\") — update it, or create this as a separate new job? Your invoice for Jenny Smith of R3000 is also waiting for confirmation (action #1).",
+   "rewrittenQuery": "invoice Jenny R3000 and move the install to the 17th",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 1,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": "job_scope_amendment",
+   "pendingChanges": [
+    {
+     "field": "scheduled_date_raw",
+     "label": "Date",
+     "displayValue": "the seventeenth"
+    }
+   ]
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "invoice Jenny R3000 and move the install to the 17th",
+      "source": "text",
+      "subject_hint": "Jenny Smith",
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": 1,
+      "character_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "invoice",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"invoice Jenny R3000 and move the install to the 17th\",\"amount\":3000}",
+      "status": "pending",
+      "source_transcript": "invoice Jenny R3000 and move the install to the 17th"
+     },
+     {
+      "id": 2,
+      "type": "job_scope_amendment",
+      "payload": "{\"jobScopeId\":1,\"jobScopeDescription\":\"Lounge laminate\",\"changes\":[{\"field\":\"scheduled_date_raw\",\"oldValue\":\"the 10th\",\"newValue\":\"the seventeenth\"}],\"customerId\":1,\"observation\":{\"job_description\":\"observation\",\"components\":[],\"tasks\":[],\"scheduled_date_raw\":\"the seventeenth\",\"installer_name\":null},\"installerId\":null,\"transcript\":\"invoice Jenny R3000 and move the install to the 17th\",\"captureId\":1}",
+      "status": "pending",
+      "source_transcript": "invoice Jenny R3000 and move the install to the 17th"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
  "transcript: installer, a money topic is refused and a snag in the same message is recorded": {
   "result": {
    "extraction": {
@@ -1769,6 +1970,7 @@
    },
    "pendingActionId": null,
    "pendingActionIds": [],
+   "pendingActions": [],
    "factPendingActionId": null,
    "message": "- Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.\n- Snag #1 noted for Jenny Smith: loose seam.",
    "rewrittenQuery": "Jenny paid R500. Jenny carpet has a loose seam",
@@ -1857,6 +2059,7 @@
    "customer": null,
    "pendingActionId": null,
    "pendingActionIds": [],
+   "pendingActions": [],
    "factPendingActionId": null,
    "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
    "rewrittenQuery": "Jenny paid R500",

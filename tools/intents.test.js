@@ -33,11 +33,17 @@ module.exports = async function runIntentTests({ check, bundleTo, srcDir, fs, pa
     if (sameJson(toProcessingResult(toLegacyResult(forward)), forward)) newSideOk++;
   }
   check(cases === 432 && roundTripOk === 432 && newSideOk === 432, `legacy -> new -> legacy must be the identity for every well-formed result, and new -> legacy -> new too (432 cases; got ${roundTripOk} and ${newSideOk} of ${cases})`);
+  // The optional second hold (an invoice held, then an amendment asked) survives the trip in both directions, and a result
+  // without it round-trips to a result without the key at all (not an empty list), so existing results are untouched.
+  const alsoLegacy = { customer: null, character: null, pendingActionId: 2, factPendingActionId: null, message: 'm', jobScopeIdForProjectResolution: null, pendingCandidates: null, pendingActionType: 'job_scope_amendment', pendingChanges: [{ field: 'f', label: 'F', displayValue: 'x' }], alsoPending: [{ id: 1, type: 'invoice' }] };
+  const alsoNew = toProcessingResult(alsoLegacy);
+  check(sameJson(alsoNew.alsoHeld, [{ id: 1, type: 'invoice' }]) && sameJson(toLegacyResult(alsoNew), alsoLegacy), 'a result that carries a second waiting action keeps it through the adapters, both ways');
+  check(!('alsoPending' in toLegacyResult(toProcessingResult({ ...alsoLegacy, alsoPending: undefined }))) && toProcessingResult({ ...alsoLegacy, alsoPending: undefined }).alsoHeld.length === 0, 'a result without a second waiting action round-trips without the key, not with an empty list');
   const mapped = toProcessingResult({ customer: null, character: null, pendingActionId: 8, factPendingActionId: 12, message: 'm', jobScopeIdForProjectResolution: 3, pendingCandidates: null, pendingActionType: 'job_scope_amendment', pendingChanges: [{ field: 'f', label: 'F', displayValue: 'x' }] });
   check(mapped.held.id === 8 && mapped.held.type === 'job_scope_amendment' && mapped.held.changes.length === 1 && mapped.factHeldId === 12 && sameJson(mapped.recorded, [{ kind: 'job_scope', id: 3 }]), 'the new shape carries the held action, the fact hold and the recorded job scope separately');
   const none = toProcessingResult({ customer: null, character: null, pendingActionId: null, factPendingActionId: null, message: 'x', jobScopeIdForProjectResolution: null, pendingCandidates: null, pendingActionType: null, pendingChanges: null });
   check(none.held === null && none.recorded.length === 0 && none.factHeldId === null, 'a result with nothing held and nothing recorded maps to nothing held and nothing recorded');
-  check(sameJson(toLegacyResult({ customer: null, character: null, held: null, factHeldId: null, recorded: [], message: 'x' }).pendingActionId, null) && toLegacyResult({ customer: null, character: null, held: null, factHeldId: null, recorded: [], message: 'x' }).pendingCandidates === null, 'a new-style result with nothing held maps to all-null pending fields');
+  check(sameJson(toLegacyResult({ customer: null, character: null, held: null, factHeldId: null, recorded: [], alsoHeld: [], message: 'x' }).pendingActionId, null) && toLegacyResult({ customer: null, character: null, held: null, factHeldId: null, recorded: [], alsoHeld: [], message: 'x' }).pendingCandidates === null, 'a new-style result with nothing held maps to all-null pending fields');
 
   // ---- 2. Anything outside the real function's rules is refused loudly -----------------------------
   const base = { customer: null, character: null, pendingActionId: null, factPendingActionId: null, message: '', jobScopeIdForProjectResolution: null, pendingCandidates: null, pendingActionType: null, pendingChanges: null };
@@ -99,11 +105,12 @@ module.exports = async function runIntentTests({ check, bundleTo, srcDir, fs, pa
   const flatten = (s) => { let depth = 0; let out = ''; for (const c of s) { if (c === '{') depth++; if (c === '}') depth--; out += c === ';' && depth > 0 ? ',' : c; } return out; };
   const retStart = indexSrc.indexOf('): Promise<{', fnStart) + '): Promise<{'.length;
   const retBody = flatten(indexSrc.slice(retStart, indexSrc.indexOf('}> {', retStart)).split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n'));
-  const liveFields = [...retBody.matchAll(/^\s+(\w+):\s*([^;]*);/gm)].map((m) => [m[1], /\|\s*null\s*$/.test(m[2].trim())]);
+  const liveFields = [...retBody.matchAll(/^\s+(\w+)(\??):\s*([^;]*);/gm)].map((m) => [m[1] + m[2], /\|\s*null\s*$/.test(m[3].trim())]);
   const resSrc = fs.readFileSync(path.join(srcDir, 'intents', 'result.ts'), 'utf8');
-  const legBlock = resSrc.slice(resSrc.indexOf('export interface LegacyProcessResult {') + 'export interface LegacyProcessResult {'.length, resSrc.indexOf('}', resSrc.indexOf('export interface LegacyProcessResult {')));
-  const legFields = [...flatten(legBlock).matchAll(/^\s+(\w+):\s*([^;]*);/gm)].map((m) => [m[1], /\|\s*null\s*$/.test(m[2].trim())]);
-  check(liveFields.length === 9 && sameJson(liveFields, legFields), `LegacyProcessResult must have exactly processOneExtraction's return fields, in order, with the same nullability (live ${liveFields.map((f) => f[0]).join(',')}; scaffold ${legFields.map((f) => f[0]).join(',')})`);
+  const blockBody = (src, marker) => { const open = src.indexOf(marker) + marker.length; let depth = 1, i = open; while (depth > 0 && i < src.length) { if (src[i] === '{') depth++; if (src[i] === '}') depth--; i++; } return src.slice(open, i - 1); };
+  const legBlock = blockBody(resSrc, 'export interface LegacyProcessResult {');
+  const legFields = [...flatten(legBlock).matchAll(/^\s+(\w+)(\??):\s*([^;]*);/gm)].map((m) => [m[1] + m[2], /\|\s*null\s*$/.test(m[3].trim())]);
+  check(liveFields.length === 10 && sameJson(liveFields, legFields), `LegacyProcessResult must have exactly processOneExtraction's return fields, in order, with the same nullability (live ${liveFields.map((f) => f[0]).join(',')}; scaffold ${legFields.map((f) => f[0]).join(',')})`);
 
   // The NESTED shapes, not just the field names (the first scaffold copied a wrong declaration for pendingChanges and
   // this guard could not tell, because it only compared top-level names). Compared three ways: the scaffold, the

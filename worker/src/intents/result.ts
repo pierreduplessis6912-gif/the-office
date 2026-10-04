@@ -42,6 +42,8 @@ export interface LegacyProcessResult {
   pendingCandidates: PendingCandidate[] | null;
   pendingActionType: string | null;
   pendingChanges: PendingChange[] | null;
+  // Present only where one segment creates two holds (an invoice held, then an amendment asked): the earlier one.
+  alsoPending?: Array<{ id: number; type: string }>;
 }
 
 // A confirmation the person is being asked for. The id and the type always travel together; candidates
@@ -67,6 +69,8 @@ export interface ProcessingResult {
   // The separate confirmation for a fact note (customer or character fact), when there is one.
   factHeldId: number | null;
   recorded: RecordedEffect[];
+  // Any further held action the same segment created, beyond `held` (empty almost always).
+  alsoHeld: Array<{ id: number; type: string }>;
   message: string;
 }
 
@@ -106,6 +110,7 @@ export function toProcessingResult(r: LegacyProcessResult): ProcessingResult {
         : null,
     factHeldId: r.factPendingActionId,
     recorded: r.jobScopeIdForProjectResolution !== null ? [{ kind: "job_scope", id: r.jobScopeIdForProjectResolution }] : [],
+    alsoHeld: r.alsoPending ?? [],
     message: r.message,
   };
 }
@@ -123,5 +128,7 @@ export function toLegacyResult(r: ProcessingResult): LegacyProcessResult {
     pendingCandidates: r.held ? r.held.candidates : null,
     pendingActionType: r.held ? r.held.type : null,
     pendingChanges: r.held ? r.held.changes : null,
+    // Only when there is one: a result that never had the key must not gain an empty one.
+    ...(r.alsoHeld.length > 0 ? { alsoPending: r.alsoHeld } : {}),
   };
 }

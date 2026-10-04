@@ -2151,6 +2151,12 @@
     "pendingActionIds": [
      1
     ],
+    "pendingActions": [
+     {
+      "id": 1,
+      "type": "payment"
+     }
+    ],
     "factPendingActionId": null,
     "message": "Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.",
     "rewrittenQuery": "Jenny paid R500",
@@ -2256,6 +2262,16 @@
     "pendingActionIds": [
      1,
      2
+    ],
+    "pendingActions": [
+     {
+      "id": 1,
+      "type": "payment"
+     },
+     {
+      "id": 2,
+      "type": "expense"
+     }
     ],
     "factPendingActionId": null,
     "message": "- Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.\n- Expense noted of R650 — needs your confirmation (action #2) before it's recorded.",
@@ -2368,6 +2384,7 @@
     },
     "pendingActionId": null,
     "pendingActionIds": [],
+    "pendingActions": [],
     "factPendingActionId": null,
     "message": "- Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.\n- Snag #1 noted for Jenny Smith: loose seam.",
     "rewrittenQuery": "Jenny paid R500. Jenny carpet has a loose seam",
@@ -2567,6 +2584,7 @@
     },
     "pendingActionId": null,
     "pendingActionIds": [],
+    "pendingActions": [],
     "factPendingActionId": null,
     "message": "ANSWER FROM FACTS:\n- Jenny Smith is a known customer.",
     "rewrittenQuery": "and her balance",
@@ -2675,6 +2693,12 @@
     "pendingActionId": 1,
     "pendingActionIds": [
      1
+    ],
+    "pendingActions": [
+     {
+      "id": 1,
+      "type": "payment"
+     }
     ],
     "factPendingActionId": null,
     "message": "Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.",

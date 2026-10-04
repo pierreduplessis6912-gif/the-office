@@ -212,6 +212,9 @@ async function processOneExtraction(
   // The real shape, as produced by checkForJobScopeAmendment. This used to be declared as { field, oldValue, newValue },
   // which is not what the function returns, and two "tolerated" type errors were exactly that disagreement.
   pendingChanges: Array<{ field: string; label: string; displayValue: string }> | null;
+  // Present only where a segment creates TWO holds (an invoice held, then an amendment question returned instead): the
+  // earlier one, which has no field of its own above. Absent everywhere else, so no other result is touched.
+  alsoPending?: Array<{ id: number; type: string }>;
 }> {
   let customer: { id: number; name: string; matched: boolean } | null = null;
   let character: { id: number; name: string; matched: boolean } | null = null;
@@ -1062,6 +1065,7 @@ async function processOneExtraction(
     installerConflict: { description: string; customerName: string | null } | null;
   } | null = null;
 
+  let invoiceJobPartNotRead = false;
   if (extraction?.intent === "invoice" && customer) {
     // Real bug, found live a second time: this used to require
     // extraction.amount for the whole block, including the extraction
@@ -1087,6 +1091,9 @@ async function processOneExtraction(
     // reconciliation that fallback still doesn't do, rather than
     // repeating the same gap a second place.
     const observation = await extractWorkObservation(env, transcript);
+    // Decided by Pierre 2026-10-04: say so when the part of the sentence about the job could not be read, instead of holding
+    // the invoice and silently dropping the installer, date and measurements.
+    if (observation.readFailed) invoiceJobPartNotRead = true;
     // Real bug fix, found live via a direct, reported failure: "schedule
     // the Premier Hotel to be installed tomorrow" - a named customer, a
     // real date, no measurements or task text - was silently skipped
@@ -1125,6 +1132,7 @@ async function processOneExtraction(
           pendingCandidates: null,
           pendingActionType: "job_scope_amendment",
           pendingChanges: amendment.changes,
+          ...(pendingActionId !== null && pendingActionType ? { alsoPending: [{ id: pendingActionId, type: pendingActionType }] } : {}),
         };
       }
 
@@ -1284,6 +1292,7 @@ async function processOneExtraction(
   }
 
   let workObservationNothingObserved = false;
+  let workObservationPricingNotMade = false;
   if (extraction?.intent === "work_observation") {
     const observation = await extractWorkObservation(env, transcript);
     // Real feature 2026-07-12 — the smallest real first domino toward
@@ -1376,6 +1385,7 @@ async function processOneExtraction(
           pendingCandidates: null,
           pendingActionType: "job_scope_amendment",
           pendingChanges: amendment.changes,
+          ...(pendingActionId !== null && pendingActionType ? { alsoPending: [{ id: pendingActionId, type: pendingActionType }] } : {}),
         };
       }
 
@@ -1401,6 +1411,9 @@ async function processOneExtraction(
     // itself still records regardless of role, but the nested
     // quotation this pricing produces requires can_manage_invoices.
     if (recorded && customer && canManageInvoicesForWrites && transcriptMentionsPricing(transcript)) {
+      // Decided by Pierre 2026-10-04: when prices were mentioned and no quotation came of it (the pricing reader failed, or found
+      // no priced item, or the total was nothing), say so instead of recording the job and silently making no quote.
+      let quotationMade = false;
       const pricedItems = await extractScopePricing(env, transcript, recorded.computedComponents, observation.tasks);
       if (pricedItems.length > 0) {
         const lineItems = buildQuotationLineItems(pricedItems, recorded.computedComponents, recorded.computedTasks);
@@ -1415,8 +1428,10 @@ async function processOneExtraction(
           );
           pendingActionId = held.id;
           pendingActionType = "quotation";
+          quotationMade = true;
         }
       }
+      if (!quotationMade) workObservationPricingNotMade = true;
     }
     }
   }
@@ -1569,7 +1584,7 @@ async function processOneExtraction(
   } else if (extraction?.intent === "invoice" && customer && !pendingActionId && !workObservationResult) {
     // Found by the characterization recordings 2026-10-03: an invoice with a named customer but no amount and nothing
     // to record fell through to the generic "Found existing customer" reply, as if it had been a lookup.
-    message = `I heard an invoice for ${customer.name}, but no amount came through — how much is it for?`;
+    message = `I heard an invoice for ${customer.name}, but no amount came through — how much is it for?${invoiceJobPartNotRead ? " I couldn't read any job details from that either, so say those again too." : ""}`;
   } else if (extraction?.intent === "quotation" && customer && !pendingActionId) {
     // Same: a quotation with no readable items and no amount answered as a lookup.
     message = `I heard a quotation for ${customer.name}, but couldn't make out any items or an amount.`;
@@ -1727,6 +1742,9 @@ async function processOneExtraction(
     // one below are mutually exclusive (if/else-if), so an invoice
     // that also recorded a job scope needs its own note appended
     // right here, not a separate branch that would never be reached.
+    if (extraction?.intent === "invoice" && invoiceJobPartNotRead && !workObservationResult) {
+      message += " I couldn't read any job details (measurements, an installer or a date) from that, so only the invoice was noted. Say the job part again if you want it recorded.";
+    }
     if (workObservationResult) {
       const jobParts: string[] = [];
       if (workObservationResult.componentCount > 0) jobParts.push(`${workObservationResult.componentCount} component${workObservationResult.componentCount > 1 ? "s" : ""} measured`);
@@ -1762,6 +1780,9 @@ async function processOneExtraction(
         ? `${installerConflict.customerName}: ${installerConflict.description}`
         : installerConflict.description;
       message += ` Heads up — the same installer is already booked that day (${who}).`;
+    }
+    if (workObservationPricingNotMade) {
+      message += " You mentioned prices, but I couldn't make out a priced item, so no quotation was made. Say the prices again against the job.";
     }
     // Real fix 2026-07-25 — cross-capture attachment (Layer 2's
     // ask-when-2-plus rung) is no longer decided per-segment here; it
@@ -2114,6 +2135,7 @@ async function processTranscript(
     pendingCandidates: Array<{ id: number; name: string }> | null;
     pendingActionType: string | null;
     pendingChanges: Array<{ field: string; label: string; displayValue: string }> | null;
+    alsoPending?: Array<{ id: number; type: string }>;
   }> = [];
 
   for (const item of items) {
@@ -2166,10 +2188,12 @@ async function processTranscript(
       : results.map((r) => `- ${r.message}`).join("\n")) +
     (projectResolutionMessages.length > 0 ? "\n" + projectResolutionMessages.join("\n") : "");
 
-  const pendingActionIds = [
-    ...results.map((r) => r.pendingActionId).filter((id): id is number => id !== null),
-    ...projectResolutionActionIds,
+  const pendingActions: Array<{ id: number; type: string | null }> = [
+    ...results.flatMap((r) => (r.pendingActionId !== null ? [{ id: r.pendingActionId, type: r.pendingActionType }] : [])),
+    ...results.flatMap((r) => r.alsoPending ?? []),
+    ...projectResolutionActionIds.map((id) => ({ id, type: "project_ambiguity" as string | null })),
   ];
+  const pendingActionIds = pendingActions.map((a) => a.id);
   const factPendingActionIds = results.map((r) => r.factPendingActionId).filter((id): id is number => id !== null);
   const primary = results[0];
 
@@ -2181,6 +2205,7 @@ async function processTranscript(
     customer: results.find((r) => r.customer)?.customer ?? primary?.customer ?? null,
     pendingActionId: pendingActionIds[0] ?? null,
     pendingActionIds,
+    pendingActions,
     factPendingActionId: factPendingActionIds[0] ?? null,
     message,
     rewrittenQuery: transcript,
