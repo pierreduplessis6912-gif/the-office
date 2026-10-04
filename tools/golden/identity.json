@@ -1,0 +1,1901 @@
+{
+ "forget that: owner, with something pending and a customer selected": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Okay.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 2,
+       "type": "invoice",
+       "payload": "{\"customerId\":2,\"customerName\":\"Sipho Dlamini\",\"amount\":98000}",
+       "status": "pending",
+       "source_transcript": "invoice Sipho R98000"
+      },
+      "after": {
+       "id": 2,
+       "type": "invoice",
+       "payload": "{\"customerId\":2,\"customerName\":\"Sipho Dlamini\",\"amount\":98000}",
+       "status": "abandoned",
+       "source_transcript": "invoice Sipho R98000"
+      }
+     }
+    ]
+   },
+   "selections": {
+    "removed": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "forget that: an installer, while the owner has an invoice pending (open to every role)": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Okay.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 2,
+       "type": "invoice",
+       "payload": "{\"customerId\":2,\"customerName\":\"Sipho Dlamini\",\"amount\":98000}",
+       "status": "pending",
+       "source_transcript": "invoice Sipho R98000"
+      },
+      "after": {
+       "id": 2,
+       "type": "invoice",
+       "payload": "{\"customerId\":2,\"customerName\":\"Sipho Dlamini\",\"amount\":98000}",
+       "status": "abandoned",
+       "source_transcript": "invoice Sipho R98000"
+      }
+     }
+    ]
+   },
+   "selections": {
+    "removed": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "forget that: a role with no permissions": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Okay.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 2,
+       "type": "invoice",
+       "payload": "{\"customerId\":2,\"customerName\":\"Sipho Dlamini\",\"amount\":98000}",
+       "status": "pending",
+       "source_transcript": "invoice Sipho R98000"
+      },
+      "after": {
+       "id": 2,
+       "type": "invoice",
+       "payload": "{\"customerId\":2,\"customerName\":\"Sipho Dlamini\",\"amount\":98000}",
+       "status": "abandoned",
+       "source_transcript": "invoice Sipho R98000"
+      }
+     }
+    ]
+   },
+   "selections": {
+    "removed": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "forget that: nothing pending and nothing selected": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Okay.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "customer: owner, a name on file": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Found existing customer: Jenny Smith.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jenny Smith called",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jenny Smith called",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "pending_memory_flush": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "text": "Jenny Smith called"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "customer:1",
+    "value": "{\"facts\":[{\"text\":\"Jenny Smith called\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "customer: owner, a name on file in a different case": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Found existing customer: Jenny Smith.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "jenny smith called",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "jenny smith called",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "pending_memory_flush": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "text": "jenny smith called"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "customer:1",
+    "value": "{\"facts\":[{\"text\":\"jenny smith called\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "customer: owner, a name nobody has heard of": {
+  "result": {
+   "customer": {
+    "id": 3,
+    "name": "Thandi Mokoena",
+    "matched": false
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "New customer noted: Thandi Mokoena.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Thandi Mokoena called",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Thandi Mokoena called",
+       "source": "text",
+       "subject_hint": "Thandi Mokoena",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 3,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "customers": {
+    "added": [
+     {
+      "id": 3,
+      "name": "Thandi Mokoena",
+      "address": null,
+      "vat_exempt": 0,
+      "retention_percent": null,
+      "person_id": null,
+      "merged_into_customer_id": null
+     }
+    ]
+   },
+   "pending_memory_flush": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 3,
+      "text": "Thandi Mokoena called"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 3,
+      "label": "Thandi Mokoena"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "customer:3",
+    "value": "{\"facts\":[{\"text\":\"Thandi Mokoena called\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "customer: owner, a name that sounds like one on file": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "\"Sipo Dlamini\" sounds like an existing customer, \"Sipho Dlamini\" — is this the same one? (action #1)",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": [
+    {
+     "id": 2,
+     "name": "Sipho Dlamini"
+    }
+   ],
+   "pendingActionType": "ambiguous_person",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "ambiguous_person",
+      "payload": "{\"name\":\"Sipo Dlamini\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":2,\"name\":\"Sipho Dlamini\"}],\"extraction\":{\"customer_name\":\"Sipo Dlamini\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipo Dlamini called\",\"captureId\":1}",
+      "status": "pending",
+      "source_transcript": "Sipo Dlamini called"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "customer: owner, a name that could be either of two on file": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "\"Thandi Mokoeno\" could be more than one person already on file — which one is this? (action #1)",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": [
+    {
+     "id": 5,
+     "name": "Thandi Mokoena"
+    },
+    {
+     "id": 6,
+     "name": "Thandi Mokoeni"
+    }
+   ],
+   "pendingActionType": "ambiguous_person",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "ambiguous_person",
+      "payload": "{\"name\":\"Thandi Mokoeno\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":5,\"name\":\"Thandi Mokoena\"},{\"id\":6,\"name\":\"Thandi Mokoeni\"}],\"extraction\":{\"customer_name\":\"Thandi Mokoeno\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Thandi Mokoeno called\",\"captureId\":1}",
+      "status": "pending",
+      "source_transcript": "Thandi Mokoeno called"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "customer: a role with no permissions creates a customer (the intent is open)": {
+  "result": {
+   "customer": {
+    "id": 3,
+    "name": "Brand New Person",
+    "matched": false
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "New customer noted: Brand New Person.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Brand New Person called",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Brand New Person called",
+       "source": "text",
+       "subject_hint": "Brand New Person",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 3,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "customers": {
+    "added": [
+     {
+      "id": 3,
+      "name": "Brand New Person",
+      "address": null,
+      "vat_exempt": 0,
+      "retention_percent": null,
+      "person_id": null,
+      "merged_into_customer_id": null
+     }
+    ]
+   },
+   "pending_memory_flush": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 3,
+      "text": "Brand New Person called"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 3,
+      "label": "Brand New Person"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "customer:3",
+    "value": "{\"facts\":[{\"text\":\"Brand New Person called\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "customer: owner, the name is already on file as an installer": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Jabulani is already on file as a character — is this the same Jabulani, now acting as a customer too, or did you mean someone else? (action #1)",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "identity_collision",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "identity_collision",
+      "payload": "{\"name\":\"Jabulani\",\"intendedRole\":\"customer\",\"extraction\":{\"customer_name\":\"Jabulani\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Jabulani called about a job\",\"captureId\":1}",
+      "status": "pending",
+      "source_transcript": "Jabulani called about a job"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "customer: owner, a job observation with a name that is an installer, and no installer named": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "\"Jabulani\" is already on file as someone who does the work, not a customer — that might not have come through fully. Try saying it again?",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "customer: owner, a job observation with an installer name and an installer also named": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Jabulani is already on file as a character — is this the same Jabulani, now acting as a customer too, or did you mean someone else? (action #1)",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "identity_collision",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "identity_collision",
+      "payload": "{\"name\":\"Jabulani\",\"intendedRole\":\"customer\",\"extraction\":{\"customer_name\":\"Jabulani\",\"character_name\":\"Sipho\",\"character_relationship\":\"installer\",\"intent\":\"work_observation\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Jabulani lounge is 5 by 4, Sipho installs\",\"captureId\":1}",
+      "status": "pending",
+      "source_transcript": "Jabulani lounge is 5 by 4, Sipho installs"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "customer: owner, a lead keeps the name out of the customer list": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Lead #1 noted for Sipho Dube.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is reporting a real, new enquiry — someone interested, "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "new enquiry from Sipho Dube",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "new enquiry from Sipho Dube",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "leads": {
+    "added": [
+     {
+      "id": 1,
+      "name": "Sipho Dube",
+      "interest": null,
+      "source": null,
+      "status": "enquired",
+      "customer_id": null,
+      "capture_id": 1,
+      "person_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "life:2026-10-03",
+    "value": "{\"facts\":[{\"text\":\"new enquiry from Sipho Dube\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "character: owner, a supplier on file": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 2,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Found existing: Floornet.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Floornet called",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Floornet called",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 2
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 2,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "character:2",
+    "value": "{\"facts\":[{\"text\":\"Floornet called\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "character: owner, a supplier on file in a different case": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 2,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Found existing: Floornet.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "FLOORNET called",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "FLOORNET called",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 2
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 2,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "character:2",
+    "value": "{\"facts\":[{\"text\":\"FLOORNET called\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "character: owner, a new supplier": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 3,
+    "name": "Newco Supplies",
+    "matched": false
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Noted: Newco Supplies.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Newco Supplies called",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Newco Supplies called",
+       "source": "text",
+       "subject_hint": "Newco Supplies",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 3
+      }
+     }
+    ]
+   },
+   "characters": {
+    "added": [
+     {
+      "id": 3,
+      "name": "Newco Supplies",
+      "relationship": "supplier",
+      "person_id": null,
+      "merged_into_character_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 3,
+      "label": "Newco Supplies"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "character:3",
+    "value": "{\"facts\":[{\"text\":\"Newco Supplies called\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "character: owner, a new name with no relationship stated": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 3,
+    "name": "Mystery Man",
+    "matched": false
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Noted: Mystery Man.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Mystery Man called",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Mystery Man called",
+       "source": "text",
+       "subject_hint": "Mystery Man",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 3
+      }
+     }
+    ]
+   },
+   "characters": {
+    "added": [
+     {
+      "id": 3,
+      "name": "Mystery Man",
+      "relationship": null,
+      "person_id": null,
+      "merged_into_character_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 3,
+      "label": "Mystery Man"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "character:3",
+    "value": "{\"facts\":[{\"text\":\"Mystery Man called\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "character: owner, the name is already on file as a customer": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Jenny Smith is already on file as a customer — is this the same Jenny Smith, now acting as a installer too, or did you mean someone else? (action #1)",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "identity_collision",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "identity_collision",
+      "payload": "{\"name\":\"Jenny Smith\",\"intendedRole\":\"character\",\"extraction\":{\"customer_name\":null,\"character_name\":\"Jenny Smith\",\"character_relationship\":\"installer\",\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Jenny Smith will install it\",\"captureId\":1}",
+      "status": "pending",
+      "source_transcript": "Jenny Smith will install it"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "character: owner, a name that sounds like someone on file": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "\"Jabulane\" sounds like an existing person, \"Jabulani\" — is this the same one? (action #1)",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": [
+    {
+     "id": 3,
+     "name": "Jabulani"
+    }
+   ],
+   "pendingActionType": "ambiguous_person",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "ambiguous_person",
+      "payload": "{\"name\":\"Jabulane\",\"intendedRole\":\"character\",\"candidates\":[{\"id\":3,\"name\":\"Jabulani\"}],\"extraction\":{\"customer_name\":null,\"character_name\":\"Jabulane\",\"character_relationship\":\"installer\",\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Jabulane will install it\",\"captureId\":1}",
+      "status": "pending",
+      "source_transcript": "Jabulane will install it"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "both: owner, a customer and an installer in one message": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": {
+    "id": 1,
+    "name": "Jabulani",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Found existing customer: Jenny Smith.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jabulani is installing at Jenny's",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jabulani is installing at Jenny's",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "interaction_edges": {
+    "added": [
+     {
+      "id": 1,
+      "capture_id": 1,
+      "entity_type_a": "customer",
+      "entity_id_a": 1,
+      "entity_type_b": "character",
+      "entity_id_b": 1,
+      "relation_type": "co_captured"
+     }
+    ]
+   },
+   "pending_memory_flush": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "text": "Jabulani is installing at Jenny's"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     },
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Jabulani"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "customer:1",
+    "value": "{\"facts\":[{\"text\":\"Jabulani is installing at Jenny's\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "lookup names: owner, a customer on file": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "ANSWER FROM FACTS:\n- Jenny Smith is a known customer.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "how is Jenny doing",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "how is Jenny doing",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "lookup names: owner, a customer nobody has heard of (nothing is created)": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I don't have anything on file for that yet.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "how is Nobody Known doing",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "how is Nobody Known doing",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "lookup names: owner, a supplier nobody has heard of (nothing is created)": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I don't have anything on file for that yet.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "how is Nobody Known doing",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "how is Nobody Known doing",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "follow-up: owner, a customer is selected": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "ANSWER FROM FACTS:\n- Jenny Smith is a known customer.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "and what about her balance",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "and what about her balance",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "follow-up: owner, a supplier or installer is selected": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Jabulani",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "ANSWER FROM FACTS:\n- Jabulani is a known contact.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "and what is he doing",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "and what is he doing",
+       "source": "text",
+       "subject_hint": "Jabulani",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "follow-up: owner, nothing selected, and the conversation points at a customer": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "ANSWER FROM FACTS:\n- Jenny Smith is a known customer.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "The new message may refer back to the STANDING TOPIC of the conversati",
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "and her balance",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "and her balance",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "follow-up: owner, nothing selected, and the conversation points at a supplier": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 2,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "ANSWER FROM FACTS:\n- Floornet is a known contact.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "The new message may refer back to the STANDING TOPIC of the conversati",
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "and what do we owe them",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "and what do we owe them",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 2
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 2,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "follow-up: owner, nothing selected, the conversation names someone not on file": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I don't have anything on file for that yet.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "The new message may refer back to the STANDING TOPIC of the conversati"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "and her balance",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "and her balance",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "follow-up: owner, nothing selected, the conversation points at no one": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I don't have anything on file for that yet.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "The new message may refer back to the STANDING TOPIC of the conversati"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "and her balance",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "and her balance",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "follow-up: owner, nothing selected and the resolving model fails": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I don't have anything on file for that yet.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "The new message may refer back to the STANDING TOPIC of the conversati",
+   "The new message may refer back to the STANDING TOPIC of the conversati",
+   "The new message may refer back to the STANDING TOPIC of the conversati"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "and her balance",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "and her balance",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "follow-up: owner, nothing selected and no history at all": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I don't have anything on file for that yet.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "and her balance",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "and her balance",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "follow-up: owner, a business question that points back, with a customer selected": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "ANSWER FROM FACTS:\n- Jenny Smith is a known customer.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "what about her",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "what about her",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "follow-up: owner, a business question that stands on its own, with a customer selected": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "ANSWER FROM FACTS:\n- No quotations on file.\n- No expenses on file.\n- Total invoiced to date: R0.\n- Total actually received: R0.\n- Total spent on expenses: R0.\n- Rough cash position (received minus spent): R0. This is a cash-basis snapshot, not the formal profit and loss — see getProfitAndLoss for that.\n- Revenue: R0.\n- Cost of Sales (materials, subcontractor): R0.\n- Gross Profit: R0.\n- Operating Expenses (fuel, tools, other): R0.\n- Net Profit: R0.\n- Expense breakdown by category: .\n- Revenue here is accrual-based (real invoiced amounts), not cash received — a different measure from the cash-position snapshot.\n- No outstanding debtors on file.\n- No outstanding creditors on file.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Is this a broad, whole-business question wanting a real, visual snapsh",
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "what is outstanding on the Lounge job",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "what is outstanding on the Lounge job",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "follow-up: owner, a business question and the pointing-back check fails": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "ANSWER FROM FACTS:\n- Jenny Smith is a known customer.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "what about her",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "what about her",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "follow-up: owner, a personal question never borrows the selection": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I don't have anything on file for that yet.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "what do I need to do today",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "what do I need to do today",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ }
+}
