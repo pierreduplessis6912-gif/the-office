@@ -2014,6 +2014,34 @@ async function processOneExtraction(
 }
 // through processOneExtraction, same result. The only real difference
 // for a single-topic message is the one extra split-check call.
+// A held action that REPLAYS its original dictation (a name that collides with someone who does the work, or that sounds like
+// someone already on file) is answered later by whoever opens it, and the replay runs with THAT person's permissions. If they
+// could not have dictated the original, the old behaviour was to consume the question, create the customer or person, and
+// let the replay be refused, so the owner's payment was silently lost (found by the characterization recordings 2026-10-04).
+// Now the question is put back untouched and the answerer is told why.
+async function refuseReplayIfNotPermitted(
+  request: Request,
+  env: Env,
+  actionId: number,
+  extraction: Extraction | null
+): Promise<Response | null> {
+  const { capabilities } = await resolveCapabilities(request, env);
+  const refusal = intentCreationRefusal(extraction?.intent, capabilities);
+  if (!refusal) return null;
+  await env.OFFICE_DB.prepare("UPDATE pending_actions SET status = 'pending' WHERE id = ?").bind(actionId).run();
+  return Response.json(
+    { error: refusal, detail: "This question holds something you may not record, so it was left for someone who can answer it." },
+    { status: 403 }
+  );
+}
+
+// A claimed action (marked 'processing' so two taps cannot both run) must go back to 'pending' on every early return that did
+// not complete it. A missing or invalid choice used to return a 400 without doing so, which left the question 'processing' for
+// ever: the next answer, even a correct one, was told "action already processing" (found 2026-10-04).
+async function releaseClaim(env: Env, actionId: number): Promise<void> {
+  await env.OFFICE_DB.prepare("UPDATE pending_actions SET status = 'pending' WHERE id = ?").bind(actionId).run();
+}
+
 async function processTranscript(
   env: Env,
   transcript: string,
@@ -3836,6 +3864,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             transcript: string;
             captureId: number | null;
           };
+          const replayRefused = await refuseReplayIfNotPermitted(request, env, id, payload.extraction);
+          if (replayRefused) return replayRefused;
           // Real feature 2026-07-25 — Identity Collision, given
           // directly by Pierre. Confirming means the name genuinely
           // needs a real, new record in its intended table — an
@@ -3904,6 +3934,9 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           // mechanism a picker would call once built. The
           // single-candidate case keeps its exact previous behavior,
           // unchanged, when no personId is sent.
+          const replayRefused = await refuseReplayIfNotPermitted(request, env, id, payload.extraction);
+          if (replayRefused) return replayRefused;
+
           const body = (await request.json().catch(() => ({}))) as { personId?: number };
 
           let chosenPersonId: number;
@@ -3912,6 +3945,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           } else if (payload.candidates.length === 1) {
             chosenPersonId = payload.candidates[0].id;
           } else {
+            await releaseClaim(env, id);
             return Response.json(
               {
                 error: "More than one real candidate — pass personId in the request body to specify which one.",
@@ -4012,6 +4046,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           const body = (await request.json().catch(() => ({}))) as { projectId?: number };
           const chosen = payload.candidates.find((c) => c.id === body.projectId);
           if (!chosen) {
+            await releaseClaim(env, id);
             return Response.json(
               {
                 error: "a real projectId matching one of the candidates must be given",
@@ -4506,6 +4541,9 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             transcript: string;
             captureId: number | null;
           };
+
+          const replayRefused = await refuseReplayIfNotPermitted(request, env, id, payload.extraction);
+          if (replayRefused) return replayRefused;
 
           const insertedPerson = await env.OFFICE_DB.prepare("INSERT INTO people (name) VALUES (?) RETURNING id")
             .bind(payload.name)

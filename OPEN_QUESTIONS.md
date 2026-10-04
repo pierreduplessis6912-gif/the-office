@@ -3,7 +3,7 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (the function and its first caller are characterized).
+decision, and say where it was applied. Last updated 2026-10-04 (the function, its caller and the confirm and reject routes are characterized).
 
 ## A. Decisions only Pierre can make
 
@@ -74,6 +74,12 @@ decision, and say where it was applied. Last updated 2026-10-04 (the function an
     on how many jobs were in one sentence, and a duplicate project is created. *Options:* ask which existing project in
     both cases; or keep the new group project but ask whether it belongs to an existing one. (`DECISIONS.md`, "Rewrite
     Phase 2, the first caller".)
+36. **Answering "yes, the same person" to an identity question creates the customer (or supplier) record unlinked from
+    the existing person**, whereas the near-match answer links it. The code's own 2026-07-25 comment says the record is
+    created "separately", so it may be intended; the question itself reads "is this the same person". *Option:* link it, as
+    the near-match answer does. (`DECISIONS.md`, "Rewrite Phase 2, the confirm and reject routes".)
+37. **Rejecting an identity question ("someone else was meant") drops the original dictation without a word.** Nothing is
+    recorded and nothing says so; the person has to say it again with a different name. *Option:* say what was dropped.
 11. **An installer's scheduling message that the classifier labels "invoice" is refused outright.** Set aside on
     2026-10-03 as unproven (it was only ever seen in a code comment). Reopen if a real one is refused.
 
@@ -99,15 +105,19 @@ decision, and say where it was applied. Last updated 2026-10-04 (the function an
 
 ## E. Engineering
 
-19. **Characterization coverage.** All of `processOneExtraction` is recorded (about 260 cases), and its first caller,
-    `processTranscript`, is recorded in 19 cases. **Still not recorded:** the confirm and reject routes and what they
-    replay (including the replay of a held action), the upload handlers (item 20), and the route layer around them.
+19. **Characterization coverage.** All of `processOneExtraction` is recorded (about 260 cases), its first caller
+    `processTranscript` (19 cases), and the confirm and reject routes (51 cases, through the real request handler and
+    the real auth gate). **Still not recorded:** the upload handlers (item 20) and the remaining routes around them
+    (the list screens, the document downloads, sign-in).
 20. **The upload handlers (`/files/document`, `/files/photo`) are not characterized**; they are separate code with
     their own tests by source pattern only.
 21. **Phase 3 itself** (the first real handler reproducing its recording exactly) has not started.
 
 ## Settled (kept so the reasoning is not lost)
 
+- 2026-10-04: a refused answer to a near-match or project question left the action stuck as "processing" for ever, and an
+  installer could consume or reject a question about a payment they may not record, losing the payment. Both fixed.
+  (`DECISIONS.md`, "Rewrite Phase 2, the confirm and reject routes".)
 - 2026-10-04: "forget that" abandoned the newest pending action of anyone's (an installer could abandon the owner's invoice).
   It now takes only what the caller could resolve through the normal routes. (`DECISIONS.md`, "Rewrite Phase 2, the opening step".)
 - 2026-10-04: registering an already-tracked stock item created a duplicate row. Now reused. (`DECISIONS.md`, "Rewrite Phase 2, stock, snags and leads".)

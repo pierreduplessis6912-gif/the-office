@@ -1220,58 +1220,16 @@
  },
  "confirm identity question: an installer confirms a payment that the owner dictated (the replay runs as the confirmer)": {
   "result": {
-   "status": 200,
+   "status": 403,
    "body": {
-    "status": "confirmed",
-    "customer": null,
-    "character": null,
-    "pendingActionId": null,
-    "factPendingActionId": null,
-    "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
-    "jobScopeIdForProjectResolution": null,
-    "pendingCandidates": null,
-    "pendingActionType": null,
-    "pendingChanges": null
+    "error": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "detail": "This question holds something you may not record, so it was left for someone who can answer it."
    }
   },
   "threw": null,
   "aiCalls": [],
   "backgroundErrors": [],
-  "writes": {
-   "customers": {
-    "added": [
-     {
-      "id": 4,
-      "name": "Jabulani",
-      "address": null,
-      "vat_exempt": 0,
-      "retention_percent": null,
-      "person_id": null,
-      "merged_into_customer_id": null
-     }
-    ]
-   },
-   "pending_actions": {
-    "changed": [
-     {
-      "before": {
-       "id": 1,
-       "type": "identity_collision",
-       "payload": "{\"name\":\"Jabulani\",\"intendedRole\":\"customer\",\"extraction\":{\"customer_name\":\"Jabulani\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Jabulani paid R500\",\"captureId\":1}",
-       "status": "pending",
-       "source_transcript": "Jabulani paid R500"
-      },
-      "after": {
-       "id": 1,
-       "type": "identity_collision",
-       "payload": "{\"name\":\"Jabulani\",\"intendedRole\":\"customer\",\"extraction\":{\"customer_name\":\"Jabulani\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Jabulani paid R500\",\"captureId\":1}",
-       "status": "confirmed",
-       "source_transcript": "Jabulani paid R500"
-      }
-     }
-    ]
-   }
-  },
+  "writes": {},
   "effects": []
  },
  "confirm identity question: an accountant confirms a payment that the owner dictated": {
@@ -1548,28 +1506,7 @@
   "threw": null,
   "aiCalls": [],
   "backgroundErrors": [],
-  "writes": {
-   "pending_actions": {
-    "changed": [
-     {
-      "before": {
-       "id": 1,
-       "type": "ambiguous_person",
-       "payload": "{\"name\":\"Sipho Dub\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":3,\"name\":\"Sipho Dlamini\"},{\"id\":6,\"name\":\"Sipho Dube\"},{\"id\":7,\"name\":\"Sipho Dubula\"}],\"extraction\":{\"customer_name\":\"Sipho Dub\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipho Dub called\",\"captureId\":1}",
-       "status": "pending",
-       "source_transcript": "Sipho Dub called"
-      },
-      "after": {
-       "id": 1,
-       "type": "ambiguous_person",
-       "payload": "{\"name\":\"Sipho Dub\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":3,\"name\":\"Sipho Dlamini\"},{\"id\":6,\"name\":\"Sipho Dube\"},{\"id\":7,\"name\":\"Sipho Dubula\"}],\"extraction\":{\"customer_name\":\"Sipho Dub\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipho Dub called\",\"captureId\":1}",
-       "status": "processing",
-       "source_transcript": "Sipho Dub called"
-      }
-     }
-    ]
-   }
-  },
+  "writes": {},
   "effects": []
  },
  "confirm near-match question: two candidates and a valid choice": {
@@ -1707,28 +1644,7 @@
   "threw": null,
   "aiCalls": [],
   "backgroundErrors": [],
-  "writes": {
-   "pending_actions": {
-    "changed": [
-     {
-      "before": {
-       "id": 1,
-       "type": "ambiguous_person",
-       "payload": "{\"name\":\"Sipho Dub\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":3,\"name\":\"Sipho Dlamini\"},{\"id\":6,\"name\":\"Sipho Dube\"},{\"id\":7,\"name\":\"Sipho Dubula\"}],\"extraction\":{\"customer_name\":\"Sipho Dub\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipho Dub called\",\"captureId\":1}",
-       "status": "pending",
-       "source_transcript": "Sipho Dub called"
-      },
-      "after": {
-       "id": 1,
-       "type": "ambiguous_person",
-       "payload": "{\"name\":\"Sipho Dub\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":3,\"name\":\"Sipho Dlamini\"},{\"id\":6,\"name\":\"Sipho Dube\"},{\"id\":7,\"name\":\"Sipho Dubula\"}],\"extraction\":{\"customer_name\":\"Sipho Dub\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipho Dub called\",\"captureId\":1}",
-       "status": "processing",
-       "source_transcript": "Sipho Dub called"
-      }
-     }
-    ]
-   }
-  },
+  "writes": {},
   "effects": []
  },
  "reject near-match question: a new person is created": {
@@ -1854,44 +1770,132 @@
  },
  "confirm near-match question: a valid choice after a refused attempt": {
   "result": {
-   "status": 409,
+   "status": 200,
    "body": {
-    "error": "action already processing"
+    "status": "confirmed",
+    "linkedToPersonId": 7,
+    "customer": {
+     "id": 4,
+     "name": "Sipho Dube",
+     "matched": true
+    },
+    "character": null,
+    "pendingActionId": null,
+    "factPendingActionId": null,
+    "message": "Found existing customer: Sipho Dube.",
+    "jobScopeIdForProjectResolution": null,
+    "pendingCandidates": null,
+    "pendingActionType": null,
+    "pendingChanges": null
    }
   },
   "threw": null,
   "aiCalls": [],
   "backgroundErrors": [],
-  "writes": {},
-  "effects": []
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Sipho Dub called",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Sipho Dub called",
+       "source": "text",
+       "subject_hint": "Sipho Dube",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 4,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "customers": {
+    "added": [
+     {
+      "id": 6,
+      "name": "Sipho Dub",
+      "address": null,
+      "vat_exempt": 0,
+      "retention_percent": null,
+      "person_id": 7,
+      "merged_into_customer_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "ambiguous_person",
+       "payload": "{\"name\":\"Sipho Dub\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":3,\"name\":\"Sipho Dlamini\"},{\"id\":6,\"name\":\"Sipho Dube\"},{\"id\":7,\"name\":\"Sipho Dubula\"}],\"extraction\":{\"customer_name\":\"Sipho Dub\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipho Dub called\",\"captureId\":1}",
+       "status": "pending",
+       "source_transcript": "Sipho Dub called"
+      },
+      "after": {
+       "id": 1,
+       "type": "ambiguous_person",
+       "payload": "{\"name\":\"Sipho Dub\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":3,\"name\":\"Sipho Dlamini\"},{\"id\":6,\"name\":\"Sipho Dube\"},{\"id\":7,\"name\":\"Sipho Dubula\"}],\"extraction\":{\"customer_name\":\"Sipho Dub\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipho Dub called\",\"captureId\":1}",
+       "status": "confirmed",
+       "source_transcript": "Sipho Dub called"
+      }
+     }
+    ]
+   },
+   "pending_memory_flush": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 4,
+      "text": "Sipho Dub called"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 4,
+      "label": "Sipho Dube"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "customer:4",
+    "value": "{\"facts\":[{\"text\":\"Sipho Dub called\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
  },
  "confirm identity question: after an installer's attempt, the owner can still answer it": {
-  "result": {
-   "status": 409,
-   "body": {
-    "error": "action already confirmed"
-   }
-  },
-  "threw": null,
-  "aiCalls": [],
-  "backgroundErrors": [],
-  "writes": {},
-  "effects": []
- },
- "confirm near-match question: an installer confirms a payment the owner dictated": {
   "result": {
    "status": 200,
    "body": {
     "status": "confirmed",
-    "linkedToPersonId": 3,
-    "customer": null,
+    "customer": {
+     "id": 4,
+     "name": "Jabulani",
+     "matched": true
+    },
     "character": null,
-    "pendingActionId": null,
+    "pendingActionId": 2,
     "factPendingActionId": null,
-    "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "message": "Payment noted for Jabulani of R500 — needs your confirmation (action #2) before it's recorded.",
     "jobScopeIdForProjectResolution": null,
     "pendingCandidates": null,
-    "pendingActionType": null,
+    "pendingActionType": "payment",
     "pendingChanges": null
    }
   },
@@ -1899,107 +1903,112 @@
   "aiCalls": [],
   "backgroundErrors": [],
   "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jabulani paid R500",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jabulani paid R500",
+       "source": "text",
+       "subject_hint": "Jabulani",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 4,
+       "character_id": null
+      }
+     }
+    ]
+   },
    "customers": {
     "added": [
      {
       "id": 4,
-      "name": "Sipo Dlamini",
+      "name": "Jabulani",
       "address": null,
       "vat_exempt": 0,
       "retention_percent": null,
-      "person_id": 3,
+      "person_id": null,
       "merged_into_customer_id": null
      }
     ]
    },
    "pending_actions": {
+    "added": [
+     {
+      "id": 2,
+      "type": "payment",
+      "payload": "{\"customerId\":4,\"customerName\":\"Jabulani\",\"amount\":500}",
+      "status": "pending",
+      "source_transcript": "Jabulani paid R500"
+     }
+    ],
     "changed": [
      {
       "before": {
        "id": 1,
-       "type": "ambiguous_person",
-       "payload": "{\"name\":\"Sipo Dlamini\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":3,\"name\":\"Sipho Dlamini\"}],\"extraction\":{\"customer_name\":\"Sipo Dlamini\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipo Dlamini paid R500\",\"captureId\":1}",
+       "type": "identity_collision",
+       "payload": "{\"name\":\"Jabulani\",\"intendedRole\":\"customer\",\"extraction\":{\"customer_name\":\"Jabulani\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Jabulani paid R500\",\"captureId\":1}",
        "status": "pending",
-       "source_transcript": "Sipo Dlamini paid R500"
+       "source_transcript": "Jabulani paid R500"
       },
       "after": {
        "id": 1,
-       "type": "ambiguous_person",
-       "payload": "{\"name\":\"Sipo Dlamini\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":3,\"name\":\"Sipho Dlamini\"}],\"extraction\":{\"customer_name\":\"Sipo Dlamini\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipo Dlamini paid R500\",\"captureId\":1}",
+       "type": "identity_collision",
+       "payload": "{\"name\":\"Jabulani\",\"intendedRole\":\"customer\",\"extraction\":{\"customer_name\":\"Jabulani\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Jabulani paid R500\",\"captureId\":1}",
        "status": "confirmed",
-       "source_transcript": "Sipo Dlamini paid R500"
+       "source_transcript": "Jabulani paid R500"
       }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 4,
+      "label": "Jabulani"
      }
     ]
    }
   },
   "effects": []
  },
- "reject near-match question: an installer rejects a payment the owner dictated": {
+ "confirm near-match question: an installer confirms a payment the owner dictated": {
   "result": {
-   "status": 200,
+   "status": 403,
    "body": {
-    "status": "rejected_as_new_person",
-    "newPersonId": 6,
-    "customer": null,
-    "character": null,
-    "pendingActionId": null,
-    "factPendingActionId": null,
-    "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
-    "jobScopeIdForProjectResolution": null,
-    "pendingCandidates": null,
-    "pendingActionType": null,
-    "pendingChanges": null
+    "error": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "detail": "This question holds something you may not record, so it was left for someone who can answer it."
    }
   },
   "threw": null,
   "aiCalls": [],
   "backgroundErrors": [],
-  "writes": {
-   "customers": {
-    "added": [
-     {
-      "id": 4,
-      "name": "Sipo Dlamini",
-      "address": null,
-      "vat_exempt": 0,
-      "retention_percent": null,
-      "person_id": 6,
-      "merged_into_customer_id": null
-     }
-    ]
-   },
-   "pending_actions": {
-    "changed": [
-     {
-      "before": {
-       "id": 1,
-       "type": "ambiguous_person",
-       "payload": "{\"name\":\"Sipo Dlamini\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":3,\"name\":\"Sipho Dlamini\"}],\"extraction\":{\"customer_name\":\"Sipo Dlamini\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipo Dlamini paid R500\",\"captureId\":1}",
-       "status": "pending",
-       "source_transcript": "Sipo Dlamini paid R500"
-      },
-      "after": {
-       "id": 1,
-       "type": "ambiguous_person",
-       "payload": "{\"name\":\"Sipo Dlamini\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":3,\"name\":\"Sipho Dlamini\"}],\"extraction\":{\"customer_name\":\"Sipo Dlamini\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipo Dlamini paid R500\",\"captureId\":1}",
-       "status": "rejected",
-       "source_transcript": "Sipo Dlamini paid R500"
-      }
-     }
-    ]
-   },
-   "people": {
-    "added": [
-     {
-      "id": 6,
-      "name": "Sipo Dlamini",
-      "needs_merge_review": 0,
-      "merged_into_person_id": null
-     }
-    ]
+  "writes": {},
+  "effects": []
+ },
+ "reject near-match question: an installer rejects a payment the owner dictated": {
+  "result": {
+   "status": 403,
+   "body": {
+    "error": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "detail": "This question holds something you may not record, so it was left for someone who can answer it."
    }
   },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
   "effects": []
  },
  "confirm identity question: a customer's name used for an installer is linked to the same person": {
@@ -2306,15 +2315,69 @@
  },
  "confirm project question: a valid choice after a refused attempt": {
   "result": {
-   "status": 409,
+   "status": 200,
    "body": {
-    "error": "action already processing"
+    "status": "confirmed",
+    "jobScopeId": 1,
+    "attachedToProject": {
+     "id": 2,
+     "description": "Lounge floor"
+    }
    }
   },
   "threw": null,
   "aiCalls": [],
   "backgroundErrors": [],
-  "writes": {},
+  "writes": {
+   "job_scopes": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "customer_id": 1,
+       "description": "Lounge laminate",
+       "scheduled_date_raw": null,
+       "source_transcript": null,
+       "scheduled_date": null,
+       "installer_id": null,
+       "capture_id": null,
+       "project_id": null
+      },
+      "after": {
+       "id": 1,
+       "customer_id": 1,
+       "description": "Lounge laminate",
+       "scheduled_date_raw": null,
+       "source_transcript": null,
+       "scheduled_date": null,
+       "installer_id": null,
+       "capture_id": null,
+       "project_id": 2
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "project_ambiguity",
+       "payload": "{\"jobScopeId\":1,\"candidates\":[{\"id\":1,\"description\":\"Kitchen refit\"},{\"id\":2,\"description\":\"Lounge floor\"}]}",
+       "status": "pending",
+       "source_transcript": "resolving project attachment for job scope #1"
+      },
+      "after": {
+       "id": 1,
+       "type": "project_ambiguity",
+       "payload": "{\"jobScopeId\":1,\"candidates\":[{\"id\":1,\"description\":\"Kitchen refit\"},{\"id\":2,\"description\":\"Lounge floor\"}]}",
+       "status": "confirmed",
+       "source_transcript": "resolving project attachment for job scope #1"
+      }
+     }
+    ]
+   }
+  },
   "effects": []
  },
  "confirm project question: no project is chosen": {
@@ -2337,28 +2400,7 @@
   "threw": null,
   "aiCalls": [],
   "backgroundErrors": [],
-  "writes": {
-   "pending_actions": {
-    "changed": [
-     {
-      "before": {
-       "id": 1,
-       "type": "project_ambiguity",
-       "payload": "{\"jobScopeId\":1,\"candidates\":[{\"id\":1,\"description\":\"Kitchen refit\"},{\"id\":2,\"description\":\"Lounge floor\"}]}",
-       "status": "pending",
-       "source_transcript": "resolving project attachment for job scope #1"
-      },
-      "after": {
-       "id": 1,
-       "type": "project_ambiguity",
-       "payload": "{\"jobScopeId\":1,\"candidates\":[{\"id\":1,\"description\":\"Kitchen refit\"},{\"id\":2,\"description\":\"Lounge floor\"}]}",
-       "status": "processing",
-       "source_transcript": "resolving project attachment for job scope #1"
-      }
-     }
-    ]
-   }
-  },
+  "writes": {},
   "effects": []
  },
  "reject project question": {
