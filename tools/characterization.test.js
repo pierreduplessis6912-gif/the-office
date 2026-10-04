@@ -6,14 +6,15 @@
 //     GOLDEN_UPDATE=1 node tools/role-matrix.test.js
 // regenerates the recordings, and the diff of the golden file in the commit IS the review of the behaviour change.
 module.exports = async function runCharacterization({ check, bundleTo, srcDir, fs, path, sameJson }) {
-  const { loadFunctions, runCase, runTranscriptCase } = require('./harness.js');
+  const { loadFunctions, runCase, runTranscriptCase, runRouteCase } = require('./harness.js');
   const workerDir = path.join(srcDir, '..');
   const casesDir = path.join(__dirname, 'cases');
   const goldenDir = path.join(__dirname, 'golden');
   const update = process.env.GOLDEN_UPDATE === '1';
   const auth = bundleTo('auth.ts', 'rm-char-auth.js');
   const caps = { owner: auth.ROLE_CAPABILITIES.owner, accountant: auth.ROLE_CAPABILITIES.accountant, installer: auth.ROLE_CAPABILITIES.installer, stranger: [] };
-  const { processOne, processTranscript } = await loadFunctions(workerDir);
+  const fns = await loadFunctions(workerDir);
+  const { processOne, processTranscript } = fns;
 
   const firstDifference = (a, b, where = '') => {
     if (JSON.stringify(a) === JSON.stringify(b)) return null;
@@ -32,17 +33,19 @@ module.exports = async function runCharacterization({ check, bundleTo, srcDir, f
     const specs = require(path.join(casesDir, group + '.js'))(caps);
     // A malformed case (a missing argument is easy to write) must fail with its name, not with a database error.
     for (const spec of specs) {
-      const needsExtraction = spec.kind !== 'transcript';   // a transcript case lets a model read each topic, so it supplies no extraction
-      const ok = typeof spec.name === 'string' && typeof spec.transcript === 'string' && (!needsExtraction || (spec.extraction && typeof spec.extraction.intent === 'string')) && Array.isArray(spec.capabilities) && typeof spec.seed === 'function' && (spec.ai === undefined || Array.isArray(spec.ai));
-      check(ok, `${group}: the case "${spec.name}" is malformed (it needs a name, a transcript, ${needsExtraction ? 'an extraction with an intent, ' : ''}a capabilities list, a seed, and an ai list if it has one)`);
+      const common = typeof spec.name === 'string' && typeof spec.seed === 'function' && (spec.ai === undefined || Array.isArray(spec.ai));
+      const shaped = spec.kind === 'route'
+        ? typeof spec.path === 'string' && (spec.before === undefined || Array.isArray(spec.before))
+        : typeof spec.transcript === 'string' && Array.isArray(spec.capabilities) && (spec.kind === 'transcript' || (spec.extraction && typeof spec.extraction.intent === 'string'));
+      check(common && shaped, `${group}: the case "${spec.name}" is malformed (it needs a name, a seed, an ai list if it has one, and ${spec.kind === 'route' ? 'a path' : spec.kind === 'transcript' ? 'a transcript and a capabilities list' : 'a transcript, a capabilities list and an extraction with an intent'})`);
     }
     const names = specs.map((x) => x.name);
     check(names.length === new Set(names).size, `${group}: two cases share a name`);
-    if (specs.some((x) => typeof x.transcript !== 'string')) continue;
+    if (specs.some((x) => x.kind !== 'route' && typeof x.transcript !== 'string')) continue;
     const actual = {};
     for (const spec of specs) {
-      const r = spec.kind === 'transcript' ? await runTranscriptCase(processTranscript, workerDir, spec) : await runCase(processOne, workerDir, spec);
-      actual[spec.name] = { result: r.result, threw: r.threw, aiCalls: r.aiCalls, backgroundErrors: r.backgroundErrors, writes: r.writes, effects: r.effects };
+      const r = spec.kind === 'route' ? await runRouteCase(fns, workerDir, spec) : spec.kind === 'transcript' ? await runTranscriptCase(processTranscript, workerDir, spec) : await runCase(processOne, workerDir, spec);
+      actual[spec.name] = { result: r.result, threw: r.threw, aiCalls: r.aiCalls, backgroundErrors: r.backgroundErrors, writes: r.writes, effects: r.effects, ...(r.errorLogs && r.errorLogs.length ? { errorLogs: r.errorLogs } : {}) };
     }
     const file = path.join(goldenDir, group + '.json');
     if (update) {

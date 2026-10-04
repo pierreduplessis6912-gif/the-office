@@ -27,7 +27,7 @@ async function loadFunctions(workerDir) {
     name: 'expose-processOneExtraction',
     setup(b) {
       b.onLoad({ filter: /src[\\/]index\.ts$/ }, (a) => ({
-        contents: fs.readFileSync(a.path, 'utf8') + '\nexport { processOneExtraction as __poe, processTranscript as __pt };\n',
+        contents: fs.readFileSync(a.path, 'utf8') + '\nexport { processOneExtraction as __poe, processTranscript as __pt, handleRequest as __hr };\n',
         loader: 'ts',
       }));
     },
@@ -35,7 +35,11 @@ async function loadFunctions(workerDir) {
   const out = path.join(os.tmpdir(), `rm-poe-${process.pid}.js`);
   await esbuild.build({ entryPoints: [path.join(workerDir, 'src', 'index.ts')], bundle: true, platform: 'node', format: 'cjs', outfile: out, logLevel: 'silent', plugins: [expose] });
   const mod = require(out);
-  return { processOne: mod.__poe, processTranscript: mod.__pt };
+  // auth.ts is bundled on its own for the real session signer and the real role table; its tokens verify against the
+  // copy inside the index bundle because both use the same HMAC with the same secret.
+  const authOut = path.join(os.tmpdir(), `rm-auth-${process.pid}.js`);
+  await esbuild.build({ entryPoints: [path.join(workerDir, 'src', 'auth.ts')], bundle: true, platform: 'node', format: 'cjs', outfile: authOut, logLevel: 'silent' });
+  return { processOne: mod.__poe, processTranscript: mod.__pt, handleRequest: mod.__hr, auth: require(authOut) };
 }
 
 // Kept for the cases that only need the single-segment function.
@@ -208,4 +212,66 @@ async function runTranscriptCase(processTranscript, workerDir, spec) {
   return { result, threw, aiCalls: ai.calls, aiInputs: ai.inputs, backgroundErrors, writes: diff(before, after), effects };
 }
 
-module.exports = { loadFunctions, loadProcessor, runCase, runTranscriptCase, newDatabase, EXTRACTION_DEFAULTS };
+// Drives a ROUTE through the real request handler and the real authentication gate: a real signed session cookie, a real
+// membership row, the real role table. Used for the confirm and reject routes, where a held action finally becomes a record.
+// A case may begin with `before` steps: { say: true, transcript, extraction, role } runs the real dictation (so the held
+// action's payload is exactly what the code writes, not a hand-copied guess) and { route: true, method, path, body, role }
+// makes an earlier request. The recorded writes are only those of the final request.
+async function runRouteCase(fns, workerDir, spec) {
+  const { processOne, handleRequest, auth } = fns;
+  const db = newDatabase(workerDir);
+  if (spec.seed) spec.seed(db);
+  for (const role of ['owner', 'accountant', 'installer']) db.prepare("INSERT INTO memberships (google_email, role, status) VALUES (?, ?, 'active')").run(`${role}@example.com`, role);
+  const ai = scriptedAi(spec.ai);
+  const pendingWork = [], backgroundErrors = [];
+  const ctx = { waitUntil: (p) => pendingWork.push(Promise.resolve(p).catch((e) => backgroundErrors.push(String(e && e.message || e)))), passThroughOnException() {} };
+  const effects = [];
+  const env = { OFFICE_DB: d1(db), AI: ai, CUSTOMER_NOTES: fakeKv(effects, spec.kvSeed), OFFICE_VAULT: fakeR2(effects), MEMORY: fakeVectorize(effects), SESSION_SECRET: 'harness-session-secret', ADMIN_KEY: 'harness-admin-key', GOOGLE_CLIENT_ID: 'harness-client-id' };
+  const call = async (step) => {
+    const headers = { 'content-type': 'application/json' };
+    if (!step.noSession) headers.cookie = `office_session=${await auth.signSession(env, `${step.role || 'owner'}@example.com`)}`;
+    const request = new Request('https://office.test' + step.path, { method: step.method || 'POST', headers, body: step.body === undefined ? undefined : JSON.stringify(step.body) });
+    const response = await handleRequest(request, env, ctx, 'req-1');
+    const text = await response.text();
+    let body = text;
+    try { body = JSON.parse(text); } catch (e) { /* not JSON: keep the text */ }
+    return { status: response.status, body };
+  };
+  const logLines = [];
+  const realLog = console.log, realError = console.error;
+  const standIn = globalThis.Response;
+  if (globalThis.__RealResponse) globalThis.Response = globalThis.__RealResponse;   // see role-matrix.test.js
+  console.log = (l) => logLines.push(String(l));
+  console.error = (l) => logLines.push(String(l));
+  let result = null, threw = null, before = null;
+  try {
+    await withFrozenClock(async () => {
+      try {
+        for (const step of spec.before || []) {
+          if (step.say) {
+            db.prepare("INSERT INTO captures (raw_text, source) VALUES (?, 'text')").run(step.transcript);
+            const captureId = Number(db.prepare('SELECT MAX(id) AS m FROM captures').get().m);
+            const role = step.role || 'owner';
+            await processOne(env, step.transcript, { ...EXTRACTION_DEFAULTS, ...step.extraction }, [], ctx, captureId, auth.ROLE_CAPABILITIES[role] || [], `${role}@example.com`);
+          } else {
+            await call(step);
+          }
+          await Promise.all(pendingWork.splice(0));
+        }
+        before = snapshot(db);
+        result = await call(spec);
+        await Promise.all(pendingWork.splice(0));
+      } catch (e) {
+        threw = String(e && e.stack ? e.message : e);
+      }
+    });
+  } finally {
+    console.log = realLog; console.error = realError;
+    globalThis.Response = standIn;
+  }
+  if (before === null) before = snapshot(db);
+  const errorLogs = logLines.map((l) => { try { return JSON.parse(l); } catch (e) { return null; } }).filter((l) => l && l.level === 'error').map((l) => ({ message: l.message, detail: l.detail, actionId: l.actionId }));
+  return { result, threw, aiCalls: ai.calls, aiInputs: ai.inputs, backgroundErrors, writes: diff(before, snapshot(db)), effects, errorLogs };
+}
+
+module.exports = { loadFunctions, loadProcessor, runCase, runTranscriptCase, runRouteCase, newDatabase, EXTRACTION_DEFAULTS };

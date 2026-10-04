@@ -13,6 +13,9 @@ const js = esbuild.transformSync(code, { loader: 'ts', format: 'cjs', target: 'e
 const compiled = path.join(os.tmpdir(), 'role-matrix-decision-under-test.js');
 fs.writeFileSync(compiled, js);
 
+// The permission tests only need a stand-in that records a status and a body. The route cases in the characterization suite
+// need the REAL Response (they read the body back), so the original is kept and swapped in only while such a case runs.
+global.__RealResponse = global.Response;
 global.Response = class { static json(body, init) { const r = new this(); r.status = (init && init.status) || 200; r.body = body; return r; } };
 const { authorizeRestrictedMember, ENFORCE_CAPABILITIES } = require(compiled);
 if (ENFORCE_CAPABILITIES !== true) throw new Error('test is not running with the switch on');

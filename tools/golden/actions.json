@@ -1,0 +1,2725 @@
+{
+ "confirm payment: owner": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "payment": {
+     "id": 1,
+     "customerId": 1,
+     "amount": 500
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "payments": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "amount": 500,
+      "source_transcript": "Jenny paid R500",
+      "invoice_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "payment",
+       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
+       "status": "pending",
+       "source_transcript": "Jenny paid R500"
+      },
+      "after": {
+       "id": 1,
+       "type": "payment",
+       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
+       "status": "confirmed",
+       "source_transcript": "Jenny paid R500"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm payment: a payment with no amount": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "payment": {
+     "id": 1,
+     "customerId": 1,
+     "amount": null
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "payments": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "amount": null,
+      "source_transcript": "Jenny paid",
+      "invoice_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "payment",
+       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":null}",
+       "status": "pending",
+       "source_transcript": "Jenny paid"
+      },
+      "after": {
+       "id": 1,
+       "type": "payment",
+       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":null}",
+       "status": "confirmed",
+       "source_transcript": "Jenny paid"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm payment: accountant": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "payment": {
+     "id": 1,
+     "customerId": 1,
+     "amount": 500
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "payments": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "amount": 500,
+      "source_transcript": "Jenny paid R500",
+      "invoice_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "payment",
+       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
+       "status": "pending",
+       "source_transcript": "Jenny paid R500"
+      },
+      "after": {
+       "id": 1,
+       "type": "payment",
+       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
+       "status": "confirmed",
+       "source_transcript": "Jenny paid R500"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm payment: an installer is refused at the gate": {
+  "result": {
+   "status": 403,
+   "body": {
+    "error": "not available for your role"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "confirm payment: signed out": {
+  "result": {
+   "status": 401,
+   "body": {
+    "error": "sign in required"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "confirm payment: signed in but not a member": {
+  "result": {
+   "status": 403,
+   "body": {
+    "error": "no active membership"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "confirm payment: confirmed twice": {
+  "result": {
+   "status": 409,
+   "body": {
+    "error": "action already confirmed"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "confirm: no such action": {
+  "result": {
+   "status": 404,
+   "body": {
+    "error": "no such pending action"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "confirm expense: owner, a supplier named": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "expense": {
+     "id": 1,
+     "characterId": 2,
+     "customerId": null,
+     "amount": 1200,
+     "category": "other"
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Categorize this business expense into exactly one of: MATERIALS (stock",
+   "Categorize this business expense into exactly one of: MATERIALS (stock",
+   "Categorize this business expense into exactly one of: MATERIALS (stock"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "expenses": {
+    "added": [
+     {
+      "id": 1,
+      "character_id": 2,
+      "amount": 1200,
+      "description": "bought adhesive from Floornet for R1200",
+      "source_transcript": "bought adhesive from Floornet for R1200",
+      "category": "other",
+      "customer_id": null,
+      "capture_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "expense",
+       "payload": "{\"characterId\":2,\"characterName\":\"Floornet\",\"customerId\":null,\"amount\":1200,\"description\":\"bought adhesive from Floornet for R1200\"}",
+       "status": "pending",
+       "source_transcript": "bought adhesive from Floornet for R1200"
+      },
+      "after": {
+       "id": 1,
+       "type": "expense",
+       "payload": "{\"characterId\":2,\"characterName\":\"Floornet\",\"customerId\":null,\"amount\":1200,\"description\":\"bought adhesive from Floornet for R1200\"}",
+       "status": "confirmed",
+       "source_transcript": "bought adhesive from Floornet for R1200"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm supplier payment: owner": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "supplierPayment": {
+     "id": 1,
+     "characterId": 2,
+     "amount": 10000
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "supplier_payment",
+       "payload": "{\"characterId\":2,\"characterName\":\"Floornet\",\"amount\":10000}",
+       "status": "pending",
+       "source_transcript": "paid Floornet R10000"
+      },
+      "after": {
+       "id": 1,
+       "type": "supplier_payment",
+       "payload": "{\"characterId\":2,\"characterName\":\"Floornet\",\"amount\":10000}",
+       "status": "confirmed",
+       "source_transcript": "paid Floornet R10000"
+      }
+     }
+    ]
+   },
+   "supplier_payments": {
+    "added": [
+     {
+      "id": 1,
+      "character_id": 2,
+      "amount": 10000,
+      "source_transcript": "paid Floornet R10000",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm invoice: owner, with its document link": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "invoice": {
+     "id": 1,
+     "customerId": 1,
+     "amount": 5000,
+     "retentionAmount": 0
+    },
+    "pdfUrl": "https://office.test/invoices/1/pdf?sig=eyJwYXRoIjoiL2ludm9pY2VzLzEvcGRmIiwiZXhwIjoxODIyNTY0ODAwMDAwfQ.LYKqEa99504rZzmI9q9QD0MwKrA5ImnpdS8EY17pzzQ",
+    "shareMessage": "Hi Jenny, here's your invoice from us — R5,000. View it here: https://office.test/invoices/1/pdf?sig=eyJwYXRoIjoiL2ludm9pY2VzLzEvcGRmIiwiZXhwIjoxODIyNTY0ODAwMDAwfQ.LYKqEa99504rZzmI9q9QD0MwKrA5ImnpdS8EY17pzzQ"
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "invoices": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "invoice Jenny R5000",
+      "amount": 5000,
+      "status": "issued",
+      "source_transcript": "invoice Jenny R5000",
+      "quotation_id": null,
+      "retention_percent": null,
+      "retention_amount": 0,
+      "job_scope_id": null,
+      "due_date": "2026-11-02T12:00:00.000Z",
+      "capture_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "invoice",
+       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"invoice Jenny R5000\",\"amount\":5000}",
+       "status": "pending",
+       "source_transcript": "invoice Jenny R5000"
+      },
+      "after": {
+       "id": 1,
+       "type": "invoice",
+       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"invoice Jenny R5000\",\"amount\":5000}",
+       "status": "confirmed",
+       "source_transcript": "invoice Jenny R5000"
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "invoice",
+      "entity_id": 1,
+      "label": "invoice for Jenny Smith (R5,000)"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm invoice: accountant": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "invoice": {
+     "id": 1,
+     "customerId": 1,
+     "amount": 5000,
+     "retentionAmount": 0
+    },
+    "pdfUrl": "https://office.test/invoices/1/pdf?sig=eyJwYXRoIjoiL2ludm9pY2VzLzEvcGRmIiwiZXhwIjoxODIyNTY0ODAwMDAwfQ.LYKqEa99504rZzmI9q9QD0MwKrA5ImnpdS8EY17pzzQ",
+    "shareMessage": "Hi Jenny, here's your invoice from us — R5,000. View it here: https://office.test/invoices/1/pdf?sig=eyJwYXRoIjoiL2ludm9pY2VzLzEvcGRmIiwiZXhwIjoxODIyNTY0ODAwMDAwfQ.LYKqEa99504rZzmI9q9QD0MwKrA5ImnpdS8EY17pzzQ"
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "invoices": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "invoice Jenny R5000",
+      "amount": 5000,
+      "status": "issued",
+      "source_transcript": "invoice Jenny R5000",
+      "quotation_id": null,
+      "retention_percent": null,
+      "retention_amount": 0,
+      "job_scope_id": null,
+      "due_date": "2026-11-02T12:00:00.000Z",
+      "capture_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "invoice",
+       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"invoice Jenny R5000\",\"amount\":5000}",
+       "status": "pending",
+       "source_transcript": "invoice Jenny R5000"
+      },
+      "after": {
+       "id": 1,
+       "type": "invoice",
+       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"invoice Jenny R5000\",\"amount\":5000}",
+       "status": "confirmed",
+       "source_transcript": "invoice Jenny R5000"
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "invoice",
+      "entity_id": 1,
+      "label": "invoice for Jenny Smith (R5,000)"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm quotation: owner, with line items": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "quotation": {
+     "id": 1,
+     "customerId": 1,
+     "amount": 9000
+    },
+    "pdfUrl": "https://office.test/quotations/1/pdf?sig=eyJwYXRoIjoiL3F1b3RhdGlvbnMvMS9wZGYiLCJleHAiOjE4MjI1NjQ4MDAwMDB9.CWvAQmpQY1fhA7pnkltmL8ww9iAX5ZlDsBu6jVkuyDQ",
+    "shareMessage": "Hi Jenny, here's your quote from us — R9,000. View it here: https://office.test/quotations/1/pdf?sig=eyJwYXRoIjoiL3F1b3RhdGlvbnMvMS9wZGYiLCJleHAiOjE4MjI1NjQ4MDAwMDB9.CWvAQmpQY1fhA7pnkltmL8ww9iAX5ZlDsBu6jVkuyDQ"
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract every distinct line item from a tradesperson's quotation or in"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "line_items": {
+    "added": [
+     {
+      "id": 1,
+      "quotation_id": 1,
+      "invoice_id": null,
+      "description": "Carpet",
+      "note": null,
+      "quantity": 20,
+      "unit": "sqm",
+      "unit_price": 450,
+      "line_total": 9000,
+      "discount_percent": null,
+      "product_id": null,
+      "room": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "quotation",
+       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"Carpet\",\"amount\":9000,\"lineItems\":[{\"description\":\"Carpet\",\"note\":null,\"quantity\":20,\"unit\":\"sqm\",\"unit_price\":450,\"discount_percent\":null,\"line_total\":9000}],\"jobScopeId\":null}",
+       "status": "pending",
+       "source_transcript": "quote Jenny 20 sqm carpet at R450"
+      },
+      "after": {
+       "id": 1,
+       "type": "quotation",
+       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"Carpet\",\"amount\":9000,\"lineItems\":[{\"description\":\"Carpet\",\"note\":null,\"quantity\":20,\"unit\":\"sqm\",\"unit_price\":450,\"discount_percent\":null,\"line_total\":9000}],\"jobScopeId\":null}",
+       "status": "confirmed",
+       "source_transcript": "quote Jenny 20 sqm carpet at R450"
+      }
+     }
+    ]
+   },
+   "quotations": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "Carpet",
+      "amount": 9000,
+      "status": "draft",
+      "source_transcript": "quote Jenny 20 sqm carpet at R450",
+      "job_scope_id": null,
+      "capture_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "quotation",
+      "entity_id": 1,
+      "label": "quotation for Jenny Smith (R9,000)"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm quote conversion: owner, with a deposit": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "invoice": {
+     "invoiceId": 1
+    },
+    "pdfUrl": "https://office.test/invoices/1/pdf?sig=eyJwYXRoIjoiL2ludm9pY2VzLzEvcGRmIiwiZXhwIjoxODIyNTY0ODAwMDAwfQ.LYKqEa99504rZzmI9q9QD0MwKrA5ImnpdS8EY17pzzQ",
+    "shareMessage": "Hi Jenny, here's your invoice from us — R8,400. View it here: https://office.test/invoices/1/pdf?sig=eyJwYXRoIjoiL2ludm9pY2VzLzEvcGRmIiwiZXhwIjoxODIyNTY0ODAwMDAwfQ.LYKqEa99504rZzmI9q9QD0MwKrA5ImnpdS8EY17pzzQ"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "invoices": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "Balance due — Kitchen vinyl",
+      "amount": 8400,
+      "status": "issued",
+      "source_transcript": "convert Jenny's quote, she paid 30 percent upfront",
+      "quotation_id": 1,
+      "retention_percent": null,
+      "retention_amount": 0,
+      "job_scope_id": null,
+      "due_date": "2026-11-02T12:00:00.000Z",
+      "capture_id": null
+     }
+    ]
+   },
+   "line_items": {
+    "added": [
+     {
+      "id": 1,
+      "quotation_id": null,
+      "invoice_id": 1,
+      "description": "Balance due — Kitchen vinyl",
+      "note": null,
+      "quantity": 1,
+      "unit": null,
+      "unit_price": 8400,
+      "line_total": 8400,
+      "discount_percent": null,
+      "product_id": null,
+      "room": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "convert_quote",
+       "payload": "{\"quotationId\":1,\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"Balance due — Kitchen vinyl\",\"remainingBalance\":8400,\"total\":12000,\"depositAmount\":3600,\"depositPercent\":30}",
+       "status": "pending",
+       "source_transcript": "convert Jenny's quote, she paid 30 percent upfront"
+      },
+      "after": {
+       "id": 1,
+       "type": "convert_quote",
+       "payload": "{\"quotationId\":1,\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"Balance due — Kitchen vinyl\",\"remainingBalance\":8400,\"total\":12000,\"depositAmount\":3600,\"depositPercent\":30}",
+       "status": "confirmed",
+       "source_transcript": "convert Jenny's quote, she paid 30 percent upfront"
+      }
+     }
+    ]
+   },
+   "quotations": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "customer_id": 1,
+       "description": "Kitchen vinyl",
+       "amount": 12000,
+       "status": "draft",
+       "source_transcript": null,
+       "job_scope_id": null,
+       "capture_id": null
+      },
+      "after": {
+       "id": 1,
+       "customer_id": 1,
+       "description": "Kitchen vinyl",
+       "amount": 12000,
+       "status": "converted",
+       "source_transcript": null,
+       "job_scope_id": null,
+       "capture_id": null
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "invoice",
+      "entity_id": 1,
+      "label": "invoice for Jenny Smith (R8,400)"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm delivery: owner, an item that is not yet stock raises the stock question": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "goodsReceived": {
+     "grnId": 1,
+     "grnIds": [
+      1
+     ],
+     "variances": [
+      {
+       "description": "Vinyl",
+       "expected": 50,
+       "received": 50,
+       "variance": 0
+      }
+     ],
+     "exceptions": [],
+     "shortCount": 0,
+     "overCount": 0,
+     "notInStock": [
+      {
+       "name": "Vinyl",
+       "unit": "sqm",
+       "quantity": 50
+      }
+     ]
+    },
+    "message": "Delivery recorded (GRN #1). Add to stock? Vinyl (50 sqm) (action #2).",
+    "pendingActionId": 2,
+    "pendingActionType": "stock_add"
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "goods_received_notes": {
+    "added": [
+     {
+      "id": 1,
+      "purchase_order_id": 1,
+      "supplier_id": 2,
+      "source_transcript": "Floornet delivered the vinyl",
+      "recorded_by": "owner@example.com",
+      "capture_id": null
+     }
+    ]
+   },
+   "grn_line_items": {
+    "added": [
+     {
+      "id": 1,
+      "grn_id": 1,
+      "po_line_item_id": 1,
+      "description": "Vinyl",
+      "quantity_received": 50,
+      "quantity_ordered": 50,
+      "variance": 0
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 2,
+      "type": "stock_add",
+      "payload": "{\"items\":[{\"name\":\"Vinyl\",\"unit\":\"sqm\",\"quantity\":50}],\"supplierName\":\"Floornet\"}",
+      "status": "pending",
+      "source_transcript": "Add to stock? Vinyl (50 sqm)"
+     }
+    ],
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "goods_received",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_received\":50,\"item_description\":\"vinyl\",\"unit\":\"sqm\"}]}",
+       "status": "pending",
+       "source_transcript": "Floornet delivered the vinyl"
+      },
+      "after": {
+       "id": 1,
+       "type": "goods_received",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_received\":50,\"item_description\":\"vinyl\",\"unit\":\"sqm\"}]}",
+       "status": "confirmed",
+       "source_transcript": "Floornet delivered the vinyl"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm delivery: an installer confirms it (receiving goods is open to them)": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "goodsReceived": {
+     "grnId": 1,
+     "grnIds": [
+      1
+     ],
+     "variances": [
+      {
+       "description": "Vinyl",
+       "expected": 50,
+       "received": 50,
+       "variance": 0
+      }
+     ],
+     "exceptions": [],
+     "shortCount": 0,
+     "overCount": 0,
+     "notInStock": [
+      {
+       "name": "Vinyl",
+       "unit": "sqm",
+       "quantity": 50
+      }
+     ]
+    },
+    "message": "Delivery recorded (GRN #1). Add to stock? Vinyl (50 sqm) (action #2).",
+    "pendingActionId": 2,
+    "pendingActionType": "stock_add"
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "goods_received_notes": {
+    "added": [
+     {
+      "id": 1,
+      "purchase_order_id": 1,
+      "supplier_id": 2,
+      "source_transcript": "Floornet delivered the vinyl",
+      "recorded_by": "installer@example.com",
+      "capture_id": null
+     }
+    ]
+   },
+   "grn_line_items": {
+    "added": [
+     {
+      "id": 1,
+      "grn_id": 1,
+      "po_line_item_id": 1,
+      "description": "Vinyl",
+      "quantity_received": 50,
+      "quantity_ordered": 50,
+      "variance": 0
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 2,
+      "type": "stock_add",
+      "payload": "{\"items\":[{\"name\":\"Vinyl\",\"unit\":\"sqm\",\"quantity\":50}],\"supplierName\":\"Floornet\"}",
+      "status": "pending",
+      "source_transcript": "Add to stock? Vinyl (50 sqm)"
+     }
+    ],
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "goods_received",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_received\":50,\"item_description\":\"vinyl\",\"unit\":\"sqm\"}]}",
+       "status": "pending",
+       "source_transcript": "Floornet delivered the vinyl"
+      },
+      "after": {
+       "id": 1,
+       "type": "goods_received",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_received\":50,\"item_description\":\"vinyl\",\"unit\":\"sqm\"}]}",
+       "status": "confirmed",
+       "source_transcript": "Floornet delivered the vinyl"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm supplier invoice: owner": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "supplierInvoice": {
+     "supplierInvoiceId": 1,
+     "totalAmount": 9250,
+     "expenseId": 1,
+     "variances": [
+      {
+       "description": "Vinyl",
+       "quantityVariance": 0,
+       "quantityVarianceVsOrdered": 0,
+       "priceVariance": 5
+      }
+     ]
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "Categorize this business expense into exactly one of: MATERIALS (stock",
+   "Categorize this business expense into exactly one of: MATERIALS (stock",
+   "Categorize this business expense into exactly one of: MATERIALS (stock"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "expenses": {
+    "added": [
+     {
+      "id": 1,
+      "character_id": 2,
+      "amount": 9250,
+      "description": "Supplier invoice INV-7731",
+      "source_transcript": "Floornet invoice: 50 sqm vinyl at 185",
+      "category": "other",
+      "customer_id": null,
+      "capture_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "supplier_invoice",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185}]}",
+       "status": "pending",
+       "source_transcript": "Floornet invoice: 50 sqm vinyl at 185"
+      },
+      "after": {
+       "id": 1,
+       "type": "supplier_invoice",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185}]}",
+       "status": "confirmed",
+       "source_transcript": "Floornet invoice: 50 sqm vinyl at 185"
+      }
+     }
+    ]
+   },
+   "supplier_invoice_line_items": {
+    "added": [
+     {
+      "id": 1,
+      "supplier_invoice_id": 1,
+      "po_line_item_id": 1,
+      "description": "Vinyl",
+      "quantity_billed": 50,
+      "unit_price_billed": 185,
+      "quantity_variance": 0,
+      "price_variance": 5,
+      "line_total": 9250,
+      "product_id": null
+     }
+    ]
+   },
+   "supplier_invoices": {
+    "added": [
+     {
+      "id": 1,
+      "purchase_order_id": 1,
+      "supplier_id": 2,
+      "supplier_reference": "INV-7731",
+      "amount": 9250,
+      "source_transcript": "Floornet invoice: 50 sqm vinyl at 185",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm credit: owner, a credit with an amount": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "disposition": {
+     "dispositionId": 1,
+     "expenseId": 1
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "A real, already-known delivery discrepancy is being discussed — you ar",
+   "Categorize this business expense into exactly one of: MATERIALS (stock"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "expenses": {
+    "added": [
+     {
+      "id": 1,
+      "character_id": 2,
+      "amount": -2000,
+      "description": "Credit for Underlay (short_delivered)",
+      "source_transcript": "variance disposition #1",
+      "category": "other",
+      "customer_id": null,
+      "capture_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "variance_disposition",
+       "payload": "{\"grnLineItemId\":2,\"description\":\"Underlay\",\"reason\":\"short_delivered\",\"resolution\":\"credit\",\"creditAmount\":2000}",
+       "status": "pending",
+       "source_transcript": "Floornet is crediting us R2000 for the underlay shortage"
+      },
+      "after": {
+       "id": 1,
+       "type": "variance_disposition",
+       "payload": "{\"grnLineItemId\":2,\"description\":\"Underlay\",\"reason\":\"short_delivered\",\"resolution\":\"credit\",\"creditAmount\":2000}",
+       "status": "confirmed",
+       "source_transcript": "Floornet is crediting us R2000 for the underlay shortage"
+      }
+     }
+    ]
+   },
+   "variance_dispositions": {
+    "added": [
+     {
+      "id": 1,
+      "grn_line_item_id": 2,
+      "reason": "short_delivered",
+      "resolution": "credit",
+      "credit_amount": 2000,
+      "recorded_by": "owner@example.com",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm stock question: owner adds the delivered item to stock": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "addedToStock": [
+     {
+      "name": "Vinyl",
+      "unit": "sqm",
+      "quantity": 50
+     }
+    ],
+    "message": "Added to stock: Vinyl (50 sqm)."
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 2,
+       "type": "stock_add",
+       "payload": "{\"items\":[{\"name\":\"Vinyl\",\"unit\":\"sqm\",\"quantity\":50}],\"supplierName\":\"Floornet\"}",
+       "status": "pending",
+       "source_transcript": "Add to stock? Vinyl (50 sqm)"
+      },
+      "after": {
+       "id": 2,
+       "type": "stock_add",
+       "payload": "{\"items\":[{\"name\":\"Vinyl\",\"unit\":\"sqm\",\"quantity\":50}],\"supplierName\":\"Floornet\"}",
+       "status": "confirmed",
+       "source_transcript": "Add to stock? Vinyl (50 sqm)"
+      }
+     }
+    ]
+   },
+   "stock_items": {
+    "added": [
+     {
+      "id": 1,
+      "name": "Vinyl",
+      "unit": "sqm",
+      "quantity_on_hand": 50,
+      "reorder_threshold": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "reject stock question: the item is declined": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "rejected",
+    "id": 2
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 2,
+       "type": "stock_add",
+       "payload": "{\"items\":[{\"name\":\"Vinyl\",\"unit\":\"sqm\",\"quantity\":50}],\"supplierName\":\"Floornet\"}",
+       "status": "pending",
+       "source_transcript": "Add to stock? Vinyl (50 sqm)"
+      },
+      "after": {
+       "id": 2,
+       "type": "stock_add",
+       "payload": "{\"items\":[{\"name\":\"Vinyl\",\"unit\":\"sqm\",\"quantity\":50}],\"supplierName\":\"Floornet\"}",
+       "status": "rejected",
+       "source_transcript": "Add to stock? Vinyl (50 sqm)"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm identity question: owner, the name belongs to an installer": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "customer": {
+     "id": 4,
+     "name": "Jabulani",
+     "matched": true
+    },
+    "character": null,
+    "pendingActionId": null,
+    "factPendingActionId": null,
+    "message": "Found existing customer: Jabulani.",
+    "jobScopeIdForProjectResolution": null,
+    "pendingCandidates": null,
+    "pendingActionType": null,
+    "pendingChanges": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jabulani called about a job",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jabulani called about a job",
+       "source": "text",
+       "subject_hint": "Jabulani",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 4,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "customers": {
+    "added": [
+     {
+      "id": 4,
+      "name": "Jabulani",
+      "address": null,
+      "vat_exempt": 0,
+      "retention_percent": null,
+      "person_id": null,
+      "merged_into_customer_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "identity_collision",
+       "payload": "{\"name\":\"Jabulani\",\"intendedRole\":\"customer\",\"extraction\":{\"customer_name\":\"Jabulani\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Jabulani called about a job\",\"captureId\":1}",
+       "status": "pending",
+       "source_transcript": "Jabulani called about a job"
+      },
+      "after": {
+       "id": 1,
+       "type": "identity_collision",
+       "payload": "{\"name\":\"Jabulani\",\"intendedRole\":\"customer\",\"extraction\":{\"customer_name\":\"Jabulani\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Jabulani called about a job\",\"captureId\":1}",
+       "status": "confirmed",
+       "source_transcript": "Jabulani called about a job"
+      }
+     }
+    ]
+   },
+   "pending_memory_flush": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 4,
+      "text": "Jabulani called about a job"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 4,
+      "label": "Jabulani"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "customer:4",
+    "value": "{\"facts\":[{\"text\":\"Jabulani called about a job\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "confirm identity question: an installer confirms a payment that the owner dictated (the replay runs as the confirmer)": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "customer": null,
+    "character": null,
+    "pendingActionId": null,
+    "factPendingActionId": null,
+    "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "jobScopeIdForProjectResolution": null,
+    "pendingCandidates": null,
+    "pendingActionType": null,
+    "pendingChanges": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "customers": {
+    "added": [
+     {
+      "id": 4,
+      "name": "Jabulani",
+      "address": null,
+      "vat_exempt": 0,
+      "retention_percent": null,
+      "person_id": null,
+      "merged_into_customer_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "identity_collision",
+       "payload": "{\"name\":\"Jabulani\",\"intendedRole\":\"customer\",\"extraction\":{\"customer_name\":\"Jabulani\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Jabulani paid R500\",\"captureId\":1}",
+       "status": "pending",
+       "source_transcript": "Jabulani paid R500"
+      },
+      "after": {
+       "id": 1,
+       "type": "identity_collision",
+       "payload": "{\"name\":\"Jabulani\",\"intendedRole\":\"customer\",\"extraction\":{\"customer_name\":\"Jabulani\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Jabulani paid R500\",\"captureId\":1}",
+       "status": "confirmed",
+       "source_transcript": "Jabulani paid R500"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm identity question: an accountant confirms a payment that the owner dictated": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "customer": {
+     "id": 4,
+     "name": "Jabulani",
+     "matched": true
+    },
+    "character": null,
+    "pendingActionId": 2,
+    "factPendingActionId": null,
+    "message": "Payment noted for Jabulani of R500 — needs your confirmation (action #2) before it's recorded.",
+    "jobScopeIdForProjectResolution": null,
+    "pendingCandidates": null,
+    "pendingActionType": "payment",
+    "pendingChanges": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jabulani paid R500",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jabulani paid R500",
+       "source": "text",
+       "subject_hint": "Jabulani",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 4,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "customers": {
+    "added": [
+     {
+      "id": 4,
+      "name": "Jabulani",
+      "address": null,
+      "vat_exempt": 0,
+      "retention_percent": null,
+      "person_id": null,
+      "merged_into_customer_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 2,
+      "type": "payment",
+      "payload": "{\"customerId\":4,\"customerName\":\"Jabulani\",\"amount\":500}",
+      "status": "pending",
+      "source_transcript": "Jabulani paid R500"
+     }
+    ],
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "identity_collision",
+       "payload": "{\"name\":\"Jabulani\",\"intendedRole\":\"customer\",\"extraction\":{\"customer_name\":\"Jabulani\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Jabulani paid R500\",\"captureId\":1}",
+       "status": "pending",
+       "source_transcript": "Jabulani paid R500"
+      },
+      "after": {
+       "id": 1,
+       "type": "identity_collision",
+       "payload": "{\"name\":\"Jabulani\",\"intendedRole\":\"customer\",\"extraction\":{\"customer_name\":\"Jabulani\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Jabulani paid R500\",\"captureId\":1}",
+       "status": "confirmed",
+       "source_transcript": "Jabulani paid R500"
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 4,
+      "label": "Jabulani"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "reject identity question: owner, someone else was meant": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "rejected",
+    "id": 1
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "identity_collision",
+       "payload": "{\"name\":\"Jabulani\",\"intendedRole\":\"customer\",\"extraction\":{\"customer_name\":\"Jabulani\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Jabulani called about a job\",\"captureId\":1}",
+       "status": "pending",
+       "source_transcript": "Jabulani called about a job"
+      },
+      "after": {
+       "id": 1,
+       "type": "identity_collision",
+       "payload": "{\"name\":\"Jabulani\",\"intendedRole\":\"customer\",\"extraction\":{\"customer_name\":\"Jabulani\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Jabulani called about a job\",\"captureId\":1}",
+       "status": "rejected",
+       "source_transcript": "Jabulani called about a job"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm near-match question: one candidate, no choice needed": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "linkedToPersonId": 3,
+    "customer": {
+     "id": 4,
+     "name": "Sipo Dlamini",
+     "matched": true
+    },
+    "character": null,
+    "pendingActionId": null,
+    "factPendingActionId": null,
+    "message": "Found existing customer: Sipo Dlamini.",
+    "jobScopeIdForProjectResolution": null,
+    "pendingCandidates": null,
+    "pendingActionType": null,
+    "pendingChanges": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Sipo Dlamini called",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Sipo Dlamini called",
+       "source": "text",
+       "subject_hint": "Sipo Dlamini",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 4,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "customers": {
+    "added": [
+     {
+      "id": 4,
+      "name": "Sipo Dlamini",
+      "address": null,
+      "vat_exempt": 0,
+      "retention_percent": null,
+      "person_id": 3,
+      "merged_into_customer_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "ambiguous_person",
+       "payload": "{\"name\":\"Sipo Dlamini\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":3,\"name\":\"Sipho Dlamini\"}],\"extraction\":{\"customer_name\":\"Sipo Dlamini\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipo Dlamini called\",\"captureId\":1}",
+       "status": "pending",
+       "source_transcript": "Sipo Dlamini called"
+      },
+      "after": {
+       "id": 1,
+       "type": "ambiguous_person",
+       "payload": "{\"name\":\"Sipo Dlamini\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":3,\"name\":\"Sipho Dlamini\"}],\"extraction\":{\"customer_name\":\"Sipo Dlamini\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipo Dlamini called\",\"captureId\":1}",
+       "status": "confirmed",
+       "source_transcript": "Sipo Dlamini called"
+      }
+     }
+    ]
+   },
+   "pending_memory_flush": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 4,
+      "text": "Sipo Dlamini called"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 4,
+      "label": "Sipo Dlamini"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "customer:4",
+    "value": "{\"facts\":[{\"text\":\"Sipo Dlamini called\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "confirm near-match question: two candidates and no choice is refused": {
+  "result": {
+   "status": 400,
+   "body": {
+    "error": "More than one real candidate — pass personId in the request body to specify which one.",
+    "candidates": [
+     {
+      "id": 3,
+      "name": "Sipho Dlamini"
+     },
+     {
+      "id": 6,
+      "name": "Sipho Dube"
+     },
+     {
+      "id": 7,
+      "name": "Sipho Dubula"
+     }
+    ]
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "ambiguous_person",
+       "payload": "{\"name\":\"Sipho Dub\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":3,\"name\":\"Sipho Dlamini\"},{\"id\":6,\"name\":\"Sipho Dube\"},{\"id\":7,\"name\":\"Sipho Dubula\"}],\"extraction\":{\"customer_name\":\"Sipho Dub\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipho Dub called\",\"captureId\":1}",
+       "status": "pending",
+       "source_transcript": "Sipho Dub called"
+      },
+      "after": {
+       "id": 1,
+       "type": "ambiguous_person",
+       "payload": "{\"name\":\"Sipho Dub\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":3,\"name\":\"Sipho Dlamini\"},{\"id\":6,\"name\":\"Sipho Dube\"},{\"id\":7,\"name\":\"Sipho Dubula\"}],\"extraction\":{\"customer_name\":\"Sipho Dub\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipho Dub called\",\"captureId\":1}",
+       "status": "processing",
+       "source_transcript": "Sipho Dub called"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm near-match question: two candidates and a valid choice": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "linkedToPersonId": 7,
+    "customer": {
+     "id": 4,
+     "name": "Sipho Dube",
+     "matched": true
+    },
+    "character": null,
+    "pendingActionId": null,
+    "factPendingActionId": null,
+    "message": "Found existing customer: Sipho Dube.",
+    "jobScopeIdForProjectResolution": null,
+    "pendingCandidates": null,
+    "pendingActionType": null,
+    "pendingChanges": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Sipho Dub called",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Sipho Dub called",
+       "source": "text",
+       "subject_hint": "Sipho Dube",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 4,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "customers": {
+    "added": [
+     {
+      "id": 6,
+      "name": "Sipho Dub",
+      "address": null,
+      "vat_exempt": 0,
+      "retention_percent": null,
+      "person_id": 7,
+      "merged_into_customer_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "ambiguous_person",
+       "payload": "{\"name\":\"Sipho Dub\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":3,\"name\":\"Sipho Dlamini\"},{\"id\":6,\"name\":\"Sipho Dube\"},{\"id\":7,\"name\":\"Sipho Dubula\"}],\"extraction\":{\"customer_name\":\"Sipho Dub\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipho Dub called\",\"captureId\":1}",
+       "status": "pending",
+       "source_transcript": "Sipho Dub called"
+      },
+      "after": {
+       "id": 1,
+       "type": "ambiguous_person",
+       "payload": "{\"name\":\"Sipho Dub\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":3,\"name\":\"Sipho Dlamini\"},{\"id\":6,\"name\":\"Sipho Dube\"},{\"id\":7,\"name\":\"Sipho Dubula\"}],\"extraction\":{\"customer_name\":\"Sipho Dub\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipho Dub called\",\"captureId\":1}",
+       "status": "confirmed",
+       "source_transcript": "Sipho Dub called"
+      }
+     }
+    ]
+   },
+   "pending_memory_flush": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 4,
+      "text": "Sipho Dub called"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 4,
+      "label": "Sipho Dube"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "customer:4",
+    "value": "{\"facts\":[{\"text\":\"Sipho Dub called\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "confirm near-match question: two candidates and a choice that is not one of them": {
+  "result": {
+   "status": 400,
+   "body": {
+    "error": "More than one real candidate — pass personId in the request body to specify which one.",
+    "candidates": [
+     {
+      "id": 3,
+      "name": "Sipho Dlamini"
+     },
+     {
+      "id": 6,
+      "name": "Sipho Dube"
+     },
+     {
+      "id": 7,
+      "name": "Sipho Dubula"
+     }
+    ]
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "ambiguous_person",
+       "payload": "{\"name\":\"Sipho Dub\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":3,\"name\":\"Sipho Dlamini\"},{\"id\":6,\"name\":\"Sipho Dube\"},{\"id\":7,\"name\":\"Sipho Dubula\"}],\"extraction\":{\"customer_name\":\"Sipho Dub\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipho Dub called\",\"captureId\":1}",
+       "status": "pending",
+       "source_transcript": "Sipho Dub called"
+      },
+      "after": {
+       "id": 1,
+       "type": "ambiguous_person",
+       "payload": "{\"name\":\"Sipho Dub\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":3,\"name\":\"Sipho Dlamini\"},{\"id\":6,\"name\":\"Sipho Dube\"},{\"id\":7,\"name\":\"Sipho Dubula\"}],\"extraction\":{\"customer_name\":\"Sipho Dub\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipho Dub called\",\"captureId\":1}",
+       "status": "processing",
+       "source_transcript": "Sipho Dub called"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "reject near-match question: a new person is created": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "rejected_as_new_person",
+    "newPersonId": 6,
+    "customer": {
+     "id": 4,
+     "name": "Sipo Dlamini",
+     "matched": true
+    },
+    "character": null,
+    "pendingActionId": null,
+    "factPendingActionId": null,
+    "message": "Found existing customer: Sipo Dlamini.",
+    "jobScopeIdForProjectResolution": null,
+    "pendingCandidates": null,
+    "pendingActionType": null,
+    "pendingChanges": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Sipo Dlamini called",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Sipo Dlamini called",
+       "source": "text",
+       "subject_hint": "Sipo Dlamini",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 4,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "customers": {
+    "added": [
+     {
+      "id": 4,
+      "name": "Sipo Dlamini",
+      "address": null,
+      "vat_exempt": 0,
+      "retention_percent": null,
+      "person_id": 6,
+      "merged_into_customer_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "ambiguous_person",
+       "payload": "{\"name\":\"Sipo Dlamini\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":3,\"name\":\"Sipho Dlamini\"}],\"extraction\":{\"customer_name\":\"Sipo Dlamini\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipo Dlamini called\",\"captureId\":1}",
+       "status": "pending",
+       "source_transcript": "Sipo Dlamini called"
+      },
+      "after": {
+       "id": 1,
+       "type": "ambiguous_person",
+       "payload": "{\"name\":\"Sipo Dlamini\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":3,\"name\":\"Sipho Dlamini\"}],\"extraction\":{\"customer_name\":\"Sipo Dlamini\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipo Dlamini called\",\"captureId\":1}",
+       "status": "rejected",
+       "source_transcript": "Sipo Dlamini called"
+      }
+     }
+    ]
+   },
+   "pending_memory_flush": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 4,
+      "text": "Sipo Dlamini called"
+     }
+    ]
+   },
+   "people": {
+    "added": [
+     {
+      "id": 6,
+      "name": "Sipo Dlamini",
+      "needs_merge_review": 0,
+      "merged_into_person_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 4,
+      "label": "Sipo Dlamini"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "customer:4",
+    "value": "{\"facts\":[{\"text\":\"Sipo Dlamini called\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "confirm near-match question: a valid choice after a refused attempt": {
+  "result": {
+   "status": 409,
+   "body": {
+    "error": "action already processing"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "confirm identity question: after an installer's attempt, the owner can still answer it": {
+  "result": {
+   "status": 409,
+   "body": {
+    "error": "action already confirmed"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "confirm near-match question: an installer confirms a payment the owner dictated": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "linkedToPersonId": 3,
+    "customer": null,
+    "character": null,
+    "pendingActionId": null,
+    "factPendingActionId": null,
+    "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "jobScopeIdForProjectResolution": null,
+    "pendingCandidates": null,
+    "pendingActionType": null,
+    "pendingChanges": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "customers": {
+    "added": [
+     {
+      "id": 4,
+      "name": "Sipo Dlamini",
+      "address": null,
+      "vat_exempt": 0,
+      "retention_percent": null,
+      "person_id": 3,
+      "merged_into_customer_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "ambiguous_person",
+       "payload": "{\"name\":\"Sipo Dlamini\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":3,\"name\":\"Sipho Dlamini\"}],\"extraction\":{\"customer_name\":\"Sipo Dlamini\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipo Dlamini paid R500\",\"captureId\":1}",
+       "status": "pending",
+       "source_transcript": "Sipo Dlamini paid R500"
+      },
+      "after": {
+       "id": 1,
+       "type": "ambiguous_person",
+       "payload": "{\"name\":\"Sipo Dlamini\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":3,\"name\":\"Sipho Dlamini\"}],\"extraction\":{\"customer_name\":\"Sipo Dlamini\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipo Dlamini paid R500\",\"captureId\":1}",
+       "status": "confirmed",
+       "source_transcript": "Sipo Dlamini paid R500"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "reject near-match question: an installer rejects a payment the owner dictated": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "rejected_as_new_person",
+    "newPersonId": 6,
+    "customer": null,
+    "character": null,
+    "pendingActionId": null,
+    "factPendingActionId": null,
+    "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+    "jobScopeIdForProjectResolution": null,
+    "pendingCandidates": null,
+    "pendingActionType": null,
+    "pendingChanges": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "customers": {
+    "added": [
+     {
+      "id": 4,
+      "name": "Sipo Dlamini",
+      "address": null,
+      "vat_exempt": 0,
+      "retention_percent": null,
+      "person_id": 6,
+      "merged_into_customer_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "ambiguous_person",
+       "payload": "{\"name\":\"Sipo Dlamini\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":3,\"name\":\"Sipho Dlamini\"}],\"extraction\":{\"customer_name\":\"Sipo Dlamini\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipo Dlamini paid R500\",\"captureId\":1}",
+       "status": "pending",
+       "source_transcript": "Sipo Dlamini paid R500"
+      },
+      "after": {
+       "id": 1,
+       "type": "ambiguous_person",
+       "payload": "{\"name\":\"Sipo Dlamini\",\"intendedRole\":\"customer\",\"candidates\":[{\"id\":3,\"name\":\"Sipho Dlamini\"}],\"extraction\":{\"customer_name\":\"Sipo Dlamini\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Sipo Dlamini paid R500\",\"captureId\":1}",
+       "status": "rejected",
+       "source_transcript": "Sipo Dlamini paid R500"
+      }
+     }
+    ]
+   },
+   "people": {
+    "added": [
+     {
+      "id": 6,
+      "name": "Sipo Dlamini",
+      "needs_merge_review": 0,
+      "merged_into_person_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm identity question: a customer's name used for an installer is linked to the same person": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "customer": null,
+    "character": {
+     "id": 3,
+     "name": "Jenny Smith",
+     "matched": true
+    },
+    "pendingActionId": null,
+    "factPendingActionId": null,
+    "message": "Found existing: Jenny Smith.",
+    "jobScopeIdForProjectResolution": null,
+    "pendingCandidates": null,
+    "pendingActionType": null,
+    "pendingChanges": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jenny Smith will install it",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jenny Smith will install it",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 3
+      }
+     }
+    ]
+   },
+   "characters": {
+    "added": [
+     {
+      "id": 3,
+      "name": "Jenny Smith",
+      "relationship": "installer",
+      "person_id": null,
+      "merged_into_character_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "identity_collision",
+       "payload": "{\"name\":\"Jenny Smith\",\"intendedRole\":\"character\",\"extraction\":{\"customer_name\":null,\"character_name\":\"Jenny Smith\",\"character_relationship\":\"installer\",\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Jenny Smith will install it\",\"captureId\":1}",
+       "status": "pending",
+       "source_transcript": "Jenny Smith will install it"
+      },
+      "after": {
+       "id": 1,
+       "type": "identity_collision",
+       "payload": "{\"name\":\"Jenny Smith\",\"intendedRole\":\"character\",\"extraction\":{\"customer_name\":null,\"character_name\":\"Jenny Smith\",\"character_relationship\":\"installer\",\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Jenny Smith will install it\",\"captureId\":1}",
+       "status": "confirmed",
+       "source_transcript": "Jenny Smith will install it"
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 3,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "character:3",
+    "value": "{\"facts\":[{\"text\":\"Jenny Smith will install it\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "confirm amendment: owner": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "amendedJobScopeId": 1,
+    "changes": [
+     {
+      "field": "scheduled_date_raw",
+      "oldValue": "the 10th",
+      "newValue": "next Monday"
+     }
+    ]
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "job_scope_amendments": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "capture_id": 1,
+      "field_name": "scheduled_date_raw",
+      "old_value": "the 10th",
+      "new_value": "next Monday"
+     }
+    ]
+   },
+   "job_scopes": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "customer_id": 1,
+       "description": "Lounge laminate",
+       "scheduled_date_raw": "the 10th",
+       "source_transcript": null,
+       "scheduled_date": "2026-10-10",
+       "installer_id": null,
+       "capture_id": null,
+       "project_id": null
+      },
+      "after": {
+       "id": 1,
+       "customer_id": 1,
+       "description": "Lounge laminate",
+       "scheduled_date_raw": "next Monday",
+       "source_transcript": null,
+       "scheduled_date": "2026-10-05",
+       "installer_id": null,
+       "capture_id": null,
+       "project_id": null
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "job_scope_amendment",
+       "payload": "{\"jobScopeId\":1,\"jobScopeDescription\":\"Lounge laminate\",\"changes\":[{\"field\":\"scheduled_date_raw\",\"oldValue\":\"the 10th\",\"newValue\":\"next Monday\"}],\"customerId\":1,\"observation\":{\"job_description\":\"observation\",\"components\":[],\"tasks\":[],\"scheduled_date_raw\":\"next Monday\",\"installer_name\":null},\"installerId\":null,\"transcript\":\"move Jenny's install to next Monday\",\"captureId\":1}",
+       "status": "pending",
+       "source_transcript": "move Jenny's install to next Monday"
+      },
+      "after": {
+       "id": 1,
+       "type": "job_scope_amendment",
+       "payload": "{\"jobScopeId\":1,\"jobScopeDescription\":\"Lounge laminate\",\"changes\":[{\"field\":\"scheduled_date_raw\",\"oldValue\":\"the 10th\",\"newValue\":\"next Monday\"}],\"customerId\":1,\"observation\":{\"job_description\":\"observation\",\"components\":[],\"tasks\":[],\"scheduled_date_raw\":\"next Monday\",\"installer_name\":null},\"installerId\":null,\"transcript\":\"move Jenny's install to next Monday\",\"captureId\":1}",
+       "status": "confirmed",
+       "source_transcript": "move Jenny's install to next Monday"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "reject amendment: a new job is recorded instead": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "rejected_as_new_job",
+    "newJobScopeId": 2
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "job_scopes": {
+    "added": [
+     {
+      "id": 2,
+      "customer_id": 1,
+      "description": "observation",
+      "scheduled_date_raw": "next Monday",
+      "source_transcript": "move Jenny's install to next Monday",
+      "scheduled_date": "2026-10-05",
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "job_scope_amendment",
+       "payload": "{\"jobScopeId\":1,\"jobScopeDescription\":\"Lounge laminate\",\"changes\":[{\"field\":\"scheduled_date_raw\",\"oldValue\":\"the 10th\",\"newValue\":\"next Monday\"}],\"customerId\":1,\"observation\":{\"job_description\":\"observation\",\"components\":[],\"tasks\":[],\"scheduled_date_raw\":\"next Monday\",\"installer_name\":null},\"installerId\":null,\"transcript\":\"move Jenny's install to next Monday\",\"captureId\":1}",
+       "status": "pending",
+       "source_transcript": "move Jenny's install to next Monday"
+      },
+      "after": {
+       "id": 1,
+       "type": "job_scope_amendment",
+       "payload": "{\"jobScopeId\":1,\"jobScopeDescription\":\"Lounge laminate\",\"changes\":[{\"field\":\"scheduled_date_raw\",\"oldValue\":\"the 10th\",\"newValue\":\"next Monday\"}],\"customerId\":1,\"observation\":{\"job_description\":\"observation\",\"components\":[],\"tasks\":[],\"scheduled_date_raw\":\"next Monday\",\"installer_name\":null},\"installerId\":null,\"transcript\":\"move Jenny's install to next Monday\",\"captureId\":1}",
+       "status": "rejected",
+       "source_transcript": "move Jenny's install to next Monday"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm project question: a project is chosen": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "jobScopeId": 1,
+    "attachedToProject": {
+     "id": 2,
+     "description": "Lounge floor"
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "job_scopes": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "customer_id": 1,
+       "description": "Lounge laminate",
+       "scheduled_date_raw": null,
+       "source_transcript": null,
+       "scheduled_date": null,
+       "installer_id": null,
+       "capture_id": null,
+       "project_id": null
+      },
+      "after": {
+       "id": 1,
+       "customer_id": 1,
+       "description": "Lounge laminate",
+       "scheduled_date_raw": null,
+       "source_transcript": null,
+       "scheduled_date": null,
+       "installer_id": null,
+       "capture_id": null,
+       "project_id": 2
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "project_ambiguity",
+       "payload": "{\"jobScopeId\":1,\"candidates\":[{\"id\":1,\"description\":\"Kitchen refit\"},{\"id\":2,\"description\":\"Lounge floor\"}]}",
+       "status": "pending",
+       "source_transcript": "resolving project attachment for job scope #1"
+      },
+      "after": {
+       "id": 1,
+       "type": "project_ambiguity",
+       "payload": "{\"jobScopeId\":1,\"candidates\":[{\"id\":1,\"description\":\"Kitchen refit\"},{\"id\":2,\"description\":\"Lounge floor\"}]}",
+       "status": "confirmed",
+       "source_transcript": "resolving project attachment for job scope #1"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm project question: a valid choice after a refused attempt": {
+  "result": {
+   "status": 409,
+   "body": {
+    "error": "action already processing"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "confirm project question: no project is chosen": {
+  "result": {
+   "status": 400,
+   "body": {
+    "error": "a real projectId matching one of the candidates must be given",
+    "candidates": [
+     {
+      "id": 1,
+      "description": "Kitchen refit"
+     },
+     {
+      "id": 2,
+      "description": "Lounge floor"
+     }
+    ]
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "project_ambiguity",
+       "payload": "{\"jobScopeId\":1,\"candidates\":[{\"id\":1,\"description\":\"Kitchen refit\"},{\"id\":2,\"description\":\"Lounge floor\"}]}",
+       "status": "pending",
+       "source_transcript": "resolving project attachment for job scope #1"
+      },
+      "after": {
+       "id": 1,
+       "type": "project_ambiguity",
+       "payload": "{\"jobScopeId\":1,\"candidates\":[{\"id\":1,\"description\":\"Kitchen refit\"},{\"id\":2,\"description\":\"Lounge floor\"}]}",
+       "status": "processing",
+       "source_transcript": "resolving project attachment for job scope #1"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "reject project question": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "rejected",
+    "id": 1
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "project_ambiguity",
+       "payload": "{\"jobScopeId\":1,\"candidates\":[{\"id\":1,\"description\":\"Kitchen refit\"},{\"id\":2,\"description\":\"Lounge floor\"}]}",
+       "status": "pending",
+       "source_transcript": "resolving project attachment for job scope #1"
+      },
+      "after": {
+       "id": 1,
+       "type": "project_ambiguity",
+       "payload": "{\"jobScopeId\":1,\"candidates\":[{\"id\":1,\"description\":\"Kitchen refit\"},{\"id\":2,\"description\":\"Lounge floor\"}]}",
+       "status": "rejected",
+       "source_transcript": "resolving project attachment for job scope #1"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm customer fact: owner": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "key": "phone",
+    "value": "082 555 0101"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "customer_facts": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "key": "phone",
+      "value": "082 555 0101",
+      "source_transcript": "Jenny's phone is 082 555 0101"
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "customer_fact",
+       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"key\":\"phone\",\"value\":\"082 555 0101\"}",
+       "status": "pending",
+       "source_transcript": "Jenny's phone is 082 555 0101"
+      },
+      "after": {
+       "id": 1,
+       "type": "customer_fact",
+       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"key\":\"phone\",\"value\":\"082 555 0101\"}",
+       "status": "confirmed",
+       "source_transcript": "Jenny's phone is 082 555 0101"
+      }
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "customer:1",
+    "value": "{\"facts\":[{\"text\":\"Jenny's phone is 082 555 0101\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "confirm customer fact: accountant": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "key": "phone",
+    "value": "082 555 0101"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "customer_facts": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "key": "phone",
+      "value": "082 555 0101",
+      "source_transcript": "Jenny's phone is 082 555 0101"
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "customer_fact",
+       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"key\":\"phone\",\"value\":\"082 555 0101\"}",
+       "status": "pending",
+       "source_transcript": "Jenny's phone is 082 555 0101"
+      },
+      "after": {
+       "id": 1,
+       "type": "customer_fact",
+       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"key\":\"phone\",\"value\":\"082 555 0101\"}",
+       "status": "confirmed",
+       "source_transcript": "Jenny's phone is 082 555 0101"
+      }
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "customer:1",
+    "value": "{\"facts\":[{\"text\":\"Jenny's phone is 082 555 0101\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "confirm supplier or installer fact: owner": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "key": "cell",
+    "value": "083 555 0202"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "character_facts": {
+    "added": [
+     {
+      "id": 1,
+      "character_id": 1,
+      "key": "cell",
+      "value": "083 555 0202",
+      "source_transcript": "Jabulani's cell is 083 555 0202",
+      "capture_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "character_fact",
+       "payload": "{\"characterId\":1,\"characterName\":\"Jabulani\",\"key\":\"cell\",\"value\":\"083 555 0202\"}",
+       "status": "pending",
+       "source_transcript": "Jabulani's cell is 083 555 0202"
+      },
+      "after": {
+       "id": 1,
+       "type": "character_fact",
+       "payload": "{\"characterId\":1,\"characterName\":\"Jabulani\",\"key\":\"cell\",\"value\":\"083 555 0202\"}",
+       "status": "confirmed",
+       "source_transcript": "Jabulani's cell is 083 555 0202"
+      }
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "character:1",
+    "value": "{\"facts\":[{\"text\":\"Jabulani's cell is 083 555 0202\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "confirm supplier or installer fact: accountant is refused at the gate": {
+  "result": {
+   "status": 403,
+   "body": {
+    "error": "not available for your role"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": [
+   {
+    "kv": "put",
+    "key": "character:1",
+    "value": "{\"facts\":[{\"text\":\"Jabulani's cell is 083 555 0202\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "reject payment: owner": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "rejected",
+    "id": 1
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "payment",
+       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
+       "status": "pending",
+       "source_transcript": "Jenny paid R500"
+      },
+      "after": {
+       "id": 1,
+       "type": "payment",
+       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
+       "status": "rejected",
+       "source_transcript": "Jenny paid R500"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "reject payment: an installer is refused at the gate": {
+  "result": {
+   "status": 403,
+   "body": {
+    "error": "not available for your role"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "reject payment: already confirmed": {
+  "result": {
+   "status": 409,
+   "body": {
+    "error": "action already confirmed"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "reject: no such action": {
+  "result": {
+   "status": 404,
+   "body": {
+    "error": "no such pending action"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "confirm: a payload that cannot be read puts the action back to pending": {
+  "result": {
+   "status": 500,
+   "body": {
+    "error": "confirm handler threw",
+    "detail": "Unexpected token 'h', \"this is not json\" is not valid JSON"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": [],
+  "errorLogs": [
+   {
+    "message": "confirm handler threw",
+    "detail": "Unexpected token 'h', \"this is not json\" is not valid JSON",
+    "actionId": 1
+   }
+  ]
+ },
+ "confirm: an unknown action type is put back to pending": {
+  "result": {
+   "status": 400,
+   "body": {
+    "error": "unknown pending action type: some_future_type"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "confirm: a schema suggestion is only acknowledged": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "acknowledged",
+    "note": "No migration was run. Add the column or table yourself when ready.",
+    "payload": {
+     "table": "jobs",
+     "column": "colour"
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "schema_candidate",
+       "payload": "{\"table\":\"jobs\",\"column\":\"colour\"}",
+       "status": "pending",
+       "source_transcript": "a seeded action"
+      },
+      "after": {
+       "id": 1,
+       "type": "schema_candidate",
+       "payload": "{\"table\":\"jobs\",\"column\":\"colour\"}",
+       "status": "confirmed",
+       "source_transcript": "a seeded action"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ }
+}
