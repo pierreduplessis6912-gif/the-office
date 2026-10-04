@@ -130,6 +130,9 @@ async function expect(role, method, path, want) {
     // Decision 9 (2026-10-04): a spoken order cancellation is money-gated like placing the order (the old logic allowed
     // any intent it did not know).
     'installer:cancel_order', 'stranger:cancel_order',
+    // Decision 16 (2026-10-04): setting a unit conversion is gated like the rest of stock (materials access), so a role with no
+    // permissions is refused; the installer, who holds materials access, is allowed, as before.
+    'stranger:set_unit_conversion',
   ]);
   const probes = [...unionIntents, null, undefined, '', 'some_future_intent', 'constructor', '__proto__', 'toString'];
   for (const role of ['owner', 'accountant', 'installer', 'stranger'])
@@ -560,8 +563,11 @@ async function expect(role, method, path, want) {
 
   // Every path hands the extraction's lines to the classifier, and nothing else ever builds a hold or a record from raw lines.
   const rawUses = (indexSrc.match(/grnExtraction\.line_items/g) || []).length;
-  const classUses = (indexSrc.match(/classifyGoodsReceivedLines\(grnExtraction\.line_items, candidates\)/g) || []).length;
-  check(rawUses === 3 && classUses === 3, `every goods-received path (document, photo, dictation) must classify through classifyGoodsReceivedLines; raw uses ${rawUses}, classified ${classUses}`);
+  // The path is now: the extraction's lines -> the unit check (a delivery in another unit is converted, or the person is asked) ->
+  // the classifier. Each of the three paths must do both steps, in that order, and nothing may skip the unit check.
+  const checkUses = (indexSrc.match(/checkDeliveryUnits\(env, outstanding, grnExtraction\.line_items\)/g) || []).length;
+  const classUses = (indexSrc.match(/classifyGoodsReceivedLines\(unitCheck\.lines, candidates\)/g) || []).length;
+  check(rawUses === 3 && checkUses === 3 && classUses === 3, `every goods-received path (document, photo, dictation) must unit-check then classify; raw uses ${rawUses}, unit-checked ${checkUses}, classified ${classUses}`);
   check(!/lineItems: grnExtraction\.line_items/.test(indexSrc) && !/splitGoodsReceivedLines/.test(indexSrc), 'a hold must never be built from unclassified goods-received lines');
   const finSrc = fs.readFileSync(path.join(srcDir, 'finance.ts'), 'utf8');
   check(!/last_insert_rowid/.test(finSrc), 'finance.ts must read new ids with RETURNING id, not last_insert_rowid(), which D1 does not guarantee across statements');
@@ -589,7 +595,7 @@ async function expect(role, method, path, want) {
   // conversions and deliveries were never added, and an installer's lookup of a supplier was built from
   // "paid Floornet R10000" (reproduced with the characterization harness). The rule is now derived from INTENT_RULES.
   const { intentKeepsOutOfNotes } = require(compiled);
-  const MONEY_AND_STRUCTURED = ['payment', 'expense', 'invoice', 'quotation', 'price_scope', 'convert_quote', 'supplier_invoice', 'supplier_payment', 'variance_disposition', 'purchase_order', 'goods_received', 'supplier_statement', 'work_observation', 'register_stock_item', 'stock_usage', 'stocktake', 'raise_snag', 'resolve_snag', 'raise_lead', 'lose_lead', 'cancel_order'];   // the last seven: stock, snags and leads, decided by Pierre 2026-10-04   // supplier_statement is money-gated (it returns the real balance owed), so its words stay out of ungated notes too
+  const MONEY_AND_STRUCTURED = ['payment', 'expense', 'invoice', 'quotation', 'price_scope', 'convert_quote', 'supplier_invoice', 'supplier_payment', 'variance_disposition', 'purchase_order', 'goods_received', 'supplier_statement', 'work_observation', 'register_stock_item', 'stock_usage', 'stocktake', 'raise_snag', 'resolve_snag', 'raise_lead', 'lose_lead', 'cancel_order', 'set_unit_conversion'];   // the last seven: stock, snags and leads, decided by Pierre 2026-10-04   // supplier_statement is money-gated (it returns the real balance owed), so its words stay out of ungated notes too
   for (const i of unionIntents) check(intentKeepsOutOfNotes(i) === MONEY_AND_STRUCTURED.includes(i), `intent "${i}": ${MONEY_AND_STRUCTURED.includes(i) ? 'must keep its transcript out of notes (it has structured, gated storage)' : 'is narrative and may still be noted'}`);
   check([null, undefined, '', 'some_future_intent', 'constructor', '__proto__'].every((x) => intentKeepsOutOfNotes(x) === false), 'a value that is not an intent is never treated as having structured storage');
   for (const [i, r] of Object.entries(INTENT_RULES)) if (Array.isArray(r.create) && r.create.includes('can_manage_invoices')) check(intentKeepsOutOfNotes(i) === true, `"${i}" needs can_manage_invoices to create, so it is money and must be kept out of notes (a new gated money intent is covered automatically)`);
@@ -617,6 +623,9 @@ async function expect(role, method, path, want) {
   for (const [method, p] of [['GET', '/settings/permissions'], ['PATCH', '/settings/permissions'], ['POST', '/settings/permissions/reset'], ['GET', '/settings/permissions/audit']]) {
     for (const role of ['accountant', 'installer', 'stranger']) await expect(role, method, p, false);
   }
+
+  // Per-item unit conversion: the normaliser, the store and its maths against a real database, and the delivery check.
+  await require('./units.test.js')({ check, bundleTo, srcDir, fs, path, sameJson });
 
   // The rewrite scaffold (Phase 1): contract, adapters and the guards that stop it drifting from the live function.
   await require('./intents.test.js')({ check, bundleTo, srcDir, fs, path, indexSrc, sameJson });

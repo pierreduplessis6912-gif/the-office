@@ -50,6 +50,20 @@ module.exports = function cases(caps) {
     `);
   };
   const alreadyCancelled = (db) => { withOrder(db); db.exec(cancellationDdl + ` INSERT INTO purchase_order_cancellations (purchase_order_id, cancelled_by) VALUES (1, 'owner@example.com');`); };
+  // Per-item unit conversion (decided 2026-10-04): a delivery counted in boxes against an order placed in square metres.
+  const unitConversionDdl = "CREATE TABLE IF NOT EXISTS unit_conversions (item_key TEXT NOT NULL, from_unit TEXT NOT NULL, to_unit TEXT NOT NULL, factor REAL NOT NULL, set_by TEXT, updated_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (item_key, from_unit, to_unit))";
+  const withConversion = (rows) => (db) => { withOrder(db); db.exec(unitConversionDdl + '; ' + rows); };
+  const vinylBoxes = withConversion("INSERT INTO unit_conversions (item_key, from_unit, to_unit, factor) VALUES ('vinyl', 'box', 'sqm', 2.5);");
+  const vinylBoxesInverse = withConversion("INSERT INTO unit_conversions (item_key, from_unit, to_unit, factor) VALUES ('vinyl', 'sqm', 'box', 0.4);");
+  const quickstep = (db) => {
+    base(db);
+    db.exec(unitConversionDdl + `;
+      INSERT INTO unit_conversions (item_key, from_unit, to_unit, factor) VALUES ('laminate', 'box', 'sqm', 2.2);
+      INSERT INTO purchase_orders (id, supplier_id, description, created_at) VALUES (1, 1, 'Quickstep laminate', '2026-10-01 08:00:00');
+      INSERT INTO po_line_items (id, purchase_order_id, description, quantity_ordered, unit) VALUES (1, 1, 'Quickstep laminate', 22, 'sqm');
+    `);
+  };
+  const delivery = (item, desc, unit, qty) => GRAI({ supplier_name: 'Floornet', line_items: [{ matched_description: item, item_description: desc, unit, quantity_received: qty }] });
   const POAI = (reply) => ({ match: /line_items is every distinct material/, reply });
   const GRAI = (reply) => ({ match: /quantity_received/, reply });
   const SIAI = (reply) => ({ match: /quantity_billed/, reply });
@@ -94,6 +108,19 @@ module.exports = function cases(caps) {
     c('goods received: installer takes the delivery (decided 2026-10-03)', 'installer', withOrder, 'goods_received', sup(), 'Floornet delivered the vinyl, 50 square metres',
       [GRAI({ supplier_name: 'Floornet', line_items: [{ matched_description: 'Vinyl', item_description: 'vinyl', unit: 'sqm', quantity_received: 50 }] })]),
     c('goods received: a role with no permissions is refused', 'stranger', withOrder, 'goods_received', sup(), 'Floornet delivered the vinyl', []),
+
+    // ---------------- a delivery in a different unit from the order ----------------
+    c('goods received: a delivery in boxes is converted with the conversion on file', 'owner', vinylBoxes, 'goods_received', sup(), 'Floornet delivered 20 boxes of vinyl', [delivery('Vinyl', 'vinyl', 'boxes', 20)]),
+    c('goods received: boxes against square metres and no conversion known, so it asks and holds nothing', 'owner', withOrder, 'goods_received', sup(), 'Floornet delivered 20 boxes of vinyl', [delivery('Vinyl', 'vinyl', 'boxes', 20)]),
+    c('goods received: a conversion stored the other way round is still used', 'owner', vinylBoxesInverse, 'goods_received', sup(), 'Floornet delivered 20 boxes of vinyl', [delivery('Vinyl', 'vinyl', 'boxes', 20)]),
+    c('goods received: the same unit written differently is not a mismatch', 'owner', withOrder, 'goods_received', sup(), 'Floornet delivered 50 square metres of vinyl', [delivery('Vinyl', 'vinyl', 'square metres', 50)]),
+    c('goods received: a unit that is not recognised is compared as before', 'owner', withOrder, 'goods_received', sup(), 'Floornet delivered 5 bundles of vinyl', [delivery('Vinyl', 'vinyl', 'bundles', 5)]),
+    c('goods received: no unit stated is compared as before', 'owner', withOrder, 'goods_received', sup(), 'Floornet delivered 50 of vinyl', [delivery('Vinyl', 'vinyl', null, 50)]),
+    c('goods received: one line converts and another cannot, so it asks and holds nothing', 'owner', vinylBoxes, 'goods_received', sup(), 'Floornet delivered 20 boxes of vinyl and 8 rolls of underlay',
+      [GRAI({ supplier_name: 'Floornet', line_items: [{ matched_description: 'Vinyl', item_description: 'vinyl', unit: 'boxes', quantity_received: 20 }, { matched_description: 'Underlay', item_description: 'underlay', unit: 'rolls', quantity_received: 8 }] })]),
+    c('goods received: a conversion for "laminate" applies to "Quickstep laminate"', 'owner', quickstep, 'goods_received', sup(), 'Floornet delivered 10 boxes of Quickstep laminate', [delivery('Quickstep laminate', 'quickstep laminate', 'boxes', 10)]),
+    c('goods received: an item that is not on the order has no order unit to convert to', 'owner', vinylBoxes, 'goods_received', sup(), 'Floornet delivered 4 boxes of grout', [delivery(null, 'grout', 'boxes', 4)]),
+    c('goods received: an installer takes a delivery in boxes with the conversion on file', 'installer', vinylBoxes, 'goods_received', sup(), 'Floornet delivered 20 boxes of vinyl', [delivery('Vinyl', 'vinyl', 'boxes', 20)]),
 
     // ---------------- supplier_invoice ----------------
     c('supplier invoice: owner, open order, matched and priced', 'owner', withOrder, 'supplier_invoice', sup(), 'Floornet invoice INV-7731: 50 sqm vinyl at 185 and 100 sqm underlay at 40',

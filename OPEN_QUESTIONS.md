@@ -3,13 +3,10 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 6, stock, applied).
+decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 6 applied).
 
 ## A. Decisions only Pierre can make
 
-3. **Units do not convert.** A delivery in boxes against an order in square metres is compared number to number, and
-   stock quantities are added in the delivery's unit. *Options:* a per-item conversion factor (a box is 5 m2) captured
-   once; or require orders and deliveries in the same unit.
 5. **Supplier invoices are checked against the latest order only**, and against a single order. Deliveries now match
    across all outstanding orders; invoices still do not. *Option:* the same oldest-first matching for invoices.
 6. **"Add to stock?" is one question per delivery**, all or nothing, and is not asked retroactively. Each new
@@ -51,6 +48,16 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
 
 
 
+
+40. **Stock usage and stock counts are not converted.** Their readers carry no unit, so "used 3 boxes" of an item kept in
+    sqm is recorded as 3 sqm. Deliveries are converted; this is the other half. *Option:* have those readers capture the unit
+    and convert, or ask when it is ambiguous. (`DECISIONS.md`, "Decisions session, round 6 (part 2)".)
+41. **There is no way to list or delete a unit conversion.** Saying it again changes one, but a wrong one cannot be seen or
+    removed. *Option:* a spoken "what conversions do I have" and "forget the laminate conversion", or a screen in the
+    owner's room.
+42. **The recognised units are a fixed list** (square metres, boxes, bags, rolls, lengths, tiles, sheets, litres, kilograms,
+    tubes, tins, packs, pallets, metres, each). A unit outside it (a "bundle") is never converted and never flagged, by
+    design, so it cannot block a delivery. *Option:* add units as they turn up.
 ## B. Needs a live check only a phone can give
 
 12. **The Codemagic rebuild**: the Confirm/Reject buttons for a follow-up question raised by a confirm ("Add to stock?",
@@ -59,6 +66,10 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     tests, never run on a real delivery note with two orders.
 15. **The Permissions screen on a real phone.** The web build compiles it; the phone build and a real tap-through are
     unverified (switch something off for the installer, then check on the installer's phone that the room is gone).
+14e. **A real unit conversion on a phone.** Say "a box of laminate is 2.2 square metres" (expect "Noted: 1 box of laminate =
+    2.2 sqm"). Then place an order for laminate in square metres and say a delivery of it in boxes (expect "20 boxes of ... counted
+    as ... sqm"), and once with no conversion on file (expect the question, and nothing recorded). The model that reads the
+    sentence could not be run here.
 14d. **The stock merge on the live data.** `curl -X POST <worker>/debug/merge-stock-items -H "X-Admin-Key: ..." -d '{}'` lists
     any duplicate stock rows (a dry run); add `{"confirm":true}` to merge them. Nothing has been run against the live data.
 14c. **Rejecting an identity question on a phone.** Say a name that is already on file as an installer, tap Reject, and
@@ -98,6 +109,11 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
 
 ## Settled (kept so the reasoning is not lost)
+
+- 2026-10-04, decided by Pierre (decisions session, round 6, units):
+  - **Per-item unit conversion: built.** Said once ("a box of laminate is 2.2 square metres"), used on every delivery (spoken,
+    document, photo) and when stock is added; when two recognised units differ and none is known it asks and records nothing.
+    No existing recording changed. (`DECISIONS.md`, "Decisions session, round 6 (part 2)".)
 
 - 2026-10-04, decided by Pierre (decisions session, round 6, stock):
   - **Using more stock than is on hand says the count looks off** (still recorded). Applied.

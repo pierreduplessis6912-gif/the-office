@@ -1,4 +1,614 @@
 {
+ "unit conversion: owner, a box of laminate is 2.2 square metres": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Noted: 1 box of laminate = 2.2 sqm. I'll use that when a delivery comes in boxes against an order in sqm.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is saying how a pack unit converts for a material, for "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "a box of laminate is 2.2 square metres",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "a box of laminate is 2.2 square metres",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "unit_conversions": {
+    "added": [
+     {
+      "item_key": "laminate",
+      "from_unit": "box",
+      "to_unit": "sqm",
+      "factor": 2.2,
+      "set_by": "owner@example.com"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "unit conversion: said again with a new number, it replaces the old one": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Noted: 1 box of laminate = 2.4 sqm. I'll use that when a delivery comes in boxes against an order in sqm. (It was 2.2.)",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is saying how a pack unit converts for a material, for "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "a box of laminate is 2.4 square metres",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "a box of laminate is 2.4 square metres",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "unit_conversions": {
+    "added": [
+     {
+      "item_key": "laminate",
+      "from_unit": "box",
+      "to_unit": "sqm",
+      "factor": 2.4,
+      "set_by": "owner@example.com"
+     }
+    ],
+    "removed": [
+     {
+      "item_key": "laminate",
+      "from_unit": "box",
+      "to_unit": "sqm",
+      "factor": 2.2,
+      "set_by": "owner@example.com"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "unit conversion: said the other way round, it replaces the opposite pair": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Noted: 1 box of laminate = 2.2 sqm. I'll use that when a delivery comes in boxes against an order in sqm.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is saying how a pack unit converts for a material, for "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "a box of laminate is 2.2 square metres",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "a box of laminate is 2.2 square metres",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "unit_conversions": {
+    "added": [
+     {
+      "item_key": "laminate",
+      "from_unit": "box",
+      "to_unit": "sqm",
+      "factor": 2.2,
+      "set_by": "owner@example.com"
+     }
+    ],
+    "removed": [
+     {
+      "item_key": "laminate",
+      "from_unit": "sqm",
+      "to_unit": "box",
+      "factor": 0.4545,
+      "set_by": "owner@example.com"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "unit conversion: installer": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Noted: 1 roll of underlay = 15 sqm. I'll use that when a delivery comes in rolls against an order in sqm.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is saying how a pack unit converts for a material, for "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "underlay comes 15 square metres to a roll",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "underlay comes 15 square metres to a roll",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "unit_conversions": {
+    "added": [
+     {
+      "item_key": "underlay",
+      "from_unit": "roll",
+      "to_unit": "sqm",
+      "factor": 15,
+      "set_by": "owner@example.com"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "unit conversion: a role with no permissions is refused": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Recording stock isn't available for your role — let someone with that permission know.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "unit conversion: a unit that is not recognised": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I don't recognise the unit \"bundle\". I know square metres, boxes, bags, rolls, lengths, tiles, sheets, litres, kilograms, tubes, tins, packs, pallets, metres and each.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is saying how a pack unit converts for a material, for "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "a bundle of laminate is 2.2 square metres",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "a bundle of laminate is 2.2 square metres",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "unit conversion: both units are the same": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Both of those are boxes, so there is nothing to convert.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is saying how a pack unit converts for a material, for "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "a box of laminate is 2 boxes",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "a box of laminate is 2 boxes",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "unit conversion: the number is not stated": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I couldn't make out the material, the two units and how many are in each. Say it like \"a box of laminate is 2.2 square metres\".",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is saying how a pack unit converts for a material, for "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "a box of laminate is some square metres",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "a box of laminate is some square metres",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "unit conversion: a number that is not positive is not stored": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I couldn't make out the material, the two units and how many are in each. Say it like \"a box of laminate is 2.2 square metres\".",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is saying how a pack unit converts for a material, for "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "a box of laminate is minus 2 square metres",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "a box of laminate is minus 2 square metres",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "unit conversion: the model finds nothing": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I couldn't make out the material, the two units and how many are in each. Say it like \"a box of laminate is 2.2 square metres\".",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is saying how a pack unit converts for a material, for "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "laminate boxes",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "laminate boxes",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "unit conversion: the model fails": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I couldn't make out the material, the two units and how many are in each. Say it like \"a box of laminate is 2.2 square metres\".",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is saying how a pack unit converts for a material, for ",
+   "A tradesperson is saying how a pack unit converts for a material, for ",
+   "A tradesperson is saying how a pack unit converts for a material, for "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "a box of laminate is 2.2 square metres",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "a box of laminate is 2.2 square metres",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "unit conversion: a material misread as a customer name creates nobody": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Noted: 1 box of laminate = 2.2 sqm. I'll use that when a delivery comes in boxes against an order in sqm.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is saying how a pack unit converts for a material, for "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "a box of laminate is 2.2 square metres",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "a box of laminate is 2.2 square metres",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "unit_conversions": {
+    "added": [
+     {
+      "item_key": "laminate",
+      "from_unit": "box",
+      "to_unit": "sqm",
+      "factor": 2.2,
+      "set_by": "owner@example.com"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
  "stock register: owner, a new item": {
   "result": {
    "customer": null,

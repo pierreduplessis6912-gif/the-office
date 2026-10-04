@@ -53,6 +53,11 @@ module.exports = function cases(caps) {
   };
   // An installer on file from before people were recorded: no person to link to yet.
   const unlinkedInstaller = (db) => { base(db); db.exec(`INSERT INTO characters (name, relationship) VALUES ('Mystery', 'installer');`); };
+  // A delivery held in boxes, and what happens to it when it is confirmed (decided 2026-10-04). Floornet is supplier 2 here.
+  const unitConversionDdl = "CREATE TABLE IF NOT EXISTS unit_conversions (item_key TEXT NOT NULL, from_unit TEXT NOT NULL, to_unit TEXT NOT NULL, factor REAL NOT NULL, set_by TEXT, updated_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (item_key, from_unit, to_unit))";
+  const heldDelivery = (unit, quantity) => `INSERT INTO pending_actions (id, type, payload, source_transcript, status, created_at) VALUES (1, 'goods_received', '{"purchaseOrderId":1,"supplierId":2,"supplierName":"Floornet","allocate":true,"lineItems":[{"matched_description":"Vinyl","item_description":"vinyl","unit":"${unit}","quantity_received":${quantity}}]}', 'Floornet delivered the vinyl', 'pending', '2026-10-03 10:00:00');`;
+  const boxHold = (withConversion) => (db) => { withOrder(db); db.exec((withConversion ? unitConversionDdl + "; INSERT INTO unit_conversions (item_key, from_unit, to_unit, factor) VALUES ('vinyl', 'box', 'sqm', 2.5); " : '') + heldDelivery('boxes', 20)); };
+  const stockedHold = (stockUnit, onHand) => (db) => { withOrder(db); db.exec(unitConversionDdl + "; INSERT INTO unit_conversions (item_key, from_unit, to_unit, factor) VALUES ('vinyl', 'box', 'sqm', 2.5); INSERT INTO stock_items (name, unit, quantity_on_hand) VALUES ('Vinyl', '" + stockUnit + "', " + onHand + "); " + heldDelivery('sqm', 50)); };
   const OBS = (reply) => ({ match: /Extract the structure of a tradesperson's job observation/, reply });
   const LINES = (reply) => ({ match: /Extract every distinct line item from a tradesperson's quotation or invoice description/, reply });
   const GRAI = (reply) => ({ match: /quantity_received/, reply });
@@ -105,6 +110,12 @@ module.exports = function cases(caps) {
     r('reject order cancellation: nothing is cancelled', withOrder, '/actions/1/reject', [say('cancel the Floornet order', { intent: 'cancel_order', ...floornet })], []),
     r('confirm a delivery that was held before its order was cancelled: it is received as an exception', withOrder, '/actions/1/confirm',
       [say('Floornet delivered the vinyl', { intent: 'goods_received', ...floornet }), say('cancel the Floornet order', { intent: 'cancel_order', ...floornet }), confirm(2)], [vinylDelivery]),
+
+    // ---------------- a delivery in another unit, at confirmation ----------------
+    r('confirm delivery: held in boxes, and the conversion was learned after the hold, so it is converted now', boxHold(true), '/actions/1/confirm', [], []),
+    r('confirm delivery: held in boxes with no conversion known, so it goes back to waiting and the question is asked', boxHold(false), '/actions/1/confirm', [], []),
+    r('confirm delivery: stock kept in boxes is added in boxes although the order was in square metres', stockedHold('box', 0), '/actions/1/confirm', [], []),
+    r('confirm delivery: stock kept in the same unit as the order is added as before', stockedHold('sqm', 10), '/actions/1/confirm', [], []),
 
     // ---------------- who is this? ----------------
     r('confirm identity question: owner, the name belongs to an installer', base, '/actions/1/confirm', [say('Jabulani called about a job', { intent: 'note', customer_name: 'Jabulani' })], []),

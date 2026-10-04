@@ -23,6 +23,8 @@ module.exports = function cases(caps) {
     INSERT INTO people (name) VALUES ('Floornet Cape'), ('Floornet Joburg');
     INSERT INTO characters (name, relationship, person_id) VALUES ('Floornet Cape', 'supplier', 1), ('Floornet Joburg', 'supplier', 2);
   `);
+  const unitConversionDdl = "CREATE TABLE IF NOT EXISTS unit_conversions (item_key TEXT NOT NULL, from_unit TEXT NOT NULL, to_unit TEXT NOT NULL, factor REAL NOT NULL, set_by TEXT, updated_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (item_key, from_unit, to_unit))";
+  const withVinylConversion = (db) => { withOrder(db); db.exec(unitConversionDdl + "; INSERT INTO unit_conversions (item_key, from_unit, to_unit, factor) VALUES ('vinyl', 'box', 'sqm', 2.5);"); };
   const IDENT = (reply) => ({ match: /Decide what kind of document it is and which business ISSUED it/, reply });
   const STMT = (reply) => ({ match: /claimed_closing_balance/, reply });
   const DESCRIBE = (text) => ({ match: /Describe exactly what is shown in this photo/, reply: text });
@@ -160,7 +162,22 @@ module.exports = function cases(caps) {
     asImage('document (image): an installer\'s caption naming a new supplier with a money intent creates nobody', 'installer', withOrder, { caption: 'Newco Supplies invoice' }, [DESCRIBE('Newco Supplies TAX INVOICE'), newSupplierInvoice]),
     up('photo: an installer\'s caption naming a new supplier with a money intent creates nobody', 'installer', withOrder, 'photo', png, { caption: 'Newco Supplies invoice' }, [DESCRIBE('Newco Supplies TAX INVOICE'), newSupplierInvoice]),
   );
+  const boxesText = 'Floornet (Pty) Ltd DELIVERY NOTE Vinyl 20 boxes';
+  const boxesLine = GRAI({ supplier_name: 'Floornet', line_items: [{ matched_description: 'Vinyl', item_description: 'vinyl', unit: 'boxes', quantity_received: 20 }] });
+  const boxesIdent = IDENT({ document_type: 'delivery_note', issuer_name: 'Floornet (Pty) Ltd' });
+  specs.push(
+    asImage('document (image): a delivery in boxes with a conversion on file is converted and held', 'owner', withVinylConversion, {}, [DESCRIBE(boxesText), boxesIdent, boxesLine]),
+    up('photo: a delivery in boxes with a conversion on file is converted and held', 'owner', withVinylConversion, 'photo', png, {}, [DESCRIBE(boxesText), boxesIdent, boxesLine]),
+    asImage('document (image): a delivery in boxes and no conversion known asks and holds nothing', 'owner', withOrder, {}, [DESCRIBE(boxesText), boxesIdent, boxesLine]),
+    up('photo: a delivery in boxes and no conversion known asks and holds nothing', 'owner', withOrder, 'photo', png, {}, [DESCRIBE(boxesText), boxesIdent, boxesLine]),
+    asImage('document (image): a caption names the supplier and a delivery in boxes is converted and recorded', 'owner', withVinylConversion, { caption: floornetNote }, [DESCRIBE(boxesText), asFloornet, noPrices, boxesLine]),
+    up('photo: a caption names the supplier and a delivery in boxes is converted and recorded', 'owner', withVinylConversion, 'photo', png, { caption: floornetNote }, [DESCRIBE(boxesText), asFloornet, noPrices, boxesLine]),
+  );
+  specs.push(up('document: a delivery note in boxes with a conversion on file (a real PDF)', 'owner', withVinylConversion, 'document', pdf(['Floornet (Pty) Ltd', 'DELIVERY NOTE', 'Vinyl 20 boxes']), {}, [boxesIdent, boxesLine]));
   specs.pairs = [
+    ['document (image): a delivery in boxes with a conversion on file is converted and held', 'photo: a delivery in boxes with a conversion on file is converted and held', same],
+    ['document (image): a delivery in boxes and no conversion known asks and holds nothing', 'photo: a delivery in boxes and no conversion known asks and holds nothing', same],
+    ['document (image): a caption names the supplier and a delivery in boxes is converted and recorded', 'photo: a caption names the supplier and a delivery in boxes is converted and recorded', same],
     ['document (image): an installer\'s caption naming a new supplier with a money intent creates nobody', 'photo: an installer\'s caption naming a new supplier with a money intent creates nobody', same],
     ['document (image): an installer\'s caption naming a customer who is not on file creates nobody and says why', 'photo: an installer\'s caption naming a customer who is not on file creates nobody and says why', same],
     ['document (image): an owner\'s caption naming a customer who is not on file creates the customer', 'photo: an owner\'s caption naming a customer who is not on file creates the customer', same],

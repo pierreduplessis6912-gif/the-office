@@ -464,6 +464,9 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             'delivery being billed. A statement covers the whole real account, not one delivery. Same ' +
             'character_name convention — the supplier goes in character_name with character_relationship ' +
             '"supplier". ' +
+            'intent is "set_unit_conversion" if the message says how a pack unit converts for a material, for example "a box of ' +
+            'laminate is 2.2 square metres" or "underlay comes 15 square metres to a roll". Put nothing in customer_name or ' +
+            'character_name. ' +
             'intent is "cancel_order" if the message CANCELS or calls off an order that was already placed with a ' +
             'supplier, for example "cancel the Floornet order", "call off the vinyl order with Floornet" or "scrap order 3". ' +
             'Put the supplier in character_name with character_relationship "supplier" and leave customer_name null. This ' +
@@ -560,6 +563,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             '"Jenny paid R850" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"payment","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"bought glue for R850 at BUCO" -> {"customer_name":null,"character_name":"BUCO","character_relationship":"supplier","intent":"expense","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"paid Floornet R5000 off their account" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"supplier_payment","amount":5000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
+            '"a box of laminate is 2.2 square metres" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"set_unit_conversion","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"cancel the Floornet order" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"cancel_order","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"order 160 square meters of carpet tile from Floornet at R380 a square meter" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"purchase_order","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"the Floornet delivery arrived, but the underlay was short" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"goods_received","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
@@ -595,7 +599,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             "Return ONLY JSON, no markdown, no explanation: " +
             '{"customer_name": string or null, "character_name": string or null, "character_relationship": ' +
             'string or null, "intent": "payment" or "invoice" or "quotation" or "convert_quote" or ' +
-            '"price_scope" or "work_observation" or "lookup" or "reminder" or "task_complete" or "expense" or "note" or "purchase_order" or "goods_received" or "supplier_invoice" or "variance_disposition" or "supplier_payment" or "register_stock_item" or "stock_usage" or "stocktake" or "raise_snag" or "resolve_snag" or "raise_lead" or "lose_lead" or "cancel_order" or "supplier_statement" or "forget_last" or "other", "amount": number or null, ' +
+            '"price_scope" or "work_observation" or "lookup" or "reminder" or "task_complete" or "expense" or "note" or "purchase_order" or "goods_received" or "supplier_invoice" or "variance_disposition" or "supplier_payment" or "register_stock_item" or "stock_usage" or "stocktake" or "raise_snag" or "resolve_snag" or "raise_lead" or "lose_lead" or "cancel_order" or "set_unit_conversion" or "supplier_statement" or "forget_last" or "other", "amount": number or null, ' +
             '"fact_key": string or null, "fact_value": string or null, "personal_note": string or null, ' +
             '"query_scope": "customer" or "character" or "personal" or "business" or null, "deposit_percent": ' +
             'number or null, "scope_document_type": "quotation" or "invoice" or null, "due_date_raw": ' +
@@ -1023,6 +1027,50 @@ export async function extractStockItemRegistration(env: Env, transcript: string)
     const cleaned = rawText.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(cleaned) as StockItemRegistrationExtraction;
     return { name: parsed.name ?? null, unit: parsed.unit ?? null };
+  } catch {
+    return empty;
+  }
+}
+
+// Decided by Pierre 2026-10-04: "a box of laminate is 2.2 square metres". How many of one unit are in one of another, for a
+// named material, said once and used from then on to match a delivery in boxes against an order in square metres.
+export interface UnitConversionExtraction {
+  item_name: string | null;
+  from_unit: string | null;
+  to_unit: string | null;
+  factor: number | null;
+}
+
+export async function extractUnitConversion(env: Env, transcript: string): Promise<UnitConversionExtraction> {
+  const empty: UnitConversionExtraction = { item_name: null, from_unit: null, to_unit: null, factor: null };
+  try {
+    const result = await withRetry(() =>
+      env.AI.run("@cf/moonshotai/kimi-k2.6", {
+        temperature: 0,
+        chat_template_kwargs: { thinking: false },
+        messages: [
+          {
+            role: "system",
+            content:
+              "A tradesperson is saying how a pack unit converts for a material, for example how many square metres are in " +
+              "one box. item_name is the material exactly as stated. from_unit is the pack unit (box, roll, bag and so on) and " +
+              "to_unit is the unit it is measured in (square metres, litres and so on), each exactly as stated. factor is how " +
+              "many to_unit are in ONE from_unit, as a plain positive number, or null if it is not stated. " +
+              'Return ONLY JSON: {"item_name": string or null, "from_unit": string or null, "to_unit": string or null, "factor": number or null}\n\n' +
+              "Examples:\n" +
+              '"a box of laminate covers 2.2 square metres" -> {"item_name":"laminate","from_unit":"box","to_unit":"square metres","factor":2.2}\n' +
+              '"underlay comes 15 square metres to a roll" -> {"item_name":"underlay","from_unit":"roll","to_unit":"square metres","factor":15}',
+          },
+          { role: "user", content: transcript },
+        ],
+      })
+    );
+    const r = result as { choices?: Array<{ message?: { content?: string } }> };
+    const cleaned = (r.choices?.[0]?.message?.content ?? "").replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned) as Partial<UnitConversionExtraction>;
+    const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim().slice(0, 80) : null);
+    const factor = typeof parsed.factor === "number" && Number.isFinite(parsed.factor) && parsed.factor > 0 ? parsed.factor : null;
+    return { item_name: text(parsed.item_name), from_unit: text(parsed.from_unit), to_unit: text(parsed.to_unit), factor };
   } catch {
     return empty;
   }

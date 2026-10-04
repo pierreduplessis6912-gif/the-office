@@ -471,6 +471,8 @@ export const INTENT_RULES: Record<Extraction["intent"], IntentRule> = {
   // changes nothing for them; it makes the rule explicit and keeps a future
   // role with no materials access from writing stock by dictation.
   register_stock_item: { produces: [], create: ["can_know_materials"], refusal: STOCK_REFUSAL },
+  // How many of one unit are in another for a material (a box of laminate is 2.2 sqm). A direct write, gated like the rest of stock.
+  set_unit_conversion: { produces: [], create: ["can_know_materials"], refusal: STOCK_REFUSAL },
   stock_usage: { produces: [], create: ["can_know_materials"], refusal: STOCK_REFUSAL },
   stocktake: { produces: [], create: ["can_know_materials"], refusal: STOCK_REFUSAL },
   // Decision recorded 2026-10-02 (Pierre): money is gated. A supplier
@@ -523,6 +525,7 @@ const ALSO_STRUCTURED_BUT_OPEN: ReadonlySet<string> = new Set([
   "resolve_snag",
   "raise_lead",
   "lose_lead",
+  "set_unit_conversion",
 ]);
 
 export function intentKeepsOutOfNotes(intent: string | null | undefined): boolean {

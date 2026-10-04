@@ -603,6 +603,180 @@ export async function cancelPurchaseOrder(
   return { alreadyCancelled: false, closedShortages: (results ?? []).length };
 }
 
+// ---------------------------------------------------------------------------------------------------------------------------
+// Units and per-item conversions. Decided by Pierre 2026-10-04: a delivery counted in boxes against an order placed in square
+// metres was compared number to number (10 boxes against 22 sqm looked like a big shortage), and stock was added in whatever
+// unit the delivery happened to use. A conversion is set once, per item, by saying it ("a box of laminate is 2.2 square
+// metres"), and is used from then on.
+//
+// Two rules keep this from getting in the way. First, only units this table RECOGNISES are ever treated as different; a unit
+// it does not know is compared as before, so a word it has never seen cannot block a delivery. Second, when two recognised
+// units differ and no conversion is known, nothing is guessed and nothing is recorded: the person is asked for the conversion
+// once, then says the delivery again.
+// ---------------------------------------------------------------------------------------------------------------------------
+const UNIT_FORMS: Record<string, string[]> = {
+  sqm: ["sqm", "sq m", "sq metre", "sq metres", "sq meter", "sq meters", "square metre", "square metres", "square meter", "square meters", "square m", "m2", "m²", "sqmt"],
+  box: ["box", "boxes", "carton", "cartons", "ctn", "ctns"],
+  bag: ["bag", "bags"],
+  roll: ["roll", "rolls"],
+  length: ["length", "lengths", "len", "lens"],
+  tile: ["tile", "tiles"],
+  sheet: ["sheet", "sheets", "board", "boards"],
+  litre: ["l", "lt", "litre", "litres", "liter", "liters"],
+  kg: ["kg", "kgs", "kilogram", "kilograms", "kilo", "kilos"],
+  tube: ["tube", "tubes"],
+  tin: ["tin", "tins", "can", "cans"],
+  pack: ["pack", "packs", "packet", "packets"],
+  pallet: ["pallet", "pallets"],
+  metre: ["m", "metre", "metres", "meter", "meters", "lm", "linear metre", "linear metres", "linear meter", "linear meters"],
+  each: ["each", "ea", "unit", "units", "piece", "pieces", "pc", "pcs"],
+};
+const UNIT_LOOKUP = new Map<string, string>();
+for (const [canonical, forms] of Object.entries(UNIT_FORMS)) for (const f of forms) UNIT_LOOKUP.set(f, canonical);
+
+// The canonical unit for what was said or written, or null when it is not one this table recognises.
+export function normalizeUnit(raw: string | null | undefined): string | null {
+  if (raw == null) return null;
+  const cleaned = String(raw).toLowerCase().replace(/\./g, "").replace(/\s+/g, " ").trim();
+  if (!cleaned) return null;
+  return UNIT_LOOKUP.get(cleaned) ?? null;
+}
+
+// Two units are DIFFERENT only when both are recognised and not the same one. "square metres" and "sqm" are the same;
+// "bundle" against "sqm" is not known to differ, so it is compared as before.
+export function unitsDiffer(a: string | null | undefined, b: string | null | undefined): boolean {
+  const x = normalizeUnit(a);
+  const y = normalizeUnit(b);
+  return x !== null && y !== null && x !== y;
+}
+
+export function unitItemKey(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+const unitConversionTableReady = new WeakSet<object>();
+export async function ensureUnitConversionTable(env: Env): Promise<void> {
+  // Remembered per database handle, never per process (a second database has not got the table).
+  if (unitConversionTableReady.has(env.OFFICE_DB as unknown as object)) return;
+  await env.OFFICE_DB.prepare(
+    "CREATE TABLE IF NOT EXISTS unit_conversions (item_key TEXT NOT NULL, from_unit TEXT NOT NULL, to_unit TEXT NOT NULL, factor REAL NOT NULL, set_by TEXT, updated_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (item_key, from_unit, to_unit))"
+  ).run();
+  unitConversionTableReady.add(env.OFFICE_DB as unknown as object);
+}
+
+// "1 box of laminate = 2.2 sqm". Saying it again changes it. A conversion the other way round for the same item is removed,
+// so the two can never contradict each other.
+export async function setUnitConversion(
+  env: Env,
+  itemName: string,
+  fromUnit: string,
+  toUnit: string,
+  factor: number,
+  setBy: string | null
+): Promise<{ item: string; from: string; to: string; factor: number; replaced: number | null }> {
+  await ensureUnitConversionTable(env);
+  const from = normalizeUnit(fromUnit)!;
+  const to = normalizeUnit(toUnit)!;
+  const key = unitItemKey(itemName);
+  const previous = await env.OFFICE_DB.prepare("SELECT factor FROM unit_conversions WHERE item_key = ? AND from_unit = ? AND to_unit = ?")
+    .bind(key, from, to)
+    .first<{ factor: number }>();
+  await env.OFFICE_DB.prepare("DELETE FROM unit_conversions WHERE item_key = ? AND from_unit = ? AND to_unit = ?").bind(key, to, from).run();
+  await env.OFFICE_DB.prepare(
+    "INSERT INTO unit_conversions (item_key, from_unit, to_unit, factor, set_by) VALUES (?, ?, ?, ?, ?) ON CONFLICT (item_key, from_unit, to_unit) DO UPDATE SET factor = excluded.factor, set_by = excluded.set_by, updated_at = datetime('now')"
+  )
+    .bind(key, from, to, factor, setBy)
+    .run();
+  return { item: itemName.trim(), from, to, factor, replaced: previous?.factor ?? null };
+}
+
+// Converts a quantity of an item between two units using the conversion set for that item (in either direction). The item is
+// matched by its whole name first, then by a conversion whose name is contained in it ("laminate" for "Quickstep laminate"),
+// choosing the longest such name.
+export async function convertQuantity(
+  env: Env,
+  itemName: string,
+  quantity: number,
+  fromUnit: string | null | undefined,
+  toUnit: string | null | undefined
+): Promise<{ ok: true; quantity: number; factor: number | null } | { ok: false }> {
+  const from = normalizeUnit(fromUnit);
+  const to = normalizeUnit(toUnit);
+  if (from === null || to === null || from === to) return { ok: true, quantity, factor: null };
+  await ensureUnitConversionTable(env);
+  const { results } = await env.OFFICE_DB.prepare(
+    "SELECT item_key, from_unit, to_unit, factor FROM unit_conversions WHERE (from_unit = ? AND to_unit = ?) OR (from_unit = ? AND to_unit = ?)"
+  )
+    .bind(from, to, to, from)
+    .all<{ item_key: string; from_unit: string; to_unit: string; factor: number }>();
+  const key = unitItemKey(itemName);
+  const words = new Set(key.split(" "));
+  const fits = (results ?? []).filter((r) => r.item_key === key || r.item_key.split(" ").every((w) => words.has(w)));
+  if (fits.length === 0) return { ok: false };
+  const best = fits.sort((a, b) => b.item_key.length - a.item_key.length)[0];
+  const forward = best.from_unit === from;
+  const factor = forward ? best.factor : 1 / best.factor;
+  return { ok: true, quantity: round4(quantity * factor), factor };
+}
+
+export interface DeliveryUnitCheck<T> {
+  lines: T[];
+  converted: Array<{ item: string; quantity: number; from: string; to: string; result: number }>;
+  unconverted: Array<{ item: string; deliveredUnit: string; orderedUnit: string }>;
+}
+
+// For each delivered line that matches an order line: if its unit is a recognised unit that differs from the order's, convert
+// it into the order's unit when a conversion is known, and report it as unconverted when none is. Lines whose units match, or
+// are not recognised, pass through untouched. Lines that are not on the order have no unit to match and are left alone.
+export async function checkDeliveryUnits<T extends { matched_description: string | null; quantity_received: number; unit?: string | null }>(
+  env: Env,
+  outstanding: OutstandingLine[],
+  lines: T[]
+): Promise<DeliveryUnitCheck<T>> {
+  const out: T[] = [];
+  const converted: DeliveryUnitCheck<T>["converted"] = [];
+  const unconverted: DeliveryUnitCheck<T>["unconverted"] = [];
+  for (const line of lines) {
+    const name = (line.matched_description ?? "").toLowerCase();
+    const orderLine = name ? outstanding.find((o) => o.description.toLowerCase() === name) : undefined;
+    if (!orderLine || !unitsDiffer(line.unit, orderLine.unit)) {
+      out.push(line);
+      continue;
+    }
+    const result = await convertQuantity(env, orderLine.description, Number(line.quantity_received), line.unit, orderLine.unit);
+    if (result.ok) {
+      out.push({ ...line, quantity_received: result.quantity, unit: orderLine.unit });
+      converted.push({ item: orderLine.description, quantity: Number(line.quantity_received), from: String(line.unit), to: String(orderLine.unit), result: result.quantity });
+    } else {
+      out.push(line);
+      if (!unconverted.some((u) => u.item.toLowerCase() === orderLine.description.toLowerCase())) {
+        unconverted.push({ item: orderLine.description, deliveredUnit: normalizeUnit(line.unit)!, orderedUnit: normalizeUnit(orderLine.unit)! });
+      }
+    }
+  }
+  return { lines: out, converted, unconverted };
+}
+
+// How a canonical unit reads after "in" ("in boxes", "in sqm").
+export function unitPlural(canonical: string): string {
+  const plural: Record<string, string> = { box: "boxes", bag: "bags", roll: "rolls", length: "lengths", tile: "tiles", sheet: "sheets", litre: "litres", tube: "tubes", tin: "tins", pack: "packs", pallet: "pallets", metre: "metres" };
+  return plural[canonical] ?? canonical;
+}
+
+// What to say when a delivery cannot be matched because the units differ and no conversion is known. Nothing was recorded.
+export function deliveryUnitQuestion(supplier: string, unconverted: DeliveryUnitCheck<unknown>["unconverted"], then = "say the delivery again"): string {
+  const parts = unconverted.map(
+    (u) =>
+      `${u.item} was ordered in ${unitPlural(u.orderedUnit)} but this delivery is in ${unitPlural(u.deliveredUnit)}, and I don't know how many ${unitPlural(u.orderedUnit)} are in a ${u.deliveredUnit}. Say, for example, "a ${u.deliveredUnit} of ${u.item} is 2.2 ${unitPlural(u.orderedUnit)}" (with the real number).`
+  );
+  return `Nothing was recorded from ${supplier}. ${parts.join(" ")} Then ${then}.`;
+}
+
+export function conversionNote(converted: DeliveryUnitCheck<unknown>["converted"]): string {
+  if (converted.length === 0) return "";
+  return ` (${converted.map((c) => `${c.quantity} ${c.from} of ${c.item} counted as ${c.result} ${c.to}`).join("; ")}.)`;
+}
+
 export function candidateOrderLines(
   outstanding: OutstandingLine[]
 ): Array<{ description: string; quantity_ordered: number; unit: string | null }> {
@@ -712,7 +886,11 @@ export async function recordDelivery(
   notInStock: Array<{ name: string; unit: string | null; quantity: number }>;
 }> {
   const outstanding = await getOutstandingOrderLines(env, supplierId);
-  const classified = classifyGoodsReceivedLines(lines, candidateOrderLines(outstanding));
+  // Lines held before a conversion was known are converted here, at the moment they are recorded. A line whose units differ with
+  // no conversion known is recorded as it always was (number against number): the question is asked when the delivery is first
+  // said, so a held action never gets stranded here.
+  const unitCheck = await checkDeliveryUnits(env, outstanding, lines);
+  const classified = classifyGoodsReceivedLines(unitCheck.lines, candidateOrderLines(outstanding));
   const allocations = allocateDelivery(classified.matched, outstanding);
   const contextPoId = allocations[0]?.poId ?? (outstanding.length > 0 ? outstanding[outstanding.length - 1].poId : 0);
 
@@ -737,8 +915,18 @@ export async function recordDelivery(
       .first<{ id: number }>();
     if (quantity <= 0) return;
     if (stockItem) {
+      // Added in the stock item's OWN unit: a delivery in boxes of an item kept in square metres is converted first, when a
+      // conversion is known (otherwise added as it always was).
+      let toAdd = quantity;
+      if (unit) {
+        const stockUnit = await env.OFFICE_DB.prepare("SELECT unit FROM stock_items WHERE id = ?").bind(stockItem.id).first<{ unit: string | null }>();
+        if (stockUnit && unitsDiffer(unit, stockUnit.unit)) {
+          const converted = await convertQuantity(env, name, quantity, unit, stockUnit.unit);
+          if (converted.ok) toAdd = converted.quantity;
+        }
+      }
       await env.OFFICE_DB.prepare("UPDATE stock_items SET quantity_on_hand = quantity_on_hand + ? WHERE id = ?")
-        .bind(quantity, stockItem.id)
+        .bind(toAdd, stockItem.id)
         .run();
     } else {
       const key = name.toLowerCase();

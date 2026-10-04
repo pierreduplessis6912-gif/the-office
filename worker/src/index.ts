@@ -1,5 +1,5 @@
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult, WorkObservationExtraction } from "./types";
-import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, classifyDashboardIntent, containsBackwardReference, describeImage, embedText, extractDocumentIdentity, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractSupplierStatement, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, splitIntoTopics, storeUnscopedMemory, transcribe, transcribeWithNameHints } from "./ai";
+import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, classifyDashboardIntent, containsBackwardReference, describeImage, embedText, extractDocumentIdentity, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractSupplierStatement, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, splitIntoTopics, storeUnscopedMemory, transcribe, transcribeWithNameHints, extractUnitConversion } from "./ai";
 import { listAudit, listPermissions, resetRole, setPermission } from "./permissions";
 import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, logInteractionEdge, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, reconcilePerson, setSelection, withArticle } from "./identity";
 import { attachToSiblingJobScope, completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveScheduledDate, resolveTaskCompletion } from "./scheduler";
@@ -10,7 +10,7 @@ import {
   verifySession, getSessionToken, getCookie, base64UrlEncode, ROLE_CAPABILITIES, ENFORCE_CAPABILITIES,
   ACTION_TYPE_CAPABILITY, ROUTE_RULES, SIGNABLE_DOCUMENT_PATHS, canResolveActionType, intentCreationRefusal, intentKeepsOutOfNotes,
 } from "./auth";
-import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, } from "./finance";
+import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 import { handleDebugRoute } from "./debug";
 import { DOCUMENT_KIND_LABEL, asksAboutDeliveryExceptions, deliveryExceptionAnswer, deliveryHadExceptions, deliveryHeldMessage, deliveryRecordedMessage, inferDocumentSupplier, planDelivery } from "./documents";
@@ -309,7 +309,7 @@ async function processOneExtraction(
   // through the already-existing read-only findExistingEntityByName
   // instead of the create-or-find reconcile functions.
   if (extraction?.customer_name) {
-    if (extraction.intent === "lookup" || extraction.intent === "cancel_order") {
+    if (extraction.intent === "lookup" || extraction.intent === "cancel_order" || extraction.intent === "set_unit_conversion") {
       const found = await findExistingCustomerByName(env, extraction.customer_name);
       if (found) {
         customer = { id: found.id, name: found.name, matched: true };
@@ -428,7 +428,7 @@ async function processOneExtraction(
   }
 
   if (extraction?.character_name) {
-    if (extraction.intent === "lookup" || extraction.intent === "cancel_order") {
+    if (extraction.intent === "lookup" || extraction.intent === "cancel_order" || extraction.intent === "set_unit_conversion") {
       const found = await findExistingCharacterByName(env, extraction.character_name);
       if (found) {
         character = { id: found.id, name: found.name, matched: true };
@@ -742,6 +742,7 @@ async function processOneExtraction(
   let goodsReceivedNoSupplier = false;
   let goodsReceivedNoItems = false;
   let goodsReceivedMessage: string | null = null;
+  let goodsReceivedUnitQuestion: string | null = null;
   let goodsReceivedSupplierName: string | null = null;
   if (extraction?.intent === "goods_received") {
     if (character) {
@@ -753,11 +754,16 @@ async function processOneExtraction(
       const outstanding = await getOutstandingOrderLines(env, character.id);
       const candidates = candidateOrderLines(outstanding);
       const grnExtraction = await extractGoodsReceived(env, transcript, candidates);
-      const grnPlan = planDelivery(classifyGoodsReceivedLines(grnExtraction.line_items, candidates), {
+      // Decided by Pierre 2026-10-04: a delivery in a different unit from the order (boxes against square metres) is converted
+      // when a conversion is known, and when it is not, NOTHING is held or recorded: the person is asked for the conversion once.
+      const unitCheck = await checkDeliveryUnits(env, outstanding, grnExtraction.line_items);
+      const grnPlan = planDelivery(classifyGoodsReceivedLines(unitCheck.lines, candidates), {
         mustHold: true,
         refused: false,
       });
-      if (grnPlan.action === "hold") {
+      if (unitCheck.unconverted.length > 0) {
+        goodsReceivedUnitQuestion = deliveryUnitQuestion(character.name, unitCheck.unconverted);
+      } else if (grnPlan.action === "hold") {
         const held = await holdForConfirmation(
           env,
           "goods_received",
@@ -773,7 +779,7 @@ async function processOneExtraction(
         pendingActionId = held.id;
         pendingActionType = "goods_received";
         goodsReceivedSupplierName = character.name;
-        goodsReceivedMessage = deliveryHeldMessage(grnPlan, character.name, false, held.id, outstanding.length > 0);
+        goodsReceivedMessage = deliveryHeldMessage(grnPlan, character.name, false, held.id, outstanding.length > 0) + conversionNote(unitCheck.converted);
       } else {
         goodsReceivedNoItems = true;
       }
@@ -908,6 +914,26 @@ async function processOneExtraction(
     if (reg.name) {
       const recorded = await registerStockItem(env, reg.name, reg.unit);
       stockRegistrationResult = { id: recorded.id, name: reg.name, unit: reg.unit, existed: recorded.existed };
+    }
+  }
+
+  // Decided by Pierre 2026-10-04: "a box of laminate is 2.2 square metres". A direct write (it is a fact about a material, no money
+  // moves), gated like the rest of stock, and said again to change it. The reply always says what was understood or why not.
+  let unitConversionMessage: string | null = null;
+  if (extraction?.intent === "set_unit_conversion") {
+    const conv = await extractUnitConversion(env, transcript);
+    const from = normalizeUnit(conv.from_unit);
+    const to = normalizeUnit(conv.to_unit);
+    if (!conv.item_name || !conv.from_unit || !conv.to_unit || conv.factor === null) {
+      unitConversionMessage = `I couldn't make out the material, the two units and how many are in each. Say it like "a box of laminate is 2.2 square metres".`;
+    } else if (!from || !to) {
+      const unknown = !from ? conv.from_unit : conv.to_unit;
+      unitConversionMessage = `I don't recognise the unit "${unknown}". I know square metres, boxes, bags, rolls, lengths, tiles, sheets, litres, kilograms, tubes, tins, packs, pallets, metres and each.`;
+    } else if (from === to) {
+      unitConversionMessage = `Both of those are ${unitPlural(from)}, so there is nothing to convert.`;
+    } else {
+      const saved = await setUnitConversion(env, conv.item_name, from, to, conv.factor, recordingUserEmail);
+      unitConversionMessage = `Noted: 1 ${saved.from} of ${saved.item} = ${saved.factor} ${saved.to}. I'll use that when a delivery comes in ${unitPlural(saved.from)} against an order in ${unitPlural(saved.to)}.${saved.replaced !== null ? ` (It was ${saved.replaced}.)` : ""}`;
     }
   }
 
@@ -1606,6 +1632,8 @@ async function processOneExtraction(
     // Honest, not silent — the same discipline as every other
     // recognized-but-nothing-to-act-on case in this project.
     message = "Recognized a purchase order, but no supplier was named — try naming who it's from.";
+  } else if (extraction?.intent === "goods_received" && goodsReceivedUnitQuestion) {
+    message = goodsReceivedUnitQuestion;
   } else if (pendingActionId && extraction?.intent === "goods_received" && goodsReceivedSupplierName) {
     message = goodsReceivedMessage ?? `Delivery noted from ${goodsReceivedSupplierName} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
   } else if (extraction?.intent === "goods_received" && goodsReceivedNoSupplier) {
@@ -1632,6 +1660,8 @@ async function processOneExtraction(
     message = `I couldn't tell what happened with that shortage on ${character!.name}'s order. Say why it happened (short delivered, damaged and so on) or whether it is a back order or a credit, and I'll note it.`;
   } else if (extraction?.intent === "variance_disposition" && dispositionNoOpenDiscrepancy) {
     message = `I don't have an open, unresolved discrepancy on file for ${character!.name} to attach this to.`;
+  } else if (extraction?.intent === "set_unit_conversion" && unitConversionMessage) {
+    message = unitConversionMessage;
   } else if (extraction?.intent === "register_stock_item" && stockRegistrationResult) {
     message = `${stockRegistrationResult.existed ? "Already tracking" : "Now tracking"} ${stockRegistrationResult.name}${stockRegistrationResult.unit ? ` (${stockRegistrationResult.unit})` : ""} as real, running stock.`;
   } else if (extraction?.intent === "register_stock_item") {
@@ -4337,6 +4367,19 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           // real, permanent fact, not an anonymous action.
           const { email: recordedByEmail } = await resolveCapabilities(request, env);
           if (payload.allocate && payload.supplierId != null) {
+            // A delivery held in another unit from its order, with no conversion known, is not recorded number against number (that
+            // would log a false shortage, 20 boxes against 50 sqm). It goes back to waiting and the question is asked; once the
+            // conversion is said, confirming converts it. New deliveries cannot reach here unconverted (the question is asked
+            // when they are first said); this catches one held before that was so.
+            const outstandingNow = await getOutstandingOrderLines(env, payload.supplierId);
+            const unitCheckNow = await checkDeliveryUnits(env, outstandingNow, payload.lineItems);
+            if (unitCheckNow.unconverted.length > 0) {
+              await releaseClaim(env, id);
+              return Response.json(
+                { error: deliveryUnitQuestion(payload.supplierName ?? "the supplier", unitCheckNow.unconverted, "confirm this again"), held: true },
+                { status: 409 }
+              );
+            }
             const delivered = await recordDelivery(env, payload.supplierId, action.source_transcript, payload.lineItems, recordedByEmail);
             await env.OFFICE_DB.prepare(
               "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
@@ -5240,7 +5283,14 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         const outstanding = await getOutstandingOrderLines(env, supplierId);
         const candidates = candidateOrderLines(outstanding);
         const grnExtraction = await extractGoodsReceived(env, description, candidates);
-        const classified = classifyGoodsReceivedLines(grnExtraction.line_items, candidates);
+        // A unit that differs from the order's is converted when a conversion is known; when it is not, nothing is held or recorded
+        // and the question is asked (decided by Pierre 2026-10-04). Identical in the document and photo handlers.
+        const unitCheck = await checkDeliveryUnits(env, outstanding, grnExtraction.line_items);
+        if (unitCheck.unconverted.length > 0) {
+          uploadMessage = deliveryUnitQuestion(subjectHint ?? "the supplier", unitCheck.unconverted);
+          return;
+        }
+        const classified = classifyGoodsReceivedLines(unitCheck.lines, candidates);
         const plan = planDelivery(classified, { mustHold: inferredFromDocument, refused: Boolean(goodsReceivedRefusal) });
         const supplierLabel = subjectHint ?? "the supplier";
         if (plan.action === "refuse") {
@@ -5261,7 +5311,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             rawText
           );
           uploadHeldActionId = heldGrn.id;
-          uploadMessage = deliveryHeldMessage(plan, supplierLabel, inferredFromDocument, heldGrn.id, outstanding.length > 0);
+          uploadMessage = deliveryHeldMessage(plan, supplierLabel, inferredFromDocument, heldGrn.id, outstanding.length > 0) + conversionNote(unitCheck.converted);
         } else if (plan.action === "record") {
           const recorded = await recordDelivery(env, supplierId, rawText, plan.lines);
           goodsReceivedAction = { grnId: recorded.grnId, supplierName: supplierLabel };
@@ -5274,9 +5324,9 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           }
           if (stockAsk) {
             uploadHeldActionId = stockAsk.id;
-            uploadMessage = `${deliveryRecordedMessage(recorded)} ${stockAsk.message}`;
-          } else if (deliveryHadExceptions(recorded)) {
-            uploadMessage = deliveryRecordedMessage(recorded);
+            uploadMessage = `${deliveryRecordedMessage(recorded)}${conversionNote(unitCheck.converted)} ${stockAsk.message}`;
+          } else if (deliveryHadExceptions(recorded) || unitCheck.converted.length > 0) {
+            uploadMessage = `${deliveryRecordedMessage(recorded)}${conversionNote(unitCheck.converted)}`;
           }
         } else {
           uploadMessage = `I read ${documentKindLabel} from ${supplierLabel}, but couldn't make out any items on it, so nothing was recorded.`;
@@ -5502,7 +5552,14 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         const outstanding = await getOutstandingOrderLines(env, supplierId);
         const candidates = candidateOrderLines(outstanding);
         const grnExtraction = await extractGoodsReceived(env, description, candidates);
-        const classified = classifyGoodsReceivedLines(grnExtraction.line_items, candidates);
+        // A unit that differs from the order's is converted when a conversion is known; when it is not, nothing is held or recorded
+        // and the question is asked (decided by Pierre 2026-10-04). Identical in the document and photo handlers.
+        const unitCheck = await checkDeliveryUnits(env, outstanding, grnExtraction.line_items);
+        if (unitCheck.unconverted.length > 0) {
+          uploadMessage = deliveryUnitQuestion(subjectHint ?? "the supplier", unitCheck.unconverted);
+          return;
+        }
+        const classified = classifyGoodsReceivedLines(unitCheck.lines, candidates);
         const plan = planDelivery(classified, { mustHold: inferredFromDocument, refused: Boolean(goodsReceivedRefusal) });
         const supplierLabel = subjectHint ?? "the supplier";
         if (plan.action === "refuse") {
@@ -5523,7 +5580,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             rawText
           );
           uploadHeldActionId = heldGrn.id;
-          uploadMessage = deliveryHeldMessage(plan, supplierLabel, inferredFromDocument, heldGrn.id, outstanding.length > 0);
+          uploadMessage = deliveryHeldMessage(plan, supplierLabel, inferredFromDocument, heldGrn.id, outstanding.length > 0) + conversionNote(unitCheck.converted);
         } else if (plan.action === "record") {
           const recorded = await recordDelivery(env, supplierId, rawText, plan.lines);
           goodsReceivedAction = { grnId: recorded.grnId, supplierName: supplierLabel };
@@ -5536,9 +5593,9 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           }
           if (stockAsk) {
             uploadHeldActionId = stockAsk.id;
-            uploadMessage = `${deliveryRecordedMessage(recorded)} ${stockAsk.message}`;
-          } else if (deliveryHadExceptions(recorded)) {
-            uploadMessage = deliveryRecordedMessage(recorded);
+            uploadMessage = `${deliveryRecordedMessage(recorded)}${conversionNote(unitCheck.converted)} ${stockAsk.message}`;
+          } else if (deliveryHadExceptions(recorded) || unitCheck.converted.length > 0) {
+            uploadMessage = `${deliveryRecordedMessage(recorded)}${conversionNote(unitCheck.converted)}`;
           }
         } else {
           uploadMessage = `I read ${documentKindLabel} from ${supplierLabel}, but couldn't make out any items on it, so nothing was recorded.`;

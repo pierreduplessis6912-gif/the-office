@@ -3283,5 +3283,461 @@
     "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png"
    }
   ]
+ },
+ "document (image): a delivery in boxes with a conversion on file is converted and held": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Delivery noted from Floornet (read from the document) — needs your confirmation (action #1) before it's recorded. (20 boxes of Vinyl counted as 50 sqm.)",
+    "pendingActionId": 1,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 20 boxes",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "The text of a document, or a description of a photographed document, i",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 20 boxes",
+      "source": "document",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "goods_received",
+      "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_received\":50,\"item_description\":\"vinyl\",\"unit\":\"sqm\"}]}",
+      "status": "pending",
+      "source_transcript": "[Read from the document, not stated by anyone: a delivery note issued by \"Floornet (Pty) Ltd\", matched to supplier Floornet]\n\nFloornet (Pty) Ltd DELIVERY NOTE Vinyl 20 boxes"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "photo: a delivery in boxes with a conversion on file is converted and held": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Delivery noted from Floornet (read from the document) — needs your confirmation (action #1) before it's recorded. (20 boxes of Vinyl counted as 50 sqm.)",
+    "pendingActionId": 1,
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 20 boxes",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "The text of a document, or a description of a photographed document, i",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 20 boxes",
+      "source": "photo",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "goods_received",
+      "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_received\":50,\"item_description\":\"vinyl\",\"unit\":\"sqm\"}]}",
+      "status": "pending",
+      "source_transcript": "[Read from the document, not stated by anyone: a delivery note issued by \"Floornet (Pty) Ltd\", matched to supplier Floornet]\n\nFloornet (Pty) Ltd DELIVERY NOTE Vinyl 20 boxes"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "document (image): a delivery in boxes and no conversion known asks and holds nothing": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Nothing was recorded from Floornet. Vinyl was ordered in sqm but this delivery is in boxes, and I don't know how many sqm are in a box. Say, for example, \"a box of Vinyl is 2.2 sqm\" (with the real number). Then say the delivery again.",
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 20 boxes",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "The text of a document, or a description of a photographed document, i",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 20 boxes",
+      "source": "document",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "photo: a delivery in boxes and no conversion known asks and holds nothing": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Nothing was recorded from Floornet. Vinyl was ordered in sqm but this delivery is in boxes, and I don't know how many sqm are in a box. Say, for example, \"a box of Vinyl is 2.2 sqm\" (with the real number). Then say the delivery again.",
+    "pendingActionId": null,
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 20 boxes",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "The text of a document, or a description of a photographed document, i",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 20 boxes",
+      "source": "photo",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "document (image): a caption names the supplier and a delivery in boxes is converted and recorded": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Delivery recorded (GRN #1). (20 boxes of Vinyl counted as 50 sqm.) Add to stock? Vinyl (50 sqm) (action #1).",
+    "pendingActionId": 1,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 20 boxes",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": {
+     "grnId": 1,
+     "supplierName": "Floornet"
+    },
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet delivery\n\n[Document: Floornet (Pty) Ltd DELIVERY NOTE Vinyl 20 boxes]",
+      "source": "document",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   },
+   "goods_received_notes": {
+    "added": [
+     {
+      "id": 1,
+      "purchase_order_id": 1,
+      "supplier_id": 1,
+      "source_transcript": "Floornet delivery\n\n[Document: Floornet (Pty) Ltd DELIVERY NOTE Vinyl 20 boxes]",
+      "recorded_by": null,
+      "capture_id": null
+     }
+    ]
+   },
+   "grn_line_items": {
+    "added": [
+     {
+      "id": 1,
+      "grn_id": 1,
+      "po_line_item_id": 1,
+      "description": "Vinyl",
+      "quantity_received": 50,
+      "quantity_ordered": 50,
+      "variance": 0
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "stock_add",
+      "payload": "{\"items\":[{\"name\":\"Vinyl\",\"unit\":\"sqm\",\"quantity\":50}],\"supplierName\":\"Floornet\"}",
+      "status": "pending",
+      "source_transcript": "Add to stock? Vinyl (50 sqm)"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "photo: a caption names the supplier and a delivery in boxes is converted and recorded": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Delivery recorded (GRN #1). (20 boxes of Vinyl counted as 50 sqm.) Add to stock? Vinyl (50 sqm) (action #1).",
+    "pendingActionId": 1,
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 20 boxes",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": {
+     "grnId": 1,
+     "supplierName": "Floornet"
+    },
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet delivery\n\n[Photo description: Floornet (Pty) Ltd DELIVERY NOTE Vinyl 20 boxes]",
+      "source": "photo",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   },
+   "goods_received_notes": {
+    "added": [
+     {
+      "id": 1,
+      "purchase_order_id": 1,
+      "supplier_id": 1,
+      "source_transcript": "Floornet delivery\n\n[Photo description: Floornet (Pty) Ltd DELIVERY NOTE Vinyl 20 boxes]",
+      "recorded_by": null,
+      "capture_id": null
+     }
+    ]
+   },
+   "grn_line_items": {
+    "added": [
+     {
+      "id": 1,
+      "grn_id": 1,
+      "po_line_item_id": 1,
+      "description": "Vinyl",
+      "quantity_received": 50,
+      "quantity_ordered": 50,
+      "variance": 0
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "stock_add",
+      "payload": "{\"items\":[{\"name\":\"Vinyl\",\"unit\":\"sqm\",\"quantity\":50}],\"supplierName\":\"Floornet\"}",
+      "status": "pending",
+      "source_transcript": "Add to stock? Vinyl (50 sqm)"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "document: a delivery note in boxes with a conversion on file (a real PDF)": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Delivery noted from Floornet (read from the document) — needs your confirmation (action #1) before it's recorded. (20 boxes of Vinyl counted as 50 sqm.)",
+    "pendingActionId": 1,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 20 boxes",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "The text of a document, or a description of a photographed document, i",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "A delivery has arrived against a real, already-placed order. You are g"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet (Pty) Ltd DELIVERY NOTE Vinyl 20 boxes",
+      "source": "document",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "goods_received",
+      "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_received\":50,\"item_description\":\"vinyl\",\"unit\":\"sqm\"}]}",
+      "status": "pending",
+      "source_transcript": "[Read from the document, not stated by anyone: a delivery note issued by \"Floornet (Pty) Ltd\", matched to supplier Floornet]\n\nFloornet (Pty) Ltd DELIVERY NOTE Vinyl 20 boxes"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
  }
 }

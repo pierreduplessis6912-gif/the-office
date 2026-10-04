@@ -311,4 +311,4 @@ async function runRouteCase(fns, workerDir, spec) {
   return { result, threw, aiCalls: ai.calls, aiInputs: ai.inputs, backgroundErrors, writes: diff(before, snapshot(db)), effects, errorLogs };
 }
 
-module.exports = { loadFunctions, loadProcessor, runCase, runTranscriptCase, runRouteCase, newDatabase, EXTRACTION_DEFAULTS };
+module.exports = { loadFunctions, loadProcessor, runCase, runTranscriptCase, runRouteCase, newDatabase, d1, EXTRACTION_DEFAULTS };
