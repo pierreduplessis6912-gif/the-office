@@ -504,9 +504,23 @@ export const INTENT_RULES: Record<Extraction["intent"], IntentRule> = {
 // orders, credits, quote conversions, deliveries) were never added to it, so "paid Floornet R10000" went into
 // the supplier's note and an installer's lookup of that supplier was built from it (reproduced 2026-10-03 with
 // the characterization harness). It is now DERIVED from the table above, so a new money intent is covered the
-// moment it is gated: any intent a role needs can_manage_invoices to create is money. work_observation is the one
-// open intent that also has structured storage (a job scope), so it is named explicitly.
-const ALSO_STRUCTURED_BUT_OPEN: ReadonlySet<string> = new Set(["work_observation"]);
+// moment it is gated: any intent a role needs can_manage_invoices to create is money.
+//
+// Decided by Pierre 2026-10-04: stock, snags and leads keep their sentences out of notes too. They are not money, but each
+// has structured storage of its own (the stock ledger, the snag list, the lead list), so the sentence is duplicated into a
+// note that anyone who looks the person up will read. They are named explicitly, with work_observation (an open intent
+// with a job scope of its own), because what they are gated by (or not at all) says nothing about whether they have a
+// structured home.
+const ALSO_STRUCTURED_BUT_OPEN: ReadonlySet<string> = new Set([
+  "work_observation",
+  "register_stock_item",
+  "stock_usage",
+  "stocktake",
+  "raise_snag",
+  "resolve_snag",
+  "raise_lead",
+  "lose_lead",
+]);
 
 export function intentKeepsOutOfNotes(intent: string | null | undefined): boolean {
   const key = intent ?? "";

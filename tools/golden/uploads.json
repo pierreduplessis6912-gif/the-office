@@ -2207,15 +2207,6 @@
      }
     ]
    },
-   "pending_memory_flush": {
-    "added": [
-     {
-      "id": 1,
-      "customer_id": 1,
-      "text": "Jenny carpet has a loose seam"
-     }
-    ]
-   },
    "selections": {
     "added": [
      {
@@ -2241,11 +2232,6 @@
    {
     "r2": "put",
     "key": "voice-notes/1791028800000-00000000-0000-4000-8000-000000000001.m4a"
-   },
-   {
-    "kv": "put",
-    "key": "customer:1",
-    "value": "{\"facts\":[{\"text\":\"Jenny carpet has a loose seam\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
    }
   ]
  },

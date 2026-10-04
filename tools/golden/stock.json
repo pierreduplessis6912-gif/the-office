@@ -55,13 +55,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"start tracking screed in bags\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "stock register: owner, an item with no unit stated": {
   "result": {
@@ -119,13 +113,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"start tracking grout\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "stock register: owner, an item that is already tracked": {
   "result": {
@@ -172,13 +160,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"start tracking screed in bags\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "stock register: owner, the same item in a different case": {
   "result": {
@@ -225,13 +207,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"start tracking SCREED in bags\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "stock register: owner, a different item whose name starts like a tracked one": {
   "result": {
@@ -289,13 +265,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"start tracking screed plus in bags\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "stock register: owner, the model finds no name": {
   "result": {
@@ -342,13 +312,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"start tracking something\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "stock register: owner, the model fails": {
   "result": {
@@ -397,13 +361,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"start tracking screed in bags\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "stock register: installer": {
   "result": {
@@ -461,13 +419,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"start tracking screed in bags\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "stock register: a role with no permissions is refused": {
   "result": {
@@ -564,13 +516,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"used 3 bags of screed on Jenny's job\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "stock usage: owner, an item and no job": {
   "result": {
@@ -649,13 +595,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"used 2 litres of adhesive\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "stock usage: owner, more than is on hand": {
   "result": {
@@ -734,13 +674,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"used 20 bags of screed\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "stock usage: owner, an item that is not tracked": {
   "result": {
@@ -787,13 +721,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"used 4 tubes of silicone\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "stock usage: owner, an item but no quantity": {
   "result": {
@@ -840,13 +768,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"used some screed\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "stock usage: owner, nothing is tracked yet": {
   "result": {
@@ -891,13 +813,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"used 3 bags of screed\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "stock usage: owner, the model fails": {
   "result": {
@@ -946,13 +862,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"used 3 bags of screed\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "stock usage: installer": {
   "result": {
@@ -1031,13 +941,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"used 3 bags of screed on Jenny's job\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "stock usage: a role with no permissions is refused": {
   "result": {
@@ -1123,13 +1027,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"counted 15 bags of screed\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "stocktake: owner, a count that is short": {
   "result": {
@@ -1217,13 +1115,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"counted 12 bags of screed\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "stocktake: owner, a count that is over": {
   "result": {
@@ -1311,13 +1203,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"counted 18 bags of screed\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "stocktake: owner, an item that is not tracked": {
   "result": {
@@ -1364,13 +1250,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"counted 9 tubes of silicone\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "stocktake: owner, an item but no number": {
   "result": {
@@ -1417,13 +1297,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"counted the screed\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "stocktake: owner, nothing is tracked yet": {
   "result": {
@@ -1468,13 +1342,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"counted 15 bags of screed\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "stocktake: owner, the model fails": {
   "result": {
@@ -1523,13 +1391,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"counted 15 bags of screed\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "stocktake: installer": {
   "result": {
@@ -1617,13 +1479,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"counted 12 bags of screed\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "stocktake: a role with no permissions is refused": {
   "result": {

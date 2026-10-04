@@ -1805,15 +1805,6 @@
      }
     ]
    },
-   "pending_memory_flush": {
-    "added": [
-     {
-      "id": 1,
-      "customer_id": 1,
-      "text": "Jenny carpet has a loose seam"
-     }
-    ]
-   },
    "selections": {
     "added": [
      {
@@ -1835,13 +1826,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "customer:1",
-    "value": "{\"facts\":[{\"text\":\"Jenny carpet has a loose seam\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "transcript: a role with no permissions, a money topic is refused": {
   "result": {

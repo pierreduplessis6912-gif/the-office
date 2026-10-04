@@ -47,15 +47,6 @@
      }
     ]
    },
-   "pending_memory_flush": {
-    "added": [
-     {
-      "id": 1,
-      "customer_id": 1,
-      "text": "Jenny's carpet has a loose seam near the door"
-     }
-    ]
-   },
    "selections": {
     "added": [
      {
@@ -77,13 +68,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "customer:1",
-    "value": "{\"facts\":[{\"text\":\"Jenny's carpet has a loose seam near the door\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "snag raise: owner, no customer named": {
   "result": {
@@ -128,13 +113,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"there is a loose seam near the door\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "snag raise: owner, the model finds no issue": {
   "result": {
@@ -184,15 +163,6 @@
      }
     ]
    },
-   "pending_memory_flush": {
-    "added": [
-     {
-      "id": 1,
-      "customer_id": 1,
-      "text": "Jenny has a snag"
-     }
-    ]
-   },
    "selections": {
     "added": [
      {
@@ -203,13 +173,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "customer:1",
-    "value": "{\"facts\":[{\"text\":\"Jenny has a snag\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "snag raise: owner, the model fails": {
   "result": {
@@ -261,15 +225,6 @@
      }
     ]
    },
-   "pending_memory_flush": {
-    "added": [
-     {
-      "id": 1,
-      "customer_id": 1,
-      "text": "Jenny's carpet has a loose seam"
-     }
-    ]
-   },
    "selections": {
     "added": [
      {
@@ -280,13 +235,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "customer:1",
-    "value": "{\"facts\":[{\"text\":\"Jenny's carpet has a loose seam\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "snag raise: installer (open to every role)": {
   "result": {
@@ -336,15 +285,6 @@
      }
     ]
    },
-   "pending_memory_flush": {
-    "added": [
-     {
-      "id": 1,
-      "customer_id": 1,
-      "text": "Jenny's carpet has a loose seam near the door"
-     }
-    ]
-   },
    "selections": {
     "added": [
      {
@@ -366,13 +306,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "customer:1",
-    "value": "{\"facts\":[{\"text\":\"Jenny's carpet has a loose seam near the door\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "snag raise: a role with no permissions (open to every role)": {
   "result": {
@@ -422,15 +356,6 @@
      }
     ]
    },
-   "pending_memory_flush": {
-    "added": [
-     {
-      "id": 1,
-      "customer_id": 1,
-      "text": "Jenny's carpet has a loose seam near the door"
-     }
-    ]
-   },
    "selections": {
     "added": [
      {
@@ -452,13 +377,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "customer:1",
-    "value": "{\"facts\":[{\"text\":\"Jenny's carpet has a loose seam near the door\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "snag raise: owner, a customer who is not on file": {
   "result": {
@@ -521,15 +440,6 @@
      }
     ]
    },
-   "pending_memory_flush": {
-    "added": [
-     {
-      "id": 1,
-      "customer_id": 3,
-      "text": "Brand New Person has a loose seam"
-     }
-    ]
-   },
    "selections": {
     "added": [
      {
@@ -551,13 +461,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "customer:3",
-    "value": "{\"facts\":[{\"text\":\"Brand New Person has a loose seam\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "snag resolve: owner, the only open snag, and the customer holds retention": {
   "result": {
@@ -607,15 +511,6 @@
      }
     ]
    },
-   "pending_memory_flush": {
-    "added": [
-     {
-      "id": 1,
-      "customer_id": 1,
-      "text": "fixed the loose seam at Jenny"
-     }
-    ]
-   },
    "selections": {
     "added": [
      {
@@ -646,13 +541,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "customer:1",
-    "value": "{\"facts\":[{\"text\":\"fixed the loose seam at Jenny\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "snag resolve: owner, the model names nothing and there is one open snag": {
   "result": {
@@ -702,15 +591,6 @@
      }
     ]
    },
-   "pending_memory_flush": {
-    "added": [
-     {
-      "id": 1,
-      "customer_id": 1,
-      "text": "Jenny's snag is fixed"
-     }
-    ]
-   },
    "selections": {
     "added": [
      {
@@ -741,13 +621,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "customer:1",
-    "value": "{\"facts\":[{\"text\":\"Jenny's snag is fixed\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "snag resolve: owner, one of two is fixed (retention stays held)": {
   "result": {
@@ -797,15 +671,6 @@
      }
     ]
    },
-   "pending_memory_flush": {
-    "added": [
-     {
-      "id": 1,
-      "customer_id": 1,
-      "text": "fixed the loose seam at Jenny"
-     }
-    ]
-   },
    "selections": {
     "added": [
      {
@@ -836,13 +701,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "customer:1",
-    "value": "{\"facts\":[{\"text\":\"fixed the loose seam at Jenny\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "snag resolve: owner, the model names nothing and there are two open snags": {
   "result": {
@@ -892,15 +751,6 @@
      }
     ]
    },
-   "pending_memory_flush": {
-    "added": [
-     {
-      "id": 1,
-      "customer_id": 1,
-      "text": "Jenny's snag is fixed"
-     }
-    ]
-   },
    "selections": {
     "added": [
      {
@@ -911,13 +761,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "customer:1",
-    "value": "{\"facts\":[{\"text\":\"Jenny's snag is fixed\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "snag resolve: owner, the last snag of a customer with no retention": {
   "result": {
@@ -967,15 +811,6 @@
      }
     ]
    },
-   "pending_memory_flush": {
-    "added": [
-     {
-      "id": 1,
-      "customer_id": 2,
-      "text": "fixed the gap at Thandi"
-     }
-    ]
-   },
    "selections": {
     "added": [
      {
@@ -1006,13 +841,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "customer:2",
-    "value": "{\"facts\":[{\"text\":\"fixed the gap at Thandi\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "snag resolve: owner, no open snags for that customer": {
   "result": {
@@ -1060,15 +889,6 @@
      }
     ]
    },
-   "pending_memory_flush": {
-    "added": [
-     {
-      "id": 1,
-      "customer_id": 1,
-      "text": "fixed the seam at Jenny"
-     }
-    ]
-   },
    "selections": {
     "added": [
      {
@@ -1079,13 +899,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "customer:1",
-    "value": "{\"facts\":[{\"text\":\"fixed the seam at Jenny\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "snag resolve: owner, no customer named": {
   "result": {
@@ -1130,13 +944,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"fixed the loose seam\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "snag resolve: owner, the model fails and there is one open snag": {
   "result": {
@@ -1188,15 +996,6 @@
      }
     ]
    },
-   "pending_memory_flush": {
-    "added": [
-     {
-      "id": 1,
-      "customer_id": 1,
-      "text": "fixed the loose seam at Jenny"
-     }
-    ]
-   },
    "selections": {
     "added": [
      {
@@ -1227,13 +1026,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "customer:1",
-    "value": "{\"facts\":[{\"text\":\"fixed the loose seam at Jenny\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "snag resolve: installer (open to every role)": {
   "result": {
@@ -1283,15 +1076,6 @@
      }
     ]
    },
-   "pending_memory_flush": {
-    "added": [
-     {
-      "id": 1,
-      "customer_id": 1,
-      "text": "fixed the loose seam at Jenny"
-     }
-    ]
-   },
    "selections": {
     "added": [
      {
@@ -1322,13 +1106,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "customer:1",
-    "value": "{\"facts\":[{\"text\":\"fixed the loose seam at Jenny\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "lead raise: owner, a name, an interest and a source": {
   "result": {
@@ -1389,13 +1167,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"new enquiry from Sipho Dube, kitchen vinyl, found us on Facebook\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "lead raise: owner, no name was caught by the classifier": {
   "result": {
@@ -1440,13 +1212,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"someone is interested in vinyl\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "lead raise: owner, the model finds no name": {
   "result": {
@@ -1493,13 +1259,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"someone is interested\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "lead raise: owner, the model fails": {
   "result": {
@@ -1548,13 +1308,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"new enquiry from Sipho Dube\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "lead raise: installer (open to every role)": {
   "result": {
@@ -1615,13 +1369,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"new enquiry from Sipho Dube, kitchen vinyl\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "lead lost: owner, the only open lead": {
   "result": {
@@ -1694,13 +1442,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"Sipho lost the enquiry\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "lead lost: owner, one of two named": {
   "result": {
@@ -1773,13 +1515,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"Lerato decided not to go ahead\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "lead lost: owner, the model names nothing and there are two": {
   "result": {
@@ -1826,13 +1562,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"that lead is lost\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "lead lost: owner, no open leads": {
   "result": {
@@ -1877,13 +1607,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"Sipho lost the enquiry\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "lead lost: owner, the model fails and there is one open lead": {
   "result": {
@@ -1958,13 +1682,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"Sipho lost the enquiry\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "lead lost: accountant is refused": {
   "result": {
