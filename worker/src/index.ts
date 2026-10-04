@@ -1794,7 +1794,9 @@ async function processOneExtraction(
         const canKnowProfit = capabilities.includes("can_know_profit");
         canKnowDebtors = capabilities.includes("can_know_debtors");
         const canManageInvoicesHere = capabilities.includes("can_manage_invoices");
-        const canKnowMaterialsHere = capabilities.includes("can_know_materials");
+        // Decided by Pierre 2026-10-04: expense totals and what is owed to each supplier are money, so they need the
+        // invoicing permission, the same strength as the supplier screen. They used to be gated by can_know_materials,
+        // which let an installer read "Floornet: R1200 outstanding" through a business question.
         // Real performance fix, found live: these seven real, independent
         // database aggregates were being awaited one after another,
         // adding real, noticeable latency for a genuinely slow-feeling
@@ -1817,7 +1819,7 @@ async function processOneExtraction(
               : ["Quotation activity exists for this business but is restricted for your role."],
           topic === "quotations" || topic === "invoices"
             ? []
-            : canKnowMaterialsHere
+            : canManageInvoicesHere
               ? getExpenseSummary(env)
               : ["Expense activity exists for this business but is restricted for your role."],
           topic !== "general" ? [] : canKnowProfit ? getFinancialSnapshot(env) : ["Financial performance data exists for this business but is restricted for your role."],
@@ -1829,7 +1831,7 @@ async function processOneExtraction(
               : ["Outstanding balances exist for this business but are restricted for your role."],
           topic === "quotations" || topic === "invoices"
             ? []
-            : canKnowMaterialsHere
+            : canManageInvoicesHere
               ? getAgedCreditorsSummary(env)
               : ["Outstanding supplier balances exist for this business but are restricted for your role."],
         ]);

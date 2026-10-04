@@ -3,7 +3,7 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (dictation, confirmation and uploads are all characterized).
+decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 1 applied).
 
 ## A. Decisions only Pierre can make
 
@@ -47,15 +47,6 @@ decision, and say where it was applied. Last updated 2026-10-04 (dictation, conf
 26. **A job scope with no customer is recorded** when only an installer or a date is heard and there is nothing in the same
     message to attach it to. It is findable only by its installer or date. May be intended (to be attached later); worth
     confirming.
-27. **An installer can see expense totals and the aged-creditors breakdown (what we owe each supplier) through a business
-    question**, because both are gated by `can_know_materials`, while the supplier screen needs `can_manage_invoices`.
-    The same data is reachable at two different strengths. *Options:* gate the creditors part by `can_manage_invoices`; or
-    accept it for expenses and not for balances. (`DECISIONS.md`, "Rewrite Phase 2, lookups".)
-28. **Notes written before the notes fix still hold money and are still readable by an installer.** The fix stops new
-    leaks (supplier payments, quote conversions and so on) but does not clean what is stored. *Options:* a one-off admin
-    scrub of existing notes that look like money (list them first, then remove); or filter at read time.
-29. **A material's last price, and which supplier charged it, is ungated.** Any role, including one with no permissions,
-    can ask. *Option:* gate by `can_know_materials` or `can_manage_invoices`.
 30. **A person's details (cell, address and so on) are shown to every role, and `can_know_payroll` and `can_know_banking`
     are defined but never checked anywhere.** Harmless while no payroll data is stored; a day rate or a bank detail saved
     as a "detail" would be visible to everyone. *Option:* gate the sensitive detail keys, or use the two unused
@@ -82,6 +73,7 @@ decision, and say where it was applied. Last updated 2026-10-04 (dictation, conf
     recorded and nothing says so; the person has to say it again with a different name. *Option:* say what was dropped.
 11. **An installer's scheduling message that the classifier labels "invoice" is refused outright.** Set aside on
     2026-10-03 as unproven (it was only ever seen in a code comment). Reopen if a real one is refused.
+
 
 ## B. Needs a live check only a phone can give
 
@@ -117,6 +109,14 @@ decision, and say where it was applied. Last updated 2026-10-04 (dictation, conf
     drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
 
 ## Settled (kept so the reasoning is not lost)
+
+- 2026-10-04, decided by Pierre (decisions session, round 1):
+  - **Installers no longer see expense totals or what is owed to each supplier** through a business question. Both now need
+    the invoicing permission, the same strength as the supplier screen (they were gated by `can_know_materials`). Applied;
+    pinned by recordings for the installer, the accountant and the owner.
+  - **Notes written before the notes fix are left as they are.** They can still hold money (for example "paid Floornet
+    R10000") and an installer can still read them. Accepted knowingly; the leak into new notes is closed.
+  - **A material's last price (and which supplier charged it) stays open to every role,** including one with no permissions.
 
 - 2026-10-04: a voice note whose transcription failed left no database record (the file was stored and unfindable). It now
   logs a capture, as documents and photos always did. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)

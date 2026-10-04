@@ -70,6 +70,8 @@ module.exports = function cases(caps) {
     c('lookup business: owner, a follow-up about invoices', 'owner', books, { query_scope: 'business' }, 'and the invoices', [DASH('NONE'), TOPIC('INVOICES'), ANSWER], { history: prior }),
     c('lookup business: owner, a follow-up about expenses', 'owner', books, { query_scope: 'business' }, 'and what we spent', [DASH('NONE'), TOPIC('EXPENSES'), ANSWER], { history: prior }),
     c('lookup business: installer, a follow-up about invoices', 'installer', books, { query_scope: 'business' }, 'and the invoices', [DASH('NONE'), TOPIC('INVOICES'), ANSWER], { history: prior }),
+    c('lookup business: installer, a follow-up about expenses', 'installer', books, { query_scope: 'business' }, 'and what we spent', [DASH('NONE'), TOPIC('EXPENSES'), ANSWER], { history: prior }),
+    c('lookup business: accountant, a follow-up about expenses', 'accountant', books, { query_scope: 'business' }, 'and what we spent', [DASH('NONE'), TOPIC('EXPENSES'), ANSWER], { history: prior }),
     c('lookup business: owner, asked for the aged breakdown already, so no hint is added', 'owner', books, { query_scope: 'business' }, 'what is overdue on the Lounge job', [DASH('NONE'), ANSWER]),
     c('lookup business: owner, the classifier fails', 'owner', books, { query_scope: 'business' }, 'what is outstanding on the Lounge job', [DASH(boom), ANSWER]),
     c('lookup business: owner, the answer-writer fails', 'owner', books, { query_scope: 'business' }, 'what is outstanding on the Lounge job', [DASH('NONE'), { match: ANSWER.match, reply: boom }]),

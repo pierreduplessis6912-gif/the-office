@@ -622,7 +622,7 @@
    "character": null,
    "pendingActionId": null,
    "factPendingActionId": null,
-   "message": "ANSWER FROM FACTS:\n- Outstanding balances exist for this business but are restricted for your role.\n- Quotation activity exists for this business but is restricted for your role.\n- There are 2 expenses on file, totaling R1850.\n- By category: fuel R650, materials R1200.\n- an unnamed supplier: R650 — diesel (fuel).\n- Floornet: R1200 — adhesive (materials).\n- Financial performance data exists for this business but is restricted for your role.\n- Outstanding balances exist for this business but are restricted for your role.\n- Aged creditors: current R0, 30-60 days R1200, 60-90 days R0, 90+ days R0. Payments are allocated oldest-expense-first (FIFO), since payments aren't linked to a specific expense.\n- Floornet: R1200 total outstanding (current R0, 30-60d R1200, 60-90d R0, 90+d R0).",
+   "message": "ANSWER FROM FACTS:\n- Outstanding balances exist for this business but are restricted for your role.\n- Quotation activity exists for this business but is restricted for your role.\n- Expense activity exists for this business but is restricted for your role.\n- Financial performance data exists for this business but is restricted for your role.\n- Outstanding balances exist for this business but are restricted for your role.\n- Outstanding supplier balances exist for this business but are restricted for your role.",
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
@@ -925,6 +925,116 @@
       "after": {
        "id": 1,
        "raw_text": "and the invoices",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "lookup business: installer, a follow-up about expenses": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "ANSWER FROM FACTS:\n- Expense activity exists for this business but is restricted for your role.\n- Outstanding supplier balances exist for this business but are restricted for your role.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "The new message may refer back to the STANDING TOPIC of the conversati",
+   "The new message may refer back to the STANDING TOPIC of the conversati",
+   "The new message may refer back to the STANDING TOPIC of the conversati",
+   "Is this a broad, whole-business question wanting a real, visual snapsh",
+   "Is the new message specifically about QUOTATIONS, specifically about I",
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "and what we spent",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "and what we spent",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "lookup business: accountant, a follow-up about expenses": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "ANSWER FROM FACTS:\n- There are 2 expenses on file, totaling R1850.\n- By category: fuel R650, materials R1200.\n- an unnamed supplier: R650 — diesel (fuel).\n- Floornet: R1200 — adhesive (materials).\n- Aged creditors: current R0, 30-60 days R1200, 60-90 days R0, 90+ days R0. Payments are allocated oldest-expense-first (FIFO), since payments aren't linked to a specific expense.\n- Floornet: R1200 total outstanding (current R0, 30-60d R1200, 60-90d R0, 90+d R0).",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "The new message may refer back to the STANDING TOPIC of the conversati",
+   "The new message may refer back to the STANDING TOPIC of the conversati",
+   "The new message may refer back to the STANDING TOPIC of the conversati",
+   "Is this a broad, whole-business question wanting a real, visual snapsh",
+   "Is the new message specifically about QUOTATIONS, specifically about I",
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "and what we spent",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "and what we spent",
        "source": "text",
        "subject_hint": null,
        "extraction_status": "processed",

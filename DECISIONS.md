@@ -5914,3 +5914,14 @@ The three upload handlers (`/files/document`, `/files/photo`, `/files/audio`) ar
 **Verified:** 2,342 checks; the recording diff for the audio fix is **exactly two of 50 cases**, 48 identical. Twelve deliberate breakages were each caught, none survived: removing the three permission refusals, recording a document-read delivery without confirmation, breaking **only the photo copy** two ways (inference and refusal) and a third (which customer a caption named), the retry answer for documents and for voice notes, ignoring the conversation sent with a voice note, reading a PDF without its spaces, and the audio fix removed or made too aggressive. Three of those were caught first by older source-pattern tests, which is the order it should be.
 
 **Already recorded, now with a case:** a caption naming a customer who is not on file creates the customer **before any permission check**, even for an installer (item 9 in `OPEN_QUESTIONS.md`, left alone by decision).
+
+
+---
+
+## Decisions session, round 1: who can see what
+
+Pierre went through the open questions, most serious first. Round 1 (the three access questions):
+
+1. **Installers must not see expense totals or supplier balances.** Decided: hide both. Applied: the expense summary and the aged-creditors breakdown in a business question now need the invoicing permission, the same strength as the supplier screen, using the "restricted for your role" markers that already existed. Owner and accountant are unchanged; an installer's answer now says expense activity and supplier balances exist but are restricted. Two cases were added (an installer's and an accountant's follow-up about expenses) so each gate is pinned on its own; the recording diff is **one existing case** (the installer's narrow question) plus the two new ones, 35 identical. Five deliberate breakages were caught (either gate reverted, either over-tightened to owner-only); one of my own mutations was invalid (the accountant also holds the profit permission, so it restricted nobody) and was redone.
+2. **Old notes that still hold money: left as they are.** Accepted knowingly. The earlier fix stops new leaks; notes already stored can still hold, for example, "paid Floornet R10000", and an installer can still read them.
+3. **A material's last price (and the supplier): stays open to every role.**
