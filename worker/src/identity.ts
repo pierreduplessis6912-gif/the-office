@@ -281,7 +281,7 @@ export async function checkCrossRoleCollision(
   env: Env,
   name: string,
   intendedRole: "customer" | "character"
-): Promise<{ id: number; name: string; existingRole: "customer" | "character" } | null> {
+): Promise<{ id: number; name: string; existingRole: "customer" | "character"; existingLabel: string } | null> {
   const ownTable = intendedRole === "customer" ? "customers" : "characters";
   const otherTable = intendedRole === "customer" ? "characters" : "customers";
   // Real, deliberate exclusion, matching reconcilePerson's own —
@@ -301,17 +301,25 @@ export async function checkCrossRoleCollision(
   if (existsInOwnTable) return null;
 
   const collision = await env.OFFICE_DB.prepare(
-    `SELECT id, name FROM ${otherTable} WHERE name = ? COLLATE NOCASE${otherMergeFilter}`
+    `SELECT id, name${otherTable === "characters" ? ", relationship" : ""} FROM ${otherTable} WHERE name = ? COLLATE NOCASE${otherMergeFilter}`
   )
     .bind(name)
-    .first<{ id: number; name: string }>();
+    .first<{ id: number; name: string; relationship?: string | null }>();
   if (!collision) return null;
 
   return {
     id: collision.id,
     name: collision.name,
     existingRole: intendedRole === "customer" ? "character" : "customer",
+    // What to call them when asking the person. "character" is the system's own word for anyone who is not a customer;
+    // the question used to say "already on file as a character", when it knew they were an installer or a supplier.
+    existingLabel: intendedRole === "customer" ? collision.relationship?.trim() || "contact" : "customer",
   };
+}
+
+// "an installer", "a supplier": the right article for a role named in a question.
+export function withArticle(label: string): string {
+  return `${/^[aeiou]/i.test(label.trim()) ? "an" : "a"} ${label.trim()}`;
 }
 
 export async function reconcileCustomer(env: Env, spokenName: string): Promise<{ id: number; name: string; matched: boolean } | null> {

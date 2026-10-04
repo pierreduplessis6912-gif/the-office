@@ -59,6 +59,9 @@ module.exports = function cases(caps) {
     c('forget that: owner, with something pending and a customer selected', 'owner', withPending, { intent: 'forget_last' }, 'forget that', []),
     c('forget that: an installer, while the owner has an invoice pending (open to every role)', 'installer', withPending, { intent: 'forget_last' }, 'forget that', []),
     c('forget that: a role with no permissions', 'stranger', withPending, { intent: 'forget_last' }, 'forget that', []),
+    c('forget that: an installer takes the newest action they may resolve, not the newer invoice', 'installer', mixedPending, { intent: 'forget_last' }, 'forget that', []),
+    c('forget that: an accountant, the newest action is owner-only, so the older payment is taken', 'accountant', ownerOnlyNewest, { intent: 'forget_last' }, 'forget that', []),
+    c('forget that: the owner may abandon an owner-only action', 'owner', ownerOnlyNewest, { intent: 'forget_last' }, 'forget that', []),
     c('forget that: nothing pending and nothing selected', 'owner', base, { intent: 'forget_last' }, 'forget that', []),
 
     // ---------------- finding or creating a customer ----------------
@@ -69,6 +72,8 @@ module.exports = function cases(caps) {
     c('customer: owner, a name that could be either of two on file', 'owner', twoThandis, { customer_name: 'Thandi Mokoeno' }, 'Thandi Mokoeno called', []),
     c('customer: a role with no permissions creates a customer (the intent is open)', 'stranger', base, { customer_name: 'Brand New Person' }, 'Brand New Person called', []),
     c('customer: owner, the name is already on file as an installer', 'owner', base, { customer_name: 'Jabulani' }, 'Jabulani called about a job', []),
+    c('customer: owner, the name is already on file as a supplier', 'owner', base, { customer_name: 'Floornet' }, 'Floornet called about a job', []),
+    c('customer: owner, the name is already on file with no relationship recorded', 'owner', unlabelledContact, { customer_name: 'Mystery' }, 'Mystery called about a job', []),
     c('customer: owner, a job observation with a name that is an installer, and no installer named', 'owner', base, { intent: 'work_observation', customer_name: 'Jabulani' }, 'Jabulani lounge is 5 by 4', []),
     c('customer: owner, a job observation with an installer name and an installer also named', 'owner', base, { intent: 'work_observation', customer_name: 'Jabulani', character_name: 'Sipho', character_relationship: 'installer' }, 'Jabulani lounge is 5 by 4, Sipho installs', []),
     c('customer: owner, a lead keeps the name out of the customer list', 'owner', base, { intent: 'raise_lead', customer_name: 'Sipho Dube' }, 'new enquiry from Sipho Dube', [{ match: /reporting a real, new enquiry/, reply: { name: 'Sipho Dube', interest: null, source: null } }]),
@@ -79,6 +84,7 @@ module.exports = function cases(caps) {
     c('character: owner, a new supplier', 'owner', base, { character_name: 'Newco Supplies', character_relationship: 'supplier' }, 'Newco Supplies called', []),
     c('character: owner, a new name with no relationship stated', 'owner', base, { character_name: 'Mystery Man' }, 'Mystery Man called', []),
     c('character: owner, the name is already on file as a customer', 'owner', base, { character_name: 'Jenny Smith', character_relationship: 'installer' }, 'Jenny Smith will install it', []),
+    c('character: owner, the name is already on file as a customer, no relationship stated', 'owner', base, { character_name: 'Jenny Smith' }, 'Jenny Smith will do it', []),
     c('character: owner, a name that sounds like someone on file', 'owner', base, { character_name: 'Jabulane', character_relationship: 'installer' }, 'Jabulane will install it', []),
     c('both: owner, a customer and an installer in one message', 'owner', base, { customer_name: 'Jenny Smith', character_name: 'Jabulani', character_relationship: 'installer' }, 'Jabulani is installing at Jenny\'s', []),
 

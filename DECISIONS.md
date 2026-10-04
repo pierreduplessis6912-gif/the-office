@@ -5832,3 +5832,22 @@ Recorded: stock (27 cases: registering an item, using stock, counting it) and sn
 **Recorded in `OPEN_QUESTIONS.md`, not changed:** using more stock than is on hand records the usage and reports "-5 remaining" without comment; and any duplicate stock rows that already exist in the live data from before this fix are not merged.
 
 **The function is now characterized except for its opening step.** Recorded so far: payments, quote conversions, procurement, invoicing and pricing, work observations, lookups, stock, and snags and leads (about 220 cases). What remains is the identity step that runs before every intent (finding or creating the customer or supplier, and the "is this the same person?" holds).
+
+
+---
+
+## Rewrite Phase 2, the opening step: "forget that" could abandon anyone's pending action
+
+The opening step of `processOneExtraction`, what runs before any intent, is recorded in 42 cases: "forget that", finding or creating a customer, finding or creating a supplier or installer, the question raised when a name belongs to someone who does the work, the question raised when a name merely sounds like someone on file (one candidate, or several), a lookup that finds and never creates, and the follow-up fallback that works out who "her" or "him" meant (from the current selection, from the conversation, or from neither), including a model that fails at either step. **With this, all of `processOneExtraction` is characterized** (about 260 cases across nine groups).
+
+**A permission bypass: "forget that" abandoned the newest pending action of anyone's.** Recorded rows showed an installer's "forget that" (and the same from a role with no permissions) abandoning the owner's pending R98,000 invoice, which the confirm and reject routes would have refused them. The command is open to every role by design, but it never asked whose action it was abandoning. It now takes the newest pending action the caller could resolve through the normal routes, and nothing if there is none. The rule is written once (`canResolveActionType`) and a test proves it agrees with the real confirm route for every role and every action type the suite knows: the owner may resolve anything (only the owner holds `can_manage_settings`, and a type with no entry is owner-only); everyone else needs a capability listed for the type.
+
+**Two wording faults in the collision question:** it said a person was "already on file as a **character**" (the system's own word, when it knew they were an installer or a supplier) and the reverse said "now acting as **a installer**". It now names the real relationship with the right article ("an installer", "a supplier"), and "a contact" when none is recorded.
+
+**Verified:** typecheck unchanged; 1,853 checks. Of the 36 baseline cases exactly **five** changed (the two "forget that" cases that used to abandon the owner's invoice, and the three collision questions); 31 are identical. Six cases were added so each side of the fix is pinned (the installer takes the newest action they may resolve and skips a newer invoice; the accountant skips an owner-only action; the owner may abandon an owner-only action; and each wording variant). Seven deliberate breakages, including too-strict and too-loose versions of the rule, were caught. One batch of mutation runs exceeded the time limit and was split in two.
+
+**What the recordings confirmed is working:** near-matches and name collisions stop and ask, and write nothing but the held question; a lookup never creates a customer or supplier; a name on file in a different case matches; a follow-up uses the current selection first, then the conversation, then gives up honestly; a model that fails at either step degrades to "I don't have anything on file"; a personal question never borrows the selection; a customer and a supplier in one message are linked.
+
+**Recorded in `OPEN_QUESTIONS.md`:** the "current selection" (who "her" means) is one setting for the whole business, not one per person, so one person's lookups change what another person's follow-up means, and "forget that" clears it for everyone.
+
+**What is not characterized:** only `processOneExtraction` is. Its callers are not: the splitting of a spoken message into topics, the confirm and reject routes and what they replay, and the upload handlers.

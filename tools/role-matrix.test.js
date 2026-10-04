@@ -8,7 +8,7 @@ const roleCaps = src.match(/const ROLE_CAPABILITIES[^=]*=\s*\{[\s\S]*?\n\};/)[0]
 const start = src.indexOf('const ENFORCE_CAPABILITIES');
 const end = src.indexOf('// The signed-in member, or null.');
 if (start < 0 || end < 0) throw new Error('could not extract the deployed decision code');
-const code = roleCaps + '\n' + src.slice(start, end) + '\nmodule.exports = { authorizeRestrictedMember, ENFORCE_CAPABILITIES, INTENT_RULES, intentCreationRefusal, intentKeepsOutOfNotes, ACTION_TYPE_CAPABILITY, ROLE_CAPABILITIES };';
+const code = roleCaps + '\n' + src.slice(start, end) + '\nmodule.exports = { authorizeRestrictedMember, ENFORCE_CAPABILITIES, INTENT_RULES, intentCreationRefusal, intentKeepsOutOfNotes, canResolveActionType, ACTION_TYPE_CAPABILITY, ROLE_CAPABILITIES };';
 const js = esbuild.transformSync(code, { loader: 'ts', format: 'cjs', target: 'es2022' }).code;
 const compiled = path.join(os.tmpdir(), 'role-matrix-decision-under-test.js');
 fs.writeFileSync(compiled, js);
@@ -182,7 +182,7 @@ async function expect(role, method, path, want) {
   // The AI only READS the printed kind and issuer; whether that is one of OUR suppliers is decided
   // by plain code, tested here, and an inferred match is held for confirmation, never recorded directly.
   const bundleTo = (entry, name) => { const out = path.join(os.tmpdir(), name); esbuild.buildSync({ entryPoints: [path.join(srcDir, entry)], bundle: true, platform: 'node', format: 'cjs', outfile: out, logLevel: 'silent' }); return require(out); };
-  const { matchIssuerToSuppliers, businessNameWords } = bundleTo('identity.ts', 'rm-identity.js');
+  const { matchIssuerToSuppliers, businessNameWords, withArticle } = bundleTo('identity.ts', 'rm-identity.js');
   const docsMod = bundleTo('documents.ts', 'rm-documents.js');
   const S = (id, name) => ({ id, name });
   const sameJson = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -583,6 +583,23 @@ async function expect(role, method, path, want) {
   check([null, undefined, '', 'some_future_intent', 'constructor', '__proto__'].every((x) => intentKeepsOutOfNotes(x) === false), 'a value that is not an intent is never treated as having structured storage');
   for (const [i, r] of Object.entries(INTENT_RULES)) if (Array.isArray(r.create) && r.create.includes('can_manage_invoices')) check(intentKeepsOutOfNotes(i) === true, `"${i}" needs can_manage_invoices to create, so it is money and must be kept out of notes (a new gated money intent is covered automatically)`);
   check(!/hasStructuredHomeAlready\s*=\s*\[/.test(indexSrc) && /hasStructuredHomeAlready = intentKeepsOutOfNotes\(extraction\?\.intent\)/.test(indexSrc), 'index.ts must ask intentKeepsOutOfNotes, never carry its own list of intents again');
+
+  // ---- "Forget that" may only abandon what the caller could resolve (found 2026-10-03) ---------------------
+  // It used to abandon the newest pending action whoever it belonged to, so an installer, or a role with no permissions,
+  // could abandon the owner's pending invoice, which the confirm and reject routes would have refused them. The rule is
+  // now the routes' own rule, and this proves the two agree for every role and every action type the suite knows.
+  const { canResolveActionType } = require(compiled);
+  for (const [id, type] of Object.entries(actionTypes)) {
+    check(canResolveActionType(type, RC.owner) === true, `the owner may resolve a pending "${type}"`);
+    for (const r of ['accountant', 'installer', 'stranger']) {
+      const viaRoute = await allowed(r, 'POST', `/actions/${id}/confirm`);
+      check(canResolveActionType(type, RC[r] || []) === viaRoute, `"forget that" and the confirm route must agree for ${r} on a pending "${type}" (route says ${viaRoute ? 'allowed' : 'denied'})`);
+    }
+  }
+  check(canResolveActionType('a_type_nobody_has_heard_of', RC.owner) === true && canResolveActionType('a_type_nobody_has_heard_of', RC.accountant) === false && canResolveActionType('a_type_nobody_has_heard_of', []) === false, 'a type with no entry is owner-only');
+  check(/canResolveActionType\(p\.type, capabilities\)/.test(indexSrc) && !/SELECT id FROM pending_actions WHERE status = 'pending' ORDER BY created_at DESC LIMIT 1/.test(indexSrc), 'forget_last must choose among the actions the caller may resolve, never "the newest of anyone\'s"');
+  check(withArticle('installer') === 'an installer' && withArticle('supplier') === 'a supplier' && withArticle('contact') === 'a contact' && withArticle(' Electrician ') === 'an Electrician', 'the right article goes before a role named in a question');
+  check(!/is already on file as a \$\{collision\.existingRole\}/.test(indexSrc), 'a collision question must name the real relationship, not the system\'s word "character"');
 
   // The rewrite scaffold (Phase 1): contract, adapters and the guards that stop it drifting from the live function.
   await require('./intents.test.js')({ check, bundleTo, srcDir, fs, path, indexSrc, sameJson });

@@ -63,26 +63,6 @@
   "aiCalls": [],
   "backgroundErrors": [],
   "writes": {
-   "pending_actions": {
-    "changed": [
-     {
-      "before": {
-       "id": 2,
-       "type": "invoice",
-       "payload": "{\"customerId\":2,\"customerName\":\"Sipho Dlamini\",\"amount\":98000}",
-       "status": "pending",
-       "source_transcript": "invoice Sipho R98000"
-      },
-      "after": {
-       "id": 2,
-       "type": "invoice",
-       "payload": "{\"customerId\":2,\"customerName\":\"Sipho Dlamini\",\"amount\":98000}",
-       "status": "abandoned",
-       "source_transcript": "invoice Sipho R98000"
-      }
-     }
-    ]
-   },
    "selections": {
     "removed": [
      {
@@ -111,32 +91,129 @@
   "aiCalls": [],
   "backgroundErrors": [],
   "writes": {
-   "pending_actions": {
-    "changed": [
-     {
-      "before": {
-       "id": 2,
-       "type": "invoice",
-       "payload": "{\"customerId\":2,\"customerName\":\"Sipho Dlamini\",\"amount\":98000}",
-       "status": "pending",
-       "source_transcript": "invoice Sipho R98000"
-      },
-      "after": {
-       "id": 2,
-       "type": "invoice",
-       "payload": "{\"customerId\":2,\"customerName\":\"Sipho Dlamini\",\"amount\":98000}",
-       "status": "abandoned",
-       "source_transcript": "invoice Sipho R98000"
-      }
-     }
-    ]
-   },
    "selections": {
     "removed": [
      {
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "forget that: an installer takes the newest action they may resolve, not the newer invoice": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Okay.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "goods_received",
+       "payload": "{\"purchaseOrderId\":0,\"supplierId\":1,\"lineItems\":[]}",
+       "status": "pending",
+       "source_transcript": "Floornet delivered grout"
+      },
+      "after": {
+       "id": 1,
+       "type": "goods_received",
+       "payload": "{\"purchaseOrderId\":0,\"supplierId\":1,\"lineItems\":[]}",
+       "status": "abandoned",
+       "source_transcript": "Floornet delivered grout"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "forget that: an accountant, the newest action is owner-only, so the older payment is taken": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Okay.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "payment",
+       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
+       "status": "pending",
+       "source_transcript": "Jenny paid R500"
+      },
+      "after": {
+       "id": 1,
+       "type": "payment",
+       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
+       "status": "abandoned",
+       "source_transcript": "Jenny paid R500"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "forget that: the owner may abandon an owner-only action": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Okay.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 2,
+       "type": "character_fact",
+       "payload": "{\"characterId\":1,\"key\":\"cell\",\"value\":\"083 555 0202\"}",
+       "status": "pending",
+       "source_transcript": "Jabulani cell is 083 555 0202"
+      },
+      "after": {
+       "id": 2,
+       "type": "character_fact",
+       "payload": "{\"characterId\":1,\"key\":\"cell\",\"value\":\"083 555 0202\"}",
+       "status": "abandoned",
+       "source_transcript": "Jabulani cell is 083 555 0202"
+      }
      }
     ]
    }
@@ -559,7 +636,7 @@
    "character": null,
    "pendingActionId": 1,
    "factPendingActionId": null,
-   "message": "Jabulani is already on file as a character — is this the same Jabulani, now acting as a customer too, or did you mean someone else? (action #1)",
+   "message": "Jabulani is already on file as an installer — is this the same Jabulani, now acting as a customer too, or did you mean someone else? (action #1)",
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": "identity_collision",
@@ -577,6 +654,66 @@
       "payload": "{\"name\":\"Jabulani\",\"intendedRole\":\"customer\",\"extraction\":{\"customer_name\":\"Jabulani\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Jabulani called about a job\",\"captureId\":1}",
       "status": "pending",
       "source_transcript": "Jabulani called about a job"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "customer: owner, the name is already on file as a supplier": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Floornet is already on file as a supplier — is this the same Floornet, now acting as a customer too, or did you mean someone else? (action #1)",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "identity_collision",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "identity_collision",
+      "payload": "{\"name\":\"Floornet\",\"intendedRole\":\"customer\",\"extraction\":{\"customer_name\":\"Floornet\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Floornet called about a job\",\"captureId\":1}",
+      "status": "pending",
+      "source_transcript": "Floornet called about a job"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "customer: owner, the name is already on file with no relationship recorded": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Mystery is already on file as a contact — is this the same Mystery, now acting as a customer too, or did you mean someone else? (action #1)",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "identity_collision",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "identity_collision",
+      "payload": "{\"name\":\"Mystery\",\"intendedRole\":\"customer\",\"extraction\":{\"customer_name\":\"Mystery\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Mystery called about a job\",\"captureId\":1}",
+      "status": "pending",
+      "source_transcript": "Mystery called about a job"
      }
     ]
    }
@@ -607,7 +744,7 @@
    "character": null,
    "pendingActionId": 1,
    "factPendingActionId": null,
-   "message": "Jabulani is already on file as a character — is this the same Jabulani, now acting as a customer too, or did you mean someone else? (action #1)",
+   "message": "Jabulani is already on file as an installer — is this the same Jabulani, now acting as a customer too, or did you mean someone else? (action #1)",
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": "identity_collision",
@@ -982,7 +1119,7 @@
    "character": null,
    "pendingActionId": 1,
    "factPendingActionId": null,
-   "message": "Jenny Smith is already on file as a customer — is this the same Jenny Smith, now acting as a installer too, or did you mean someone else? (action #1)",
+   "message": "Jenny Smith is already on file as a customer — is this the same Jenny Smith, now acting as an installer too, or did you mean someone else? (action #1)",
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": "identity_collision",
@@ -1000,6 +1137,36 @@
       "payload": "{\"name\":\"Jenny Smith\",\"intendedRole\":\"character\",\"extraction\":{\"customer_name\":null,\"character_name\":\"Jenny Smith\",\"character_relationship\":\"installer\",\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Jenny Smith will install it\",\"captureId\":1}",
       "status": "pending",
       "source_transcript": "Jenny Smith will install it"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "character: owner, the name is already on file as a customer, no relationship stated": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Jenny Smith is already on file as a customer — is this the same Jenny Smith, now acting as a contact too, or did you mean someone else? (action #1)",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "identity_collision",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "identity_collision",
+      "payload": "{\"name\":\"Jenny Smith\",\"intendedRole\":\"character\",\"extraction\":{\"customer_name\":null,\"character_name\":\"Jenny Smith\",\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Jenny Smith will do it\",\"captureId\":1}",
+      "status": "pending",
+      "source_transcript": "Jenny Smith will do it"
      }
     ]
    }

@@ -235,6 +235,18 @@ export const ACTION_TYPE_CAPABILITY: Record<string, string[]> = {
   customer_fact: ["can_know_jobs", "can_manage_invoices"],
 };
 
+// Whether a caller may resolve (confirm or reject) a pending action of this type. This is exactly the rule the confirm
+// and reject routes apply, written once so that "forget that" can use it too: the owner may resolve anything (only the
+// owner holds can_manage_settings, and a type with no entry is owner-only); anyone else needs a capability listed for the
+// type. "Forget that" used to abandon the most recent pending action whoever it belonged to, so an installer, or a role
+// with no permissions at all, could abandon the owner's pending R98,000 invoice, which they cannot reject through the
+// normal route (found by the characterization recordings 2026-10-03).
+export function canResolveActionType(actionType: string, capabilities: string[]): boolean {
+  if (capabilities.includes("can_manage_settings")) return true;
+  const needed = ACTION_TYPE_CAPABILITY[actionType];
+  return Boolean(needed && needed.some((c) => capabilities.includes(c)));
+}
+
 // Who may DICTATE (create) each intent — the creation-time counterpart to
 // ACTION_TYPE_CAPABILITY above, which says who may CONFIRM a held action.
 // Until now creation was gated by a hand-kept list in index.ts that was

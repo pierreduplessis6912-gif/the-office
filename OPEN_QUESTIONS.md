@@ -3,7 +3,7 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (end of day).
+decision, and say where it was applied. Last updated 2026-10-04 (the whole function is characterized).
 
 ## A. Decisions only Pierre can make
 
@@ -66,6 +66,9 @@ decision, and say where it was applied. Last updated 2026-10-04 (end of day).
     right behaviour (usage is a fact; the count was wrong), but the reply could say that the count looks off.
 33. **Duplicate stock rows that already exist in the live data are not merged** (the fix stops new ones). List them with
     `/debug/stock-items` and merge by hand, or ask for a one-off merge.
+34. **The "current selection" (who "her" or "him" refers to) is one setting for the whole business, not one per person.**
+    One person's lookups change what another person's "and her balance" means, and "forget that" clears it for everyone.
+    A leftover from when the app had one user. *Option:* a selection per signed-in member.
 11. **An installer's scheduling message that the classifier labels "invoice" is refused outright.** Set aside on
     2026-10-03 as unproven (it was only ever seen in a code comment). Reopen if a real one is refused.
 
@@ -91,17 +94,18 @@ decision, and say where it was applied. Last updated 2026-10-04 (end of day).
 
 ## E. Engineering
 
-19. **Characterization coverage.** Recorded: payments, convert_quote, procurement (39 cases), invoicing and pricing
-    (29 cases: invoice, quotation, price_scope), work observations (18 cases), lookups (36 cases), stock (27 cases), snags and leads (28 cases).
-    To record: the identity step that runs before every intent (finding or creating the customer or supplier, and the "is
-    this the same person?" holds). Nothing moves in
-    Phase 3 until its group is fully recorded.
+19. **Characterization coverage.** All of `processOneExtraction` is now recorded: payments, convert_quote, procurement (39),
+    invoicing and pricing (29), work observations (18), lookups (36), stock (27), snags and leads (28) and the opening
+    identity step (42): about 260 cases. **What is not recorded is everything around it:** the splitting of a spoken
+    message into topics, the confirm and reject routes and what they replay, and the upload handlers (item 20).
 20. **The upload handlers (`/files/document`, `/files/photo`) are not characterized**; they are separate code with
     their own tests by source pattern only.
 21. **Phase 3 itself** (the first real handler reproducing its recording exactly) has not started.
 
 ## Settled (kept so the reasoning is not lost)
 
+- 2026-10-04: "forget that" abandoned the newest pending action of anyone's (an installer could abandon the owner's invoice).
+  It now takes only what the caller could resolve through the normal routes. (`DECISIONS.md`, "Rewrite Phase 2, the opening step".)
 - 2026-10-04: registering an already-tracked stock item created a duplicate row. Now reused. (`DECISIONS.md`, "Rewrite Phase 2, stock, snags and leads".)
 - 2026-10-04: a spoken observation that priced a job was announced as "Payment noted", and an observation of nothing was
   recorded as a job. Both fixed. (`DECISIONS.md`, "Rewrite Phase 2, work observations".)

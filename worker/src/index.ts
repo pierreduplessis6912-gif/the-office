@@ -1,13 +1,13 @@
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult, WorkObservationExtraction } from "./types";
 import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, classifyDashboardIntent, containsBackwardReference, describeImage, embedText, extractDocumentIdentity, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractSupplierStatement, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, splitIntoTopics, storeUnscopedMemory, transcribe, transcribeWithNameHints } from "./ai";
-import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, logInteractionEdge, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, reconcilePerson, setSelection } from "./identity";
+import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, logInteractionEdge, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, reconcilePerson, setSelection, withArticle } from "./identity";
 import { attachToSiblingJobScope, completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveScheduledDate, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
 import {
   authGate, checkIdempotencyKey, completeIdempotencyKey, runIdempotentMigration, corsHeadersFor,
   signDocumentPath, resolveCapabilities, getMemberContext, getJobScope, denyForRole, signSession,
   verifySession, getSessionToken, getCookie, base64UrlEncode, ROLE_CAPABILITIES, ENFORCE_CAPABILITIES,
-  ACTION_TYPE_CAPABILITY, ROUTE_RULES, SIGNABLE_DOCUMENT_PATHS, intentCreationRefusal, intentKeepsOutOfNotes,
+  ACTION_TYPE_CAPABILITY, ROUTE_RULES, SIGNABLE_DOCUMENT_PATHS, canResolveActionType, intentCreationRefusal, intentKeepsOutOfNotes,
 } from "./auth";
 import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
@@ -240,9 +240,12 @@ async function processOneExtraction(
   if (extraction?.intent === "forget_last") {
     await env.OFFICE_DB.prepare("DELETE FROM selections").run();
 
-    const mostRecentPending = await env.OFFICE_DB.prepare(
-      "SELECT id FROM pending_actions WHERE status = 'pending' ORDER BY created_at DESC LIMIT 1"
-    ).first<{ id: number }>();
+    // Only a pending action this caller could resolve through the normal confirm and reject routes. It used to be the
+    // newest pending action of anyone's, so an installer saying "forget that" abandoned the owner's pending invoice.
+    const { results: pendingNewestFirst } = await env.OFFICE_DB.prepare(
+      "SELECT id, type FROM pending_actions WHERE status = 'pending' ORDER BY created_at DESC, id DESC"
+    ).all<{ id: number; type: string }>();
+    const mostRecentPending = (pendingNewestFirst ?? []).find((p) => canResolveActionType(p.type, capabilities)) ?? null;
     if (mostRecentPending) {
       await env.OFFICE_DB.prepare(
         "UPDATE pending_actions SET status = 'abandoned', resolved_at = datetime('now') WHERE id = ?"
@@ -363,7 +366,7 @@ async function processOneExtraction(
           character: null,
           pendingActionId: held.id,
           factPendingActionId: null,
-          message: `${collision.name} is already on file as a ${collision.existingRole} — is this the same ${collision.name}, now acting as a customer too, or did you mean someone else? (action #${held.id})`,
+          message: `${collision.name} is already on file as ${withArticle(collision.existingLabel)} — is this the same ${collision.name}, now acting as a customer too, or did you mean someone else? (action #${held.id})`,
           jobScopeIdForProjectResolution: null,
           pendingCandidates: null,
           pendingActionType: "identity_collision",
@@ -438,7 +441,7 @@ async function processOneExtraction(
           character: null,
           pendingActionId: held.id,
           factPendingActionId: null,
-          message: `${collision.name} is already on file as a ${collision.existingRole} — is this the same ${collision.name}, now acting as a ${extraction.character_relationship ?? "character"} too, or did you mean someone else? (action #${held.id})`,
+          message: `${collision.name} is already on file as ${withArticle(collision.existingLabel)} — is this the same ${collision.name}, now acting as ${withArticle(extraction.character_relationship ?? "contact")} too, or did you mean someone else? (action #${held.id})`,
           jobScopeIdForProjectResolution: null,
           pendingCandidates: null,
           pendingActionType: "identity_collision",
