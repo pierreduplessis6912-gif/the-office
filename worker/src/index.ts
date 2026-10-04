@@ -1638,6 +1638,11 @@ async function processOneExtraction(
     message = "Recognized a request to start tracking stock, but no real material name was given — try naming it.";
   } else if (extraction?.intent === "stock_usage" && stockUsageResult) {
     message = `Recorded ${stockUsageResult.quantityUsed} used of ${stockUsageResult.itemName} — ${stockUsageResult.newQuantityOnHand} remaining.`;
+    // Decided by Pierre 2026-10-04: using more than is on hand is still recorded (the usage happened, the count was wrong),
+    // but the reply now says the count looks off instead of quietly reporting a negative number.
+    if (stockUsageResult.newQuantityOnHand < 0) {
+      message += ` That is more than the ${stockUsageResult.newQuantityOnHand + stockUsageResult.quantityUsed} on hand, so the count looks off. A stock count will put it right.`;
+    }
   } else if (extraction?.intent === "stock_usage" && stockUsageNoMatch) {
     message = "Recognized real stock usage, but couldn't match it to anything currently being tracked — try naming the exact item, or track it first.";
   } else if (extraction?.intent === "stocktake" && stocktakeResult) {

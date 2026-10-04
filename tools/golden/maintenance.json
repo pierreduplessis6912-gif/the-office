@@ -1,0 +1,312 @@
+{
+ "merge stock items: a dry run lists the duplicates and changes nothing": {
+  "result": {
+   "status": 200,
+   "body": {
+    "dryRun": true,
+    "duplicateGroups": [
+     {
+      "name": "Screed",
+      "keepId": 1,
+      "mergeIds": [
+       2
+      ],
+      "resultingQuantity": 15,
+      "unit": "bags"
+     }
+    ],
+    "skipped": [],
+    "message": "Nothing was changed. Send {\"confirm\": true} to merge these."
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "merge stock items: confirmed, the earliest row is kept and the history follows it": {
+  "result": {
+   "status": 200,
+   "body": {
+    "dryRun": false,
+    "merged": [
+     {
+      "name": "Screed",
+      "keepId": 1,
+      "mergeIds": [
+       2
+      ],
+      "resultingQuantity": 15,
+      "unit": "bags"
+     }
+    ],
+    "skipped": [],
+    "message": "Merged 1 set of duplicate stock items."
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "stock_item_merges": {
+    "added": [
+     {
+      "id": 1,
+      "kept_id": 1,
+      "merged_id": 2,
+      "merged_name": "screed",
+      "merged_quantity": 0
+     }
+    ]
+   },
+   "stock_items": {
+    "removed": [
+     {
+      "id": 2,
+      "name": "screed",
+      "unit": "bags",
+      "quantity_on_hand": 0,
+      "reorder_threshold": null
+     }
+    ]
+   },
+   "stock_usage_log": {
+    "changed": [
+     {
+      "before": {
+       "id": 2,
+       "stock_item_id": 2,
+       "quantity_used": 1,
+       "customer_id": null,
+       "source_transcript": "used 1 bag of screed",
+       "capture_id": null
+      },
+      "after": {
+       "id": 2,
+       "stock_item_id": 1,
+       "quantity_used": 1,
+       "customer_id": null,
+       "source_transcript": "used 1 bag of screed",
+       "capture_id": null
+      }
+     }
+    ]
+   },
+   "stocktake_lines": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "stocktake_id": 1,
+       "stock_item_id": 2,
+       "quantity_counted": 0,
+       "quantity_expected": 0,
+       "variance": 0
+      },
+      "after": {
+       "id": 1,
+       "stocktake_id": 1,
+       "stock_item_id": 1,
+       "quantity_counted": 0,
+       "quantity_expected": 0,
+       "variance": 0
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "merge stock items: nothing is duplicated": {
+  "result": {
+   "status": 200,
+   "body": {
+    "dryRun": false,
+    "merged": [],
+    "skipped": [],
+    "message": "No duplicate stock items to merge."
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "merge stock items: a set whose units differ is skipped, not guessed at": {
+  "result": {
+   "status": 200,
+   "body": {
+    "dryRun": false,
+    "merged": [],
+    "skipped": [
+     {
+      "name": "Screed",
+      "ids": [
+       1,
+       2
+      ],
+      "reason": "the units differ (bags, kg), so they were not merged"
+     }
+    ],
+    "message": "No duplicate stock items to merge. 1 set was left alone because the units differ (see \"skipped\")."
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "merge stock items: three rows with names that differ only in case and spaces, one without a unit": {
+  "result": {
+   "status": 200,
+   "body": {
+    "dryRun": false,
+    "merged": [
+     {
+      "name": "Grout",
+      "keepId": 1,
+      "mergeIds": [
+       2,
+       3
+      ],
+      "resultingQuantity": 8.5,
+      "unit": "bags"
+     }
+    ],
+    "skipped": [],
+    "message": "Merged 1 set of duplicate stock items."
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "stock_item_merges": {
+    "added": [
+     {
+      "id": 1,
+      "kept_id": 1,
+      "merged_id": 2,
+      "merged_name": " GROUT ",
+      "merged_quantity": 5
+     },
+     {
+      "id": 2,
+      "kept_id": 1,
+      "merged_id": 3,
+      "merged_name": "grout",
+      "merged_quantity": 1.5
+     }
+    ]
+   },
+   "stock_items": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "name": "Grout",
+       "unit": null,
+       "quantity_on_hand": 2,
+       "reorder_threshold": null
+      },
+      "after": {
+       "id": 1,
+       "name": "Grout",
+       "unit": "bags",
+       "quantity_on_hand": 8.5,
+       "reorder_threshold": null
+      }
+     }
+    ],
+    "removed": [
+     {
+      "id": 2,
+      "name": " GROUT ",
+      "unit": "bags",
+      "quantity_on_hand": 5,
+      "reorder_threshold": null
+     },
+     {
+      "id": 3,
+      "name": "grout",
+      "unit": "bags",
+      "quantity_on_hand": 1.5,
+      "reorder_threshold": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "merge stock items: run again after a merge, there is nothing left to do": {
+  "result": {
+   "status": 200,
+   "body": {
+    "dryRun": false,
+    "merged": [],
+    "skipped": [],
+    "message": "No duplicate stock items to merge."
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "merge stock items: a request that is not exactly confirm:true is only a dry run": {
+  "result": {
+   "status": 200,
+   "body": {
+    "dryRun": true,
+    "duplicateGroups": [
+     {
+      "name": "Screed",
+      "keepId": 1,
+      "mergeIds": [
+       2
+      ],
+      "resultingQuantity": 15,
+      "unit": "bags"
+     }
+    ],
+    "skipped": [],
+    "message": "Nothing was changed. Send {\"confirm\": true} to merge these."
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "merge stock items: no admin key is refused": {
+  "result": {
+   "status": 401,
+   "body": {
+    "error": "unauthorized"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "merge stock items: a signed-in owner without the admin key is refused": {
+  "result": {
+   "status": 401,
+   "body": {
+    "error": "unauthorized"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ }
+}

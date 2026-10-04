@@ -6020,3 +6020,18 @@ Round 5, decided by Pierre:
 **Verified:** 2,831 checks; typecheck unchanged. **Of the recordings, six changed (the four identity confirmations now carry the person link, the reject gained its message, and "two jobs for a customer with two open projects" now asks), five were added, and every other recording is identical.** Seven deliberate breakages were caught: existing projects ignored; **any** project (even a paid one) suppressing the grouping; a confirmed same person left unlinked; no person created when the existing record has none; a silent reject; a reject message added to every rejected action; and the long-sentence shortening removed.
 
 **Unverified on a phone:** the app change (the web build compiles it). It needs a Codemagic rebuild; see `OPEN_QUESTIONS.md`.
+
+
+---
+
+## Decisions session, round 6 (part 1): stock
+
+Round 6 was stock and units, decided by Pierre: build per-item unit conversion (**16**, below, in its own change), say the count looks off (**17**), and build a merge for duplicate stock rows (**18**).
+
+**17. Using more stock than is on hand says the count looks off.** It is still recorded (the usage happened; the count was wrong), but the reply, which used to report "-5 remaining" without comment, now adds: "That is more than the 15 on hand, so the count looks off. A stock count will put it right." Using exactly what is on hand ("0 remaining") says nothing extra, which a case pins, and so does the too-noisy mistake of calling it off at zero.
+
+**18. A tool to merge the duplicate stock rows that already exist.** Registering a stock item became idempotent earlier, which stopped new duplicates but left any that were already in the live data. `POST /debug/merge-stock-items` (admin key) is a **dry run unless sent `{"confirm": true}`**, so what would change is always shown first. For each set of rows with the same name (ignoring case and spaces): the earliest row is kept, the others' quantities are added to it, their usage and stock-count history is repointed to it, each merge is recorded in a `stock_item_merges` table (created the first time it is needed), and the extras are removed. A set whose **units differ** (bags and kg) is left alone and reported, never guessed at, and the message says so (my first message said "No duplicate stock items to merge" while the response listed a set it had refused to touch). A request that is not exactly `confirm: true` (for example the word "yes") is only a dry run. Run twice, the second does nothing. A session without the admin key, including a signed-in owner, gets 401.
+
+To use it from Termux: `curl -X POST .../debug/merge-stock-items -H "X-Admin-Key: ..." -d '{}'` shows what would merge; add `{"confirm":true}` to do it.
+
+**Verified:** 2,874 checks; typecheck unchanged. Of the existing recordings **one** changed (the over-use reply); **10 cases are new** (9 for the merge, 1 for exactly-on-hand); every other recording is identical. Six deliberate breakages were caught: the negative-count note removed or made too broad (firing at zero); the dry run actually merging; any truthy value counting as confirm; the usage history left pointing at a removed row; and rows with different units merged anyway. The harness gained an admin-key option for route steps.

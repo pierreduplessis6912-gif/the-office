@@ -31,6 +31,7 @@ module.exports = function cases(caps) {
     c('stock usage: owner, an item and a job', 'owner', tracked, 'stock_usage', 'used 3 bags of screed on Jenny\'s job', [USE({ matched_item_name: 'Screed', quantity_used: 3, job_customer_name: 'Jenny Smith' })]),
     c('stock usage: owner, an item and no job', 'owner', tracked, 'stock_usage', 'used 2 litres of adhesive', [USE({ matched_item_name: 'Adhesive', quantity_used: 2, job_customer_name: null })]),
     c('stock usage: owner, more than is on hand', 'owner', tracked, 'stock_usage', 'used 20 bags of screed', [USE({ matched_item_name: 'Screed', quantity_used: 20, job_customer_name: null })]),
+    c('stock usage: owner, exactly what is on hand leaves nothing and says nothing is off', 'owner', tracked, 'stock_usage', 'used 15 bags of screed', [USE({ matched_item_name: 'Screed', quantity_used: 15, job_customer_name: null })]),
     c('stock usage: owner, an item that is not tracked', 'owner', tracked, 'stock_usage', 'used 4 tubes of silicone', [USE({ matched_item_name: null, quantity_used: 4, job_customer_name: null })]),
     c('stock usage: owner, an item but no quantity', 'owner', tracked, 'stock_usage', 'used some screed', [USE({ matched_item_name: 'Screed', quantity_used: null, job_customer_name: null })]),
     c('stock usage: owner, nothing is tracked yet', 'owner', base, 'stock_usage', 'used 3 bags of screed', []),

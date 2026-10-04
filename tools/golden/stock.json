@@ -603,7 +603,7 @@
    "character": null,
    "pendingActionId": null,
    "factPendingActionId": null,
-   "message": "Recorded 20 used of Screed — -5 remaining.",
+   "message": "Recorded 20 used of Screed — -5 remaining. That is more than the 15 on hand, so the count looks off. A stock count will put it right.",
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
@@ -669,6 +669,85 @@
       "quantity_used": 20,
       "customer_id": null,
       "source_transcript": "used 20 bags of screed",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "stock usage: owner, exactly what is on hand leaves nothing and says nothing is off": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Recorded 15 used of Screed — 0 remaining.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is reporting real stock being used up on a job. You are"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "used 15 bags of screed",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "used 15 bags of screed",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "stock_items": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "name": "Screed",
+       "unit": "bags",
+       "quantity_on_hand": 15,
+       "reorder_threshold": null
+      },
+      "after": {
+       "id": 1,
+       "name": "Screed",
+       "unit": "bags",
+       "quantity_on_hand": 0,
+       "reorder_threshold": null
+      }
+     }
+    ]
+   },
+   "stock_usage_log": {
+    "added": [
+     {
+      "id": 1,
+      "stock_item_id": 1,
+      "quantity_used": 15,
+      "customer_id": null,
+      "source_transcript": "used 15 bags of screed",
       "capture_id": null
      }
     ]

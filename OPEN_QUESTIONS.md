@@ -3,7 +3,7 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 5 applied).
+decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 6, stock, applied).
 
 ## A. Decisions only Pierre can make
 
@@ -31,10 +31,6 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     capabilities for them.
 31. **A broad financial question from an installer still opens the snapshot screen** (its data is gated, so it shows
     nothing). A cosmetic mismatch. Also: "There are 1 quotations on file" has a plural slip.
-32. **Using more stock than is on hand is recorded and the reply says "-5 remaining" with no comment.** It may be the
-    right behaviour (usage is a fact; the count was wrong), but the reply could say that the count looks off.
-33. **Duplicate stock rows that already exist in the live data are not merged** (the fix stops new ones). List them with
-    `/debug/stock-items` and merge by hand, or ask for a one-off merge.
 34. **The "current selection" (who "her" or "him" refers to) is one setting for the whole business, not one per person.**
     One person's lookups change what another person's "and her balance" means, and "forget that" clears it for everyone.
     A leftover from when the app had one user. *Option:* a selection per signed-in member.
@@ -54,6 +50,7 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     order".
 
 
+
 ## B. Needs a live check only a phone can give
 
 12. **The Codemagic rebuild**: the Confirm/Reject buttons for a follow-up question raised by a confirm ("Add to stock?",
@@ -62,6 +59,8 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     tests, never run on a real delivery note with two orders.
 15. **The Permissions screen on a real phone.** The web build compiles it; the phone build and a real tap-through are
     unverified (switch something off for the installer, then check on the installer's phone that the room is gone).
+14d. **The stock merge on the live data.** `curl -X POST <worker>/debug/merge-stock-items -H "X-Admin-Key: ..." -d '{}'` lists
+    any duplicate stock rows (a dry run); add `{"confirm":true}` to merge them. Nothing has been run against the live data.
 14c. **Rejecting an identity question on a phone.** Say a name that is already on file as an installer, tap Reject, and
     expect "Okay, nothing was recorded. I didn't act on ..." in the chat. The app now reads the server's message after a
     reject; the web build compiles it, the phone build needs a Codemagic rebuild.
@@ -99,6 +98,11 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
 
 ## Settled (kept so the reasoning is not lost)
+
+- 2026-10-04, decided by Pierre (decisions session, round 6, stock):
+  - **Using more stock than is on hand says the count looks off** (still recorded). Applied.
+  - **A merge for the duplicate stock rows already in the data: built** as `POST /debug/merge-stock-items` (admin key), a dry
+    run unless `{"confirm": true}`. **Not yet run on the live data**: run it once with `{}` to see what it would merge.
 
 - 2026-10-04, decided by Pierre (decisions session, round 5):
   - **"Yes, the same person" links them** (a person is created for both if the existing record had none). Applied.

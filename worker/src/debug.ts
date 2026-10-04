@@ -597,6 +597,79 @@ if (url.pathname === "/debug/stock-items" && request.method === "GET") {
       return Response.json({ stockItems: items });
     }
 
+// Decided by Pierre 2026-10-04: merge the duplicate stock rows that already exist from before registering an item became
+// idempotent. A DRY RUN unless {"confirm": true} is sent, so what would change is shown first. For each set of rows with the
+// same name (ignoring case): the earliest row is kept, the others' quantities are added to it, their usage and stock-count
+// history is repointed to it, each merge is recorded, and the extras are removed. A set whose units differ (bags and kg) is
+// skipped and reported, never guessed at.
+if (url.pathname === "/debug/merge-stock-items" && request.method === "POST") {
+  const body = (await request.json().catch(() => ({}))) as { confirm?: boolean };
+  const { results: rows } = await env.OFFICE_DB.prepare("SELECT id, name, unit, quantity_on_hand FROM stock_items ORDER BY id").all<{
+    id: number;
+    name: string;
+    unit: string | null;
+    quantity_on_hand: number;
+  }>();
+  const byName = new Map<string, Array<{ id: number; name: string; unit: string | null; quantity_on_hand: number }>>();
+  for (const r of rows ?? []) {
+    const key = r.name.trim().toLowerCase();
+    byName.set(key, [...(byName.get(key) ?? []), r]);
+  }
+  const groups: Array<{ name: string; keepId: number; mergeIds: number[]; resultingQuantity: number; unit: string | null }> = [];
+  const skipped: Array<{ name: string; ids: number[]; reason: string }> = [];
+  for (const set of byName.values()) {
+    if (set.length < 2) continue;
+    const units = [...new Set(set.map((r) => (r.unit ?? "").trim().toLowerCase()).filter((u) => u !== ""))];
+    if (units.length > 1) {
+      skipped.push({ name: set[0].name, ids: set.map((r) => r.id), reason: `the units differ (${units.join(", ")}), so they were not merged` });
+      continue;
+    }
+    groups.push({
+      name: set[0].name,
+      keepId: set[0].id,
+      mergeIds: set.slice(1).map((r) => r.id),
+      resultingQuantity: set.reduce((sum, r) => sum + r.quantity_on_hand, 0),
+      unit: set.find((r) => r.unit)?.unit ?? null,
+    });
+  }
+  if (body.confirm !== true) {
+    return Response.json({
+      dryRun: true,
+      duplicateGroups: groups,
+      skipped,
+      message:
+        (groups.length > 0 ? 'Nothing was changed. Send {"confirm": true} to merge these.' : "No duplicate stock items to merge.") +
+        (skipped.length > 0 ? ` ${skipped.length} set${skipped.length === 1 ? " was" : "s were"} left alone because the units differ (see "skipped").` : ""),
+    });
+  }
+  if (groups.length > 0) {
+    await env.OFFICE_DB.prepare(
+      "CREATE TABLE IF NOT EXISTS stock_item_merges (id INTEGER PRIMARY KEY AUTOINCREMENT, kept_id INTEGER NOT NULL, merged_id INTEGER NOT NULL, merged_name TEXT, merged_quantity REAL, created_at TEXT NOT NULL DEFAULT (datetime('now')))"
+    ).run();
+  }
+  for (const g of groups) {
+    for (const mergeId of g.mergeIds) {
+      const extra = (rows ?? []).find((r) => r.id === mergeId)!;
+      await env.OFFICE_DB.prepare("UPDATE stock_usage_log SET stock_item_id = ? WHERE stock_item_id = ?").bind(g.keepId, mergeId).run();
+      await env.OFFICE_DB.prepare("UPDATE stocktake_lines SET stock_item_id = ? WHERE stock_item_id = ?").bind(g.keepId, mergeId).run();
+      await env.OFFICE_DB.prepare("UPDATE stock_items SET quantity_on_hand = quantity_on_hand + ? WHERE id = ?").bind(extra.quantity_on_hand, g.keepId).run();
+      await env.OFFICE_DB.prepare("INSERT INTO stock_item_merges (kept_id, merged_id, merged_name, merged_quantity) VALUES (?, ?, ?, ?)")
+        .bind(g.keepId, mergeId, extra.name, extra.quantity_on_hand)
+        .run();
+      await env.OFFICE_DB.prepare("DELETE FROM stock_items WHERE id = ?").bind(mergeId).run();
+    }
+    if (g.unit) await env.OFFICE_DB.prepare("UPDATE stock_items SET unit = COALESCE(unit, ?) WHERE id = ?").bind(g.unit, g.keepId).run();
+  }
+  return Response.json({
+    dryRun: false,
+    merged: groups,
+    skipped,
+    message:
+      (groups.length > 0 ? `Merged ${groups.length} set${groups.length === 1 ? "" : "s"} of duplicate stock items.` : "No duplicate stock items to merge.") +
+      (skipped.length > 0 ? ` ${skipped.length} set${skipped.length === 1 ? " was" : "s were"} left alone because the units differ (see "skipped").` : ""),
+  });
+}
+
 if (url.pathname === "/debug/stocktakes" && request.method === "GET") {
       const { results } = await env.OFFICE_DB.prepare(
         `SELECT stl.id, stl.quantity_counted, stl.quantity_expected, stl.variance, si.name, si.unit, st.created_at
