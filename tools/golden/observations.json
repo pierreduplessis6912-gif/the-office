@@ -1,0 +1,1611 @@
+{
+ "observation: owner, a customer and measurements, no prices": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Job scope #1 recorded for Jenny Smith \u2014 1 component measured, 1 task noted.",
+   "jobScopeIdForProjectResolution": 1,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jenny lounge is 5 by 4 metres, laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jenny lounge is 5 by 4 metres, laminate",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "laminate installation",
+      "scheduled_date_raw": null,
+      "source_transcript": "Jenny lounge is 5 by 4 metres, laminate",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "scope_components": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "name": "lounge",
+      "width_mm": 5000,
+      "length_mm": 4000,
+      "area_sqm": 20
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "laminate installation",
+      "component_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "observation: owner, measured and priced (a quotation is held alongside)": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Payment noted for Jenny Smith \u2014 needs your confirmation (action #1) before it's recorded. Job scope #1 also recorded \u2014 1 component measured, 1 task noted.",
+   "jobScopeIdForProjectResolution": 1,
+   "pendingCandidates": null,
+   "pendingActionType": "quotation",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip",
+   "A tradesperson may be stating prices to apply to a job that was alread"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jenny lounge is 5 by 4 metres, laminate, R450 a square metre",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jenny lounge is 5 by 4 metres, laminate, R450 a square metre",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "laminate installation",
+      "scheduled_date_raw": null,
+      "source_transcript": "Jenny lounge is 5 by 4 metres, laminate, R450 a square metre",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "quotation",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"Lounge\",\"amount\":9000,\"lineItems\":[{\"description\":\"Lounge\",\"note\":null,\"quantity\":20,\"unit\":\"sqm\",\"unit_price\":450,\"line_total\":9000}],\"jobScopeId\":1}",
+      "status": "pending",
+      "source_transcript": "Jenny lounge is 5 by 4 metres, laminate, R450 a square metre"
+     }
+    ]
+   },
+   "scope_components": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "name": "lounge",
+      "width_mm": 5000,
+      "length_mm": 4000,
+      "area_sqm": 20
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "laminate installation",
+      "component_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "observation: accountant, measured and priced": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Payment noted for Jenny Smith \u2014 needs your confirmation (action #1) before it's recorded. Job scope #1 also recorded \u2014 1 component measured, 1 task noted.",
+   "jobScopeIdForProjectResolution": 1,
+   "pendingCandidates": null,
+   "pendingActionType": "quotation",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip",
+   "A tradesperson may be stating prices to apply to a job that was alread"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jenny lounge is 5 by 4 metres, laminate, R450 a square metre",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jenny lounge is 5 by 4 metres, laminate, R450 a square metre",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "laminate installation",
+      "scheduled_date_raw": null,
+      "source_transcript": "Jenny lounge is 5 by 4 metres, laminate, R450 a square metre",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "quotation",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"Lounge\",\"amount\":9000,\"lineItems\":[{\"description\":\"Lounge\",\"note\":null,\"quantity\":20,\"unit\":\"sqm\",\"unit_price\":450,\"line_total\":9000}],\"jobScopeId\":1}",
+      "status": "pending",
+      "source_transcript": "Jenny lounge is 5 by 4 metres, laminate, R450 a square metre"
+     }
+    ]
+   },
+   "scope_components": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "name": "lounge",
+      "width_mm": 5000,
+      "length_mm": 4000,
+      "area_sqm": 20
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "laminate installation",
+      "component_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "observation: installer records the job but is not priced for": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Job scope #1 recorded for Jenny Smith \u2014 1 component measured, 1 task noted.",
+   "jobScopeIdForProjectResolution": 1,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jenny lounge is 5 by 4 metres, laminate, R450 a square metre",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jenny lounge is 5 by 4 metres, laminate, R450 a square metre",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "laminate installation",
+      "scheduled_date_raw": null,
+      "source_transcript": "Jenny lounge is 5 by 4 metres, laminate, R450 a square metre",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "scope_components": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "name": "lounge",
+      "width_mm": 5000,
+      "length_mm": 4000,
+      "area_sqm": 20
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "laminate installation",
+      "component_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "observation: owner, prices mentioned but the pricing model finds none": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Job scope #1 recorded for Jenny Smith \u2014 1 component measured, 1 task noted.",
+   "jobScopeIdForProjectResolution": 1,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip",
+   "A tradesperson may be stating prices to apply to a job that was alread"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jenny lounge is 5 by 4 metres, laminate, about R450",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jenny lounge is 5 by 4 metres, laminate, about R450",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "laminate installation",
+      "scheduled_date_raw": null,
+      "source_transcript": "Jenny lounge is 5 by 4 metres, laminate, about R450",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "scope_components": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "name": "lounge",
+      "width_mm": 5000,
+      "length_mm": 4000,
+      "area_sqm": 20
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "laminate installation",
+      "component_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "observation: owner, prices mentioned and the pricing model fails": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Job scope #1 recorded for Jenny Smith \u2014 1 component measured, 1 task noted.",
+   "jobScopeIdForProjectResolution": 1,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip",
+   "A tradesperson may be stating prices to apply to a job that was alread",
+   "A tradesperson may be stating prices to apply to a job that was alread",
+   "A tradesperson may be stating prices to apply to a job that was alread"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jenny lounge is 5 by 4 metres, laminate, R450 a square metre",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jenny lounge is 5 by 4 metres, laminate, R450 a square metre",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "laminate installation",
+      "scheduled_date_raw": null,
+      "source_transcript": "Jenny lounge is 5 by 4 metres, laminate, R450 a square metre",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "scope_components": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "name": "lounge",
+      "width_mm": 5000,
+      "length_mm": 4000,
+      "area_sqm": 20
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "laminate installation",
+      "component_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "observation: owner, a date-only change for a customer who already has a job": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Job #1 (\"Lounge laminate\") \u2014 update it, or create this as a separate new job?",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "job_scope_amendment",
+   "pendingChanges": [
+    {
+     "field": "scheduled_date_raw",
+     "label": "Date",
+     "displayValue": "next Monday"
+    }
+   ]
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "move Jenny's install to next Monday",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "move Jenny's install to next Monday",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "job_scope_amendment",
+      "payload": "{\"jobScopeId\":1,\"jobScopeDescription\":\"Lounge laminate\",\"changes\":[{\"field\":\"scheduled_date_raw\",\"oldValue\":\"the 10th\",\"newValue\":\"next Monday\"}],\"customerId\":1,\"observation\":{\"job_description\":\"observation\",\"components\":[],\"tasks\":[],\"scheduled_date_raw\":\"next Monday\",\"installer_name\":null},\"installerId\":null,\"transcript\":\"move Jenny's install to next Monday\",\"captureId\":1}",
+      "status": "pending",
+      "source_transcript": "move Jenny's install to next Monday"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "observation: owner, no customer, installer and date, a sibling job in the same message": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Job scope #1 recorded.",
+   "jobScopeIdForProjectResolution": 1,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jabulani will install it next Monday",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jabulani will install it next Monday",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "job_scopes": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "customer_id": 1,
+       "description": "Lounge laminate",
+       "scheduled_date_raw": null,
+       "source_transcript": null,
+       "scheduled_date": null,
+       "installer_id": null,
+       "capture_id": 1,
+       "project_id": null
+      },
+      "after": {
+       "id": 1,
+       "customer_id": 1,
+       "description": "Lounge laminate",
+       "scheduled_date_raw": "next Monday",
+       "source_transcript": null,
+       "scheduled_date": "2026-10-05",
+       "installer_id": 1,
+       "capture_id": 1,
+       "project_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "observation: owner, no customer, installer and date, a sibling lead in the same message": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Job scope #1 recorded.",
+   "jobScopeIdForProjectResolution": 1,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Sipho will install it next Monday",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Sipho will install it next Monday",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 2,
+      "description": "installation",
+      "scheduled_date_raw": "next Monday",
+      "source_transcript": null,
+      "scheduled_date": "2026-10-05",
+      "installer_id": 2,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "observation: owner, no customer, installer and date, nothing to attach to": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Job scope #1 recorded.",
+   "jobScopeIdForProjectResolution": 1,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Sipho will install it next Monday",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Sipho will install it next Monday",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": null,
+      "description": "observation",
+      "scheduled_date_raw": "next Monday",
+      "source_transcript": "Sipho will install it next Monday",
+      "scheduled_date": "2026-10-05",
+      "installer_id": 2,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "observation: owner, an installer who is already booked that day": {
+  "result": {
+   "customer": {
+    "id": 2,
+    "name": "Thandi Mokoena",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Job scope #2 recorded for Thandi Mokoena \u2014 1 component measured, 1 task noted. Heads up \u2014 the same installer is already booked that day (Jenny Smith: Lounge laminate).",
+   "jobScopeIdForProjectResolution": 2,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Thandi lounge is 4 by 3 metres, Jabulani installs next Monday",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Thandi lounge is 4 by 3 metres, Jabulani installs next Monday",
+       "source": "text",
+       "subject_hint": "Thandi Mokoena",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 2,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 2,
+      "customer_id": 2,
+      "description": "carpet",
+      "scheduled_date_raw": "next Monday",
+      "source_transcript": "Thandi lounge is 4 by 3 metres, Jabulani installs next Monday",
+      "scheduled_date": "2026-10-05",
+      "installer_id": 1,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "scope_components": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 2,
+      "name": "lounge",
+      "width_mm": 4000,
+      "length_mm": 3000,
+      "area_sqm": 12
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 2,
+      "description": "carpet",
+      "component_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 2,
+      "label": "Thandi Mokoena"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "observation: owner, only an installer is named (no date, no measurements)": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Job scope #1 recorded for Jenny Smith.",
+   "jobScopeIdForProjectResolution": 1,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Sipho will do Jenny's job",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Sipho will do Jenny's job",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "observation",
+      "scheduled_date_raw": null,
+      "source_transcript": "Sipho will do Jenny's job",
+      "scheduled_date": null,
+      "installer_id": 2,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "observation: owner, an installer nobody has heard of": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Job scope #1 recorded for Jenny Smith \u2014 1 component measured, 1 task noted.",
+   "jobScopeIdForProjectResolution": 1,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jenny lounge is 5 by 4 metres, Thabo installs",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jenny lounge is 5 by 4 metres, Thabo installs",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "characters": {
+    "added": [
+     {
+      "id": 3,
+      "name": "Thabo",
+      "relationship": "installer",
+      "person_id": null,
+      "merged_into_character_id": null
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "laminate installation",
+      "scheduled_date_raw": null,
+      "source_transcript": "Jenny lounge is 5 by 4 metres, Thabo installs",
+      "scheduled_date": null,
+      "installer_id": 3,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "scope_components": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "name": "lounge",
+      "width_mm": 5000,
+      "length_mm": 4000,
+      "area_sqm": 20
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "laminate installation",
+      "component_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "observation: owner, a customer who is not on file": {
+  "result": {
+   "customer": {
+    "id": 3,
+    "name": "Brand New Person",
+    "matched": false
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Job scope #1 recorded for Brand New Person \u2014 1 component measured, 1 task noted.",
+   "jobScopeIdForProjectResolution": 1,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Brand New Person lounge is 5 by 4 metres, laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Brand New Person lounge is 5 by 4 metres, laminate",
+       "source": "text",
+       "subject_hint": "Brand New Person",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 3,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "customers": {
+    "added": [
+     {
+      "id": 3,
+      "name": "Brand New Person",
+      "address": null,
+      "vat_exempt": 0,
+      "retention_percent": null,
+      "person_id": null,
+      "merged_into_customer_id": null
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 3,
+      "description": "laminate installation",
+      "scheduled_date_raw": null,
+      "source_transcript": "Brand New Person lounge is 5 by 4 metres, laminate",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "scope_components": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "name": "lounge",
+      "width_mm": 5000,
+      "length_mm": 4000,
+      "area_sqm": 20
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "laminate installation",
+      "component_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 3,
+      "label": "Brand New Person"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "observation: owner, measurements but no customer named": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Job scope #1 recorded \u2014 1 component measured, 1 task noted.",
+   "jobScopeIdForProjectResolution": 1,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "lounge is 5 by 4 metres, laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "lounge is 5 by 4 metres, laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": null,
+      "description": "laminate installation",
+      "scheduled_date_raw": null,
+      "source_transcript": "lounge is 5 by 4 metres, laminate",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "scope_components": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "name": "lounge",
+      "width_mm": 5000,
+      "length_mm": 4000,
+      "area_sqm": 20
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "laminate installation",
+      "component_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "observation: owner, the model finds nothing": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Job scope #1 recorded for Jenny Smith.",
+   "jobScopeIdForProjectResolution": 1,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jenny lounge is big",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jenny lounge is big",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "observation",
+      "scheduled_date_raw": null,
+      "source_transcript": "Jenny lounge is big",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "observation: owner, the model fails": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Job scope #1 recorded for Jenny Smith.",
+   "jobScopeIdForProjectResolution": 1,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip",
+   "Extract the structure of a tradesperson's job observation. job_descrip",
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jenny lounge is 5 by 4 metres, laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jenny lounge is 5 by 4 metres, laminate",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "Jenny lounge is 5 by 4 metres, laminate",
+      "scheduled_date_raw": null,
+      "source_transcript": "Jenny lounge is 5 by 4 metres, laminate",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "observation: a role with no permissions (the intent is open to every role)": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Job scope #1 recorded for Jenny Smith \u2014 1 component measured, 1 task noted.",
+   "jobScopeIdForProjectResolution": 1,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jenny lounge is 5 by 4 metres, laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jenny lounge is 5 by 4 metres, laminate",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "laminate installation",
+      "scheduled_date_raw": null,
+      "source_transcript": "Jenny lounge is 5 by 4 metres, laminate",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "scope_components": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "name": "lounge",
+      "width_mm": 5000,
+      "length_mm": 4000,
+      "area_sqm": 20
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "laminate installation",
+      "component_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ }
+}
