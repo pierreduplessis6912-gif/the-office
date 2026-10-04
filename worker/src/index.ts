@@ -208,7 +208,9 @@ async function processOneExtraction(
   // client has something concrete to show and tap-to-edit instead of
   // the values only ever existing inside prose. null for every other
   // type — the one type actually reviewed and given this treatment.
-  pendingChanges: Array<{ field: string; oldValue: string | null; newValue: string | null }> | null;
+  // The real shape, as produced by checkForJobScopeAmendment. This used to be declared as { field, oldValue, newValue },
+  // which is not what the function returns, and two "tolerated" type errors were exactly that disagreement.
+  pendingChanges: Array<{ field: string; label: string; displayValue: string }> | null;
 }> {
   let customer: { id: number; name: string; matched: boolean } | null = null;
   let character: { id: number; name: string; matched: boolean } | null = null;

@@ -21,10 +21,13 @@ export interface PendingCandidate {
   id: number;
   name: string;
 }
+// What a job-scope amendment question shows the person for each proposed change. This is the shape the function really
+// returns (built in checkForJobScopeAmendment, finance.ts). The scaffold first copied { field, oldValue, newValue }, a
+// declaration in index.ts that was simply wrong; a test now compares this with what the code that builds it produces.
 export interface PendingChange {
   field: string;
-  oldValue: string | null;
-  newValue: string | null;
+  label: string;
+  displayValue: string;
 }
 
 // The shape processOneExtraction returns today, named but not changed. A test asserts that these nine

@@ -5851,3 +5851,14 @@ The opening step of `processOneExtraction`, what runs before any intent, is reco
 **Recorded in `OPEN_QUESTIONS.md`:** the "current selection" (who "her" means) is one setting for the whole business, not one per person, so one person's lookups change what another person's follow-up means, and "forget that" clears it for everyone.
 
 **What is not characterized:** only `processOneExtraction` is. Its callers are not: the splitting of a spoken message into topics, the confirm and reject routes and what they replay, and the upload handlers.
+
+
+---
+
+## A wrong declaration, found while preparing to record the callers (and my scaffold had copied it)
+
+`processOneExtraction` declared its amendment-question changes as `{ field, oldValue, newValue }`. What it really returns, built in `checkForJobScopeAmendment`, is `{ field, label, displayValue }`; `processTranscript`, which receives it, declared the real shape. Two of the 45 "tolerated" type errors were exactly this disagreement, and a third (an argument error where `processTranscript` stores the result) had the same root cause. **My Phase 1 scaffold copied the wrong declaration** into `PendingChange`, and its drift guard could not catch it because it compared only top-level field names. The recordings, which hold the real runtime values, are what showed the true shape.
+
+Fixed in all three places: the declared return type (a type-only change: behaviour is identical), the scaffold, and the guard, which now compares the nested shape in the scaffold, in the function's declaration and in the code that builds it (mutation-tested: changing any one of the three fails). The baseline of tolerated type errors shrank from 45 to 42. The candidates' shape (`{ id, name }`) was checked too and was right.
+
+**Lesson, kept deliberately:** a guard that compares names but not nested shapes passes on a wrong declaration. The scaffold's earlier claim of being "lossless over the real domain" was true only at the top level.

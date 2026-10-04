@@ -15,7 +15,7 @@ module.exports = async function runIntentTests({ check, bundleTo, srcDir, fs, pa
     { id: 5, type: 'payment', cand: null, chg: null },
     { id: 6, type: 'identity_collision', cand: null, chg: null },
     { id: 7, type: 'ambiguous_person', cand: [{ id: 1, name: 'A' }, { id: 2, name: 'B' }], chg: null },
-    { id: 8, type: 'job_scope_amendment', cand: null, chg: [{ field: 'installer', oldValue: null, newValue: 'Sepo' }, { field: 'date', oldValue: '2026-10-01', newValue: '2026-10-02' }] },
+    { id: 8, type: 'job_scope_amendment', cand: null, chg: [{ field: 'installer_id', label: 'Installer', displayValue: 'Sepo' }, { field: 'scheduled_date_raw', label: 'Date', displayValue: 'next Monday' }] },
     { id: 9, type: 'ambiguous_person', cand: [], chg: null },
   ];
   const facts = [null, 12];
@@ -33,7 +33,7 @@ module.exports = async function runIntentTests({ check, bundleTo, srcDir, fs, pa
     if (sameJson(toProcessingResult(toLegacyResult(forward)), forward)) newSideOk++;
   }
   check(cases === 432 && roundTripOk === 432 && newSideOk === 432, `legacy -> new -> legacy must be the identity for every well-formed result, and new -> legacy -> new too (432 cases; got ${roundTripOk} and ${newSideOk} of ${cases})`);
-  const mapped = toProcessingResult({ customer: null, character: null, pendingActionId: 8, factPendingActionId: 12, message: 'm', jobScopeIdForProjectResolution: 3, pendingCandidates: null, pendingActionType: 'job_scope_amendment', pendingChanges: [{ field: 'f', oldValue: null, newValue: 'x' }] });
+  const mapped = toProcessingResult({ customer: null, character: null, pendingActionId: 8, factPendingActionId: 12, message: 'm', jobScopeIdForProjectResolution: 3, pendingCandidates: null, pendingActionType: 'job_scope_amendment', pendingChanges: [{ field: 'f', label: 'F', displayValue: 'x' }] });
   check(mapped.held.id === 8 && mapped.held.type === 'job_scope_amendment' && mapped.held.changes.length === 1 && mapped.factHeldId === 12 && sameJson(mapped.recorded, [{ kind: 'job_scope', id: 3 }]), 'the new shape carries the held action, the fact hold and the recorded job scope separately');
   const none = toProcessingResult({ customer: null, character: null, pendingActionId: null, factPendingActionId: null, message: 'x', jobScopeIdForProjectResolution: null, pendingCandidates: null, pendingActionType: null, pendingChanges: null });
   check(none.held === null && none.recorded.length === 0 && none.factHeldId === null, 'a result with nothing held and nothing recorded maps to nothing held and nothing recorded');
@@ -45,9 +45,9 @@ module.exports = async function runIntentTests({ check, bundleTo, srcDir, fs, pa
     ['an action id with no type', { ...base, pendingActionId: 5 }],
     ['a type with no action id', { ...base, pendingActionType: 'payment' }],
     ['candidates with no action id', { ...base, pendingCandidates: [{ id: 1, name: 'A' }] }],
-    ['changes with no action id', { ...base, pendingChanges: [{ field: 'f', oldValue: null, newValue: 'x' }] }],
+    ['changes with no action id', { ...base, pendingChanges: [{ field: 'f', label: 'F', displayValue: 'x' }] }],
     ['candidates on a hold that is not ambiguous_person', { ...base, pendingActionId: 5, pendingActionType: 'payment', pendingCandidates: [{ id: 1, name: 'A' }] }],
-    ['changes on a hold that is not job_scope_amendment', { ...base, pendingActionId: 5, pendingActionType: 'payment', pendingChanges: [{ field: 'f', oldValue: null, newValue: 'x' }] }],
+    ['changes on a hold that is not job_scope_amendment', { ...base, pendingActionId: 5, pendingActionType: 'payment', pendingChanges: [{ field: 'f', label: 'F', displayValue: 'x' }] }],
   ];
   for (const [name, bad] of malformed) {
     let threw = null;
@@ -55,7 +55,7 @@ module.exports = async function runIntentTests({ check, bundleTo, srcDir, fs, pa
     check(threw && threw.name === 'MalformedLegacyResult' && Array.isArray(threw.issues) && threw.issues.length >= 1 && legacyResultIssues(bad).length >= 1, `a legacy result with ${name} must be refused, not quietly converted`);
   }
   check(legacyResultIssues({ ...base, pendingActionId: 5, pendingActionType: 'payment' }).length === 0 && legacyResultIssues({ ...base, pendingActionId: 7, pendingActionType: 'ambiguous_person', pendingCandidates: [] }).length === 0, 'a well-formed result has no issues, including an empty candidate list on an ambiguous_person hold');
-  check(legacyResultIssues({ ...base, pendingActionId: 5, pendingCandidates: [{ id: 1, name: 'A' }], pendingChanges: [{ field: 'f', oldValue: null, newValue: 'x' }] }).length >= 3, 'every broken rule is reported, not just the first');
+  check(legacyResultIssues({ ...base, pendingActionId: 5, pendingCandidates: [{ id: 1, name: 'A' }], pendingChanges: [{ field: 'f', label: 'F', displayValue: 'x' }] }).length >= 3, 'every broken rule is reported, not just the first');
 
   // ---- 3. The rules the adapter relies on really are obeyed at every return site of the real function ---
   const fnStart = indexSrc.indexOf('async function processOneExtraction(');
@@ -104,6 +104,18 @@ module.exports = async function runIntentTests({ check, bundleTo, srcDir, fs, pa
   const legBlock = resSrc.slice(resSrc.indexOf('export interface LegacyProcessResult {') + 'export interface LegacyProcessResult {'.length, resSrc.indexOf('}', resSrc.indexOf('export interface LegacyProcessResult {')));
   const legFields = [...flatten(legBlock).matchAll(/^\s+(\w+):\s*([^;]*);/gm)].map((m) => [m[1], /\|\s*null\s*$/.test(m[2].trim())]);
   check(liveFields.length === 9 && sameJson(liveFields, legFields), `LegacyProcessResult must have exactly processOneExtraction's return fields, in order, with the same nullability (live ${liveFields.map((f) => f[0]).join(',')}; scaffold ${legFields.map((f) => f[0]).join(',')})`);
+
+  // The NESTED shapes, not just the field names (the first scaffold copied a wrong declaration for pendingChanges and
+  // this guard could not tell, because it only compared top-level names). Compared three ways: the scaffold, the
+  // function's declared return type, and the code that actually builds the value.
+  const nested = (src, after, open) => { const a = src.indexOf(after); const b = src.indexOf(open, a) + open.length; let depth = 1, i = b; while (depth > 0 && i < src.length) { if (src[i] === '{') depth++; if (src[i] === '}') depth--; i++; } return [...src.slice(b, i - 1).matchAll(/(\w+):\s*([^;,}]+)/g)].map((m) => `${m[1]}:${m[2].trim()}`).join(','); };
+  const scaffoldChange = nested(resSrc, 'export interface PendingChange {', '{');
+  const declaredChange = (retBody.match(/pendingChanges:\s*Array<\{([^}]*)\}>/) || [])[1];
+  const producedChange = (fs.readFileSync(path.join(srcDir, 'finance.ts'), 'utf8').match(/changes:\s*Array<\{([^}]*)\}>/) || [])[1];
+  const norm = (x) => (x || '').split(/[;,]/).map((y) => y.replace(/\s+/g, '')).filter(Boolean).join(',');
+  check(norm(declaredChange) === norm(producedChange) && scaffoldChange === norm(producedChange), `pendingChanges must have the same shape in the scaffold (${scaffoldChange}), in processOneExtraction's declared return type (${norm(declaredChange)}) and in the code that builds it (${norm(producedChange)})`);
+  const candidates = (resSrc.match(/export interface PendingCandidate \{([^}]*)\}/) || [])[1];
+  check(norm(candidates).replace(/\s/g, '') === 'id:number,name:string' && /pendingCandidates: Array<\{ id: number; name: string \}> \| null;/.test(indexSrc), 'pendingCandidates must be { id, name } in both the scaffold and the function');
 
   // ---- 5. The adapter calls the live function correctly and does not hide its failures --------------
   let seen = null;
