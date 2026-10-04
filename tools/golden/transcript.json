@@ -1,0 +1,1912 @@
+{
+ "transcript: owner, one topic": {
+  "result": {
+   "extraction": {
+    "customer_name": "Jenny Smith",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "payment",
+    "amount": 500,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "pendingActionIds": [
+    1
+   ],
+   "factPendingActionId": null,
+   "message": "Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.",
+   "rewrittenQuery": "Jenny paid R500",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": "payment",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny paid R500",
+      "source": "text",
+      "subject_hint": "Jenny Smith",
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": 1,
+      "character_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "payment",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
+      "status": "pending",
+      "source_transcript": "Jenny paid R500"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: owner, two topics are run separately and the replies are joined": {
+  "result": {
+   "extraction": {
+    "customer_name": "Jenny Smith",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "payment",
+    "amount": 500,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "pendingActionIds": [
+    1,
+    2
+   ],
+   "factPendingActionId": null,
+   "message": "- Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.\n- Expense noted of R650 — needs your confirmation (action #2) before it's recorded.",
+   "rewrittenQuery": "Jenny paid R500 and diesel for the bakkie R650",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": "payment",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny paid R500 and diesel for the bakkie R650",
+      "source": "text",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "payment",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
+      "status": "pending",
+      "source_transcript": "Jenny paid R500"
+     },
+     {
+      "id": 2,
+      "type": "expense",
+      "payload": "{\"characterId\":null,\"customerId\":null,\"amount\":650,\"description\":\"diesel for the bakkie R650\"}",
+      "status": "pending",
+      "source_transcript": "diesel for the bakkie R650"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: owner, three topics and the middle one is not understood": {
+  "result": {
+   "extraction": {
+    "customer_name": "Jenny Smith",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "payment",
+    "amount": 500,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "pendingActionIds": [
+    1,
+    2
+   ],
+   "factPendingActionId": null,
+   "message": "- Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.\n- I didn't catch anything there I could act on.\n- Expense noted of R650 — needs your confirmation (action #2) before it's recorded.",
+   "rewrittenQuery": "Jenny paid R500. Thandi called about a quote. diesel for the bakkie R650",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": "payment",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny paid R500. Thandi called about a quote. diesel for the bakkie R650",
+      "source": "text",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "payment",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
+      "status": "pending",
+      "source_transcript": "Jenny paid R500"
+     },
+     {
+      "id": 2,
+      "type": "expense",
+      "payload": "{\"characterId\":null,\"customerId\":null,\"amount\":650,\"description\":\"diesel for the bakkie R650\"}",
+      "status": "pending",
+      "source_transcript": "diesel for the bakkie R650"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "life:2026-10-03",
+    "value": "{\"facts\":[{\"text\":\"Thandi called about a quote\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "transcript: owner, the splitter fails so the whole message is one topic": {
+  "result": {
+   "extraction": {
+    "customer_name": "Jenny Smith",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "payment",
+    "amount": 500,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "pendingActionIds": [
+    1
+   ],
+   "factPendingActionId": null,
+   "message": "Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.",
+   "rewrittenQuery": "Jenny paid R500",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": "payment",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny paid R500",
+      "source": "text",
+      "subject_hint": "Jenny Smith",
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": 1,
+      "character_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "payment",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
+      "status": "pending",
+      "source_transcript": "Jenny paid R500"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: owner, the splitter answers with something that is not a list": {
+  "result": {
+   "extraction": {
+    "customer_name": "Jenny Smith",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "payment",
+    "amount": 500,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "pendingActionIds": [
+    1
+   ],
+   "factPendingActionId": null,
+   "message": "Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.",
+   "rewrittenQuery": "Jenny paid R500",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": "payment",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny paid R500",
+      "source": "text",
+      "subject_hint": "Jenny Smith",
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": 1,
+      "character_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "payment",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
+      "status": "pending",
+      "source_transcript": "Jenny paid R500"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: owner, the splitter answers with an empty list": {
+  "result": {
+   "extraction": {
+    "customer_name": "Jenny Smith",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "payment",
+    "amount": 500,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "pendingActionIds": [
+    1
+   ],
+   "factPendingActionId": null,
+   "message": "Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.",
+   "rewrittenQuery": "Jenny paid R500",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": "payment",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny paid R500",
+      "source": "text",
+      "subject_hint": "Jenny Smith",
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": 1,
+      "character_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "payment",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
+      "status": "pending",
+      "source_transcript": "Jenny paid R500"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: owner, the splitter answers with a list that has a non-text item": {
+  "result": {
+   "extraction": {
+    "customer_name": "Jenny Smith",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "payment",
+    "amount": 500,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "pendingActionIds": [
+    1
+   ],
+   "factPendingActionId": null,
+   "message": "Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.",
+   "rewrittenQuery": "Jenny paid R500",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": "payment",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny paid R500",
+      "source": "text",
+      "subject_hint": "Jenny Smith",
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": 1,
+      "character_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "payment",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
+      "status": "pending",
+      "source_transcript": "Jenny paid R500"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: owner, the model that reads the topic fails": {
+  "result": {
+   "extraction": null,
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "this is not json"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "this is not json",
+   "customer": null,
+   "pendingActionId": null,
+   "pendingActionIds": [],
+   "factPendingActionId": null,
+   "message": "I didn't catch anything there I could act on.",
+   "rewrittenQuery": "Jenny paid R500",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny paid R500",
+      "source": "text",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "life:2026-10-03",
+    "value": "{\"facts\":[{\"text\":\"Jenny paid R500\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "transcript: owner, every topic fails to read": {
+  "result": {
+   "extraction": null,
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "this is not json"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "this is not json",
+   "customer": null,
+   "pendingActionId": null,
+   "pendingActionIds": [],
+   "factPendingActionId": null,
+   "message": "- I didn't catch anything there I could act on.\n- I didn't catch anything there I could act on.",
+   "rewrittenQuery": "Jenny paid R500 and diesel for the bakkie R650",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny paid R500 and diesel for the bakkie R650",
+      "source": "text",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "life:2026-10-03",
+    "value": "{\"facts\":[{\"text\":\"Jenny paid R500\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   },
+   {
+    "kv": "put",
+    "key": "life:2026-10-03",
+    "value": "{\"facts\":[{\"text\":\"Jenny paid R500\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"},{\"text\":\"diesel for the bakkie R650\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "transcript: owner, bare measurements are merged into the topic that follows them": {
+  "result": {
+   "extraction": {
+    "customer_name": "Jenny Smith",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "note",
+    "amount": null,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "pendingActionIds": [],
+   "factPendingActionId": null,
+   "message": "Found existing customer: Jenny Smith.",
+   "rewrittenQuery": "3x3 store. 1.2x1.2 kitchen. Jenny Smith rooms measured in metres",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "3x3 store. 1.2x1.2 kitchen. Jenny Smith rooms measured in metres",
+      "source": "text",
+      "subject_hint": "Jenny Smith",
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": 1,
+      "character_id": null
+     }
+    ]
+   },
+   "pending_memory_flush": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "text": "3x3 store. 1.2x1.2 kitchen. Jenny Smith rooms measured in metres"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "customer:1",
+    "value": "{\"facts\":[{\"text\":\"3x3 store. 1.2x1.2 kitchen. Jenny Smith rooms measured in metres\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "transcript: owner, a question and an action in one message": {
+  "result": {
+   "extraction": {
+    "customer_name": null,
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "lookup",
+    "amount": null,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": "business",
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"lookup\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":\"business\",\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"lookup\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":\"business\",\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "pendingActionIds": [
+    1
+   ],
+   "factPendingActionId": null,
+   "message": "- ANSWER FROM FACTS:\n- No quotations on file.\n- No expenses on file.\n- Total invoiced to date: R0.\n- Total actually received: R0.\n- Total spent on expenses: R0.\n- Rough cash position (received minus spent): R0. This is a cash-basis snapshot, not the formal profit and loss — see getProfitAndLoss for that.\n- Revenue: R0.\n- Cost of Sales (materials, subcontractor): R0.\n- Gross Profit: R0.\n- Operating Expenses (fuel, tools, other): R0.\n- Net Profit: R0.\n- Expense breakdown by category: .\n- Revenue here is accrual-based (real invoiced amounts), not cash received — a different measure from the cash-position snapshot.\n- No outstanding debtors on file.\n- No outstanding creditors on file.\n- Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.",
+   "rewrittenQuery": "what is outstanding on the lounge job and Jenny paid R500",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Is this a broad, whole-business question wanting a real, visual snapsh",
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "what is outstanding on the lounge job and Jenny paid R500",
+      "source": "text",
+      "subject_hint": "Jenny Smith",
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": 1,
+      "character_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "payment",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
+      "status": "pending",
+      "source_transcript": "Jenny paid R500"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: owner, a spoken message keeps its audio key": {
+  "result": {
+   "extraction": {
+    "customer_name": "Jenny Smith",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "payment",
+    "amount": 500,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "pendingActionIds": [
+    1
+   ],
+   "factPendingActionId": null,
+   "message": "Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.",
+   "rewrittenQuery": "Jenny paid R500",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": "payment",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny paid R500",
+      "source": "voice",
+      "subject_hint": "Jenny Smith",
+      "extraction_status": "processed",
+      "r2_key": "audio/1791000000000-abc.webm",
+      "customer_id": 1,
+      "character_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "payment",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
+      "status": "pending",
+      "source_transcript": "Jenny paid R500"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: owner, a new job is attached to the customer's one open project": {
+  "result": {
+   "extraction": {
+    "customer_name": "Jenny Smith",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "work_observation",
+    "amount": null,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"work_observation\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"work_observation\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "pendingActionIds": [],
+   "factPendingActionId": null,
+   "message": "Job scope #1 recorded for Jenny Smith — 1 component measured, 1 task noted.",
+   "rewrittenQuery": "Jenny lounge is 5 by 4 metres, laminate",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny lounge is 5 by 4 metres, laminate",
+      "source": "text",
+      "subject_hint": "Jenny Smith",
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": 1,
+      "character_id": null
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "laminate",
+      "scheduled_date_raw": null,
+      "source_transcript": "Jenny lounge is 5 by 4 metres, laminate",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": 1
+     }
+    ]
+   },
+   "scope_components": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "name": "lounge",
+      "width_mm": 5000,
+      "length_mm": 4000,
+      "area_sqm": 20
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "laminate",
+      "component_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: owner, a new job and the customer has two open projects, so it asks which": {
+  "result": {
+   "extraction": {
+    "customer_name": "Jenny Smith",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "work_observation",
+    "amount": null,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"work_observation\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"work_observation\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "pendingActionIds": [
+    1
+   ],
+   "factPendingActionId": null,
+   "message": "Job scope #1 recorded for Jenny Smith — 1 component measured, 1 task noted.\nThis customer has 2 open projects (Lounge floor, Kitchen refit) — which one is job scope #1? (action #1)",
+   "rewrittenQuery": "Jenny lounge is 5 by 4 metres, laminate",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny lounge is 5 by 4 metres, laminate",
+      "source": "text",
+      "subject_hint": "Jenny Smith",
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": 1,
+      "character_id": null
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "laminate",
+      "scheduled_date_raw": null,
+      "source_transcript": "Jenny lounge is 5 by 4 metres, laminate",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "project_ambiguity",
+      "payload": "{\"jobScopeId\":1,\"candidates\":[{\"id\":2,\"description\":\"Lounge floor\"},{\"id\":1,\"description\":\"Kitchen refit\"}]}",
+      "status": "pending",
+      "source_transcript": "resolving project attachment for job scope #1"
+     }
+    ]
+   },
+   "scope_components": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "name": "lounge",
+      "width_mm": 5000,
+      "length_mm": 4000,
+      "area_sqm": 20
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "laminate",
+      "component_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: owner, a new job and the customer has no open project": {
+  "result": {
+   "extraction": {
+    "customer_name": "Jenny Smith",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "work_observation",
+    "amount": null,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"work_observation\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"work_observation\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "pendingActionIds": [],
+   "factPendingActionId": null,
+   "message": "Job scope #1 recorded for Jenny Smith — 1 component measured, 1 task noted.",
+   "rewrittenQuery": "Jenny lounge is 5 by 4 metres, laminate",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny lounge is 5 by 4 metres, laminate",
+      "source": "text",
+      "subject_hint": "Jenny Smith",
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": 1,
+      "character_id": null
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "laminate",
+      "scheduled_date_raw": null,
+      "source_transcript": "Jenny lounge is 5 by 4 metres, laminate",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "scope_components": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "name": "lounge",
+      "width_mm": 5000,
+      "length_mm": 4000,
+      "area_sqm": 20
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "laminate",
+      "component_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: owner, two jobs for a customer with two open projects, asked about each": {
+  "result": {
+   "extraction": {
+    "customer_name": "Jenny Smith",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "work_observation",
+    "amount": null,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"work_observation\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"work_observation\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "pendingActionIds": [],
+   "factPendingActionId": null,
+   "message": "- Job scope #1 recorded for Jenny Smith — 1 component measured, 1 task noted.\n- Job scope #2 recorded for Jenny Smith — 1 component measured, 1 task noted.",
+   "rewrittenQuery": "Jenny lounge is 5 by 4 metres. Jenny kitchen is 3 by 3 metres.",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract the structure of a tradesperson's job observation. job_descrip",
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny lounge is 5 by 4 metres. Jenny kitchen is 3 by 3 metres.",
+      "source": "text",
+      "subject_hint": "Jenny Smith",
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": 1,
+      "character_id": null
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "laminate",
+      "scheduled_date_raw": null,
+      "source_transcript": "Jenny lounge is 5 by 4 metres",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": 3
+     },
+     {
+      "id": 2,
+      "customer_id": 1,
+      "description": "laminate",
+      "scheduled_date_raw": null,
+      "source_transcript": "Jenny kitchen is 3 by 3 metres",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": 3
+     }
+    ]
+   },
+   "projects": {
+    "added": [
+     {
+      "id": 3,
+      "customer_id": 1,
+      "description": "laminate",
+      "source_transcript": "Jenny kitchen is 3 by 3 metres",
+      "capture_id": null
+     }
+    ]
+   },
+   "scope_components": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "name": "lounge",
+      "width_mm": 5000,
+      "length_mm": 4000,
+      "area_sqm": 20
+     },
+     {
+      "id": 2,
+      "job_scope_id": 2,
+      "name": "lounge",
+      "width_mm": 5000,
+      "length_mm": 4000,
+      "area_sqm": 20
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "laminate",
+      "component_id": null
+     },
+     {
+      "id": 2,
+      "job_scope_id": 2,
+      "description": "laminate",
+      "component_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: owner, one job and an expense in one message, and the customer has two open projects": {
+  "result": {
+   "extraction": {
+    "customer_name": "Jenny Smith",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "work_observation",
+    "amount": null,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"work_observation\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"work_observation\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "pendingActionIds": [
+    1,
+    2
+   ],
+   "factPendingActionId": null,
+   "message": "- Job scope #1 recorded for Jenny Smith — 1 component measured, 1 task noted.\n- Expense noted of R650 — needs your confirmation (action #1) before it's recorded.\nThis customer has 2 open projects (Lounge floor, Kitchen refit) — which one is job scope #1? (action #2)",
+   "rewrittenQuery": "Jenny lounge is 5 by 4 metres, laminate, and diesel for the bakkie R650",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny lounge is 5 by 4 metres, laminate, and diesel for the bakkie R650",
+      "source": "text",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "laminate",
+      "scheduled_date_raw": null,
+      "source_transcript": "Jenny lounge is 5 by 4 metres, laminate",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "expense",
+      "payload": "{\"characterId\":null,\"customerId\":null,\"amount\":650,\"description\":\"diesel for the bakkie R650\"}",
+      "status": "pending",
+      "source_transcript": "diesel for the bakkie R650"
+     },
+     {
+      "id": 2,
+      "type": "project_ambiguity",
+      "payload": "{\"jobScopeId\":1,\"candidates\":[{\"id\":2,\"description\":\"Lounge floor\"},{\"id\":1,\"description\":\"Kitchen refit\"}]}",
+      "status": "pending",
+      "source_transcript": "resolving project attachment for job scope #1"
+     }
+    ]
+   },
+   "scope_components": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "name": "lounge",
+      "width_mm": 5000,
+      "length_mm": 4000,
+      "area_sqm": 20
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "laminate",
+      "component_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: installer, a money topic is refused and a snag in the same message is recorded": {
+  "result": {
+   "extraction": {
+    "customer_name": "Jenny Smith",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "payment",
+    "amount": 500,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "pendingActionIds": [],
+   "factPendingActionId": null,
+   "message": "- Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.\n- Snag #1 noted for Jenny Smith: loose seam.",
+   "rewrittenQuery": "Jenny paid R500. Jenny carpet has a loose seam",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A tradesperson is reporting a real, physical quality issue found on a "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny paid R500. Jenny carpet has a loose seam",
+      "source": "text",
+      "subject_hint": "Jenny Smith",
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": 1,
+      "character_id": null
+     }
+    ]
+   },
+   "pending_memory_flush": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "text": "Jenny carpet has a loose seam"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
+   "snags": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "loose seam",
+      "status": "open",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "customer:1",
+    "value": "{\"facts\":[{\"text\":\"Jenny carpet has a loose seam\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "transcript: a role with no permissions, a money topic is refused": {
+  "result": {
+   "extraction": {
+    "customer_name": "Jenny Smith",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "payment",
+    "amount": 500,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": null,
+   "pendingActionId": null,
+   "pendingActionIds": [],
+   "factPendingActionId": null,
+   "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+   "rewrittenQuery": "Jenny paid R500",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny paid R500",
+      "source": "text",
+      "subject_hint": null,
+      "extraction_status": "unprocessed",
+      "r2_key": null,
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ }
+}

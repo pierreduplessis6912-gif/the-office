@@ -21,20 +21,26 @@ try {
 const plain = (row) => (row ? { ...row } : row);
 const VOLATILE = /(^created_at$|^updated_at$|^resolved_at$|_at$)/;   // timestamps differ on every run
 
-async function loadProcessor(workerDir) {
+async function loadFunctions(workerDir) {
   const esbuild = require('esbuild');
   const expose = {
     name: 'expose-processOneExtraction',
     setup(b) {
       b.onLoad({ filter: /src[\\/]index\.ts$/ }, (a) => ({
-        contents: fs.readFileSync(a.path, 'utf8') + '\nexport { processOneExtraction as __poe };\n',
+        contents: fs.readFileSync(a.path, 'utf8') + '\nexport { processOneExtraction as __poe, processTranscript as __pt };\n',
         loader: 'ts',
       }));
     },
   };
   const out = path.join(os.tmpdir(), `rm-poe-${process.pid}.js`);
   await esbuild.build({ entryPoints: [path.join(workerDir, 'src', 'index.ts')], bundle: true, platform: 'node', format: 'cjs', outfile: out, logLevel: 'silent', plugins: [expose] });
-  return require(out).__poe;
+  const mod = require(out);
+  return { processOne: mod.__poe, processTranscript: mod.__pt };
+}
+
+// Kept for the cases that only need the single-segment function.
+async function loadProcessor(workerDir) {
+  return (await loadFunctions(workerDir)).processOne;
 }
 
 function newDatabase(workerDir) {
@@ -177,4 +183,29 @@ async function runCase(processOne, workerDir, spec) {
   return { result, threw, aiCalls: ai.calls, aiInputs: ai.inputs, backgroundErrors, writes, effects };
 }
 
-module.exports = { loadProcessor, runCase, newDatabase, EXTRACTION_DEFAULTS };
+// Runs the caller of processOneExtraction: it logs the capture, asks a model to split the message into topics, runs each
+// topic through processOneExtraction, attaches a new job scope to the customer's open project, and joins the replies.
+// Unlike runCase, no capture is pre-inserted (logCapture does it) and no extraction is passed in (a model reads each topic).
+async function runTranscriptCase(processTranscript, workerDir, spec) {
+  const db = newDatabase(workerDir);
+  if (spec.seed) spec.seed(db);
+  const before = snapshot(db);
+  const ai = scriptedAi(spec.ai);
+  const pendingWork = [], backgroundErrors = [];
+  const ctx = { waitUntil: (p) => pendingWork.push(Promise.resolve(p).catch((e) => backgroundErrors.push(String(e && e.message || e)))), passThroughOnException() {} };
+  const effects = [];
+  const env = { OFFICE_DB: d1(db), AI: ai, CUSTOMER_NOTES: fakeKv(effects, spec.kvSeed), OFFICE_VAULT: fakeR2(effects), MEMORY: fakeVectorize(effects) };
+  let result = null, threw = null;
+  await withFrozenClock(async () => {
+    try {
+      result = await processTranscript(env, spec.transcript, ctx, spec.history || [], spec.source || 'text', spec.r2Key === undefined ? null : spec.r2Key, spec.capabilities, spec.email === undefined ? 'owner@example.com' : spec.email);
+    } catch (e) {
+      threw = String(e && e.message || e);
+    }
+    await Promise.all(pendingWork);
+  });
+  const after = snapshot(db);
+  return { result, threw, aiCalls: ai.calls, aiInputs: ai.inputs, backgroundErrors, writes: diff(before, after), effects };
+}
+
+module.exports = { loadFunctions, loadProcessor, runCase, runTranscriptCase, newDatabase, EXTRACTION_DEFAULTS };

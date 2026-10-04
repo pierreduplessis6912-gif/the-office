@@ -3,7 +3,7 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (the whole function is characterized).
+decision, and say where it was applied. Last updated 2026-10-04 (the function and its first caller are characterized).
 
 ## A. Decisions only Pierre can make
 
@@ -69,6 +69,11 @@ decision, and say where it was applied. Last updated 2026-10-04 (the whole funct
 34. **The "current selection" (who "her" or "him" refers to) is one setting for the whole business, not one per person.**
     One person's lookups change what another person's "and her balance" means, and "forget that" clears it for everyone.
     A leftover from when the app had one user. *Option:* a selection per signed-in member.
+35. **Two jobs in one message are grouped under a brand-new project and no question is asked, even when the customer
+    already has open projects; one job asks which existing project.** The same customer is treated differently depending
+    on how many jobs were in one sentence, and a duplicate project is created. *Options:* ask which existing project in
+    both cases; or keep the new group project but ask whether it belongs to an existing one. (`DECISIONS.md`, "Rewrite
+    Phase 2, the first caller".)
 11. **An installer's scheduling message that the classifier labels "invoice" is refused outright.** Set aside on
     2026-10-03 as unproven (it was only ever seen in a code comment). Reopen if a real one is refused.
 
@@ -94,10 +99,9 @@ decision, and say where it was applied. Last updated 2026-10-04 (the whole funct
 
 ## E. Engineering
 
-19. **Characterization coverage.** All of `processOneExtraction` is now recorded: payments, convert_quote, procurement (39),
-    invoicing and pricing (29), work observations (18), lookups (36), stock (27), snags and leads (28) and the opening
-    identity step (42): about 260 cases. **What is not recorded is everything around it:** the splitting of a spoken
-    message into topics, the confirm and reject routes and what they replay, and the upload handlers (item 20).
+19. **Characterization coverage.** All of `processOneExtraction` is recorded (about 260 cases), and its first caller,
+    `processTranscript`, is recorded in 19 cases. **Still not recorded:** the confirm and reject routes and what they
+    replay (including the replay of a held action), the upload handlers (item 20), and the route layer around them.
 20. **The upload handlers (`/files/document`, `/files/photo`) are not characterized**; they are separate code with
     their own tests by source pattern only.
 21. **Phase 3 itself** (the first real handler reproducing its recording exactly) has not started.

@@ -5862,3 +5862,18 @@ The opening step of `processOneExtraction`, what runs before any intent, is reco
 Fixed in all three places: the declared return type (a type-only change: behaviour is identical), the scaffold, and the guard, which now compares the nested shape in the scaffold, in the function's declaration and in the code that builds it (mutation-tested: changing any one of the three fails). The baseline of tolerated type errors shrank from 45 to 42. The candidates' shape (`{ id, name }`) was checked too and was right.
 
 **Lesson, kept deliberately:** a guard that compares names but not nested shapes passes on a wrong declaration. The scaffold's earlier claim of being "lossless over the real domain" was true only at the top level.
+
+
+---
+
+## Rewrite Phase 2, the first caller: `processTranscript` recorded
+
+`processTranscript` is what calls `processOneExtraction`: it logs the capture, asks a model to split the spoken message into topics, asks a model to read each topic, runs each through the function, attaches a new job to the customer's open project (or asks which), and joins the replies. It is recorded in 19 cases, each a whole spoken message with both models scripted. The harness gained a second kind of case (a "transcript" case, which supplies no extraction because a model reads each topic) and loads both functions from one in-memory bundle of `index.ts`; the live code is still untouched.
+
+**Recorded and confirmed working:** one topic and several; the replies joined as a bulleted list; a topic the model cannot read becomes "I didn't catch anything there I could act on" without disturbing the others; **every way the splitter can fail** (it throws, answers with something that is not a list, an empty list, a list with a non-text item) falls back to treating the whole message as one topic, which the recordings show gives the same result as a clean one-topic message; a run of bare measurements is merged into the topic that follows it; a question and an action in one message; the audio key kept on a spoken capture; a refused money topic and an allowed snag in the same message each get their own reply; the new job is attached to the customer's one open project, asked about when there are two, and left alone when there are none.
+
+**Recorded in `OPEN_QUESTIONS.md`, not changed:** with **two jobs in one message**, both are grouped under a brand-new project and no question is asked, even when the customer already has two open projects; with one job it asks which existing project. So the same customer is treated differently depending on how many jobs were in one sentence, and a duplicate project is created. This is a design question, not a defect I can settle.
+
+**Verified:** 1,931 checks; all nine existing recordings are byte-identical after regeneration, which is itself a check that the new harness changes nothing. Six deliberate breakages of the caller (the reply format, the splitter fallback, which pending action is primary, never asking the project question, joining merged fragments differently, and skipping project resolution for multi-topic messages) were each caught; **one survived at first** because my only multi-topic job case created its own project, so skipping resolution made no difference, and a case with one job and an unrelated topic was added to close it.
+
+**Not yet recorded:** the confirm and reject routes and what they replay, the upload handlers, and the route layer around them.
