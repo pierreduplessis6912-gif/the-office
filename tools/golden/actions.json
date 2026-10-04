@@ -1516,7 +1516,7 @@
       "address": null,
       "vat_exempt": 0,
       "retention_percent": null,
-      "person_id": null,
+      "person_id": 4,
       "merged_into_customer_id": null
      }
     ]
@@ -1640,7 +1640,7 @@
       "address": null,
       "vat_exempt": 0,
       "retention_percent": null,
-      "person_id": null,
+      "person_id": 4,
       "merged_into_customer_id": null
      }
     ]
@@ -1686,12 +1686,189 @@
   },
   "effects": []
  },
+ "confirm identity question: the existing record has no person yet, so one is created for both": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "customer": {
+     "id": 4,
+     "name": "Mystery",
+     "matched": true
+    },
+    "character": null,
+    "pendingActionId": null,
+    "factPendingActionId": null,
+    "message": "Found existing customer: Mystery.",
+    "jobScopeIdForProjectResolution": null,
+    "pendingCandidates": null,
+    "pendingActionType": null,
+    "pendingChanges": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Mystery called about a job",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Mystery called about a job",
+       "source": "text",
+       "subject_hint": "Mystery",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 4,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "characters": {
+    "changed": [
+     {
+      "before": {
+       "id": 3,
+       "name": "Mystery",
+       "relationship": "installer",
+       "person_id": null,
+       "merged_into_character_id": null
+      },
+      "after": {
+       "id": 3,
+       "name": "Mystery",
+       "relationship": "installer",
+       "person_id": 6,
+       "merged_into_character_id": null
+      }
+     }
+    ]
+   },
+   "customers": {
+    "added": [
+     {
+      "id": 4,
+      "name": "Mystery",
+      "address": null,
+      "vat_exempt": 0,
+      "retention_percent": null,
+      "person_id": 6,
+      "merged_into_customer_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "identity_collision",
+       "payload": "{\"name\":\"Mystery\",\"intendedRole\":\"customer\",\"extraction\":{\"customer_name\":\"Mystery\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Mystery called about a job\",\"captureId\":1}",
+       "status": "pending",
+       "source_transcript": "Mystery called about a job"
+      },
+      "after": {
+       "id": 1,
+       "type": "identity_collision",
+       "payload": "{\"name\":\"Mystery\",\"intendedRole\":\"customer\",\"extraction\":{\"customer_name\":\"Mystery\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Mystery called about a job\",\"captureId\":1}",
+       "status": "confirmed",
+       "source_transcript": "Mystery called about a job"
+      }
+     }
+    ]
+   },
+   "pending_memory_flush": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 4,
+      "text": "Mystery called about a job"
+     }
+    ]
+   },
+   "people": {
+    "added": [
+     {
+      "id": 6,
+      "name": "Mystery",
+      "needs_merge_review": 0,
+      "merged_into_person_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 4,
+      "label": "Mystery"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "customer:4",
+    "value": "{\"facts\":[{\"text\":\"Mystery called about a job\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "reject identity question: a long sentence is shortened in the reply": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "rejected",
+    "id": 1,
+    "message": "Okay, nothing was recorded. I didn't act on \"Jabulani called about the job at the big house on the hill and he wants to talk about the quote and the schedule and ...\". Say it again with the name you meant."
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "identity_collision",
+       "payload": "{\"name\":\"Jabulani\",\"intendedRole\":\"customer\",\"extraction\":{\"customer_name\":\"Jabulani\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Jabulani called about the job at the big house on the hill and he wants to talk about the quote and the schedule and the new carpet and the underlay and the date for the install\",\"captureId\":1}",
+       "status": "pending",
+       "source_transcript": "Jabulani called about the job at the big house on the hill and he wants to talk about the quote and the schedule and the new carpet and the underlay and the date for the install"
+      },
+      "after": {
+       "id": 1,
+       "type": "identity_collision",
+       "payload": "{\"name\":\"Jabulani\",\"intendedRole\":\"customer\",\"extraction\":{\"customer_name\":\"Jabulani\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"Jabulani called about the job at the big house on the hill and he wants to talk about the quote and the schedule and the new carpet and the underlay and the date for the install\",\"captureId\":1}",
+       "status": "rejected",
+       "source_transcript": "Jabulani called about the job at the big house on the hill and he wants to talk about the quote and the schedule and the new carpet and the underlay and the date for the install"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
  "reject identity question: owner, someone else was meant": {
   "result": {
    "status": 200,
    "body": {
     "status": "rejected",
-    "id": 1
+    "id": 1,
+    "message": "Okay, nothing was recorded. I didn't act on \"Jabulani called about a job\". Say it again with the name you meant."
    }
   },
   "threw": null,
@@ -2287,7 +2464,7 @@
       "address": null,
       "vat_exempt": 0,
       "retention_percent": null,
-      "person_id": null,
+      "person_id": 4,
       "merged_into_customer_id": null
      }
     ]
@@ -2417,7 +2594,7 @@
       "id": 3,
       "name": "Jenny Smith",
       "relationship": "installer",
-      "person_id": null,
+      "person_id": 1,
       "merged_into_character_id": null
      }
     ]

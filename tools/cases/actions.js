@@ -51,6 +51,8 @@ module.exports = function cases(caps) {
     db.exec(cancellationDdl + ` INSERT INTO purchase_order_cancellations (purchase_order_id, cancelled_by) VALUES (1, 'owner@example.com');
       INSERT INTO pending_actions (id, type, payload, source_transcript, status, created_at) VALUES (1, 'cancel_order', '{"purchaseOrderId":1,"supplierId":2,"supplierName":"Floornet"}', 'cancel the Floornet order', 'pending', '2026-10-03 10:00:00');`);
   };
+  // An installer on file from before people were recorded: no person to link to yet.
+  const unlinkedInstaller = (db) => { base(db); db.exec(`INSERT INTO characters (name, relationship) VALUES ('Mystery', 'installer');`); };
   const OBS = (reply) => ({ match: /Extract the structure of a tradesperson's job observation/, reply });
   const LINES = (reply) => ({ match: /Extract every distinct line item from a tradesperson's quotation or invoice description/, reply });
   const GRAI = (reply) => ({ match: /quantity_received/, reply });
@@ -108,6 +110,8 @@ module.exports = function cases(caps) {
     r('confirm identity question: owner, the name belongs to an installer', base, '/actions/1/confirm', [say('Jabulani called about a job', { intent: 'note', customer_name: 'Jabulani' })], []),
     r('confirm identity question: an installer confirms a payment that the owner dictated (the replay runs as the confirmer)', base, '/actions/1/confirm', [say('Jabulani paid R500', { intent: 'payment', customer_name: 'Jabulani', amount: 500 })], [], { role: 'installer' }),
     r('confirm identity question: an accountant confirms a payment that the owner dictated', base, '/actions/1/confirm', [say('Jabulani paid R500', { intent: 'payment', customer_name: 'Jabulani', amount: 500 })], [], { role: 'accountant' }),
+    r('confirm identity question: the existing record has no person yet, so one is created for both', unlinkedInstaller, '/actions/1/confirm', [say('Mystery called about a job', { intent: 'note', customer_name: 'Mystery' })], []),
+    r('reject identity question: a long sentence is shortened in the reply', base, '/actions/1/reject', [say('Jabulani called about the job at the big house on the hill and he wants to talk about the quote and the schedule and the new carpet and the underlay and the date for the install', { intent: 'note', customer_name: 'Jabulani' })], []),
     r('reject identity question: owner, someone else was meant', base, '/actions/1/reject', [say('Jabulani called about a job', { intent: 'note', customer_name: 'Jabulani' })], []),
     r('confirm near-match question: one candidate, no choice needed', base, '/actions/1/confirm', [say('Sipo Dlamini called', { intent: 'note', customer_name: 'Sipo Dlamini' })], []),
     r('confirm near-match question: two candidates and no choice is refused', twoSipos, '/actions/1/confirm', [say('Sipho Dub called', { intent: 'note', customer_name: 'Sipho Dub' })], []),

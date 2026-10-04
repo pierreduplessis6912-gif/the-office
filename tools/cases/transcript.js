@@ -11,6 +11,16 @@ module.exports = function cases(caps) {
   `);
   const oneProject = (db) => { base(db); db.exec(`INSERT INTO projects (id, customer_id, description, created_at) VALUES (1, 1, 'Kitchen refit', '2026-09-01 08:00:00');`); };
   const twoProjects = (db) => { oneProject(db); db.exec(`INSERT INTO projects (id, customer_id, description, created_at) VALUES (2, 1, 'Lounge floor', '2026-09-10 08:00:00');`); };
+  // A project whose invoice is paid in full is no longer open (open = no invoice yet, or an unpaid one).
+  const paidProject = (db) => {
+    base(db);
+    db.exec(`
+      INSERT INTO projects (id, customer_id, description, created_at) VALUES (1, 1, 'Kitchen refit', '2026-09-01 08:00:00');
+      INSERT INTO job_scopes (id, customer_id, description, project_id, created_at) VALUES (1, 1, 'Kitchen', 1, '2026-09-01 08:00:00');
+      INSERT INTO invoices (id, customer_id, description, amount, job_scope_id, created_at) VALUES (1, 1, 'Kitchen refit', 5000, 1, '2026-09-05 08:00:00');
+      INSERT INTO payments (customer_id, amount, source_transcript, invoice_id, created_at) VALUES (1, 5000, 'Jenny paid R5000', 1, '2026-09-20 08:00:00');
+    `);
+  };
   const SPLIT = (reply) => ({ match: /Find genuinely SEPARATE topics and split/, reply });
   const READ = (bySegment) => ({ match: /Extract structured facts from a tradesperson's message/, reply: (input) => {
     const seg = input.messages.find((m) => m.role === 'user').content;
@@ -61,6 +71,19 @@ module.exports = function cases(caps) {
 
     t('transcript: owner, one job and an expense in one message, and the customer has two open projects', 'owner', twoProjects, 'Jenny lounge is 5 by 4 metres, laminate, and diesel for the bakkie R650', [
       SPLIT(['Jenny lounge is 5 by 4 metres, laminate', B]), READ({ 'Jenny lounge is 5 by 4 metres, laminate': { intent: 'work_observation', customer_name: 'Jenny Smith' }, [B]: diesel }), OBS(lounge())]),
+
+    t('transcript: owner, two jobs and the customer has one open project: both are attached to it', 'owner', oneProject, 'Jenny lounge is 5 by 4 metres. Jenny kitchen is 3 by 3 metres.', [
+      SPLIT(['Jenny lounge is 5 by 4 metres', 'Jenny kitchen is 3 by 3 metres']),
+      READ({ 'Jenny lounge is 5 by 4 metres': { intent: 'work_observation', customer_name: 'Jenny Smith' }, 'Jenny kitchen is 3 by 3 metres': { intent: 'work_observation', customer_name: 'Jenny Smith' } }),
+      OBS(lounge())]),
+    t('transcript: owner, two jobs and the customer has no open project: they are grouped under a new one', 'owner', base, 'Jenny lounge is 5 by 4 metres. Jenny kitchen is 3 by 3 metres.', [
+      SPLIT(['Jenny lounge is 5 by 4 metres', 'Jenny kitchen is 3 by 3 metres']),
+      READ({ 'Jenny lounge is 5 by 4 metres': { intent: 'work_observation', customer_name: 'Jenny Smith' }, 'Jenny kitchen is 3 by 3 metres': { intent: 'work_observation', customer_name: 'Jenny Smith' } }),
+      OBS(lounge())]),
+    t('transcript: owner, two jobs and the customer\'s only project is paid in full, so it is not open and they are grouped under a new one', 'owner', paidProject, 'Jenny lounge is 5 by 4 metres. Jenny kitchen is 3 by 3 metres.', [
+      SPLIT(['Jenny lounge is 5 by 4 metres', 'Jenny kitchen is 3 by 3 metres']),
+      READ({ 'Jenny lounge is 5 by 4 metres': { intent: 'work_observation', customer_name: 'Jenny Smith' }, 'Jenny kitchen is 3 by 3 metres': { intent: 'work_observation', customer_name: 'Jenny Smith' } }),
+      OBS(lounge())]),
 
     // ---------------- several things waiting for an answer (the app shows a Confirm and Reject for each) ----------------
     t('transcript: owner, an invoice and a date change for a customer who already has a job: both waiting actions are listed', 'owner', (db) => {

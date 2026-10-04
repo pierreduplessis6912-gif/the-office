@@ -6003,3 +6003,20 @@ Round 4 (the "part of what you said got dropped silently" group), decided by Pie
 **Verified:** 2,811 checks; typecheck unchanged. Seven server breakages were caught: the failed-reader flag removed; the note added even when the reader worked; the pricing note removed; the pricing note shown to an installer; the invoice left out of the waiting list; the project question left out; the primary action no longer first.
 
 **The app part is unverified on a phone, and the Dart cannot be compiled here.** It is a pure insertion of three blocks (no existing line changed), each checked for balanced brackets in place, using only identifiers already used elsewhere in the file; the web build in the pipeline is the compile check. It needs a Codemagic rebuild to appear on the phone (see `OPEN_QUESTIONS.md`).
+
+
+---
+
+## Decisions session, round 5: names and identity
+
+Round 5, decided by Pierre:
+
+**13. "Yes, the same person" now links them.** Confirming an identity question ("is this the same Jabulani, now acting as a customer too?") used to insert the customer (or supplier) record **unlinked** from the existing person, though the near-match answer links its record and the question reads "same person". The new record is now linked to the person the existing one already has; if the existing record has no person yet (one from before people were recorded), one is created and linked to **both**. The 2026-07-25 comment in the code said the record was created "separately"; that is now superseded by this decision.
+
+**14. Rejecting an identity question says what was dropped.** "No, someone else was meant" used to record nothing and say nothing, so the person had to notice and repeat everything. The reply is now: `Okay, nothing was recorded. I didn't act on "<what was said>". Say it again with the name you meant.` (shortened with "..." past 120 characters). **This needed an app change as well:** the app only ever read the server's message after a *confirm*, so a message from a reject would never have reached the person. It now reads the message after a reject too, which also means that a near-match question rejected as "a new person", whose replay can leave a question of its own waiting, now shows that question with its buttons, as a confirm always did. The app change is one condition and a comment.
+
+**15. Two jobs in one message ask about the customer's existing projects, as one job does.** They used to be grouped under a brand-new project whenever a second job for the same customer arrived in one message, even if the customer already had open projects, and no question was asked. Now, if the customer has an open project, nothing is invented: each job goes to the same step that places a single job (attached to the one open project, or asked about when there are several). A group project is still created when the customer has **no open project**. "Open" is the existing definition (no invoice yet, or an unpaid one), reused rather than approximated, so a customer whose only project is paid in full still gets a group project; a case pins that, and so does the "any project at all" mistake.
+
+**Verified:** 2,831 checks; typecheck unchanged. **Of the recordings, six changed (the four identity confirmations now carry the person link, the reject gained its message, and "two jobs for a customer with two open projects" now asks), five were added, and every other recording is identical.** Seven deliberate breakages were caught: existing projects ignored; **any** project (even a paid one) suppressing the grouping; a confirmed same person left unlinked; no person created when the existing record has none; a silent reject; a reject message added to every rejected action; and the long-sentence shortening removed.
+
+**Unverified on a phone:** the app change (the web build compiles it). It needs a Codemagic rebuild; see `OPEN_QUESTIONS.md`.

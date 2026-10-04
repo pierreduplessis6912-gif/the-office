@@ -3972,11 +3972,33 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           // won't fire a second time, since the name now exists in
           // its own, intended table, and reconcileCustomer/
           // reconcileCharacter finds it normally from here on.
+          // Decided by Pierre 2026-10-04: "is this the same person, now acting as a customer too?" and the answer yes means the SAME
+          // person, so the new record is linked to the person the existing one already has, exactly as the near-match answer links
+          // its record. It used to insert an unlinked record, leaving one human as two unrelated entries. If the existing record has
+          // no person yet, one is created and linked to both.
+          const existingEntity =
+            payload.intendedRole === "customer"
+              ? await env.OFFICE_DB.prepare("SELECT id, person_id FROM characters WHERE name = ? COLLATE NOCASE AND merged_into_character_id IS NULL ORDER BY id LIMIT 1")
+                  .bind(payload.name)
+                  .first<{ id: number; person_id: number | null }>()
+              : await env.OFFICE_DB.prepare("SELECT id, person_id FROM customers WHERE name = ? COLLATE NOCASE AND merged_into_customer_id IS NULL ORDER BY id LIMIT 1")
+                  .bind(payload.name)
+                  .first<{ id: number; person_id: number | null }>();
+          let samePersonId: number | null = existingEntity?.person_id ?? null;
+          if (existingEntity && samePersonId === null) {
+            const created = await env.OFFICE_DB.prepare("INSERT INTO people (name) VALUES (?) RETURNING id").bind(payload.name).first<{ id: number }>();
+            samePersonId = created?.id ?? null;
+            if (samePersonId !== null) {
+              await env.OFFICE_DB.prepare(payload.intendedRole === "customer" ? "UPDATE characters SET person_id = ? WHERE id = ?" : "UPDATE customers SET person_id = ? WHERE id = ?")
+                .bind(samePersonId, existingEntity.id)
+                .run();
+            }
+          }
           if (payload.intendedRole === "customer") {
-            await env.OFFICE_DB.prepare("INSERT INTO customers (name) VALUES (?)").bind(payload.name).run();
+            await env.OFFICE_DB.prepare("INSERT INTO customers (name, person_id) VALUES (?, ?)").bind(payload.name, samePersonId).run();
           } else {
-            await env.OFFICE_DB.prepare("INSERT INTO characters (name, relationship) VALUES (?, ?)")
-              .bind(payload.name, payload.extraction.character_relationship ?? null)
+            await env.OFFICE_DB.prepare("INSERT INTO characters (name, relationship, person_id) VALUES (?, ?, ?)")
+              .bind(payload.name, payload.extraction.character_relationship ?? null, samePersonId)
               .run();
           }
           await env.OFFICE_DB.prepare(
@@ -4730,6 +4752,24 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         )
           .bind(id)
           .run();
+        if (action.type === "identity_collision") {
+          // Decided by Pierre 2026-10-04: "no, someone else was meant" used to drop what was said without a word, and the person
+          // had to notice and say it all again. Now the reply says what was not recorded.
+          let said = "";
+          try {
+            said = String((JSON.parse(action.payload) as { transcript?: string }).transcript ?? "").trim();
+          } catch {
+            said = "";
+          }
+          const shown = said.length > 120 ? `${said.slice(0, 117)}...` : said;
+          return Response.json({
+            status: "rejected",
+            id,
+            message: shown
+              ? `Okay, nothing was recorded. I didn't act on "${shown}". Say it again with the name you meant.`
+              : "Okay, nothing was recorded. Say it again with the name you meant.",
+          });
+        }
         return Response.json({ status: "rejected", id });
       } catch (err) {
         // Real, new, per direct instruction — the same real gap as

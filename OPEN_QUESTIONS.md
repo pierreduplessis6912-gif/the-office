@@ -3,7 +3,7 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 4 applied).
+decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 5 applied).
 
 ## A. Decisions only Pierre can make
 
@@ -38,17 +38,6 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
 34. **The "current selection" (who "her" or "him" refers to) is one setting for the whole business, not one per person.**
     One person's lookups change what another person's "and her balance" means, and "forget that" clears it for everyone.
     A leftover from when the app had one user. *Option:* a selection per signed-in member.
-35. **Two jobs in one message are grouped under a brand-new project and no question is asked, even when the customer
-    already has open projects; one job asks which existing project.** The same customer is treated differently depending
-    on how many jobs were in one sentence, and a duplicate project is created. *Options:* ask which existing project in
-    both cases; or keep the new group project but ask whether it belongs to an existing one. (`DECISIONS.md`, "Rewrite
-    Phase 2, the first caller".)
-36. **Answering "yes, the same person" to an identity question creates the customer (or supplier) record unlinked from
-    the existing person**, whereas the near-match answer links it. The code's own 2026-07-25 comment says the record is
-    created "separately", so it may be intended; the question itself reads "is this the same person". *Option:* link it, as
-    the near-match answer does. (`DECISIONS.md`, "Rewrite Phase 2, the confirm and reject routes".)
-37. **Rejecting an identity question ("someone else was meant") drops the original dictation without a word.** Nothing is
-    recorded and nothing says so; the person has to say it again with a different name. *Option:* say what was dropped.
 38. **The permission grid is coarse: five real switches.** `can_manage_invoices` is checked in 44 places, so one switch
     governs recording money AND seeing quotations, expense totals and supplier balances. Finer control (expense totals,
     supplier balances, material prices, person details as their own switches) needs new capabilities. Offered and
@@ -64,6 +53,7 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     action and is recorded with who cancelled it, but there is no "uncancel". *Option:* a spoken "reopen the Floornet
     order".
 
+
 ## B. Needs a live check only a phone can give
 
 12. **The Codemagic rebuild**: the Confirm/Reject buttons for a follow-up question raised by a confirm ("Add to stock?",
@@ -72,6 +62,9 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     tests, never run on a real delivery note with two orders.
 15. **The Permissions screen on a real phone.** The web build compiles it; the phone build and a real tap-through are
     unverified (switch something off for the installer, then check on the installer's phone that the room is gone).
+14c. **Rejecting an identity question on a phone.** Say a name that is already on file as an installer, tap Reject, and
+    expect "Okay, nothing was recorded. I didn't act on ..." in the chat. The app now reads the server's message after a
+    reject; the web build compiles it, the phone build needs a Codemagic rebuild.
 14b. **Both waiting actions on a phone.** The app now shows a Confirm and Reject for each thing waiting, with a caption.
     Try "invoice Jenny R3000 and move the install to the 17th" for a customer who already has a job: expect two captioned
     pairs, "Job change" and "Invoice". The web build compiles it; the phone build needs a Codemagic rebuild and a real tap.
@@ -106,6 +99,12 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
 
 ## Settled (kept so the reasoning is not lost)
+
+- 2026-10-04, decided by Pierre (decisions session, round 5):
+  - **"Yes, the same person" links them** (a person is created for both if the existing record had none). Applied.
+  - **Rejecting an identity question says what was dropped.** Applied, with an app change so the message is shown after a reject.
+  - **Two jobs in one message ask about the customer's existing open projects, as one job does;** a group project is only
+    created when there is no open project to ask about. Applied.
 
 - 2026-10-04, decided by Pierre (decisions session, round 4):
   - **An invoice and a job-change question both waiting: the app shows both** (a Confirm and Reject for each, captioned). The

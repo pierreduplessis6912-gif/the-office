@@ -1269,7 +1269,9 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       String? pdfUrl;
       String? realMessage;
       Map<String, dynamic>? confirmData;
-      if (response.statusCode == 200 && confirm) {
+      // Decided by Pierre 2026-10-04: read the server's message after a REJECT too (it was only ever read after a confirm), so
+      // that "nothing was recorded, say it again" after rejecting an identity question actually reaches the person.
+      if (response.statusCode == 200) {
         try {
           final data = jsonDecode(response.body) as Map<String, dynamic>;
           confirmData = data;

@@ -7,6 +7,7 @@
 
 import type { Env, WorkObservationExtraction } from "./types";
 import { reconcileCustomer } from "./identity";
+import { getOpenProjectsForCustomer } from "./finance";
 
 
 // Unguarded, deliberately — same reasoning already applied to
@@ -263,6 +264,12 @@ export async function recordWorkObservation(
         await env.OFFICE_DB.prepare("UPDATE job_scopes SET project_id = ? WHERE id = ?")
           .bind(existingProjectId, jobScopeId)
           .run();
+      } else if ((await getOpenProjectsForCustomer(env, customerId)).length > 0) {
+        // Decided by Pierre 2026-10-04: two jobs in one message used to be grouped under a brand-new project even when the
+        // customer already had open projects, with no question asked (one job did ask which existing project). Now the
+        // customer's existing projects come first, for two jobs as for one: nothing is invented here, and each job goes to the
+        // same step that places a single job (attached to the one open project, or asked about when there are several).
+        // A group project is only still created, below, when the customer has no open project to ask about.
       } else {
         // No sibling has a project yet — a real one is created here,
         // and every job scope genuinely born from this same breath,

@@ -1546,11 +1546,23 @@
     "name": "Jenny Smith",
     "matched": true
    },
-   "pendingActionId": null,
-   "pendingActionIds": [],
-   "pendingActions": [],
+   "pendingActionId": 1,
+   "pendingActionIds": [
+    1,
+    2
+   ],
+   "pendingActions": [
+    {
+     "id": 1,
+     "type": "project_ambiguity"
+    },
+    {
+     "id": 2,
+     "type": "project_ambiguity"
+    }
+   ],
    "factPendingActionId": null,
-   "message": "- Job scope #1 recorded for Jenny Smith — 1 component measured, 1 task noted.\n- Job scope #2 recorded for Jenny Smith — 1 component measured, 1 task noted.",
+   "message": "- Job scope #1 recorded for Jenny Smith — 1 component measured, 1 task noted.\n- Job scope #2 recorded for Jenny Smith — 1 component measured, 1 task noted.\nThis customer has 2 open projects (Lounge floor, Kitchen refit) — which one is job scope #1? (action #1)\nThis customer has 2 open projects (Lounge floor, Kitchen refit) — which one is job scope #2? (action #2)",
    "rewrittenQuery": "Jenny lounge is 5 by 4 metres. Jenny kitchen is 3 by 3 metres.",
    "embers": {
     "tasks": 0,
@@ -1597,7 +1609,7 @@
       "scheduled_date": null,
       "installer_id": null,
       "capture_id": 1,
-      "project_id": 3
+      "project_id": null
      },
      {
       "id": 2,
@@ -1608,18 +1620,25 @@
       "scheduled_date": null,
       "installer_id": null,
       "capture_id": 1,
-      "project_id": 3
+      "project_id": null
      }
     ]
    },
-   "projects": {
+   "pending_actions": {
     "added": [
      {
-      "id": 3,
-      "customer_id": 1,
-      "description": "laminate",
-      "source_transcript": "Jenny kitchen is 3 by 3 metres",
-      "capture_id": null
+      "id": 1,
+      "type": "project_ambiguity",
+      "payload": "{\"jobScopeId\":1,\"candidates\":[{\"id\":2,\"description\":\"Lounge floor\"},{\"id\":1,\"description\":\"Kitchen refit\"}]}",
+      "status": "pending",
+      "source_transcript": "resolving project attachment for job scope #1"
+     },
+     {
+      "id": 2,
+      "type": "project_ambiguity",
+      "payload": "{\"jobScopeId\":2,\"candidates\":[{\"id\":2,\"description\":\"Lounge floor\"},{\"id\":1,\"description\":\"Kitchen refit\"}]}",
+      "status": "pending",
+      "source_transcript": "resolving project attachment for job scope #2"
      }
     ]
    },
@@ -1803,6 +1822,463 @@
      {
       "id": 1,
       "job_scope_id": 1,
+      "description": "laminate",
+      "component_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: owner, two jobs and the customer has one open project: both are attached to it": {
+  "result": {
+   "extraction": {
+    "customer_name": "Jenny Smith",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "work_observation",
+    "amount": null,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"work_observation\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"work_observation\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "pendingActionIds": [],
+   "pendingActions": [],
+   "factPendingActionId": null,
+   "message": "- Job scope #1 recorded for Jenny Smith — 1 component measured, 1 task noted.\n- Job scope #2 recorded for Jenny Smith — 1 component measured, 1 task noted.",
+   "rewrittenQuery": "Jenny lounge is 5 by 4 metres. Jenny kitchen is 3 by 3 metres.",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract the structure of a tradesperson's job observation. job_descrip",
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny lounge is 5 by 4 metres. Jenny kitchen is 3 by 3 metres.",
+      "source": "text",
+      "subject_hint": "Jenny Smith",
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": 1,
+      "character_id": null
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "laminate",
+      "scheduled_date_raw": null,
+      "source_transcript": "Jenny lounge is 5 by 4 metres",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": 1
+     },
+     {
+      "id": 2,
+      "customer_id": 1,
+      "description": "laminate",
+      "scheduled_date_raw": null,
+      "source_transcript": "Jenny kitchen is 3 by 3 metres",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": 1
+     }
+    ]
+   },
+   "scope_components": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "name": "lounge",
+      "width_mm": 5000,
+      "length_mm": 4000,
+      "area_sqm": 20
+     },
+     {
+      "id": 2,
+      "job_scope_id": 2,
+      "name": "lounge",
+      "width_mm": 5000,
+      "length_mm": 4000,
+      "area_sqm": 20
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "laminate",
+      "component_id": null
+     },
+     {
+      "id": 2,
+      "job_scope_id": 2,
+      "description": "laminate",
+      "component_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: owner, two jobs and the customer has no open project: they are grouped under a new one": {
+  "result": {
+   "extraction": {
+    "customer_name": "Jenny Smith",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "work_observation",
+    "amount": null,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"work_observation\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"work_observation\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "pendingActionIds": [],
+   "pendingActions": [],
+   "factPendingActionId": null,
+   "message": "- Job scope #1 recorded for Jenny Smith — 1 component measured, 1 task noted.\n- Job scope #2 recorded for Jenny Smith — 1 component measured, 1 task noted.",
+   "rewrittenQuery": "Jenny lounge is 5 by 4 metres. Jenny kitchen is 3 by 3 metres.",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract the structure of a tradesperson's job observation. job_descrip",
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny lounge is 5 by 4 metres. Jenny kitchen is 3 by 3 metres.",
+      "source": "text",
+      "subject_hint": "Jenny Smith",
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": 1,
+      "character_id": null
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "laminate",
+      "scheduled_date_raw": null,
+      "source_transcript": "Jenny lounge is 5 by 4 metres",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": 1
+     },
+     {
+      "id": 2,
+      "customer_id": 1,
+      "description": "laminate",
+      "scheduled_date_raw": null,
+      "source_transcript": "Jenny kitchen is 3 by 3 metres",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": 1
+     }
+    ]
+   },
+   "projects": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "laminate",
+      "source_transcript": "Jenny kitchen is 3 by 3 metres",
+      "capture_id": null
+     }
+    ]
+   },
+   "scope_components": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "name": "lounge",
+      "width_mm": 5000,
+      "length_mm": 4000,
+      "area_sqm": 20
+     },
+     {
+      "id": 2,
+      "job_scope_id": 2,
+      "name": "lounge",
+      "width_mm": 5000,
+      "length_mm": 4000,
+      "area_sqm": 20
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "laminate",
+      "component_id": null
+     },
+     {
+      "id": 2,
+      "job_scope_id": 2,
+      "description": "laminate",
+      "component_id": null
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: owner, two jobs and the customer's only project is paid in full, so it is not open and they are grouped under a new one": {
+  "result": {
+   "extraction": {
+    "customer_name": "Jenny Smith",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "work_observation",
+    "amount": null,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"work_observation\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"work_observation\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "pendingActionIds": [],
+   "pendingActions": [],
+   "factPendingActionId": null,
+   "message": "- Job scope #2 recorded for Jenny Smith — 1 component measured, 1 task noted.\n- Job scope #3 recorded for Jenny Smith — 1 component measured, 1 task noted.",
+   "rewrittenQuery": "Jenny lounge is 5 by 4 metres. Jenny kitchen is 3 by 3 metres.",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract the structure of a tradesperson's job observation. job_descrip",
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Jenny lounge is 5 by 4 metres. Jenny kitchen is 3 by 3 metres.",
+      "source": "text",
+      "subject_hint": "Jenny Smith",
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": 1,
+      "character_id": null
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 2,
+      "customer_id": 1,
+      "description": "laminate",
+      "scheduled_date_raw": null,
+      "source_transcript": "Jenny lounge is 5 by 4 metres",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": 2
+     },
+     {
+      "id": 3,
+      "customer_id": 1,
+      "description": "laminate",
+      "scheduled_date_raw": null,
+      "source_transcript": "Jenny kitchen is 3 by 3 metres",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": 2
+     }
+    ]
+   },
+   "projects": {
+    "added": [
+     {
+      "id": 2,
+      "customer_id": 1,
+      "description": "laminate",
+      "source_transcript": "Jenny kitchen is 3 by 3 metres",
+      "capture_id": null
+     }
+    ]
+   },
+   "scope_components": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 2,
+      "name": "lounge",
+      "width_mm": 5000,
+      "length_mm": 4000,
+      "area_sqm": 20
+     },
+     {
+      "id": 2,
+      "job_scope_id": 3,
+      "name": "lounge",
+      "width_mm": 5000,
+      "length_mm": 4000,
+      "area_sqm": 20
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 2,
+      "description": "laminate",
+      "component_id": null
+     },
+     {
+      "id": 2,
+      "job_scope_id": 3,
       "description": "laminate",
       "component_id": null
      }
