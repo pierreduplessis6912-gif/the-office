@@ -5815,3 +5815,20 @@ Recorded: lookups in 36 cases, covering a material's last price, the delivery ex
 **Verified:** typecheck unchanged; 1,376 checks; stable across runs; the whole suite runs in about 30 seconds. Two earlier lookup fixes are already covered by these recordings (the delivery exception question is permission-gated; an installer is told it is restricted).
 
 **Not done:** stock, snags and leads, and the identity holds (the preamble that runs before every intent) remain to be recorded. After those the whole function is characterized.
+
+
+---
+
+## Rewrite Phase 2, stock, snags and leads: one real defect
+
+Recorded: stock (27 cases: registering an item, using stock, counting it) and snags and leads (28 cases: raising and resolving a snag including the retention release, raising a lead, and the owner-only "lead lost"), each with its model scripted, across owner, accountant, installer and a role with no permissions, and with each model failing or finding nothing.
+
+**One real defect: registering a stock item that was already tracked inserted a second row with the same name.** Deliveries then added to the first, usage matched the first, and the second sat at zero for ever, shown as a duplicate line on the stock screen. Registering is now idempotent: the same name (ignoring case) is the same item, the existing row is reused, and the reply says "Already tracking Screed (bags)" instead of claiming a new item. The two boundary cases were added so the fix is pinned from both sides: the same item in a different case is reused, and a different item whose name merely starts like a tracked one ("Screed Plus") is still created.
+
+**Verified:** typecheck unchanged; 1,602 checks. The recording diff for the existing cases is **exactly one of 25** (the duplicate registration: one row no longer added); the snags and leads recordings were unchanged (28 of 28). Four deliberate breakages, including a too-strict match (a different case treated as a different item) and a too-loose one (a name that merely starts with a tracked name treated as the same item), were caught. One of my own mutations ran in the wrong direction and looked like a survivor until it was redone correctly.
+
+**What the recordings confirmed is working:** an unmatched item, an item with no quantity, nothing tracked yet, and a model that fails all give an honest "couldn't match" reply and write nothing; installers may register, use and count stock and a role with no permissions is refused with nothing written (the decision that money and stock are gated at creation); resolving the last open snag releases the customer's retention only if they hold one, and not while another snag is open; marking a lead lost is owner-only; a snag or lead the model cannot read says so.
+
+**Recorded in `OPEN_QUESTIONS.md`, not changed:** using more stock than is on hand records the usage and reports "-5 remaining" without comment; and any duplicate stock rows that already exist in the live data from before this fix are not merged.
+
+**The function is now characterized except for its opening step.** Recorded so far: payments, quote conversions, procurement, invoicing and pricing, work observations, lookups, stock, and snags and leads (about 220 cases). What remains is the identity step that runs before every intent (finding or creating the customer or supplier, and the "is this the same person?" holds).

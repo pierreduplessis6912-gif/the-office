@@ -843,13 +843,20 @@ export async function getDeliveryExceptions(
 // Real feature 2026-07-25 — Consumables Stock, the idea-tank review's
 // first real, unlocked item, sequenced explicitly after PO/GRN in the
 // original design and built now that PO/GRN is real and proven.
-export async function registerStockItem(env: Env, name: string, unit: string | null): Promise<{ id: number }> {
+export async function registerStockItem(env: Env, name: string, unit: string | null): Promise<{ id: number; existed: boolean }> {
+  // Found by the characterization recordings 2026-10-03: registering an item that was already tracked inserted a
+  // SECOND row with the same name. Deliveries then added to the first, usage matched the first, and the second sat
+  // at zero forever, shown as a duplicate line on the stock screen. The same name (ignoring case) is the same item.
+  const existing = await env.OFFICE_DB.prepare("SELECT id FROM stock_items WHERE name = ? COLLATE NOCASE ORDER BY id LIMIT 1")
+    .bind(name)
+    .first<{ id: number }>();
+  if (existing) return { id: existing.id, existed: true };
   const inserted = await env.OFFICE_DB.prepare(
     "INSERT INTO stock_items (name, unit, quantity_on_hand) VALUES (?, ?, 0) RETURNING id"
   )
     .bind(name, unit)
     .first<{ id: number }>();
-  return { id: inserted!.id };
+  return { id: inserted!.id, existed: false };
 }
 
 export async function getTrackedStockItems(env: Env): Promise<Array<{ id: number; name: string; unit: string | null; quantity_on_hand: number }>> {

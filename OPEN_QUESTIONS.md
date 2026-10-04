@@ -3,7 +3,7 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (later still).
+decision, and say where it was applied. Last updated 2026-10-04 (end of day).
 
 ## A. Decisions only Pierre can make
 
@@ -62,6 +62,10 @@ decision, and say where it was applied. Last updated 2026-10-04 (later still).
     capabilities for them.
 31. **A broad financial question from an installer still opens the snapshot screen** (its data is gated, so it shows
     nothing). A cosmetic mismatch. Also: "There are 1 quotations on file" has a plural slip.
+32. **Using more stock than is on hand is recorded and the reply says "-5 remaining" with no comment.** It may be the
+    right behaviour (usage is a fact; the count was wrong), but the reply could say that the count looks off.
+33. **Duplicate stock rows that already exist in the live data are not merged** (the fix stops new ones). List them with
+    `/debug/stock-items` and merge by hand, or ask for a one-off merge.
 11. **An installer's scheduling message that the classifier labels "invoice" is refused outright.** Set aside on
     2026-10-03 as unproven (it was only ever seen in a code comment). Reopen if a real one is refused.
 
@@ -88,8 +92,9 @@ decision, and say where it was applied. Last updated 2026-10-04 (later still).
 ## E. Engineering
 
 19. **Characterization coverage.** Recorded: payments, convert_quote, procurement (39 cases), invoicing and pricing
-    (29 cases: invoice, quotation, price_scope), work observations (18 cases), lookups (36 cases). To record: stock, snags and leads,
-    identity holds (the preamble). Nothing moves in
+    (29 cases: invoice, quotation, price_scope), work observations (18 cases), lookups (36 cases), stock (27 cases), snags and leads (28 cases).
+    To record: the identity step that runs before every intent (finding or creating the customer or supplier, and the "is
+    this the same person?" holds). Nothing moves in
     Phase 3 until its group is fully recorded.
 20. **The upload handlers (`/files/document`, `/files/photo`) are not characterized**; they are separate code with
     their own tests by source pattern only.
@@ -97,6 +102,7 @@ decision, and say where it was applied. Last updated 2026-10-04 (later still).
 
 ## Settled (kept so the reasoning is not lost)
 
+- 2026-10-04: registering an already-tracked stock item created a duplicate row. Now reused. (`DECISIONS.md`, "Rewrite Phase 2, stock, snags and leads".)
 - 2026-10-04: a spoken observation that priced a job was announced as "Payment noted", and an observation of nothing was
   recorded as a job. Both fixed. (`DECISIONS.md`, "Rewrite Phase 2, work observations".)
 - 2026-10-04: the invoice orphan was real (an invoice hold created and never mentioned when an amendment question was

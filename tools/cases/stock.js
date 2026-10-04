@@ -20,6 +20,8 @@ module.exports = function cases(caps) {
     c('stock register: owner, a new item', 'owner', base, 'register_stock_item', 'start tracking screed in bags', [REG({ name: 'Screed', unit: 'bags' })]),
     c('stock register: owner, an item with no unit stated', 'owner', base, 'register_stock_item', 'start tracking grout', [REG({ name: 'Grout', unit: null })]),
     c('stock register: owner, an item that is already tracked', 'owner', tracked, 'register_stock_item', 'start tracking screed in bags', [REG({ name: 'Screed', unit: 'bags' })]),
+    c('stock register: owner, the same item in a different case', 'owner', tracked, 'register_stock_item', 'start tracking SCREED in bags', [REG({ name: 'SCREED', unit: 'bags' })]),
+    c('stock register: owner, a different item whose name starts like a tracked one', 'owner', tracked, 'register_stock_item', 'start tracking screed plus in bags', [REG({ name: 'Screed Plus', unit: 'bags' })]),
     c('stock register: owner, the model finds no name', 'owner', base, 'register_stock_item', 'start tracking something', [REG({ name: null, unit: null })]),
     c('stock register: owner, the model fails', 'owner', base, 'register_stock_item', 'start tracking screed in bags', [REG(boom)]),
     c('stock register: installer', 'installer', base, 'register_stock_item', 'start tracking screed in bags', [REG({ name: 'Screed', unit: 'bags' })]),

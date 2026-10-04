@@ -133,7 +133,7 @@
    "character": null,
    "pendingActionId": null,
    "factPendingActionId": null,
-   "message": "Now tracking Screed (bags) as real, running stock.",
+   "message": "Already tracking Screed (bags) as real, running stock.",
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
@@ -170,12 +170,118 @@
       }
      }
     ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "life:2026-10-03",
+    "value": "{\"facts\":[{\"text\":\"start tracking screed in bags\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "stock register: owner, the same item in a different case": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Already tracking SCREED (bags) as real, running stock.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is registering a real, consumable material to track as "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "start tracking SCREED in bags",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "start tracking SCREED in bags",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "life:2026-10-03",
+    "value": "{\"facts\":[{\"text\":\"start tracking SCREED in bags\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "stock register: owner, a different item whose name starts like a tracked one": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Now tracking Screed Plus (bags) as real, running stock.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is registering a real, consumable material to track as "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "start tracking screed plus in bags",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "start tracking screed plus in bags",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
    },
    "stock_items": {
     "added": [
      {
       "id": 3,
-      "name": "Screed",
+      "name": "Screed Plus",
       "unit": "bags",
       "quantity_on_hand": 0,
       "reorder_threshold": null
@@ -187,7 +293,7 @@
    {
     "kv": "put",
     "key": "life:2026-10-03",
-    "value": "{\"facts\":[{\"text\":\"start tracking screed in bags\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+    "value": "{\"facts\":[{\"text\":\"start tracking screed plus in bags\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
    }
   ]
  },

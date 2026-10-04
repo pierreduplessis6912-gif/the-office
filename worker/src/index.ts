@@ -860,12 +860,12 @@ async function processOneExtraction(
   // review's first real, unlocked item. All three intents here stay
   // deliberately unguarded — quantity-only, no money moving, matching
   // GRN's own precedent exactly.
-  let stockRegistrationResult: { id: number; name: string; unit: string | null } | null = null;
+  let stockRegistrationResult: { id: number; name: string; unit: string | null; existed: boolean } | null = null;
   if (extraction?.intent === "register_stock_item") {
     const reg = await extractStockItemRegistration(env, transcript);
     if (reg.name) {
       const recorded = await registerStockItem(env, reg.name, reg.unit);
-      stockRegistrationResult = { id: recorded.id, name: reg.name, unit: reg.unit };
+      stockRegistrationResult = { id: recorded.id, name: reg.name, unit: reg.unit, existed: recorded.existed };
     }
   }
 
@@ -1567,7 +1567,7 @@ async function processOneExtraction(
   } else if (extraction?.intent === "variance_disposition" && dispositionNoOpenDiscrepancy) {
     message = `I don't have an open, unresolved discrepancy on file for ${character!.name} to attach this to.`;
   } else if (extraction?.intent === "register_stock_item" && stockRegistrationResult) {
-    message = `Now tracking ${stockRegistrationResult.name}${stockRegistrationResult.unit ? ` (${stockRegistrationResult.unit})` : ""} as real, running stock.`;
+    message = `${stockRegistrationResult.existed ? "Already tracking" : "Now tracking"} ${stockRegistrationResult.name}${stockRegistrationResult.unit ? ` (${stockRegistrationResult.unit})` : ""} as real, running stock.`;
   } else if (extraction?.intent === "register_stock_item") {
     message = "Recognized a request to start tracking stock, but no real material name was given — try naming it.";
   } else if (extraction?.intent === "stock_usage" && stockUsageResult) {
