@@ -1244,6 +1244,7 @@ async function processOneExtraction(
     }
   }
 
+  let workObservationNothingObserved = false;
   if (extraction?.intent === "work_observation") {
     const observation = await extractWorkObservation(env, transcript);
     // Real feature 2026-07-12 — the smallest real first domino toward
@@ -1280,6 +1281,15 @@ async function processOneExtraction(
     // which branch ran. null in the "attached to a sibling" branch is
     // correct, not a gap: that path has no fresh computedComponents to
     // price against, so "nothing to price here" is the honest answer.
+    // Found by the characterization recordings 2026-10-03: when the model found nothing, or failed, a job scope was
+    // recorded anyway, with no measurements, no tasks, no date and no installer. As the customer's most recent job it
+    // then became what a later pricing request tries to price. The invoice branch has always had this guard; this one
+    // did not. Nothing observed is not a job.
+    const observedSomething =
+      observation.components.length > 0 || observation.tasks.length > 0 || Boolean(observation.scheduled_date_raw) || Boolean(observation.installer_name);
+    if (!observedSomething) {
+      workObservationNothingObserved = true;
+    } else {
     let recorded: Awaited<ReturnType<typeof recordWorkObservation>> | null = null;
     const scheduledDateForAttach = resolveScheduledDate(observation.scheduled_date_raw, nowInBusinessTimezone());
     const attached =
@@ -1368,6 +1378,7 @@ async function processOneExtraction(
           pendingActionType = "quotation";
         }
       }
+    }
     }
   }
 
@@ -1648,7 +1659,10 @@ async function processOneExtraction(
     const isScopeInvoice = extraction?.intent === "price_scope" && extraction?.scope_document_type === "invoice";
     const isQuotationLike =
       extraction?.intent === "quotation" || (extraction?.intent === "price_scope" && !isScopeInvoice);
-    const kind = extraction?.intent === "invoice" || isScopeInvoice ? "Invoice" : isQuotationLike ? "Quotation" : "Payment";
+    // The noun comes from what was actually held. It used to be guessed from the intent, so a spoken job observation
+    // that also priced the job (a quotation is held) was announced as "Payment noted for ..." (found by the
+    // characterization recordings 2026-10-03).
+    const kind = pendingActionType === "invoice" ? "Invoice" : pendingActionType === "quotation" ? "Quotation" : "Payment";
     const displayAmount =
       (isQuotationLike || isScopeInvoice) && quotationLineItems.length > 0
         ? quotationLineItems.reduce((sum, item) => sum + item.line_total, 0)
@@ -1673,6 +1687,10 @@ async function processOneExtraction(
         message += ` Heads up — the same installer is already booked that day (${who}).`;
       }
     }
+  } else if (extraction?.intent === "work_observation" && workObservationNothingObserved) {
+    message = customer
+      ? `I heard a job observation for ${customer.name}, but couldn't make out any measurements, tasks, date or installer, so nothing was recorded.`
+      : "I heard a job observation, but couldn't make out any measurements, tasks, date or installer, so nothing was recorded.";
   } else if (workObservationResult) {
     const { jobScopeId, componentCount, taskCount, installerConflict } = workObservationResult;
     const parts: string[] = [];

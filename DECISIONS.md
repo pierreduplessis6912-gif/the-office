@@ -5781,3 +5781,18 @@ Recorded: `invoice`, `quotation` and `price_scope` in 29 cases (with the three r
 **Verified:** typecheck unchanged; 1,154 checks. The recording diff is **exactly four of the 29 cases**, 25 are identical (checked mechanically), and in all four the rows written are the same before and after: these are reply-only changes. Six deliberate breakages were each caught, in both directions (removing a fix, and making it too aggressive, for example a note about an invoice that was never held, or an amountless-invoice reply that steals the reply of a recorded job scope). The push has two commits so the history shows baseline then fix; the baseline withholds the crashing case so every commit passes.
 
 **Not done:** `work_observation`, lookups, stock, snags and leads and the identity holds remain to be recorded.
+
+
+---
+
+## Rewrite Phase 2, work observations: a mislabelled reply and a job built from nothing
+
+Recorded: `work_observation` in 18 cases: a job with measurements, with and without prices, for owner, accountant and installer (an installer records the job but is never priced for, shown by the pricing model not being called at all); a date-only change for a customer who already has a job (the amendment question); attaching to a sibling job or lead from the same message; an installer already booked that day; an unknown installer; a customer not on file; no customer named; a model that finds nothing, fails, or finds only an installer. This completes the entangled invoicing, pricing and observation group.
+
+**A mislabelled reply.** When a spoken observation also priced the job, a *quotation* was held, but the reply read **"Payment noted for Jenny Smith, needs your confirmation"**. The noun was guessed from the intent, and a spoken observation is not one of the intents it knows, so it fell through to "Payment". It now comes from the type of the action actually held.
+
+**A job built from nothing.** When the model found nothing, or failed, a job scope was recorded anyway, with no measurements, no tasks, no date and no installer. As the customer's most recent job it then became what a later "price Jenny's job" tries to price (and is told it cannot match anything). The invoice branch has always guarded against this; this branch did not. Nothing observed is not a job: nothing is recorded and the reply says what could not be made out.
+
+**Verified:** typecheck unchanged; 1,229 checks. The recording diff is **exactly four of the 18 cases** (the two priced observations, and the two where nothing was observed); 14 are identical (checked mechanically). In the two priced cases the rows written are identical and only the noun changed; in the other two a job scope is no longer written. Five deliberate breakages were caught in both directions, including treating an installer-only or a date-only observation as "nothing" and removing the role gate on pricing. One mutation survived at first because no case had an observation with only an installer; a case was added and it is now caught.
+
+**Not changed, recorded in `OPEN_QUESTIONS.md`:** pricing skipped without a word when the pricing model fails or finds nothing; a date spoken as an ordinal word ("the seventeenth") is not parsed to a date at all, though "the 10th" is; and a customer-less job scope is recorded when only an installer or date is heard and there is nothing to attach it to.

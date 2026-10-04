@@ -40,6 +40,13 @@ decision, and say where it was applied. Last updated 2026-10-04 (later).
     the app show both. (A Dart change and a rebuild.)
 23. **When the job-observation model fails, an invoice is still held but the job, installer and date part is silently
     dropped**, and the reply says nothing about what was lost. *Option:* say so.
+24. **A spoken job observation that mentions prices silently produces no quotation when the pricing model fails or finds
+    nothing.** The job is recorded and the reply says nothing about the quote that was not made. *Option:* say so.
+25. **A date spoken as an ordinal word ("the seventeenth") is not parsed to a date**, though "the 10th" is. The words are
+    kept but nothing is scheduled from them. Found while recording; not changed. *Option:* teach the date reader the words.
+26. **A job scope with no customer is recorded** when only an installer or a date is heard and there is nothing in the same
+    message to attach it to. It is findable only by its installer or date. May be intended (to be attached later); worth
+    confirming.
 11. **An installer's scheduling message that the classifier labels "invoice" is refused outright.** Set aside on
     2026-10-03 as unproven (it was only ever seen in a code comment). Reopen if a real one is refused.
 
@@ -66,8 +73,8 @@ decision, and say where it was applied. Last updated 2026-10-04 (later).
 ## E. Engineering
 
 19. **Characterization coverage.** Recorded: payments, convert_quote, procurement (39 cases), invoicing and pricing
-    (29 cases: invoice, quotation, price_scope). To record: work observations, lookups, stock, snags and leads, identity
-    holds (the preamble). Nothing moves in
+    (29 cases: invoice, quotation, price_scope), work observations (18 cases). To record: lookups, stock, snags and leads,
+    identity holds (the preamble). Nothing moves in
     Phase 3 until its group is fully recorded.
 20. **The upload handlers (`/files/document`, `/files/photo`) are not characterized**; they are separate code with
     their own tests by source pattern only.
@@ -75,6 +82,8 @@ decision, and say where it was applied. Last updated 2026-10-04 (later).
 
 ## Settled (kept so the reasoning is not lost)
 
+- 2026-10-04: a spoken observation that priced a job was announced as "Payment noted", and an observation of nothing was
+  recorded as a job. Both fixed. (`DECISIONS.md`, "Rewrite Phase 2, work observations".)
 - 2026-10-04: the invoice orphan was real (an invoice hold created and never mentioned when an amendment question was
   returned instead). Reproduced with the harness and fixed in the reply. (`DECISIONS.md`, "Rewrite Phase 2, invoicing and pricing".)
 - 2026-10-04: a purchase order, supplier invoice or disposition built from nothing usable is no longer recorded, held or
