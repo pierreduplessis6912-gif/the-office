@@ -141,6 +141,145 @@ export const ROLE_CAPABILITIES: Record<string, string[]> = {
   accountant: ["can_know_profit", "can_know_debtors", "can_know_payroll", "can_know_banking", "can_manage_invoices", "can_know_materials"],
 };
 
+// ---------------------------------------------------------------------------------------------------------------------
+// The permission grid (2026-10-04, per direct instruction): the owner can switch a role's capabilities on and off.
+//
+// ROLE_CAPABILITIES above stays the DEFAULTS and the fallback; the owner's choices are stored as OVERRIDES on top of it
+// (role_capability_overrides). With no overrides every role has exactly what it had before, which the recordings prove.
+// Every gate in the code already asks "does this caller hold capability X", so nothing else had to change: the caller's
+// capability list is simply read through getRoleCapabilities instead of straight from the static table.
+//
+// Guard rails, each one tested:
+//  - The owner's row can never be changed (it is what stops anyone being locked out).
+//  - A capability marked ownerOnly can never be granted to another role. can_manage_settings is one: the owner-only routes,
+//    "lose lead", and the owner-only action types all rely on only the owner holding it.
+//  - A capability that nothing in the code checks (inUse: false) cannot be switched at all. A switch wired to nothing would
+//    mislead, and an override stored today would silently become live the day something starts checking it. A test fails
+//    when the catalog's inUse flags stop matching the code, so that day forces a deliberate decision.
+// ---------------------------------------------------------------------------------------------------------------------
+export interface CapabilityInfo {
+  key: string;
+  label: string;
+  description: string;
+  inUse: boolean;
+  ownerOnly: boolean;
+}
+
+export const CAPABILITY_CATALOG: CapabilityInfo[] = [
+  {
+    key: "can_manage_invoices",
+    label: "Money in and out",
+    description:
+      "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, expense totals and supplier balances, and clear delivery shortages.",
+    inUse: true,
+    ownerOnly: false,
+  },
+  {
+    key: "can_know_debtors",
+    label: "See who owes us",
+    description: "Outstanding balances, the aged debtors breakdown and its report.",
+    inUse: true,
+    ownerOnly: false,
+  },
+  {
+    key: "can_know_profit",
+    label: "See profit",
+    description: "The financial snapshot, profit and loss, job profitability and their reports.",
+    inUse: true,
+    ownerOnly: false,
+  },
+  {
+    key: "can_know_materials",
+    label: "Materials and stock",
+    description: "See the stock room, receive deliveries, record stock used and stock counts, and add delivered items to stock.",
+    inUse: true,
+    ownerOnly: false,
+  },
+  {
+    key: "can_know_jobs",
+    label: "Jobs and schedule",
+    description: "Projects, snags, tasks and the schedule. An installer still sees only their own jobs.",
+    inUse: true,
+    ownerOnly: false,
+  },
+  { key: "can_know_payroll", label: "Payroll", description: "Not used by anything yet.", inUse: false, ownerOnly: false },
+  { key: "can_know_banking", label: "Banking details", description: "Not used by anything yet.", inUse: false, ownerOnly: false },
+  { key: "can_know_measurements", label: "Measurements", description: "Not used by anything yet.", inUse: false, ownerOnly: false },
+  {
+    key: "can_capture_voice_notes",
+    label: "Voice notes",
+    description: "Not used by anything yet. Voice notes are open to every signed-in member.",
+    inUse: false,
+    ownerOnly: false,
+  },
+  { key: "can_invite_members", label: "Invite members", description: "Owner only.", inUse: false, ownerOnly: true },
+  { key: "can_delete_data", label: "Delete data", description: "Owner only.", inUse: false, ownerOnly: true },
+  {
+    key: "can_manage_settings",
+    label: "Settings, leads and these permissions",
+    description: "Owner only. Leads, the business logo, imports and this screen.",
+    inUse: true,
+    ownerOnly: true,
+  },
+];
+
+export const CAPABILITY_BY_KEY: Record<string, CapabilityInfo> = Object.fromEntries(CAPABILITY_CATALOG.map((c) => [c.key, c]));
+
+// The roles whose capabilities the owner may change: every defined role except the owner.
+export const EDITABLE_ROLES: string[] = Object.keys(ROLE_CAPABILITIES).filter((r) => r !== "owner");
+
+export function isEditableCapability(key: string): boolean {
+  const info = CAPABILITY_BY_KEY[key];
+  return Boolean(info && info.inUse && !info.ownerOnly);
+}
+
+// Defaults with the owner's overrides applied. Ignores any override for a capability that is unknown, owner-only or unused,
+// so a bad row (written by hand, or left from an earlier catalog) can never grant or take away something it should not.
+export function applyOverrides(defaults: string[], overrides: Array<{ capability: string; granted: number }>): string[] {
+  const applicable = overrides.filter((o) => isEditableCapability(o.capability));
+  if (applicable.length === 0) return [...defaults];   // nothing to apply: exactly the defaults, in their own order
+  const revoked = new Set(applicable.filter((o) => !o.granted).map((o) => o.capability));
+  const kept = defaults.filter((c) => !revoked.has(c));
+  // Defaults keep their own order; anything newly granted follows, in catalog order.
+  const granted = CAPABILITY_CATALOG.map((c) => c.key).filter((k) => applicable.some((o) => o.capability === k && o.granted) && !kept.includes(k));
+  return [...kept, ...granted];
+}
+
+const PERMISSION_TABLES: string[] = [
+  "CREATE TABLE IF NOT EXISTS role_capability_overrides (role TEXT NOT NULL, capability TEXT NOT NULL, granted INTEGER NOT NULL, updated_by TEXT, updated_at TEXT, PRIMARY KEY (role, capability))",
+  "CREATE TABLE IF NOT EXISTS permission_audit (id INTEGER PRIMARY KEY AUTOINCREMENT, changed_by TEXT, role TEXT NOT NULL, capability TEXT NOT NULL, old_granted INTEGER, new_granted INTEGER, created_at TEXT)",
+];
+
+// Created the first time it is needed, so there is no migration step to run by hand. Idempotent.
+export async function ensurePermissionTables(env: Env): Promise<void> {
+  for (const sql of PERMISSION_TABLES) await env.OFFICE_DB.prepare(sql).run();
+}
+
+export async function readOverrides(env: Env, role: string): Promise<Array<{ capability: string; granted: number }>> {
+  try {
+    const { results } = await env.OFFICE_DB.prepare("SELECT capability, granted FROM role_capability_overrides WHERE role = ?")
+      .bind(role)
+      .all<{ capability: string; granted: number }>();
+    return results ?? [];
+  } catch (err) {
+    // Only "the table does not exist yet" means "no overrides". Any other failure propagates: a request that cannot read
+    // the owner's restrictions must fail, never quietly fall back to the wider defaults.
+    if (/no such table/i.test(err instanceof Error ? err.message : String(err))) {
+      await ensurePermissionTables(env);
+      return [];
+    }
+    throw err;
+  }
+}
+
+// What a role may do right now: the defaults with the owner's overrides applied. Read on every request, so a change takes
+// effect immediately. The owner (and any role that is not defined) is never overridden.
+export async function getRoleCapabilities(env: Env, role: string): Promise<string[]> {
+  const defaults = ROLE_CAPABILITIES[role] ?? [];
+  if (role === "owner" || !(role in ROLE_CAPABILITIES)) return defaults;
+  return applyOverrides(defaults, await readOverrides(env, role));
+}
+
 // Real, new, per direct instruction — the first real item on
 // SECURITY_AND_OPERATIONAL_READINESS.md's urgent tier, confirmed against
 // the live code: 118 of 161 routes are /debug or /admin with no auth
@@ -434,6 +573,10 @@ export const ROUTE_RULES: Array<{ method: string; path: RegExp; anyOf: string[] 
   { method: "GET", path: /^\/debug\/tasks-list$/, anyOf: ["can_know_jobs"] },
   { method: "GET", path: /^\/debug\/characters-list$/, anyOf: ["can_know_jobs", "can_manage_invoices"] },
   // Owner only: nothing a restricted role holds includes can_manage_settings.
+  { method: "GET", path: /^\/settings\/permissions$/, anyOf: ["can_manage_settings"] },
+  { method: "PATCH", path: /^\/settings\/permissions$/, anyOf: ["can_manage_settings"] },
+  { method: "POST", path: /^\/settings\/permissions\/reset$/, anyOf: ["can_manage_settings"] },
+  { method: "GET", path: /^\/settings\/permissions\/audit$/, anyOf: ["can_manage_settings"] },
   { method: "GET", path: /^\/leads$/, anyOf: ["can_manage_settings"] },
   { method: "POST", path: /^\/leads\/\d+\/mark-lost$/, anyOf: ["can_manage_settings"] },
   { method: "POST", path: /^\/business-profile\/logo$/, anyOf: ["can_manage_settings"] },
@@ -462,7 +605,7 @@ export function denyForRole(): Response {
 
 async function authorizeRestrictedMember(request: Request, env: Env, url: URL, role: string): Promise<Response | null> {
   if (!ENFORCE_CAPABILITIES || role === "owner") return null;
-  const caps = ROLE_CAPABILITIES[role] ?? [];
+  const caps = await getRoleCapabilities(env, role);
   const method = request.method;
   const path = url.pathname;
 
@@ -507,7 +650,7 @@ export async function getMemberContext(
     // installer, which the scoped queries turn into "no jobs" — never
     // into "all jobs".
   }
-  return { email: session.email, role: membership.role, caps: ROLE_CAPABILITIES[membership.role] ?? [], characterId };
+  return { email: session.email, role: membership.role, caps: await getRoleCapabilities(env, membership.role), characterId };
 }
 
 // "Installers see their own jobs only." Returns a no-op scope whenever
@@ -670,7 +813,7 @@ export async function resolveCapabilities(request: Request, env: Env): Promise<{
   if (!membership || membership.status !== "active") {
     return { email: session.email, role: null, capabilities: [] };
   }
-  return { email: session.email, role: membership.role, capabilities: ROLE_CAPABILITIES[membership.role] ?? [] };
+  return { email: session.email, role: membership.role, capabilities: await getRoleCapabilities(env, membership.role) };
 }
 
 export function getCookie(request: Request, name: string): string | null {

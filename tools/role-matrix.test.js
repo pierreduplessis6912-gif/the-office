@@ -8,7 +8,11 @@ const roleCaps = src.match(/const ROLE_CAPABILITIES[^=]*=\s*\{[\s\S]*?\n\};/)[0]
 const start = src.indexOf('const ENFORCE_CAPABILITIES');
 const end = src.indexOf('// The signed-in member, or null.');
 if (start < 0 || end < 0) throw new Error('could not extract the deployed decision code');
-const code = roleCaps + '\n' + src.slice(start, end) + '\nmodule.exports = { authorizeRestrictedMember, ENFORCE_CAPABILITIES, INTENT_RULES, intentCreationRefusal, intentKeepsOutOfNotes, canResolveActionType, ACTION_TYPE_CAPABILITY, ROLE_CAPABILITIES };';
+// The permission grid (the catalog, the guard rails and the loader the decision code now reads capabilities through).
+const gridStart = src.indexOf('// The permission grid (2026-10-04');
+const gridEnd = src.indexOf('// Real, new, per direct instruction — the first real item on');
+if (gridStart < 0 || gridEnd < 0) throw new Error('could not extract the permission grid');
+const code = roleCaps + '\n' + src.slice(gridStart, gridEnd) + '\n' + src.slice(start, end) + '\nmodule.exports = { authorizeRestrictedMember, ENFORCE_CAPABILITIES, INTENT_RULES, intentCreationRefusal, intentKeepsOutOfNotes, canResolveActionType, ACTION_TYPE_CAPABILITY, ROLE_CAPABILITIES, getRoleCapabilities, applyOverrides, CAPABILITY_CATALOG, CAPABILITY_BY_KEY, EDITABLE_ROLES, isEditableCapability };';
 const js = esbuild.transformSync(code, { loader: 'ts', format: 'cjs', target: 'es2022' }).code;
 const compiled = path.join(os.tmpdir(), 'role-matrix-decision-under-test.js');
 fs.writeFileSync(compiled, js);
@@ -23,7 +27,8 @@ if (ENFORCE_CAPABILITIES !== true) throw new Error('test is not running with the
 const actionTypes = { 1:'job_scope_amendment', 2:'project_ambiguity', 3:'goods_received', 4:'ambiguous_person', 5:'customer_fact', 6:'identity_collision',
   7:'payment', 8:'invoice', 9:'quotation', 10:'expense', 11:'supplier_invoice', 12:'supplier_payment', 13:'variance_disposition', 14:'convert_quote',
   15:'character_fact', 16:'imported_invoice', 17:'schema_candidate', 18:'some_future_type', 19:'stock_add' };
-const env = { OFFICE_DB: { prepare: () => ({ bind: (id) => ({ first: async () => actionTypes[id] ? { type: actionTypes[id] } : null }) }) } };
+// A stand-in database: pending actions by id for the confirm routes, and no permission-grid overrides (the defaults apply).
+const env = { OFFICE_DB: { prepare: () => ({ run: async () => ({}), bind: (id) => ({ first: async () => actionTypes[id] ? { type: actionTypes[id] } : null, all: async () => ({ results: [] }), run: async () => ({}) }) }) } };
 
 async function allowed(role, method, path) {
   const res = await authorizeRestrictedMember({ method }, env, new URL('https://x' + path), role);
@@ -603,6 +608,12 @@ async function expect(role, method, path, want) {
   check(/canResolveActionType\(p\.type, capabilities\)/.test(indexSrc) && !/SELECT id FROM pending_actions WHERE status = 'pending' ORDER BY created_at DESC LIMIT 1/.test(indexSrc), 'forget_last must choose among the actions the caller may resolve, never "the newest of anyone\'s"');
   check(withArticle('installer') === 'an installer' && withArticle('supplier') === 'a supplier' && withArticle('contact') === 'a contact' && withArticle(' Electrician ') === 'an Electrician', 'the right article goes before a role named in a question');
   check(!/is already on file as a \$\{collision\.existingRole\}/.test(indexSrc), 'a collision question must name the real relationship, not the system\'s word "character"');
+
+  // The permission grid: the catalog, the guard rails, and the owner-only routes that edit it.
+  await require('./permissions.test.js')({ check, compiled, srcDir, fs, path, sameJson });
+  for (const [method, p] of [['GET', '/settings/permissions'], ['PATCH', '/settings/permissions'], ['POST', '/settings/permissions/reset'], ['GET', '/settings/permissions/audit']]) {
+    for (const role of ['accountant', 'installer', 'stranger']) await expect(role, method, p, false);
+  }
 
   // The rewrite scaffold (Phase 1): contract, adapters and the guards that stop it drifting from the live function.
   await require('./intents.test.js')({ check, bundleTo, srcDir, fs, path, indexSrc, sameJson });

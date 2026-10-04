@@ -1,5 +1,6 @@
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult, WorkObservationExtraction } from "./types";
 import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, classifyDashboardIntent, containsBackwardReference, describeImage, embedText, extractDocumentIdentity, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractSupplierStatement, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, splitIntoTopics, storeUnscopedMemory, transcribe, transcribeWithNameHints } from "./ai";
+import { listAudit, listPermissions, resetRole, setPermission } from "./permissions";
 import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, logInteractionEdge, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, reconcilePerson, setSelection, withArticle } from "./identity";
 import { attachToSiblingJobScope, completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveScheduledDate, resolveTaskCompletion } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
@@ -2602,6 +2603,30 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       }
       await markLeadLost(env, id);
       return Response.json({ status: "lost" });
+    }
+
+    // The permission grid (2026-10-04, per direct instruction): the owner switches a role's capabilities on and off.
+    // Owner only, by ROUTE_RULES in auth.ts (nothing a restricted role holds includes can_manage_settings). PATCH, not PUT,
+    // to match every other update here and the allowed methods in the CORS headers.
+    if (url.pathname === "/settings/permissions" && request.method === "GET") {
+      return Response.json(await listPermissions(env));
+    }
+    if (url.pathname === "/settings/permissions" && request.method === "PATCH") {
+      const body = (await request.json().catch(() => null)) as { role?: unknown; capability?: unknown; granted?: unknown } | null;
+      if (!body || typeof body !== "object") return Response.json({ error: "Send a role, a permission and true or false." }, { status: 400 });
+      const { email } = await resolveCapabilities(request, env);
+      const result = await setPermission(env, body?.role, body?.capability, body?.granted, email);
+      return result.ok ? Response.json({ changed: result.changed, role: result.role }) : Response.json({ error: result.error }, { status: result.status });
+    }
+    if (url.pathname === "/settings/permissions/reset" && request.method === "POST") {
+      const body = (await request.json().catch(() => null)) as { role?: unknown } | null;
+      if (!body || typeof body !== "object") return Response.json({ error: "Send the role to reset." }, { status: 400 });
+      const { email } = await resolveCapabilities(request, env);
+      const result = await resetRole(env, body?.role, email);
+      return result.ok ? Response.json({ changed: result.changed, reverted: result.reverted ?? 0, role: result.role }) : Response.json({ error: result.error }, { status: result.status });
+    }
+    if (url.pathname === "/settings/permissions/audit" && request.method === "GET") {
+      return Response.json(await listAudit(env, Number(url.searchParams.get("limit") ?? 20)));
     }
 
     // Real feature 2026-07-24 — the real prerequisite for Aged

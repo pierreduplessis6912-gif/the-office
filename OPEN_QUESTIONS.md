@@ -3,7 +3,7 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 1 applied).
+decision, and say where it was applied. Last updated 2026-10-04 (the permission grid built).
 
 ## A. Decisions only Pierre can make
 
@@ -71,6 +71,11 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     the near-match answer does. (`DECISIONS.md`, "Rewrite Phase 2, the confirm and reject routes".)
 37. **Rejecting an identity question ("someone else was meant") drops the original dictation without a word.** Nothing is
     recorded and nothing says so; the person has to say it again with a different name. *Option:* say what was dropped.
+38. **The permission grid is coarse: five real switches.** `can_manage_invoices` is checked in 44 places, so one switch
+    governs recording money AND seeing quotations, expense totals and supplier balances. Finer control (expense totals,
+    supplier balances, material prices, person details as their own switches) needs new capabilities. Offered and
+    deferred ("start with the existing ones"). A material's last price is not gated by any capability at all, so it
+    cannot be a switch until it gets one. (`DECISIONS.md`, "The permission grid".)
 11. **An installer's scheduling message that the classifier labels "invoice" is refused outright.** Set aside on
     2026-10-03 as unproven (it was only ever seen in a code comment). Reopen if a real one is refused.
 
@@ -81,6 +86,8 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     and a replayed invoice after an identity question). The web build compiled the change; the phone build is unverified.
 13. **A live multi-order or partial delivery**, and the exception report after it. Verified on a real database and by
     tests, never run on a real delivery note with two orders.
+15. **The Permissions screen on a real phone.** The web build compiles it; the phone build and a real tap-through are
+    unverified (switch something off for the installer, then check on the installer's phone that the room is gone).
 14. **A real "add to stock?" round trip** (order something that is not stock, deliver it, confirm the delivery, answer).
 
 ## C. Unverified claims that the new harness can now settle
@@ -109,6 +116,12 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
 
 ## Settled (kept so the reasoning is not lost)
+
+- 2026-10-04: **the permission grid was built** (backend and screen): the owner switches a role's permissions on and off, with
+  guard rails, an audit trail and reset. With nothing switched, behaviour is identical to before. Round 2 questions 4 to 6
+  (person details, other sentences in notes, upload captions creating customers) were not answered before it; only the
+  first is a permission, and it is covered by the inert payroll and banking permissions, which cannot be switched until
+  something uses them.
 
 - 2026-10-04, decided by Pierre (decisions session, round 1):
   - **Installers no longer see expense totals or what is owed to each supplier** through a business question. Both now need

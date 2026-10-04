@@ -138,7 +138,8 @@ function diff(before, after) {
   const out = {};
   for (const table of Object.keys(after)) {
     const key = (r) => (r.id !== undefined ? 'id:' + r.id : JSON.stringify(r));
-    const b = new Map(before[table].map((r) => [key(r), r])), a = new Map(after[table].map((r) => [key(r), r]));
+    // A table created during the case (the permission-grid tables are created the first time they are needed) was empty before.
+    const b = new Map((before[table] || []).map((r) => [key(r), r])), a = new Map(after[table].map((r) => [key(r), r]));
     const added = [...a].filter(([k]) => !b.has(k)).map(([, r]) => r);
     const removed = [...b].filter(([k]) => !a.has(k)).map(([, r]) => r);
     const changed = [...a].filter(([k, r]) => b.has(k) && JSON.stringify(b.get(k)) !== JSON.stringify(r)).map(([k, r]) => ({ before: b.get(k), after: r }));

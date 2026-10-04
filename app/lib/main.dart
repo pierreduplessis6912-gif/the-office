@@ -1380,6 +1380,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         onProjectsTap: _showProjectsSheet,
         onStockTap: _showStockSheet,
         onCustomersTap: _showCustomersSheet,
+        onPermissionsTap: _showPermissionsSheet,
       ),
       body: SafeArea(
         child: Stack(
@@ -2077,6 +2078,19 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     );
   }
 
+  // The permission grid (2026-10-04): the owner switches each role's capabilities on and off. Opened like every other room.
+  Future<void> _showPermissionsSheet(Offset origin) async {
+    await _igniteEmber(origin, _stampRed);
+    if (!mounted) return;
+    await showOfficeRoom(
+      context: context,
+      officeState: _officeState,
+      origin: origin,
+      accentColor: _stampRed,
+      builder: (context) => _PermissionsRoomContent(authHeaders: _authHeaders()),
+    );
+  }
+
   // Real, new room, per direct instruction, part of the real
   // discoverability-plus-audit pass, third and final domain — same
   // real pattern as Snags and Leads, above.
@@ -2263,6 +2277,7 @@ class _OfficeDrawer extends StatelessWidget {
   final void Function(Offset) onProjectsTap;
   final void Function(Offset) onStockTap;
   final void Function(Offset) onCustomersTap;
+  final void Function(Offset) onPermissionsTap;
   const _OfficeDrawer({
     required this.onReportsTap,
     required this.onPeopleTap,
@@ -2273,6 +2288,7 @@ class _OfficeDrawer extends StatelessWidget {
     required this.onProjectsTap,
     required this.onStockTap,
     required this.onCustomersTap,
+    required this.onPermissionsTap,
   });
 
   @override
@@ -2312,6 +2328,8 @@ class _OfficeDrawer extends StatelessWidget {
             // unexpected sixth domain: customers had no real,
             // discoverable list anywhere in the app at all until now.
             _drawerItem(Icons.people_alt_outlined, 'Customers', onCustomersTap, context),
+            // The permission grid. Owner only: the server refuses anyone else, and the room says so.
+            _drawerItem(Icons.lock_outline, 'Permissions', onPermissionsTap, context),
           ],
         ),
       ),
@@ -5474,6 +5492,328 @@ class _LeadsRoomContentState extends State<_LeadsRoomContent> {
                     },
                   ),
                 ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// The permission grid (2026-10-04, per direct instruction): the owner switches each role's capabilities on and off. The screen
+// only shows what the server returns and asks the server to change it; every rule (the owner cannot be edited, owner-only
+// permissions cannot be given away, a permission nothing uses cannot be switched) lives on the server, so the screen cannot
+// get around them. Anyone who is not the owner is refused by the server and told so here.
+class _PermissionsRoomContent extends StatefulWidget {
+  final Map<String, String> authHeaders;
+  const _PermissionsRoomContent({required this.authHeaders});
+
+  @override
+  State<_PermissionsRoomContent> createState() => _PermissionsRoomContentState();
+}
+
+class _PermissionsRoomContentState extends State<_PermissionsRoomContent> {
+  List<dynamic> _roles = [];
+  List<dynamic> _audit = [];
+  int _selected = 0;
+  bool _loading = true;
+  String? _error;
+  String? _busyKey;
+  bool _resetting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Map<String, String> get _jsonHeaders => {...widget.authHeaders, 'Content-Type': 'application/json'};
+
+  String _problem(int status) {
+    if (status == 403) return 'Only the owner can change permissions.';
+    return 'Could not reach permissions right now.';
+  }
+
+  Future<void> _fetch({bool quiet = false}) async {
+    if (!quiet) setState(() => _loading = true);
+    try {
+      final grid = await http.get(Uri.parse('$officeApiBase/settings/permissions'), headers: widget.authHeaders);
+      if (grid.statusCode != 200) {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = _problem(grid.statusCode);
+        });
+        return;
+      }
+      final audit = await http.get(Uri.parse('$officeApiBase/settings/permissions/audit?limit=6'), headers: widget.authHeaders);
+      final gridData = jsonDecode(grid.body) as Map<String, dynamic>;
+      final auditData = audit.statusCode == 200 ? jsonDecode(audit.body) as Map<String, dynamic> : <String, dynamic>{};
+      if (!mounted) return;
+      setState(() {
+        _roles = gridData['roles'] as List? ?? [];
+        _audit = auditData['changes'] as List? ?? [];
+        if (_selected >= _roles.length) _selected = 0;
+        _loading = false;
+        _error = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Could not reach permissions right now.';
+      });
+    }
+  }
+
+  Future<void> _toggle(String role, String capability, bool granted) async {
+    setState(() {
+      _busyKey = '$role/$capability';
+      _error = null;
+    });
+    try {
+      final response = await http.patch(
+        Uri.parse('$officeApiBase/settings/permissions'),
+        headers: _jsonHeaders,
+        body: jsonEncode({'role': role, 'capability': capability, 'granted': granted}),
+      );
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        // Reload from the server, so what is shown is always what is true.
+        await _fetch(quiet: true);
+        if (mounted) setState(() => _busyKey = null);
+      } else {
+        var message = _problem(response.statusCode);
+        try {
+          final data = jsonDecode(response.body) as Map<String, dynamic>;
+          if (data['error'] is String) message = data['error'] as String;
+        } catch (_) {}
+        setState(() {
+          _busyKey = null;
+          _error = message;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _busyKey = null;
+          _error = 'Could not change that right now.';
+        });
+      }
+    }
+  }
+
+  Future<void> _reset(String role, String label) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: _charcoal,
+        title: Text('Reset $label?', style: GoogleFonts.workSans(color: _paper, fontSize: 16)),
+        content: Text('Puts every permission for this role back to its default.', style: GoogleFonts.workSans(color: _muted, fontSize: 13)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text('CANCEL', style: GoogleFonts.ibmPlexMono(color: _muted, fontSize: 11, letterSpacing: 0.8)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text('RESET', style: GoogleFonts.ibmPlexMono(color: _stampRed, fontSize: 11, letterSpacing: 0.8)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() {
+      _resetting = true;
+      _error = null;
+    });
+    try {
+      final response = await http.post(
+        Uri.parse('$officeApiBase/settings/permissions/reset'),
+        headers: _jsonHeaders,
+        body: jsonEncode({'role': role}),
+      );
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        await _fetch(quiet: true);
+      } else {
+        setState(() => _error = _problem(response.statusCode));
+      }
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Could not reset right now.');
+    }
+    if (mounted) setState(() => _resetting = false);
+  }
+
+  String _when(String? iso) {
+    if (iso == null || iso.length < 16) return '';
+    return iso.substring(0, 16).replaceFirst('T', ' ');
+  }
+
+  Widget _row(String roleKey, Map<String, dynamic> c) {
+    final key = c['key'] as String? ?? '';
+    final editable = c['editable'] == true;
+    final granted = c['granted'] == true;
+    final changed = c['changed'] == true;
+    final busy = _busyKey == '$roleKey/$key';
+    String? lock;
+    if (c['ownerOnly'] == true) {
+      lock = 'OWNER ONLY';
+    } else if (c['inUse'] != true) {
+      lock = 'NOT USED YET';
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        c['label'] as String? ?? '',
+                        style: GoogleFonts.workSans(color: lock == null ? _paper : _muted, fontSize: 14, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    if (changed) ...[
+                      const SizedBox(width: 8),
+                      Text('CHANGED', style: GoogleFonts.ibmPlexMono(color: _emberAmber, fontSize: 9.5, letterSpacing: 0.8)),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(c['description'] as String? ?? '', style: GoogleFonts.workSans(color: _muted, fontSize: 12.5)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          if (lock != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(lock, style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 9.5, letterSpacing: 0.8)),
+            )
+          else if (busy)
+            const Padding(
+              padding: EdgeInsets.only(top: 6, right: 14),
+              child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: _textTertiary)),
+            )
+          else
+            Switch(
+              value: granted,
+              activeColor: _confirmedGreen,
+              onChanged: editable ? (value) => _toggle(roleKey, key, value) : null,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _auditLine(Map<String, dynamic> a) {
+    final who = (a['roleLabel'] as String? ?? '');
+    final what = (a['label'] as String? ?? '');
+    final to = a['to'] == true ? 'on' : 'off';
+    final when = _when(a['at'] as String?);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Text(
+        '$who: $what switched $to  $when',
+        style: GoogleFonts.workSans(color: _muted, fontSize: 12),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasRole = _roles.isNotEmpty;
+    final Map<String, dynamic> role = hasRole ? (_roles[_selected] as Map<String, dynamic>) : <String, dynamic>{};
+    final rows = role['capabilities'] as List? ?? [];
+    final roleKey = role['role'] as String? ?? '';
+    final roleLabel = role['label'] as String? ?? '';
+    final anyChanged = rows.any((c) => (c as Map<String, dynamic>)['changed'] == true);
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: _void,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('PERMISSIONS', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    color: _muted,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text('What each role can do. A change takes effect straight away.', style: GoogleFonts.workSans(color: _muted, fontSize: 12.5)),
+              const SizedBox(height: 14),
+              if (_loading)
+                const Padding(padding: EdgeInsets.only(top: 24), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+              else if (!hasRole)
+                Padding(
+                  padding: const EdgeInsets.only(top: 24),
+                  child: Text(_error ?? 'No roles to show.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)),
+                )
+              else ...[
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (var i = 0; i < _roles.length; i++)
+                      _FilterChip(
+                        label: ((_roles[i] as Map<String, dynamic>)['label'] as String? ?? '').toUpperCase(),
+                        selected: i == _selected,
+                        onTap: () => setState(() => _selected = i),
+                      ),
+                  ],
+                ),
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Text(_error!, style: GoogleFonts.workSans(color: _stampRed, fontSize: 12.5)),
+                  ),
+                const SizedBox(height: 6),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.only(top: 8),
+                    children: [
+                      for (final c in rows) _row(roleKey, c as Map<String, dynamic>),
+                      if (anyChanged)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: _resetting
+                              ? const Center(child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: _textTertiary)))
+                              : InkWell(
+                                  onTap: () => _reset(roleKey, roleLabel),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                    child: Text(
+                                      'RESET ${roleLabel.toUpperCase()} TO DEFAULTS',
+                                      style: GoogleFonts.ibmPlexMono(color: _stampRed, fontSize: 10.5, letterSpacing: 0.8, fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                                ),
+                        ),
+                      if (_audit.isNotEmpty) ...[
+                        const SizedBox(height: 20),
+                        Text('RECENT CHANGES', style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 1)),
+                        const SizedBox(height: 6),
+                        for (final a in _audit) _auditLine(a as Map<String, dynamic>),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),

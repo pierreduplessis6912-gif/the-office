@@ -27,7 +27,7 @@ import {
 import { getInstallerActivity, nowInBusinessTimezone, resolveScheduledDate } from "./scheduler";
 import { getCharacterFacts, getCharacterNotes, runConsolidation } from "./memory";
 import { getAgedCreditorsReport, getDeliveryExceptions, getFinancialSnapshot, getProfitAndLoss, getTrackedStockItems, orderDeliveryStatus, parseDateRange, recordQuotation } from "./finance";
-import { runIdempotentMigration, signSession, ROLE_CAPABILITIES } from "./auth";
+import { runIdempotentMigration, signSession, ROLE_CAPABILITIES, getRoleCapabilities } from "./auth";
 
 // The one non-route helper these routes needed, moved with its real
 // callers (/admin/export and /admin/flush) rather than left behind in
@@ -847,7 +847,8 @@ if (url.pathname === "/debug/set-membership-character" && request.method === "PO
 
 if (url.pathname === "/debug/memberships" && request.method === "GET") {
       const { results } = await env.OFFICE_DB.prepare("SELECT * FROM memberships ORDER BY created_at DESC").all();
-      const enriched = results.map((m) => ({ ...m, capabilities: ROLE_CAPABILITIES[String(m.role)] ?? [] }));
+      // The effective capabilities (the defaults with the owner's permission-grid changes applied), not the bare defaults.
+      const enriched = await Promise.all(results.map(async (m) => ({ ...m, capabilities: await getRoleCapabilities(env, String(m.role)) })));
       return Response.json({ memberships: enriched });
     }
 
