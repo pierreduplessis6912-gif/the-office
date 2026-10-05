@@ -771,6 +771,25 @@ export function unitConversionsAnswer(rows: SavedConversion[], asked: string | n
   return `Unit conversions${asked ? ` for ${asked}` : ""}: ${rows.map(describeConversion).join("; ")}.`;
 }
 
+// A quantity SAID in one unit about an item KEPT in another (decided by Pierre 2026-10-04): converted when a conversion is known, and when it
+// is not, nothing is recorded and the person is asked for it once. A unit that was not said, or not recognised, passes through untouched.
+export async function checkStockUnit(
+  env: Env,
+  item: { name: string; unit: string | null },
+  said: string | null | undefined,
+  quantity: number
+): Promise<{ ok: true; quantity: number; note: string } | { ok: false; question: string }> {
+  if (!unitsDiffer(said, item.unit)) return { ok: true, quantity, note: "" };
+  const converted = await convertQuantity(env, item.name, quantity, said, item.unit);
+  if (converted.ok) return { ok: true, quantity: converted.quantity, note: ` (${quantity} ${String(said).trim()} of ${item.name} counted as ${converted.quantity} ${item.unit}.)` };
+  const from = normalizeUnit(said)!;
+  const to = normalizeUnit(item.unit)!;
+  return {
+    ok: false,
+    question: `Nothing was recorded. ${item.name} is kept in ${unitPlural(to)} but you said ${unitPlural(from)}, and I don't know how many ${unitPlural(to)} are in a ${from}. Say, for example, "a ${from} of ${item.name} is 2.2 ${unitPlural(to)}" (with the real number). Then say it again.`,
+  };
+}
+
 export interface DeliveryUnitCheck<T> {
   lines: T[];
   converted: Array<{ item: string; quantity: number; from: string; to: string; result: number }>;

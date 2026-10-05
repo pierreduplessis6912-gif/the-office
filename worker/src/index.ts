@@ -10,7 +10,7 @@ import {
   verifySession, getSessionToken, getCookie, base64UrlEncode, ROLE_CAPABILITIES, ENFORCE_CAPABILITIES,
   ACTION_TYPE_CAPABILITY, ROUTE_RULES, SIGNABLE_DOCUMENT_PATHS, canResolveActionType, intentCreationRefusal, intentKeepsOutOfNotes,
 } from "./auth";
-import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote, duplicateInvoiceMessage, findDuplicateSupplierInvoice, normalizeInvoiceReference, describeConversion, forgetUnitConversions, listUnitConversions, unitConversionsAnswer } from "./finance";
+import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote, duplicateInvoiceMessage, findDuplicateSupplierInvoice, normalizeInvoiceReference, describeConversion, forgetUnitConversions, listUnitConversions, unitConversionsAnswer, checkStockUnit } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 import { handleDebugRoute } from "./debug";
 import { DOCUMENT_KIND_LABEL, asksAboutDeliveryExceptions, deliveryExceptionAnswer, deliveryHadExceptions, deliveryHeldMessage, deliveryRecordedMessage, inferDocumentSupplier, planDelivery } from "./documents";
@@ -966,6 +966,8 @@ async function processOneExtraction(
 
   let stockUsageResult: { itemName: string; quantityUsed: number; newQuantityOnHand: number } | null = null;
   let stockUsageNoMatch = false;
+  let stockUnitQuestion: string | null = null;
+  let stockUnitNote = "";
   if (extraction?.intent === "stock_usage") {
     const trackedItems = await getTrackedStockItems(env);
     if (trackedItems.length > 0) {
@@ -973,10 +975,16 @@ async function processOneExtraction(
       const matchedItem = usage.matched_item_name
         ? trackedItems.find((i) => i.name.toLowerCase() === usage.matched_item_name!.toLowerCase())
         : null;
-      if (matchedItem && usage.quantity_used != null) {
+      // Decided by Pierre 2026-10-04: a quantity said in another unit from the one the item is kept in ("3 boxes" of an item kept in sqm) is
+      // converted when a conversion is known, and when it is not nothing is recorded and the person is asked for it once.
+      const usageUnit = matchedItem && usage.quantity_used != null ? await checkStockUnit(env, matchedItem, usage.unit, usage.quantity_used) : null;
+      if (usageUnit && !usageUnit.ok) {
+        stockUnitQuestion = usageUnit.question;
+      } else if (matchedItem && usage.quantity_used != null && usageUnit && usageUnit.ok) {
         const usageCustomerId = usage.job_customer_name ? (await reconcileCustomer(env, usage.job_customer_name))?.id ?? null : null;
-        const recorded = await recordStockUsage(env, matchedItem.id, usage.quantity_used, usageCustomerId, transcript);
-        stockUsageResult = { itemName: matchedItem.name, quantityUsed: usage.quantity_used, newQuantityOnHand: recorded.newQuantityOnHand };
+        const recorded = await recordStockUsage(env, matchedItem.id, usageUnit.quantity, usageCustomerId, transcript);
+        stockUnitNote = usageUnit.note;
+        stockUsageResult = { itemName: matchedItem.name, quantityUsed: usageUnit.quantity, newQuantityOnHand: recorded.newQuantityOnHand };
       } else {
         stockUsageNoMatch = true;
       }
@@ -994,11 +1002,15 @@ async function processOneExtraction(
       const matchedItem = st.matched_item_name
         ? trackedItems.find((i) => i.name.toLowerCase() === st.matched_item_name!.toLowerCase())
         : null;
-      if (matchedItem && st.quantity_counted != null) {
-        const recorded = await recordStocktake(env, matchedItem.id, st.quantity_counted, transcript);
+      const countUnit = matchedItem && st.quantity_counted != null ? await checkStockUnit(env, matchedItem, st.unit, st.quantity_counted) : null;
+      if (countUnit && !countUnit.ok) {
+        stockUnitQuestion = countUnit.question;
+      } else if (matchedItem && st.quantity_counted != null && countUnit && countUnit.ok) {
+        const recorded = await recordStocktake(env, matchedItem.id, countUnit.quantity, transcript);
+        stockUnitNote = countUnit.note;
         stocktakeResult = {
           itemName: matchedItem.name,
-          quantityCounted: st.quantity_counted,
+          quantityCounted: countUnit.quantity,
           quantityExpected: recorded.quantityExpected,
           variance: recorded.variance,
         };
@@ -1695,8 +1707,10 @@ async function processOneExtraction(
     message = `${stockRegistrationResult.existed ? "Already tracking" : "Now tracking"} ${stockRegistrationResult.name}${stockRegistrationResult.unit ? ` (${stockRegistrationResult.unit})` : ""} as real, running stock.`;
   } else if (extraction?.intent === "register_stock_item") {
     message = "Recognized a request to start tracking stock, but no real material name was given — try naming it.";
+  } else if ((extraction?.intent === "stock_usage" || extraction?.intent === "stocktake") && stockUnitQuestion) {
+    message = stockUnitQuestion;
   } else if (extraction?.intent === "stock_usage" && stockUsageResult) {
-    message = `Recorded ${stockUsageResult.quantityUsed} used of ${stockUsageResult.itemName} — ${stockUsageResult.newQuantityOnHand} remaining.`;
+    message = `Recorded ${stockUsageResult.quantityUsed} used of ${stockUsageResult.itemName} — ${stockUsageResult.newQuantityOnHand} remaining.${stockUnitNote}`;
     // Decided by Pierre 2026-10-04: using more than is on hand is still recorded (the usage happened, the count was wrong),
     // but the reply now says the count looks off instead of quietly reporting a negative number.
     if (stockUsageResult.newQuantityOnHand < 0) {
@@ -1706,7 +1720,7 @@ async function processOneExtraction(
     message = "Recognized real stock usage, but couldn't match it to anything currently being tracked — try naming the exact item, or track it first.";
   } else if (extraction?.intent === "stocktake" && stocktakeResult) {
     const varianceText = stocktakeResult.variance === 0 ? "matches exactly, no variance" : `variance ${stocktakeResult.variance > 0 ? "+" : ""}${stocktakeResult.variance} vs the expected ${stocktakeResult.quantityExpected}`;
-    message = `Stocktake recorded for ${stocktakeResult.itemName}: counted ${stocktakeResult.quantityCounted}, ${varianceText}.`;
+    message = `Stocktake recorded for ${stocktakeResult.itemName}: counted ${stocktakeResult.quantityCounted}, ${varianceText}.${stockUnitNote}`;
   } else if (extraction?.intent === "stocktake" && stocktakeNoMatch) {
     message = "Recognized a stocktake, but couldn't match it to anything currently being tracked — try naming the exact item, or track it first.";
   } else if (extraction?.intent === "raise_snag" && snagResult) {

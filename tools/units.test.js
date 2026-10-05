@@ -1,7 +1,7 @@
 // Tests for per-item unit conversion (decided 2026-10-04): the unit normaliser, the conversion store and its maths run against a
 // REAL SQLite database, the delivery check, and a guard that the test seeds create the same table the code does.
 module.exports = async function runUnitTests({ check, bundleTo, srcDir, fs, path, sameJson }) {
-  const { normalizeUnit, unitsDiffer, unitPlural, setUnitConversion, convertQuantity, checkDeliveryUnits, deliveryUnitQuestion, conversionNote, listUnitConversions, forgetUnitConversions, describeConversion, unitConversionsAnswer } = bundleTo('finance.ts', 'rm-units-finance.js');
+  const { normalizeUnit, unitsDiffer, unitPlural, setUnitConversion, convertQuantity, checkDeliveryUnits, deliveryUnitQuestion, conversionNote, listUnitConversions, forgetUnitConversions, describeConversion, unitConversionsAnswer, checkStockUnit } = bundleTo('finance.ts', 'rm-units-finance.js');
   const { newDatabase, d1 } = require('./harness.js');
   const workerDir = path.join(srcDir, '..');
 
@@ -106,6 +106,25 @@ module.exports = async function runUnitTests({ check, bundleTo, srcDir, fs, path
   check(gone.forgotten.length === 0 && gone.similar.length === 0, 'forgetting something never saved deletes nothing and finds nothing similar');
   r = await convertQuantity(env, 'laminate', 10, 'box', 'sqm');
   check(r.ok === false, 'once forgotten, a delivery of that item has no conversion again (it asks, as it did before one was saved)');
+
+  // ---- 3c. A quantity said in another unit about stock kept in one (decided 2026-10-04) --------------------------------
+  env = fresh();
+  await setUnitConversion(env, 'laminate', 'box', 'sqm', 2.2, null);
+  const lam = { name: 'Laminate', unit: 'sqm' };
+  let su = await checkStockUnit(env, lam, 'boxes', 3);
+  check(su.ok && su.quantity === 6.6 && /3 boxes of Laminate counted as 6\.6 sqm/.test(su.note), '3 boxes of laminate kept in sqm are 6.6 sqm, and the note says what was counted as what');
+  su = await checkStockUnit(env, lam, 'square metres', 5);
+  check(su.ok && su.quantity === 5 && su.note === '', 'the same unit written another way needs no conversion and no note');
+  su = await checkStockUnit(env, lam, null, 5);
+  check(su.ok && su.quantity === 5 && su.note === '', 'no unit said passes through untouched');
+  su = await checkStockUnit(env, lam, 'bundles', 2);
+  check(su.ok && su.quantity === 2 && su.note === '', 'a unit that is not recognised passes through untouched (it can never block a count)');
+  su = await checkStockUnit(env, { name: 'Laminate', unit: null }, 'boxes', 4);
+  check(su.ok && su.quantity === 4, 'an item kept with no unit has nothing to convert to');
+  su = await checkStockUnit(env, { name: 'Grout', unit: 'bag' }, 'boxes', 4);
+  check(su.ok === false && /Nothing was recorded\. Grout is kept in bags but you said boxes, and I don't know how many bags are in a box/.test(su.question) && /a box of Grout is 2\.2 bags/.test(su.question), 'with no conversion known it records nothing, names both units, and says how to answer');
+  su = await checkStockUnit(env, lam, 'boxes', 0.5);
+  check(su.ok && su.quantity === 1.1, 'a fraction of a box converts');
 
   // ---- 4. The table the seeds create is the table the code creates ----------------------------------------------
   const norm = (x) => x.replace(/\s+/g, ' ').replace(/\s*;\s*$/, '').trim();

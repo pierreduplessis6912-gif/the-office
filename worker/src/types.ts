@@ -277,11 +277,15 @@ export interface StockUsageExtraction {
   matched_item_name: string | null;
   quantity_used: number | null;
   job_customer_name: string | null;
+  // The unit the quantity was SAID in, exactly as stated ("boxes"), or null when none was said. Decided by Pierre 2026-10-04: so a quantity
+  // in another unit from the one the item is kept in can be converted, or asked about.
+  unit?: string | null;
 }
 
 export interface StocktakeExtraction {
   matched_item_name: string | null;
   quantity_counted: number | null;
+  unit?: string | null;
 }
 
 // Real feature 2026-07-25 — Snags, the smallest, most immediately

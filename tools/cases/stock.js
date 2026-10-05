@@ -17,12 +17,34 @@ module.exports = function cases(caps) {
   const laminateBox = (db) => { base(db); db.exec(unitConversionDdl + "; INSERT INTO unit_conversions (item_key, from_unit, to_unit, factor, set_by) VALUES ('laminate', 'box', 'sqm', 2.2, 'owner@example.com');"); };
   const laminateAndQuickstep = (db) => { base(db); db.exec(unitConversionDdl + "; INSERT INTO unit_conversions (item_key, from_unit, to_unit, factor) VALUES ('laminate', 'box', 'sqm', 2.2), ('quickstep laminate', 'box', 'sqm', 3);"); };
   const laminateInverse = (db) => { base(db); db.exec(unitConversionDdl + "; INSERT INTO unit_conversions (item_key, from_unit, to_unit, factor, set_by) VALUES ('laminate', 'sqm', 'box', 0.4545, 'owner@example.com');"); };
+  // Laminate is kept in square metres (40 on hand). A quantity SAID in boxes is converted, or asked about (decided 2026-10-04).
+  const laminateStock = (conversion) => (db) => {
+    base(db);
+    db.exec(`INSERT INTO stock_items (name, unit, quantity_on_hand) VALUES ('Laminate', 'sqm', 40);` + (conversion ? ' ' + unitConversionDdl + '; ' + conversion : ''));
+  };
+  const boxToSqm = "INSERT INTO unit_conversions (item_key, from_unit, to_unit, factor) VALUES ('laminate', 'box', 'sqm', 2.2);";
+  const sqmToBox = "INSERT INTO unit_conversions (item_key, from_unit, to_unit, factor) VALUES ('laminate', 'sqm', 'box', 0.4545);";
+  const usedLaminate = (qty, unit) => USE({ matched_item_name: 'Laminate', quantity_used: qty, unit, job_customer_name: null });
+  const countedLaminate = (qty, unit) => COUNT({ matched_item_name: 'Laminate', quantity_counted: qty, unit });
   const REG = (reply) => ({ match: /registering a real, consumable material to track as running stock/, reply });
   const USE = (reply) => ({ match: /reporting real stock being used up on a job/, reply });
   const COUNT = (reply) => ({ match: /reporting a real, physical stock count/, reply });
   const boom = () => { throw new Error('model unavailable'); };
   const c = (name, role, seed, intent, transcript, ai, extraction) => ({ name, seed, transcript, extraction: { intent, ...(extraction || {}) }, capabilities: caps[role], ai });
   return [
+    // ---------------- stock used or counted in another unit from the one it is kept in ----------------
+    c('stock usage: a quantity in another unit is converted ("3 boxes" of an item kept in sqm)', 'owner', laminateStock(boxToSqm), 'stock_usage', 'used 3 boxes of laminate', [usedLaminate(3, 'boxes')]),
+    c('stock usage: another unit and no conversion known asks and records nothing', 'owner', laminateStock(null), 'stock_usage', 'used 3 boxes of laminate', [usedLaminate(3, 'boxes')]),
+    c('stock usage: a conversion stored the other way round is used', 'owner', laminateStock(sqmToBox), 'stock_usage', 'used 3 boxes of laminate', [usedLaminate(3, 'boxes')]),
+    c('stock usage: the same unit written differently is not a mismatch', 'owner', laminateStock(null), 'stock_usage', 'used 5 square metres of laminate', [usedLaminate(5, 'square metres')]),
+    c('stock usage: a unit that is not recognised is used as before', 'owner', laminateStock(boxToSqm), 'stock_usage', 'used 2 bundles of laminate', [usedLaminate(2, 'bundles')]),
+    c('stock usage: no unit said is used as before', 'owner', laminateStock(boxToSqm), 'stock_usage', 'used 5 of laminate', [usedLaminate(5, null)]),
+    c('stock usage: an installer, converted', 'installer', laminateStock(boxToSqm), 'stock_usage', 'used 3 boxes of laminate', [usedLaminate(3, 'boxes')]),
+    c('stock usage: converted, and more than is on hand says the count looks off', 'owner', laminateStock(boxToSqm), 'stock_usage', 'used 30 boxes of laminate', [usedLaminate(30, 'boxes')]),
+    c('stocktake: a count in another unit is converted', 'owner', laminateStock(boxToSqm), 'stocktake', 'counted 10 boxes of laminate', [countedLaminate(10, 'boxes')]),
+    c('stocktake: another unit and no conversion known asks and records nothing', 'owner', laminateStock(null), 'stocktake', 'counted 10 boxes of laminate', [countedLaminate(10, 'boxes')]),
+    c('stocktake: the same unit written differently is not a mismatch', 'owner', laminateStock(null), 'stocktake', 'counted 38 m2 of laminate', [countedLaminate(38, 'm2')]),
+
     // ---------------- set_unit_conversion ----------------
     c('unit conversion: owner, a box of laminate is 2.2 square metres', 'owner', base, 'set_unit_conversion', 'a box of laminate is 2.2 square metres', [UCONV({ item_name: 'laminate', from_unit: 'box', to_unit: 'square metres', factor: 2.2 })]),
     c('unit conversion: said again with a new number, it replaces the old one', 'owner', laminateBox, 'set_unit_conversion', 'a box of laminate is 2.4 square metres', [UCONV({ item_name: 'laminate', from_unit: 'boxes', to_unit: 'sqm', factor: 2.4 })]),

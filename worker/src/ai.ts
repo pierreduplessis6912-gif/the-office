@@ -1109,13 +1109,15 @@ export async function extractStockUsage(
               "be ONLY the bare name itself, copied exactly — never include the unit or its parentheses. " +
               "For a given item shown as \"screed (bags)\", matched_item_name is \"screed\", never \"screed " +
               "(bags)\". Or null if it genuinely doesn't match anything given. quantity_used is the " +
-              "real, plain number actually stated, never invented. job_customer_name is the real customer " +
+              "real, plain number actually stated, never invented. unit is the unit the quantity was SAID in, " +
+              "exactly as stated (for example boxes, bags, square metres), or null if no unit was said. " +
+              "job_customer_name is the real customer " +
               "or job this was used on, if stated, or null. Return ONLY JSON: " +
-              '{"matched_item_name": string or null, "quantity_used": number or null, "job_customer_name": ' +
+              '{"matched_item_name": string or null, "quantity_used": number or null, "unit": string or null, "job_customer_name": ' +
               "string or null}\n\n" +
               "Example:\n" +
               'Tracked items: "screed (bags)". Message: "used 5 bags of screed on Jenny\'s job" -> ' +
-              '{"matched_item_name":"screed","quantity_used":5,"job_customer_name":"Jenny"}',
+              '{"matched_item_name":"screed","quantity_used":5,"unit":"bags","job_customer_name":"Jenny"}',
           },
           { role: "user", content: `Tracked items: ${itemList}.\n\nMessage: "${transcript}"` },
         ],
@@ -1128,6 +1130,7 @@ export async function extractStockUsage(
     return {
       matched_item_name: parsed.matched_item_name ?? null,
       quantity_used: parsed.quantity_used ?? null,
+      unit: typeof parsed.unit === "string" && parsed.unit.trim() ? parsed.unit.trim().slice(0, 40) : null,
       job_customer_name: parsed.job_customer_name ?? null,
     };
   } catch {
@@ -1161,11 +1164,12 @@ export async function extractStocktake(
               "ONLY the bare name itself, copied exactly — never include the unit or its parentheses. For " +
               "a given item shown as \"screed (bags)\", matched_item_name is \"screed\", never \"screed " +
               "(bags)\". Or null if it genuinely doesn't match anything given. quantity_counted is the " +
-              "real, plain number actually counted, never calculated or assumed. Return ONLY JSON: " +
-              '{"matched_item_name": string or null, "quantity_counted": number or null}\n\n' +
+              "real, plain number actually counted, never calculated or assumed. unit is the unit the count was SAID in, " +
+              "exactly as stated (for example boxes, bags, square metres), or null if no unit was said. Return ONLY JSON: " +
+              '{"matched_item_name": string or null, "quantity_counted": number or null, "unit": string or null}\n\n' +
               "Example:\n" +
               'Tracked items: "screed (bags)". Message: "counted 15 bags of screed" -> ' +
-              '{"matched_item_name":"screed","quantity_counted":15}',
+              '{"matched_item_name":"screed","quantity_counted":15,"unit":"bags"}',
           },
           { role: "user", content: `Tracked items: ${itemList}.\n\nMessage: "${transcript}"` },
         ],
@@ -1175,7 +1179,11 @@ export async function extractStocktake(
     const rawText = r.choices?.[0]?.message?.content ?? "";
     const cleaned = rawText.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(cleaned) as StocktakeExtraction;
-    return { matched_item_name: parsed.matched_item_name ?? null, quantity_counted: parsed.quantity_counted ?? null };
+    return {
+      matched_item_name: parsed.matched_item_name ?? null,
+      quantity_counted: parsed.quantity_counted ?? null,
+      unit: typeof parsed.unit === "string" && parsed.unit.trim() ? parsed.unit.trim().slice(0, 40) : null,
+    };
   } catch {
     return empty;
   }

@@ -6146,3 +6146,23 @@ Round 9, decided by Pierre: **19.** apply the guard against times and durations 
 **The property that matters.** Against `main`: of the existing recordings, **five changed and in every one the only difference is the plural wording** (checked mechanically), **one was renamed and re-recorded** (the installer's broad question, whose behaviour is the point of 20a), and the rest are identical. Eleven cases were added (eight for the screens and plurals, three for dates).
 
 **Verified:** typecheck unchanged; **3,434 checks**. Six deliberate breakages were caught: an installer sent to the empty screen again; **too strict** (the accountant restricted from the screens); one quotation reading in the plural again; a time or duration read as the day again; and an amount read as the day again. **That last one first survived:** every amount case I had written also contained "the 17th", so the ordinal preference already picked the right number and the amount guard was never exercised; phrasings with no ordinal ending ("20 sqm on the 17") were added and it is now caught.
+
+
+---
+
+## Decisions session, round 9 (part 2): stock used or counted in another unit
+
+Decided by Pierre: **21. convert stock usage and counts, asking when the unit is unknown.** (Parts 19 and 20, times not being read as days and the two cosmetic faults, are recorded above.)
+
+**The problem.** "Used 3 boxes of laminate" for an item kept in square metres was recorded as 3 sqm, because the stock readers captured no unit. Deliveries already converted; this is the other half.
+
+**What it does.** The usage and stocktake readers now also capture the **unit the quantity was said in**. When that is a recognised unit that differs from the unit the item is kept in:
+- with a **conversion known** (either direction), the quantity is converted and the reply says so: "Recorded 6.6 used of Laminate — 33.4 remaining. (3 boxes of Laminate counted as 6.6 sqm.)"; a stocktake converts the count the same way and corrects the stock to it;
+- with **no conversion known**, **nothing is recorded** and the reply asks once: "Laminate is kept in sqm but you said boxes, and I don't know how many sqm are in a box. Say, for example, 'a box of Laminate is 2.2 sqm' (with the real number). Then say it again."
+A unit that was not said, or is not one the table recognises, passes through exactly as before, so an unfamiliar word can never block a count. Over-using after conversion still says the count looks off ("66 used… −26 remaining. That is more than the 40 on hand, so the count looks off."). Same rules and the same conversions as for deliveries, one shared check.
+
+**The property that matters.** Against `main`, **no existing recording changed or was removed** (none of the existing scripted readings carries a unit); 11 cases were added: usage converted, usage with no conversion known, a conversion stored the other way round, the same unit spelled differently, an unrecognised unit, no unit said, an installer, over-using after conversion, and three for stocktakes.
+
+**Verified:** typecheck unchanged; **3,485 checks**, including unit tests of the shared check (converted with its note, same unit another way, no unit, unrecognised unit, an item kept with no unit, the question's wording, a fraction of a box). **Four deliberate breakages were caught:** usage recording the number said instead of the converted amount; usage recording when no conversion is known instead of asking; a stocktake recording the number said; and the **too-strict** rule that treats an unrecognised or missing unit as different.
+
+**Not run here, and needs one real try on the phone:** the language model that reads the sentence. Both prompts now ask for the unit and their examples show it ("used 5 bags of screed" gives "bags"), but a model could not be run in this environment, so "used 3 boxes of laminate" is unverified against the real reader.

@@ -1,4 +1,827 @@
 {
+ "stock usage: a quantity in another unit is converted (\"3 boxes\" of an item kept in sqm)": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Recorded 6.6 used of Laminate — 33.4 remaining. (3 boxes of Laminate counted as 6.6 sqm.)",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is reporting real stock being used up on a job. You are"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "used 3 boxes of laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "used 3 boxes of laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "stock_items": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "name": "Laminate",
+       "unit": "sqm",
+       "quantity_on_hand": 40,
+       "reorder_threshold": null
+      },
+      "after": {
+       "id": 1,
+       "name": "Laminate",
+       "unit": "sqm",
+       "quantity_on_hand": 33.4,
+       "reorder_threshold": null
+      }
+     }
+    ]
+   },
+   "stock_usage_log": {
+    "added": [
+     {
+      "id": 1,
+      "stock_item_id": 1,
+      "quantity_used": 6.6,
+      "customer_id": null,
+      "source_transcript": "used 3 boxes of laminate",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "stock usage: another unit and no conversion known asks and records nothing": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Nothing was recorded. Laminate is kept in sqm but you said boxes, and I don't know how many sqm are in a box. Say, for example, \"a box of Laminate is 2.2 sqm\" (with the real number). Then say it again.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is reporting real stock being used up on a job. You are"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "used 3 boxes of laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "used 3 boxes of laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "stock usage: a conversion stored the other way round is used": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Recorded 6.6007 used of Laminate — 33.3993 remaining. (3 boxes of Laminate counted as 6.6007 sqm.)",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is reporting real stock being used up on a job. You are"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "used 3 boxes of laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "used 3 boxes of laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "stock_items": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "name": "Laminate",
+       "unit": "sqm",
+       "quantity_on_hand": 40,
+       "reorder_threshold": null
+      },
+      "after": {
+       "id": 1,
+       "name": "Laminate",
+       "unit": "sqm",
+       "quantity_on_hand": 33.3993,
+       "reorder_threshold": null
+      }
+     }
+    ]
+   },
+   "stock_usage_log": {
+    "added": [
+     {
+      "id": 1,
+      "stock_item_id": 1,
+      "quantity_used": 6.6007,
+      "customer_id": null,
+      "source_transcript": "used 3 boxes of laminate",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "stock usage: the same unit written differently is not a mismatch": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Recorded 5 used of Laminate — 35 remaining.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is reporting real stock being used up on a job. You are"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "used 5 square metres of laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "used 5 square metres of laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "stock_items": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "name": "Laminate",
+       "unit": "sqm",
+       "quantity_on_hand": 40,
+       "reorder_threshold": null
+      },
+      "after": {
+       "id": 1,
+       "name": "Laminate",
+       "unit": "sqm",
+       "quantity_on_hand": 35,
+       "reorder_threshold": null
+      }
+     }
+    ]
+   },
+   "stock_usage_log": {
+    "added": [
+     {
+      "id": 1,
+      "stock_item_id": 1,
+      "quantity_used": 5,
+      "customer_id": null,
+      "source_transcript": "used 5 square metres of laminate",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "stock usage: a unit that is not recognised is used as before": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Recorded 2 used of Laminate — 38 remaining.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is reporting real stock being used up on a job. You are"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "used 2 bundles of laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "used 2 bundles of laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "stock_items": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "name": "Laminate",
+       "unit": "sqm",
+       "quantity_on_hand": 40,
+       "reorder_threshold": null
+      },
+      "after": {
+       "id": 1,
+       "name": "Laminate",
+       "unit": "sqm",
+       "quantity_on_hand": 38,
+       "reorder_threshold": null
+      }
+     }
+    ]
+   },
+   "stock_usage_log": {
+    "added": [
+     {
+      "id": 1,
+      "stock_item_id": 1,
+      "quantity_used": 2,
+      "customer_id": null,
+      "source_transcript": "used 2 bundles of laminate",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "stock usage: no unit said is used as before": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Recorded 5 used of Laminate — 35 remaining.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is reporting real stock being used up on a job. You are"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "used 5 of laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "used 5 of laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "stock_items": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "name": "Laminate",
+       "unit": "sqm",
+       "quantity_on_hand": 40,
+       "reorder_threshold": null
+      },
+      "after": {
+       "id": 1,
+       "name": "Laminate",
+       "unit": "sqm",
+       "quantity_on_hand": 35,
+       "reorder_threshold": null
+      }
+     }
+    ]
+   },
+   "stock_usage_log": {
+    "added": [
+     {
+      "id": 1,
+      "stock_item_id": 1,
+      "quantity_used": 5,
+      "customer_id": null,
+      "source_transcript": "used 5 of laminate",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "stock usage: an installer, converted": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Recorded 6.6 used of Laminate — 33.4 remaining. (3 boxes of Laminate counted as 6.6 sqm.)",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is reporting real stock being used up on a job. You are"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "used 3 boxes of laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "used 3 boxes of laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "stock_items": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "name": "Laminate",
+       "unit": "sqm",
+       "quantity_on_hand": 40,
+       "reorder_threshold": null
+      },
+      "after": {
+       "id": 1,
+       "name": "Laminate",
+       "unit": "sqm",
+       "quantity_on_hand": 33.4,
+       "reorder_threshold": null
+      }
+     }
+    ]
+   },
+   "stock_usage_log": {
+    "added": [
+     {
+      "id": 1,
+      "stock_item_id": 1,
+      "quantity_used": 6.6,
+      "customer_id": null,
+      "source_transcript": "used 3 boxes of laminate",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "stock usage: converted, and more than is on hand says the count looks off": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Recorded 66 used of Laminate — -26 remaining. (30 boxes of Laminate counted as 66 sqm.) That is more than the 40 on hand, so the count looks off. A stock count will put it right.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is reporting real stock being used up on a job. You are"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "used 30 boxes of laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "used 30 boxes of laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "stock_items": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "name": "Laminate",
+       "unit": "sqm",
+       "quantity_on_hand": 40,
+       "reorder_threshold": null
+      },
+      "after": {
+       "id": 1,
+       "name": "Laminate",
+       "unit": "sqm",
+       "quantity_on_hand": -26,
+       "reorder_threshold": null
+      }
+     }
+    ]
+   },
+   "stock_usage_log": {
+    "added": [
+     {
+      "id": 1,
+      "stock_item_id": 1,
+      "quantity_used": 66,
+      "customer_id": null,
+      "source_transcript": "used 30 boxes of laminate",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "stocktake: a count in another unit is converted": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Stocktake recorded for Laminate: counted 22, variance -18 vs the expected 40. (10 boxes of Laminate counted as 22 sqm.)",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is reporting a real, physical stock count. You are give"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "counted 10 boxes of laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "counted 10 boxes of laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "stock_items": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "name": "Laminate",
+       "unit": "sqm",
+       "quantity_on_hand": 40,
+       "reorder_threshold": null
+      },
+      "after": {
+       "id": 1,
+       "name": "Laminate",
+       "unit": "sqm",
+       "quantity_on_hand": 22,
+       "reorder_threshold": null
+      }
+     }
+    ]
+   },
+   "stocktake_lines": {
+    "added": [
+     {
+      "id": 1,
+      "stocktake_id": 1,
+      "stock_item_id": 1,
+      "quantity_counted": 22,
+      "quantity_expected": 40,
+      "variance": -18
+     }
+    ]
+   },
+   "stocktakes": {
+    "added": [
+     {
+      "id": 1,
+      "source_transcript": "counted 10 boxes of laminate",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "stocktake: another unit and no conversion known asks and records nothing": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Nothing was recorded. Laminate is kept in sqm but you said boxes, and I don't know how many sqm are in a box. Say, for example, \"a box of Laminate is 2.2 sqm\" (with the real number). Then say it again.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is reporting a real, physical stock count. You are give"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "counted 10 boxes of laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "counted 10 boxes of laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "stocktake: the same unit written differently is not a mismatch": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Stocktake recorded for Laminate: counted 38, variance -2 vs the expected 40.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson is reporting a real, physical stock count. You are give"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "counted 38 m2 of laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "counted 38 m2 of laminate",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "stock_items": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "name": "Laminate",
+       "unit": "sqm",
+       "quantity_on_hand": 40,
+       "reorder_threshold": null
+      },
+      "after": {
+       "id": 1,
+       "name": "Laminate",
+       "unit": "sqm",
+       "quantity_on_hand": 38,
+       "reorder_threshold": null
+      }
+     }
+    ]
+   },
+   "stocktake_lines": {
+    "added": [
+     {
+      "id": 1,
+      "stocktake_id": 1,
+      "stock_item_id": 1,
+      "quantity_counted": 38,
+      "quantity_expected": 40,
+      "variance": -2
+     }
+    ]
+   },
+   "stocktakes": {
+    "added": [
+     {
+      "id": 1,
+      "source_transcript": "counted 38 m2 of laminate",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
  "unit conversion: owner, a box of laminate is 2.2 square metres": {
   "result": {
    "customer": null,

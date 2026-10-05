@@ -3,7 +3,7 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 9 in progress).
+decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 9 applied).
 
 ## A. Decisions only Pierre can make
 
@@ -41,9 +41,6 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
 
 
 
-40. **Stock usage and stock counts are not converted.** Their readers carry no unit, so "used 3 boxes" of an item kept in
-    sqm is recorded as 3 sqm. Deliveries are converted; this is the other half. *Option:* have those readers capture the unit
-    and convert, or ask when it is ambiguous. (`DECISIONS.md`, "Decisions session, round 6 (part 2)".)
 42. **The recognised units are a fixed list** (square metres, boxes, bags, rolls, lengths, tiles, sheets, litres, kilograms,
     tubes, tins, packs, pallets, metres, each). A unit outside it (a "bundle") is never converted and never flagged, by
     design, so it cannot block a delivery. *Option:* add units as they turn up.
@@ -51,6 +48,7 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
 45. **The invoice reader captures no unit**, so an invoice in boxes against an order in square metres is matched number to
     number. The unit conversion built earlier applies to deliveries and stock, not to invoices. *Option:* have the invoice
     reader capture the unit and convert it the same way.
+
 
 ## B. Needs a live check only a phone can give
 
@@ -60,6 +58,9 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     tests, never run on a real delivery note with two orders.
 15. **The Permissions screen on a real phone.** The web build compiles it; the phone build and a real tap-through are
     unverified (switch something off for the installer, then check on the installer's phone that the room is gone).
+14g. **A real "used 3 boxes of laminate" and "counted 10 boxes of laminate".** The reader that turns the sentence into an item,
+    a number and a unit is a language model that could not be run here. Try each once for an item kept in sqm with a box
+    conversion saved (expect the converted amount and the note), and once with no conversion saved (expect the question).
 14f. **A real "what conversions do I have" and "forget the laminate conversion".** Both are read by the language model, which
     could not be run here. Say each once on the phone (and check "forget that" still means the previous message).
 14e. **A real unit conversion on a phone.** Say "a box of laminate is 2.2 square metres" (expect "Noted: 1 box of laminate =
@@ -105,6 +106,10 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
 
 ## Settled (kept so the reasoning is not lost)
+
+- 2026-10-04, decided by Pierre (decisions session, round 9, stock units):
+  - **Stock usage and counts said in another unit are converted, and when no conversion is known nothing is recorded and the
+    person is asked once.** Same conversions and rules as for deliveries. Applied. (`DECISIONS.md`, "Decisions session, round 9 (part 2)".)
 
 - 2026-10-04, decided by Pierre (decisions session, round 9):
   - **A time, a duration or an amount is never read as the day** ("5 pm on the 17th" is the 17th; "3 days from now" is no date).
