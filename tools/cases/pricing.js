@@ -46,6 +46,14 @@ module.exports = function cases(caps) {
     c('invoice: accountant, an amount and a task', 'accountant', base, 'invoice', { amount: 5000 }, 'invoice Jenny R5000 for repairs',
       [OBS(obs({ job_description: 'repairs', tasks: [{ description: 'repairs', component_name: null }] }))]),
     c('invoice: installer is refused', 'installer', base, 'invoice', { amount: 5000 }, 'invoice Jenny R5000 for repairs', []),
+    // Decided 2026-10-04: a scheduling message the classifier labels "invoice", with no amount in it, is read as the job it is (a role that may
+    // record jobs but not invoices); anything with an amount stays refused.
+    c('invoice: installer, a scheduling message labelled invoice with no amount is read as the job it is', 'installer', base, 'invoice', { amount: null }, 'Sepo will install at Jenny\'s on Monday',
+      [OBS(obs({ job_description: 'installation', scheduled_date_raw: 'Monday', installer_name: 'Sepo' }))]),
+    c('invoice: installer, labelled invoice with no amount and nothing about a job in it', 'installer', base, 'invoice', { amount: null }, 'Jenny',
+      [OBS(nothingObserved)]),
+    c('invoice: a role with no permissions, a scheduling message labelled invoice with no amount, is read as a job too (jobs are open to every role)', 'stranger', base, 'invoice', { amount: null }, 'Sepo will install at Jenny\'s on Monday', []),
+    c('invoice: installer, an amount in it stays refused even if it also schedules a job', 'installer', base, 'invoice', { amount: 4000 }, 'invoice Jenny R4000, Sepo will install it Monday', []),
 
     // ---------------- quotation (line items read by a model) ----------------
     c('quotation: owner, two line items', 'owner', base, 'quotation', {}, 'quote Jenny 20 square metres of carpet at R450 and underlay R2000',

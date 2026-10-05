@@ -1,9 +1,9 @@
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult, WorkObservationExtraction } from "./types";
 import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, classifyDashboardIntent, containsBackwardReference, describeImage, embedText, extractDocumentIdentity, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractSupplierStatement, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, splitIntoTopics, storeUnscopedMemory, transcribe, transcribeWithNameHints, extractUnitConversion } from "./ai";
 import { listAudit, listPermissions, resetRole, setPermission } from "./permissions";
-import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, logInteractionEdge, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, reconcilePerson, setSelection, withArticle } from "./identity";
+import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, logInteractionEdge, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, reconcilePerson, setSelection, withArticle, clearSelections } from "./identity";
 import { attachToSiblingJobScope, completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveScheduledDate, resolveTaskCompletion, hasSiblingToAttach } from "./scheduler";
-import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
+import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText, mayHandleSensitiveFact, sensitiveFactKind } from "./memory";
 import {
   authGate, checkIdempotencyKey, completeIdempotencyKey, runIdempotentMigration, corsHeadersFor,
   signDocumentPath, resolveCapabilities, getMemberContext, getJobScope, denyForRole, signSession,
@@ -244,7 +244,7 @@ async function processOneExtraction(
   // purpose — a real listener doesn't narrate everything they just
   // let go of.
   if (extraction?.intent === "forget_last") {
-    await env.OFFICE_DB.prepare("DELETE FROM selections").run();
+    await clearSelections(env, recordingUserEmail);
 
     // Only a pending action this caller could resolve through the normal confirm and reject routes. It used to be the
     // newest pending action of anyone's, so an installer saying "forget that" abandoned the owner's pending invoice.
@@ -283,6 +283,12 @@ async function processOneExtraction(
   // decision 2026-10-02). A refused role now causes no writes at all.
   // customer and character are null in the refusal because nothing has
   // been resolved yet, which is the point.
+  // Decided by Pierre 2026-10-04: an installer's scheduling message ("Sipho installs at Jenny's on Monday") that the classifier labels "invoice"
+  // was refused outright as money. When the label is "invoice" but there is NO amount in it, the role may not record invoices, and the role
+  // MAY record jobs, it is read as the job it is. Anything with an amount stays refused: that is money.
+  if (extraction?.intent === "invoice" && !extraction.amount && intentCreationRefusal("invoice", capabilities) && !intentCreationRefusal("work_observation", capabilities)) {
+    extraction = { ...extraction, intent: "work_observation" };
+  }
   const creationRefusal = intentCreationRefusal(extraction?.intent, capabilities);
   if (creationRefusal) {
     return {
@@ -554,7 +560,7 @@ async function processOneExtraction(
     // AI-only fallback — but the register lives in D1, not in
     // conversation history, so a test that deliberately sent no
     // history skipped it entirely. Fixed: unconditional now.
-    const current = await getCurrentSelection(env);
+    const current = await getCurrentSelection(env, recordingUserEmail);
     if (current?.type === "customer") {
       customer = { id: current.id, name: current.name, matched: true };
       extraction = { ...extraction, query_scope: "customer" };
@@ -584,10 +590,10 @@ async function processOneExtraction(
   // before. This is what makes the NEXT vague reference resolvable
   // without any AI call at all.
   if (customer) {
-    ctx.waitUntil(setSelection(env, "customer", customer.id, customer.name));
+    ctx.waitUntil(setSelection(env, "customer", customer.id, customer.name, recordingUserEmail));
   }
   if (character) {
-    ctx.waitUntil(setSelection(env, "character", character.id, character.name));
+    ctx.waitUntil(setSelection(env, "character", character.id, character.name, recordingUserEmail));
   }
 
   if (captureId !== null) {
@@ -1555,7 +1561,11 @@ async function processOneExtraction(
   // and character_name are mutually exclusive per extraction's own
   // rule, so this never double-fires alongside the customer_fact
   // guard above for the same message.
-  if (extraction?.fact_key && extraction?.fact_value && character) {
+  // Decided by Pierre 2026-10-04: a payroll detail (a day rate, a salary) or a banking detail (an account, a branch code) needs the matching
+  // permission to be SAVED, as to be read: a role that could never read it back is told so instead of being left to hold it.
+  const sensitiveKind = extraction?.fact_key ? sensitiveFactKind(extraction.fact_key) : null;
+  const sensitiveFactRefused = Boolean(extraction?.fact_key && extraction?.fact_value && character && !mayHandleSensitiveFact(sensitiveKind, capabilities));
+  if (extraction?.fact_key && extraction?.fact_value && character && !sensitiveFactRefused) {
     const held = await holdForConfirmation(
       env,
       "character_fact",
@@ -2076,7 +2086,7 @@ async function processOneExtraction(
       // known fact about a person is never left to the model's own
       // judgment about literal relevance — appended deterministically
       // after synthesis instead.
-      const hrFacts = await getCharacterFacts(env, character.id);
+      const hrFacts = await getCharacterFacts(env, character.id, capabilities);
       // Real feature 2026-07-17 — extending Principle 26: job and
       // installer activity gated behind can_know_jobs, which owner
       // and installer both have but accountant deliberately doesn't.
@@ -2198,6 +2208,9 @@ async function processOneExtraction(
     message = "I didn't catch anything there I could act on.";
   }
 
+  if (sensitiveFactRefused) {
+    message += ` Nothing was saved: ${sensitiveKind === "payroll" ? "pay details like a day rate or salary can only be saved by someone with payroll access" : "bank details can only be saved by someone with banking access"}.`;
+  }
   if (factPendingActionId) {
     message += ` ${extraction!.fact_key} noted (${extraction!.fact_value}) — needs your confirmation (action #${factPendingActionId}) before it's saved.`;
   }
@@ -4632,7 +4645,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             invoice.id,
             payload.customerName,
             invoice.amount,
-            (p) => signDocumentPath(env, p, 365 * 24 * 60 * 60 * 1000)
+            (p) => signDocumentPath(env, p, 365 * 24 * 60 * 60 * 1000),
+            (await resolveCapabilities(request, env)).email
           );
           return Response.json({ status: "confirmed", invoice, pdfUrl, shareMessage });
         }
@@ -4667,7 +4681,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             quotation.id,
             payload.customerName,
             quotation.amount,
-            (p) => signDocumentPath(env, p, 365 * 24 * 60 * 60 * 1000)
+            (p) => signDocumentPath(env, p, 365 * 24 * 60 * 60 * 1000),
+            (await resolveCapabilities(request, env)).email
           );
           return Response.json({ status: "confirmed", quotation, pdfUrl, shareMessage });
         }
@@ -4704,7 +4719,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             result.invoiceId,
             payload.customerName,
             payload.remainingBalance,
-            (p) => signDocumentPath(env, p, 365 * 24 * 60 * 60 * 1000)
+            (p) => signDocumentPath(env, p, 365 * 24 * 60 * 60 * 1000),
+            (await resolveCapabilities(request, env)).email
           );
           return Response.json({ status: "confirmed", invoice: result, pdfUrl, shareMessage });
         }

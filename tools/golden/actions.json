@@ -362,6 +362,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "invoice",
+      "entity_id": 1,
+      "label": "invoice for Jenny Smith (R5,000)"
+     }
+    ]
+   },
    "pending_actions": {
     "changed": [
      {
@@ -379,15 +389,6 @@
        "status": "confirmed",
        "source_transcript": "invoice Jenny R5000"
       }
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "invoice",
-      "entity_id": 1,
-      "label": "invoice for Jenny Smith (R5,000)"
      }
     ]
    }
@@ -433,6 +434,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "accountant@example.com",
+      "key": "invoice",
+      "entity_id": 1,
+      "label": "invoice for Jenny Smith (R5,000)"
+     }
+    ]
+   },
    "pending_actions": {
     "changed": [
      {
@@ -450,15 +461,6 @@
        "status": "confirmed",
        "source_transcript": "invoice Jenny R5000"
       }
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "invoice",
-      "entity_id": 1,
-      "label": "invoice for Jenny Smith (R5,000)"
      }
     ]
    }
@@ -503,6 +505,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "quotation",
+      "entity_id": 1,
+      "label": "quotation for Jenny Smith (R9,000)"
+     }
+    ]
+   },
    "pending_actions": {
     "changed": [
      {
@@ -534,15 +546,6 @@
       "source_transcript": "quote Jenny 20 sqm carpet at R450",
       "job_scope_id": null,
       "capture_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "quotation",
-      "entity_id": 1,
-      "label": "quotation for Jenny Smith (R9,000)"
      }
     ]
    }
@@ -601,6 +604,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "invoice",
+      "entity_id": 1,
+      "label": "invoice for Jenny Smith (R8,400)"
+     }
+    ]
+   },
    "pending_actions": {
     "changed": [
      {
@@ -644,15 +657,6 @@
        "job_scope_id": null,
        "capture_id": null
       }
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "invoice",
-      "entity_id": 1,
-      "label": "invoice for Jenny Smith (R8,400)"
      }
     ]
    }
@@ -2259,6 +2263,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 4,
+      "label": "Jabulani"
+     }
+    ]
+   },
    "pending_actions": {
     "changed": [
      {
@@ -2285,15 +2299,6 @@
       "id": 1,
       "customer_id": 4,
       "text": "Jabulani called about a job"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 4,
-      "label": "Jabulani"
      }
     ]
    }
@@ -2383,6 +2388,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "accountant@example.com",
+      "key": "customer",
+      "entity_id": 4,
+      "label": "Jabulani"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -2409,15 +2424,6 @@
        "status": "confirmed",
        "source_transcript": "Jabulani paid R500"
       }
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 4,
-      "label": "Jabulani"
      }
     ]
    }
@@ -2507,6 +2513,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 4,
+      "label": "Mystery"
+     }
+    ]
+   },
    "pending_actions": {
     "changed": [
      {
@@ -2543,15 +2559,6 @@
       "name": "Mystery",
       "needs_merge_review": 0,
       "merged_into_person_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 4,
-      "label": "Mystery"
      }
     ]
    }
@@ -2700,6 +2707,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 4,
+      "label": "Sipo Dlamini"
+     }
+    ]
+   },
    "pending_actions": {
     "changed": [
      {
@@ -2726,15 +2743,6 @@
       "id": 1,
       "customer_id": 4,
       "text": "Sipo Dlamini called"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 4,
-      "label": "Sipo Dlamini"
      }
     ]
    }
@@ -2838,6 +2846,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 4,
+      "label": "Sipho Dube"
+     }
+    ]
+   },
    "pending_actions": {
     "changed": [
      {
@@ -2864,15 +2882,6 @@
       "id": 1,
       "customer_id": 4,
       "text": "Sipho Dub called"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 4,
-      "label": "Sipho Dube"
      }
     ]
    }
@@ -2976,6 +2985,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 4,
+      "label": "Sipo Dlamini"
+     }
+    ]
+   },
    "pending_actions": {
     "changed": [
      {
@@ -3012,15 +3031,6 @@
       "name": "Sipo Dlamini",
       "needs_merge_review": 0,
       "merged_into_person_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 4,
-      "label": "Sipo Dlamini"
      }
     ]
    }
@@ -3097,6 +3107,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 4,
+      "label": "Sipho Dube"
+     }
+    ]
+   },
    "pending_actions": {
     "changed": [
      {
@@ -3123,15 +3143,6 @@
       "id": 1,
       "customer_id": 4,
       "text": "Sipho Dub called"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 4,
-      "label": "Sipho Dube"
      }
     ]
    }
@@ -3207,6 +3218,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 4,
+      "label": "Jabulani"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -3233,15 +3254,6 @@
        "status": "confirmed",
        "source_transcript": "Jabulani paid R500"
       }
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 4,
-      "label": "Jabulani"
      }
     ]
    }
@@ -3337,6 +3349,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 3,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "changed": [
      {
@@ -3354,15 +3376,6 @@
        "status": "confirmed",
        "source_transcript": "Jenny Smith will install it"
       }
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 3,
-      "label": "Jenny Smith"
      }
     ]
    }

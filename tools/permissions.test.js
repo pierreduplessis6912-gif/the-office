@@ -20,7 +20,7 @@ module.exports = async function runPermissionTests({ check, compiled, srcDir, fs
   for (const role of EDITABLE_ROLES) for (const k of ROLE_CAPABILITIES[role]) check(!CAPABILITY_BY_KEY[k].ownerOnly, `the default for "${role}" must never include the owner-only capability "${k}"`);
   check(sameJson([...EDITABLE_ROLES].sort(), ['accountant', 'installer']) && !EDITABLE_ROLES.includes('owner'), 'the roles the owner can edit are the accountant and the installer, never the owner');
   check(CAPABILITY_CATALOG.every((c) => c.label && c.description), 'every capability has a plain-language label and description for the screen');
-  check(CAPABILITY_CATALOG.filter((c) => isEditableCapability(c.key)).length === 5, 'exactly five capabilities can be switched today (the others are owner only or not used by anything yet)');
+  check(CAPABILITY_CATALOG.filter((c) => isEditableCapability(c.key)).length === 7, 'exactly seven capabilities can be switched today: money, debtors, profit, materials, jobs, and (since 2026-10-04) payroll and banking details (the others are owner only or not used by anything yet)');
 
   // ---- 3. The "in use" flags match the code, so a switch is never wired to nothing ----------------------------------------
   // A capability nothing checks cannot be switched. When code starts checking one, this fails until its flag is flipped on purpose,
@@ -43,7 +43,7 @@ module.exports = async function runPermissionTests({ check, compiled, srcDir, fs
   check(applyOverrides(inst, [{ capability: 'can_manage_invoices', granted: 1 }]).includes('can_manage_invoices') === true, 'an override can give a capability');
   check(applyOverrides(['can_know_jobs', 'can_know_materials'], []).join() === 'can_know_jobs,can_know_materials', 'with nothing to apply the defaults come back unchanged, in their own order');
   check(applyOverrides(['can_know_jobs'], [{ capability: 'can_know_profit', granted: 1 }, { capability: 'can_manage_invoices', granted: 1 }]).join() === 'can_know_jobs,can_manage_invoices,can_know_profit', 'defaults keep their order and anything granted follows in catalog order, not the order it was stored');
-  for (const [name, row] of [['an owner-only capability', { capability: 'can_manage_settings', granted: 1 }], ['another owner-only capability', { capability: 'can_delete_data', granted: 1 }], ['a capability nothing uses', { capability: 'can_know_payroll', granted: 1 }], ['a capability that does not exist', { capability: 'can_do_anything', granted: 1 }]]) {
+  for (const [name, row] of [['an owner-only capability', { capability: 'can_manage_settings', granted: 1 }], ['another owner-only capability', { capability: 'can_delete_data', granted: 1 }], ['a capability nothing uses', { capability: 'can_know_measurements', granted: 1 }], ['a capability that does not exist', { capability: 'can_do_anything', granted: 1 }]]) {
     check(sameJson(applyOverrides(inst, [row]), applyOverrides(inst, [])), `an override granting ${name} must be ignored (a stray row can never widen access)`);
   }
   check(!applyOverrides(ROLE_CAPABILITIES.accountant, [{ capability: 'can_manage_settings', granted: 0 }]).includes('can_manage_settings'), 'ignoring a revoke of an owner-only capability the role never had changes nothing');

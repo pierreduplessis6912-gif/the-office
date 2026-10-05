@@ -3076,13 +3076,14 @@ export async function buildDocumentResponse(
   // customer may reasonably open theirs weeks later) — different from
   // the short one the app's own interactive taps use via
   // /documents/sign, so this is never routed through that endpoint.
-  signPath: (path: string) => Promise<string>
+  signPath: (path: string) => Promise<string>,
+  member: string | null = null
 ): Promise<{ pdfUrl: string; shareMessage: string | null }> {
   const documentPath = `/${kind}s/${documentId}/pdf`;
   const pdfUrl = `${origin}${documentPath}?sig=${await signPath(documentPath)}`;
   const shareMessage = customerName ? await generateShareMessage(env, kind, customerName, amount, pdfUrl) : null;
   const label = customerName ? `${kind} for ${customerName} (${formatRand(amount)})` : `${kind} (${formatRand(amount)})`;
-  await setSelection(env, kind, documentId, label);
+  await setSelection(env, kind, documentId, label, member);
   return { pdfUrl, shareMessage };
 }
 

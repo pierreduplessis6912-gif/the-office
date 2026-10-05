@@ -47,6 +47,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "po_line_items": {
     "added": [
      {
@@ -108,15 +118,6 @@
       "description": "Vinyl, underlay and skirting",
       "source_transcript": "order 50 sqm vinyl, 100 sqm underlay and 10 lengths of skirting from Floornet",
       "capture_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -182,6 +183,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 4,
+      "label": "Newco Supplies"
+     }
+    ]
+   },
    "po_line_items": {
     "added": [
      {
@@ -213,15 +224,6 @@
       "description": "Adhesive",
       "source_transcript": "order 20 bags of adhesive from Newco Supplies",
       "capture_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 4,
-      "label": "Newco Supplies"
      }
     ]
    }
@@ -321,9 +323,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -383,9 +386,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -443,6 +447,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "po_line_items": {
     "added": [
      {
@@ -474,15 +488,6 @@
       "description": "Adhesive",
       "source_transcript": "order 20 bags of adhesive from Floornet",
       "capture_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -555,6 +560,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -563,15 +578,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_received\":50,\"item_description\":\"vinyl\",\"unit\":\"sqm\"}]}",
       "status": "pending",
       "source_transcript": "Floornet delivered the vinyl, 50 square metres"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -626,6 +632,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -634,15 +650,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_received\":40,\"item_description\":\"vinyl\",\"unit\":\"sqm\"}]}",
       "status": "pending",
       "source_transcript": "Floornet delivered 40 square metres of vinyl"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -697,6 +704,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -705,15 +722,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":null,\"quantity_received\":5,\"item_description\":\"grout\",\"unit\":\"bag\"}]}",
       "status": "pending",
       "source_transcript": "Floornet delivered 5 bags of grout"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -768,6 +776,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -776,15 +794,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_received\":50,\"item_description\":\"vinyl\",\"unit\":\"sqm\"},{\"matched_description\":null,\"quantity_received\":5,\"item_description\":\"grout\",\"unit\":\"bag\"}]}",
       "status": "pending",
       "source_transcript": "Floornet delivered the vinyl and 5 bags of grout"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -839,6 +848,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 2,
+      "label": "Belgotex"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -847,15 +866,6 @@
       "payload": "{\"purchaseOrderId\":0,\"supplierId\":2,\"supplierName\":\"Belgotex\",\"allocate\":true,\"lineItems\":[{\"matched_description\":null,\"quantity_received\":3,\"item_description\":\"carpet\",\"unit\":\"roll\"}]}",
       "status": "pending",
       "source_transcript": "Belgotex delivered 3 rolls of carpet"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 2,
-      "label": "Belgotex"
      }
     ]
    }
@@ -910,9 +920,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -972,9 +983,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -1077,6 +1089,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1085,15 +1107,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_received\":50,\"item_description\":\"vinyl\",\"unit\":\"sqm\"}]}",
       "status": "pending",
       "source_transcript": "Floornet delivered the vinyl, 50 square metres"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -1148,6 +1161,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1156,15 +1179,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_received\":50,\"item_description\":\"vinyl\",\"unit\":\"sqm\"}]}",
       "status": "pending",
       "source_transcript": "Floornet delivered the vinyl, 50 square metres"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -1237,6 +1251,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1245,15 +1269,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_received\":50,\"item_description\":\"vinyl\",\"unit\":\"sqm\"}]}",
       "status": "pending",
       "source_transcript": "Floornet delivered 20 boxes of vinyl"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -1308,9 +1323,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -1368,6 +1384,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1376,15 +1402,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_received\":50,\"item_description\":\"vinyl\",\"unit\":\"sqm\"}]}",
       "status": "pending",
       "source_transcript": "Floornet delivered 20 boxes of vinyl"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -1439,6 +1456,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1447,15 +1474,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_received\":50,\"item_description\":\"vinyl\",\"unit\":\"square metres\"}]}",
       "status": "pending",
       "source_transcript": "Floornet delivered 50 square metres of vinyl"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -1510,6 +1528,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1518,15 +1546,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_received\":5,\"item_description\":\"vinyl\",\"unit\":\"bundles\"}]}",
       "status": "pending",
       "source_transcript": "Floornet delivered 5 bundles of vinyl"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -1581,6 +1600,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1589,15 +1618,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_received\":50,\"item_description\":\"vinyl\",\"unit\":null}]}",
       "status": "pending",
       "source_transcript": "Floornet delivered 50 of vinyl"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -1652,9 +1672,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -1712,6 +1733,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1720,15 +1751,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Quickstep laminate\",\"quantity_received\":22,\"item_description\":\"quickstep laminate\",\"unit\":\"sqm\"}]}",
       "status": "pending",
       "source_transcript": "Floornet delivered 10 boxes of Quickstep laminate"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -1783,6 +1805,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1791,15 +1823,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":null,\"quantity_received\":4,\"item_description\":\"grout\",\"unit\":\"boxes\"}]}",
       "status": "pending",
       "source_transcript": "Floornet delivered 4 boxes of grout"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -1854,6 +1877,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1862,15 +1895,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_received\":50,\"item_description\":\"vinyl\",\"unit\":\"sqm\"}]}",
       "status": "pending",
       "source_transcript": "Floornet delivered 20 boxes of vinyl"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -1925,6 +1949,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1933,15 +1967,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185},{\"matched_description\":\"Underlay\",\"quantity_billed\":100,\"unit_price_billed\":40}]}",
       "status": "pending",
       "source_transcript": "Floornet invoice INV-7731: 50 sqm vinyl at 185 and 100 sqm underlay at 40"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -1996,6 +2021,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -2004,15 +2039,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":null,\"lineItems\":[{\"matched_description\":null,\"quantity_billed\":5,\"unit_price_billed\":90}]}",
       "status": "pending",
       "source_transcript": "Floornet invoice: 5 bags grout at 90"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -2065,9 +2091,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 2,
       "label": "Belgotex"
@@ -2172,9 +2199,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -2232,6 +2260,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -2240,15 +2278,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":null,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185}]}",
       "status": "pending",
       "source_transcript": "Floornet invoice: 50 sqm vinyl at 185"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -2321,6 +2350,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -2329,15 +2368,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185,\"po_line_item_id\":1},{\"matched_description\":\"Vinyl\",\"quantity_billed\":20,\"unit_price_billed\":185,\"po_line_item_id\":3}]}",
       "status": "pending",
       "source_transcript": "Floornet invoice INV-7731, 70 sqm vinyl at 185"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -2392,6 +2422,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -2400,15 +2440,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":30,\"unit_price_billed\":185}]}",
       "status": "pending",
       "source_transcript": "Floornet invoice INV-7731, 30 sqm vinyl at 185"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -2463,6 +2494,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -2471,15 +2512,6 @@
       "payload": "{\"purchaseOrderId\":2,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":30,\"unit_price_billed\":185}]}",
       "status": "pending",
       "source_transcript": "Floornet invoice INV-7731, 30 sqm vinyl at 185"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -2534,6 +2566,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -2542,15 +2584,6 @@
       "payload": "{\"purchaseOrderId\":2,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":20,\"unit_price_billed\":185}]}",
       "status": "pending",
       "source_transcript": "Floornet invoice INV-7731, 20 sqm vinyl at 185"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -2605,6 +2638,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -2613,15 +2656,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185,\"po_line_item_id\":1},{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185,\"po_line_item_id\":3}]}",
       "status": "pending",
       "source_transcript": "Floornet invoice INV-7731, 100 sqm vinyl at 185"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -2676,6 +2710,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -2684,15 +2728,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185,\"po_line_item_id\":1},{\"matched_description\":\"Vinyl\",\"quantity_billed\":20,\"unit_price_billed\":185,\"po_line_item_id\":3},{\"matched_description\":null,\"quantity_billed\":5,\"unit_price_billed\":90}]}",
       "status": "pending",
       "source_transcript": "Floornet invoice INV-7731, 70 sqm vinyl at 185 and 5 bags of grout at 90"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -2747,6 +2782,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -2755,15 +2800,6 @@
       "payload": "{\"purchaseOrderId\":2,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":30,\"unit_price_billed\":185}]}",
       "status": "pending",
       "source_transcript": "Floornet invoice INV-7731, 30 sqm vinyl at 185"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -2818,6 +2854,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -2826,15 +2872,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":40,\"unit_price_billed\":185,\"po_line_item_id\":1},{\"matched_description\":\"Vinyl\",\"quantity_billed\":10,\"unit_price_billed\":190,\"po_line_item_id\":1},{\"matched_description\":\"Vinyl\",\"quantity_billed\":30,\"unit_price_billed\":190,\"po_line_item_id\":3}]}",
       "status": "pending",
       "source_transcript": "Floornet invoice INV-7731, 40 sqm vinyl at 185 and 40 sqm vinyl at 190"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -2889,6 +2926,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -2897,15 +2944,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185,\"po_line_item_id\":1},{\"matched_description\":\"Vinyl\",\"quantity_billed\":20,\"unit_price_billed\":185,\"po_line_item_id\":3}]}",
       "status": "pending",
       "source_transcript": "Floornet invoice INV-7731, 70 sqm vinyl at 185"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -2960,9 +2998,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -3020,9 +3059,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -3080,6 +3120,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -3088,15 +3138,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185}]}",
       "status": "pending",
       "source_transcript": "Floornet invoice INV-7731, 50 sqm vinyl at 185"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -3151,9 +3192,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -3211,6 +3253,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -3219,15 +3271,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":null,\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185}]}",
       "status": "pending",
       "source_transcript": "Floornet invoice, 50 sqm vinyl at 185"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -3282,6 +3325,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -3290,15 +3343,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7732\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185}]}",
       "status": "pending",
       "source_transcript": "Floornet invoice INV-7732, 50 sqm vinyl at 185"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -3353,9 +3397,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -3413,9 +3458,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -3486,9 +3532,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -3559,6 +3606,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -3567,15 +3624,6 @@
       "payload": "{\"grnLineItemId\":2,\"description\":\"Underlay\",\"reason\":\"short_delivered\",\"resolution\":\"credit\",\"creditAmount\":2000}",
       "status": "pending",
       "source_transcript": "Floornet is crediting us R2000 for the underlay shortage"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -3630,9 +3678,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -3703,9 +3752,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -3776,9 +3826,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -3836,9 +3887,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -3907,9 +3959,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -4014,9 +4067,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -4074,9 +4128,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -4163,6 +4218,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -4171,15 +4236,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\"}",
       "status": "pending",
       "source_transcript": "cancel the Floornet order"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -4232,9 +4288,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -4290,6 +4347,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -4298,15 +4365,6 @@
       "payload": "{\"purchaseOrderId\":2,\"supplierId\":1,\"supplierName\":\"Floornet\"}",
       "status": "pending",
       "source_transcript": "cancel order 2 with Floornet"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -4359,9 +4417,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -4417,6 +4476,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -4425,15 +4494,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\"}",
       "status": "pending",
       "source_transcript": "cancel the order of 50 sqm vinyl from Floornet"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -4486,9 +4546,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -4544,9 +4605,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -4602,9 +4664,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -4750,6 +4813,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -4758,15 +4831,6 @@
       "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\"}",
       "status": "pending",
       "source_transcript": "cancel the Floornet order"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -4857,6 +4921,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -4865,15 +4939,6 @@
       "payload": "{\"purchaseOrderId\":0,\"supplierId\":1,\"supplierName\":\"Floornet\",\"allocate\":true,\"lineItems\":[{\"matched_description\":null,\"quantity_received\":50,\"item_description\":\"vinyl\",\"unit\":\"sqm\"}]}",
       "status": "pending",
       "source_transcript": "Floornet delivered the vinyl, 50 square metres"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -4926,9 +4991,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -4984,9 +5050,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -5042,9 +5109,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -5114,9 +5182,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -5186,9 +5255,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -5258,9 +5328,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"

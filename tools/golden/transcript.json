@@ -74,6 +74,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -82,15 +92,6 @@
       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
       "status": "pending",
       "source_transcript": "Jenny paid R500"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -178,6 +179,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -193,15 +204,6 @@
       "payload": "{\"characterId\":null,\"customerId\":null,\"amount\":650,\"description\":\"diesel for the bakkie R650\"}",
       "status": "pending",
       "source_transcript": "diesel for the bakkie R650"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -290,6 +292,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -305,15 +317,6 @@
       "payload": "{\"characterId\":null,\"customerId\":null,\"amount\":650,\"description\":\"diesel for the bakkie R650\"}",
       "status": "pending",
       "source_transcript": "diesel for the bakkie R650"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -403,6 +406,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -411,15 +424,6 @@
       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
       "status": "pending",
       "source_transcript": "Jenny paid R500"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -501,6 +505,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -509,15 +523,6 @@
       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
       "status": "pending",
       "source_transcript": "Jenny paid R500"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -599,6 +604,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -607,15 +622,6 @@
       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
       "status": "pending",
       "source_transcript": "Jenny paid R500"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -697,6 +703,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -705,15 +721,6 @@
       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
       "status": "pending",
       "source_transcript": "Jenny paid R500"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -914,21 +921,22 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_memory_flush": {
     "added": [
      {
       "id": 1,
       "customer_id": 1,
       "text": "3x3 store. 1.2x1.2 kitchen. Jenny Smith rooms measured in metres"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1022,6 +1030,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1030,15 +1048,6 @@
       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
       "status": "pending",
       "source_transcript": "Jenny paid R500"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1120,6 +1129,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1128,15 +1147,6 @@
       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
       "status": "pending",
       "source_transcript": "Jenny paid R500"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1227,6 +1237,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "scope_components": {
     "added": [
      {
@@ -1246,15 +1266,6 @@
       "job_scope_id": 1,
       "description": "laminate",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1352,6 +1363,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1382,15 +1403,6 @@
       "job_scope_id": 1,
       "description": "laminate",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1481,6 +1493,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "scope_components": {
     "added": [
      {
@@ -1500,15 +1522,6 @@
       "job_scope_id": 1,
       "description": "laminate",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1624,6 +1637,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1675,15 +1698,6 @@
       "job_scope_id": 2,
       "description": "laminate",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1787,6 +1801,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1824,15 +1848,6 @@
       "job_scope_id": 1,
       "description": "laminate",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1936,6 +1951,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "scope_components": {
     "added": [
      {
@@ -1969,15 +1994,6 @@
       "job_scope_id": 2,
       "description": "laminate",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -2081,6 +2097,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "projects": {
     "added": [
      {
@@ -2125,15 +2151,6 @@
       "job_scope_id": 2,
       "description": "laminate",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -2237,6 +2254,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "projects": {
     "added": [
      {
@@ -2281,15 +2308,6 @@
       "job_scope_id": 3,
       "description": "laminate",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -2383,6 +2401,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -2398,15 +2426,6 @@
       "payload": "{\"jobScopeId\":1,\"jobScopeDescription\":\"Lounge laminate\",\"changes\":[{\"field\":\"scheduled_date_raw\",\"oldValue\":\"the 10th\",\"newValue\":\"the seventeenth\"}],\"customerId\":1,\"observation\":{\"job_description\":\"observation\",\"components\":[],\"tasks\":[],\"scheduled_date_raw\":\"the seventeenth\",\"installer_name\":null},\"installerId\":null,\"transcript\":\"invoice Jenny R3000 and move the install to the 17th\",\"captureId\":1}",
       "status": "pending",
       "source_transcript": "invoice Jenny R3000 and move the install to the 17th"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -2483,9 +2502,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"

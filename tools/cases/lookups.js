@@ -4,6 +4,7 @@
 // scripted to ECHO the facts it receives, so each recording shows exactly which facts each role's answer was built from:
 // that is the part that matters, because it is where permissions are enforced (or not).
 module.exports = function cases(caps) {
+  const memberSelectionDdl = "CREATE TABLE IF NOT EXISTS member_selections (member TEXT NOT NULL, key TEXT NOT NULL, entity_id INTEGER NOT NULL, label TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (member, key))";
   const books = (db) => db.exec(`
     INSERT INTO people (name) VALUES ('Jenny Smith'), ('Thandi Mokoena');
     INSERT INTO customers (name, person_id) VALUES ('Jenny Smith', 1), ('Thandi Mokoena', 2);
@@ -51,6 +52,8 @@ module.exports = function cases(caps) {
       (1, 10500, 11000, -500, 'photo', NULL, NULL, '2026-10-03 08:00:00'),
       ((SELECT id FROM characters WHERE name = 'Belgotex'), 4000, 4000, 0, 'spoken', 'Belgotex says 4000', 'owner@example.com', '2026-10-02 09:00:00');`);
   };
+  // Jabulani's details include a day rate and a bank account (decided 2026-10-04: payroll and banking details need their own permission).
+  const sensitiveDetails = (db) => { books(db); db.exec("INSERT INTO character_facts (character_id, key, value, created_at) VALUES (2, 'day_rate', 'R600 a day', '2026-09-01 08:00:00'), (2, 'bank_account', 'FNB 62012345678', '2026-09-02 08:00:00');"); };
   const DASH = (reply) => ({ match: /broad, whole-business question wanting a real, visual snapshot/, reply });
   const TOPIC = (reply) => ({ match: /standing topic of the conversation below/, reply });
   const ANSWER = { match: /Answer the tradesperson's question using only the facts below/, reply: (input) => 'ANSWER FROM FACTS:\n' + ((input.messages.find((m) => m.role === 'system').content.split('Facts:\n')[1]) || '') };
@@ -79,7 +82,7 @@ module.exports = function cases(caps) {
     c('lookup unit conversions: none saved at all', 'owner', books, { query_scope: 'unit_conversions' }, 'what conversions do I have', []),
     c('lookup unit conversions: installer', 'installer', someConversions, { query_scope: 'unit_conversions' }, 'what conversions do I have', []),
     c('lookup unit conversions: a role with no permissions is told it is restricted', 'stranger', someConversions, { query_scope: 'unit_conversions' }, 'what conversions do I have', []),
-    c('lookup unit conversions: a customer on screen is not borrowed as the subject', 'owner', (db) => { someConversions(db); db.exec("INSERT INTO selections (key, entity_id, label, updated_at) VALUES ('customer', 1, 'Jenny Smith', '2026-10-03 11:00:00');"); }, { query_scope: 'unit_conversions' }, 'and what conversions do I have', []),
+    c('lookup unit conversions: a customer on screen is not borrowed as the subject', 'owner', (db) => { someConversions(db); db.exec(memberSelectionDdl + "; INSERT INTO member_selections (member, key, entity_id, label, updated_at) VALUES ('owner@example.com', 'customer', 1, 'Jenny Smith', '2026-10-03 11:00:00');"); }, { query_scope: 'unit_conversions' }, 'and what conversions do I have', []),
 
     // ---------------- the delivery exception question ----------------
     c('lookup: owner, delivery exceptions are open', 'owner', withExceptions, {}, 'any delivery exceptions?', []),
@@ -118,6 +121,10 @@ module.exports = function cases(caps) {
     c('lookup character: installer, the same supplier and the same old note', 'installer', books, { character_name: 'Floornet', character_relationship: 'supplier' }, 'how is Floornet doing', [ANSWER], { kvSeed: { 'character:1': oldMoneyNote } }),
     c('lookup character: owner, an installer with jobs and details', 'owner', books, { character_name: 'Jabulani', character_relationship: 'installer' }, 'how is Jabulani doing', [ANSWER]),
     c('lookup character: accountant, an installer (job activity is restricted)', 'accountant', books, { character_name: 'Jabulani', character_relationship: 'installer' }, 'how is Jabulani doing', [ANSWER]),
+    c('lookup character details: owner sees the pay and bank details', 'owner', sensitiveDetails, { character_name: 'Jabulani', character_relationship: 'installer' }, 'how is Jabulani doing', [ANSWER]),
+    c('lookup character details: accountant (payroll and banking access) sees them too', 'accountant', sensitiveDetails, { character_name: 'Jabulani', character_relationship: 'installer' }, 'how is Jabulani doing', [ANSWER]),
+    c('lookup character details: installer sees only the ordinary details', 'installer', sensitiveDetails, { character_name: 'Jabulani', character_relationship: 'installer' }, 'how is Jabulani doing', [ANSWER]),
+    c('lookup character details: a role with no permissions sees only the ordinary details', 'stranger', sensitiveDetails, { character_name: 'Jabulani', character_relationship: 'installer' }, 'how is Jabulani doing', [ANSWER]),
     c('lookup character: a role with no permissions', 'stranger', books, { character_name: 'Jabulani', character_relationship: 'installer' }, 'how is Jabulani doing', [ANSWER]),
     c('lookup character: owner, a name nobody has heard of', 'owner', books, { character_name: 'Nobody Known', character_relationship: 'supplier' }, 'how is Nobody Known doing', [ANSWER]),
 

@@ -197,14 +197,33 @@ export async function getCharacterNotes(env: Env, characterId: number): Promise<
 // Real feature 2026-07-13 — the read path for operational HR facts.
 // Real D1 query, not KV — these are structured, queryable facts
 // (role, skill, license), not narrative color the way notes are.
-export async function getCharacterFacts(env: Env, characterId: number): Promise<string[]> {
+// Decided by Pierre 2026-10-04: a person's details are no longer all shown to every role. A day rate, salary or similar is PAYROLL; a bank
+// account, IBAN, branch code and the like is BANKING. They need can_know_payroll / can_know_banking (which the owner and accountant have and
+// an installer does not), to be read or to be saved. A phone number, address, licence or skill is not sensitive, and is shown as before. The
+// decision is by the detail's KEY, in whole words, so "account manager" (a supplier's contact) is not banking and "payment terms" is not payroll.
+const PAYROLL_WORDS = new Set(["salary", "salaries", "wage", "wages", "payroll", "rate", "rates", "stipend", "commission", "bonus", "ctc", "earnings", "income", "remuneration"]);
+export function sensitiveFactKind(key: string): "payroll" | "banking" | null {
+  const k = key.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  const words = new Set(k.split("_").filter(Boolean));
+  if (words.has("bank") || words.has("banking") || words.has("iban") || words.has("swift") || words.has("bic") || words.has("routing") || /(account|acc)_(number|no|num)\b|branch_code|sort_code|card_number/.test(k)) return "banking";
+  if ([...words].some((w) => PAYROLL_WORDS.has(w)) || /per_(day|hour|week|month)\b/.test(k)) return "payroll";
+  return null;
+}
+
+export function mayHandleSensitiveFact(kind: "payroll" | "banking" | null, capabilities: string[]): boolean {
+  if (kind === null) return true;
+  return capabilities.includes(kind === "payroll" ? "can_know_payroll" : "can_know_banking");
+}
+
+export async function getCharacterFacts(env: Env, characterId: number, capabilities?: string[]): Promise<string[]> {
   const { results } = await env.OFFICE_DB.prepare(
     "SELECT key, value FROM character_facts WHERE character_id = ? ORDER BY created_at DESC"
   )
     .bind(characterId)
     .all<{ key: string; value: string }>();
 
-  return results.map((r) => `${r.key.replace(/_/g, " ")}: ${r.value}`);
+  // With no capabilities given (the admin tools) everything is returned; with them, a detail the role may not see is left out entirely.
+  return results.filter((r) => !capabilities || mayHandleSensitiveFact(sensitiveFactKind(r.key), capabilities)).map((r) => `${r.key.replace(/_/g, " ")}: ${r.value}`);
 }
 
 export async function appendCharacterNote(env: Env, characterId: number, text: string): Promise<void> {

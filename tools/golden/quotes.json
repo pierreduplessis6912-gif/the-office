@@ -45,6 +45,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -53,15 +63,6 @@
       "payload": "{\"quotationId\":1,\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"Balance due — Lounge laminate\",\"remainingBalance\":12000,\"total\":12000,\"depositAmount\":0,\"depositPercent\":null}",
       "status": "pending",
       "source_transcript": "convert Jenny's quote to an invoice"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -114,6 +115,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -122,15 +133,6 @@
       "payload": "{\"quotationId\":1,\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"Balance due — Lounge laminate\",\"remainingBalance\":8400,\"total\":12000,\"depositAmount\":3600,\"depositPercent\":30}",
       "status": "pending",
       "source_transcript": "convert Jenny's quote, she paid 30 percent upfront"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -183,9 +185,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 2,
       "label": "Thandi Mokoena"
@@ -241,6 +244,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -249,15 +262,6 @@
       "payload": "{\"quotationId\":1,\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"Balance due — Lounge laminate\",\"remainingBalance\":12000,\"total\":12000,\"depositAmount\":0,\"depositPercent\":null}",
       "status": "pending",
       "source_transcript": "convert Jenny's quote to an invoice"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }

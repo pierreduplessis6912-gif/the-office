@@ -632,6 +632,10 @@ async function expect(role, method, path, want) {
   // The date reader: an ordinal word means exactly its digit form.
   await require('./dates.test.js')({ check, bundleTo });
 
+  // Sensitive person details (payroll and banking) and one selection per person.
+  await require('./details.test.js')({ check, bundleTo, srcDir, path, sameJson });
+  await require('./selections.test.js')({ check, bundleTo, srcDir, fs, path, sameJson });
+
   // Supplier statements have a home: recording, the difference sentence, and the history.
   await require('./statements.test.js')({ check, bundleTo, srcDir, fs, path, sameJson });
 

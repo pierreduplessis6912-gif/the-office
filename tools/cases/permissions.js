@@ -21,7 +21,7 @@ module.exports = function cases(caps) {
     base(db);
     db.exec(TABLES + `
       INSERT INTO role_capability_overrides (role, capability, granted) VALUES
-        ('installer', 'can_manage_settings', 1), ('installer', 'can_delete_data', 1), ('installer', 'can_know_payroll', 1), ('installer', 'can_do_anything', 1),
+        ('installer', 'can_manage_settings', 1), ('installer', 'can_delete_data', 1), ('installer', 'can_know_measurements', 1), ('installer', 'can_do_anything', 1),
         ('accountant', 'can_manage_settings', 1), ('owner', 'can_manage_settings', 0), ('owner', 'can_manage_invoices', 0);
     `);
   };
@@ -62,7 +62,7 @@ module.exports = function cases(caps) {
     r('refused: a role that does not exist', { method: 'PATCH', path: GRID, body: { role: 'plumber', capability: 'can_know_profit', granted: true } }),
     r('refused: a permission that does not exist', { method: 'PATCH', path: GRID, body: { role: 'installer', capability: 'can_do_anything', granted: true } }),
     r('refused: an owner-only permission cannot be given away', { method: 'PATCH', path: GRID, body: { role: 'installer', capability: 'can_manage_settings', granted: true } }),
-    r('refused: a permission nothing uses yet cannot be switched', { method: 'PATCH', path: GRID, body: { role: 'accountant', capability: 'can_know_payroll', granted: false } }),
+    r('refused: a permission nothing uses yet cannot be switched', { method: 'PATCH', path: GRID, body: { role: 'accountant', capability: 'can_know_measurements', granted: false } }),
     r('refused: the answer must be true or false', { method: 'PATCH', path: GRID, body: { role: 'installer', capability: 'can_know_jobs', granted: 'yes' } }),
     r('refused: no request body', { method: 'PATCH', path: GRID }),
 

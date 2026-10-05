@@ -4,6 +4,7 @@
 // name works out who was meant. Every intent depends on this, and it writes before anything else decides what to do.
 // The generic "note" intent is used where the point is only the resolution; it is open to every role.
 module.exports = function cases(caps) {
+  const memberSelectionDdl = "CREATE TABLE IF NOT EXISTS member_selections (member TEXT NOT NULL, key TEXT NOT NULL, entity_id INTEGER NOT NULL, label TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (member, key))";
   const base = (db) => db.exec(`
     INSERT INTO people (name) VALUES ('Jenny Smith'), ('Sipho Dlamini'), ('Jabulani'), ('Floornet');
     INSERT INTO customers (name, person_id) VALUES ('Jenny Smith', 1), ('Sipho Dlamini', 2);
@@ -16,12 +17,16 @@ module.exports = function cases(caps) {
       INSERT INTO customers (name, person_id) VALUES ('Thandi Mokoena', 5), ('Thandi Mokoeni', 6);
     `);
   };
-  const selectedCustomer = (db) => { base(db); db.exec(`INSERT INTO selections (key, entity_id, label, updated_at) VALUES ('customer', 1, 'Jenny Smith', '2026-10-03 11:00:00');`); };
-  const selectedCharacter = (db) => { base(db); db.exec(`INSERT INTO selections (key, entity_id, label, updated_at) VALUES ('character', 1, 'Jabulani', '2026-10-03 11:00:00');`); };
+  const selectedCustomer = (db) => { base(db); db.exec(memberSelectionDdl + `; INSERT INTO member_selections (member, key, entity_id, label, updated_at) VALUES ('owner@example.com', 'customer', 1, 'Jenny Smith', '2026-10-03 11:00:00');`); };
+  const selectedCharacter = (db) => { base(db); db.exec(memberSelectionDdl + `; INSERT INTO member_selections (member, key, entity_id, label, updated_at) VALUES ('owner@example.com', 'character', 1, 'Jabulani', '2026-10-03 11:00:00');`); };
+  // Selections belong to a person (decided 2026-10-04): the accountant has Jenny selected, the owner has nothing.
+  const selectedByAccountant = (db) => { base(db); db.exec(memberSelectionDdl + `; INSERT INTO member_selections (member, key, entity_id, label, updated_at) VALUES ('accountant@example.com', 'customer', 1, 'Jenny Smith', '2026-10-03 11:00:00');`); };
+  const twoSelections = (db) => { base(db); db.exec(memberSelectionDdl + `; INSERT INTO member_selections (member, key, entity_id, label, updated_at) VALUES ('owner@example.com', 'customer', 1, 'Jenny Smith', '2026-10-03 11:00:00'), ('accountant@example.com', 'character', 1, 'Jabulani', '2026-10-03 11:30:00');`); };
+  const detail = (key, value) => ({ intent: 'note', character_name: 'Jabulani', character_relationship: 'installer', fact_key: key, fact_value: value });
   const withPending = (db) => {
     base(db);
-    db.exec(`
-      INSERT INTO selections (key, entity_id, label, updated_at) VALUES ('customer', 1, 'Jenny Smith', '2026-10-03 11:00:00');
+    db.exec(memberSelectionDdl + `;
+      INSERT INTO member_selections (member, key, entity_id, label, updated_at) VALUES ('owner@example.com', 'customer', 1, 'Jenny Smith', '2026-10-03 11:00:00');
       INSERT INTO pending_actions (id, type, payload, source_transcript, status, created_at) VALUES
         (1, 'payment', '{"customerId":1,"customerName":"Jenny Smith","amount":500}', 'Jenny paid R500', 'pending', '2026-10-03 10:00:00'),
         (2, 'invoice', '{"customerId":2,"customerName":"Sipho Dlamini","amount":98000}', 'invoice Sipho R98000', 'pending', '2026-10-03 10:30:00');
@@ -55,6 +60,20 @@ module.exports = function cases(caps) {
   const c = (name, role, seed, extraction, transcript, ai, extra) => ({ name, seed, transcript, extraction: { intent: 'note', ...extraction }, capabilities: caps[role], ai, ...(extra || {}) });
 
   return [
+    // ---------------- one selection per person ----------------
+    c('follow-up: another person\'s selection is not used for "her"', 'owner', selectedByAccountant, { intent: 'lookup', query_scope: 'customer' }, 'and what about her balance', [ANSWER]),
+    c('follow-up: a person uses their own selection', 'accountant', selectedByAccountant, { intent: 'lookup', query_scope: 'customer' }, 'and what about her balance', [ANSWER], { email: 'accountant@example.com' }),
+    c('forget that: clears the person who said it, not the other person\'s selection', 'owner', twoSelections, { intent: 'forget_last' }, 'forget that', []),
+    c('forget that: the accountant clears their own and leaves the owner\'s', 'accountant', twoSelections, { intent: 'forget_last' }, 'forget that', [], { email: 'accountant@example.com' }),
+
+    // ---------------- a person's pay and bank details need their own permission to save ----------------
+    c('detail: owner saves a day rate', 'owner', base, detail('day rate', 'R600 a day'), 'Jabulani\'s day rate is R600 a day', []),
+    c('detail: accountant saves a day rate', 'accountant', base, detail('day rate', 'R600 a day'), 'Jabulani\'s day rate is R600 a day', []),
+    c('detail: installer is refused a day rate, and nothing is held', 'installer', base, detail('day rate', 'R600 a day'), 'Jabulani\'s day rate is R600 a day', []),
+    c('detail: installer is refused a bank account, and nothing is held', 'installer', base, detail('bank account', 'FNB 62012345678'), 'Jabulani\'s bank account is FNB 62012345678', []),
+    c('detail: installer saves a cell number as before', 'installer', base, detail('cell', '083 555 0202'), 'Jabulani\'s cell is 083 555 0202', []),
+    c('detail: installer may save an account manager (not a bank detail)', 'installer', base, detail('account manager', 'Thandi'), 'Jabulani\'s account manager is Thandi', []),
+
     // ---------------- "forget that" ----------------
     c('forget that: owner, with something pending and a customer selected', 'owner', withPending, { intent: 'forget_last' }, 'forget that', []),
     c('forget that: an installer, while the owner has an invoice pending (open to every role)', 'installer', withPending, { intent: 'forget_last' }, 'forget that', []),

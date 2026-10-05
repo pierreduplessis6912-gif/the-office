@@ -180,9 +180,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -283,9 +284,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 4,
       "label": "Quiet Supplies"
@@ -386,9 +388,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -444,9 +447,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -2250,9 +2254,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -2310,9 +2315,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -2370,9 +2376,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 2,
       "label": "Jabulani"
@@ -2430,9 +2437,254 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 2,
+      "label": "Jabulani"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "lookup character details: owner sees the pay and bank details": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 2,
+    "name": "Jabulani",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "ANSWER FROM FACTS:\n- Jabulani is a known contact.\n- 1 job assigned.\n- Lounge laminate for Jenny Smith (scheduled 2026-10-03).\n\nJabulani's details: cell: 083 555 0202, bank account: FNB 62012345678, day rate: R600 a day.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "how is Jabulani doing",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "how is Jabulani doing",
+       "source": "text",
+       "subject_hint": "Jabulani",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 2
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 2,
+      "label": "Jabulani"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "lookup character details: accountant (payroll and banking access) sees them too": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 2,
+    "name": "Jabulani",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "ANSWER FROM FACTS:\n- Jabulani is a known contact.\n- Jabulani's job activity exists but is restricted for your role.\n\nJabulani's details: cell: 083 555 0202, bank account: FNB 62012345678, day rate: R600 a day.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "how is Jabulani doing",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "how is Jabulani doing",
+       "source": "text",
+       "subject_hint": "Jabulani",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 2
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 2,
+      "label": "Jabulani"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "lookup character details: installer sees only the ordinary details": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 2,
+    "name": "Jabulani",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "ANSWER FROM FACTS:\n- Jabulani is a known contact.\n- 1 job assigned.\n- Lounge laminate for Jenny Smith (scheduled 2026-10-03).\n\nJabulani's details: cell: 083 555 0202.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "how is Jabulani doing",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "how is Jabulani doing",
+       "source": "text",
+       "subject_hint": "Jabulani",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 2
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 2,
+      "label": "Jabulani"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "lookup character details: a role with no permissions sees only the ordinary details": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 2,
+    "name": "Jabulani",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "ANSWER FROM FACTS:\n- Jabulani is a known contact.\n- Jabulani's job activity exists but is restricted for your role.\n\nJabulani's details: cell: 083 555 0202.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "how is Jabulani doing",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "how is Jabulani doing",
+       "source": "text",
+       "subject_hint": "Jabulani",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 2
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 2,
       "label": "Jabulani"
@@ -2490,9 +2742,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 2,
       "label": "Jabulani"
@@ -2597,9 +2850,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"
@@ -2657,9 +2911,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"
@@ -2717,9 +2972,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"
@@ -2777,9 +3033,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"
@@ -2837,9 +3094,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 2,
       "label": "Thandi Mokoena"

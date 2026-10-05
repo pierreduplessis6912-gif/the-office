@@ -2221,6 +2221,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -2229,15 +2239,6 @@
       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
       "status": "pending",
       "source_transcript": "Jenny paid R500"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -2338,6 +2339,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -2353,15 +2364,6 @@
       "payload": "{\"characterId\":null,\"customerId\":null,\"amount\":650,\"description\":\"diesel R650\"}",
       "status": "pending",
       "source_transcript": "diesel R650"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -2451,9 +2453,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "installer@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"
@@ -2651,9 +2654,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"

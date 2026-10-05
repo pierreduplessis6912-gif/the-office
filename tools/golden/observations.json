@@ -62,6 +62,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "scope_components": {
     "added": [
      {
@@ -81,15 +91,6 @@
       "job_scope_id": 1,
       "description": "laminate installation",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -160,6 +161,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -190,15 +201,6 @@
       "job_scope_id": 1,
       "description": "laminate installation",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -269,6 +271,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -299,15 +311,6 @@
       "job_scope_id": 1,
       "description": "laminate installation",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -377,6 +380,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "scope_components": {
     "added": [
      {
@@ -396,15 +409,6 @@
       "job_scope_id": 1,
       "description": "laminate installation",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -475,6 +479,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "scope_components": {
     "added": [
      {
@@ -494,15 +508,6 @@
       "job_scope_id": 1,
       "description": "laminate installation",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -575,6 +580,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "scope_components": {
     "added": [
      {
@@ -594,15 +609,6 @@
       "job_scope_id": 1,
       "description": "laminate installation",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -663,6 +669,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -671,15 +687,6 @@
       "payload": "{\"jobScopeId\":1,\"jobScopeDescription\":\"Lounge laminate\",\"changes\":[{\"field\":\"scheduled_date_raw\",\"oldValue\":\"the 10th\",\"newValue\":\"next Monday\"}],\"customerId\":1,\"observation\":{\"job_description\":\"observation\",\"components\":[],\"tasks\":[],\"scheduled_date_raw\":\"next Monday\",\"installer_name\":null},\"installerId\":null,\"transcript\":\"move Jenny's install to next Monday\",\"captureId\":1}",
       "status": "pending",
       "source_transcript": "move Jenny's install to next Monday"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1158,6 +1165,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "scope_components": {
     "added": [
      {
@@ -1177,15 +1194,6 @@
       "job_scope_id": 1,
       "description": "laminate installation",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1255,6 +1263,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "scope_components": {
     "added": [
      {
@@ -1274,15 +1292,6 @@
       "job_scope_id": 1,
       "description": "laminate installation",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1352,6 +1361,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "scope_components": {
     "added": [
      {
@@ -1371,15 +1390,6 @@
       "job_scope_id": 1,
       "description": "laminate installation",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1449,6 +1459,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "scope_components": {
     "added": [
      {
@@ -1468,15 +1488,6 @@
       "job_scope_id": 1,
       "description": "laminate installation",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1546,6 +1557,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "scope_components": {
     "added": [
      {
@@ -1565,15 +1586,6 @@
       "job_scope_id": 1,
       "description": "laminate installation",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1643,6 +1655,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "scope_components": {
     "added": [
      {
@@ -1662,15 +1684,6 @@
       "job_scope_id": 1,
       "description": "laminate installation",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1740,6 +1753,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "scope_components": {
     "added": [
      {
@@ -1759,15 +1782,6 @@
       "job_scope_id": 1,
       "description": "laminate installation",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1837,6 +1851,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "scope_components": {
     "added": [
      {
@@ -1856,15 +1880,6 @@
       "job_scope_id": 1,
       "description": "laminate installation",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1934,6 +1949,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "scope_components": {
     "added": [
      {
@@ -1953,15 +1978,6 @@
       "job_scope_id": 1,
       "description": "laminate installation",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -2031,6 +2047,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 2,
+      "label": "Thandi Mokoena"
+     }
+    ]
+   },
    "scope_components": {
     "added": [
      {
@@ -2050,15 +2076,6 @@
       "job_scope_id": 2,
       "description": "carpet",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 2,
-      "label": "Thandi Mokoena"
      }
     ]
    }
@@ -2128,9 +2145,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"
@@ -2214,6 +2232,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "scope_components": {
     "added": [
      {
@@ -2233,15 +2261,6 @@
       "job_scope_id": 1,
       "description": "laminate installation",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -2324,6 +2343,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 3,
+      "label": "Brand New Person"
+     }
+    ]
+   },
    "scope_components": {
     "added": [
      {
@@ -2343,15 +2372,6 @@
       "job_scope_id": 1,
       "description": "laminate installation",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 3,
-      "label": "Brand New Person"
      }
     ]
    }
@@ -2490,9 +2510,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"
@@ -2552,9 +2573,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"
@@ -2627,6 +2649,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "scope_components": {
     "added": [
      {
@@ -2646,15 +2678,6 @@
       "job_scope_id": 1,
       "description": "laminate installation",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }

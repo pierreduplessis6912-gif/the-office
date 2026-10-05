@@ -45,6 +45,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -53,15 +63,6 @@
       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
       "status": "pending",
       "source_transcript": "Jenny paid R500"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -114,6 +115,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -122,15 +133,6 @@
       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
       "status": "pending",
       "source_transcript": "jenny smith paid R500"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -196,6 +198,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 3,
+      "label": "Thandi Mokoena"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -204,15 +216,6 @@
       "payload": "{\"customerId\":3,\"customerName\":\"Thandi Mokoena\",\"amount\":750}",
       "status": "pending",
       "source_transcript": "Thandi Mokoena paid R750"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 3,
-      "label": "Thandi Mokoena"
      }
     ]
    }
@@ -300,9 +303,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"
@@ -358,9 +362,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"
@@ -416,9 +421,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"
@@ -519,9 +525,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -577,6 +584,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -585,15 +602,6 @@
       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":500}",
       "status": "pending",
       "source_transcript": "Jenny paid R500"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -756,6 +764,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -764,15 +782,6 @@
       "payload": "{\"characterId\":1,\"characterName\":\"Floornet\",\"customerId\":null,\"amount\":1200,\"description\":\"bought adhesive from Floornet for R1200\"}",
       "status": "pending",
       "source_transcript": "bought adhesive from Floornet for R1200"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -836,6 +845,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 3,
+      "label": "Corner Hardware"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -844,15 +863,6 @@
       "payload": "{\"characterId\":3,\"characterName\":\"Corner Hardware\",\"customerId\":null,\"amount\":90,\"description\":\"screws from Corner Hardware R90\"}",
       "status": "pending",
       "source_transcript": "screws from Corner Hardware R90"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 3,
-      "label": "Corner Hardware"
      }
     ]
    }
@@ -905,6 +915,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -913,15 +933,6 @@
       "payload": "{\"characterId\":null,\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":200,\"description\":\"R200 skirting for Jenny\"}",
       "status": "pending",
       "source_transcript": "R200 skirting for Jenny"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1093,6 +1104,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1101,15 +1122,6 @@
       "payload": "{\"characterId\":1,\"characterName\":\"Floornet\",\"amount\":10000}",
       "status": "pending",
       "source_transcript": "paid Floornet R10000"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }
@@ -1218,6 +1230,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 3,
+      "label": "Newco Supplies"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1226,15 +1248,6 @@
       "payload": "{\"characterId\":3,\"characterName\":\"Newco Supplies\",\"amount\":5000}",
       "status": "pending",
       "source_transcript": "paid Newco Supplies R5000"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 3,
-      "label": "Newco Supplies"
      }
     ]
    }
@@ -1287,9 +1300,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
@@ -1345,6 +1359,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1353,15 +1377,6 @@
       "payload": "{\"characterId\":1,\"characterName\":\"Floornet\",\"amount\":10000}",
       "status": "pending",
       "source_transcript": "paid Floornet R10000"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Floornet"
      }
     ]
    }

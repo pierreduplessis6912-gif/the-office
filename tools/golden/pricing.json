@@ -47,6 +47,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -55,15 +65,6 @@
       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"invoice Jenny R5000\",\"amount\":5000}",
       "status": "pending",
       "source_transcript": "invoice Jenny R5000"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -133,6 +134,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -151,15 +162,6 @@
       "job_scope_id": 1,
       "description": "repairs",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -229,6 +231,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "scope_components": {
     "added": [
      {
@@ -256,15 +268,6 @@
       "job_scope_id": 1,
       "description": "laminate installation",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -334,9 +337,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"
@@ -406,6 +410,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -421,15 +435,6 @@
       "payload": "{\"jobScopeId\":1,\"jobScopeDescription\":\"Lounge laminate\",\"changes\":[{\"field\":\"scheduled_date_raw\",\"oldValue\":\"the tenth\",\"newValue\":\"the seventeenth\"}],\"customerId\":1,\"observation\":{\"job_description\":\"invoice\",\"components\":[],\"tasks\":[],\"scheduled_date_raw\":\"the seventeenth\",\"installer_name\":null},\"installerId\":null,\"transcript\":\"invoice Jenny R3000 and move the install to the 17th\",\"captureId\":1}",
       "status": "pending",
       "source_transcript": "invoice Jenny R3000 and move the install to the 17th"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -490,6 +495,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -498,15 +513,6 @@
       "payload": "{\"jobScopeId\":1,\"jobScopeDescription\":\"Lounge laminate\",\"changes\":[{\"field\":\"scheduled_date_raw\",\"oldValue\":\"the tenth\",\"newValue\":\"the seventeenth\"}],\"customerId\":1,\"observation\":{\"job_description\":\"invoice\",\"components\":[],\"tasks\":[],\"scheduled_date_raw\":\"the seventeenth\",\"installer_name\":null},\"installerId\":null,\"transcript\":\"move Jenny's install to the 17th\",\"captureId\":1}",
       "status": "pending",
       "source_transcript": "move Jenny's install to the 17th"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -587,6 +593,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -605,15 +621,6 @@
       "job_scope_id": 1,
       "description": "installation",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -670,6 +677,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -678,15 +695,6 @@
       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"invoice Jenny R5000 for repairs\",\"amount\":5000}",
       "status": "pending",
       "source_transcript": "invoice Jenny R5000 for repairs"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -743,9 +751,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"
@@ -803,9 +812,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"
@@ -876,6 +886,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 3,
+      "label": "Brand New Person"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -884,15 +904,6 @@
       "payload": "{\"customerId\":3,\"customerName\":\"Brand New Person\",\"description\":\"invoice Brand New Person R800\",\"amount\":800}",
       "status": "pending",
       "source_transcript": "invoice Brand New Person R800"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 3,
-      "label": "Brand New Person"
      }
     ]
    }
@@ -1007,6 +1018,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1027,10 +1048,106 @@
       "component_id": null
      }
     ]
+   }
+  },
+  "effects": []
+ },
+ "invoice: installer is refused": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "invoice: installer, a scheduling message labelled invoice with no amount is read as the job it is": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
    },
-   "selections": {
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Job scope #1 recorded for Jenny Smith.",
+   "jobScopeIdForProjectResolution": 1,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Sepo will install at Jenny's on Monday",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Sepo will install at Jenny's on Monday",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "characters": {
     "added": [
      {
+      "id": 2,
+      "name": "Sepo",
+      "relationship": "installer",
+      "person_id": null,
+      "merged_into_character_id": null
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "installation",
+      "scheduled_date_raw": "Monday",
+      "source_transcript": "Sepo will install at Jenny's on Monday",
+      "scheduled_date": "2026-10-05",
+      "installer_id": 2,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"
@@ -1040,7 +1157,131 @@
   },
   "effects": []
  },
- "invoice: installer is refused": {
+ "invoice: installer, labelled invoice with no amount and nothing about a job in it": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I heard a job observation for Jenny Smith, but couldn't make out any measurements, tasks, date or installer, so nothing was recorded.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jenny",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jenny",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "invoice: a role with no permissions, a scheduling message labelled invoice with no amount, is read as a job too (jobs are open to every role)": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I heard a job observation for Jenny Smith, but couldn't make out any measurements, tasks, date or installer, so nothing was recorded.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip",
+   "Extract the structure of a tradesperson's job observation. job_descrip",
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Sepo will install at Jenny's on Monday",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Sepo will install at Jenny's on Monday",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "invoice: installer, an amount in it stays refused even if it also schedules a job": {
   "result": {
    "customer": null,
    "character": null,
@@ -1106,6 +1347,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1114,15 +1365,6 @@
       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"Carpet; Underlay\",\"amount\":11000,\"lineItems\":[{\"description\":\"Carpet\",\"note\":null,\"quantity\":20,\"unit\":\"sqm\",\"unit_price\":450,\"discount_percent\":null,\"line_total\":9000},{\"description\":\"Underlay\",\"note\":null,\"quantity\":1,\"unit\":null,\"unit_price\":2000,\"discount_percent\":null,\"line_total\":2000}],\"jobScopeId\":null}",
       "status": "pending",
       "source_transcript": "quote Jenny 20 square metres of carpet at R450 and underlay R2000"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1177,6 +1419,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1185,15 +1437,6 @@
       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"Vinyl\",\"amount\":2700,\"lineItems\":[{\"description\":\"Vinyl\",\"note\":null,\"quantity\":10,\"unit\":\"sqm\",\"unit_price\":300,\"discount_percent\":10,\"line_total\":2700}],\"jobScopeId\":null}",
       "status": "pending",
       "source_transcript": "quote Jenny 10 sqm vinyl at R300 with 10 percent off"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1248,6 +1491,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1256,15 +1509,6 @@
       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"quote Jenny five thousand for the lounge\",\"amount\":5000,\"lineItems\":[],\"jobScopeId\":null}",
       "status": "pending",
       "source_transcript": "quote Jenny five thousand for the lounge"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1319,9 +1563,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"
@@ -1381,6 +1626,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1389,15 +1644,6 @@
       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"quote Jenny five thousand for the lounge\",\"amount\":5000,\"lineItems\":[],\"jobScopeId\":null}",
       "status": "pending",
       "source_transcript": "quote Jenny five thousand for the lounge"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1497,6 +1743,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1505,15 +1761,6 @@
       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"Carpet\",\"amount\":9000,\"lineItems\":[{\"description\":\"Carpet\",\"note\":null,\"quantity\":20,\"unit\":\"sqm\",\"unit_price\":450,\"discount_percent\":null,\"line_total\":9000}],\"jobScopeId\":null}",
       "status": "pending",
       "source_transcript": "quote Jenny 20 square metres of carpet at R450"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1586,6 +1833,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1594,15 +1851,6 @@
       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"Lounge; Lounge\",\"amount\":10500,\"lineItems\":[{\"description\":\"Lounge\",\"note\":null,\"quantity\":20,\"unit\":\"sqm\",\"unit_price\":450,\"line_total\":9000},{\"description\":\"Lounge\",\"note\":null,\"quantity\":1,\"unit\":null,\"unit_price\":1500,\"line_total\":1500}],\"jobScopeId\":1}",
       "status": "pending",
       "source_transcript": "price Jenny's lounge at R450 a square metre and flat R1500 for the screeding"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1657,6 +1905,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1665,15 +1923,6 @@
       "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"Lounge\",\"amount\":9000,\"lineItems\":[{\"description\":\"Lounge\",\"note\":null,\"quantity\":20,\"unit\":\"sqm\",\"unit_price\":450,\"line_total\":9000}],\"jobScopeId\":1}",
       "status": "pending",
       "source_transcript": "invoice Jenny for the lounge at R450 a square metre"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1728,9 +1977,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"
@@ -1804,6 +2054,16 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "added": [
      {
@@ -1834,15 +2094,6 @@
       "job_scope_id": 1,
       "description": "laminate",
       "component_id": null
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -1897,9 +2148,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"
@@ -1959,9 +2211,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"

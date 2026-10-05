@@ -66,10 +66,10 @@
        {
         "key": "can_know_payroll",
         "label": "Payroll",
-        "description": "Not used by anything yet.",
-        "inUse": false,
+        "description": "Day rates, salaries and similar pay details saved about a person: reading them, and saving them.",
+        "inUse": true,
         "ownerOnly": false,
-        "editable": false,
+        "editable": true,
         "granted": false,
         "default": false,
         "changed": false
@@ -77,10 +77,10 @@
        {
         "key": "can_know_banking",
         "label": "Banking details",
-        "description": "Not used by anything yet.",
-        "inUse": false,
+        "description": "Bank account details saved about a person: reading them, and saving them.",
+        "inUse": true,
         "ownerOnly": false,
-        "editable": false,
+        "editable": true,
         "granted": false,
         "default": false,
         "changed": false
@@ -204,10 +204,10 @@
        {
         "key": "can_know_payroll",
         "label": "Payroll",
-        "description": "Not used by anything yet.",
-        "inUse": false,
+        "description": "Day rates, salaries and similar pay details saved about a person: reading them, and saving them.",
+        "inUse": true,
         "ownerOnly": false,
-        "editable": false,
+        "editable": true,
         "granted": true,
         "default": true,
         "changed": false
@@ -215,10 +215,10 @@
        {
         "key": "can_know_banking",
         "label": "Banking details",
-        "description": "Not used by anything yet.",
-        "inUse": false,
+        "description": "Bank account details saved about a person: reading them, and saving them.",
+        "inUse": true,
         "ownerOnly": false,
-        "editable": false,
+        "editable": true,
         "granted": true,
         "default": true,
         "changed": false
@@ -395,10 +395,10 @@
       {
        "key": "can_know_payroll",
        "label": "Payroll",
-       "description": "Not used by anything yet.",
-       "inUse": false,
+       "description": "Day rates, salaries and similar pay details saved about a person: reading them, and saving them.",
+       "inUse": true,
        "ownerOnly": false,
-       "editable": false,
+       "editable": true,
        "granted": false,
        "default": false,
        "changed": false
@@ -406,10 +406,10 @@
       {
        "key": "can_know_banking",
        "label": "Banking details",
-       "description": "Not used by anything yet.",
-       "inUse": false,
+       "description": "Bank account details saved about a person: reading them, and saving them.",
+       "inUse": true,
        "ownerOnly": false,
-       "editable": false,
+       "editable": true,
        "granted": false,
        "default": false,
        "changed": false
@@ -569,10 +569,10 @@
       {
        "key": "can_know_payroll",
        "label": "Payroll",
-       "description": "Not used by anything yet.",
-       "inUse": false,
+       "description": "Day rates, salaries and similar pay details saved about a person: reading them, and saving them.",
+       "inUse": true,
        "ownerOnly": false,
-       "editable": false,
+       "editable": true,
        "granted": false,
        "default": false,
        "changed": false
@@ -580,10 +580,10 @@
       {
        "key": "can_know_banking",
        "label": "Banking details",
-       "description": "Not used by anything yet.",
-       "inUse": false,
+       "description": "Bank account details saved about a person: reading them, and saving them.",
+       "inUse": true,
        "ownerOnly": false,
-       "editable": false,
+       "editable": true,
        "granted": false,
        "default": false,
        "changed": false
@@ -743,10 +743,10 @@
       {
        "key": "can_know_payroll",
        "label": "Payroll",
-       "description": "Not used by anything yet.",
-       "inUse": false,
+       "description": "Day rates, salaries and similar pay details saved about a person: reading them, and saving them.",
+       "inUse": true,
        "ownerOnly": false,
-       "editable": false,
+       "editable": true,
        "granted": false,
        "default": false,
        "changed": false
@@ -754,10 +754,10 @@
       {
        "key": "can_know_banking",
        "label": "Banking details",
-       "description": "Not used by anything yet.",
-       "inUse": false,
+       "description": "Bank account details saved about a person: reading them, and saving them.",
+       "inUse": true,
        "ownerOnly": false,
-       "editable": false,
+       "editable": true,
        "granted": false,
        "default": false,
        "changed": false
@@ -894,10 +894,10 @@
       {
        "key": "can_know_payroll",
        "label": "Payroll",
-       "description": "Not used by anything yet.",
-       "inUse": false,
+       "description": "Day rates, salaries and similar pay details saved about a person: reading them, and saving them.",
+       "inUse": true,
        "ownerOnly": false,
-       "editable": false,
+       "editable": true,
        "granted": false,
        "default": false,
        "changed": false
@@ -905,10 +905,10 @@
       {
        "key": "can_know_banking",
        "label": "Banking details",
-       "description": "Not used by anything yet.",
-       "inUse": false,
+       "description": "Bank account details saved about a person: reading them, and saving them.",
+       "inUse": true,
        "ownerOnly": false,
-       "editable": false,
+       "editable": true,
        "granted": false,
        "default": false,
        "changed": false
@@ -1083,7 +1083,7 @@
   "result": {
    "status": 400,
    "body": {
-    "error": "\"Payroll\" is not used by anything yet, so it cannot be switched."
+    "error": "\"Measurements\" is not used by anything yet, so it cannot be switched."
    }
   },
   "threw": null,
@@ -1689,10 +1689,10 @@
        {
         "key": "can_know_payroll",
         "label": "Payroll",
-        "description": "Not used by anything yet.",
-        "inUse": false,
+        "description": "Day rates, salaries and similar pay details saved about a person: reading them, and saving them.",
+        "inUse": true,
         "ownerOnly": false,
-        "editable": false,
+        "editable": true,
         "granted": false,
         "default": false,
         "changed": false
@@ -1700,10 +1700,10 @@
        {
         "key": "can_know_banking",
         "label": "Banking details",
-        "description": "Not used by anything yet.",
-        "inUse": false,
+        "description": "Bank account details saved about a person: reading them, and saving them.",
+        "inUse": true,
         "ownerOnly": false,
-        "editable": false,
+        "editable": true,
         "granted": false,
         "default": false,
         "changed": false
@@ -1827,10 +1827,10 @@
        {
         "key": "can_know_payroll",
         "label": "Payroll",
-        "description": "Not used by anything yet.",
-        "inUse": false,
+        "description": "Day rates, salaries and similar pay details saved about a person: reading them, and saving them.",
+        "inUse": true,
         "ownerOnly": false,
-        "editable": false,
+        "editable": true,
         "granted": true,
         "default": true,
         "changed": false
@@ -1838,10 +1838,10 @@
        {
         "key": "can_know_banking",
         "label": "Banking details",
-        "description": "Not used by anything yet.",
-        "inUse": false,
+        "description": "Bank account details saved about a person: reading them, and saving them.",
+        "inUse": true,
         "ownerOnly": false,
-        "editable": false,
+        "editable": true,
         "granted": true,
         "default": true,
         "changed": false
@@ -2005,10 +2005,10 @@
        {
         "key": "can_know_payroll",
         "label": "Payroll",
-        "description": "Not used by anything yet.",
-        "inUse": false,
+        "description": "Day rates, salaries and similar pay details saved about a person: reading them, and saving them.",
+        "inUse": true,
         "ownerOnly": false,
-        "editable": false,
+        "editable": true,
         "granted": false,
         "default": false,
         "changed": false
@@ -2016,10 +2016,10 @@
        {
         "key": "can_know_banking",
         "label": "Banking details",
-        "description": "Not used by anything yet.",
-        "inUse": false,
+        "description": "Bank account details saved about a person: reading them, and saving them.",
+        "inUse": true,
         "ownerOnly": false,
-        "editable": false,
+        "editable": true,
         "granted": false,
         "default": false,
         "changed": false
@@ -2143,10 +2143,10 @@
        {
         "key": "can_know_payroll",
         "label": "Payroll",
-        "description": "Not used by anything yet.",
-        "inUse": false,
+        "description": "Day rates, salaries and similar pay details saved about a person: reading them, and saving them.",
+        "inUse": true,
         "ownerOnly": false,
-        "editable": false,
+        "editable": true,
         "granted": true,
         "default": true,
         "changed": false
@@ -2154,10 +2154,10 @@
        {
         "key": "can_know_banking",
         "label": "Banking details",
-        "description": "Not used by anything yet.",
-        "inUse": false,
+        "description": "Bank account details saved about a person: reading them, and saving them.",
+        "inUse": true,
         "ownerOnly": false,
-        "editable": false,
+        "editable": true,
         "granted": true,
         "default": true,
         "changed": false
@@ -2409,10 +2409,10 @@
       {
        "key": "can_know_payroll",
        "label": "Payroll",
-       "description": "Not used by anything yet.",
-       "inUse": false,
+       "description": "Day rates, salaries and similar pay details saved about a person: reading them, and saving them.",
+       "inUse": true,
        "ownerOnly": false,
-       "editable": false,
+       "editable": true,
        "granted": false,
        "default": false,
        "changed": false
@@ -2420,10 +2420,10 @@
       {
        "key": "can_know_banking",
        "label": "Banking details",
-       "description": "Not used by anything yet.",
-       "inUse": false,
+       "description": "Bank account details saved about a person: reading them, and saving them.",
+       "inUse": true,
        "ownerOnly": false,
-       "editable": false,
+       "editable": true,
        "granted": false,
        "default": false,
        "changed": false
@@ -2598,10 +2598,10 @@
       {
        "key": "can_know_payroll",
        "label": "Payroll",
-       "description": "Not used by anything yet.",
-       "inUse": false,
+       "description": "Day rates, salaries and similar pay details saved about a person: reading them, and saving them.",
+       "inUse": true,
        "ownerOnly": false,
-       "editable": false,
+       "editable": true,
        "granted": false,
        "default": false,
        "changed": false
@@ -2609,10 +2609,10 @@
       {
        "key": "can_know_banking",
        "label": "Banking details",
-       "description": "Not used by anything yet.",
-       "inUse": false,
+       "description": "Bank account details saved about a person: reading them, and saving them.",
+       "inUse": true,
        "ownerOnly": false,
-       "editable": false,
+       "editable": true,
        "granted": false,
        "default": false,
        "changed": false

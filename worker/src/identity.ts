@@ -589,44 +589,54 @@ export async function logInteractionEdge(
 // pattern, Principle 16) rather than fixed columns per entity type,
 // so a future department (marketing, tender, cybersecurity) doesn't
 // need a schema migration just to get a selection slot.
-export async function setSelection(env: Env, key: string, entityId: number, label: string): Promise<void> {
+// Decided by Pierre 2026-10-04: "her", "him" and "and her balance" refer to the CURRENT SELECTION, and it used to be one setting for the whole
+// business (a leftover from when the app had one user), so one person's lookups changed what another person's "her" meant and "forget
+// that" cleared it for everyone. It is now one selection per signed-in member, in a table created the first time it is needed (the old
+// shared one is left alone and no longer read). A person with no known email shares one anonymous selection.
+const memberSelectionTableReady = new WeakSet<object>();
+export async function ensureMemberSelectionTable(env: Env): Promise<void> {
+  if (memberSelectionTableReady.has(env.OFFICE_DB as unknown as object)) return;
   await env.OFFICE_DB.prepare(
-    `INSERT INTO selections (key, entity_id, label, updated_at) VALUES (?, ?, ?, datetime('now'))
-     ON CONFLICT(key) DO UPDATE SET entity_id = excluded.entity_id, label = excluded.label, updated_at = excluded.updated_at`
+    "CREATE TABLE IF NOT EXISTS member_selections (member TEXT NOT NULL, key TEXT NOT NULL, entity_id INTEGER NOT NULL, label TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (member, key))"
+  ).run();
+  memberSelectionTableReady.add(env.OFFICE_DB as unknown as object);
+}
+const memberKey = (member: string | null | undefined): string => (member ?? "").trim().toLowerCase();
+
+export async function setSelection(env: Env, key: string, entityId: number, label: string, member: string | null = null): Promise<void> {
+  await ensureMemberSelectionTable(env);
+  await env.OFFICE_DB.prepare(
+    `INSERT INTO member_selections (member, key, entity_id, label, updated_at) VALUES (?, ?, ?, ?, datetime('now'))
+     ON CONFLICT(member, key) DO UPDATE SET entity_id = excluded.entity_id, label = excluded.label, updated_at = excluded.updated_at`
   )
-    .bind(key, entityId, label)
+    .bind(memberKey(member), key, entityId, label)
     .run();
 }
 
 export async function getSelection(
   env: Env,
-  key: string
+  key: string,
+  member: string | null = null
 ): Promise<{ entityId: number; label: string; updatedAt: string } | null> {
-  const row = await env.OFFICE_DB.prepare("SELECT entity_id, label, updated_at FROM selections WHERE key = ?")
-    .bind(key)
+  await ensureMemberSelectionTable(env);
+  const row = await env.OFFICE_DB.prepare("SELECT entity_id, label, updated_at FROM member_selections WHERE member = ? AND key = ?")
+    .bind(memberKey(member), key)
     .first<{ entity_id: number; label: string; updated_at: string }>();
   return row ? { entityId: row.entity_id, label: row.label, updatedAt: row.updated_at } : null;
 }
 
-// The actual read side of the register — checked BEFORE any AI-based
-// resolution is attempted, per Principle 1 (Deterministic Before AI).
-// Whichever of customer/character was named most recently wins, same
-// "last thing selected" simplicity as a desktop file selection.
-// The register's untyped read strategy — for genuinely type-agnostic
-// references ("it", "them", "that"), as opposed to getSelection()'s
-// typed read strategy for when Peter names a specific kind of thing
-// ("the quote", "the invoice"). The property that makes this an
-// actual primitive, not just a shape that happens to fit two types
-// today: adding a third, fourth, or tenth selection type later means
-// only inserting rows under a new key — this function never changes.
-// No type names appear anywhere in it on purpose.
-export async function getCurrentSelection(env: Env): Promise<{ type: string; id: number; name: string } | null> {
-  const row = await env.OFFICE_DB.prepare("SELECT key, entity_id, label FROM selections ORDER BY updated_at DESC LIMIT 1").first<{
-    key: string;
-    entity_id: number;
-    label: string;
-  }>();
+export async function getCurrentSelection(env: Env, member: string | null = null): Promise<{ type: string; id: number; name: string } | null> {
+  await ensureMemberSelectionTable(env);
+  const row = await env.OFFICE_DB.prepare("SELECT key, entity_id, label FROM member_selections WHERE member = ? ORDER BY updated_at DESC LIMIT 1")
+    .bind(memberKey(member))
+    .first<{ key: string; entity_id: number; label: string }>();
   return row ? { type: row.key, id: row.entity_id, name: row.label } : null;
+}
+
+// "forget that" clears THIS person's selection, and nobody else's.
+export async function clearSelections(env: Env, member: string | null = null): Promise<void> {
+  await ensureMemberSelectionTable(env);
+  await env.OFFICE_DB.prepare("DELETE FROM member_selections WHERE member = ?").bind(memberKey(member)).run();
 }
 
 // Real feature 2026-10-03 — matching the business a document says it came

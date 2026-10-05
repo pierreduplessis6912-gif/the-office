@@ -202,8 +202,8 @@ export const CAPABILITY_CATALOG: CapabilityInfo[] = [
     inUse: true,
     ownerOnly: false,
   },
-  { key: "can_know_payroll", label: "Payroll", description: "Not used by anything yet.", inUse: false, ownerOnly: false },
-  { key: "can_know_banking", label: "Banking details", description: "Not used by anything yet.", inUse: false, ownerOnly: false },
+  { key: "can_know_payroll", label: "Payroll", description: "Day rates, salaries and similar pay details saved about a person: reading them, and saving them.", inUse: true, ownerOnly: false },
+  { key: "can_know_banking", label: "Banking details", description: "Bank account details saved about a person: reading them, and saving them.", inUse: true, ownerOnly: false },
   { key: "can_know_measurements", label: "Measurements", description: "Not used by anything yet.", inUse: false, ownerOnly: false },
   {
     key: "can_capture_voice_notes",

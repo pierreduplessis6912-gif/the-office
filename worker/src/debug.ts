@@ -22,8 +22,7 @@ import {
   storeUnscopedMemory, transcribe, transcribeWithNameHints,
 } from "./ai";
 import {
-  findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, reconcilePerson,
-} from "./identity";
+  findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, reconcilePerson, ensureMemberSelectionTable } from "./identity";
 import { getInstallerActivity, nowInBusinessTimezone, resolveScheduledDate } from "./scheduler";
 import { getCharacterFacts, getCharacterNotes, runConsolidation } from "./memory";
 import { getAgedCreditorsReport, getDeliveryExceptions, getFinancialSnapshot, getProfitAndLoss, getTrackedStockItems, orderDeliveryStatus, parseDateRange, recordQuotation } from "./finance";
@@ -1033,8 +1032,9 @@ if (url.pathname === "/debug/init-selections-table" && request.method === "POST"
     }
 
 if (url.pathname === "/debug/selections" && request.method === "GET") {
+    await ensureMemberSelectionTable(env);
       const { results } = await env.OFFICE_DB.prepare(
-        "SELECT key, entity_id, label, updated_at FROM selections ORDER BY updated_at DESC"
+        "SELECT member, key, entity_id, label, updated_at FROM member_selections ORDER BY updated_at DESC"
       ).all();
       return Response.json({ selections: results });
     }

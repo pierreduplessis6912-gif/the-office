@@ -3,28 +3,15 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 10 in progress).
+decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 11 applied).
 
 ## A. Decisions only Pierre can make
 
-30. **A person's details (cell, address and so on) are shown to every role, and `can_know_payroll` and `can_know_banking`
-    are defined but never checked anywhere.** Harmless while no payroll data is stored; a day rate or a bank detail saved
-    as a "detail" would be visible to everyone. *Option:* gate the sensitive detail keys, or use the two unused
-    capabilities for them.
-34. **The "current selection" (who "her" or "him" refers to) is one setting for the whole business, not one per person.**
-    One person's lookups change what another person's "and her balance" means, and "forget that" clears it for everyone.
-    A leftover from when the app had one user. *Option:* a selection per signed-in member.
 38. **The permission grid is coarse: five real switches.** `can_manage_invoices` is checked in 44 places, so one switch
     governs recording money AND seeing quotations, expense totals and supplier balances. Finer control (expense totals,
     supplier balances, material prices, person details as their own switches) needs new capabilities. Offered and
     deferred ("start with the existing ones"). A material's last price is not gated by any capability at all, so it
     cannot be a switch until it gets one. (`DECISIONS.md`, "The permission grid".)
-11. **An installer's scheduling message that the classifier labels "invoice" is refused outright.** Set aside on
-    2026-10-03 as unproven (it was only ever seen in a code comment). Reopen if a real one is refused.
-
-
-
-
 39. **A cancelled order cannot be reopened.** To order the same thing again, place a new order. Cancelling is a held
     action and is recorded with who cancelled it, but there is no "uncancel". *Option:* a spoken "reopen the Floornet
     order".
@@ -45,6 +32,11 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
 47. **A job with measurements or tasks but no customer is still recorded customer-less.** Only the installer-and-date-only case
     (nothing to measure, nothing to attach to) now asks which customer. *Option:* ask in every case where no customer was
     named and nothing in the same message supplies one. (`DECISIONS.md`, "Decisions session, round 10 (part 1)".)
+
+48. **A free-text note that mentions a pay or bank detail is not gated.** Only a saved *detail* is (by its key). Someone who says
+    a bank account as a note ("Sipho's bank is FNB, account 6201...") puts it in free text, which every role can read. *Option:*
+    keep sentences that look like a bank or pay detail out of notes, as money sentences already are. (`DECISIONS.md`,
+    "Decisions session, round 11".)
 ## B. Needs a live check only a phone can give
 
 12. **The Codemagic rebuild**: the Confirm/Reject buttons for a follow-up question raised by a confirm ("Add to stock?",
@@ -53,6 +45,10 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     tests, never run on a real delivery note with two orders.
 15. **The Permissions screen on a real phone.** The web build compiles it; the phone build and a real tap-through are
     unverified (switch something off for the installer, then check on the installer's phone that the room is gone).
+14i. **Round 11 on the phone.** Say "Jabulani's day rate is R600 a day" as the installer (expect "Nothing was saved...") and as the
+    owner (expect it held). Look at the Permissions room: it should now show Payroll and Banking details as switches. Ask "and
+    her balance" on two phones signed in as two people: each should follow their own last customer, and "forget that" on
+    one should not clear the other. The language model reads these sentences and could not be run here.
 14h. **A real "Floornet says we owe them R12,000" and "what did Floornet claim we owe".** Both are read by the language model,
     which could not be run here (the first needs the stated balance to arrive in the amount). Try each once, and "Jenny paid"
     with no amount (expect "how much was it?") and "Sipho will install Monday" with no customer (expect "which customer?").
@@ -104,6 +100,14 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
 
 ## Settled (kept so the reasoning is not lost)
+
+- 2026-10-04, decided by Pierre (decisions session, round 11):
+  - **A person's pay and bank details need `can_know_payroll` / `can_know_banking`, to be read and to be saved** (by the detail's
+    key; "account manager" and "payment terms" are not sensitive). The two permissions are now real switches. Applied.
+  - **One current selection per signed-in person** ("her", "him", "forget that"); the old shared one is no longer read, so
+    everyone starts empty after the deploy. Applied.
+  - **An installer's scheduling message labelled "invoice" with no amount is read as the job it is;** with an amount it is still
+    refused. Applied. (`DECISIONS.md`, "Decisions session, round 11".)
 
 - 2026-10-04, decided by Pierre (decisions session, round 10):
   - **Supplier statements have a home, spoken or uploaded:** recorded with what the books said at that moment and the difference,

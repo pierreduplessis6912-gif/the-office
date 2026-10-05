@@ -1,4 +1,592 @@
 {
+ "follow-up: another person's selection is not used for \"her\"": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I don't have anything on file for that yet.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "and what about her balance",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "and what about her balance",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "follow-up: a person uses their own selection": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "ANSWER FROM FACTS:\n- Jenny Smith is a known customer.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "and what about her balance",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "and what about her balance",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "forget that: clears the person who said it, not the other person's selection": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Okay.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "member_selections": {
+    "removed": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "forget that: the accountant clears their own and leaves the owner's": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Okay.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "member_selections": {
+    "removed": [
+     {
+      "member": "accountant@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Jabulani"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "detail: owner saves a day rate": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Jabulani",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": 1,
+   "message": "Found existing: Jabulani. day rate noted (R600 a day) — needs your confirmation (action #1) before it's saved.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jabulani's day rate is R600 a day",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jabulani's day rate is R600 a day",
+       "source": "text",
+       "subject_hint": "Jabulani",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Jabulani"
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "character_fact",
+      "payload": "{\"characterId\":1,\"characterName\":\"Jabulani\",\"key\":\"day rate\",\"value\":\"R600 a day\"}",
+      "status": "pending",
+      "source_transcript": "Jabulani's day rate is R600 a day"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "character:1",
+    "value": "{\"facts\":[{\"text\":\"Jabulani's day rate is R600 a day\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "detail: accountant saves a day rate": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Jabulani",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": 1,
+   "message": "Found existing: Jabulani. day rate noted (R600 a day) — needs your confirmation (action #1) before it's saved.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jabulani's day rate is R600 a day",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jabulani's day rate is R600 a day",
+       "source": "text",
+       "subject_hint": "Jabulani",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Jabulani"
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "character_fact",
+      "payload": "{\"characterId\":1,\"characterName\":\"Jabulani\",\"key\":\"day rate\",\"value\":\"R600 a day\"}",
+      "status": "pending",
+      "source_transcript": "Jabulani's day rate is R600 a day"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "character:1",
+    "value": "{\"facts\":[{\"text\":\"Jabulani's day rate is R600 a day\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "detail: installer is refused a day rate, and nothing is held": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Jabulani",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Found existing: Jabulani. Nothing was saved: pay details like a day rate or salary can only be saved by someone with payroll access.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jabulani's day rate is R600 a day",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jabulani's day rate is R600 a day",
+       "source": "text",
+       "subject_hint": "Jabulani",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Jabulani"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "character:1",
+    "value": "{\"facts\":[{\"text\":\"Jabulani's day rate is R600 a day\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "detail: installer is refused a bank account, and nothing is held": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Jabulani",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Found existing: Jabulani. Nothing was saved: bank details can only be saved by someone with banking access.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jabulani's bank account is FNB 62012345678",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jabulani's bank account is FNB 62012345678",
+       "source": "text",
+       "subject_hint": "Jabulani",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Jabulani"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "character:1",
+    "value": "{\"facts\":[{\"text\":\"Jabulani's bank account is FNB 62012345678\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "detail: installer saves a cell number as before": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Jabulani",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": 1,
+   "message": "Found existing: Jabulani. cell noted (083 555 0202) — needs your confirmation (action #1) before it's saved.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jabulani's cell is 083 555 0202",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jabulani's cell is 083 555 0202",
+       "source": "text",
+       "subject_hint": "Jabulani",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Jabulani"
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "character_fact",
+      "payload": "{\"characterId\":1,\"characterName\":\"Jabulani\",\"key\":\"cell\",\"value\":\"083 555 0202\"}",
+      "status": "pending",
+      "source_transcript": "Jabulani's cell is 083 555 0202"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "character:1",
+    "value": "{\"facts\":[{\"text\":\"Jabulani's cell is 083 555 0202\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "detail: installer may save an account manager (not a bank detail)": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Jabulani",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": 1,
+   "message": "Found existing: Jabulani. account manager noted (Thandi) — needs your confirmation (action #1) before it's saved.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jabulani's account manager is Thandi",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jabulani's account manager is Thandi",
+       "source": "text",
+       "subject_hint": "Jabulani",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Jabulani"
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "character_fact",
+      "payload": "{\"characterId\":1,\"characterName\":\"Jabulani\",\"key\":\"account manager\",\"value\":\"Thandi\"}",
+      "status": "pending",
+      "source_transcript": "Jabulani's account manager is Thandi"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "character:1",
+    "value": "{\"facts\":[{\"text\":\"Jabulani's account manager is Thandi\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
  "forget that: owner, with something pending and a customer selected": {
   "result": {
    "customer": null,
@@ -15,6 +603,16 @@
   "aiCalls": [],
   "backgroundErrors": [],
   "writes": {
+   "member_selections": {
+    "removed": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_actions": {
     "changed": [
      {
@@ -32,15 +630,6 @@
        "status": "abandoned",
        "source_transcript": "invoice Sipho R98000"
       }
-     }
-    ]
-   },
-   "selections": {
-    "removed": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -63,9 +652,10 @@
   "aiCalls": [],
   "backgroundErrors": [],
   "writes": {
-   "selections": {
+   "member_selections": {
     "removed": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"
@@ -91,9 +681,10 @@
   "aiCalls": [],
   "backgroundErrors": [],
   "writes": {
-   "selections": {
+   "member_selections": {
     "removed": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"
@@ -284,21 +875,22 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_memory_flush": {
     "added": [
      {
       "id": 1,
       "customer_id": 1,
       "text": "Jenny Smith called"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -357,21 +949,22 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
    "pending_memory_flush": {
     "added": [
      {
       "id": 1,
       "customer_id": 1,
       "text": "jenny smith called"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
      }
     ]
    }
@@ -443,21 +1036,22 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 3,
+      "label": "Thandi Mokoena"
+     }
+    ]
+   },
    "pending_memory_flush": {
     "added": [
      {
       "id": 1,
       "customer_id": 3,
       "text": "Thandi Mokoena called"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 3,
-      "label": "Thandi Mokoena"
      }
     ]
    }
@@ -603,21 +1197,22 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 3,
+      "label": "Brand New Person"
+     }
+    ]
+   },
    "pending_memory_flush": {
     "added": [
      {
       "id": 1,
       "customer_id": 3,
       "text": "Brand New Person called"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 3,
-      "label": "Brand New Person"
      }
     ]
    }
@@ -875,9 +1470,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 2,
       "label": "Floornet"
@@ -939,9 +1535,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 2,
       "label": "Floornet"
@@ -1014,9 +1611,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 3,
       "label": "Newco Supplies"
@@ -1089,9 +1687,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 3,
       "label": "Mystery Man"
@@ -1265,26 +1864,28 @@
      }
     ]
    },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     },
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Jabulani"
+     }
+    ]
+   },
    "pending_memory_flush": {
     "added": [
      {
       "id": 1,
       "customer_id": 1,
       "text": "Jabulani is installing at Jenny's"
-     }
-    ]
-   },
-   "selections": {
-    "added": [
-     {
-      "key": "customer",
-      "entity_id": 1,
-      "label": "Jenny Smith"
-     },
-     {
-      "key": "character",
-      "entity_id": 1,
-      "label": "Jabulani"
      }
     ]
    }
@@ -1345,9 +1946,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"
@@ -1598,9 +2200,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "customer",
       "entity_id": 1,
       "label": "Jenny Smith"
@@ -1659,9 +2262,10 @@
      }
     ]
    },
-   "selections": {
+   "member_selections": {
     "added": [
      {
+      "member": "owner@example.com",
       "key": "character",
       "entity_id": 2,
       "label": "Floornet"
