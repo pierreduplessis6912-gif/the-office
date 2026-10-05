@@ -6238,3 +6238,30 @@ I reviewed round 12 the way I review every change I did not write: a fresh check
 **Verified:** typecheck unchanged; **3,908 checks**; against `main` **no existing recording changed** and 5 were added (a sensitive life note; one where only the note's own wording is sensitive; one where only what was said is; a day rate; and an ordinary one still kept). **Four deliberate breakages were caught:** the guard removed; only the note checked; only what was said checked; and the reply no longer telling the truth. My original probe (five sentences through the real code) now shows no notes written for the four sensitive ones and the two ordinary ones kept.
 
 **What this says about my own process.** The leak was visible in recordings I had in front of me; I printed what I expected to see (the message and whether a hold existed) and not the field where the leak was. Reviews of recordings should read *every* recorded effect, not only the ones the change was about.
+
+
+---
+
+## Decisions session, round 13 (part 1): three finer permission switches
+
+Round 13, decided by Pierre: **31.** add the three finer permission switches; **32.** add a spoken reopen for a cancelled order, held for confirmation (built next); **33.** leave the unit list as it is and add units as they turn up (nothing to build: recorded here).
+
+**31. Expense totals, supplier balances and material prices are switches of their own.** One switch, "Money in and out", governed recording money *and* seeing quotations, expense totals and supplier balances, and the last price paid for a material was not gated at all. Now, in the Permissions room (which now has **ten** switches):
+- **See expense totals** governs expense totals in answers ("what are we spending") and the expenses screen (which is also open to anyone with profit access, so taking only this away leaves the screen open through profit; taking both away closes it).
+- **See what we owe suppliers** governs supplier balances in answers, the suppliers screen and the aged creditors report.
+- **See material prices** governs "what did we last pay for vinyl".
+"Money in and out" now means recording money and seeing quotations (its description says so).
+
+**Nothing changes until you flip one.** The defaults are exactly who has each thing today: owner and accountant have all three; the installer has material prices only (which were open to everyone), and neither money view. **And so that a role you have ALREADY switched off cannot silently regain a view, expense totals and supplier balances FOLLOW "Money in and out" until set on their own:** a role switched off from money stays without both views, one given money gets both with it, and an explicit setting on either wins (so you can give an accountant expense totals without money in and out, or take expense totals away without touching money). Material prices do not follow money; they never were tied to it.
+
+**A design bug, found by a recorded case and fixed.** The screen stores a setting only when it differs from the default, and switching something back to its default removes the setting. For a switch that follows another, comparing with the static default is wrong: with money taken away, switching expense totals **on** equalled the accountant's default (on), so it deleted the very setting meant to keep it on, and it fell straight back to following money (off). The case "money taken away but expense totals switched on" showed expenses still hidden. It now compares with what the switch would be if left alone (what money says), so the setting is stored; three grid cases pin it (stored when different, removed when the same, and cleared by a reset). My unit test had missed it because it inserted the override row directly instead of going through the screen.
+
+**The property that matters.** Against `main`, of **636 existing cases, 627 are identical** and **9 differ only by the catalog listing** (the three new switches and one reworded description), checked mechanically. None was removed; **22 were added** (the effect of each switch alone; money taken away taking both views with it; an explicit setting winning; each route open and closed; material prices; the three grid cases), and 11 unit tests of the inheritance (defaults, a role switched off staying off, a role given money getting both, an explicit setting winning, one view on its own without money, the owner never overridden, and no overrides leaving the accountant exactly the default).
+
+**Verified:** typecheck unchanged; **4,023 checks**. **Seven deliberate breakages were caught:** the new switches no longer following money (a role switched off silently regains them); the setPermission bug restored; expense totals in answers governed by money again; the suppliers screen governed by money again; material prices open to every role again; and the aged creditors report governed by money again. **That last one survived at first, and instructively:** my first attempt at cases for the report route recorded "this link is missing or has expired" even for the *control*, because that route needs a signed link, so five new cases looked like proof and proved nothing. They were removed, and the rule table is now checked directly.
+
+**Not run here:** nothing in this change needs the language model, but the Permissions room itself (three new rows) has not been looked at on a phone; it lists whatever the server's catalog says, so it should simply show them.
+
+## Decision 33: the recognised unit list stays as it is
+
+Decided by Pierre 2026-10-04: **leave it; add units as they turn up.** A unit outside the list (a "bundle", a "pair") is still never converted and never flagged, by design, so it cannot block a delivery. Each unit added later risks a wrong match, so they are added one at a time when one is actually needed.

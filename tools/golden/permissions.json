@@ -11,12 +11,45 @@
        {
         "key": "can_manage_invoices",
         "label": "Money in and out",
-        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, expense totals and supplier balances, and clear delivery shortages.",
+        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
         "inUse": true,
         "ownerOnly": false,
         "editable": true,
         "granted": false,
         "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_know_expense_totals",
+        "label": "See expense totals",
+        "description": "What the business has spent: expense totals in answers, and the expenses screen. Until set on its own, follows \"Money in and out\".",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": false,
+        "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_know_supplier_balances",
+        "label": "See what we owe suppliers",
+        "description": "Outstanding supplier balances: the aged creditors breakdown and its report, and the suppliers screen. Until set on its own, follows \"Money in and out\".",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": false,
+        "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_know_material_prices",
+        "label": "See material prices",
+        "description": "The last real price paid for a material, when asked.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
         "changed": false
        },
        {
@@ -149,7 +182,40 @@
        {
         "key": "can_manage_invoices",
         "label": "Money in and out",
-        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, expense totals and supplier balances, and clear delivery shortages.",
+        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_know_expense_totals",
+        "label": "See expense totals",
+        "description": "What the business has spent: expense totals in answers, and the expenses screen. Until set on its own, follows \"Money in and out\".",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_know_supplier_balances",
+        "label": "See what we owe suppliers",
+        "description": "Outstanding supplier balances: the aged creditors breakdown and its report, and the suppliers screen. Until set on its own, follows \"Money in and out\".",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_know_material_prices",
+        "label": "See material prices",
+        "description": "The last real price paid for a material, when asked.",
         "inUse": true,
         "ownerOnly": false,
         "editable": true,
@@ -340,12 +406,45 @@
       {
        "key": "can_manage_invoices",
        "label": "Money in and out",
-       "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, expense totals and supplier balances, and clear delivery shortages.",
+       "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
        "inUse": true,
        "ownerOnly": false,
        "editable": true,
        "granted": false,
        "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_know_expense_totals",
+       "label": "See expense totals",
+       "description": "What the business has spent: expense totals in answers, and the expenses screen. Until set on its own, follows \"Money in and out\".",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_know_supplier_balances",
+       "label": "See what we owe suppliers",
+       "description": "Outstanding supplier balances: the aged creditors breakdown and its report, and the suppliers screen. Until set on its own, follows \"Money in and out\".",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_know_material_prices",
+       "label": "See material prices",
+       "description": "The last real price paid for a material, when asked.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
        "changed": false
       },
       {
@@ -514,13 +613,46 @@
       {
        "key": "can_manage_invoices",
        "label": "Money in and out",
-       "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, expense totals and supplier balances, and clear delivery shortages.",
+       "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
        "inUse": true,
        "ownerOnly": false,
        "editable": true,
        "granted": true,
        "default": false,
        "changed": true
+      },
+      {
+       "key": "can_know_expense_totals",
+       "label": "See expense totals",
+       "description": "What the business has spent: expense totals in answers, and the expenses screen. Until set on its own, follows \"Money in and out\".",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": false,
+       "changed": true
+      },
+      {
+       "key": "can_know_supplier_balances",
+       "label": "See what we owe suppliers",
+       "description": "Outstanding supplier balances: the aged creditors breakdown and its report, and the suppliers screen. Until set on its own, follows \"Money in and out\".",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": false,
+       "changed": true
+      },
+      {
+       "key": "can_know_material_prices",
+       "label": "See material prices",
+       "description": "The last real price paid for a material, when asked.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
+       "changed": false
       },
       {
        "key": "can_know_debtors",
@@ -688,12 +820,45 @@
       {
        "key": "can_manage_invoices",
        "label": "Money in and out",
-       "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, expense totals and supplier balances, and clear delivery shortages.",
+       "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
        "inUse": true,
        "ownerOnly": false,
        "editable": true,
        "granted": false,
        "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_know_expense_totals",
+       "label": "See expense totals",
+       "description": "What the business has spent: expense totals in answers, and the expenses screen. Until set on its own, follows \"Money in and out\".",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_know_supplier_balances",
+       "label": "See what we owe suppliers",
+       "description": "Outstanding supplier balances: the aged creditors breakdown and its report, and the suppliers screen. Until set on its own, follows \"Money in and out\".",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_know_material_prices",
+       "label": "See material prices",
+       "description": "The last real price paid for a material, when asked.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
        "changed": false
       },
       {
@@ -839,12 +1004,45 @@
       {
        "key": "can_manage_invoices",
        "label": "Money in and out",
-       "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, expense totals and supplier balances, and clear delivery shortages.",
+       "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
        "inUse": true,
        "ownerOnly": false,
        "editable": true,
        "granted": false,
        "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_know_expense_totals",
+       "label": "See expense totals",
+       "description": "What the business has spent: expense totals in answers, and the expenses screen. Until set on its own, follows \"Money in and out\".",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_know_supplier_balances",
+       "label": "See what we owe suppliers",
+       "description": "Outstanding supplier balances: the aged creditors breakdown and its report, and the suppliers screen. Until set on its own, follows \"Money in and out\".",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_know_material_prices",
+       "label": "See material prices",
+       "description": "The last real price paid for a material, when asked.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
        "changed": false
       },
       {
@@ -1622,7 +1820,1368 @@
   },
   "effects": []
  },
- "tampered rows: the grid shows nothing changed": {
+ "effect: taking only expense totals away hides expenses but leaves the supplier balances": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "processed",
+    "transcript": "how are we doing in rands",
+    "extraction": {
+     "customer_name": null,
+     "character_name": null,
+     "character_relationship": null,
+     "intent": "lookup",
+     "amount": null,
+     "fact_key": null,
+     "fact_value": null,
+     "personal_note": null,
+     "query_scope": "business",
+     "deposit_percent": null,
+     "scope_document_type": null,
+     "due_date_raw": null
+    },
+    "extractionRaw": {
+     "choices": [
+      {
+       "message": {
+        "content": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"lookup\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":\"business\",\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+       }
+      }
+     ]
+    },
+    "extractionRawText": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"lookup\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":\"business\",\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+    "customer": null,
+    "pendingActionId": null,
+    "pendingActionIds": [],
+    "pendingActions": [],
+    "factPendingActionId": null,
+    "message": "ANSWER FROM FACTS:\n- Jenny Smith owes R3000 (invoiced R5000, paid R2000).\n- No quotations on file.\n- Expense activity exists for this business but is restricted for your role.\n- Total invoiced to date: R5000.\n- Total actually received: R2000.\n- Total spent on expenses: R0.\n- Rough cash position (received minus spent): R2000. This is a cash-basis snapshot, not the formal profit and loss — see getProfitAndLoss for that.\n- Revenue: R5000.\n- Cost of Sales (materials, subcontractor): R0.\n- Gross Profit: R5000.\n- Operating Expenses (fuel, tools, other): R0.\n- Net Profit: R5000.\n- Expense breakdown by category: .\n- Revenue here is accrual-based (real invoiced amounts), not cash received — a different measure from the cash-position snapshot.\n- Aged debtors: current R0, 30-60 days R0, 60-90 days R3000, 90+ days R0. Payments are allocated oldest-invoice-first (FIFO), since payments aren't linked to a specific invoice.\n- Jenny Smith: R3000 total overdue (current R0, 30-60d R0, 60-90d R3000, 90+d R0).\n- No outstanding creditors on file.\n\nA more detailed aged breakdown is also available if useful.",
+    "rewrittenQuery": "how are we doing in rands",
+    "embers": {
+     "tasks": 0,
+     "scheduler": 0,
+     "finance": 1,
+     "expenses": 0
+    },
+    "pendingCandidates": null,
+    "pendingActionType": null,
+    "pendingChanges": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Is this a broad, whole-business question wanting a real, visual snapsh",
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "how are we doing in rands",
+      "source": "text",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "effect: taking only supplier balances away hides what we owe suppliers but leaves expenses": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "processed",
+    "transcript": "how are we doing in rands",
+    "extraction": {
+     "customer_name": null,
+     "character_name": null,
+     "character_relationship": null,
+     "intent": "lookup",
+     "amount": null,
+     "fact_key": null,
+     "fact_value": null,
+     "personal_note": null,
+     "query_scope": "business",
+     "deposit_percent": null,
+     "scope_document_type": null,
+     "due_date_raw": null
+    },
+    "extractionRaw": {
+     "choices": [
+      {
+       "message": {
+        "content": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"lookup\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":\"business\",\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+       }
+      }
+     ]
+    },
+    "extractionRawText": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"lookup\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":\"business\",\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+    "customer": null,
+    "pendingActionId": null,
+    "pendingActionIds": [],
+    "pendingActions": [],
+    "factPendingActionId": null,
+    "message": "ANSWER FROM FACTS:\n- Jenny Smith owes R3000 (invoiced R5000, paid R2000).\n- No quotations on file.\n- No expenses on file.\n- Total invoiced to date: R5000.\n- Total actually received: R2000.\n- Total spent on expenses: R0.\n- Rough cash position (received minus spent): R2000. This is a cash-basis snapshot, not the formal profit and loss — see getProfitAndLoss for that.\n- Revenue: R5000.\n- Cost of Sales (materials, subcontractor): R0.\n- Gross Profit: R5000.\n- Operating Expenses (fuel, tools, other): R0.\n- Net Profit: R5000.\n- Expense breakdown by category: .\n- Revenue here is accrual-based (real invoiced amounts), not cash received — a different measure from the cash-position snapshot.\n- Aged debtors: current R0, 30-60 days R0, 60-90 days R3000, 90+ days R0. Payments are allocated oldest-invoice-first (FIFO), since payments aren't linked to a specific invoice.\n- Jenny Smith: R3000 total overdue (current R0, 30-60d R0, 60-90d R3000, 90+d R0).\n- Outstanding supplier balances exist for this business but are restricted for your role.\n\nA more detailed aged breakdown is also available if useful.",
+    "rewrittenQuery": "how are we doing in rands",
+    "embers": {
+     "tasks": 0,
+     "scheduler": 0,
+     "finance": 1,
+     "expenses": 0
+    },
+    "pendingCandidates": null,
+    "pendingActionType": null,
+    "pendingChanges": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Is this a broad, whole-business question wanting a real, visual snapsh",
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "how are we doing in rands",
+      "source": "text",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "effect: taking money away from an accountant also hides expenses and supplier balances (they follow it)": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "processed",
+    "transcript": "how are we doing in rands",
+    "extraction": {
+     "customer_name": null,
+     "character_name": null,
+     "character_relationship": null,
+     "intent": "lookup",
+     "amount": null,
+     "fact_key": null,
+     "fact_value": null,
+     "personal_note": null,
+     "query_scope": "business",
+     "deposit_percent": null,
+     "scope_document_type": null,
+     "due_date_raw": null
+    },
+    "extractionRaw": {
+     "choices": [
+      {
+       "message": {
+        "content": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"lookup\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":\"business\",\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+       }
+      }
+     ]
+    },
+    "extractionRawText": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"lookup\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":\"business\",\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+    "customer": null,
+    "pendingActionId": null,
+    "pendingActionIds": [],
+    "pendingActions": [],
+    "factPendingActionId": null,
+    "message": "ANSWER FROM FACTS:\n- Jenny Smith owes R3000 (invoiced R5000, paid R2000).\n- Quotation activity exists for this business but is restricted for your role.\n- Expense activity exists for this business but is restricted for your role.\n- Total invoiced to date: R5000.\n- Total actually received: R2000.\n- Total spent on expenses: R0.\n- Rough cash position (received minus spent): R2000. This is a cash-basis snapshot, not the formal profit and loss — see getProfitAndLoss for that.\n- Revenue: R5000.\n- Cost of Sales (materials, subcontractor): R0.\n- Gross Profit: R5000.\n- Operating Expenses (fuel, tools, other): R0.\n- Net Profit: R5000.\n- Expense breakdown by category: .\n- Revenue here is accrual-based (real invoiced amounts), not cash received — a different measure from the cash-position snapshot.\n- Aged debtors: current R0, 30-60 days R0, 60-90 days R3000, 90+ days R0. Payments are allocated oldest-invoice-first (FIFO), since payments aren't linked to a specific invoice.\n- Jenny Smith: R3000 total overdue (current R0, 30-60d R0, 60-90d R3000, 90+d R0).\n- Outstanding supplier balances exist for this business but are restricted for your role.\n\nA more detailed aged breakdown is also available if useful.",
+    "rewrittenQuery": "how are we doing in rands",
+    "embers": {
+     "tasks": 0,
+     "scheduler": 0,
+     "finance": 1,
+     "expenses": 0
+    },
+    "pendingCandidates": null,
+    "pendingActionType": null,
+    "pendingChanges": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Is this a broad, whole-business question wanting a real, visual snapsh",
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "how are we doing in rands",
+      "source": "text",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "effect: money taken away but expense totals switched on shows expenses and still hides supplier balances": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "processed",
+    "transcript": "how are we doing in rands",
+    "extraction": {
+     "customer_name": null,
+     "character_name": null,
+     "character_relationship": null,
+     "intent": "lookup",
+     "amount": null,
+     "fact_key": null,
+     "fact_value": null,
+     "personal_note": null,
+     "query_scope": "business",
+     "deposit_percent": null,
+     "scope_document_type": null,
+     "due_date_raw": null
+    },
+    "extractionRaw": {
+     "choices": [
+      {
+       "message": {
+        "content": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"lookup\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":\"business\",\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+       }
+      }
+     ]
+    },
+    "extractionRawText": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"lookup\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":\"business\",\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+    "customer": null,
+    "pendingActionId": null,
+    "pendingActionIds": [],
+    "pendingActions": [],
+    "factPendingActionId": null,
+    "message": "ANSWER FROM FACTS:\n- Jenny Smith owes R3000 (invoiced R5000, paid R2000).\n- Quotation activity exists for this business but is restricted for your role.\n- No expenses on file.\n- Total invoiced to date: R5000.\n- Total actually received: R2000.\n- Total spent on expenses: R0.\n- Rough cash position (received minus spent): R2000. This is a cash-basis snapshot, not the formal profit and loss — see getProfitAndLoss for that.\n- Revenue: R5000.\n- Cost of Sales (materials, subcontractor): R0.\n- Gross Profit: R5000.\n- Operating Expenses (fuel, tools, other): R0.\n- Net Profit: R5000.\n- Expense breakdown by category: .\n- Revenue here is accrual-based (real invoiced amounts), not cash received — a different measure from the cash-position snapshot.\n- Aged debtors: current R0, 30-60 days R0, 60-90 days R3000, 90+ days R0. Payments are allocated oldest-invoice-first (FIFO), since payments aren't linked to a specific invoice.\n- Jenny Smith: R3000 total overdue (current R0, 30-60d R0, 60-90d R3000, 90+d R0).\n- Outstanding supplier balances exist for this business but are restricted for your role.\n\nA more detailed aged breakdown is also available if useful.",
+    "rewrittenQuery": "how are we doing in rands",
+    "embers": {
+     "tasks": 0,
+     "scheduler": 0,
+     "finance": 1,
+     "expenses": 0
+    },
+    "pendingCandidates": null,
+    "pendingActionType": null,
+    "pendingChanges": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Is this a broad, whole-business question wanting a real, visual snapsh",
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "how are we doing in rands",
+      "source": "text",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "effect: giving an installer only expense totals shows them expenses and still hides balances and quotations": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "processed",
+    "transcript": "how are we doing in rands",
+    "extraction": {
+     "customer_name": null,
+     "character_name": null,
+     "character_relationship": null,
+     "intent": "lookup",
+     "amount": null,
+     "fact_key": null,
+     "fact_value": null,
+     "personal_note": null,
+     "query_scope": "business",
+     "deposit_percent": null,
+     "scope_document_type": null,
+     "due_date_raw": null
+    },
+    "extractionRaw": {
+     "choices": [
+      {
+       "message": {
+        "content": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"lookup\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":\"business\",\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+       }
+      }
+     ]
+    },
+    "extractionRawText": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"lookup\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":\"business\",\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+    "customer": null,
+    "pendingActionId": null,
+    "pendingActionIds": [],
+    "pendingActions": [],
+    "factPendingActionId": null,
+    "message": "ANSWER FROM FACTS:\n- Outstanding balances exist for this business but are restricted for your role.\n- Quotation activity exists for this business but is restricted for your role.\n- No expenses on file.\n- Financial performance data exists for this business but is restricted for your role.\n- Outstanding balances exist for this business but are restricted for your role.\n- Outstanding supplier balances exist for this business but are restricted for your role.",
+    "rewrittenQuery": "how are we doing in rands",
+    "embers": {
+     "tasks": 0,
+     "scheduler": 0,
+     "finance": 1,
+     "expenses": 0
+    },
+    "pendingCandidates": null,
+    "pendingActionType": null,
+    "pendingChanges": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Is this a broad, whole-business question wanting a real, visual snapsh",
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "how are we doing in rands",
+      "source": "text",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "control: by default an accountant can open the suppliers screen": {
+  "result": {
+   "status": 200,
+   "body": {
+    "todaysExpenses": [],
+    "agedCreditors": []
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "effect: taking supplier balances away stops an accountant opening the suppliers screen": {
+  "result": {
+   "status": 403,
+   "body": {
+    "error": "not available for your role"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "effect: taking money away also stops an accountant opening the suppliers screen (supplier balances follow it)": {
+  "result": {
+   "status": 403,
+   "body": {
+    "error": "not available for your role"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "control: by default an installer cannot open the suppliers screen": {
+  "result": {
+   "status": 403,
+   "body": {
+    "error": "not available for your role"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "effect: giving an installer supplier balances lets them open the suppliers screen without money in and out": {
+  "result": {
+   "status": 200,
+   "body": {
+    "todaysExpenses": [],
+    "agedCreditors": []
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "control: by default an accountant can open the expenses screen": {
+  "result": {
+   "status": 200,
+   "body": {
+    "todaysExpenses": []
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "effect: taking only expense totals away leaves the expenses screen open through profit access": {
+  "result": {
+   "status": 200,
+   "body": {
+    "todaysExpenses": []
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "effect: taking expense totals AND profit away closes the expenses screen": {
+  "result": {
+   "status": 403,
+   "body": {
+    "error": "not available for your role"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "control: by default an installer cannot open the expenses screen": {
+  "result": {
+   "status": 403,
+   "body": {
+    "error": "not available for your role"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "effect: giving an installer expense totals opens the expenses screen": {
+  "result": {
+   "status": 200,
+   "body": {
+    "todaysExpenses": []
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "control: by default an installer can ask the last price paid for a material": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "processed",
+    "transcript": "what did we last pay for vinyl",
+    "extraction": {
+     "customer_name": null,
+     "character_name": null,
+     "character_relationship": null,
+     "intent": "lookup",
+     "amount": null,
+     "fact_key": null,
+     "fact_value": "vinyl",
+     "personal_note": null,
+     "query_scope": "material_price",
+     "deposit_percent": null,
+     "scope_document_type": null,
+     "due_date_raw": null
+    },
+    "extractionRaw": {
+     "choices": [
+      {
+       "message": {
+        "content": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"lookup\",\"amount\":null,\"fact_key\":null,\"fact_value\":\"vinyl\",\"personal_note\":null,\"query_scope\":\"material_price\",\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+       }
+      }
+     ]
+    },
+    "extractionRawText": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"lookup\",\"amount\":null,\"fact_key\":null,\"fact_value\":\"vinyl\",\"personal_note\":null,\"query_scope\":\"material_price\",\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+    "customer": null,
+    "pendingActionId": null,
+    "pendingActionIds": [],
+    "pendingActions": [],
+    "factPendingActionId": null,
+    "message": "No real supplier invoice on file yet mentions \"vinyl\" — nothing to base a price on.",
+    "rewrittenQuery": "what did we last pay for vinyl",
+    "embers": {
+     "tasks": 0,
+     "scheduler": 0,
+     "finance": 1,
+     "expenses": 0
+    },
+    "pendingCandidates": null,
+    "pendingActionType": null,
+    "pendingChanges": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "what did we last pay for vinyl",
+      "source": "text",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "effect: taking material prices away stops an installer asking the last price paid": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "processed",
+    "transcript": "what did we last pay for vinyl",
+    "extraction": {
+     "customer_name": null,
+     "character_name": null,
+     "character_relationship": null,
+     "intent": "lookup",
+     "amount": null,
+     "fact_key": null,
+     "fact_value": "vinyl",
+     "personal_note": null,
+     "query_scope": "material_price",
+     "deposit_percent": null,
+     "scope_document_type": null,
+     "due_date_raw": null
+    },
+    "extractionRaw": {
+     "choices": [
+      {
+       "message": {
+        "content": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"lookup\",\"amount\":null,\"fact_key\":null,\"fact_value\":\"vinyl\",\"personal_note\":null,\"query_scope\":\"material_price\",\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+       }
+      }
+     ]
+    },
+    "extractionRawText": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"lookup\",\"amount\":null,\"fact_key\":null,\"fact_value\":\"vinyl\",\"personal_note\":null,\"query_scope\":\"material_price\",\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+    "customer": null,
+    "pendingActionId": null,
+    "pendingActionIds": [],
+    "pendingActions": [],
+    "factPendingActionId": null,
+    "message": "Material prices exist for this business but are restricted for your role.",
+    "rewrittenQuery": "what did we last pay for vinyl",
+    "embers": {
+     "tasks": 0,
+     "scheduler": 0,
+     "finance": 1,
+     "expenses": 0
+    },
+    "pendingCandidates": null,
+    "pendingActionType": null,
+    "pendingChanges": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "what did we last pay for vinyl",
+      "source": "text",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "effect: taking material prices away from the accountant stops them asking too": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "processed",
+    "transcript": "what did we last pay for vinyl",
+    "extraction": {
+     "customer_name": null,
+     "character_name": null,
+     "character_relationship": null,
+     "intent": "lookup",
+     "amount": null,
+     "fact_key": null,
+     "fact_value": "vinyl",
+     "personal_note": null,
+     "query_scope": "material_price",
+     "deposit_percent": null,
+     "scope_document_type": null,
+     "due_date_raw": null
+    },
+    "extractionRaw": {
+     "choices": [
+      {
+       "message": {
+        "content": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"lookup\",\"amount\":null,\"fact_key\":null,\"fact_value\":\"vinyl\",\"personal_note\":null,\"query_scope\":\"material_price\",\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+       }
+      }
+     ]
+    },
+    "extractionRawText": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"lookup\",\"amount\":null,\"fact_key\":null,\"fact_value\":\"vinyl\",\"personal_note\":null,\"query_scope\":\"material_price\",\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+    "customer": null,
+    "pendingActionId": null,
+    "pendingActionIds": [],
+    "pendingActions": [],
+    "factPendingActionId": null,
+    "message": "Material prices exist for this business but are restricted for your role.",
+    "rewrittenQuery": "what did we last pay for vinyl",
+    "embers": {
+     "tasks": 0,
+     "scheduler": 0,
+     "finance": 1,
+     "expenses": 0
+    },
+    "pendingCandidates": null,
+    "pendingActionType": null,
+    "pendingChanges": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "what did we last pay for vinyl",
+      "source": "text",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "grid: with money taken away, switching expense totals on and then off again leaves no setting of its own": {
+  "result": {
+   "status": 200,
+   "body": {
+    "changed": true,
+    "role": {
+     "role": "accountant",
+     "label": "Accountant",
+     "capabilities": [
+      {
+       "key": "can_manage_invoices",
+       "label": "Money in and out",
+       "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": true,
+       "changed": true
+      },
+      {
+       "key": "can_know_expense_totals",
+       "label": "See expense totals",
+       "description": "What the business has spent: expense totals in answers, and the expenses screen. Until set on its own, follows \"Money in and out\".",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": true,
+       "changed": true
+      },
+      {
+       "key": "can_know_supplier_balances",
+       "label": "See what we owe suppliers",
+       "description": "Outstanding supplier balances: the aged creditors breakdown and its report, and the suppliers screen. Until set on its own, follows \"Money in and out\".",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": true,
+       "changed": true
+      },
+      {
+       "key": "can_know_material_prices",
+       "label": "See material prices",
+       "description": "The last real price paid for a material, when asked.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
+       "changed": false
+      },
+      {
+       "key": "can_know_debtors",
+       "label": "See who owes us",
+       "description": "Outstanding balances, the aged debtors breakdown and its report.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
+       "changed": false
+      },
+      {
+       "key": "can_know_profit",
+       "label": "See profit",
+       "description": "The financial snapshot, profit and loss, job profitability and their reports.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
+       "changed": false
+      },
+      {
+       "key": "can_know_materials",
+       "label": "Materials and stock",
+       "description": "See the stock room, receive deliveries, record stock used and stock counts, and add delivered items to stock.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
+       "changed": false
+      },
+      {
+       "key": "can_know_jobs",
+       "label": "Jobs and schedule",
+       "description": "Projects, snags, tasks and the schedule. An installer still sees only their own jobs.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_know_payroll",
+       "label": "Payroll",
+       "description": "Day rates, salaries and similar pay details saved about a person: reading them, and saving them.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
+       "changed": false
+      },
+      {
+       "key": "can_know_banking",
+       "label": "Banking details",
+       "description": "Bank account details saved about a person: reading them, and saving them.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
+       "changed": false
+      },
+      {
+       "key": "can_know_measurements",
+       "label": "Measurements",
+       "description": "Not used by anything yet.",
+       "inUse": false,
+       "ownerOnly": false,
+       "editable": false,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_capture_voice_notes",
+       "label": "Voice notes",
+       "description": "Not used by anything yet. Voice notes are open to every signed-in member.",
+       "inUse": false,
+       "ownerOnly": false,
+       "editable": false,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_invite_members",
+       "label": "Invite members",
+       "description": "Owner only.",
+       "inUse": false,
+       "ownerOnly": true,
+       "editable": false,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_delete_data",
+       "label": "Delete data",
+       "description": "Owner only.",
+       "inUse": false,
+       "ownerOnly": true,
+       "editable": false,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_manage_settings",
+       "label": "Settings, leads and these permissions",
+       "description": "Owner only. Leads, the business logo, imports and this screen.",
+       "inUse": true,
+       "ownerOnly": true,
+       "editable": false,
+       "granted": false,
+       "default": false,
+       "changed": false
+      }
+     ]
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "permission_audit": {
+    "added": [
+     {
+      "id": 3,
+      "changed_by": "owner@example.com",
+      "role": "accountant",
+      "capability": "can_know_expense_totals",
+      "old_granted": 1,
+      "new_granted": 0
+     }
+    ]
+   },
+   "role_capability_overrides": {
+    "removed": [
+     {
+      "role": "accountant",
+      "capability": "can_know_expense_totals",
+      "granted": 1,
+      "updated_by": "owner@example.com"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "grid: with money taken away, switching expense totals on stores a setting of its own": {
+  "result": {
+   "status": 200,
+   "body": {
+    "changed": true,
+    "role": {
+     "role": "accountant",
+     "label": "Accountant",
+     "capabilities": [
+      {
+       "key": "can_manage_invoices",
+       "label": "Money in and out",
+       "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": true,
+       "changed": true
+      },
+      {
+       "key": "can_know_expense_totals",
+       "label": "See expense totals",
+       "description": "What the business has spent: expense totals in answers, and the expenses screen. Until set on its own, follows \"Money in and out\".",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
+       "changed": false
+      },
+      {
+       "key": "can_know_supplier_balances",
+       "label": "See what we owe suppliers",
+       "description": "Outstanding supplier balances: the aged creditors breakdown and its report, and the suppliers screen. Until set on its own, follows \"Money in and out\".",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": true,
+       "changed": true
+      },
+      {
+       "key": "can_know_material_prices",
+       "label": "See material prices",
+       "description": "The last real price paid for a material, when asked.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
+       "changed": false
+      },
+      {
+       "key": "can_know_debtors",
+       "label": "See who owes us",
+       "description": "Outstanding balances, the aged debtors breakdown and its report.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
+       "changed": false
+      },
+      {
+       "key": "can_know_profit",
+       "label": "See profit",
+       "description": "The financial snapshot, profit and loss, job profitability and their reports.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
+       "changed": false
+      },
+      {
+       "key": "can_know_materials",
+       "label": "Materials and stock",
+       "description": "See the stock room, receive deliveries, record stock used and stock counts, and add delivered items to stock.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
+       "changed": false
+      },
+      {
+       "key": "can_know_jobs",
+       "label": "Jobs and schedule",
+       "description": "Projects, snags, tasks and the schedule. An installer still sees only their own jobs.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_know_payroll",
+       "label": "Payroll",
+       "description": "Day rates, salaries and similar pay details saved about a person: reading them, and saving them.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
+       "changed": false
+      },
+      {
+       "key": "can_know_banking",
+       "label": "Banking details",
+       "description": "Bank account details saved about a person: reading them, and saving them.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
+       "changed": false
+      },
+      {
+       "key": "can_know_measurements",
+       "label": "Measurements",
+       "description": "Not used by anything yet.",
+       "inUse": false,
+       "ownerOnly": false,
+       "editable": false,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_capture_voice_notes",
+       "label": "Voice notes",
+       "description": "Not used by anything yet. Voice notes are open to every signed-in member.",
+       "inUse": false,
+       "ownerOnly": false,
+       "editable": false,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_invite_members",
+       "label": "Invite members",
+       "description": "Owner only.",
+       "inUse": false,
+       "ownerOnly": true,
+       "editable": false,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_delete_data",
+       "label": "Delete data",
+       "description": "Owner only.",
+       "inUse": false,
+       "ownerOnly": true,
+       "editable": false,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_manage_settings",
+       "label": "Settings, leads and these permissions",
+       "description": "Owner only. Leads, the business logo, imports and this screen.",
+       "inUse": true,
+       "ownerOnly": true,
+       "editable": false,
+       "granted": false,
+       "default": false,
+       "changed": false
+      }
+     ]
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "permission_audit": {
+    "added": [
+     {
+      "id": 2,
+      "changed_by": "owner@example.com",
+      "role": "accountant",
+      "capability": "can_know_expense_totals",
+      "old_granted": 0,
+      "new_granted": 1
+     }
+    ]
+   },
+   "role_capability_overrides": {
+    "added": [
+     {
+      "role": "accountant",
+      "capability": "can_know_expense_totals",
+      "granted": 1,
+      "updated_by": "owner@example.com"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "reset: undoes an explicit expense totals setting, which follows money again": {
+  "result": {
+   "status": 200,
+   "body": {
+    "changed": true,
+    "reverted": 1,
+    "role": {
+     "role": "accountant",
+     "label": "Accountant",
+     "capabilities": [
+      {
+       "key": "can_manage_invoices",
+       "label": "Money in and out",
+       "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
+       "changed": false
+      },
+      {
+       "key": "can_know_expense_totals",
+       "label": "See expense totals",
+       "description": "What the business has spent: expense totals in answers, and the expenses screen. Until set on its own, follows \"Money in and out\".",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
+       "changed": false
+      },
+      {
+       "key": "can_know_supplier_balances",
+       "label": "See what we owe suppliers",
+       "description": "Outstanding supplier balances: the aged creditors breakdown and its report, and the suppliers screen. Until set on its own, follows \"Money in and out\".",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
+       "changed": false
+      },
+      {
+       "key": "can_know_material_prices",
+       "label": "See material prices",
+       "description": "The last real price paid for a material, when asked.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
+       "changed": false
+      },
+      {
+       "key": "can_know_debtors",
+       "label": "See who owes us",
+       "description": "Outstanding balances, the aged debtors breakdown and its report.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
+       "changed": false
+      },
+      {
+       "key": "can_know_profit",
+       "label": "See profit",
+       "description": "The financial snapshot, profit and loss, job profitability and their reports.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
+       "changed": false
+      },
+      {
+       "key": "can_know_materials",
+       "label": "Materials and stock",
+       "description": "See the stock room, receive deliveries, record stock used and stock counts, and add delivered items to stock.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
+       "changed": false
+      },
+      {
+       "key": "can_know_jobs",
+       "label": "Jobs and schedule",
+       "description": "Projects, snags, tasks and the schedule. An installer still sees only their own jobs.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_know_payroll",
+       "label": "Payroll",
+       "description": "Day rates, salaries and similar pay details saved about a person: reading them, and saving them.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
+       "changed": false
+      },
+      {
+       "key": "can_know_banking",
+       "label": "Banking details",
+       "description": "Bank account details saved about a person: reading them, and saving them.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
+       "changed": false
+      },
+      {
+       "key": "can_know_measurements",
+       "label": "Measurements",
+       "description": "Not used by anything yet.",
+       "inUse": false,
+       "ownerOnly": false,
+       "editable": false,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_capture_voice_notes",
+       "label": "Voice notes",
+       "description": "Not used by anything yet. Voice notes are open to every signed-in member.",
+       "inUse": false,
+       "ownerOnly": false,
+       "editable": false,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_invite_members",
+       "label": "Invite members",
+       "description": "Owner only.",
+       "inUse": false,
+       "ownerOnly": true,
+       "editable": false,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_delete_data",
+       "label": "Delete data",
+       "description": "Owner only.",
+       "inUse": false,
+       "ownerOnly": true,
+       "editable": false,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_manage_settings",
+       "label": "Settings, leads and these permissions",
+       "description": "Owner only. Leads, the business logo, imports and this screen.",
+       "inUse": true,
+       "ownerOnly": true,
+       "editable": false,
+       "granted": false,
+       "default": false,
+       "changed": false
+      }
+     ]
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "permission_audit": {
+    "added": [
+     {
+      "id": 3,
+      "changed_by": "owner@example.com",
+      "role": "accountant",
+      "capability": "can_manage_invoices",
+      "old_granted": 0,
+      "new_granted": 1
+     }
+    ]
+   },
+   "role_capability_overrides": {
+    "removed": [
+     {
+      "role": "accountant",
+      "capability": "can_manage_invoices",
+      "granted": 0,
+      "updated_by": "owner@example.com"
+     },
+     {
+      "role": "accountant",
+      "capability": "can_know_expense_totals",
+      "granted": 1,
+      "updated_by": "owner@example.com"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "grid: the owner reads the new switches for both roles after taking money away": {
   "result": {
    "status": 200,
    "body": {
@@ -1634,12 +3193,45 @@
        {
         "key": "can_manage_invoices",
         "label": "Money in and out",
-        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, expense totals and supplier balances, and clear delivery shortages.",
+        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
         "inUse": true,
         "ownerOnly": false,
         "editable": true,
         "granted": false,
         "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_know_expense_totals",
+        "label": "See expense totals",
+        "description": "What the business has spent: expense totals in answers, and the expenses screen. Until set on its own, follows \"Money in and out\".",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": false,
+        "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_know_supplier_balances",
+        "label": "See what we owe suppliers",
+        "description": "Outstanding supplier balances: the aged creditors breakdown and its report, and the suppliers screen. Until set on its own, follows \"Money in and out\".",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": false,
+        "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_know_material_prices",
+        "label": "See material prices",
+        "description": "The last real price paid for a material, when asked.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
         "changed": false
        },
        {
@@ -1772,7 +3364,396 @@
        {
         "key": "can_manage_invoices",
         "label": "Money in and out",
-        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, expense totals and supplier balances, and clear delivery shortages.",
+        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": false,
+        "default": true,
+        "changed": true
+       },
+       {
+        "key": "can_know_expense_totals",
+        "label": "See expense totals",
+        "description": "What the business has spent: expense totals in answers, and the expenses screen. Until set on its own, follows \"Money in and out\".",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": false,
+        "default": true,
+        "changed": true
+       },
+       {
+        "key": "can_know_supplier_balances",
+        "label": "See what we owe suppliers",
+        "description": "Outstanding supplier balances: the aged creditors breakdown and its report, and the suppliers screen. Until set on its own, follows \"Money in and out\".",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": false,
+        "default": true,
+        "changed": true
+       },
+       {
+        "key": "can_know_material_prices",
+        "label": "See material prices",
+        "description": "The last real price paid for a material, when asked.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_know_debtors",
+        "label": "See who owes us",
+        "description": "Outstanding balances, the aged debtors breakdown and its report.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_know_profit",
+        "label": "See profit",
+        "description": "The financial snapshot, profit and loss, job profitability and their reports.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_know_materials",
+        "label": "Materials and stock",
+        "description": "See the stock room, receive deliveries, record stock used and stock counts, and add delivered items to stock.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_know_jobs",
+        "label": "Jobs and schedule",
+        "description": "Projects, snags, tasks and the schedule. An installer still sees only their own jobs.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": false,
+        "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_know_payroll",
+        "label": "Payroll",
+        "description": "Day rates, salaries and similar pay details saved about a person: reading them, and saving them.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_know_banking",
+        "label": "Banking details",
+        "description": "Bank account details saved about a person: reading them, and saving them.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_know_measurements",
+        "label": "Measurements",
+        "description": "Not used by anything yet.",
+        "inUse": false,
+        "ownerOnly": false,
+        "editable": false,
+        "granted": false,
+        "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_capture_voice_notes",
+        "label": "Voice notes",
+        "description": "Not used by anything yet. Voice notes are open to every signed-in member.",
+        "inUse": false,
+        "ownerOnly": false,
+        "editable": false,
+        "granted": false,
+        "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_invite_members",
+        "label": "Invite members",
+        "description": "Owner only.",
+        "inUse": false,
+        "ownerOnly": true,
+        "editable": false,
+        "granted": false,
+        "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_delete_data",
+        "label": "Delete data",
+        "description": "Owner only.",
+        "inUse": false,
+        "ownerOnly": true,
+        "editable": false,
+        "granted": false,
+        "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_manage_settings",
+        "label": "Settings, leads and these permissions",
+        "description": "Owner only. Leads, the business logo, imports and this screen.",
+        "inUse": true,
+        "ownerOnly": true,
+        "editable": false,
+        "granted": false,
+        "default": false,
+        "changed": false
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "tampered rows: the grid shows nothing changed": {
+  "result": {
+   "status": 200,
+   "body": {
+    "roles": [
+     {
+      "role": "installer",
+      "label": "Installer",
+      "capabilities": [
+       {
+        "key": "can_manage_invoices",
+        "label": "Money in and out",
+        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": false,
+        "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_know_expense_totals",
+        "label": "See expense totals",
+        "description": "What the business has spent: expense totals in answers, and the expenses screen. Until set on its own, follows \"Money in and out\".",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": false,
+        "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_know_supplier_balances",
+        "label": "See what we owe suppliers",
+        "description": "Outstanding supplier balances: the aged creditors breakdown and its report, and the suppliers screen. Until set on its own, follows \"Money in and out\".",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": false,
+        "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_know_material_prices",
+        "label": "See material prices",
+        "description": "The last real price paid for a material, when asked.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_know_debtors",
+        "label": "See who owes us",
+        "description": "Outstanding balances, the aged debtors breakdown and its report.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": false,
+        "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_know_profit",
+        "label": "See profit",
+        "description": "The financial snapshot, profit and loss, job profitability and their reports.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": false,
+        "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_know_materials",
+        "label": "Materials and stock",
+        "description": "See the stock room, receive deliveries, record stock used and stock counts, and add delivered items to stock.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_know_jobs",
+        "label": "Jobs and schedule",
+        "description": "Projects, snags, tasks and the schedule. An installer still sees only their own jobs.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_know_payroll",
+        "label": "Payroll",
+        "description": "Day rates, salaries and similar pay details saved about a person: reading them, and saving them.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": false,
+        "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_know_banking",
+        "label": "Banking details",
+        "description": "Bank account details saved about a person: reading them, and saving them.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": false,
+        "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_know_measurements",
+        "label": "Measurements",
+        "description": "Not used by anything yet.",
+        "inUse": false,
+        "ownerOnly": false,
+        "editable": false,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_capture_voice_notes",
+        "label": "Voice notes",
+        "description": "Not used by anything yet. Voice notes are open to every signed-in member.",
+        "inUse": false,
+        "ownerOnly": false,
+        "editable": false,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_invite_members",
+        "label": "Invite members",
+        "description": "Owner only.",
+        "inUse": false,
+        "ownerOnly": true,
+        "editable": false,
+        "granted": false,
+        "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_delete_data",
+        "label": "Delete data",
+        "description": "Owner only.",
+        "inUse": false,
+        "ownerOnly": true,
+        "editable": false,
+        "granted": false,
+        "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_manage_settings",
+        "label": "Settings, leads and these permissions",
+        "description": "Owner only. Leads, the business logo, imports and this screen.",
+        "inUse": true,
+        "ownerOnly": true,
+        "editable": false,
+        "granted": false,
+        "default": false,
+        "changed": false
+       }
+      ]
+     },
+     {
+      "role": "accountant",
+      "label": "Accountant",
+      "capabilities": [
+       {
+        "key": "can_manage_invoices",
+        "label": "Money in and out",
+        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_know_expense_totals",
+        "label": "See expense totals",
+        "description": "What the business has spent: expense totals in answers, and the expenses screen. Until set on its own, follows \"Money in and out\".",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_know_supplier_balances",
+        "label": "See what we owe suppliers",
+        "description": "Outstanding supplier balances: the aged creditors breakdown and its report, and the suppliers screen. Until set on its own, follows \"Money in and out\".",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_know_material_prices",
+        "label": "See material prices",
+        "description": "The last real price paid for a material, when asked.",
         "inUse": true,
         "ownerOnly": false,
         "editable": true,
@@ -1950,12 +3931,45 @@
        {
         "key": "can_manage_invoices",
         "label": "Money in and out",
-        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, expense totals and supplier balances, and clear delivery shortages.",
+        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
         "inUse": true,
         "ownerOnly": false,
         "editable": true,
         "granted": false,
         "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_know_expense_totals",
+        "label": "See expense totals",
+        "description": "What the business has spent: expense totals in answers, and the expenses screen. Until set on its own, follows \"Money in and out\".",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": false,
+        "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_know_supplier_balances",
+        "label": "See what we owe suppliers",
+        "description": "Outstanding supplier balances: the aged creditors breakdown and its report, and the suppliers screen. Until set on its own, follows \"Money in and out\".",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": false,
+        "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_know_material_prices",
+        "label": "See material prices",
+        "description": "The last real price paid for a material, when asked.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
         "changed": false
        },
        {
@@ -2088,7 +4102,40 @@
        {
         "key": "can_manage_invoices",
         "label": "Money in and out",
-        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, expense totals and supplier balances, and clear delivery shortages.",
+        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_know_expense_totals",
+        "label": "See expense totals",
+        "description": "What the business has spent: expense totals in answers, and the expenses screen. Until set on its own, follows \"Money in and out\".",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_know_supplier_balances",
+        "label": "See what we owe suppliers",
+        "description": "Outstanding supplier balances: the aged creditors breakdown and its report, and the suppliers screen. Until set on its own, follows \"Money in and out\".",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_know_material_prices",
+        "label": "See material prices",
+        "description": "The last real price paid for a material, when asked.",
         "inUse": true,
         "ownerOnly": false,
         "editable": true,
@@ -2354,12 +4401,45 @@
       {
        "key": "can_manage_invoices",
        "label": "Money in and out",
-       "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, expense totals and supplier balances, and clear delivery shortages.",
+       "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
        "inUse": true,
        "ownerOnly": false,
        "editable": true,
        "granted": false,
        "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_know_expense_totals",
+       "label": "See expense totals",
+       "description": "What the business has spent: expense totals in answers, and the expenses screen. Until set on its own, follows \"Money in and out\".",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_know_supplier_balances",
+       "label": "See what we owe suppliers",
+       "description": "Outstanding supplier balances: the aged creditors breakdown and its report, and the suppliers screen. Until set on its own, follows \"Money in and out\".",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_know_material_prices",
+       "label": "See material prices",
+       "description": "The last real price paid for a material, when asked.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
        "changed": false
       },
       {
@@ -2543,12 +4623,45 @@
       {
        "key": "can_manage_invoices",
        "label": "Money in and out",
-       "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, expense totals and supplier balances, and clear delivery shortages.",
+       "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
        "inUse": true,
        "ownerOnly": false,
        "editable": true,
        "granted": false,
        "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_know_expense_totals",
+       "label": "See expense totals",
+       "description": "What the business has spent: expense totals in answers, and the expenses screen. Until set on its own, follows \"Money in and out\".",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_know_supplier_balances",
+       "label": "See what we owe suppliers",
+       "description": "Outstanding supplier balances: the aged creditors breakdown and its report, and the suppliers screen. Until set on its own, follows \"Money in and out\".",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_know_material_prices",
+       "label": "See material prices",
+       "description": "The last real price paid for a material, when asked.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
        "changed": false
       },
       {

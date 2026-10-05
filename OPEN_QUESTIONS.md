@@ -3,15 +3,10 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 12 applied).
+decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 13 in progress).
 
 ## A. Decisions only Pierre can make
 
-38. **The permission grid is coarse: five real switches.** `can_manage_invoices` is checked in 44 places, so one switch
-    governs recording money AND seeing quotations, expense totals and supplier balances. Finer control (expense totals,
-    supplier balances, material prices, person details as their own switches) needs new capabilities. Offered and
-    deferred ("start with the existing ones"). A material's last price is not gated by any capability at all, so it
-    cannot be a switch until it gets one. (`DECISIONS.md`, "The permission grid".)
 39. **A cancelled order cannot be reopened.** To order the same thing again, place a new order. Cancelling is a held
     action and is recorded with who cancelled it, but there is no "uncancel". *Option:* a spoken "reopen the Floornet
     order".
@@ -19,14 +14,11 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
 
 
 
-42. **The recognised units are a fixed list** (square metres, boxes, bags, rolls, lengths, tiles, sheets, litres, kilograms,
-    tubes, tins, packs, pallets, metres, each). A unit outside it (a "bundle") is never converted and never flagged, by
-    design, so it cannot block a delivery. *Option:* add units as they turn up.
-
 49. **The note filter is plain.** It catches bank and pay words and an amount per day, hour, week or month. A sentence phrased
     outside those ("he's on 600 a shift", "FNB cheque 6201...") is still kept in notes, and the words of every sentence stay in
     the raw capture. *Option:* widen the patterns as real misses turn up, or ask the reader to flag them.
     (`DECISIONS.md`, "Decisions session, round 12".)
+
 ## B. Needs a live check only a phone can give
 
 12. **The Codemagic rebuild**: the Confirm/Reject buttons for a follow-up question raised by a confirm ("Add to stock?",
@@ -94,6 +86,12 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
 
 ## Settled (kept so the reasoning is not lost)
+
+- 2026-10-04, decided by Pierre (decisions session, round 13):
+  - **Three finer permission switches: expense totals, supplier balances, material prices.** The first two follow "Money in and out"
+    until set on their own, so a role already switched off cannot silently regain them; material prices default to every role. Applied.
+    (`DECISIONS.md`, "Decisions session, round 13 (part 1)".)
+  - **The recognised unit list stays as it is;** units are added one at a time when one turns up. (Nothing to build.)
 
 - 2026-10-04, decided by Pierre (decisions session, round 12):
   - **A job with no customer asks which customer in every case** (a measured room takes the customer of an earlier job in the same

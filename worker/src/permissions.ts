@@ -1,6 +1,6 @@
 // The permission grid's handlers (2026-10-04). The catalog, the guard rails and the loader live in auth.ts, next to the
 // table they override; this file is the owner-only read and write side. See the long comment above CAPABILITY_CATALOG.
-import { CAPABILITY_CATALOG, EDITABLE_ROLES, ROLE_CAPABILITIES, getRoleCapabilities, isEditableCapability, readOverrides, CAPABILITY_BY_KEY } from "./auth";
+import { CAPABILITY_CATALOG, EDITABLE_ROLES, INHERITED_FROM, ROLE_CAPABILITIES, getRoleCapabilities, isEditableCapability, readOverrides, CAPABILITY_BY_KEY } from "./auth";
 import type { Env } from "./types";
 
 const ROLE_LABELS: Record<string, string> = { accountant: "Accountant", installer: "Installer" };
@@ -62,11 +62,17 @@ export async function setPermission(env: Env, role: unknown, capability: unknown
   if (!info.inUse) return { ok: false, status: 400, error: `"${info.label}" is not used by anything yet, so it cannot be switched.` };
   if (typeof granted !== "boolean") return { ok: false, status: 400, error: "granted must be true or false." };
 
-  const current = (await getRoleCapabilities(env, role)).includes(capability);
-  const isDefault = (ROLE_CAPABILITIES[role] ?? []).includes(capability);
+  const effectiveNow = await getRoleCapabilities(env, role);
+  const current = effectiveNow.includes(capability);
+  // What the switch is when nothing is set on it. For one that FOLLOWS another (expense totals and supplier balances follow "Money in and out",
+  // decided 2026-10-04) that is whatever the other currently says; for the rest it is the standard default. Comparing a following switch with its
+  // static default was a bug: with money taken away, switching expense totals ON equalled the default, so it deleted the very setting meant to
+  // keep it on, and it fell straight back to following money.
+  const parent = INHERITED_FROM[capability];
+  const isDefault = parent ? effectiveNow.includes(parent) : (ROLE_CAPABILITIES[role] ?? []).includes(capability);
   if (granted === current) return { ok: true, changed: false, role: await getRolePermissions(env, role) };
 
-  // Only a difference from the default is stored. Switching something back to its default removes the override.
+  // Only a difference from what it would be anyway is stored. Switching something back to that removes the override.
   if (granted === isDefault) {
     await env.OFFICE_DB.prepare("DELETE FROM role_capability_overrides WHERE role = ? AND capability = ?").bind(role, capability).run();
   } else {

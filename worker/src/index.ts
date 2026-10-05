@@ -1947,7 +1947,10 @@ async function processOneExtraction(
     // historical fact, answered directly from real supplier invoice
     // data — never a suggested rate, never replacing Peter's own
     // pricing judgment.
-    if (extraction?.query_scope === "material_price" && extraction.fact_value) {
+    if (extraction?.query_scope === "material_price" && extraction.fact_value && !capabilities.includes("can_know_material_prices")) {
+      // Decided by Pierre 2026-10-04: the last price paid for a material is a switch of its own (it was open to every role).
+      message = "Material prices exist for this business but are restricted for your role.";
+    } else if (extraction?.query_scope === "material_price" && extraction.fact_value) {
       const priceInfo = await getLastPricePaid(env, extraction.fact_value);
       if (priceInfo) {
         message = `The last real price paid for ${priceInfo.description} was R${priceInfo.unitPrice}${priceInfo.supplierName ? ` (from ${priceInfo.supplierName}` : ""}${priceInfo.supplierName ? `, ${priceInfo.date.split(" ")[0]})` : `, ${priceInfo.date.split(" ")[0]}`}.`;
@@ -2031,6 +2034,9 @@ async function processOneExtraction(
         const canKnowProfit = capabilities.includes("can_know_profit");
         canKnowDebtors = capabilities.includes("can_know_debtors");
         const canManageInvoicesHere = capabilities.includes("can_manage_invoices");
+        // Decided by Pierre 2026-10-04: expense totals and supplier balances are switches of their own (they follow "Money in and out" until set).
+        const canKnowExpenseTotals = capabilities.includes("can_know_expense_totals");
+        const canKnowSupplierBalances = capabilities.includes("can_know_supplier_balances");
         // Decided by Pierre 2026-10-04: expense totals and what is owed to each supplier are money, so they need the
         // invoicing permission, the same strength as the supplier screen. They used to be gated by can_know_materials,
         // which let an installer read "Floornet: R1200 outstanding" through a business question.
@@ -2056,7 +2062,7 @@ async function processOneExtraction(
               : ["Quotation activity exists for this business but is restricted for your role."],
           topic === "quotations" || topic === "invoices"
             ? []
-            : canManageInvoicesHere
+            : canKnowExpenseTotals
               ? getExpenseSummary(env)
               : ["Expense activity exists for this business but is restricted for your role."],
           topic !== "general" ? [] : canKnowProfit ? getFinancialSnapshot(env) : ["Financial performance data exists for this business but is restricted for your role."],
@@ -2068,7 +2074,7 @@ async function processOneExtraction(
               : ["Outstanding balances exist for this business but are restricted for your role."],
           topic === "quotations" || topic === "invoices"
             ? []
-            : canManageInvoicesHere
+            : canKnowSupplierBalances
               ? getAgedCreditorsSummary(env)
               : ["Outstanding supplier balances exist for this business but are restricted for your role."],
         ]);

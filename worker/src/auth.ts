@@ -122,6 +122,9 @@ export const ROLE_CAPABILITIES: Record<string, string[]> = {
     "can_know_payroll",
     "can_know_banking",
     "can_manage_invoices",
+    "can_know_expense_totals",
+    "can_know_supplier_balances",
+    "can_know_material_prices",
     "can_know_jobs",
     "can_know_measurements",
     "can_know_materials",
@@ -129,7 +132,7 @@ export const ROLE_CAPABILITIES: Record<string, string[]> = {
     "can_delete_data",
     "can_manage_settings",
   ],
-  installer: ["can_know_jobs", "can_know_measurements", "can_capture_voice_notes", "can_know_materials"],
+  installer: ["can_know_jobs", "can_know_measurements", "can_capture_voice_notes", "can_know_materials", "can_know_material_prices"],
   // Real feature 2026-07-15 — added the moment a real person was
   // actually named for this role, not enumerated speculatively.
   // Proposed default, not yet reviewed against a concrete example the
@@ -138,7 +141,17 @@ export const ROLE_CAPABILITIES: Record<string, string[]> = {
   // measurements) that aren't an accountant's concern, and
   // administrative ones (invite, delete, settings) that stay
   // Owner-only regardless of role.
-  accountant: ["can_know_profit", "can_know_debtors", "can_know_payroll", "can_know_banking", "can_manage_invoices", "can_know_materials"],
+  accountant: [
+    "can_know_profit",
+    "can_know_debtors",
+    "can_know_payroll",
+    "can_know_banking",
+    "can_manage_invoices",
+    "can_know_expense_totals",
+    "can_know_supplier_balances",
+    "can_know_materials",
+    "can_know_material_prices",
+  ],
 };
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -170,7 +183,28 @@ export const CAPABILITY_CATALOG: CapabilityInfo[] = [
     key: "can_manage_invoices",
     label: "Money in and out",
     description:
-      "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, expense totals and supplier balances, and clear delivery shortages.",
+      "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+    inUse: true,
+    ownerOnly: false,
+  },
+  {
+    key: "can_know_expense_totals",
+    label: "See expense totals",
+    description: "What the business has spent: expense totals in answers, and the expenses screen. Until set on its own, follows \"Money in and out\".",
+    inUse: true,
+    ownerOnly: false,
+  },
+  {
+    key: "can_know_supplier_balances",
+    label: "See what we owe suppliers",
+    description: "Outstanding supplier balances: the aged creditors breakdown and its report, and the suppliers screen. Until set on its own, follows \"Money in and out\".",
+    inUse: true,
+    ownerOnly: false,
+  },
+  {
+    key: "can_know_material_prices",
+    label: "See material prices",
+    description: "The last real price paid for a material, when asked.",
     inUse: true,
     ownerOnly: false,
   },
@@ -277,7 +311,28 @@ export async function readOverrides(env: Env, role: string): Promise<Array<{ cap
 export async function getRoleCapabilities(env: Env, role: string): Promise<string[]> {
   const defaults = ROLE_CAPABILITIES[role] ?? [];
   if (role === "owner" || !(role in ROLE_CAPABILITIES)) return defaults;
-  return applyOverrides(defaults, await readOverrides(env, role));
+  const overrides = await readOverrides(env, role);
+  return followParents(applyOverrides(defaults, overrides), overrides);
+}
+
+// Decided by Pierre 2026-10-04: expense totals and supplier balances used to be governed by "Money in and out" alone, and are now switches of
+// their own. So that NOTHING CHANGES until the owner flips one, each follows its parent until it has been set explicitly: a role the owner had
+// already switched off from "Money in and out" stays without them, and one switched on has them. An explicit setting on the new switch wins.
+export const INHERITED_FROM: Record<string, string> = {
+  can_know_expense_totals: "can_manage_invoices",
+  can_know_supplier_balances: "can_manage_invoices",
+};
+export function followParents(effective: string[], overrides: Array<{ capability: string; granted: number }>): string[] {
+  const explicit = new Set(overrides.filter((o) => isEditableCapability(o.capability)).map((o) => o.capability));
+  let out = effective;
+  for (const [child, parent] of Object.entries(INHERITED_FROM)) {
+    if (explicit.has(child)) continue;
+    const parentOn = out.includes(parent);
+    const childOn = out.includes(child);
+    if (parentOn && !childOn) out = [...out, child];
+    else if (!parentOn && childOn) out = out.filter((c) => c !== child);
+  }
+  return out;
 }
 
 // Real, new, per direct instruction — the first real item on
@@ -571,8 +626,8 @@ export const ROUTE_RULES: Array<{ method: string; path: RegExp; anyOf: string[] 
   { method: "GET", path: /^\/delivery-exceptions$/, anyOf: ["can_manage_invoices"] },
   { method: "POST", path: /^\/suppliers\/discrepancies\/\d+\/resolve$/, anyOf: ["can_manage_invoices"] },
   { method: "GET", path: /^\/embers\/finance$/, anyOf: ["can_know_debtors", "can_know_profit"] },
-  { method: "GET", path: /^\/embers\/expenses$/, anyOf: ["can_know_profit", "can_manage_invoices"] },
-  { method: "GET", path: /^\/embers\/suppliers$/, anyOf: ["can_manage_invoices"] },
+  { method: "GET", path: /^\/embers\/expenses$/, anyOf: ["can_know_profit", "can_know_expense_totals"] },
+  { method: "GET", path: /^\/embers\/suppliers$/, anyOf: ["can_know_supplier_balances"] },
   // Jobs — installer and owner. The handlers further scope these to the
   // installer's own jobs.
   { method: "GET", path: /^\/projects$/, anyOf: ["can_know_jobs"] },
@@ -618,7 +673,7 @@ export const SIGNABLE_DOCUMENT_PATHS: Array<{ pattern: RegExp; anyOf: string[] }
   { pattern: /^\/quotations\/\d+\/pdf$/, anyOf: ["can_manage_invoices"] },
   { pattern: /^\/customers\/\d+\/statement\/pdf$/, anyOf: ["can_manage_invoices", "can_know_profit"] },
   { pattern: /^\/reports\/aged-debtors\/pdf$/, anyOf: ["can_know_debtors", "can_know_profit"] },
-  { pattern: /^\/reports\/aged-creditors\/pdf$/, anyOf: ["can_manage_invoices"] },
+  { pattern: /^\/reports\/aged-creditors\/pdf$/, anyOf: ["can_know_supplier_balances"] },
   { pattern: /^\/reports\/profit-and-loss\/pdf$/, anyOf: ["can_know_profit"] },
 ];
 

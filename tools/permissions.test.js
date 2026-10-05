@@ -20,7 +20,7 @@ module.exports = async function runPermissionTests({ check, compiled, srcDir, fs
   for (const role of EDITABLE_ROLES) for (const k of ROLE_CAPABILITIES[role]) check(!CAPABILITY_BY_KEY[k].ownerOnly, `the default for "${role}" must never include the owner-only capability "${k}"`);
   check(sameJson([...EDITABLE_ROLES].sort(), ['accountant', 'installer']) && !EDITABLE_ROLES.includes('owner'), 'the roles the owner can edit are the accountant and the installer, never the owner');
   check(CAPABILITY_CATALOG.every((c) => c.label && c.description), 'every capability has a plain-language label and description for the screen');
-  check(CAPABILITY_CATALOG.filter((c) => isEditableCapability(c.key)).length === 7, 'exactly seven capabilities can be switched today: money, debtors, profit, materials, jobs, and (since 2026-10-04) payroll and banking details (the others are owner only or not used by anything yet)');
+  check(CAPABILITY_CATALOG.filter((c) => isEditableCapability(c.key)).length === 10, 'exactly ten capabilities can be switched today: money, debtors, profit, materials, jobs, payroll, banking, and (since 2026-10-04) expense totals, supplier balances and material prices (the others are owner only or not used by anything yet)');
 
   // ---- 3. The "in use" flags match the code, so a switch is never wired to nothing ----------------------------------------
   // A capability nothing checks cannot be switched. When code starts checking one, this fails until its flag is flipped on purpose,
@@ -36,6 +36,33 @@ module.exports = async function runPermissionTests({ check, compiled, srcDir, fs
       ? `"${c.key}" is marked in use but nothing in the code checks it`
       : `"${c.key}" is marked NOT in use but the code now checks it ${uses} time(s): flip its inUse flag in the catalog, deliberately, so it becomes a switch`);
   }
+
+  // ---- 3b. Expense totals and supplier balances follow "Money in and out" until set on their own (decided 2026-10-04) ----------
+  const withRows = (rows) => ({ OFFICE_DB: { prepare: () => ({ bind: () => ({ all: async () => ({ results: rows }) }) }) } });
+  const ov = (capability, granted) => ({ capability, granted });
+  const has = async (role, rows, k) => (await getRoleCapabilities(withRows(rows), role)).includes(k);
+  check(await has('accountant', [], 'can_know_expense_totals') && await has('accountant', [], 'can_know_supplier_balances') && await has('accountant', [], 'can_know_material_prices'), 'by default the accountant has all three new switches (as they had these things before)');
+  check(!(await has('installer', [], 'can_know_expense_totals')) && !(await has('installer', [], 'can_know_supplier_balances')) && await has('installer', [], 'can_know_material_prices'), 'by default the installer has material prices (which were open to everyone) and neither money view');
+  check(!(await has('accountant', [ov('can_manage_invoices', 0)], 'can_know_expense_totals')) && !(await has('accountant', [ov('can_manage_invoices', 0)], 'can_know_supplier_balances')), 'a role already switched OFF from "Money in and out" stays without both views (they follow it: nothing silently comes back)');
+  check(await has('accountant', [ov('can_manage_invoices', 0)], 'can_know_material_prices'), 'but material prices do not follow money: they were never tied to it');
+  check(await has('installer', [ov('can_manage_invoices', 1)], 'can_know_expense_totals') && await has('installer', [ov('can_manage_invoices', 1)], 'can_know_supplier_balances'), 'a role given "Money in and out" gets both views with it, as before');
+  check(await has('accountant', [ov('can_manage_invoices', 0), ov('can_know_expense_totals', 1)], 'can_know_expense_totals') && !(await has('accountant', [ov('can_manage_invoices', 0), ov('can_know_expense_totals', 1)], 'can_know_supplier_balances')), 'an explicit setting wins: expense totals switched on stays on without money, and supplier balances (not set) still follow money');
+  check(!(await has('accountant', [ov('can_know_expense_totals', 0)], 'can_know_expense_totals')) && await has('accountant', [ov('can_know_expense_totals', 0)], 'can_know_supplier_balances') && await has('accountant', [ov('can_know_expense_totals', 0)], 'can_manage_invoices'), 'switching one view off leaves the other, and money, alone');
+  check(!(await has('installer', [ov('can_know_material_prices', 0)], 'can_know_material_prices')), 'material prices can be taken away from the installer');
+  check(await has('installer', [ov('can_know_expense_totals', 1)], 'can_know_expense_totals') && !(await has('installer', [ov('can_know_expense_totals', 1)], 'can_manage_invoices')), 'a view can be given on its own, without giving money in and out');
+  check(await has('owner', [ov('can_know_expense_totals', 0), ov('can_manage_invoices', 0)], 'can_know_expense_totals'), 'the owner is never overridden');
+  const stableAcc = await getRoleCapabilities(withRows([]), 'accountant');
+  check(sameJson(stableAcc, ROLE_CAPABILITIES.accountant), 'with no overrides the accountant is exactly the default, in the default order (the inheritance changes nothing by itself)');
+
+  // ---- 3c. The signed report links are governed by the right switch (they cannot be exercised through the harness without a signed link,
+  // so the rule table is read directly) ---------------------------------------------------------------------------------
+  const sigStart = authSrc.indexOf('export const SIGNABLE_DOCUMENT_PATHS');
+  const sigBlock = authSrc.slice(sigStart, authSrc.indexOf('];', sigStart));
+  const sigRules = {};
+  for (const m of sigBlock.matchAll(/pattern:\s*\/\^([^,]*?)\$\/,\s*anyOf:\s*\[([^\]]*)\]/g)) sigRules[m[1].replace(/\\\//g, '/')] = m[2].split(',').map((x) => x.trim().replace(/"/g, '')).filter(Boolean);
+  check(sameJson(sigRules['/reports/aged-creditors/pdf'], ['can_know_supplier_balances']), `the aged creditors report is governed by "See what we owe suppliers" alone (got ${JSON.stringify(sigRules['/reports/aged-creditors/pdf'])})`);
+  check(Boolean(sigRules['/reports/aged-debtors/pdf']) && !sigRules['/reports/aged-debtors/pdf'].includes('can_know_supplier_balances'), 'and the aged debtors report is not governed by the supplier balances switch');
+  check(Object.keys(sigRules).length >= 4, `the signed-link rule table was read (${Object.keys(sigRules).length} rules)`);
 
   // ---- 4. Overrides: what they may and may not do -------------------------------------------------------------------------
   const inst = ROLE_CAPABILITIES.installer;

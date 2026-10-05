@@ -40,6 +40,8 @@ module.exports = function cases(caps) {
   const GRID = '/settings/permissions';
   const lookup = { text: 'how are we doing in rands' };
   const lookupAi = [SPLIT([lookup.text]), READ({ [lookup.text]: { intent: 'lookup', query_scope: 'business' } }), DASH('NONE'), ANSWER];
+  const price = { text: 'what did we last pay for vinyl' };
+  const priceAi = [SPLIT([price.text]), READ({ [price.text]: { intent: 'lookup', query_scope: 'material_price', fact_value: 'vinyl' } })];
   const payment = say('Jenny paid R500', { intent: 'payment', customer_name: 'Jenny Smith', amount: 500 });
 
   return [
@@ -79,6 +81,30 @@ module.exports = function cases(caps) {
     r('effect: taking profit away changes what an accountant\'s business question shows', { method: 'POST', path: '/messages/text', role: 'accountant', body: lookup, ai: lookupAi, before: [patch('accountant', 'can_know_profit', false)] }),
     r('control: by default an installer\'s business question hides expenses and balances', { method: 'POST', path: '/messages/text', role: 'installer', body: lookup, ai: lookupAi }),
     r('effect: giving an installer money shows them expenses and balances', { method: 'POST', path: '/messages/text', role: 'installer', body: lookup, ai: lookupAi, before: [patch('installer', 'can_manage_invoices', true)] }),
+
+    // ---------------- the finer switches (decided 2026-10-04): expense totals, supplier balances, material prices ----------------
+    r('effect: taking only expense totals away hides expenses but leaves the supplier balances', { method: 'POST', path: '/messages/text', role: 'accountant', body: lookup, ai: lookupAi, before: [patch('accountant', 'can_know_expense_totals', false)] }),
+    r('effect: taking only supplier balances away hides what we owe suppliers but leaves expenses', { method: 'POST', path: '/messages/text', role: 'accountant', body: lookup, ai: lookupAi, before: [patch('accountant', 'can_know_supplier_balances', false)] }),
+    r('effect: taking money away from an accountant also hides expenses and supplier balances (they follow it)', { method: 'POST', path: '/messages/text', role: 'accountant', body: lookup, ai: lookupAi, before: [patch('accountant', 'can_manage_invoices', false)] }),
+    r('effect: money taken away but expense totals switched on shows expenses and still hides supplier balances', { method: 'POST', path: '/messages/text', role: 'accountant', body: lookup, ai: lookupAi, before: [patch('accountant', 'can_manage_invoices', false), patch('accountant', 'can_know_expense_totals', true)] }),
+    r('effect: giving an installer only expense totals shows them expenses and still hides balances and quotations', { method: 'POST', path: '/messages/text', role: 'installer', body: lookup, ai: lookupAi, before: [patch('installer', 'can_know_expense_totals', true)] }),
+    r('control: by default an accountant can open the suppliers screen', { path: '/embers/suppliers', role: 'accountant' }),
+    r('effect: taking supplier balances away stops an accountant opening the suppliers screen', { path: '/embers/suppliers', role: 'accountant', before: [patch('accountant', 'can_know_supplier_balances', false)] }),
+    r('effect: taking money away also stops an accountant opening the suppliers screen (supplier balances follow it)', { path: '/embers/suppliers', role: 'accountant', before: [patch('accountant', 'can_manage_invoices', false)] }),
+    r('control: by default an installer cannot open the suppliers screen', { path: '/embers/suppliers', role: 'installer' }),
+    r('effect: giving an installer supplier balances lets them open the suppliers screen without money in and out', { path: '/embers/suppliers', role: 'installer', before: [patch('installer', 'can_know_supplier_balances', true)] }),
+    r('control: by default an accountant can open the expenses screen', { path: '/embers/expenses', role: 'accountant' }),
+    r('effect: taking only expense totals away leaves the expenses screen open through profit access', { path: '/embers/expenses', role: 'accountant', before: [patch('accountant', 'can_know_expense_totals', false)] }),
+    r('effect: taking expense totals AND profit away closes the expenses screen', { path: '/embers/expenses', role: 'accountant', before: [patch('accountant', 'can_know_expense_totals', false), patch('accountant', 'can_know_profit', false)] }),
+    r('control: by default an installer cannot open the expenses screen', { path: '/embers/expenses', role: 'installer' }),
+    r('effect: giving an installer expense totals opens the expenses screen', { path: '/embers/expenses', role: 'installer', before: [patch('installer', 'can_know_expense_totals', true)] }),
+    r('control: by default an installer can ask the last price paid for a material', { method: 'POST', path: '/messages/text', role: 'installer', body: price, ai: priceAi }),
+    r('effect: taking material prices away stops an installer asking the last price paid', { method: 'POST', path: '/messages/text', role: 'installer', body: price, ai: priceAi, before: [patch('installer', 'can_know_material_prices', false)] }),
+    r('effect: taking material prices away from the accountant stops them asking too', { method: 'POST', path: '/messages/text', role: 'accountant', body: price, ai: priceAi, before: [patch('accountant', 'can_know_material_prices', false)] }),
+    r('grid: with money taken away, switching expense totals on and then off again leaves no setting of its own', { method: 'PATCH', path: GRID, body: { role: 'accountant', capability: 'can_know_expense_totals', granted: false }, before: [patch('accountant', 'can_manage_invoices', false), patch('accountant', 'can_know_expense_totals', true)] }),
+    r('grid: with money taken away, switching expense totals on stores a setting of its own', { method: 'PATCH', path: GRID, body: { role: 'accountant', capability: 'can_know_expense_totals', granted: true }, before: [patch('accountant', 'can_manage_invoices', false)] }),
+    r('reset: undoes an explicit expense totals setting, which follows money again', { method: 'POST', path: GRID + '/reset', body: { role: 'accountant' }, before: [patch('accountant', 'can_manage_invoices', false), patch('accountant', 'can_know_expense_totals', true)] }),
+    r('grid: the owner reads the new switches for both roles after taking money away', { path: GRID, before: [patch('accountant', 'can_manage_invoices', false)] }),
 
     // ---------------- stray rows can never widen access or lock the owner out ----------------
     r('tampered rows: the grid shows nothing changed', { path: GRID, seed: tampered }),
