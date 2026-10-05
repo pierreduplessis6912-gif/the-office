@@ -76,6 +76,7 @@ module.exports = function cases(caps) {
   const oldestInvoiced = (db) => { twoVinylOrders(db); db.exec(`INSERT INTO supplier_invoices (id, purchase_order_id, supplier_id, supplier_reference, amount, created_at) VALUES (1, 1, 1, 'INV-0', 9250, '2026-10-03 08:00:00'); ` + billLine(1, 50)); };
   const everythingInvoiced = (db) => { twoVinylOrders(db); db.exec(`INSERT INTO supplier_invoices (id, purchase_order_id, supplier_id, supplier_reference, amount, created_at) VALUES (1, 1, 1, 'INV-0', 20000, '2026-10-03 08:00:00'); ` + billLine(1, 50) + billLine(3, 30) + ` INSERT INTO supplier_invoice_line_items (supplier_invoice_id, po_line_item_id, description, quantity_billed, unit_price_billed, line_total) VALUES (1, 2, 'Underlay', 100, 40, 4000);`); };
   const oldestCancelled = (db) => { twoVinylOrders(db); db.exec(`CREATE TABLE IF NOT EXISTS purchase_order_cancellations (purchase_order_id INTEGER PRIMARY KEY, cancelled_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now'))); INSERT INTO purchase_order_cancellations (purchase_order_id, cancelled_by) VALUES (1, 'owner@example.com');`); };
+  const unitInvoice = (unit, qty, price) => SIAI({ supplier_name: 'Floornet', supplier_reference: 'INV-7731', line_items: [{ matched_description: 'Vinyl', quantity_billed: qty, unit, unit_price_billed: price }] });
   const invoiceOf = (...lines) => SIAI({ supplier_name: 'Floornet', supplier_reference: 'INV-7731', line_items: lines.map(([name, qty, price]) => ({ matched_description: name, quantity_billed: qty, unit_price_billed: price })) });
   // The same supplier invoice said twice (decided 2026-10-04). Floornet is supplier 1, Belgotex 2.
   const recordedInvoice = (supplier) => (db) => { withOrder(db); db.exec(`INSERT INTO supplier_invoices (id, purchase_order_id, supplier_id, supplier_reference, amount, created_at) VALUES (1, 1, ${supplier}, 'INV-7731', 9250, '2026-10-03 08:00:00');`); };
@@ -165,6 +166,15 @@ module.exports = function cases(caps) {
     c('supplier invoice across orders: a cancelled order is not used', 'owner', oldestCancelled, 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 30 sqm vinyl at 185', [invoiceOf(['Vinyl', 30, 185])]),
     c('supplier invoice across orders: two billed lines of the same item share the capacity', 'owner', twoVinylOrders, 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 40 sqm vinyl at 185 and 40 sqm vinyl at 190', [invoiceOf(['Vinyl', 40, 185], ['Vinyl', 40, 190])]),
     c('supplier invoice across orders: an accountant, spanning two orders', 'accountant', twoVinylOrders, 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 70 sqm vinyl at 185', [invoiceOf(['Vinyl', 70, 185])]),
+
+    // ---------------- a supplier invoice billed in a different unit from the order (decided 2026-10-04) ----------------
+    c('supplier invoice units: billed in boxes is converted, quantity and price, with the conversion on file', 'owner', vinylBoxes, 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 20 boxes of vinyl at 462.50', [unitInvoice('boxes', 20, 462.5)]),
+    c('supplier invoice units: billed in boxes and no conversion known asks and holds nothing', 'owner', withOrder, 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 20 boxes of vinyl at 462.50', [unitInvoice('boxes', 20, 462.5)]),
+    c('supplier invoice units: a conversion stored the other way round is used', 'owner', vinylBoxesInverse, 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 20 boxes of vinyl at 462.50', [unitInvoice('boxes', 20, 462.5)]),
+    c('supplier invoice units: the same unit written differently is not a mismatch', 'owner', withOrder, 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 50 square metres of vinyl at 185', [unitInvoice('square metres', 50, 185)]),
+    c('supplier invoice units: a unit that is not recognised is used as before', 'owner', withOrder, 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 50 bundles of vinyl at 185', [unitInvoice('bundles', 50, 185)]),
+    c('supplier invoice units: no unit stated is used as before', 'owner', vinylBoxes, 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 50 of vinyl at 185', [unitInvoice(null, 50, 185)]),
+    c('supplier invoice units: an accountant, converted', 'accountant', vinylBoxes, 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 20 boxes of vinyl at 462.50', [unitInvoice('boxes', 20, 462.5)]),
 
     // ---------------- the same supplier invoice said twice ----------------
     c('supplier invoice twice: the same reference is already recorded', 'owner', recordedInvoice(1), 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 50 sqm vinyl at 185', [refInvoice('INV-7731')]),

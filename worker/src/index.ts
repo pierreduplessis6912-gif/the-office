@@ -2,15 +2,15 @@ import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult, WorkObs
 import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, classifyDashboardIntent, containsBackwardReference, describeImage, embedText, extractDocumentIdentity, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractSupplierStatement, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, splitIntoTopics, storeUnscopedMemory, transcribe, transcribeWithNameHints, extractUnitConversion } from "./ai";
 import { listAudit, listPermissions, resetRole, setPermission } from "./permissions";
 import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, logInteractionEdge, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, reconcilePerson, setSelection, withArticle, clearSelections } from "./identity";
-import { attachToSiblingJobScope, completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveScheduledDate, resolveTaskCompletion, hasSiblingToAttach } from "./scheduler";
-import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText, mayHandleSensitiveFact, sensitiveFactKind } from "./memory";
+import { attachToSiblingJobScope, completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveScheduledDate, resolveTaskCompletion, hasSiblingToAttach, findSiblingCustomer } from "./scheduler";
+import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText, mayHandleSensitiveFact, sensitiveFactKind, looksLikePayOrBankDetail } from "./memory";
 import {
   authGate, checkIdempotencyKey, completeIdempotencyKey, runIdempotentMigration, corsHeadersFor,
   signDocumentPath, resolveCapabilities, getMemberContext, getJobScope, denyForRole, signSession,
   verifySession, getSessionToken, getCookie, base64UrlEncode, ROLE_CAPABILITIES, ENFORCE_CAPABILITIES,
   ACTION_TYPE_CAPABILITY, ROUTE_RULES, SIGNABLE_DOCUMENT_PATHS, canResolveActionType, intentCreationRefusal, intentKeepsOutOfNotes,
 } from "./auth";
-import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote, duplicateInvoiceMessage, findDuplicateSupplierInvoice, normalizeInvoiceReference, describeConversion, forgetUnitConversions, listUnitConversions, unitConversionsAnswer, checkStockUnit, listSupplierStatements, recordSupplierStatement, statementDifferenceNote, supplierStatementsAnswer } from "./finance";
+import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote, duplicateInvoiceMessage, findDuplicateSupplierInvoice, normalizeInvoiceReference, describeConversion, forgetUnitConversions, listUnitConversions, unitConversionsAnswer, checkStockUnit, listSupplierStatements, recordSupplierStatement, statementDifferenceNote, supplierStatementsAnswer, checkInvoiceUnits } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 import { handleDebugRoute } from "./debug";
 import { DOCUMENT_KIND_LABEL, asksAboutDeliveryExceptions, deliveryExceptionAnswer, deliveryHadExceptions, deliveryHeldMessage, deliveryRecordedMessage, inferDocumentSupplier, planDelivery } from "./documents";
@@ -806,6 +806,8 @@ async function processOneExtraction(
   let supplierInvoiceSupplierName: string | null = null;
   let supplierInvoiceOrderIds: number[] = [];
   let supplierInvoiceDuplicate: string | null = null;
+  let supplierInvoiceUnitQuestion: string | null = null;
+  let supplierInvoiceConverted: Array<{ item: string; quantity: number; from: string; to: string; result: number }> = [];
   if (extraction?.intent === "supplier_invoice") {
     if (character) {
       const openPo = await findLatestOpenPurchaseOrder(env, character.id);
@@ -816,6 +818,9 @@ async function processOneExtraction(
         const siExtraction = await extractSupplierInvoice(env, transcript, invoiceCandidatesForReader(invoicePool));
         const duplicateInvoice =
           siExtraction.line_items.length > 0 && siExtraction.supplier_reference ? await findDuplicateSupplierInvoice(env, character.id, siExtraction.supplier_reference) : null;
+        // Decided by Pierre 2026-10-04: a billed unit that differs from the order's (boxes against square metres) is converted, quantity AND
+        // price per unit, when a conversion is known; when it is not, nothing is held and the question is asked.
+        const invoiceUnits = await checkInvoiceUnits(env, invoicePool, siExtraction.line_items);
         if (siExtraction.line_items.length === 0) {
           // Found by the characterization recordings 2026-10-03: with the model down, or nothing readable, an invoice
           // with no lines was held for confirmation, which would have recorded an invoice of nothing.
@@ -823,8 +828,11 @@ async function processOneExtraction(
         } else if (duplicateInvoice) {
           // Decided by Pierre 2026-10-04: the same invoice (same supplier, same reference) is not recorded or held a second time.
           supplierInvoiceDuplicate = duplicateInvoiceMessage(character.name, siExtraction.supplier_reference!, duplicateInvoice);
+        } else if (invoiceUnits.unconverted.length > 0) {
+          supplierInvoiceUnitQuestion = deliveryUnitQuestion(character.name, invoiceUnits.unconverted, "say the invoice again", "invoice");
         } else {
-        const allocatedInvoice = allocateInvoiceLines(siExtraction.line_items, invoicePool);
+        const allocatedInvoice = allocateInvoiceLines(invoiceUnits.lines, invoicePool);
+        supplierInvoiceConverted = invoiceUnits.converted;
         supplierInvoiceOrderIds = allocatedInvoice.orderIds;
         const held = await holdForConfirmation(
           env,
@@ -1383,19 +1391,25 @@ async function processOneExtraction(
   }
 
   let workObservationNothingObserved = false;
-  let workObservationAskCustomer: { installer: string | null; date: string | null } | null = null;
+  let workObservationAskCustomer: { installer: string | null; date: string | null; rooms: number; tasks: number } | null = null;
   let workObservationPricingNotMade = false;
   if (extraction?.intent === "work_observation") {
     const observation = await extractWorkObservation(env, transcript);
     // Decided by Pierre 2026-10-04: a sentence with only an installer or a date, no customer, and no job or lead from the same capture to
     // attach it to used to be recorded as a customer-less job, findable only by its installer or date. It now asks which customer it is for
     // and records nothing. Decided BEFORE the installer is resolved, so a sentence that is about to be asked about creates no installer.
+    // Decided by Pierre 2026-10-04 (extended from the installer-or-date-only case to EVERY case): a job with no customer named and nothing in the
+    // same message to supply one asks which customer it is for and records nothing. What supplies one: for a measured room or a task, a job
+    // already recorded earlier in the same capture that has a customer (that customer is used); for an installer or a date alone, a job or lead
+    // from the same capture to attach to (as before).
+    const measuredHere = observation.components.length > 0 || observation.tasks.length > 0;
+    if (!customer && measuredHere) {
+      const supplied = await findSiblingCustomer(env, captureId);
+      if (supplied) customer = { id: supplied.id, name: supplied.name, matched: true };
+    }
     const askWhichCustomer =
       !customer &&
-      observation.components.length === 0 &&
-      observation.tasks.length === 0 &&
-      Boolean(observation.scheduled_date_raw || observation.installer_name) &&
-      !(await hasSiblingToAttach(env, captureId));
+      (measuredHere || (Boolean(observation.scheduled_date_raw || observation.installer_name) && !(await hasSiblingToAttach(env, captureId))));
     // Real feature 2026-07-12 — the smallest real first domino toward
     // team support: an installer is reconciled as a real character
     // (same as a supplier — a real, non-billed person), never
@@ -1439,7 +1453,7 @@ async function processOneExtraction(
     if (!observedSomething) {
       workObservationNothingObserved = true;
     } else if (askWhichCustomer) {
-      workObservationAskCustomer = { installer: observation.installer_name ?? null, date: observation.scheduled_date_raw ?? null };
+      workObservationAskCustomer = { installer: observation.installer_name ?? null, date: observation.scheduled_date_raw ?? null, rooms: observation.components.length, tasks: observation.tasks.length };
     } else {
     let recorded: Awaited<ReturnType<typeof recordWorkObservation>> | null = null;
     const scheduledDateForAttach = resolveScheduledDate(observation.scheduled_date_raw, nowInBusinessTimezone());
@@ -1632,7 +1646,10 @@ async function processOneExtraction(
   // (a supplier payment's note was reproduced on 2026-10-03). The answer now comes from INTENT_RULES in
   // auth.ts, so it cannot drift from what is gated again.
   const hasStructuredHomeAlready = intentKeepsOutOfNotes(extraction?.intent);
-  if (!isQuestion && !isPersonalErrand && !hasStructuredHomeAlready) {
+  // Decided by Pierre 2026-10-04: a sentence that says a pay or bank detail is kept out of free-text notes (which every role can read), as money
+  // sentences are, and the reply says so instead of dropping it silently.
+  const sensitiveNoteKeptOut = !isQuestion && !isPersonalErrand && !hasStructuredHomeAlready && looksLikePayOrBankDetail(transcript);
+  if (!isQuestion && !isPersonalErrand && !hasStructuredHomeAlready && !sensitiveNoteKeptOut) {
     if (customer) {
       ctx.waitUntil(appendCustomerNote(env, customer.id, transcript));
     } else if (character) {
@@ -1724,11 +1741,13 @@ async function processOneExtraction(
   } else if (extraction?.intent === "goods_received" && goodsReceivedNoItems) {
     message = `I heard a delivery from ${character!.name}, but couldn't make out any items in it, so nothing was noted.`;
   } else if (pendingActionId && extraction?.intent === "supplier_invoice" && supplierInvoiceSupplierName) {
-    message = `Supplier invoice noted from ${supplierInvoiceSupplierName} — needs your confirmation (action #${pendingActionId}) before it's recorded.${invoiceOrdersNote(supplierInvoiceOrderIds)}`;
+    message = `Supplier invoice noted from ${supplierInvoiceSupplierName} — needs your confirmation (action #${pendingActionId}) before it's recorded.${invoiceOrdersNote(supplierInvoiceOrderIds)}${conversionNote(supplierInvoiceConverted)}`;
   } else if (extraction?.intent === "supplier_invoice" && supplierInvoiceNoItems) {
     message = `I heard a supplier invoice from ${character!.name}, but couldn't make out any items on it, so nothing was noted.`;
   } else if (extraction?.intent === "supplier_invoice" && supplierInvoiceDuplicate) {
     message = supplierInvoiceDuplicate;
+  } else if (extraction?.intent === "supplier_invoice" && supplierInvoiceUnitQuestion) {
+    message = supplierInvoiceUnitQuestion;
   } else if (extraction?.intent === "supplier_invoice" && supplierInvoiceNoSupplier) {
     message = "Recognized a supplier invoice, but no supplier was named — try naming who it's from.";
   } else if (extraction?.intent === "supplier_invoice" && supplierInvoiceNoOpenPo) {
@@ -1881,7 +1900,11 @@ async function processOneExtraction(
       }
     }
   } else if (extraction?.intent === "work_observation" && workObservationAskCustomer) {
-    message = `I heard a job${workObservationAskCustomer.installer ? ` with ${workObservationAskCustomer.installer}` : ""}${workObservationAskCustomer.date ? ` for ${workObservationAskCustomer.date}` : ""}, but no customer came through — which customer is it for? Nothing was recorded.`;
+    message = `I heard a job${workObservationAskCustomer.installer ? ` with ${workObservationAskCustomer.installer}` : ""}${workObservationAskCustomer.date ? ` for ${workObservationAskCustomer.date}` : ""}${
+      workObservationAskCustomer.rooms + workObservationAskCustomer.tasks > 0
+        ? ` (${[workObservationAskCustomer.rooms > 0 ? `${workObservationAskCustomer.rooms} room${workObservationAskCustomer.rooms === 1 ? "" : "s"} measured` : "", workObservationAskCustomer.tasks > 0 ? `${workObservationAskCustomer.tasks} task${workObservationAskCustomer.tasks === 1 ? "" : "s"} noted` : ""].filter(Boolean).join(", ")})`
+        : ""
+    }, but no customer came through — which customer is it for? Nothing was recorded.`;
   } else if (extraction?.intent === "work_observation" && workObservationNothingObserved) {
     message = customer
       ? `I heard a job observation for ${customer.name}, but couldn't make out any measurements, tasks, date or installer, so nothing was recorded.`
@@ -2208,6 +2231,10 @@ async function processOneExtraction(
     message = "I didn't catch anything there I could act on.";
   }
 
+  // Said only when the sentence was kept out of notes AND went nowhere else: a saved detail, or a refusal with its own reason, already says what happened.
+  if (sensitiveNoteKeptOut && !factPendingActionId && !sensitiveFactRefused) {
+    message += ` It looks like a pay or bank detail, so it was not kept in the notes. To save it, say it as a detail (for example "Sipho's day rate is R600 a day").`;
+  }
   if (sensitiveFactRefused) {
     message += ` Nothing was saved: ${sensitiveKind === "payroll" ? "pay details like a day rate or salary can only be saved by someone with payroll access" : "bank details can only be saved by someone with banking access"}.`;
   }
@@ -5500,13 +5527,16 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             siExtraction.line_items.length > 0 && hasRealPricing && siExtraction.supplier_reference
               ? await findDuplicateSupplierInvoice(env, subjectCharacterId, siExtraction.supplier_reference)
               : null;
+          const invoiceUnits = siExtraction.line_items.length > 0 && hasRealPricing ? await checkInvoiceUnits(env, invoicePool, siExtraction.line_items) : null;
           if (siExtraction.line_items.length > 0 && hasRealPricing && supplierInvoiceRefusal) {
             uploadRefusal = supplierInvoiceRefusal;
           } else if (duplicateInvoice) {
             // The same invoice (same supplier, same reference) is not recorded or held a second time (decided by Pierre 2026-10-04).
             uploadMessage = duplicateInvoiceMessage(subjectHint ?? "the supplier", siExtraction.supplier_reference!, duplicateInvoice);
+          } else if (invoiceUnits && invoiceUnits.unconverted.length > 0) {
+            uploadMessage = deliveryUnitQuestion(subjectHint ?? "the supplier", invoiceUnits.unconverted, "send the invoice again", "invoice");
           } else if (siExtraction.line_items.length > 0 && hasRealPricing) {
-            const allocatedInvoice = allocateInvoiceLines(siExtraction.line_items, invoicePool);
+            const allocatedInvoice = allocateInvoiceLines(invoiceUnits ? invoiceUnits.lines : siExtraction.line_items, invoicePool);
             const held = await holdForConfirmation(
               env,
               "supplier_invoice",
@@ -5521,7 +5551,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             );
             supplierInvoiceAction = { pendingActionId: held.id, supplierName: subjectHint ?? "supplier" };
             uploadHeldActionId = held.id;
-            uploadMessage = `Supplier invoice noted from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""} — needs your confirmation (action #${held.id}) before it's recorded.${invoiceOrdersNote(allocatedInvoice.orderIds)}`;
+            uploadMessage = `Supplier invoice noted from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""} — needs your confirmation (action #${held.id}) before it's recorded.${invoiceOrdersNote(allocatedInvoice.orderIds)}${conversionNote(invoiceUnits ? invoiceUnits.converted : [])}`;
           } else {
             await reconcileDelivery(subjectCharacterId);
           }
@@ -5782,13 +5812,16 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             siExtraction.line_items.length > 0 && hasRealPricing && siExtraction.supplier_reference
               ? await findDuplicateSupplierInvoice(env, subjectCharacterId, siExtraction.supplier_reference)
               : null;
+          const invoiceUnits = siExtraction.line_items.length > 0 && hasRealPricing ? await checkInvoiceUnits(env, invoicePool, siExtraction.line_items) : null;
           if (siExtraction.line_items.length > 0 && hasRealPricing && supplierInvoiceRefusal) {
             uploadRefusal = supplierInvoiceRefusal;
           } else if (duplicateInvoice) {
             // The same invoice (same supplier, same reference) is not recorded or held a second time (decided by Pierre 2026-10-04).
             uploadMessage = duplicateInvoiceMessage(subjectHint ?? "the supplier", siExtraction.supplier_reference!, duplicateInvoice);
+          } else if (invoiceUnits && invoiceUnits.unconverted.length > 0) {
+            uploadMessage = deliveryUnitQuestion(subjectHint ?? "the supplier", invoiceUnits.unconverted, "send the invoice again", "invoice");
           } else if (siExtraction.line_items.length > 0 && hasRealPricing) {
-            const allocatedInvoice = allocateInvoiceLines(siExtraction.line_items, invoicePool);
+            const allocatedInvoice = allocateInvoiceLines(invoiceUnits ? invoiceUnits.lines : siExtraction.line_items, invoicePool);
             const held = await holdForConfirmation(
               env,
               "supplier_invoice",
@@ -5803,7 +5836,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             );
             supplierInvoiceAction = { pendingActionId: held.id, supplierName: subjectHint ?? "supplier" };
             uploadHeldActionId = held.id;
-            uploadMessage = `Supplier invoice noted from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""} — needs your confirmation (action #${held.id}) before it's recorded.${invoiceOrdersNote(allocatedInvoice.orderIds)}`;
+            uploadMessage = `Supplier invoice noted from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""} — needs your confirmation (action #${held.id}) before it's recorded.${invoiceOrdersNote(allocatedInvoice.orderIds)}${conversionNote(invoiceUnits ? invoiceUnits.converted : [])}`;
           } else {
             await reconcileDelivery(subjectCharacterId);
           }

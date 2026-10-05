@@ -78,6 +78,9 @@ module.exports = function cases(caps) {
     twoCopiesOfOneInvoice(db);
     db.exec(`INSERT INTO supplier_invoices (id, purchase_order_id, supplier_id, supplier_reference, amount, created_at) VALUES (1, 1, 2, 'INV-7731', 9250, '2026-10-03 08:00:00');`);
   };
+  // A bill in boxes, converted when it was held (decided 2026-10-04). Floornet is supplier 2 here.
+  const vinylBoxConversion = (db) => { withOrder(db); db.exec(unitConversionDdl + "; INSERT INTO unit_conversions (item_key, from_unit, to_unit, factor) VALUES ('vinyl', 'box', 'sqm', 2.5);"); };
+  const SIAIbox = { match: /quantity_billed/, reply: { supplier_name: 'Floornet', supplier_reference: 'INV-7731', line_items: [{ matched_description: 'Vinyl', quantity_billed: 20, unit: 'boxes', unit_price_billed: 462.5 }] } };
   const OBS = (reply) => ({ match: /Extract the structure of a tradesperson's job observation/, reply });
   const LINES = (reply) => ({ match: /Extract every distinct line item from a tradesperson's quotation or invoice description/, reply });
   const GRAI = (reply) => ({ match: /quantity_received/, reply });
@@ -142,6 +145,8 @@ module.exports = function cases(caps) {
     r('confirm supplier invoice: one invoice spanning two orders records a line against each', twoVinylOrders, '/actions/1/confirm', [say('Floornet invoice INV-7731, 70 sqm vinyl at 185', { intent: 'supplier_invoice', ...floornet })], [SIAI2(70)]),
     r('confirm supplier invoice: billing more than was ordered shows the over-billing against the last order', twoVinylOrders, '/actions/1/confirm', [say('Floornet invoice INV-7731, 100 sqm vinyl at 185', { intent: 'supplier_invoice', ...floornet })], [SIAI2(100)]),
     r('confirm supplier invoice: an invoice that fits one order is recorded against it exactly as before', twoVinylOrders, '/actions/1/confirm', [say('Floornet invoice INV-7731, 30 sqm vinyl at 185', { intent: 'supplier_invoice', ...floornet })], [SIAI2(30)]),
+
+    r('confirm supplier invoice: a bill in boxes was converted when held, so it is recorded in the order\'s unit', vinylBoxConversion, '/actions/1/confirm', [say('Floornet invoice INV-7731, 20 boxes of vinyl at 462.50', { intent: 'supplier_invoice', ...floornet })], [SIAIbox]),
 
     // ---------------- the same invoice confirmed twice ----------------
     r('confirm supplier invoice: the first of two copies is recorded', twoCopiesOfOneInvoice, '/actions/1/confirm', [], []),

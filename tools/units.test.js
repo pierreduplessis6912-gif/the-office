@@ -1,7 +1,7 @@
 // Tests for per-item unit conversion (decided 2026-10-04): the unit normaliser, the conversion store and its maths run against a
 // REAL SQLite database, the delivery check, and a guard that the test seeds create the same table the code does.
 module.exports = async function runUnitTests({ check, bundleTo, srcDir, fs, path, sameJson }) {
-  const { normalizeUnit, unitsDiffer, unitPlural, setUnitConversion, convertQuantity, checkDeliveryUnits, deliveryUnitQuestion, conversionNote, listUnitConversions, forgetUnitConversions, describeConversion, unitConversionsAnswer, checkStockUnit } = bundleTo('finance.ts', 'rm-units-finance.js');
+  const { normalizeUnit, unitsDiffer, unitPlural, setUnitConversion, convertQuantity, checkDeliveryUnits, deliveryUnitQuestion, conversionNote, listUnitConversions, forgetUnitConversions, describeConversion, unitConversionsAnswer, checkStockUnit, checkInvoiceUnits } = bundleTo('finance.ts', 'rm-units-finance.js');
   const { newDatabase, d1 } = require('./harness.js');
   const workerDir = path.join(srcDir, '..');
 
@@ -125,6 +125,31 @@ module.exports = async function runUnitTests({ check, bundleTo, srcDir, fs, path
   check(su.ok === false && /Nothing was recorded\. Grout is kept in bags but you said boxes, and I don't know how many bags are in a box/.test(su.question) && /a box of Grout is 2\.2 bags/.test(su.question), 'with no conversion known it records nothing, names both units, and says how to answer');
   su = await checkStockUnit(env, lam, 'boxes', 0.5);
   check(su.ok && su.quantity === 1.1, 'a fraction of a box converts');
+
+  // ---- 3d. A supplier invoice billed in another unit from the order (decided 2026-10-04) ---------------------------
+  env = fresh();
+  await setUnitConversion(env, 'vinyl', 'box', 'sqm', 2.5, null);
+  const pool = [{ poId: 1, poLineId: 1, description: 'Vinyl', ordered: 50, unbilled: 50, unit: 'sqm', unitPriceExpected: 180 }, { poId: 1, poLineId: 2, description: 'Grout', ordered: 5, unbilled: 5, unit: 'bag', unitPriceExpected: 90 }];
+  const billedLine = (name, qty, price, unit) => ({ matched_description: name, quantity_billed: qty, unit_price_billed: price, ...(unit === undefined ? {} : { unit }) });
+  let ic = await checkInvoiceUnits(env, pool, [billedLine('Vinyl', 20, 462.5, 'boxes')]);
+  check(ic.unconverted.length === 0 && ic.lines[0].quantity_billed === 50 && ic.lines[0].unit_price_billed === 185 && ic.lines[0].unit === 'sqm', '20 boxes at R462.50 become 50 sqm at R185: the quantity and the price per unit both convert');
+  check(20 * 462.5 === ic.lines[0].quantity_billed * ic.lines[0].unit_price_billed, 'and the line total is unchanged (R9250 either way)');
+  check(sameJson(ic.converted, [{ item: 'Vinyl', quantity: 20, from: 'boxes', to: 'sqm', result: 50 }]), 'the conversion is reported so the reply can say what was counted as what');
+  ic = await checkInvoiceUnits(env, pool, [billedLine('Vinyl', 20, null, 'boxes')]);
+  check(ic.lines[0].quantity_billed === 50 && ic.lines[0].unit_price_billed === null, 'a line with no price converts its quantity and stays priceless (a price is never invented)');
+  await setUnitConversion(env, 'vinyl', 'sqm', 'box', 0.4, null);
+  ic = await checkInvoiceUnits(env, pool, [billedLine('Vinyl', 20, 462.5, 'boxes')]);
+  check(ic.lines[0].quantity_billed === 50 && ic.lines[0].unit_price_billed === 185, 'a conversion stored the other way round gives the same answer');
+  ic = await checkInvoiceUnits(env, pool, [billedLine('Grout', 3, 90, 'boxes')]);
+  check(ic.unconverted.length === 1 && ic.unconverted[0].item === 'Grout' && ic.unconverted[0].deliveredUnit === 'box' && ic.unconverted[0].orderedUnit === 'bag' && ic.lines[0].quantity_billed === 3, 'with no conversion known the line is reported and left as it was');
+  for (const [unit, why] of [['square metres', 'the same unit written another way'], ['bundles', 'a unit that is not recognised'], [null, 'no unit'], [undefined, 'a line that has no unit at all']]) {
+    ic = await checkInvoiceUnits(env, pool, [billedLine('Vinyl', 50, 185, unit)]);
+    const line = ic.lines[0];
+    check(ic.unconverted.length === 0 && ic.converted.length === 0 && line.quantity_billed === 50 && line.unit_price_billed === 185, `${why} passes through untouched`);
+  }
+  const untouched = billedLine('Vinyl', 50, 185);
+  ic = await checkInvoiceUnits(env, pool, [untouched, billedLine(null, 4, 10, 'boxes'), billedLine('Carpet', 4, 10, 'boxes')]);
+  check(ic.lines[0] === untouched && ic.lines.length === 3 && ic.unconverted.length === 0, 'a line with no unit is returned as the very same object, and a line not on any order is left alone');
 
   // ---- 4. The table the seeds create is the table the code creates ----------------------------------------------
   const norm = (x) => x.replace(/\s+/g, ' ').replace(/\s*;\s*$/, '').trim();

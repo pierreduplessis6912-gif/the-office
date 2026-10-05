@@ -905,12 +905,50 @@ export function unitPlural(canonical: string): string {
 }
 
 // What to say when a delivery cannot be matched because the units differ and no conversion is known. Nothing was recorded.
-export function deliveryUnitQuestion(supplier: string, unconverted: DeliveryUnitCheck<unknown>["unconverted"], then = "say the delivery again"): string {
+export function deliveryUnitQuestion(supplier: string, unconverted: DeliveryUnitCheck<unknown>["unconverted"], then = "say the delivery again", thing = "delivery"): string {
   const parts = unconverted.map(
     (u) =>
-      `${u.item} was ordered in ${unitPlural(u.orderedUnit)} but this delivery is in ${unitPlural(u.deliveredUnit)}, and I don't know how many ${unitPlural(u.orderedUnit)} are in a ${u.deliveredUnit}. Say, for example, "a ${u.deliveredUnit} of ${u.item} is 2.2 ${unitPlural(u.orderedUnit)}" (with the real number).`
+      `${u.item} was ordered in ${unitPlural(u.orderedUnit)} but this ${thing} is in ${unitPlural(u.deliveredUnit)}, and I don't know how many ${unitPlural(u.orderedUnit)} are in a ${u.deliveredUnit}. Say, for example, "a ${u.deliveredUnit} of ${u.item} is 2.2 ${unitPlural(u.orderedUnit)}" (with the real number).`
   );
   return `Nothing was recorded from ${supplier}. ${parts.join(" ")} Then ${then}.`;
+}
+
+// A billed line in a different (recognised) unit from the order line it matches: converted when a conversion is known (the quantity AND the
+// price per unit, so the line total is unchanged: 20 boxes at R462.50 are 50 sqm at R185), and when none is known it is reported so nothing is
+// held and the person is asked. A line whose unit matches, is not recognised or was not stated passes through untouched. Decided by Pierre
+// 2026-10-04; the same conversions and rules as for deliveries and stock.
+export async function checkInvoiceUnits<T extends { matched_description: string | null; quantity_billed: number; unit_price_billed: number | null; unit?: string | null }>(
+  env: Env,
+  pool: InvoiceMatchLine[],
+  lines: T[]
+): Promise<DeliveryUnitCheck<T>> {
+  const out: T[] = [];
+  const converted: DeliveryUnitCheck<T>["converted"] = [];
+  const unconverted: DeliveryUnitCheck<T>["unconverted"] = [];
+  for (const line of lines) {
+    const name = (line.matched_description ?? "").toLowerCase();
+    const target = name ? pool.find((p) => p.description.toLowerCase() === name) : undefined;
+    if (!target || !unitsDiffer(line.unit, target.unit)) {
+      out.push(line);
+      continue;
+    }
+    const result = await convertQuantity(env, target.description, Number(line.quantity_billed), line.unit, target.unit);
+    if (result.ok) {
+      out.push({
+        ...line,
+        quantity_billed: result.quantity,
+        unit: target.unit,
+        unit_price_billed: line.unit_price_billed != null && result.factor ? round4(line.unit_price_billed / result.factor) : line.unit_price_billed,
+      });
+      converted.push({ item: target.description, quantity: Number(line.quantity_billed), from: String(line.unit), to: String(target.unit), result: result.quantity });
+    } else {
+      out.push(line);
+      if (!unconverted.some((u) => u.item.toLowerCase() === target.description.toLowerCase())) {
+        unconverted.push({ item: target.description, deliveredUnit: normalizeUnit(line.unit)!, orderedUnit: normalizeUnit(target.unit)! });
+      }
+    }
+  }
+  return { lines: out, converted, unconverted };
 }
 
 export function conversionNote(converted: DeliveryUnitCheck<unknown>["converted"]): string {

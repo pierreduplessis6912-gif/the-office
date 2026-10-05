@@ -153,6 +153,390 @@
   },
   "effects": []
  },
+ "note: a sentence that says a bank account number is kept out of notes, and says so": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Found existing customer: Jenny Smith. It looks like a pay or bank detail, so it was not kept in the notes. To save it, say it as a detail (for example \"Sipho's day rate is R600 a day\").",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jenny's bank account number is 62012345678 for refunds",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jenny's bank account number is 62012345678 for refunds",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "note: a sentence that says what someone charges per day is kept out of notes, and says so": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Jabulani",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Found existing: Jabulani. It looks like a pay or bank detail, so it was not kept in the notes. To save it, say it as a detail (for example \"Sipho's day rate is R600 a day\").",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jabulani charges R600 a day",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jabulani charges R600 a day",
+       "source": "text",
+       "subject_hint": "Jabulani",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Jabulani"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "note: a sentence that says an hourly rate is kept out of notes, and says so": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Jabulani",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Found existing: Jabulani. It looks like a pay or bank detail, so it was not kept in the notes. To save it, say it as a detail (for example \"Sipho's day rate is R600 a day\").",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jabulani's hourly rate is R120",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jabulani's hourly rate is R120",
+       "source": "text",
+       "subject_hint": "Jabulani",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Jabulani"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "note: an installer saying a salary is kept out of notes too, and is told": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Jabulani",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Found existing: Jabulani. It looks like a pay or bank detail, so it was not kept in the notes. To save it, say it as a detail (for example \"Sipho's day rate is R600 a day\").",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jabulani earns a salary of R18000",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jabulani earns a salary of R18000",
+       "source": "text",
+       "subject_hint": "Jabulani",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Jabulani"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "note: an ordinary note is kept as before": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Found existing customer: Jenny Smith.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jenny prefers mornings",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jenny prefers mornings",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
+   "pending_memory_flush": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "text": "Jenny prefers mornings"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "customer:1",
+    "value": "{\"facts\":[{\"text\":\"Jenny prefers mornings\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "note: the word account in another sense is not a bank detail": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Found existing customer: Jenny Smith.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jenny's account is overdue",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jenny's account is overdue",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
+   "pending_memory_flush": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "text": "Jenny's account is overdue"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "customer:1",
+    "value": "{\"facts\":[{\"text\":\"Jenny's account is overdue\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
  "detail: owner saves a day rate": {
   "result": {
    "customer": null,
@@ -221,13 +605,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "character:1",
-    "value": "{\"facts\":[{\"text\":\"Jabulani's day rate is R600 a day\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "detail: accountant saves a day rate": {
   "result": {
@@ -297,13 +675,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "character:1",
-    "value": "{\"facts\":[{\"text\":\"Jabulani's day rate is R600 a day\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "detail: installer is refused a day rate, and nothing is held": {
   "result": {
@@ -362,13 +734,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "character:1",
-    "value": "{\"facts\":[{\"text\":\"Jabulani's day rate is R600 a day\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "detail: installer is refused a bank account, and nothing is held": {
   "result": {
@@ -427,13 +793,7 @@
     ]
    }
   },
-  "effects": [
-   {
-    "kv": "put",
-    "key": "character:1",
-    "value": "{\"facts\":[{\"text\":\"Jabulani's bank account is FNB 62012345678\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
-   }
-  ]
+  "effects": []
  },
  "detail: installer saves a cell number as before": {
   "result": {

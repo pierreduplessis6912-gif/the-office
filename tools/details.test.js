@@ -1,6 +1,6 @@
 // Tests for sensitive person details (decided 2026-10-04): which keys are payroll or banking, who may handle them, and what a role is shown.
 module.exports = async function runDetailTests({ check, bundleTo, srcDir, path, sameJson }) {
-  const { sensitiveFactKind, mayHandleSensitiveFact, getCharacterFacts } = bundleTo('memory.ts', 'rm-details-memory.js');
+  const { sensitiveFactKind, mayHandleSensitiveFact, getCharacterFacts, looksLikePayOrBankDetail } = bundleTo('memory.ts', 'rm-details-memory.js');
   const { newDatabase, d1 } = require('./harness.js');
   const workerDir = path.join(srcDir, '..');
 
@@ -25,4 +25,10 @@ module.exports = async function runDetailTests({ check, bundleTo, srcDir, path, 
   check(sameJson(await getCharacterFacts(env, 1, ['can_know_banking']), ['bank account: FNB 6201234', 'cell: 083 555 0202']), 'banking access shows the bank detail but not the pay detail');
   check((await getCharacterFacts(env, 1, ['can_know_payroll', 'can_know_banking'])).length === 3, 'both permissions show everything');
   check((await getCharacterFacts(env, 1)).length === 3, 'with no capabilities given (the admin tools) everything is returned');
+
+  // ---- A SENTENCE that says a pay or bank detail is kept out of notes (decided 2026-10-04) ------------------------
+  const says = ["Jenny's bank account number is 62012345678", 'Sipho banks with FNB, account number 6201234', 'his bank details are in the file', 'the IBAN is GB29 NWBK 6016 1331 9268 19', 'swift code ABSAZAJJ', 'branch code 250655', 'sort code 20-00-00', 'card number 4111 1111 1111 1111', 'Jabulani charges R600 a day', 'he gets R120 per hour', 'she earns R4000 a week', 'R18 000 a month', "Sipho's day rate is R600", 'his hourly rate is R120', 'the salary is R18000', 'wages are paid on Friday', 'payroll is due', 'Jabulani earns a salary of R18000', 'Account No 12345', 'account no. 12345'];
+  for (const x of says) check(looksLikePayOrBankDetail(x) === true, `"${x}" is read as a pay or bank detail`);
+  const ordinary = ['Jenny prefers mornings', "Jenny's account is overdue", 'Floornet account manager is Thandi', 'please open an account with Belgotex', 'the payment terms are 30 days', 'R450 a square metre for the carpet', 'he works a day a week on Fridays', 'bring the bank holiday schedule', 'the account was paid', 'Sipho will install on Monday', 'we paid R5000 for the job', 'sort the samples out', 'the swift delivery was appreciated', 'rate the job out of ten', ''];
+  for (const x of ordinary) check(looksLikePayOrBankDetail(x) === false, `"${x}" is an ordinary sentence, kept in notes as before`);
 };

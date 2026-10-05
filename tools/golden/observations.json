@@ -1018,14 +1018,14 @@
   },
   "effects": []
  },
- "observation: owner, no customer but a measured room is still recorded as before": {
+ "observation: owner, no customer and a measured room asks which customer and records nothing": {
   "result": {
    "customer": null,
    "character": null,
    "pendingActionId": null,
    "factPendingActionId": null,
-   "message": "Job scope #1 recorded — 1 component measured, 1 task noted.",
-   "jobScopeIdForProjectResolution": 1,
+   "message": "I heard a job (1 room measured, 1 task noted), but no customer came through — which customer is it for? Nothing was recorded.",
+   "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
    "pendingChanges": null
@@ -1061,41 +1061,145 @@
       }
      }
     ]
-   },
-   "job_scopes": {
-    "added": [
+   }
+  },
+  "effects": []
+ },
+ "observation: owner, a task only and no customer asks which customer": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I heard a job (1 task noted), but no customer came through — which customer is it for? Nothing was recorded.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
      {
-      "id": 1,
-      "customer_id": null,
-      "description": "laminate installation",
-      "scheduled_date_raw": null,
-      "source_transcript": "the lounge is 5 by 4 metres",
-      "scheduled_date": null,
-      "installer_id": null,
-      "capture_id": 1,
-      "project_id": null
+      "before": {
+       "id": 1,
+       "raw_text": "repairs needed",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "repairs needed",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
      }
     ]
-   },
-   "scope_components": {
-    "added": [
+   }
+  },
+  "effects": []
+ },
+ "observation: accountant, measurements and no customer asks which customer": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I heard a job (1 room measured, 1 task noted), but no customer came through — which customer is it for? Nothing was recorded.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
      {
-      "id": 1,
-      "job_scope_id": 1,
-      "name": "lounge",
-      "width_mm": 5000,
-      "length_mm": 4000,
-      "area_sqm": 20
+      "before": {
+       "id": 1,
+       "raw_text": "the lounge is 5 by 4 metres",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "the lounge is 5 by 4 metres",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
      }
     ]
-   },
-   "scope_tasks": {
-    "added": [
+   }
+  },
+  "effects": []
+ },
+ "observation: owner, rooms, an installer and a date but no customer asks and says what was heard": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I heard a job with Sipho for next Monday (1 room measured, 1 task noted), but no customer came through — which customer is it for? Nothing was recorded.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
      {
-      "id": 1,
-      "job_scope_id": 1,
-      "description": "laminate installation",
-      "component_id": null
+      "before": {
+       "id": 1,
+       "raw_text": "the lounge is 5 by 4 metres, Sipho installs next Monday",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "the lounge is 5 by 4 metres, Sipho installs next Monday",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
      }
     ]
    }
@@ -2378,14 +2482,14 @@
   },
   "effects": []
  },
- "observation: owner, measurements but no customer named": {
+ "observation: owner, measurements but no customer named asks which customer": {
   "result": {
    "customer": null,
    "character": null,
    "pendingActionId": null,
    "factPendingActionId": null,
-   "message": "Job scope #1 recorded — 1 component measured, 1 task noted.",
-   "jobScopeIdForProjectResolution": 1,
+   "message": "I heard a job (1 room measured, 1 task noted), but no customer came through — which customer is it for? Nothing was recorded.",
+   "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
    "pendingChanges": null
@@ -2419,43 +2523,6 @@
        "customer_id": null,
        "character_id": null
       }
-     }
-    ]
-   },
-   "job_scopes": {
-    "added": [
-     {
-      "id": 1,
-      "customer_id": null,
-      "description": "laminate installation",
-      "scheduled_date_raw": null,
-      "source_transcript": "lounge is 5 by 4 metres, laminate",
-      "scheduled_date": null,
-      "installer_id": null,
-      "capture_id": 1,
-      "project_id": null
-     }
-    ]
-   },
-   "scope_components": {
-    "added": [
-     {
-      "id": 1,
-      "job_scope_id": 1,
-      "name": "lounge",
-      "width_mm": 5000,
-      "length_mm": 4000,
-      "area_sqm": 20
-     }
-    ]
-   },
-   "scope_tasks": {
-    "added": [
-     {
-      "id": 1,
-      "job_scope_id": 1,
-      "description": "laminate installation",
-      "component_id": null
      }
     ]
    }

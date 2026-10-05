@@ -3,7 +3,7 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 11 applied).
+decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 12 applied).
 
 ## A. Decisions only Pierre can make
 
@@ -23,20 +23,10 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     tubes, tins, packs, pallets, metres, each). A unit outside it (a "bundle") is never converted and never flagged, by
     design, so it cannot block a delivery. *Option:* add units as they turn up.
 
-45. **The invoice reader captures no unit**, so an invoice in boxes against an order in square metres is matched number to
-    number. The unit conversion built earlier applies to deliveries and stock, not to invoices. *Option:* have the invoice
-    reader capture the unit and convert it the same way.
-
-
-
-47. **A job with measurements or tasks but no customer is still recorded customer-less.** Only the installer-and-date-only case
-    (nothing to measure, nothing to attach to) now asks which customer. *Option:* ask in every case where no customer was
-    named and nothing in the same message supplies one. (`DECISIONS.md`, "Decisions session, round 10 (part 1)".)
-
-48. **A free-text note that mentions a pay or bank detail is not gated.** Only a saved *detail* is (by its key). Someone who says
-    a bank account as a note ("Sipho's bank is FNB, account 6201...") puts it in free text, which every role can read. *Option:*
-    keep sentences that look like a bank or pay detail out of notes, as money sentences already are. (`DECISIONS.md`,
-    "Decisions session, round 11".)
+49. **The note filter is plain.** It catches bank and pay words and an amount per day, hour, week or month. A sentence phrased
+    outside those ("he's on 600 a shift", "FNB cheque 6201...") is still kept in notes, and the words of every sentence stay in
+    the raw capture. *Option:* widen the patterns as real misses turn up, or ask the reader to flag them.
+    (`DECISIONS.md`, "Decisions session, round 12".)
 ## B. Needs a live check only a phone can give
 
 12. **The Codemagic rebuild**: the Confirm/Reject buttons for a follow-up question raised by a confirm ("Add to stock?",
@@ -45,6 +35,10 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     tests, never run on a real delivery note with two orders.
 15. **The Permissions screen on a real phone.** The web build compiles it; the phone build and a real tap-through are
     unverified (switch something off for the installer, then check on the installer's phone that the room is gone).
+14j. **Round 12 on the phone.** Say a measured room with no customer (expect "which customer is it for?"), two rooms in one
+    sentence-run naming Jenny once (expect both under her), "Sipho's bank is FNB, account number 6201..." as a note (expect "not
+    kept in the notes"), and a supplier invoice in boxes with and without a box conversion saved. The models that read the unit
+    and each sentence could not be run here.
 14i. **Round 11 on the phone.** Say "Jabulani's day rate is R600 a day" as the installer (expect "Nothing was saved...") and as the
     owner (expect it held). Look at the Permissions room: it should now show Payroll and Banking details as switches. Ask "and
     her balance" on two phones signed in as two people: each should follow their own last customer, and "forget that" on
@@ -100,6 +94,14 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
 
 ## Settled (kept so the reasoning is not lost)
+
+- 2026-10-04, decided by Pierre (decisions session, round 12):
+  - **A job with no customer asks which customer in every case** (a measured room takes the customer of an earlier job in the same
+    message; otherwise it asks and records nothing). Applied.
+  - **A sentence that says a pay or bank detail is kept out of free-text notes**, and the reply says so when it went nowhere else.
+    This also closed a leak in round 11 (the sentence was being copied into notes as well as held as a detail). Applied.
+  - **A supplier invoice billed in another unit is converted (quantity and price per unit) and, with no conversion known, asks and
+    holds nothing**, as for deliveries and stock. Applied. (`DECISIONS.md`, "Decisions session, round 12".)
 
 - 2026-10-04, decided by Pierre (decisions session, round 11):
   - **A person's pay and bank details need `can_know_payroll` / `can_know_banking`, to be read and to be saved** (by the detail's

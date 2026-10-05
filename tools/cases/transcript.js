@@ -85,6 +85,16 @@ module.exports = function cases(caps) {
       READ({ 'Jenny lounge is 5 by 4 metres': { intent: 'work_observation', customer_name: 'Jenny Smith' }, 'Jenny kitchen is 3 by 3 metres': { intent: 'work_observation', customer_name: 'Jenny Smith' } }),
       OBS(lounge())]),
 
+    // ---------------- a measured room with no customer named (decided 2026-10-04) ----------------
+    t('transcript: owner, a second room with no customer named takes the customer of the job earlier in the same message', 'owner', base, 'Jenny lounge is 5 by 4 metres. The kitchen is 3 by 3 metres.', [
+      SPLIT(['Jenny lounge is 5 by 4 metres', 'The kitchen is 3 by 3 metres']),
+      READ({ 'Jenny lounge is 5 by 4 metres': { intent: 'work_observation', customer_name: 'Jenny Smith' }, 'The kitchen is 3 by 3 metres': { intent: 'work_observation', customer_name: null } }),
+      OBS(lounge())]),
+    t('transcript: owner, a measured room with no customer named and nothing earlier in the message asks which customer', 'owner', base, 'The kitchen is 3 by 3 metres.', [
+      SPLIT(['The kitchen is 3 by 3 metres']),
+      READ({ 'The kitchen is 3 by 3 metres': { intent: 'work_observation', customer_name: null } }),
+      OBS(lounge())]),
+
     // ---------------- several things waiting for an answer (the app shows a Confirm and Reject for each) ----------------
     t('transcript: owner, an invoice and a date change for a customer who already has a job: both waiting actions are listed', 'owner', (db) => {
       base(db);

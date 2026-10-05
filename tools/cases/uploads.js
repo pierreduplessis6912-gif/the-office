@@ -203,7 +203,17 @@ module.exports = function cases(caps) {
     up('document: a statement that matches the books says so', 'owner', withBooks, 'document', pdf(stmtLines), { caption: 'statement from Floornet' }, [stmtCaption, STMT({ claimed_closing_balance: 9250 })]),
     up('document: a statement for less than the books says so', 'owner', withBooks, 'document', pdf(stmtLines), { caption: 'statement from Floornet' }, [stmtCaption, STMT({ claimed_closing_balance: 8000 })]),
   );
+  const boxInvoice = SIAI({ supplier_name: 'Floornet', supplier_reference: 'INV-7731', line_items: [{ matched_description: 'Vinyl', quantity_billed: 20, unit: 'boxes', unit_price_billed: 462.5 }] });
+  specs.push(
+    asImage('document (image): a supplier invoice billed in boxes is converted and held', 'owner', withVinylConversion, { caption: 'Floornet invoice' }, [DESCRIBE('Floornet TAX INVOICE INV-7731 Vinyl 20 boxes at R462.50'), asInvoice, boxInvoice]),
+    up('photo: a supplier invoice billed in boxes is converted and held', 'owner', withVinylConversion, 'photo', png, { caption: 'Floornet invoice' }, [DESCRIBE('Floornet TAX INVOICE INV-7731 Vinyl 20 boxes at R462.50'), asInvoice, boxInvoice]),
+    asImage('document (image): a supplier invoice billed in boxes and no conversion known asks and holds nothing', 'owner', withOrder, { caption: 'Floornet invoice' }, [DESCRIBE('Floornet TAX INVOICE INV-7731 Vinyl 20 boxes at R462.50'), asInvoice, boxInvoice]),
+    up('photo: a supplier invoice billed in boxes and no conversion known asks and holds nothing', 'owner', withOrder, 'photo', png, { caption: 'Floornet invoice' }, [DESCRIBE('Floornet TAX INVOICE INV-7731 Vinyl 20 boxes at R462.50'), asInvoice, boxInvoice]),
+    up('document: a supplier invoice billed in boxes, converted (a real PDF)', 'owner', withVinylConversion, 'document', pdf(['Floornet (Pty) Ltd', 'TAX INVOICE INV-7731', 'Vinyl 20 boxes at R462.50']), { caption: 'Floornet invoice' }, [asInvoice, boxInvoice]),
+  );
   specs.pairs = [
+    ['document (image): a supplier invoice billed in boxes is converted and held', 'photo: a supplier invoice billed in boxes is converted and held', same],
+    ['document (image): a supplier invoice billed in boxes and no conversion known asks and holds nothing', 'photo: a supplier invoice billed in boxes and no conversion known asks and holds nothing', same],
     ['document (image): a statement is compared with the books and recorded', 'photo: a statement is compared with the books and recorded', same],
     ['document (image): a supplier invoice that is already recorded is not held again', 'photo: a supplier invoice that is already recorded is not held again', same],
     ['document (image): a supplier invoice that spans two orders is held and says so', 'photo: a supplier invoice that spans two orders is held and says so', same],

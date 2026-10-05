@@ -240,6 +240,8 @@ export interface SupplierInvoiceLineItem {
   matched_description: string | null;
   quantity_billed: number;
   unit_price_billed: number | null;
+  // The unit the quantity was BILLED in, as stated ("boxes"), or absent/null when none was. Decided by Pierre 2026-10-04.
+  unit?: string | null;
 }
 
 export interface SupplierInvoiceExtraction {

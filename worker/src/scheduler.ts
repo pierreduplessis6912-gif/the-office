@@ -406,6 +406,19 @@ export async function recordWorkObservation(
 // within the same capture, never guesses across unrelated ones.
 // Decided by Pierre 2026-10-04: is there a job (or a lead) from the SAME capture that a customer-less scheduling sentence could attach to? Asked
 // BEFORE anything is created for the sentence, so a sentence that is about to be asked about ("which customer is it for?") creates nothing.
+// Decided by Pierre 2026-10-04: the customer a job from the SAME capture already has, so a measured room whose sentence names no customer
+// ("the kitchen is 3 by 3", after "Jenny, the lounge is 5 by 4") takes it from the same message instead of being recorded customer-less.
+export async function findSiblingCustomer(env: Env, captureId: number | null): Promise<{ id: number; name: string } | null> {
+  if (captureId === null) return null;
+  const row = await env.OFFICE_DB.prepare(
+    `SELECT c.id AS id, c.name AS name FROM job_scopes js JOIN customers c ON c.id = js.customer_id
+      WHERE js.capture_id = ? AND js.customer_id IS NOT NULL ORDER BY js.created_at DESC, js.id DESC LIMIT 1`
+  )
+    .bind(captureId)
+    .first<{ id: number; name: string }>();
+  return row ?? null;
+}
+
 export async function hasSiblingToAttach(env: Env, captureId: number | null): Promise<boolean> {
   if (captureId === null) return false;
   const job = await env.OFFICE_DB.prepare("SELECT id FROM job_scopes WHERE capture_id = ? LIMIT 1").bind(captureId).first<{ id: number }>();

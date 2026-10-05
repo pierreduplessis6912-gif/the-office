@@ -210,6 +210,15 @@ export function sensitiveFactKind(key: string): "payroll" | "banking" | null {
   return null;
 }
 
+// Decided by Pierre 2026-10-04: a free-text note that SAYS a pay or bank detail ("Sipho's bank is FNB, account number 6201...", "he charges R600 a
+// day") is kept out of notes, which every role can read, exactly as money sentences already are. This looks at the sentence, not a key, so it
+// is deliberately plain: bank and account words, and an amount per day, hour, week or month. The words stay in the raw capture.
+const BANK_SENTENCE = /\b(bank account|bank details|banking details|account (?:number|no\.?)|acc(?:ount)? ?(?:no\.?|number)|iban|swift (?:code|number|no\.?|address)|branch code|sort code|routing number|card number)\b/i;
+const PAY_SENTENCE = /\b(day rate|daily rate|hourly rate|pay rate|salary|salaries|wages?|payroll)\b|\bR\s?\d[\d\s,.]*\s*(?:a|per|\/)\s*(?:day|hour|hr|week|month)\b/i;
+export function looksLikePayOrBankDetail(text: string): boolean {
+  return BANK_SENTENCE.test(text) || PAY_SENTENCE.test(text);
+}
+
 export function mayHandleSensitiveFact(kind: "payroll" | "banking" | null, capabilities: string[]): boolean {
   if (kind === null) return true;
   return capabilities.includes(kind === "payroll" ? "can_know_payroll" : "can_know_banking");

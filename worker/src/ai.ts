@@ -892,26 +892,27 @@ export async function extractSupplierInvoice(
               "billed, extract: matched_description (copied EXACTLY from the given order line item) or " +
               "null if it genuinely doesn't match anything given, quantity_billed (the plain number " +
               "actually billed — often different from what was ordered, extract exactly what was stated " +
-              "or written, never assume it matches), and unit_price_billed (the real rate actually " +
+              "or written, never assume it matches), unit (the unit the quantity was billed in, exactly as stated " +
+              "or written, for example boxes or sqm, or null if none was stated), and unit_price_billed (the real rate actually " +
               "billed for this item, ONLY if a real price is genuinely stated or written for it — null " +
               "if no price is given for that specific item, even if a rate was expected. NEVER invent or " +
               "assume a price from a quantity, a total, or an expected rate shown above — those are " +
               "context only, not something to copy as if it were stated.) Return ONLY JSON: " +
               '{"supplier_name": string or null, "supplier_reference": string or null, "line_items": ' +
-              '[{"matched_description": string or null, "quantity_billed": number, "unit_price_billed": ' +
+              '[{"matched_description": string or null, "quantity_billed": number, "unit": string or null, "unit_price_billed": ' +
               "number or null}]}\n\n" +
               "Examples:\n" +
               'Ordered: "Vinyl (ordered: 50 sqm), Underlay (ordered: 100 sqm, expected rate: R30), Skirting (ordered: 10 length)". ' +
               'Bill: "Floornet invoice INV-4471: 50 sqm vinyl at R180 a square meter, 50 sqm underlay at R35 a square meter, 8 lengths of skirting at R120 each" -> ' +
               '{"supplier_name":"Floornet","supplier_reference":"INV-4471","line_items":[' +
-              '{"matched_description":"Vinyl","quantity_billed":50,"unit_price_billed":180},' +
-              '{"matched_description":"Underlay","quantity_billed":50,"unit_price_billed":35},' +
-              '{"matched_description":"Skirting","quantity_billed":8,"unit_price_billed":120}' +
+              '{"matched_description":"Vinyl","quantity_billed":50,"unit":"sqm","unit_price_billed":180},' +
+              '{"matched_description":"Underlay","quantity_billed":50,"unit":"sqm","unit_price_billed":35},' +
+              '{"matched_description":"Skirting","quantity_billed":8,"unit":"lengths","unit_price_billed":120}' +
               "]}\n" +
               'Ordered: "Carpet tile (ordered: 160 sqm)". ' +
               'Bill: "got Floornet\'s delivery, 160 square meters of carpet tile" (no price mentioned anywhere) -> ' +
               '{"supplier_name":"Floornet","supplier_reference":null,"line_items":[' +
-              '{"matched_description":"Carpet tile","quantity_billed":160,"unit_price_billed":null}' +
+              '{"matched_description":"Carpet tile","quantity_billed":160,"unit":"square meters","unit_price_billed":null}' +
               "]}",
           },
           {

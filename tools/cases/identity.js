@@ -66,6 +66,14 @@ module.exports = function cases(caps) {
     c('forget that: clears the person who said it, not the other person\'s selection', 'owner', twoSelections, { intent: 'forget_last' }, 'forget that', []),
     c('forget that: the accountant clears their own and leaves the owner\'s', 'accountant', twoSelections, { intent: 'forget_last' }, 'forget that', [], { email: 'accountant@example.com' }),
 
+    // ---------------- a note that says a pay or bank detail is kept out of notes (decided 2026-10-04) ----------------
+    c('note: a sentence that says a bank account number is kept out of notes, and says so', 'owner', base, { customer_name: 'Jenny Smith' }, 'Jenny\'s bank account number is 62012345678 for refunds', []),
+    c('note: a sentence that says what someone charges per day is kept out of notes, and says so', 'owner', base, { character_name: 'Jabulani', character_relationship: 'installer' }, 'Jabulani charges R600 a day', []),
+    c('note: a sentence that says an hourly rate is kept out of notes, and says so', 'accountant', base, { character_name: 'Jabulani', character_relationship: 'installer' }, 'Jabulani\'s hourly rate is R120', []),
+    c('note: an installer saying a salary is kept out of notes too, and is told', 'installer', base, { character_name: 'Jabulani', character_relationship: 'installer' }, 'Jabulani earns a salary of R18000', []),
+    c('note: an ordinary note is kept as before', 'owner', base, { customer_name: 'Jenny Smith' }, 'Jenny prefers mornings', []),
+    c('note: the word account in another sense is not a bank detail', 'owner', base, { customer_name: 'Jenny Smith' }, 'Jenny\'s account is overdue', []),
+
     // ---------------- a person's pay and bank details need their own permission to save ----------------
     c('detail: owner saves a day rate', 'owner', base, detail('day rate', 'R600 a day'), 'Jabulani\'s day rate is R600 a day', []),
     c('detail: accountant saves a day rate', 'accountant', base, detail('day rate', 'R600 a day'), 'Jabulani\'s day rate is R600 a day', []),
