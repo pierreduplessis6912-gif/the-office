@@ -178,7 +178,7 @@
    "character": null,
    "pendingActionId": null,
    "factPendingActionId": null,
-   "message": "Job scope #1 recorded for Jenny Smith — 2 components measured, 1 task noted.",
+   "message": "Job scope #1 recorded for Jenny Smith — 2 components measured, 1 task noted, scheduled for Mon 12 Oct.",
    "jobScopeIdForProjectResolution": 1,
    "pendingCandidates": null,
    "pendingActionType": null,
@@ -284,7 +284,7 @@
    "character": null,
    "pendingActionId": null,
    "factPendingActionId": null,
-   "message": "Job scope #1 recorded for Jenny Smith.",
+   "message": "Job scope #1 recorded for Jenny Smith — scheduled for Mon 5 Oct.",
    "jobScopeIdForProjectResolution": 1,
    "pendingCandidates": null,
    "pendingActionType": null,
@@ -620,6 +620,406 @@
       "id": 1,
       "job_scope_id": 1,
       "description": "installation",
+      "component_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "invoice: owner, an amount and a job with a date: the reply says the date was saved": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Invoice noted for Jenny Smith of R3000 — needs your confirmation (action #1) before it's recorded. Job scope #1 also recorded — 1 task noted, scheduled for Sat 17 Oct.",
+   "jobScopeIdForProjectResolution": 1,
+   "pendingCandidates": null,
+   "pendingActionType": "invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Invoice Jenny R3000 for carpet repair, install on the 17th",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Invoice Jenny R3000 for carpet repair, install on the 17th",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "carpet repair",
+      "scheduled_date_raw": "the 17th",
+      "source_transcript": "Invoice Jenny R3000 for carpet repair, install on the 17th",
+      "scheduled_date": "2026-10-17",
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "invoice",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"Invoice Jenny R3000 for carpet repair, install on the 17th\",\"amount\":3000}",
+      "status": "pending",
+      "source_transcript": "Invoice Jenny R3000 for carpet repair, install on the 17th"
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "carpet repair",
+      "component_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "invoice: owner, an amount and a job with a date in words (\"the seventeenth\")": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Invoice noted for Jenny Smith of R3000 — needs your confirmation (action #1) before it's recorded. Job scope #1 also recorded — 1 task noted, scheduled for Sat 17 Oct.",
+   "jobScopeIdForProjectResolution": 1,
+   "pendingCandidates": null,
+   "pendingActionType": "invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Invoice Jenny R3000 for carpet repair, install on the seventeenth",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Invoice Jenny R3000 for carpet repair, install on the seventeenth",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "carpet repair",
+      "scheduled_date_raw": "the seventeenth",
+      "source_transcript": "Invoice Jenny R3000 for carpet repair, install on the seventeenth",
+      "scheduled_date": "2026-10-17",
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "invoice",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"Invoice Jenny R3000 for carpet repair, install on the seventeenth\",\"amount\":3000}",
+      "status": "pending",
+      "source_transcript": "Invoice Jenny R3000 for carpet repair, install on the seventeenth"
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "carpet repair",
+      "component_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "invoice: owner, an amount and a job with measurements, a task and a date": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Invoice noted for Jenny Smith of R3000 — needs your confirmation (action #1) before it's recorded. Job scope #1 also recorded — 1 component measured, 1 task noted, scheduled for Sat 17 Oct.",
+   "jobScopeIdForProjectResolution": 1,
+   "pendingCandidates": null,
+   "pendingActionType": "invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Invoice Jenny R3000 lounge 5 by 4 laminate on the 17th",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Invoice Jenny R3000 lounge 5 by 4 laminate on the 17th",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "laminate",
+      "scheduled_date_raw": "the 17th",
+      "source_transcript": "Invoice Jenny R3000 lounge 5 by 4 laminate on the 17th",
+      "scheduled_date": "2026-10-17",
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "invoice",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"Invoice Jenny R3000 lounge 5 by 4 laminate on the 17th\",\"amount\":3000}",
+      "status": "pending",
+      "source_transcript": "Invoice Jenny R3000 lounge 5 by 4 laminate on the 17th"
+     }
+    ]
+   },
+   "scope_components": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "name": "lounge",
+      "width_mm": 5000,
+      "length_mm": 4000,
+      "area_sqm": 20
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "laminate",
+      "component_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "invoice: owner, an amount and a job with NO date says nothing about one": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Invoice noted for Jenny Smith of R3000 — needs your confirmation (action #1) before it's recorded. Job scope #1 also recorded — 1 task noted.",
+   "jobScopeIdForProjectResolution": 1,
+   "pendingCandidates": null,
+   "pendingActionType": "invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Invoice Jenny R3000 for carpet repair",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Invoice Jenny R3000 for carpet repair",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 1,
+      "description": "carpet repair",
+      "scheduled_date_raw": null,
+      "source_transcript": "Invoice Jenny R3000 for carpet repair",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "invoice",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"Invoice Jenny R3000 for carpet repair\",\"amount\":3000}",
+      "status": "pending",
+      "source_transcript": "Invoice Jenny R3000 for carpet repair"
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "carpet repair",
       "component_id": null
      }
     ]
@@ -1080,7 +1480,7 @@
    "character": null,
    "pendingActionId": null,
    "factPendingActionId": null,
-   "message": "Job scope #1 recorded for Jenny Smith.",
+   "message": "Job scope #1 recorded for Jenny Smith — scheduled for Mon 5 Oct.",
    "jobScopeIdForProjectResolution": 1,
    "pendingCandidates": null,
    "pendingActionType": null,

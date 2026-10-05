@@ -2539,6 +2539,1212 @@
   },
   "effects": []
  },
+ "transcript: owner, \"and schedule for the 17th\" after an invoice that records a job, read by the model as price_scope: the date goes to that job": {
+  "result": {
+   "extraction": {
+    "customer_name": "AGS Lewende Waters",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "invoice",
+    "amount": 3000,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"AGS Lewende Waters\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"invoice\",\"amount\":3000,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"AGS Lewende Waters\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"invoice\",\"amount\":3000,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 3,
+    "name": "AGS Lewende Waters",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "pendingActionIds": [
+    1
+   ],
+   "pendingActions": [
+    {
+     "id": 1,
+     "type": "invoice"
+    }
+   ],
+   "factPendingActionId": null,
+   "message": "- Invoice noted for AGS Lewende Waters of R3000 — needs your confirmation (action #1) before it's recorded. Job scope #1 also recorded — 1 task noted.\n- Job scope #1 updated — scheduled for Sat 17 Oct.",
+   "rewrittenQuery": "Invoice AGS Lewende Waters R3000 for carpet repair and schedule for the 17th",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": "invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract the structure of a tradesperson's job observation. job_descrip",
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Invoice AGS Lewende Waters R3000 for carpet repair and schedule for the 17th",
+      "source": "text",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 3,
+      "description": "carpet repair",
+      "scheduled_date_raw": "the 17th",
+      "source_transcript": "Invoice AGS Lewende Waters R3000 for carpet repair",
+      "scheduled_date": "2026-10-17",
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 3,
+      "label": "AGS Lewende Waters"
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "invoice",
+      "payload": "{\"customerId\":3,\"customerName\":\"AGS Lewende Waters\",\"description\":\"Invoice AGS Lewende Waters R3000 for carpet repair\",\"amount\":3000}",
+      "status": "pending",
+      "source_transcript": "Invoice AGS Lewende Waters R3000 for carpet repair"
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "carpet repair",
+      "component_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: owner, \"and schedule for the 17th\" after an invoice that records a job, read by the model as lookup: the date goes to that job": {
+  "result": {
+   "extraction": {
+    "customer_name": "AGS Lewende Waters",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "invoice",
+    "amount": 3000,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"AGS Lewende Waters\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"invoice\",\"amount\":3000,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"AGS Lewende Waters\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"invoice\",\"amount\":3000,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 3,
+    "name": "AGS Lewende Waters",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "pendingActionIds": [
+    1
+   ],
+   "pendingActions": [
+    {
+     "id": 1,
+     "type": "invoice"
+    }
+   ],
+   "factPendingActionId": null,
+   "message": "- Invoice noted for AGS Lewende Waters of R3000 — needs your confirmation (action #1) before it's recorded. Job scope #1 also recorded — 1 task noted.\n- Job scope #1 updated — scheduled for Sat 17 Oct.",
+   "rewrittenQuery": "Invoice AGS Lewende Waters R3000 for carpet repair and schedule for the 17th",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": "invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract the structure of a tradesperson's job observation. job_descrip",
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Invoice AGS Lewende Waters R3000 for carpet repair and schedule for the 17th",
+      "source": "text",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 3,
+      "description": "carpet repair",
+      "scheduled_date_raw": "the 17th",
+      "source_transcript": "Invoice AGS Lewende Waters R3000 for carpet repair",
+      "scheduled_date": "2026-10-17",
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 3,
+      "label": "AGS Lewende Waters"
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "invoice",
+      "payload": "{\"customerId\":3,\"customerName\":\"AGS Lewende Waters\",\"description\":\"Invoice AGS Lewende Waters R3000 for carpet repair\",\"amount\":3000}",
+      "status": "pending",
+      "source_transcript": "Invoice AGS Lewende Waters R3000 for carpet repair"
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "carpet repair",
+      "component_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: owner, \"and schedule for the 17th\" after an invoice that records a job, read by the model as convert_quote: the date goes to that job": {
+  "result": {
+   "extraction": {
+    "customer_name": "AGS Lewende Waters",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "invoice",
+    "amount": 3000,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"AGS Lewende Waters\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"invoice\",\"amount\":3000,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"AGS Lewende Waters\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"invoice\",\"amount\":3000,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 3,
+    "name": "AGS Lewende Waters",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "pendingActionIds": [
+    1
+   ],
+   "pendingActions": [
+    {
+     "id": 1,
+     "type": "invoice"
+    }
+   ],
+   "factPendingActionId": null,
+   "message": "- Invoice noted for AGS Lewende Waters of R3000 — needs your confirmation (action #1) before it's recorded. Job scope #1 also recorded — 1 task noted.\n- Job scope #1 updated — scheduled for Sat 17 Oct.",
+   "rewrittenQuery": "Invoice AGS Lewende Waters R3000 for carpet repair and schedule for the 17th",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": "invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract the structure of a tradesperson's job observation. job_descrip",
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Invoice AGS Lewende Waters R3000 for carpet repair and schedule for the 17th",
+      "source": "text",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 3,
+      "description": "carpet repair",
+      "scheduled_date_raw": "the 17th",
+      "source_transcript": "Invoice AGS Lewende Waters R3000 for carpet repair",
+      "scheduled_date": "2026-10-17",
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 3,
+      "label": "AGS Lewende Waters"
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "invoice",
+      "payload": "{\"customerId\":3,\"customerName\":\"AGS Lewende Waters\",\"description\":\"Invoice AGS Lewende Waters R3000 for carpet repair\",\"amount\":3000}",
+      "status": "pending",
+      "source_transcript": "Invoice AGS Lewende Waters R3000 for carpet repair"
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "carpet repair",
+      "component_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: owner, \"and schedule for the 17th\" after an invoice that records a job, read by the model as note: the date goes to that job": {
+  "result": {
+   "extraction": {
+    "customer_name": "AGS Lewende Waters",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "invoice",
+    "amount": 3000,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"AGS Lewende Waters\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"invoice\",\"amount\":3000,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"AGS Lewende Waters\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"invoice\",\"amount\":3000,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 3,
+    "name": "AGS Lewende Waters",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "pendingActionIds": [
+    1
+   ],
+   "pendingActions": [
+    {
+     "id": 1,
+     "type": "invoice"
+    }
+   ],
+   "factPendingActionId": null,
+   "message": "- Invoice noted for AGS Lewende Waters of R3000 — needs your confirmation (action #1) before it's recorded. Job scope #1 also recorded — 1 task noted.\n- Job scope #1 updated — scheduled for Sat 17 Oct.",
+   "rewrittenQuery": "Invoice AGS Lewende Waters R3000 for carpet repair and schedule for the 17th",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": "invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract the structure of a tradesperson's job observation. job_descrip",
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Invoice AGS Lewende Waters R3000 for carpet repair and schedule for the 17th",
+      "source": "text",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 3,
+      "description": "carpet repair",
+      "scheduled_date_raw": "the 17th",
+      "source_transcript": "Invoice AGS Lewende Waters R3000 for carpet repair",
+      "scheduled_date": "2026-10-17",
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 3,
+      "label": "AGS Lewende Waters"
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "invoice",
+      "payload": "{\"customerId\":3,\"customerName\":\"AGS Lewende Waters\",\"description\":\"Invoice AGS Lewende Waters R3000 for carpet repair\",\"amount\":3000}",
+      "status": "pending",
+      "source_transcript": "Invoice AGS Lewende Waters R3000 for carpet repair"
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "carpet repair",
+      "component_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: owner, a continuation after an invoice that recorded NO job is for that invoice's customer": {
+  "result": {
+   "extraction": {
+    "customer_name": "AGS Lewende Waters",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "invoice",
+    "amount": 3000,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"AGS Lewende Waters\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"invoice\",\"amount\":3000,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"AGS Lewende Waters\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"invoice\",\"amount\":3000,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 3,
+    "name": "AGS Lewende Waters",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "pendingActionIds": [
+    1
+   ],
+   "pendingActions": [
+    {
+     "id": 1,
+     "type": "invoice"
+    }
+   ],
+   "factPendingActionId": null,
+   "message": "- Invoice noted for AGS Lewende Waters of R3000 — needs your confirmation (action #1) before it's recorded.\n- Job scope #1 recorded for AGS Lewende Waters — scheduled for Sat 17 Oct.",
+   "rewrittenQuery": "Invoice AGS Lewende Waters R3000 and schedule for the 17th",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": "invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract the structure of a tradesperson's job observation. job_descrip",
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Invoice AGS Lewende Waters R3000 and schedule for the 17th",
+      "source": "text",
+      "subject_hint": "AGS Lewende Waters",
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": 3,
+      "character_id": null
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 3,
+      "description": "observation",
+      "scheduled_date_raw": "the 17th",
+      "source_transcript": "and schedule for the 17th",
+      "scheduled_date": "2026-10-17",
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 3,
+      "label": "AGS Lewende Waters"
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "invoice",
+      "payload": "{\"customerId\":3,\"customerName\":\"AGS Lewende Waters\",\"description\":\"Invoice AGS Lewende Waters R3000\",\"amount\":3000}",
+      "status": "pending",
+      "source_transcript": "Invoice AGS Lewende Waters R3000"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: owner, a continuation for a customer who already has a job asks which job (update or a new one)": {
+  "result": {
+   "extraction": {
+    "customer_name": "AGS Lewende Waters",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "invoice",
+    "amount": 3000,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"AGS Lewende Waters\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"invoice\",\"amount\":3000,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"AGS Lewende Waters\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"invoice\",\"amount\":3000,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 3,
+    "name": "AGS Lewende Waters",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "pendingActionIds": [
+    1,
+    2
+   ],
+   "pendingActions": [
+    {
+     "id": 1,
+     "type": "invoice"
+    },
+    {
+     "id": 2,
+     "type": "job_scope_amendment"
+    }
+   ],
+   "factPendingActionId": null,
+   "message": "- Invoice noted for AGS Lewende Waters of R3000 — needs your confirmation (action #1) before it's recorded.\n- Job #1 (\"carpet repair\") — update it, or create this as a separate new job?",
+   "rewrittenQuery": "Invoice AGS Lewende Waters R3000 and schedule for the 17th",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": "invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract the structure of a tradesperson's job observation. job_descrip",
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Invoice AGS Lewende Waters R3000 and schedule for the 17th",
+      "source": "text",
+      "subject_hint": "AGS Lewende Waters",
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": 3,
+      "character_id": null
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 3,
+      "label": "AGS Lewende Waters"
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "invoice",
+      "payload": "{\"customerId\":3,\"customerName\":\"AGS Lewende Waters\",\"description\":\"Invoice AGS Lewende Waters R3000\",\"amount\":3000}",
+      "status": "pending",
+      "source_transcript": "Invoice AGS Lewende Waters R3000"
+     },
+     {
+      "id": 2,
+      "type": "job_scope_amendment",
+      "payload": "{\"jobScopeId\":1,\"jobScopeDescription\":\"carpet repair\",\"changes\":[{\"field\":\"scheduled_date_raw\",\"oldValue\":null,\"newValue\":\"the 17th\"}],\"customerId\":3,\"observation\":{\"job_description\":\"observation\",\"components\":[],\"tasks\":[],\"scheduled_date_raw\":\"the 17th\",\"installer_name\":null},\"installerId\":null,\"transcript\":\"and schedule for the 17th\",\"captureId\":1}",
+      "status": "pending",
+      "source_transcript": "and schedule for the 17th"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: owner, a genuine question about the 17th is NOT read as scheduling": {
+  "result": {
+   "extraction": {
+    "customer_name": "AGS Lewende Waters",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "invoice",
+    "amount": 3000,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"AGS Lewende Waters\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"invoice\",\"amount\":3000,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"AGS Lewende Waters\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"invoice\",\"amount\":3000,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 3,
+    "name": "AGS Lewende Waters",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "pendingActionIds": [
+    1
+   ],
+   "pendingActions": [
+    {
+     "id": 1,
+     "type": "invoice"
+    }
+   ],
+   "factPendingActionId": null,
+   "message": "- Invoice noted for AGS Lewende Waters of R3000 — needs your confirmation (action #1) before it's recorded. Job scope #1 also recorded — 1 task noted.\n- ANSWER FROM FACTS:\n- AGS Lewende Waters is a known customer.",
+   "rewrittenQuery": "Invoice AGS Lewende Waters R3000 for carpet repair and what is scheduled for the 17th?",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": "invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract the structure of a tradesperson's job observation. job_descrip",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Invoice AGS Lewende Waters R3000 for carpet repair and what is scheduled for the 17th?",
+      "source": "text",
+      "subject_hint": "AGS Lewende Waters",
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": 3,
+      "character_id": null
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 3,
+      "description": "carpet repair",
+      "scheduled_date_raw": null,
+      "source_transcript": "Invoice AGS Lewende Waters R3000 for carpet repair",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 3,
+      "label": "AGS Lewende Waters"
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "invoice",
+      "payload": "{\"customerId\":3,\"customerName\":\"AGS Lewende Waters\",\"description\":\"Invoice AGS Lewende Waters R3000 for carpet repair\",\"amount\":3000}",
+      "status": "pending",
+      "source_transcript": "Invoice AGS Lewende Waters R3000 for carpet repair"
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "carpet repair",
+      "component_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: owner, a part with money in it is NOT read as scheduling": {
+  "result": {
+   "extraction": {
+    "customer_name": "AGS Lewende Waters",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "invoice",
+    "amount": 3000,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"AGS Lewende Waters\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"invoice\",\"amount\":3000,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"AGS Lewende Waters\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"invoice\",\"amount\":3000,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 3,
+    "name": "AGS Lewende Waters",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "pendingActionIds": [
+    1
+   ],
+   "pendingActions": [
+    {
+     "id": 1,
+     "type": "invoice"
+    }
+   ],
+   "factPendingActionId": null,
+   "message": "- Invoice noted for AGS Lewende Waters of R3000 — needs your confirmation (action #1) before it's recorded. Job scope #1 also recorded — 1 task noted.\n- I heard a price for a job, but no customer name came through — who is it for?",
+   "rewrittenQuery": "Invoice AGS Lewende Waters R3000 for carpet repair and schedule it for the 17th with a R500 deposit",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": "invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Invoice AGS Lewende Waters R3000 for carpet repair and schedule it for the 17th with a R500 deposit",
+      "source": "text",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 3,
+      "description": "carpet repair",
+      "scheduled_date_raw": null,
+      "source_transcript": "Invoice AGS Lewende Waters R3000 for carpet repair",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 3,
+      "label": "AGS Lewende Waters"
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "invoice",
+      "payload": "{\"customerId\":3,\"customerName\":\"AGS Lewende Waters\",\"description\":\"Invoice AGS Lewende Waters R3000 for carpet repair\",\"amount\":3000}",
+      "status": "pending",
+      "source_transcript": "Invoice AGS Lewende Waters R3000 for carpet repair"
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "carpet repair",
+      "component_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: owner, a part that names its own customer is left to be read as the model read it": {
+  "result": {
+   "extraction": {
+    "customer_name": "AGS Lewende Waters",
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "invoice",
+    "amount": 3000,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":\"AGS Lewende Waters\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"invoice\",\"amount\":3000,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":\"AGS Lewende Waters\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"invoice\",\"amount\":3000,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": {
+    "id": 3,
+    "name": "AGS Lewende Waters",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "pendingActionIds": [
+    1
+   ],
+   "pendingActions": [
+    {
+     "id": 1,
+     "type": "invoice"
+    }
+   ],
+   "factPendingActionId": null,
+   "message": "- Invoice noted for AGS Lewende Waters of R3000 — needs your confirmation (action #1) before it's recorded. Job scope #1 also recorded — 1 task noted.\n- Job scope #2 recorded for Jenny Smith — scheduled for Sat 17 Oct.",
+   "rewrittenQuery": "Invoice AGS Lewende Waters R3000 for carpet repair and schedule Jenny Smith for the 17th",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": "invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract the structure of a tradesperson's job observation. job_descrip",
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Invoice AGS Lewende Waters R3000 for carpet repair and schedule Jenny Smith for the 17th",
+      "source": "text",
+      "subject_hint": "Jenny Smith",
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": 1,
+      "character_id": null
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 1,
+      "customer_id": 3,
+      "description": "carpet repair",
+      "scheduled_date_raw": null,
+      "source_transcript": "Invoice AGS Lewende Waters R3000 for carpet repair",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     },
+     {
+      "id": 2,
+      "customer_id": 1,
+      "description": "observation",
+      "scheduled_date_raw": "the 17th",
+      "source_transcript": "and schedule Jenny Smith for the 17th",
+      "scheduled_date": "2026-10-17",
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "invoice",
+      "payload": "{\"customerId\":3,\"customerName\":\"AGS Lewende Waters\",\"description\":\"Invoice AGS Lewende Waters R3000 for carpet repair\",\"amount\":3000}",
+      "status": "pending",
+      "source_transcript": "Invoice AGS Lewende Waters R3000 for carpet repair"
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "description": "carpet repair",
+      "component_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "transcript: owner, a scheduling part with nothing before it to belong to is left alone": {
+  "result": {
+   "extraction": {
+    "customer_name": null,
+    "character_name": null,
+    "character_relationship": null,
+    "intent": "price_scope",
+    "amount": null,
+    "fact_key": null,
+    "fact_value": null,
+    "personal_note": null,
+    "query_scope": null,
+    "deposit_percent": null,
+    "scope_document_type": null,
+    "due_date_raw": null
+   },
+   "extractionRaw": {
+    "choices": [
+     {
+      "message": {
+       "content": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"price_scope\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}"
+      }
+     }
+    ]
+   },
+   "extractionRawText": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"price_scope\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
+   "customer": null,
+   "pendingActionId": null,
+   "pendingActionIds": [],
+   "pendingActions": [],
+   "factPendingActionId": null,
+   "message": "- I heard a price for a job, but no customer name came through — who is it for?\n- ANSWER FROM FACTS:\n- No quotations on file.\n- No expenses on file.\n- Total invoiced to date: R0.\n- Total actually received: R0.\n- Total spent on expenses: R0.\n- Rough cash position (received minus spent): R0. This is a cash-basis snapshot, not the formal profit and loss — see getProfitAndLoss for that.\n- Revenue: R0.\n- Cost of Sales (materials, subcontractor): R0.\n- Gross Profit: R0.\n- Operating Expenses (fuel, tools, other): R0.\n- Net Profit: R0.\n- Expense breakdown by category: .\n- Revenue here is accrual-based (real invoiced amounts), not cash received — a different measure from the cash-position snapshot.\n- No outstanding debtors on file.\n- No outstanding creditors on file.",
+   "rewrittenQuery": "schedule for the 17th and what do I owe Floornet",
+   "embers": {
+    "tasks": 0,
+    "scheduler": 0,
+    "finance": 0,
+    "expenses": 0
+   },
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A tradesperson sometimes says several genuinely separate things in one",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Is this a broad, whole-business question wanting a real, visual snapsh",
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "schedule for the 17th and what do I owe Floornet",
+      "source": "text",
+      "subject_hint": null,
+      "extraction_status": "processed",
+      "r2_key": null,
+      "customer_id": null,
+      "character_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
  "transcript: owner, an invoice and a date change for a customer who already has a job: both waiting actions are listed": {
   "result": {
    "extraction": {

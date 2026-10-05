@@ -13,6 +13,12 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     (`DECISIONS.md`, "Decisions session, round 12".)
 
 
+
+50. **Every invoice sentence that mentions work creates a new job, even when the customer already has that job.** Seen on the
+    phone: saying "invoice AGS Lewende Waters R3000 for carpet repair" three times made jobs #73, #74 and #75 for the same repair.
+    *Options:* when the customer already has an open job with the same description, link the invoice to it instead of creating one;
+    or ask "update job #73, or a separate new job?" as a date change already does. (`DECISIONS.md`, "Found by the first real phone
+    test".)
 ## B. Needs a live check only a phone can give
 
 12. **The Codemagic rebuild**: the Confirm/Reject buttons for a follow-up question raised by a confirm ("Add to stock?",
@@ -21,6 +27,9 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     tests, never run on a real delivery note with two orders.
 15. **The Permissions screen on a real phone.** The web build compiles it; the phone build and a real tap-through are
     unverified (switch something off for the installer, then check on the installer's phone that the room is gone).
+14k. **The original phone-test sentence, again, after this deploys:** "Invoice AGS Lewende Waters R3000 for carpet repair and
+    schedule for the 17th". Expect the invoice waiting, then "Job scope #N updated — scheduled for Sat 17 Oct." The fix was tested
+    with the model's mistake scripted four ways; only the real model can confirm it.
 14j. **Round 12 on the phone.** Say a measured room with no customer (expect "which customer is it for?"), two rooms in one
     sentence-run naming Jenny once (expect both under her), "Sipho's bank is FNB, account number 6201..." as a note (expect "not
     kept in the notes"), and a supplier invoice in boxes with and without a box conversion saved. The models that read the unit

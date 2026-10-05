@@ -9,6 +9,8 @@ module.exports = function cases(caps) {
     INSERT INTO customers (name, person_id) VALUES ('Jenny Smith', 1), ('Thandi Mokoena', 2);
     INSERT INTO characters (name, relationship, person_id) VALUES ('Jabulani', 'installer', 3);
   `);
+  const agsAccount = (db) => { base(db); db.exec(`INSERT INTO people (name) VALUES ('AGS Lewende Waters'); INSERT INTO customers (name, person_id) VALUES ('AGS Lewende Waters', 4);`); };
+  const agsWithJob = (db) => { agsAccount(db); db.exec(`INSERT INTO job_scopes (id, customer_id, description, created_at) VALUES (1, 3, 'carpet repair', '2026-10-01 08:00:00');`); };
   const oneProject = (db) => { base(db); db.exec(`INSERT INTO projects (id, customer_id, description, created_at) VALUES (1, 1, 'Kitchen refit', '2026-09-01 08:00:00');`); };
   const twoProjects = (db) => { oneProject(db); db.exec(`INSERT INTO projects (id, customer_id, description, created_at) VALUES (2, 1, 'Lounge floor', '2026-09-10 08:00:00');`); };
   // A project whose invoice is paid in full is no longer open (open = no invoice yet, or an unpaid one).
@@ -29,6 +31,11 @@ module.exports = function cases(caps) {
     return e === null ? 'this is not json' : { ...DEFAULTS, ...e };
   } });
   const OBS = (reply) => ({ match: /Extract the structure of a tradesperson's job observation/, reply });
+  // The observation reader answers each part of a message by what it said (decided 2026-10-04: a scheduling continuation).
+  const OBSBY = (bySegment) => ({ match: /Extract the structure of a tradesperson's job observation/, reply: (input) => {
+    const seg = input.messages.find((m) => m.role === 'user').content;
+    return bySegment[seg] || { job_description: 'observation', components: [], tasks: [], scheduled_date_raw: null, installer_name: null };
+  } });
   const SNAG = (reply) => ({ match: /reporting a real, physical quality issue found on a job/, reply });
   const DASH = (reply) => ({ match: /broad, whole-business question wanting a real, visual snapshot/, reply });
   const ANSWER = { match: /Answer the tradesperson's question using only the facts below/, reply: (input) => 'ANSWER FROM FACTS:\n' + ((input.messages.find((m) => m.role === 'system').content.split('Facts:\n')[1]) || '') };
@@ -94,6 +101,38 @@ module.exports = function cases(caps) {
       SPLIT(['The kitchen is 3 by 3 metres']),
       READ({ 'The kitchen is 3 by 3 metres': { intent: 'work_observation', customer_name: null } }),
       OBS(lounge())]),
+
+    // ---------------- "...and schedule for the 17th": a scheduling continuation (found by the first real phone test, 2026-10-04) ----------------
+    ...[['price_scope', {}], ['lookup', { query_scope: 'business' }], ['convert_quote', {}], ['note', {}]].map(([label, extra]) =>
+      t(`transcript: owner, "and schedule for the 17th" after an invoice that records a job, read by the model as ${label}: the date goes to that job`, 'owner', agsAccount,
+        'Invoice AGS Lewende Waters R3000 for carpet repair and schedule for the 17th', [
+          SPLIT(['Invoice AGS Lewende Waters R3000 for carpet repair', 'and schedule for the 17th']),
+          READ({ 'Invoice AGS Lewende Waters R3000 for carpet repair': { intent: 'invoice', customer_name: 'AGS Lewende Waters', amount: 3000 }, 'and schedule for the 17th': { intent: label, ...extra } }),
+          OBSBY({ 'Invoice AGS Lewende Waters R3000 for carpet repair': { ...nothing, job_description: 'carpet repair', tasks: [{ description: 'carpet repair', component_name: null }] }, 'and schedule for the 17th': { ...nothing, scheduled_date_raw: 'the 17th' } })])),
+    t('transcript: owner, a continuation after an invoice that recorded NO job is for that invoice\'s customer', 'owner', agsAccount, 'Invoice AGS Lewende Waters R3000 and schedule for the 17th', [
+      SPLIT(['Invoice AGS Lewende Waters R3000', 'and schedule for the 17th']),
+      READ({ 'Invoice AGS Lewende Waters R3000': { intent: 'invoice', customer_name: 'AGS Lewende Waters', amount: 3000 }, 'and schedule for the 17th': { intent: 'price_scope' } }),
+      OBSBY({ 'and schedule for the 17th': { ...nothing, scheduled_date_raw: 'the 17th' } })]),
+    t('transcript: owner, a continuation for a customer who already has a job asks which job (update or a new one)', 'owner', agsWithJob, 'Invoice AGS Lewende Waters R3000 and schedule for the 17th', [
+      SPLIT(['Invoice AGS Lewende Waters R3000', 'and schedule for the 17th']),
+      READ({ 'Invoice AGS Lewende Waters R3000': { intent: 'invoice', customer_name: 'AGS Lewende Waters', amount: 3000 }, 'and schedule for the 17th': { intent: 'lookup', query_scope: 'business' } }),
+      OBSBY({ 'and schedule for the 17th': { ...nothing, scheduled_date_raw: 'the 17th' } })]),
+    t('transcript: owner, a genuine question about the 17th is NOT read as scheduling', 'owner', agsAccount, 'Invoice AGS Lewende Waters R3000 for carpet repair and what is scheduled for the 17th?', [
+      SPLIT(['Invoice AGS Lewende Waters R3000 for carpet repair', 'and what is scheduled for the 17th?']),
+      READ({ 'Invoice AGS Lewende Waters R3000 for carpet repair': { intent: 'invoice', customer_name: 'AGS Lewende Waters', amount: 3000 }, 'and what is scheduled for the 17th?': { intent: 'lookup', query_scope: 'business' } }),
+      OBSBY({ 'Invoice AGS Lewende Waters R3000 for carpet repair': { ...nothing, job_description: 'carpet repair', tasks: [{ description: 'carpet repair', component_name: null }] } }), DASH('NONE'), ANSWER]),
+    t('transcript: owner, a part with money in it is NOT read as scheduling', 'owner', agsAccount, 'Invoice AGS Lewende Waters R3000 for carpet repair and schedule it for the 17th with a R500 deposit', [
+      SPLIT(['Invoice AGS Lewende Waters R3000 for carpet repair', 'and schedule it for the 17th with a R500 deposit']),
+      READ({ 'Invoice AGS Lewende Waters R3000 for carpet repair': { intent: 'invoice', customer_name: 'AGS Lewende Waters', amount: 3000 }, 'and schedule it for the 17th with a R500 deposit': { intent: 'price_scope' } }),
+      OBSBY({ 'Invoice AGS Lewende Waters R3000 for carpet repair': { ...nothing, job_description: 'carpet repair', tasks: [{ description: 'carpet repair', component_name: null }] } })]),
+    t('transcript: owner, a part that names its own customer is left to be read as the model read it', 'owner', agsAccount, 'Invoice AGS Lewende Waters R3000 for carpet repair and schedule Jenny Smith for the 17th', [
+      SPLIT(['Invoice AGS Lewende Waters R3000 for carpet repair', 'and schedule Jenny Smith for the 17th']),
+      READ({ 'Invoice AGS Lewende Waters R3000 for carpet repair': { intent: 'invoice', customer_name: 'AGS Lewende Waters', amount: 3000 }, 'and schedule Jenny Smith for the 17th': { intent: 'work_observation', customer_name: 'Jenny Smith' } }),
+      OBSBY({ 'Invoice AGS Lewende Waters R3000 for carpet repair': { ...nothing, job_description: 'carpet repair', tasks: [{ description: 'carpet repair', component_name: null }] }, 'and schedule Jenny Smith for the 17th': { ...nothing, scheduled_date_raw: 'the 17th' } })]),
+    t('transcript: owner, a scheduling part with nothing before it to belong to is left alone', 'owner', agsAccount, 'schedule for the 17th and what do I owe Floornet', [
+      SPLIT(['schedule for the 17th', 'and what do I owe Floornet']),
+      READ({ 'schedule for the 17th': { intent: 'price_scope' }, 'and what do I owe Floornet': { intent: 'lookup', query_scope: 'business' } }),
+      DASH('NONE'), ANSWER]),
 
     // ---------------- several things waiting for an answer (the app shows a Confirm and Reject for each) ----------------
     t('transcript: owner, an invoice and a date change for a customer who already has a job: both waiting actions are listed', 'owner', (db) => {

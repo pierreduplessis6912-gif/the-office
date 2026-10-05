@@ -2,7 +2,7 @@ import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult, WorkObs
 import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, classifyDashboardIntent, containsBackwardReference, describeImage, embedText, extractDocumentIdentity, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractSupplierStatement, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, splitIntoTopics, storeUnscopedMemory, transcribe, transcribeWithNameHints, extractUnitConversion } from "./ai";
 import { listAudit, listPermissions, resetRole, setPermission } from "./permissions";
 import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, logInteractionEdge, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, reconcilePerson, setSelection, withArticle, clearSelections } from "./identity";
-import { attachToSiblingJobScope, completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveScheduledDate, resolveTaskCompletion, hasSiblingToAttach, findSiblingCustomer } from "./scheduler";
+import { attachToSiblingJobScope, completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveScheduledDate, resolveTaskCompletion, hasSiblingToAttach, findSiblingCustomer, describeDate, schedulingContinuation } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText, mayHandleSensitiveFact, sensitiveFactKind, looksLikePayOrBankDetail } from "./memory";
 import {
   authGate, checkIdempotencyKey, completeIdempotencyKey, runIdempotentMigration, corsHeadersFor,
@@ -1194,6 +1194,8 @@ async function processOneExtraction(
     componentCount: number;
     taskCount: number;
     installerConflict: { description: string; customerName: string | null } | null;
+    scheduledDate: string | null;
+    attached?: boolean;
   } | null = null;
 
   let invoiceJobPartNotRead = false;
@@ -1273,6 +1275,7 @@ async function processOneExtraction(
         componentCount: observation.components.length,
         taskCount: observation.tasks.length,
         installerConflict: recorded.installerConflict,
+        scheduledDate: recorded.scheduledDate,
       };
     }
   }
@@ -1499,6 +1502,8 @@ async function processOneExtraction(
         jobScopeId: attached.jobScopeId,
         componentCount: 0,
         taskCount: 0,
+        scheduledDate: scheduledDateForAttach,
+        attached: true,
         // Real, deliberate scope limit: the double-booking check this
         // fix doesn't also extend to the attach path — a separate,
         // smaller gap, not what today's real report was about.
@@ -1544,6 +1549,7 @@ async function processOneExtraction(
         componentCount: observation.components.length,
         taskCount: observation.tasks.length,
         installerConflict: recorded.installerConflict,
+        scheduledDate: recorded.scheduledDate,
       };
     }
 
@@ -1940,6 +1946,7 @@ async function processOneExtraction(
       const jobParts: string[] = [];
       if (workObservationResult.componentCount > 0) jobParts.push(`${workObservationResult.componentCount} component${workObservationResult.componentCount > 1 ? "s" : ""} measured`);
       if (workObservationResult.taskCount > 0) jobParts.push(`${workObservationResult.taskCount} task${workObservationResult.taskCount > 1 ? "s" : ""} noted`);
+      if (workObservationResult.scheduledDate) jobParts.push(`scheduled for ${describeDate(workObservationResult.scheduledDate)}`);
       message += ` Job scope #${workObservationResult.jobScopeId} also recorded${jobParts.length ? ` — ${jobParts.join(", ")}` : ""}.`;
       if (workObservationResult.installerConflict) {
         const conflict = workObservationResult.installerConflict;
@@ -1962,11 +1969,12 @@ async function processOneExtraction(
     const parts: string[] = [];
     if (componentCount > 0) parts.push(`${componentCount} component${componentCount > 1 ? "s" : ""} measured`);
     if (taskCount > 0) parts.push(`${taskCount} task${taskCount > 1 ? "s" : ""} noted`);
+    if (workObservationResult.scheduledDate) parts.push(`scheduled for ${describeDate(workObservationResult.scheduledDate)}`);
     // Real fix 2026-07-13: customer!.name would throw now that a work
     // observation can genuinely record without a customer resolved —
     // caught before shipping, same pattern as the earlier expense-
     // message fix (character ? ... : "").
-    message = `Job scope #${jobScopeId} recorded${customer ? ` for ${customer.name}` : ""}${parts.length ? ` — ${parts.join(", ")}` : ""}.`;
+    message = `Job scope #${jobScopeId} ${workObservationResult.attached ? "updated" : "recorded"}${customer ? ` for ${customer.name}` : ""}${parts.length ? ` — ${parts.join(", ")}` : ""}.`;
     // Real feature 2026-08-08 — installer double-booking, surfaced as
     // a plain warning appended to the same message, never a separate
     // confirmation or a block. "Are we even free to do it" deserves an
@@ -2366,7 +2374,9 @@ async function processTranscript(
   }> = [];
 
   for (const item of items) {
-    const outcome = await processOneExtraction(env, item.segment, item.extraction, history, ctx, captureId, capabilities, recordingUserEmail);
+    // A later part that is only "schedule for the 17th" is read as scheduling, in code (see schedulingContinuation).
+    const continuation = item.extraction ? schedulingContinuation(item.segment, item.extraction, results, nowInBusinessTimezone()) : null;
+    const outcome = await processOneExtraction(env, item.segment, continuation ?? item.extraction, history, ctx, captureId, capabilities, recordingUserEmail);
     results.push(outcome);
   }
 

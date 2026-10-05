@@ -5,7 +5,7 @@
 // job's lifecycle (measured -> scheduled -> priced) is genuinely scheduling
 // territory.
 
-import type { Env, WorkObservationExtraction } from "./types";
+import type { Env, WorkObservationExtraction, Extraction } from "./types";
 import { reconcileCustomer } from "./identity";
 import { getOpenProjectsForCustomer, normalizeUnit } from "./finance";
 
@@ -219,6 +219,7 @@ export async function recordWorkObservation(
   computedComponents: Array<{ name: string; area_sqm: number | null }>;
   computedTasks: Array<{ description: string; component_name: string | null }>;
   installerConflict: { description: string; customerName: string | null } | null;
+  scheduledDate: string | null;
 }> {
   const scheduledDate = resolveScheduledDate(observation.scheduled_date_raw, nowInBusinessTimezone());
 
@@ -383,7 +384,7 @@ export async function recordWorkObservation(
     // standalone by default.
   }
 
-  return { jobScopeId, computedComponents, computedTasks, installerConflict };
+  return { jobScopeId, computedComponents, computedTasks, installerConflict, scheduledDate };
 }
 
 // Small, deterministic cleanup — real polish item flagged since the
@@ -425,6 +426,52 @@ export async function hasSiblingToAttach(env: Env, captureId: number | null): Pr
   if (job) return true;
   const lead = await env.OFFICE_DB.prepare("SELECT id FROM leads WHERE capture_id = ? LIMIT 1").bind(captureId).first<{ id: number }>();
   return Boolean(lead);
+}
+
+// "Sat 17 Oct", for a reply that says a date was saved. Found by the first real phone test 2026-10-04: an invoice that also scheduled a job never
+// said so, so there was no way to tell from the reply whether the date had been kept.
+export function describeDate(iso: string): string {
+  const d = new Date(`${iso}T12:00:00Z`);
+  const weekday = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getUTCDay()];
+  const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()];
+  return `${weekday} ${d.getUTCDate()} ${month}`;
+}
+
+// Found by the first real phone test 2026-10-04: "Invoice AGS R3000 for carpet repair AND SCHEDULE FOR THE 17TH" is split into two parts, and the second,
+// "schedule for the 17th", has no customer name. The real language model read that fragment differently each time (a price request once, a question
+// once) and the date was lost with an unhelpful reply. This is decided in CODE, because the model is inconsistent. A later part of the same message
+// is a SCHEDULING CONTINUATION only when ALL of these hold: it starts like an instruction (schedule, book, install, fit, start, plan, set, optionally
+// after "and"/"then"), is short, names no customer or supplier, has no money in it, is not a question, and holds a date the date reader can read.
+// Then it is read as scheduling. If an earlier part of the same message recorded a job, the date belongs to THAT job (the customer is left blank so
+// the existing "attach to the job just recorded" step does it, without a question); otherwise it is for the customer of the part before it.
+const CONTINUATION_START = /^\s*(?:(?:and|then|also|plus)\s+)?(?:please\s+)?(?:schedule|book|install|fit|start|plan|set)\b/i;
+const CONTINUATION_MONEY = /\bR\s?\d|\brand\b|\binvoice|\bquot|\bpaid\b|\bpayment|\bprice|\bdeposit|\bowe/i;
+export function schedulingContinuation(
+  segment: string,
+  extraction: Extraction,
+  earlier: Array<{ customer: { name: string } | null; jobScopeIdForProjectResolution: number | null }>,
+  now: Date
+): Extraction | null {
+  if (earlier.length === 0) return null;
+  if (extraction.customer_name || extraction.character_name || extraction.amount) return null;
+  const text = segment.trim();
+  if (text.includes("?") || text.split(/\s+/).length > 14) return null;
+  if (!CONTINUATION_START.test(text) || CONTINUATION_MONEY.test(text)) return null;
+  if (resolveScheduledDate(text, now) === null) return null;
+  const recordedAJob = earlier.some((e) => e.jobScopeIdForProjectResolution != null);
+  const lastCustomer = [...earlier].reverse().find((e) => e.customer)?.customer?.name ?? null;
+  if (!recordedAJob && !lastCustomer) return null;
+  return {
+    ...extraction,
+    intent: "work_observation",
+    customer_name: recordedAJob ? null : lastCustomer,
+    character_name: null,
+    character_relationship: null,
+    query_scope: null,
+    fact_key: null,
+    fact_value: null,
+    amount: null,
+  };
 }
 
 export async function attachToSiblingJobScope(
