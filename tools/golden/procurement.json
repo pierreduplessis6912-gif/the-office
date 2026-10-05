@@ -2273,6 +2273,645 @@
   "writes": {},
   "effects": []
  },
+ "supplier invoice across orders: one invoice for 70 spans two orders": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Supplier invoice noted from Floornet — needs your confirmation (action #1) before it's recorded. Matched across orders #1 and #2.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "supplier_invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A supplier's real bill has arrived for a real, already-placed order — "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Floornet invoice INV-7731, 70 sqm vinyl at 185",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Floornet invoice INV-7731, 70 sqm vinyl at 185",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "supplier_invoice",
+      "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185,\"po_line_item_id\":1},{\"matched_description\":\"Vinyl\",\"quantity_billed\":20,\"unit_price_billed\":185,\"po_line_item_id\":3}]}",
+      "status": "pending",
+      "source_transcript": "Floornet invoice INV-7731, 70 sqm vinyl at 185"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "supplier invoice across orders: it fits in the oldest order, so it goes to that one and not the latest": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Supplier invoice noted from Floornet — needs your confirmation (action #1) before it's recorded.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "supplier_invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A supplier's real bill has arrived for a real, already-placed order — "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Floornet invoice INV-7731, 30 sqm vinyl at 185",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Floornet invoice INV-7731, 30 sqm vinyl at 185",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "supplier_invoice",
+      "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":30,\"unit_price_billed\":185}]}",
+      "status": "pending",
+      "source_transcript": "Floornet invoice INV-7731, 30 sqm vinyl at 185"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "supplier invoice across orders: the oldest order is already invoiced, so the newer one is used": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Supplier invoice noted from Floornet — needs your confirmation (action #1) before it's recorded.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "supplier_invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A supplier's real bill has arrived for a real, already-placed order — "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Floornet invoice INV-7731, 30 sqm vinyl at 185",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Floornet invoice INV-7731, 30 sqm vinyl at 185",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "supplier_invoice",
+      "payload": "{\"purchaseOrderId\":2,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":30,\"unit_price_billed\":185}]}",
+      "status": "pending",
+      "source_transcript": "Floornet invoice INV-7731, 30 sqm vinyl at 185"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "supplier invoice across orders: every order is already invoiced, so the latest is used as before": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Supplier invoice noted from Floornet — needs your confirmation (action #1) before it's recorded.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "supplier_invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A supplier's real bill has arrived for a real, already-placed order — "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Floornet invoice INV-7731, 20 sqm vinyl at 185",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Floornet invoice INV-7731, 20 sqm vinyl at 185",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "supplier_invoice",
+      "payload": "{\"purchaseOrderId\":2,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":20,\"unit_price_billed\":185}]}",
+      "status": "pending",
+      "source_transcript": "Floornet invoice INV-7731, 20 sqm vinyl at 185"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "supplier invoice across orders: billed for more than everything ordered keeps the excess on the last order": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Supplier invoice noted from Floornet — needs your confirmation (action #1) before it's recorded. Matched across orders #1 and #2.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "supplier_invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A supplier's real bill has arrived for a real, already-placed order — "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Floornet invoice INV-7731, 100 sqm vinyl at 185",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Floornet invoice INV-7731, 100 sqm vinyl at 185",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "supplier_invoice",
+      "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185,\"po_line_item_id\":1},{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185,\"po_line_item_id\":3}]}",
+      "status": "pending",
+      "source_transcript": "Floornet invoice INV-7731, 100 sqm vinyl at 185"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "supplier invoice across orders: a billed line on no order stays unmatched beside the matched ones": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Supplier invoice noted from Floornet — needs your confirmation (action #1) before it's recorded. Matched across orders #1 and #2.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "supplier_invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A supplier's real bill has arrived for a real, already-placed order — "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Floornet invoice INV-7731, 70 sqm vinyl at 185 and 5 bags of grout at 90",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Floornet invoice INV-7731, 70 sqm vinyl at 185 and 5 bags of grout at 90",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "supplier_invoice",
+      "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185,\"po_line_item_id\":1},{\"matched_description\":\"Vinyl\",\"quantity_billed\":20,\"unit_price_billed\":185,\"po_line_item_id\":3},{\"matched_description\":null,\"quantity_billed\":5,\"unit_price_billed\":90}]}",
+      "status": "pending",
+      "source_transcript": "Floornet invoice INV-7731, 70 sqm vinyl at 185 and 5 bags of grout at 90"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "supplier invoice across orders: a cancelled order is not used": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Supplier invoice noted from Floornet — needs your confirmation (action #1) before it's recorded.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "supplier_invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A supplier's real bill has arrived for a real, already-placed order — "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Floornet invoice INV-7731, 30 sqm vinyl at 185",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Floornet invoice INV-7731, 30 sqm vinyl at 185",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "supplier_invoice",
+      "payload": "{\"purchaseOrderId\":2,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":30,\"unit_price_billed\":185}]}",
+      "status": "pending",
+      "source_transcript": "Floornet invoice INV-7731, 30 sqm vinyl at 185"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "supplier invoice across orders: two billed lines of the same item share the capacity": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Supplier invoice noted from Floornet — needs your confirmation (action #1) before it's recorded. Matched across orders #1 and #2.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "supplier_invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A supplier's real bill has arrived for a real, already-placed order — "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Floornet invoice INV-7731, 40 sqm vinyl at 185 and 40 sqm vinyl at 190",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Floornet invoice INV-7731, 40 sqm vinyl at 185 and 40 sqm vinyl at 190",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "supplier_invoice",
+      "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":40,\"unit_price_billed\":185,\"po_line_item_id\":1},{\"matched_description\":\"Vinyl\",\"quantity_billed\":10,\"unit_price_billed\":190,\"po_line_item_id\":1},{\"matched_description\":\"Vinyl\",\"quantity_billed\":30,\"unit_price_billed\":190,\"po_line_item_id\":3}]}",
+      "status": "pending",
+      "source_transcript": "Floornet invoice INV-7731, 40 sqm vinyl at 185 and 40 sqm vinyl at 190"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "supplier invoice across orders: an accountant, spanning two orders": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Supplier invoice noted from Floornet — needs your confirmation (action #1) before it's recorded. Matched across orders #1 and #2.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "supplier_invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "A supplier's real bill has arrived for a real, already-placed order — "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Floornet invoice INV-7731, 70 sqm vinyl at 185",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Floornet invoice INV-7731, 70 sqm vinyl at 185",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "supplier_invoice",
+      "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185,\"po_line_item_id\":1},{\"matched_description\":\"Vinyl\",\"quantity_billed\":20,\"unit_price_billed\":185,\"po_line_item_id\":3}]}",
+      "status": "pending",
+      "source_transcript": "Floornet invoice INV-7731, 70 sqm vinyl at 185"
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
  "variance disposition: owner, a reason only": {
   "result": {
    "customer": null,

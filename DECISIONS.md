@@ -6072,3 +6072,28 @@ Round 7, decided by Pierre: **13.** match supplier invoices across all open orde
 **Found while doing it, recorded in `OPEN_QUESTIONS.md` and not changed:** the date reader ignores **month names**. "The 17th of November" is read as the 17th of the nearest month that has not passed, not as 17 November.
 
 **15. "Add to stock?" stays as one question per delivery** (kept as it is).
+
+
+---
+
+## Decisions session, round 7 (part 2): supplier invoices matched across all open orders
+
+Decided by Pierre: **13. match supplier invoices across all open orders**, as deliveries already are.
+
+**The problem.** A supplier invoice was matched against the supplier's **latest order only**, so a bill that covered two orders, or the older of two, was checked against the wrong one (wrong quantities, wrong expected prices), while deliveries had long matched across every outstanding order, oldest first.
+
+**What it does.**
+- **Open means quantity not yet invoiced.** The candidates are the supplier's non-cancelled order lines with something not yet invoiced (what each line was ordered, less what earlier invoices billed against it), oldest order first. A cancelled order is never used.
+- **Allocation is the same rule as for deliveries.** Each billed line fills the oldest order line that has the item, spills the rest into the next, and **anything billed beyond everything ordered stays on the last line it reached**, so over-billing still shows as a variance. Two billed lines of one item share the capacity. A billed line that is on no open order stays unmatched and does not widen the invoice.
+- **One invoice, one expense.** An invoice that spans orders is recorded as **a single supplier invoice** (filed under the oldest order it touches) whose lines each name their own order line, so no schema change was needed. The reply says "Matched across orders #1 and #2."
+- **When nothing has anything unbilled left** (every order already invoiced in full), the **latest order is used as before**, so nothing that worked is lost. Whether an upload is treated as an invoice or a delivery note still depends on the supplier having any order, exactly as before.
+- **Single-order invoices are exactly as they were.** Explicit order-line ids are added **only when an invoice touches more than one order**, so the held payload of an ordinary invoice is byte-for-byte what it was (a mutation that adds them everywhere breaks 12 checks, including existing recordings).
+- All three entry paths (spoken, document, photo) and the confirmation are covered; the invoice reader is shown each distinct item once, however many orders have it.
+
+**One behaviour change to be aware of.** A supplier with the same item on two orders now has a small invoice matched to the **older** order, where it used to be the latest. That is the decision, but it is visible.
+
+**The property that matters.** Against `main`, **no existing recording changed or was removed**; 15 were added (9 spoken, 3 confirmation, 3 uploads including a document-versus-photo pair and a real PDF). The spoken cases: an invoice spanning two orders; one that fits the oldest; the oldest already invoiced so the newer is used; everything invoiced so the latest is used; over-billing; an unmatched line beside matched ones; a cancelled order; two lines of one item sharing capacity; an accountant. Confirmation records, for a 70 bill, **one invoice of R12,950, one expense and a line against each order** (variances: 0 and −10 against what was ordered, +5 on price), and for a 100 bill, +20 over-billing against the last order.
+
+**Verified:** typecheck unchanged; **3,217 checks** (about 66 new, including unit tests of the allocation, and of the pool against a real SQLite database: already-invoiced lines leave it, a part-invoiced line keeps only what is left, a cancelled order is out, and the fallback to the latest order). **Nine deliberate breakages were caught:** a cancelled order used; what is already invoiced ignored; no fallback to the latest order; explicit ids on every invoice; recording ignoring a line's own order line; the invoice filed under the newest order instead of the oldest; **only the spoken path** reverted to the latest order; **only the photo copy** reverted; and the note never shown. **My own unit test found a real bug first:** a zero-quantity line was filed under the newest order instead of the oldest, because the excess-goes-to-the-last-order rule applied when there was no excess.
+
+**Not changed, recorded in `OPEN_QUESTIONS.md`:** nothing checks a supplier invoice's reference, so the same invoice said twice is recorded twice; and the invoice reader captures no unit, so an invoice in boxes against an order in square metres is matched number to number (the unit conversion built earlier applies to deliveries and stock, not to invoices).

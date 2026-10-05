@@ -1303,13 +1303,124 @@ export async function recordVarianceDisposition(
 // computed here, in code, never asked of the model. Creates a real
 // expense on confirmation, linked back to the supplier, the same way
 // every other real cost in this project is recorded.
+// ---------------------------------------------------------------------------------------------------------------------------
+// Matching a supplier invoice across ALL the supplier's open orders. Decided by Pierre 2026-10-04: an invoice used to be matched
+// against the supplier's latest order only, so a bill that covered two orders (or the older of two) was checked against the wrong
+// one, while deliveries already matched across every outstanding order, oldest first. Now the same rule applies to invoices.
+// "Open" for an invoice means an order line with quantity not yet invoiced. When every order has been invoiced in full, the
+// latest order is used as before, so nothing that worked is lost.
+// ---------------------------------------------------------------------------------------------------------------------------
+export interface InvoiceMatchLine {
+  poId: number;
+  poLineId: number;
+  description: string;
+  ordered: number;
+  unbilled: number;
+  unit: string | null;
+  unitPriceExpected: number | null;
+}
+
+export async function getInvoiceMatchLines(env: Env, supplierId: number, latestPoId: number): Promise<InvoiceMatchLine[]> {
+  await ensureCancellationTable(env);
+  const { results } = await env.OFFICE_DB.prepare(
+    `SELECT po.id AS po_id, pl.id AS po_line_id, pl.description AS description, pl.quantity_ordered AS ordered, pl.unit AS unit,
+            pl.unit_price_expected AS unit_price_expected,
+            COALESCE((SELECT SUM(sl.quantity_billed) FROM supplier_invoice_line_items sl WHERE sl.po_line_item_id = pl.id), 0) AS billed
+       FROM po_line_items pl
+       JOIN purchase_orders po ON po.id = pl.purchase_order_id
+      WHERE po.supplier_id = ?
+        AND po.id NOT IN (SELECT purchase_order_id FROM purchase_order_cancellations)
+      ORDER BY po.created_at ASC, po.id ASC, pl.id ASC`
+  )
+    .bind(supplierId)
+    .all<{ po_id: number; po_line_id: number; description: string; ordered: number; unit: string | null; unit_price_expected: number | null; billed: number }>();
+  const rows: InvoiceMatchLine[] = (results ?? []).map((r) => ({
+    poId: r.po_id,
+    poLineId: r.po_line_id,
+    description: r.description,
+    ordered: r.ordered,
+    unbilled: round4(r.ordered - r.billed),
+    unit: r.unit,
+    unitPriceExpected: r.unit_price_expected,
+  }));
+  const open = rows.filter((r) => r.unbilled > 0);
+  if (open.length > 0) return open;
+  return rows.filter((r) => r.poId === latestPoId).map((r) => ({ ...r, unbilled: r.ordered }));
+}
+
+// The billed lines, each placed against the oldest order line with something unbilled, spilling into the next when it does not
+// fit; anything billed beyond everything ordered stays on the last line it reached (so it still shows as a variance). A billed
+// line that is not on any open order stays unmatched. When the invoice touches MORE THAN ONE order each placed line names its
+// own order line (po_line_item_id); when it touches one, nothing is added, so a single-order invoice is exactly what it always was.
+export function allocateInvoiceLines<T extends { matched_description: string | null; quantity_billed: number }>(
+  lines: T[],
+  pool: InvoiceMatchLine[]
+): { lines: Array<T & { po_line_item_id?: number }>; orderIds: number[]; primaryPoId: number | null } {
+  const left = new Map<number, number>(pool.map((l) => [l.poLineId, l.unbilled]));
+  const placed: Array<{ line: T; target: InvoiceMatchLine | null }> = [];
+  const touched = new Set<number>();
+  for (const line of lines) {
+    const name = (line.matched_description ?? "").toLowerCase();
+    const candidates = name ? pool.filter((c) => c.description.toLowerCase() === name) : [];
+    if (candidates.length === 0) {
+      placed.push({ line, target: null });
+      continue;
+    }
+    let remaining = round4(Number(line.quantity_billed));
+    const parts: Array<{ c: InvoiceMatchLine; qty: number }> = [];
+    for (const c of candidates) {
+      if (remaining <= 0) break;
+      const capacity = left.get(c.poLineId) ?? 0;
+      if (capacity <= 0) continue;
+      const take = Math.min(remaining, capacity);
+      parts.push({ c, qty: take });
+      left.set(c.poLineId, round4(capacity - take));
+      remaining = round4(remaining - take);
+    }
+    // Nothing could be placed. Excess with no capacity left stays on the last order; a line with nothing to place at all goes to the oldest.
+    if (parts.length === 0) parts.push({ c: remaining > 0 ? candidates[candidates.length - 1] : candidates[0], qty: remaining });
+    else if (remaining > 0) parts[parts.length - 1].qty = round4(parts[parts.length - 1].qty + remaining);
+    for (const part of parts) {
+      const unchanged = parts.length === 1 && part.qty === Number(line.quantity_billed);
+      placed.push({ line: unchanged ? line : { ...line, quantity_billed: part.qty }, target: part.c });
+      touched.add(part.c.poId);
+    }
+  }
+  const explicit = touched.size > 1;
+  return {
+    lines: placed.map(({ line, target }) => (explicit && target ? { ...line, po_line_item_id: target.poLineId } : line)),
+    orderIds: pool.map((p) => p.poId).filter((id, i, all) => touched.has(id) && all.indexOf(id) === i),
+    primaryPoId: pool.find((p) => touched.has(p.poId))?.poId ?? null,
+  };
+}
+
+// What the invoice reader is shown: each distinct item on any open order once (it only needs the names, to match what was billed).
+export function invoiceCandidatesForReader(pool: InvoiceMatchLine[]): Array<{ description: string; quantity_ordered: number; unit: string | null; unit_price_expected: number | null }> {
+  const seen = new Set<string>();
+  const out: Array<{ description: string; quantity_ordered: number; unit: string | null; unit_price_expected: number | null }> = [];
+  for (const l of pool) {
+    const key = l.description.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ description: l.description, quantity_ordered: l.ordered, unit: l.unit, unit_price_expected: l.unitPriceExpected });
+  }
+  return out;
+}
+
+// " Matched across orders #1 and #3." when one invoice spans several orders, and nothing when it does not.
+export function invoiceOrdersNote(orderIds: number[]): string {
+  if (orderIds.length < 2) return "";
+  const names = orderIds.map((id) => `#${id}`);
+  return ` Matched across orders ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}.`;
+}
+
 export async function recordSupplierInvoice(
   env: Env,
   purchaseOrderId: number | null,
   supplierId: number | null,
   supplierReference: string | null,
   sourceTranscript: string,
-  lineItems: Array<{ matched_description: string | null; quantity_billed: number; unit_price_billed: number | null }>
+  lineItems: Array<{ matched_description: string | null; quantity_billed: number; unit_price_billed: number | null; po_line_item_id?: number | null }>
 ): Promise<{
   supplierInvoiceId: number;
   totalAmount: number;
@@ -1343,9 +1454,18 @@ export async function recordSupplierInvoice(
   }> = [];
 
   for (const item of lineItems) {
-    const matchedPoLine = item.matched_description
-      ? poLineItems.find((p) => p.description.toLowerCase() === item.matched_description!.toLowerCase())
-      : null;
+    // A line that names its own order line (an invoice that spans orders) is matched to exactly that line; otherwise by name against
+    // the invoice's order, as it always was.
+    const matchedPoLine =
+      item.po_line_item_id != null
+        ? ((await env.OFFICE_DB.prepare(
+            "SELECT id, description, quantity_ordered, unit, unit_price_expected, product_id FROM po_line_items WHERE id = ?"
+          )
+            .bind(item.po_line_item_id)
+            .first<(typeof poLineItems)[number]>()) ?? null)
+        : item.matched_description
+        ? poLineItems.find((p) => p.description.toLowerCase() === item.matched_description!.toLowerCase())
+        : null;
     // Real fix 2026-07-22, per the design refinement pinned the same
     // night: the primary quantity check is against what was actually
     // RECEIVED (the GRN), not just what was ordered (the PO). If a

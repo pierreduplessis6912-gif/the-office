@@ -10,7 +10,7 @@ import {
   verifySession, getSessionToken, getCookie, base64UrlEncode, ROLE_CAPABILITIES, ENFORCE_CAPABILITIES,
   ACTION_TYPE_CAPABILITY, ROUTE_RULES, SIGNABLE_DOCUMENT_PATHS, canResolveActionType, intentCreationRefusal, intentKeepsOutOfNotes,
 } from "./auth";
-import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural } from "./finance";
+import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 import { handleDebugRoute } from "./debug";
 import { DOCUMENT_KIND_LABEL, asksAboutDeliveryExceptions, deliveryExceptionAnswer, deliveryHadExceptions, deliveryHeldMessage, deliveryRecordedMessage, inferDocumentSupplier, planDelivery } from "./documents";
@@ -795,26 +795,31 @@ async function processOneExtraction(
   let supplierInvoiceNoItems = false;
   let supplierInvoiceNoOpenPo = false;
   let supplierInvoiceSupplierName: string | null = null;
+  let supplierInvoiceOrderIds: number[] = [];
   if (extraction?.intent === "supplier_invoice") {
     if (character) {
       const openPo = await findLatestOpenPurchaseOrder(env, character.id);
       if (openPo) {
-        const poLineItems = await getPurchaseOrderLineItems(env, openPo.id);
-        const siExtraction = await extractSupplierInvoice(env, transcript, poLineItems);
+        // Decided by Pierre 2026-10-04: the invoice is matched across ALL the supplier's open orders, oldest first (it used to be the
+        // latest order only), exactly as deliveries are.
+        const invoicePool = await getInvoiceMatchLines(env, character.id, openPo.id);
+        const siExtraction = await extractSupplierInvoice(env, transcript, invoiceCandidatesForReader(invoicePool));
         if (siExtraction.line_items.length === 0) {
           // Found by the characterization recordings 2026-10-03: with the model down, or nothing readable, an invoice
           // with no lines was held for confirmation, which would have recorded an invoice of nothing.
           supplierInvoiceNoItems = true;
         } else {
+        const allocatedInvoice = allocateInvoiceLines(siExtraction.line_items, invoicePool);
+        supplierInvoiceOrderIds = allocatedInvoice.orderIds;
         const held = await holdForConfirmation(
           env,
           "supplier_invoice",
           {
-            purchaseOrderId: openPo.id,
+            purchaseOrderId: allocatedInvoice.primaryPoId ?? openPo.id,
             supplierId: character.id,
             supplierName: character.name,
             supplierReference: siExtraction.supplier_reference,
-            lineItems: siExtraction.line_items,
+            lineItems: allocatedInvoice.lines,
           },
           transcript
         );
@@ -1641,7 +1646,7 @@ async function processOneExtraction(
   } else if (extraction?.intent === "goods_received" && goodsReceivedNoItems) {
     message = `I heard a delivery from ${character!.name}, but couldn't make out any items in it, so nothing was noted.`;
   } else if (pendingActionId && extraction?.intent === "supplier_invoice" && supplierInvoiceSupplierName) {
-    message = `Supplier invoice noted from ${supplierInvoiceSupplierName} — needs your confirmation (action #${pendingActionId}) before it's recorded.`;
+    message = `Supplier invoice noted from ${supplierInvoiceSupplierName} — needs your confirmation (action #${pendingActionId}) before it's recorded.${invoiceOrdersNote(supplierInvoiceOrderIds)}`;
   } else if (extraction?.intent === "supplier_invoice" && supplierInvoiceNoItems) {
     message = `I heard a supplier invoice from ${character!.name}, but couldn't make out any items on it, so nothing was noted.`;
   } else if (extraction?.intent === "supplier_invoice" && supplierInvoiceNoSupplier) {
@@ -4440,7 +4445,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             supplierId: number | null;
             supplierName?: string;
             supplierReference: string | null;
-            lineItems: Array<{ matched_description: string | null; quantity_billed: number; unit_price_billed: number | null }>;
+            lineItems: Array<{ matched_description: string | null; quantity_billed: number; unit_price_billed: number | null; po_line_item_id?: number | null }>;
           };
           const recorded = await recordSupplierInvoice(
             env,
@@ -5358,27 +5363,30 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       } else if (subjectCharacterId) {
         const openPo = await findLatestOpenPurchaseOrder(env, subjectCharacterId);
         if (openPo) {
-          const poLineItems = await getPurchaseOrderLineItems(env, openPo.id);
-          const siExtraction = await extractSupplierInvoice(env, description, poLineItems);
+          // Matched across all the supplier's open orders, oldest first (decided by Pierre 2026-10-04). Identical in the document and
+          // photo handlers.
+          const invoicePool = await getInvoiceMatchLines(env, subjectCharacterId, openPo.id);
+          const siExtraction = await extractSupplierInvoice(env, description, invoiceCandidatesForReader(invoicePool));
           const hasRealPricing = siExtraction.line_items.some((li) => li.unit_price_billed != null);
           if (siExtraction.line_items.length > 0 && hasRealPricing && supplierInvoiceRefusal) {
             uploadRefusal = supplierInvoiceRefusal;
           } else if (siExtraction.line_items.length > 0 && hasRealPricing) {
+            const allocatedInvoice = allocateInvoiceLines(siExtraction.line_items, invoicePool);
             const held = await holdForConfirmation(
               env,
               "supplier_invoice",
               {
-                purchaseOrderId: openPo.id,
+                purchaseOrderId: allocatedInvoice.primaryPoId ?? openPo.id,
                 supplierId: subjectCharacterId,
                 supplierName: subjectHint,
                 supplierReference: siExtraction.supplier_reference,
-                lineItems: siExtraction.line_items,
+                lineItems: allocatedInvoice.lines,
               },
               rawText
             );
             supplierInvoiceAction = { pendingActionId: held.id, supplierName: subjectHint ?? "supplier" };
             uploadHeldActionId = held.id;
-            uploadMessage = `Supplier invoice noted from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""} — needs your confirmation (action #${held.id}) before it's recorded.`;
+            uploadMessage = `Supplier invoice noted from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""} — needs your confirmation (action #${held.id}) before it's recorded.${invoiceOrdersNote(allocatedInvoice.orderIds)}`;
           } else {
             await reconcileDelivery(subjectCharacterId);
           }
@@ -5627,27 +5635,30 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       } else if (subjectCharacterId) {
         const openPo = await findLatestOpenPurchaseOrder(env, subjectCharacterId);
         if (openPo) {
-          const poLineItems = await getPurchaseOrderLineItems(env, openPo.id);
-          const siExtraction = await extractSupplierInvoice(env, description, poLineItems);
+          // Matched across all the supplier's open orders, oldest first (decided by Pierre 2026-10-04). Identical in the document and
+          // photo handlers.
+          const invoicePool = await getInvoiceMatchLines(env, subjectCharacterId, openPo.id);
+          const siExtraction = await extractSupplierInvoice(env, description, invoiceCandidatesForReader(invoicePool));
           const hasRealPricing = siExtraction.line_items.some((li) => li.unit_price_billed != null);
           if (siExtraction.line_items.length > 0 && hasRealPricing && supplierInvoiceRefusal) {
             uploadRefusal = supplierInvoiceRefusal;
           } else if (siExtraction.line_items.length > 0 && hasRealPricing) {
+            const allocatedInvoice = allocateInvoiceLines(siExtraction.line_items, invoicePool);
             const held = await holdForConfirmation(
               env,
               "supplier_invoice",
               {
-                purchaseOrderId: openPo.id,
+                purchaseOrderId: allocatedInvoice.primaryPoId ?? openPo.id,
                 supplierId: subjectCharacterId,
                 supplierName: subjectHint,
                 supplierReference: siExtraction.supplier_reference,
-                lineItems: siExtraction.line_items,
+                lineItems: allocatedInvoice.lines,
               },
               rawText
             );
             supplierInvoiceAction = { pendingActionId: held.id, supplierName: subjectHint ?? "supplier" };
             uploadHeldActionId = held.id;
-            uploadMessage = `Supplier invoice noted from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""} — needs your confirmation (action #${held.id}) before it's recorded.`;
+            uploadMessage = `Supplier invoice noted from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""} — needs your confirmation (action #${held.id}) before it's recorded.${invoiceOrdersNote(allocatedInvoice.orderIds)}`;
           } else {
             await reconcileDelivery(subjectCharacterId);
           }

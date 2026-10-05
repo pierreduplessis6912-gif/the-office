@@ -64,6 +64,19 @@ module.exports = function cases(caps) {
     `);
   };
   const delivery = (item, desc, unit, qty) => GRAI({ supplier_name: 'Floornet', line_items: [{ matched_description: item, item_description: desc, unit, quantity_received: qty }] });
+  // Matching an invoice across all the supplier's open orders (decided 2026-10-04). Floornet has Vinyl on two orders, 50 then 30.
+  const twoVinylOrders = (db) => {
+    withOrder(db);
+    db.exec(`
+      INSERT INTO purchase_orders (id, supplier_id, description, created_at) VALUES (2, 1, 'More vinyl', '2026-10-02 08:00:00');
+      INSERT INTO po_line_items (id, purchase_order_id, description, quantity_ordered, unit, unit_price_expected) VALUES (3, 2, 'Vinyl', 30, 'sqm', 180);
+    `);
+  };
+  const billLine = (po_line, qty) => `INSERT INTO supplier_invoice_line_items (supplier_invoice_id, po_line_item_id, description, quantity_billed, unit_price_billed, line_total) VALUES (1, ${po_line}, 'Vinyl', ${qty}, 185, ${qty * 185});`;
+  const oldestInvoiced = (db) => { twoVinylOrders(db); db.exec(`INSERT INTO supplier_invoices (id, purchase_order_id, supplier_id, supplier_reference, amount, created_at) VALUES (1, 1, 1, 'INV-0', 9250, '2026-10-03 08:00:00'); ` + billLine(1, 50)); };
+  const everythingInvoiced = (db) => { twoVinylOrders(db); db.exec(`INSERT INTO supplier_invoices (id, purchase_order_id, supplier_id, supplier_reference, amount, created_at) VALUES (1, 1, 1, 'INV-0', 20000, '2026-10-03 08:00:00'); ` + billLine(1, 50) + billLine(3, 30) + ` INSERT INTO supplier_invoice_line_items (supplier_invoice_id, po_line_item_id, description, quantity_billed, unit_price_billed, line_total) VALUES (1, 2, 'Underlay', 100, 40, 4000);`); };
+  const oldestCancelled = (db) => { twoVinylOrders(db); db.exec(`CREATE TABLE IF NOT EXISTS purchase_order_cancellations (purchase_order_id INTEGER PRIMARY KEY, cancelled_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now'))); INSERT INTO purchase_order_cancellations (purchase_order_id, cancelled_by) VALUES (1, 'owner@example.com');`); };
+  const invoiceOf = (...lines) => SIAI({ supplier_name: 'Floornet', supplier_reference: 'INV-7731', line_items: lines.map(([name, qty, price]) => ({ matched_description: name, quantity_billed: qty, unit_price_billed: price })) });
   const POAI = (reply) => ({ match: /line_items is every distinct material/, reply });
   const GRAI = (reply) => ({ match: /quantity_received/, reply });
   const SIAI = (reply) => ({ match: /quantity_billed/, reply });
@@ -133,6 +146,17 @@ module.exports = function cases(caps) {
     c('supplier invoice: accountant', 'accountant', withOrder, 'supplier_invoice', sup(), 'Floornet invoice: 50 sqm vinyl at 185',
       [SIAI({ supplier_name: 'Floornet', supplier_reference: null, line_items: [{ matched_description: 'Vinyl', quantity_billed: 50, unit_price_billed: 185 }] })]),
     c('supplier invoice: installer is refused', 'installer', withOrder, 'supplier_invoice', sup(), 'Floornet invoice: 50 sqm vinyl at 185', []),
+
+    // ---------------- a supplier invoice matched across all the supplier's open orders ----------------
+    c('supplier invoice across orders: one invoice for 70 spans two orders', 'owner', twoVinylOrders, 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 70 sqm vinyl at 185', [invoiceOf(['Vinyl', 70, 185])]),
+    c('supplier invoice across orders: it fits in the oldest order, so it goes to that one and not the latest', 'owner', twoVinylOrders, 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 30 sqm vinyl at 185', [invoiceOf(['Vinyl', 30, 185])]),
+    c('supplier invoice across orders: the oldest order is already invoiced, so the newer one is used', 'owner', oldestInvoiced, 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 30 sqm vinyl at 185', [invoiceOf(['Vinyl', 30, 185])]),
+    c('supplier invoice across orders: every order is already invoiced, so the latest is used as before', 'owner', everythingInvoiced, 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 20 sqm vinyl at 185', [invoiceOf(['Vinyl', 20, 185])]),
+    c('supplier invoice across orders: billed for more than everything ordered keeps the excess on the last order', 'owner', twoVinylOrders, 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 100 sqm vinyl at 185', [invoiceOf(['Vinyl', 100, 185])]),
+    c('supplier invoice across orders: a billed line on no order stays unmatched beside the matched ones', 'owner', twoVinylOrders, 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 70 sqm vinyl at 185 and 5 bags of grout at 90', [invoiceOf(['Vinyl', 70, 185], [null, 5, 90])]),
+    c('supplier invoice across orders: a cancelled order is not used', 'owner', oldestCancelled, 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 30 sqm vinyl at 185', [invoiceOf(['Vinyl', 30, 185])]),
+    c('supplier invoice across orders: two billed lines of the same item share the capacity', 'owner', twoVinylOrders, 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 40 sqm vinyl at 185 and 40 sqm vinyl at 190', [invoiceOf(['Vinyl', 40, 185], ['Vinyl', 40, 190])]),
+    c('supplier invoice across orders: an accountant, spanning two orders', 'accountant', twoVinylOrders, 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 70 sqm vinyl at 185', [invoiceOf(['Vinyl', 70, 185])]),
 
     // ---------------- variance_disposition ----------------
     c('variance disposition: owner, a reason only', 'owner', withOneDiscrepancy, 'variance_disposition', sup(), 'the underlay shortage from Floornet was short delivered',

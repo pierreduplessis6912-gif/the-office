@@ -3,12 +3,10 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 7 in progress).
+decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 7 applied).
 
 ## A. Decisions only Pierre can make
 
-5. **Supplier invoices are checked against the latest order only**, and against a single order. Deliveries now match
-   across all outstanding orders; invoices still do not. *Option:* the same oldest-first matching for invoices.
 7. **A spoken supplier statement now stays out of free-text notes** (it is money, and notes are ungated) and has no
    structured home, so the words survive only in the raw capture. *Question:* should a spoken statement be recorded
    somewhere, or is the capture enough?
@@ -57,6 +55,13 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
 
 43. **The date reader ignores month names.** "The 17th of November" is read as the 17th of the nearest month that has not
     passed, not as 17 November. Found while teaching it the ordinal words. *Option:* read the month when one is named.
+
+44. **Nothing checks a supplier invoice's reference**, so the same invoice said twice is recorded twice (the second finds
+    nothing unbilled and falls back to the latest order). *Option:* refuse or warn when a reference has already been recorded
+    for that supplier. (`DECISIONS.md`, "Decisions session, round 7 (part 2)".)
+45. **The invoice reader captures no unit**, so an invoice in boxes against an order in square metres is matched number to
+    number. The unit conversion built earlier applies to deliveries and stock, not to invoices. *Option:* have the invoice
+    reader capture the unit and convert it the same way.
 ## B. Needs a live check only a phone can give
 
 12. **The Codemagic rebuild**: the Confirm/Reject buttons for a follow-up question raised by a confirm ("Add to stock?",
@@ -108,6 +113,11 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
 
 ## Settled (kept so the reasoning is not lost)
+
+- 2026-10-04, decided by Pierre (decisions session, round 7, invoices):
+  - **A supplier invoice is matched across all the supplier's open orders, oldest first,** as deliveries are (open = quantity
+    not yet invoiced; everything invoiced falls back to the latest order). One invoice, one expense, a line against each order.
+    All three entry paths and confirmation; no existing recording changed. (`DECISIONS.md`, "Decisions session, round 7 (part 2)".)
 
 - 2026-10-04, decided by Pierre (decisions session, round 7):
   - **Dates in words are read** ("the seventeenth" schedules the 17th; every day, first to thirty-first, equals its digit form;

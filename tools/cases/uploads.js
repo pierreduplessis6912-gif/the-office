@@ -25,6 +25,13 @@ module.exports = function cases(caps) {
   `);
   const unitConversionDdl = "CREATE TABLE IF NOT EXISTS unit_conversions (item_key TEXT NOT NULL, from_unit TEXT NOT NULL, to_unit TEXT NOT NULL, factor REAL NOT NULL, set_by TEXT, updated_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (item_key, from_unit, to_unit))";
   const withVinylConversion = (db) => { withOrder(db); db.exec(unitConversionDdl + "; INSERT INTO unit_conversions (item_key, from_unit, to_unit, factor) VALUES ('vinyl', 'box', 'sqm', 2.5);"); };
+  const twoVinylOrders = (db) => {
+    withOrder(db);
+    db.exec(`
+      INSERT INTO purchase_orders (id, supplier_id, description, created_at) VALUES (2, 1, 'More vinyl', '2026-10-02 08:00:00');
+      INSERT INTO po_line_items (id, purchase_order_id, description, quantity_ordered, unit, unit_price_expected) VALUES (3, 2, 'Vinyl', 30, 'sqm', 180);
+    `);
+  };
   const IDENT = (reply) => ({ match: /Decide what kind of document it is and which business ISSUED it/, reply });
   const STMT = (reply) => ({ match: /claimed_closing_balance/, reply });
   const DESCRIBE = (text) => ({ match: /Describe exactly what is shown in this photo/, reply: text });
@@ -174,7 +181,15 @@ module.exports = function cases(caps) {
     up('photo: a caption names the supplier and a delivery in boxes is converted and recorded', 'owner', withVinylConversion, 'photo', png, { caption: floornetNote }, [DESCRIBE(boxesText), asFloornet, noPrices, boxesLine]),
   );
   specs.push(up('document: a delivery note in boxes with a conversion on file (a real PDF)', 'owner', withVinylConversion, 'document', pdf(['Floornet (Pty) Ltd', 'DELIVERY NOTE', 'Vinyl 20 boxes']), {}, [boxesIdent, boxesLine]));
+  const span70 = SIAI({ supplier_name: 'Floornet', supplier_reference: 'INV-7731', line_items: [{ matched_description: 'Vinyl', quantity_billed: 70, unit_price_billed: 185 }] });
+  const asInvoice = READ({ 'Floornet invoice': { intent: 'supplier_invoice', character_name: 'Floornet', character_relationship: 'supplier' } });
+  specs.push(
+    asImage('document (image): a supplier invoice that spans two orders is held and says so', 'owner', twoVinylOrders, { caption: 'Floornet invoice' }, [DESCRIBE('Floornet TAX INVOICE Vinyl 70 sqm at R185'), asInvoice, span70]),
+    up('photo: a supplier invoice that spans two orders is held and says so', 'owner', twoVinylOrders, 'photo', png, { caption: 'Floornet invoice' }, [DESCRIBE('Floornet TAX INVOICE Vinyl 70 sqm at R185'), asInvoice, span70]),
+    up('document: a supplier invoice that spans two orders (a real PDF)', 'owner', twoVinylOrders, 'document', pdf(['Floornet (Pty) Ltd', 'TAX INVOICE INV-7731', 'Vinyl 70 sqm at R185']), { caption: 'Floornet invoice' }, [asInvoice, span70]),
+  );
   specs.pairs = [
+    ['document (image): a supplier invoice that spans two orders is held and says so', 'photo: a supplier invoice that spans two orders is held and says so', same],
     ['document (image): a delivery in boxes with a conversion on file is converted and held', 'photo: a delivery in boxes with a conversion on file is converted and held', same],
     ['document (image): a delivery in boxes and no conversion known asks and holds nothing', 'photo: a delivery in boxes and no conversion known asks and holds nothing', same],
     ['document (image): a caption names the supplier and a delivery in boxes is converted and recorded', 'photo: a caption names the supplier and a delivery in boxes is converted and recorded', same],

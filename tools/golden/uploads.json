@@ -3739,5 +3739,187 @@
     "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
    }
   ]
+ },
+ "document (image): a supplier invoice that spans two orders is held and says so": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Supplier invoice noted from Floornet — needs your confirmation (action #1) before it's recorded. Matched across orders #1 and #2.",
+    "pendingActionId": 1,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "Floornet TAX INVOICE Vinyl 70 sqm at R185",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": {
+     "pendingActionId": 1,
+     "supplierName": "Floornet"
+    },
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real bill has arrived for a real, already-placed order — "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet invoice\n\n[Document: Floornet TAX INVOICE Vinyl 70 sqm at R185]",
+      "source": "document",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "supplier_invoice",
+      "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185,\"po_line_item_id\":1},{\"matched_description\":\"Vinyl\",\"quantity_billed\":20,\"unit_price_billed\":185,\"po_line_item_id\":3}]}",
+      "status": "pending",
+      "source_transcript": "Floornet invoice\n\n[Document: Floornet TAX INVOICE Vinyl 70 sqm at R185]"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "photo: a supplier invoice that spans two orders is held and says so": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Supplier invoice noted from Floornet — needs your confirmation (action #1) before it's recorded. Matched across orders #1 and #2.",
+    "pendingActionId": 1,
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "Floornet TAX INVOICE Vinyl 70 sqm at R185",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": {
+     "pendingActionId": 1,
+     "supplierName": "Floornet"
+    },
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real bill has arrived for a real, already-placed order — "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet invoice\n\n[Photo description: Floornet TAX INVOICE Vinyl 70 sqm at R185]",
+      "source": "photo",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "supplier_invoice",
+      "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185,\"po_line_item_id\":1},{\"matched_description\":\"Vinyl\",\"quantity_billed\":20,\"unit_price_billed\":185,\"po_line_item_id\":3}]}",
+      "status": "pending",
+      "source_transcript": "Floornet invoice\n\n[Photo description: Floornet TAX INVOICE Vinyl 70 sqm at R185]"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "document: a supplier invoice that spans two orders (a real PDF)": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Supplier invoice noted from Floornet — needs your confirmation (action #1) before it's recorded. Matched across orders #1 and #2.",
+    "pendingActionId": 1,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd TAX INVOICE INV-7731 Vinyl 70 sqm at R185",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": {
+     "pendingActionId": 1,
+     "supplierName": "Floornet"
+    },
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real bill has arrived for a real, already-placed order — "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet invoice\n\n[Document: Floornet (Pty) Ltd TAX INVOICE INV-7731 Vinyl 70 sqm at R185]",
+      "source": "document",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "supplier_invoice",
+      "payload": "{\"purchaseOrderId\":1,\"supplierId\":1,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185,\"po_line_item_id\":1},{\"matched_description\":\"Vinyl\",\"quantity_billed\":20,\"unit_price_billed\":185,\"po_line_item_id\":3}]}",
+      "status": "pending",
+      "source_transcript": "Floornet invoice\n\n[Document: Floornet (Pty) Ltd TAX INVOICE INV-7731 Vinyl 70 sqm at R185]"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
  }
 }

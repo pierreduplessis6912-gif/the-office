@@ -58,6 +58,15 @@ module.exports = function cases(caps) {
   const heldDelivery = (unit, quantity) => `INSERT INTO pending_actions (id, type, payload, source_transcript, status, created_at) VALUES (1, 'goods_received', '{"purchaseOrderId":1,"supplierId":2,"supplierName":"Floornet","allocate":true,"lineItems":[{"matched_description":"Vinyl","item_description":"vinyl","unit":"${unit}","quantity_received":${quantity}}]}', 'Floornet delivered the vinyl', 'pending', '2026-10-03 10:00:00');`;
   const boxHold = (withConversion) => (db) => { withOrder(db); db.exec((withConversion ? unitConversionDdl + "; INSERT INTO unit_conversions (item_key, from_unit, to_unit, factor) VALUES ('vinyl', 'box', 'sqm', 2.5); " : '') + heldDelivery('boxes', 20)); };
   const stockedHold = (stockUnit, onHand) => (db) => { withOrder(db); db.exec(unitConversionDdl + "; INSERT INTO unit_conversions (item_key, from_unit, to_unit, factor) VALUES ('vinyl', 'box', 'sqm', 2.5); INSERT INTO stock_items (name, unit, quantity_on_hand) VALUES ('Vinyl', '" + stockUnit + "', " + onHand + "); " + heldDelivery('sqm', 50)); };
+  // Floornet is supplier 2 here, with Vinyl on two orders (50, then 30).
+  const twoVinylOrders = (db) => {
+    withOrder(db);
+    db.exec(`
+      INSERT INTO purchase_orders (id, supplier_id, description, created_at) VALUES (2, 2, 'More vinyl', '2026-10-02 08:00:00');
+      INSERT INTO po_line_items (id, purchase_order_id, description, quantity_ordered, unit, unit_price_expected) VALUES (3, 2, 'Vinyl', 30, 'sqm', 180);
+    `);
+  };
+  const SIAI2 = (qty) => ({ match: /quantity_billed/, reply: { supplier_name: 'Floornet', supplier_reference: 'INV-7731', line_items: [{ matched_description: 'Vinyl', quantity_billed: qty, unit_price_billed: 185 }] } });
   const OBS = (reply) => ({ match: /Extract the structure of a tradesperson's job observation/, reply });
   const LINES = (reply) => ({ match: /Extract every distinct line item from a tradesperson's quotation or invoice description/, reply });
   const GRAI = (reply) => ({ match: /quantity_received/, reply });
@@ -116,6 +125,11 @@ module.exports = function cases(caps) {
     r('confirm delivery: held in boxes with no conversion known, so it goes back to waiting and the question is asked', boxHold(false), '/actions/1/confirm', [], []),
     r('confirm delivery: stock kept in boxes is added in boxes although the order was in square metres', stockedHold('box', 0), '/actions/1/confirm', [], []),
     r('confirm delivery: stock kept in the same unit as the order is added as before', stockedHold('sqm', 10), '/actions/1/confirm', [], []),
+
+    // ---------------- an invoice that spans orders, at confirmation ----------------
+    r('confirm supplier invoice: one invoice spanning two orders records a line against each', twoVinylOrders, '/actions/1/confirm', [say('Floornet invoice INV-7731, 70 sqm vinyl at 185', { intent: 'supplier_invoice', ...floornet })], [SIAI2(70)]),
+    r('confirm supplier invoice: billing more than was ordered shows the over-billing against the last order', twoVinylOrders, '/actions/1/confirm', [say('Floornet invoice INV-7731, 100 sqm vinyl at 185', { intent: 'supplier_invoice', ...floornet })], [SIAI2(100)]),
+    r('confirm supplier invoice: an invoice that fits one order is recorded against it exactly as before', twoVinylOrders, '/actions/1/confirm', [say('Floornet invoice INV-7731, 30 sqm vinyl at 185', { intent: 'supplier_invoice', ...floornet })], [SIAI2(30)]),
 
     // ---------------- who is this? ----------------
     r('confirm identity question: owner, the name belongs to an installer', base, '/actions/1/confirm', [say('Jabulani called about a job', { intent: 'note', customer_name: 'Jabulani' })], []),

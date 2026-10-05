@@ -624,6 +624,9 @@ async function expect(role, method, path, want) {
     for (const role of ['accountant', 'installer', 'stranger']) await expect(role, method, p, false);
   }
 
+  // Matching a supplier invoice across all the supplier's open orders: the allocation, the pool, and the notes.
+  await require('./invoicepool.test.js')({ check, bundleTo, srcDir, path, sameJson });
+
   // The date reader: an ordinal word means exactly its digit form.
   await require('./dates.test.js')({ check, bundleTo });
 
