@@ -6223,3 +6223,18 @@ Round 12, decided by Pierre: **28.** ask which customer in every case; **29.** k
 **Verified:** typecheck unchanged; **3,888 checks**, including unit tests of the sentence detector against 35 sentences and of the invoice unit check against a real SQLite database (quantity and price, the inverse conversion, no conversion, unrecognised unit, no unit, no price, and the caller's own lines never modified). **Eight deliberate breakages were caught:** a second room losing the same-message customer; a measured room recorded customer-less again; a pay sentence copied into notes again; the redundant "not kept in notes" line on a saved detail; the **too-broad** detector (the bare word "account"); an invoice that converts the quantity but not the price (so the total changes); **only the spoken path**, and **only the photo copy**, holding an invoice in an unconvertible unit.
 
 **Not run here:** the language model that now also reads the unit off an invoice ("20 boxes at 462.50") and the one that reads each sentence; both need one real try on the phone.
+
+
+---
+
+## Follow-up to round 12: a hole in the note guard, found by independent review
+
+I reviewed round 12 the way I review every change I did not write: a fresh checkout (typecheck unchanged, 3,888 checks, deployed), then my own probes through the real code. Round 12's finding was right and worse than described: **my own round 11 recordings showed the refused sentence ("Jabulani's bank account is FNB 62012345678") being written to the person's notes while the reply said "Nothing was saved"**, and I had recorded it without reading the `effects` field, only the message. Round 12's fix closed it for a customer's note and a supplier's or installer's note, and my probes confirmed both.
+
+**It left one path open.** The model's own `personal_note` field was written to the **life notes unconditionally**: "remember my account number is 62012345678" wrote `life:<date>` while the reply said "it was not kept in the notes", **a reply that contradicted what the system did**. The sentence detector only looked at what was said, on the transcript path, and the reply flag was computed from the transcript alone.
+
+**Fix.** The same detector now guards the personal note on **both sides** (the note's own wording, and what was said), and the reply flag agrees with what was done, so the reply says a note was kept out exactly when it was. An ordinary life note ("buy diesel on Friday") is still kept.
+
+**Verified:** typecheck unchanged; **3,908 checks**; against `main` **no existing recording changed** and 5 were added (a sensitive life note; one where only the note's own wording is sensitive; one where only what was said is; a day rate; and an ordinary one still kept). **Four deliberate breakages were caught:** the guard removed; only the note checked; only what was said checked; and the reply no longer telling the truth. My original probe (five sentences through the real code) now shows no notes written for the four sensitive ones and the two ordinary ones kept.
+
+**What this says about my own process.** The leak was visible in recordings I had in front of me; I printed what I expected to see (the message and whether a hold existed) and not the field where the leak was. Reviews of recordings should read *every* recorded effect, not only the ones the change was about.

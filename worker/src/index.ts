@@ -1593,7 +1593,11 @@ async function processOneExtraction(
   // own life event, independent of whatever happens to the customer
   // part below. This is what stops "remind me to get dog food" from
   // silently vanishing into a stranger's customer file.
-  if (extraction?.personal_note) {
+  // Found by an independent review of the round 12 fix 2026-10-04: the sentence detector guarded the transcript path but NOT the model's own
+  // personal_note field, so "remember my account number is 62012345678" was written to the life notes while the reply said it had not been
+  // kept. The same detector now guards this path too, on the note AND on what was said, and the reply flag below agrees with what was done.
+  const personalNoteIsSensitive = Boolean(extraction?.personal_note) && (looksLikePayOrBankDetail(extraction!.personal_note!) || looksLikePayOrBankDetail(transcript));
+  if (extraction?.personal_note && !personalNoteIsSensitive) {
     ctx.waitUntil(appendLifeEvent(env, extraction.personal_note));
   }
   // Real bug found live 2026-07-11: "remind me to phone my mother"
@@ -1648,7 +1652,7 @@ async function processOneExtraction(
   const hasStructuredHomeAlready = intentKeepsOutOfNotes(extraction?.intent);
   // Decided by Pierre 2026-10-04: a sentence that says a pay or bank detail is kept out of free-text notes (which every role can read), as money
   // sentences are, and the reply says so instead of dropping it silently.
-  const sensitiveNoteKeptOut = !isQuestion && !isPersonalErrand && !hasStructuredHomeAlready && looksLikePayOrBankDetail(transcript);
+  const sensitiveNoteKeptOut = (!isQuestion && !isPersonalErrand && !hasStructuredHomeAlready && looksLikePayOrBankDetail(transcript)) || personalNoteIsSensitive;
   if (!isQuestion && !isPersonalErrand && !hasStructuredHomeAlready && !sensitiveNoteKeptOut) {
     if (customer) {
       ctx.waitUntil(appendCustomerNote(env, customer.id, transcript));

@@ -73,6 +73,12 @@ module.exports = function cases(caps) {
     c('note: an installer saying a salary is kept out of notes too, and is told', 'installer', base, { character_name: 'Jabulani', character_relationship: 'installer' }, 'Jabulani earns a salary of R18000', []),
     c('note: an ordinary note is kept as before', 'owner', base, { customer_name: 'Jenny Smith' }, 'Jenny prefers mornings', []),
     c('note: the word account in another sense is not a bank detail', 'owner', base, { customer_name: 'Jenny Smith' }, 'Jenny\'s account is overdue', []),
+    // Found by an independent review 2026-10-04: the model's own personal_note field was written to the life notes whatever it said.
+    c('life note: a personal note that says an account number is kept out, and the reply tells the truth', 'owner', base, { personal_note: 'my account number is 62012345678' }, 'remember my account number is 62012345678', []),
+    c('life note: a personal note whose OWN wording says a bank detail is kept out although what was said does not', 'owner', base, { personal_note: 'bank account 62012345678' }, 'remember what I just told you', []),
+    c('life note: what was SAID is a bank detail although the personal note itself looks innocent', 'owner', base, { personal_note: 'remember this' }, 'remember my bank account is 62012345678', []),
+    c('life note: a personal note about a day rate is kept out too', 'accountant', base, { personal_note: 'Sipho gets R600 a day' }, 'remember Sipho gets R600 a day', []),
+    c('life note: an ordinary personal note is still kept', 'owner', base, { personal_note: 'buy diesel on Friday' }, 'remember to buy diesel on Friday', []),
 
     // ---------------- a person's pay and bank details need their own permission to save ----------------
     c('detail: owner saves a day rate', 'owner', base, detail('day rate', 'R600 a day'), 'Jabulani\'s day rate is R600 a day', []),
