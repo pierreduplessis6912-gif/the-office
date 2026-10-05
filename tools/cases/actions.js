@@ -139,6 +139,7 @@ module.exports = function cases(caps) {
 
     // ---------------- jobs ----------------
     r('confirm amendment: owner', withScope, '/actions/1/confirm', [say('move Jenny\'s install to next Monday', { intent: 'work_observation', customer_name: 'Jenny Smith' })], [OBS({ ...nothing, scheduled_date_raw: 'next Monday' })]),
+    r('confirm amendment: a new date said in words is scheduled', withScope, '/actions/1/confirm', [say('move Jenny\'s install to the seventeenth', { intent: 'work_observation', customer_name: 'Jenny Smith' })], [OBS({ ...nothing, scheduled_date_raw: 'the seventeenth' })]),
     r('reject amendment: a new job is recorded instead', withScope, '/actions/1/reject', [say('move Jenny\'s install to next Monday', { intent: 'work_observation', customer_name: 'Jenny Smith' })], [OBS({ ...nothing, scheduled_date_raw: 'next Monday' })]),
     r('confirm project question: a project is chosen', twoOpenProjects, '/actions/1/confirm', [], [], { body: { projectId: 2 } }),
     r('confirm project question: a valid choice after a refused attempt', twoOpenProjects, '/actions/1/confirm', [confirm(1)], [], { body: { projectId: 2 } }),

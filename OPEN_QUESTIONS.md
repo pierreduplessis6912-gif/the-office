@@ -3,22 +3,18 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 6 applied).
+decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 7 in progress).
 
 ## A. Decisions only Pierre can make
 
 5. **Supplier invoices are checked against the latest order only**, and against a single order. Deliveries now match
    across all outstanding orders; invoices still do not. *Option:* the same oldest-first matching for invoices.
-6. **"Add to stock?" is one question per delivery**, all or nothing, and is not asked retroactively. Each new
-   job-specific item is asked about once and then, if declined, never again. *Option:* a question per item.
 7. **A spoken supplier statement now stays out of free-text notes** (it is money, and notes are ungated) and has no
    structured home, so the words survive only in the raw capture. *Question:* should a spoken statement be recorded
    somewhere, or is the capture enough?
 10. **A payment with no amount is held for confirmation on purpose** (`payments.amount` is nullable and
     `recordPayment` accepts none). Confirmed as design in the code; listed in case Pierre would rather the amount
     be asked for.
-25. **A date spoken as an ordinal word ("the seventeenth") is not parsed to a date**, though "the 10th" is. The words are
-    kept but nothing is scheduled from them. Found while recording; not changed. *Option:* teach the date reader the words.
 26. **A job scope with no customer is recorded** when only an installer or a date is heard and there is nothing in the same
     message to attach it to. It is findable only by its installer or date. May be intended (to be attached later); worth
     confirming.
@@ -58,6 +54,9 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
 42. **The recognised units are a fixed list** (square metres, boxes, bags, rolls, lengths, tiles, sheets, litres, kilograms,
     tubes, tins, packs, pallets, metres, each). A unit outside it (a "bundle") is never converted and never flagged, by
     design, so it cannot block a delivery. *Option:* add units as they turn up.
+
+43. **The date reader ignores month names.** "The 17th of November" is read as the 17th of the nearest month that has not
+    passed, not as 17 November. Found while teaching it the ordinal words. *Option:* read the month when one is named.
 ## B. Needs a live check only a phone can give
 
 12. **The Codemagic rebuild**: the Confirm/Reject buttons for a follow-up question raised by a confirm ("Add to stock?",
@@ -109,6 +108,11 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
 
 ## Settled (kept so the reasoning is not lost)
+
+- 2026-10-04, decided by Pierre (decisions session, round 7):
+  - **Dates in words are read** ("the seventeenth" schedules the 17th; every day, first to thirty-first, equals its digit form;
+    "the first job" and "a second coat" are not dates). Applied. (`DECISIONS.md`, "Decisions session, round 7 (part 1)".)
+  - **"Add to stock?" stays as one question per delivery** (kept as it is).
 
 - 2026-10-04, decided by Pierre (decisions session, round 6, units):
   - **Per-item unit conversion: built.** Said once ("a box of laminate is 2.2 square metres"), used on every delivery (spoken,

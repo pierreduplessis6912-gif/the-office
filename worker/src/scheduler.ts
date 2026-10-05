@@ -26,6 +26,27 @@ import { getOpenProjectsForCustomer } from "./finance";
 // common phrasings only (today/tomorrow/weekday names/"in N days or
 // weeks"/day-of-month); anything genuinely unparseable stays honestly
 // null rather than guessed at by an AI call.
+// Decided by Pierre 2026-10-04: "the seventeenth" must schedule the 17th, as "the 17th" always has. The reader used to find no date in
+// ordinal words at all, so the words were kept and nothing was scheduled. The rule is equivalence: an ordinal word means exactly its
+// digit form, so the existing day-of-month logic is reused unchanged. One guard: "first" and "second" are everyday words ("the first
+// job", "a second coat"), so they count as a date only when they stand alone ("the first", "the second of the month"), never in front
+// of another word. Followed by "of" they are a date too ("first of the month").
+const ORDINAL_ONES: Record<string, number> = { first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7, eighth: 8, ninth: 9 };
+const ORDINAL_OTHER: Record<string, number> = {
+  tenth: 10, eleventh: 11, twelfth: 12, thirteenth: 13, fourteenth: 14, fifteenth: 15, sixteenth: 16, seventeenth: 17,
+  eighteenth: 18, nineteenth: 19, twentieth: 20, thirtieth: 30,
+};
+
+export function ordinalWordsToDigits(phrase: string): string {
+  const compound = Object.keys(ORDINAL_ONES).join("|");
+  let out = phrase.replace(new RegExp(`\\b(twenty|thirty)[- ]\\s*(${compound})\\b`, "g"), (_m, tens: string, ones: string) => `${(tens === "twenty" ? 20 : 30) + ORDINAL_ONES[ones]}th`);
+  out = out.replace(new RegExp(`\\b(${Object.keys(ORDINAL_OTHER).join("|")})\\b`, "g"), (_m, word: string) => `${ORDINAL_OTHER[word]}th`);
+  out = out.replace(/\b(third|fourth|fifth|sixth|seventh|eighth|ninth)\b/g, (_m, word: string) => `${ORDINAL_ONES[word]}th`);
+  out = out.replace(/\b(?:the )?(first|second)(?=\s+of\b)/g, (_m, word: string) => `${ORDINAL_ONES[word]}th`);
+  out = out.replace(/\bthe (first|second)(?=\s*(?:$|[,.;]))/g, (_m, word: string) => `the ${ORDINAL_ONES[word]}th`);
+  return out;
+}
+
 export function resolveScheduledDate(rawPhrase: string | null, now: Date): string | null {
   if (!rawPhrase) return null;
   const phrase = rawPhrase.toLowerCase().trim();
@@ -91,7 +112,7 @@ export function resolveScheduledDate(rawPhrase: string | null, now: Date): strin
     return toIso(d);
   }
 
-  const dayOfMonthMatch = phrase.match(/\b(\d{1,2})(st|nd|rd|th)?\b/);
+  const dayOfMonthMatch = ordinalWordsToDigits(phrase).match(/\b(\d{1,2})(st|nd|rd|th)?\b/);
   if (dayOfMonthMatch) {
     const day = parseInt(dayOfMonthMatch[1], 10);
     if (day >= 1 && day <= 31) {

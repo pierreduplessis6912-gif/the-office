@@ -3030,6 +3030,90 @@
   },
   "effects": []
  },
+ "confirm amendment: a new date said in words is scheduled": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "amendedJobScopeId": 1,
+    "changes": [
+     {
+      "field": "scheduled_date_raw",
+      "oldValue": "the 10th",
+      "newValue": "the seventeenth"
+     }
+    ]
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "job_scope_amendments": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 1,
+      "capture_id": 1,
+      "field_name": "scheduled_date_raw",
+      "old_value": "the 10th",
+      "new_value": "the seventeenth"
+     }
+    ]
+   },
+   "job_scopes": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "customer_id": 1,
+       "description": "Lounge laminate",
+       "scheduled_date_raw": "the 10th",
+       "source_transcript": null,
+       "scheduled_date": "2026-10-10",
+       "installer_id": null,
+       "capture_id": null,
+       "project_id": null
+      },
+      "after": {
+       "id": 1,
+       "customer_id": 1,
+       "description": "Lounge laminate",
+       "scheduled_date_raw": "the seventeenth",
+       "source_transcript": null,
+       "scheduled_date": "2026-10-17",
+       "installer_id": null,
+       "capture_id": null,
+       "project_id": null
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "job_scope_amendment",
+       "payload": "{\"jobScopeId\":1,\"jobScopeDescription\":\"Lounge laminate\",\"changes\":[{\"field\":\"scheduled_date_raw\",\"oldValue\":\"the 10th\",\"newValue\":\"the seventeenth\"}],\"customerId\":1,\"observation\":{\"job_description\":\"observation\",\"components\":[],\"tasks\":[],\"scheduled_date_raw\":\"the seventeenth\",\"installer_name\":null},\"installerId\":null,\"transcript\":\"move Jenny's install to the seventeenth\",\"captureId\":1}",
+       "status": "pending",
+       "source_transcript": "move Jenny's install to the seventeenth"
+      },
+      "after": {
+       "id": 1,
+       "type": "job_scope_amendment",
+       "payload": "{\"jobScopeId\":1,\"jobScopeDescription\":\"Lounge laminate\",\"changes\":[{\"field\":\"scheduled_date_raw\",\"oldValue\":\"the 10th\",\"newValue\":\"the seventeenth\"}],\"customerId\":1,\"observation\":{\"job_description\":\"observation\",\"components\":[],\"tasks\":[],\"scheduled_date_raw\":\"the seventeenth\",\"installer_name\":null},\"installerId\":null,\"transcript\":\"move Jenny's install to the seventeenth\",\"captureId\":1}",
+       "status": "confirmed",
+       "source_transcript": "move Jenny's install to the seventeenth"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
  "reject amendment: a new job is recorded instead": {
   "result": {
    "status": 200,

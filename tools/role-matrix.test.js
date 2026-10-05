@@ -624,6 +624,9 @@ async function expect(role, method, path, want) {
     for (const role of ['accountant', 'installer', 'stranger']) await expect(role, method, p, false);
   }
 
+  // The date reader: an ordinal word means exactly its digit form.
+  await require('./dates.test.js')({ check, bundleTo });
+
   // Per-item unit conversion: the normaliser, the store and its maths against a real database, and the delivery check.
   await require('./units.test.js')({ check, bundleTo, srcDir, fs, path, sameJson });
 
