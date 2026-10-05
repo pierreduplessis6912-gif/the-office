@@ -86,6 +86,11 @@ module.exports = function cases(caps) {
   };
   const refInvoice = (ref) => SIAI({ supplier_name: 'Floornet', supplier_reference: ref, line_items: [{ matched_description: 'Vinyl', quantity_billed: 50, unit_price_billed: 185 }] });
   const owes11000 = (db) => { withOrder(db); db.exec(`INSERT INTO expenses (character_id, amount, description, source_transcript, category, created_at) VALUES (1, 11000, 'vinyl', 'Floornet invoice INV-1', 'materials', '2026-09-10 08:00:00');`); };
+  // Reopening a cancelled order (decided 2026-10-04): the mirror of cancelling.
+  // The cancellation row carries an explicit date: the database's own clock is real, and a date in a message must not depend on the day the tests run.
+  const oneCancelledDated = (db) => { withOrder(db); db.exec(cancellationDdl + ` INSERT INTO purchase_order_cancellations (purchase_order_id, cancelled_by, created_at) VALUES (1, 'owner@example.com', '2026-10-03 08:00:00');`); };
+  const twoCancelled = (db) => { twoOrders(db); db.exec(cancellationDdl + ` INSERT INTO purchase_order_cancellations (purchase_order_id, cancelled_by, created_at) VALUES (1, 'owner@example.com', '2026-10-03 08:00:00'), (2, 'owner@example.com', '2026-10-03 09:00:00');`); };
+  const secondCancelled = (db) => { twoOrders(db); db.exec(cancellationDdl + ` INSERT INTO purchase_order_cancellations (purchase_order_id, cancelled_by, created_at) VALUES (2, 'owner@example.com', '2026-10-03 09:00:00');`); };
   const POAI = (reply) => ({ match: /line_items is every distinct material/, reply });
   const GRAI = (reply) => ({ match: /quantity_received/, reply });
   const SIAI = (reply) => ({ match: /quantity_billed/, reply });
@@ -143,6 +148,21 @@ module.exports = function cases(caps) {
     c('goods received: a conversion for "laminate" applies to "Quickstep laminate"', 'owner', quickstep, 'goods_received', sup(), 'Floornet delivered 10 boxes of Quickstep laminate', [delivery('Quickstep laminate', 'quickstep laminate', 'boxes', 10)]),
     c('goods received: an item that is not on the order has no order unit to convert to', 'owner', vinylBoxes, 'goods_received', sup(), 'Floornet delivered 4 boxes of grout', [delivery(null, 'grout', 'boxes', 4)]),
     c('goods received: an installer takes a delivery in boxes with the conversion on file', 'installer', vinylBoxes, 'goods_received', sup(), 'Floornet delivered 20 boxes of vinyl', [delivery('Vinyl', 'vinyl', 'boxes', 20)]),
+
+    // ---------------- reopen_order (a held action: it asks first, and never guesses which order) ----------------
+    c('reopen order: owner, the supplier has one cancelled order', 'owner', oneCancelledDated, 'reopen_order', sup(), 'reopen the Floornet order', []),
+    c('reopen order: owner, several cancelled orders and no number, so it asks which', 'owner', twoCancelled, 'reopen_order', sup(), 'reopen the Floornet order', []),
+    c('reopen order: owner, several cancelled orders and a number picks one', 'owner', twoCancelled, 'reopen_order', sup(), 'reopen order 2 with Floornet', []),
+    c('reopen order: owner, a number that is not one of the cancelled orders', 'owner', twoCancelled, 'reopen_order', sup(), 'reopen order 9 with Floornet', []),
+    c('reopen order: owner, an order that is still open is not offered', 'owner', secondCancelled, 'reopen_order', sup(), 'reopen order 1 with Floornet', []),
+    c('reopen order: owner, nothing is cancelled', 'owner', withOrder, 'reopen_order', sup(), 'reopen the Floornet order', []),
+    c('reopen order: owner, no supplier named', 'owner', oneCancelledDated, 'reopen_order', {}, 'reopen the order', []),
+    c('reopen order: owner, a supplier nobody has heard of is not created', 'owner', oneCancelledDated, 'reopen_order', sup('Nobody Known'), 'reopen the Nobody Known order', []),
+    c('reopen order: accountant', 'accountant', oneCancelledDated, 'reopen_order', sup(), 'reopen the Floornet order', []),
+    c('reopen order: installer is refused', 'installer', oneCancelledDated, 'reopen_order', sup(), 'reopen the Floornet order', []),
+    c('reopen order: a role with no permissions is refused', 'stranger', oneCancelledDated, 'reopen_order', sup(), 'reopen the Floornet order', []),
+    c('goods received: after the order was reopened a delivery matches it again', 'owner', withOrder, 'goods_received', sup(), 'Floornet delivered the vinyl, 50 square metres',
+      [GRAI({ supplier_name: 'Floornet', line_items: [{ matched_description: 'Vinyl', item_description: 'vinyl', unit: 'sqm', quantity_received: 50 }] })]),
 
     // ---------------- supplier_invoice ----------------
     c('supplier invoice: owner, open order, matched and priced', 'owner', withOrder, 'supplier_invoice', sup(), 'Floornet invoice INV-7731: 50 sqm vinyl at 185 and 100 sqm underlay at 40',

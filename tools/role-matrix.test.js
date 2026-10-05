@@ -26,7 +26,7 @@ if (ENFORCE_CAPABILITIES !== true) throw new Error('test is not running with the
 
 const actionTypes = { 1:'job_scope_amendment', 2:'project_ambiguity', 3:'goods_received', 4:'ambiguous_person', 5:'customer_fact', 6:'identity_collision',
   7:'payment', 8:'invoice', 9:'quotation', 10:'expense', 11:'supplier_invoice', 12:'supplier_payment', 13:'variance_disposition', 14:'convert_quote',
-  15:'character_fact', 16:'imported_invoice', 17:'schema_candidate', 18:'some_future_type', 19:'stock_add', 20:'cancel_order' };
+  15:'character_fact', 16:'imported_invoice', 17:'schema_candidate', 18:'some_future_type', 19:'stock_add', 20:'cancel_order', 21:'reopen_order' };
 // A stand-in database: pending actions by id for the confirm routes, and no permission-grid overrides (the defaults apply).
 const env = { OFFICE_DB: { prepare: () => ({ run: async () => ({}), bind: (id) => ({ first: async () => actionTypes[id] ? { type: actionTypes[id] } : null, all: async () => ({ results: [] }), run: async () => ({}) }) }) } };
 
@@ -130,6 +130,8 @@ async function expect(role, method, path, want) {
     // Decision 9 (2026-10-04): a spoken order cancellation is money-gated like placing the order (the old logic allowed
     // any intent it did not know).
     'installer:cancel_order', 'stranger:cancel_order',
+    // Decision 32 (2026-10-04): reopening a cancelled order is gated exactly like cancelling it.
+    'installer:reopen_order', 'stranger:reopen_order',
     // Decision 16 (2026-10-04): setting a unit conversion is gated like the rest of stock (materials access), so a role with no
     // permissions is refused; the installer, who holds materials access, is allowed, as before.
     'stranger:set_unit_conversion',
@@ -597,7 +599,7 @@ async function expect(role, method, path, want) {
   // conversions and deliveries were never added, and an installer's lookup of a supplier was built from
   // "paid Floornet R10000" (reproduced with the characterization harness). The rule is now derived from INTENT_RULES.
   const { intentKeepsOutOfNotes } = require(compiled);
-  const MONEY_AND_STRUCTURED = ['payment', 'expense', 'invoice', 'quotation', 'price_scope', 'convert_quote', 'supplier_invoice', 'supplier_payment', 'variance_disposition', 'purchase_order', 'goods_received', 'supplier_statement', 'work_observation', 'register_stock_item', 'stock_usage', 'stocktake', 'raise_snag', 'resolve_snag', 'raise_lead', 'lose_lead', 'cancel_order', 'set_unit_conversion', 'forget_unit_conversion'];   // the last seven: stock, snags and leads, decided by Pierre 2026-10-04   // supplier_statement is money-gated (it returns the real balance owed), so its words stay out of ungated notes too
+  const MONEY_AND_STRUCTURED = ['payment', 'expense', 'invoice', 'quotation', 'price_scope', 'convert_quote', 'supplier_invoice', 'supplier_payment', 'variance_disposition', 'purchase_order', 'goods_received', 'supplier_statement', 'work_observation', 'register_stock_item', 'stock_usage', 'stocktake', 'raise_snag', 'resolve_snag', 'raise_lead', 'lose_lead', 'cancel_order', 'reopen_order', 'set_unit_conversion', 'forget_unit_conversion'];   // the last seven: stock, snags and leads, decided by Pierre 2026-10-04   // supplier_statement is money-gated (it returns the real balance owed), so its words stay out of ungated notes too
   for (const i of unionIntents) check(intentKeepsOutOfNotes(i) === MONEY_AND_STRUCTURED.includes(i), `intent "${i}": ${MONEY_AND_STRUCTURED.includes(i) ? 'must keep its transcript out of notes (it has structured, gated storage)' : 'is narrative and may still be noted'}`);
   check([null, undefined, '', 'some_future_intent', 'constructor', '__proto__'].every((x) => intentKeepsOutOfNotes(x) === false), 'a value that is not an intent is never treated as having structured storage');
   for (const [i, r] of Object.entries(INTENT_RULES)) if (Array.isArray(r.create) && r.create.includes('can_manage_invoices')) check(intentKeepsOutOfNotes(i) === true, `"${i}" needs can_manage_invoices to create, so it is money and must be kept out of notes (a new gated money intent is covered automatically)`);
@@ -631,6 +633,9 @@ async function expect(role, method, path, want) {
 
   // The date reader: an ordinal word means exactly its digit form.
   await require('./dates.test.js')({ check, bundleTo });
+
+  // Reopening a cancelled order: what comes back, and what does not.
+  await require('./reopen.test.js')({ check, bundleTo, srcDir, path, sameJson });
 
   // Sensitive person details (payroll and banking) and one selection per person.
   await require('./details.test.js')({ check, bundleTo, srcDir, path, sameJson });

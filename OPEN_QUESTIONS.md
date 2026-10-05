@@ -3,21 +3,15 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 13 in progress).
+decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 13 applied).
 
 ## A. Decisions only Pierre can make
-
-39. **A cancelled order cannot be reopened.** To order the same thing again, place a new order. Cancelling is a held
-    action and is recorded with who cancelled it, but there is no "uncancel". *Option:* a spoken "reopen the Floornet
-    order".
-
-
-
 
 49. **The note filter is plain.** It catches bank and pay words and an amount per day, hour, week or month. A sentence phrased
     outside those ("he's on 600 a shift", "FNB cheque 6201...") is still kept in notes, and the words of every sentence stay in
     the raw capture. *Option:* widen the patterns as real misses turn up, or ask the reader to flag them.
     (`DECISIONS.md`, "Decisions session, round 12".)
+
 
 ## B. Needs a live check only a phone can give
 
@@ -31,6 +25,9 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     sentence-run naming Jenny once (expect both under her), "Sipho's bank is FNB, account number 6201..." as a note (expect "not
     kept in the notes"), and a supplier invoice in boxes with and without a box conversion saved. The models that read the unit
     and each sentence could not be run here.
+14j. **A real "reopen the Floornet order".** The language model that reads it could not be run here. Cancel an order and confirm it,
+    then say "reopen the Floornet order" (expect the order named and a confirmation), and once with two cancelled orders (expect a
+    list and a request for a number).
 14i. **Round 11 on the phone.** Say "Jabulani's day rate is R600 a day" as the installer (expect "Nothing was saved...") and as the
     owner (expect it held). Look at the Permissions room: it should now show Payroll and Banking details as switches. Ask "and
     her balance" on two phones signed in as two people: each should follow their own last customer, and "forget that" on
@@ -86,6 +83,11 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
 
 ## Settled (kept so the reasoning is not lost)
+
+- 2026-10-04, decided by Pierre (decisions session, round 13, orders):
+  - **A spoken reopen for a cancelled order: built,** as a held action that names the order, never guesses between several, never
+    creates a supplier, and on confirming brings the order back and re-opens only the shortages the cancellation closed. Applied.
+    (`DECISIONS.md`, "Decisions session, round 13 (part 2)".)
 
 - 2026-10-04, decided by Pierre (decisions session, round 13):
   - **Three finer permission switches: expense totals, supplier balances, material prices.** The first two follow "Money in and out"

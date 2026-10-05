@@ -6265,3 +6265,20 @@ Round 13, decided by Pierre: **31.** add the three finer permission switches; **
 ## Decision 33: the recognised unit list stays as it is
 
 Decided by Pierre 2026-10-04: **leave it; add units as they turn up.** A unit outside the list (a "bundle", a "pair") is still never converted and never flagged, by design, so it cannot block a delivery. Each unit added later risks a wrong match, so they are added one at a time when one is actually needed.
+
+
+---
+
+## Decisions session, round 13 (part 2): reopening a cancelled order
+
+Decided by Pierre: **32. add a spoken reopen, held for confirmation.** (Parts 31 and 33 of the same round, the finer permission switches and the unit list, are recorded above.)
+
+**What it does.** "Reopen the Floornet order" is the mirror of cancelling one: a **held action** that names the order and needs your confirmation ("Reopen Floornet order #1 Vinyl and underlay (50 sqm Vinyl, 100 sqm Underlay ordered, cancelled 2026-10-03)? Needs your confirmation (action #1) before it's reopened."). With one cancelled order it offers that one; with several it **never guesses**: it lists them and asks for a number ("reopen order 2"); a number that is not one of the cancelled orders lists the ones that are (an order that is still open is not offered); with none it says so. The supplier must already be on file (find-only, so a name nobody has heard of creates no supplier), and the permission is the same as cancelling it (invoicing), for the request and for the confirmation.
+
+**On confirming:** the cancellation is removed, so the order is **outstanding again and a delivery matches it again**, and **the shortages the cancellation closed are open again**: "Reopened Floornet order #1. 1 shortage the cancellation had closed is open again." **Only those.** A shortage closed for another reason (a credit, an acceptance, a reason given) was resolved on its own account and stays resolved, even on the same order; the cancellation marked its own closures (resolution "cancelled", reason "order cancelled") and only those are undone. Confirming an order that was reopened in the meantime says it is already open and changes nothing. An order can be cancelled again after it was reopened.
+
+**The property that matters.** Against `main`, **no existing recording changed or was removed**; 18 were added (eleven spoken, six confirmation including a **full round trip**, cancel, confirm, reopen, confirm, which removes the cancellation and restores exactly the shortage it had closed; and one showing a delivery matching a reopened order). 16 unit tests run against a real SQLite database cover the edges: a credited shortage staying resolved, a closure recorded by hand on the same order left alone, another supplier's orders never listed, an unknown order, idempotence, and cancelling again after reopening.
+
+**Verified:** typecheck unchanged; **4,124 checks**. **Six deliberate breakages were caught:** reopening that also undoes closures the cancellation did not make; reopening that reports success but leaves the order cancelled; reopening that leaves the cancellation's shortages shut; the cancelled list showing every supplier's orders; a reopen able to create a supplier (the rule removed at **both** sites, the mistake my earlier mutation helper had made); and any role able to reopen. **One flaw of my own, caught on reading the recordings:** two messages said "cancelled 2026-10-05", a date taken from the database's real clock, which would have broken the next day; the cases now carry an explicit cancellation date, and the recordings were checked for any other real-clock date.
+
+**Not run here:** the language model that reads "reopen the Floornet order" (its prompt describes the intent and gives an example, and says it is the opposite of cancelling), so it needs one real try on the phone, once with two cancelled orders.

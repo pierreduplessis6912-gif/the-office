@@ -2295,6 +2295,213 @@
   "writes": {},
   "effects": []
  },
+ "confirm reopen: owner brings a cancelled order back": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "reopened": {
+     "alreadyOpen": false,
+     "reopenedShortages": 0
+    },
+    "message": "Reopened Floornet order #1."
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "reopen_order",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\"}",
+       "status": "pending",
+       "source_transcript": "reopen the Floornet order"
+      },
+      "after": {
+       "id": 1,
+       "type": "reopen_order",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\"}",
+       "status": "confirmed",
+       "source_transcript": "reopen the Floornet order"
+      }
+     }
+    ]
+   },
+   "purchase_order_cancellations": {
+    "removed": [
+     {
+      "purchase_order_id": 1,
+      "cancelled_by": "owner@example.com"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm reopen: the order was already open": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "reopened": {
+     "alreadyOpen": true,
+     "reopenedShortages": 0
+    },
+    "message": "Floornet order #1 is already open."
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "reopen_order",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\"}",
+       "status": "pending",
+       "source_transcript": "reopen the Floornet order"
+      },
+      "after": {
+       "id": 1,
+       "type": "reopen_order",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\"}",
+       "status": "confirmed",
+       "source_transcript": "reopen the Floornet order"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm reopen: an installer is refused at the gate": {
+  "result": {
+   "status": 403,
+   "body": {
+    "error": "not available for your role"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "confirm reopen: confirmed twice": {
+  "result": {
+   "status": 409,
+   "body": {
+    "error": "action already confirmed"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "reject reopen: the order stays cancelled": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "rejected",
+    "id": 1
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "reopen_order",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\"}",
+       "status": "pending",
+       "source_transcript": "reopen the Floornet order"
+      },
+      "after": {
+       "id": 1,
+       "type": "reopen_order",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\"}",
+       "status": "rejected",
+       "source_transcript": "reopen the Floornet order"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm reopen: the round trip, cancel then reopen, restores the shortage the cancellation closed": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "reopened": {
+     "alreadyOpen": false,
+     "reopenedShortages": 1
+    },
+    "message": "Reopened Floornet order #1. 1 shortage the cancellation had closed is open again."
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 2,
+       "type": "reopen_order",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\"}",
+       "status": "pending",
+       "source_transcript": "reopen the Floornet order"
+      },
+      "after": {
+       "id": 2,
+       "type": "reopen_order",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\"}",
+       "status": "confirmed",
+       "source_transcript": "reopen the Floornet order"
+      }
+     }
+    ]
+   },
+   "purchase_order_cancellations": {
+    "removed": [
+     {
+      "purchase_order_id": 1,
+      "cancelled_by": "owner@example.com"
+     }
+    ]
+   },
+   "variance_dispositions": {
+    "removed": [
+     {
+      "id": 1,
+      "grn_line_item_id": 2,
+      "reason": "order cancelled",
+      "resolution": "cancelled",
+      "credit_amount": null,
+      "recorded_by": "owner@example.com",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
  "confirm identity question: owner, the name belongs to an installer": {
   "result": {
    "status": 200,

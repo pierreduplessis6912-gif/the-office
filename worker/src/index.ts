@@ -10,7 +10,7 @@ import {
   verifySession, getSessionToken, getCookie, base64UrlEncode, ROLE_CAPABILITIES, ENFORCE_CAPABILITIES,
   ACTION_TYPE_CAPABILITY, ROUTE_RULES, SIGNABLE_DOCUMENT_PATHS, canResolveActionType, intentCreationRefusal, intentKeepsOutOfNotes,
 } from "./auth";
-import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote, duplicateInvoiceMessage, findDuplicateSupplierInvoice, normalizeInvoiceReference, describeConversion, forgetUnitConversions, listUnitConversions, unitConversionsAnswer, checkStockUnit, listSupplierStatements, recordSupplierStatement, statementDifferenceNote, supplierStatementsAnswer, checkInvoiceUnits } from "./finance";
+import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote, duplicateInvoiceMessage, findDuplicateSupplierInvoice, normalizeInvoiceReference, describeConversion, forgetUnitConversions, listUnitConversions, unitConversionsAnswer, checkStockUnit, listSupplierStatements, recordSupplierStatement, statementDifferenceNote, supplierStatementsAnswer, checkInvoiceUnits, describeCancelledOrder, getCancelledOrdersForSupplier, reopenPurchaseOrder, type CancelledOrder } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 import { handleDebugRoute } from "./debug";
 import { DOCUMENT_KIND_LABEL, asksAboutDeliveryExceptions, deliveryExceptionAnswer, deliveryHadExceptions, deliveryHeldMessage, deliveryRecordedMessage, inferDocumentSupplier, planDelivery } from "./documents";
@@ -315,7 +315,7 @@ async function processOneExtraction(
   // through the already-existing read-only findExistingEntityByName
   // instead of the create-or-find reconcile functions.
   if (extraction?.customer_name) {
-    if (extraction.intent === "lookup" || extraction.intent === "cancel_order" || extraction.intent === "set_unit_conversion" || extraction.intent === "forget_unit_conversion" || extraction.intent === "supplier_statement") {
+    if (extraction.intent === "lookup" || extraction.intent === "cancel_order" || extraction.intent === "set_unit_conversion" || extraction.intent === "forget_unit_conversion" || extraction.intent === "supplier_statement" || extraction.intent === "reopen_order") {
       const found = await findExistingCustomerByName(env, extraction.customer_name);
       if (found) {
         customer = { id: found.id, name: found.name, matched: true };
@@ -434,7 +434,7 @@ async function processOneExtraction(
   }
 
   if (extraction?.character_name) {
-    if (extraction.intent === "lookup" || extraction.intent === "cancel_order" || extraction.intent === "set_unit_conversion" || extraction.intent === "forget_unit_conversion" || extraction.intent === "supplier_statement") {
+    if (extraction.intent === "lookup" || extraction.intent === "cancel_order" || extraction.intent === "set_unit_conversion" || extraction.intent === "forget_unit_conversion" || extraction.intent === "supplier_statement" || extraction.intent === "reopen_order") {
       const found = await findExistingCharacterByName(env, extraction.character_name);
       if (found) {
         character = { id: found.id, name: found.name, matched: true };
@@ -721,6 +721,38 @@ async function processOneExtraction(
         cancelOrderNumberNotOpen = { wanted, open };
       } else {
         cancelOrderWhich = open;
+      }
+    }
+  }
+
+  // Reopening a cancelled order (decided by Pierre 2026-10-04): the mirror of cancelling. A held action that names the order, never guesses
+  // between several (say "reopen order 3"), and needs the supplier to be on file already.
+  let reopenOrderHold: { id: number; summary: string; supplierName: string } | null = null;
+  let reopenOrderNoSupplier = false;
+  let reopenOrderUnknownSupplier: string | null = null;
+  let reopenOrderNone = false;
+  let reopenOrderWhich: CancelledOrder[] | null = null;
+  let reopenOrderNumberNotCancelled: { wanted: number; cancelled: CancelledOrder[] } | null = null;
+  if (extraction?.intent === "reopen_order") {
+    if (!extraction.character_name) {
+      reopenOrderNoSupplier = true;
+    } else if (!character) {
+      reopenOrderUnknownSupplier = extraction.character_name;
+    } else {
+      const cancelled = await getCancelledOrdersForSupplier(env, character.id);
+      const wanted = parseOrderNumber(transcript);
+      const target = cancelled.length === 0 ? null : wanted !== null ? cancelled.find((o) => o.id === wanted) ?? null : cancelled.length === 1 ? cancelled[0] : null;
+      if (cancelled.length === 0) {
+        reopenOrderNone = true;
+      } else if (target) {
+        const held = await holdForConfirmation(env, "reopen_order", { purchaseOrderId: target.id, supplierId: character.id, supplierName: character.name }, transcript);
+        pendingActionId = held.id;
+        pendingActionType = "reopen_order";
+        reopenOrderHold = { id: held.id, summary: describeCancelledOrder(target), supplierName: character.name };
+      } else if (wanted !== null) {
+        reopenOrderNumberNotCancelled = { wanted, cancelled };
+      } else {
+        reopenOrderWhich = cancelled;
       }
     }
   }
@@ -1718,6 +1750,18 @@ async function processOneExtraction(
   } else if (extraction?.intent === "quotation" && customer && !pendingActionId) {
     // Same: a quotation with no readable items and no amount answered as a lookup.
     message = `I heard a quotation for ${customer.name}, but couldn't make out any items or an amount.`;
+  } else if (extraction?.intent === "reopen_order" && reopenOrderHold) {
+    message = `Reopen ${reopenOrderHold.supplierName} order ${reopenOrderHold.summary}? Needs your confirmation (action #${reopenOrderHold.id}) before it's reopened.`;
+  } else if (extraction?.intent === "reopen_order" && reopenOrderNoSupplier) {
+    message = "I heard you want to reopen an order, but no supplier name came through — which supplier is it with?";
+  } else if (extraction?.intent === "reopen_order" && reopenOrderUnknownSupplier) {
+    message = `I don't have ${reopenOrderUnknownSupplier} as a supplier, so there is no order to reopen.`;
+  } else if (extraction?.intent === "reopen_order" && reopenOrderNone) {
+    message = `${character!.name} has no cancelled orders to reopen.`;
+  } else if (extraction?.intent === "reopen_order" && reopenOrderNumberNotCancelled) {
+    message = `${character!.name} has no cancelled order #${reopenOrderNumberNotCancelled.wanted}. Cancelled orders: ${reopenOrderNumberNotCancelled.cancelled.map(describeCancelledOrder).join("; ")}.`;
+  } else if (extraction?.intent === "reopen_order" && reopenOrderWhich) {
+    message = `${character!.name} has ${reopenOrderWhich.length} cancelled orders: ${reopenOrderWhich.map(describeCancelledOrder).join("; ")}. Say "reopen order" and its number to pick one.`;
   } else if (extraction?.intent === "cancel_order" && cancelOrderHold) {
     message = `Cancel ${cancelOrderHold.supplierName} order ${cancelOrderHold.summary}? Needs your confirmation (action #${cancelOrderHold.id}) before it's cancelled.`;
   } else if (extraction?.intent === "cancel_order" && cancelOrderNoSupplier) {
@@ -4460,6 +4504,23 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         // a real, deterministic quantity variance, computed in
         // recordGoodsReceived, returned here so Peter sees it
         // immediately, not buried in a debug route.
+        if (action.type === "reopen_order") {
+          const payload = JSON.parse(action.payload) as { purchaseOrderId: number; supplierName?: string };
+          const reopened = await reopenPurchaseOrder(env, payload.purchaseOrderId);
+          await env.OFFICE_DB.prepare(
+            "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+          )
+            .bind(id)
+            .run();
+          return Response.json({
+            status: "confirmed",
+            reopened,
+            message: reopened.alreadyOpen
+              ? `${payload.supplierName ?? "That"} order #${payload.purchaseOrderId} is already open.`
+              : `Reopened ${payload.supplierName ?? "the"} order #${payload.purchaseOrderId}.${reopened.reopenedShortages > 0 ? ` ${reopened.reopenedShortages} shortage${reopened.reopenedShortages === 1 ? "" : "s"} the cancellation had closed ${reopened.reopenedShortages === 1 ? "is" : "are"} open again.` : ""}`,
+          });
+        }
+
         if (action.type === "cancel_order") {
           const payload = JSON.parse(action.payload) as { purchaseOrderId: number; supplierName?: string };
           const { email: cancelledBy } = await resolveCapabilities(request, env);

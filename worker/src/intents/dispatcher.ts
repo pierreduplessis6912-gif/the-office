@@ -91,6 +91,7 @@ export const INTENT_GROUP: Record<Intent, HandlerGroup> = {
   supplier_invoice: "procurement",
   variance_disposition: "procurement",
   cancel_order: "procurement",
+  reopen_order: "procurement",
   supplier_statement: "procurement",
   invoice: "job_pricing",
   quotation: "job_pricing",

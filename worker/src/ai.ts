@@ -472,6 +472,9 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             'intent is "set_unit_conversion" if the message says how a pack unit converts for a material, for example "a box of ' +
             'laminate is 2.2 square metres" or "underlay comes 15 square metres to a roll". Put nothing in customer_name or ' +
             'character_name. ' +
+            'intent is "reopen_order" if the message BRINGS BACK an order that was cancelled, for example "reopen the Floornet ' +
+            'order", "un-cancel the vinyl order" or "bring back order 3". Put the supplier in character_name with ' +
+            'character_relationship "supplier" and leave customer_name null. This differs from cancel_order, which cancels one. ' +
             'intent is "cancel_order" if the message CANCELS or calls off an order that was already placed with a ' +
             'supplier, for example "cancel the Floornet order", "call off the vinyl order with Floornet" or "scrap order 3". ' +
             'Put the supplier in character_name with character_relationship "supplier" and leave customer_name null. This ' +
@@ -578,6 +581,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             '"forget the laminate conversion" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"forget_unit_conversion","amount":null,"fact_key":null,"fact_value":"laminate","personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"what conversions do I have" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"unit_conversions","deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"a box of laminate is 2.2 square metres" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"set_unit_conversion","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
+            '"reopen the Floornet order" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"reopen_order","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"cancel the Floornet order" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"cancel_order","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"order 160 square meters of carpet tile from Floornet at R380 a square meter" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"purchase_order","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"the Floornet delivery arrived, but the underlay was short" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"goods_received","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
@@ -613,7 +617,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             "Return ONLY JSON, no markdown, no explanation: " +
             '{"customer_name": string or null, "character_name": string or null, "character_relationship": ' +
             'string or null, "intent": "payment" or "invoice" or "quotation" or "convert_quote" or ' +
-            '"price_scope" or "work_observation" or "lookup" or "reminder" or "task_complete" or "expense" or "note" or "purchase_order" or "goods_received" or "supplier_invoice" or "variance_disposition" or "supplier_payment" or "register_stock_item" or "stock_usage" or "stocktake" or "raise_snag" or "resolve_snag" or "raise_lead" or "lose_lead" or "cancel_order" or "set_unit_conversion" or "forget_unit_conversion" or "supplier_statement" or "forget_last" or "other", "amount": number or null, ' +
+            '"price_scope" or "work_observation" or "lookup" or "reminder" or "task_complete" or "expense" or "note" or "purchase_order" or "goods_received" or "supplier_invoice" or "variance_disposition" or "supplier_payment" or "register_stock_item" or "stock_usage" or "stocktake" or "raise_snag" or "resolve_snag" or "raise_lead" or "lose_lead" or "cancel_order" or "reopen_order" or "set_unit_conversion" or "forget_unit_conversion" or "supplier_statement" or "forget_last" or "other", "amount": number or null, ' +
             '"fact_key": string or null, "fact_value": string or null, "personal_note": string or null, ' +
             '"query_scope": "customer" or "character" or "personal" or "business" or null, "deposit_percent": ' +
             'number or null, "scope_document_type": "quotation" or "invoice" or null, "due_date_raw": ' +

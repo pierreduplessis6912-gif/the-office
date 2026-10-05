@@ -956,6 +956,65 @@ export function conversionNote(converted: DeliveryUnitCheck<unknown>["converted"
   return ` (${converted.map((c) => `${c.quantity} ${c.from} of ${c.item} counted as ${c.result} ${c.to}`).join("; ")}.)`;
 }
 
+// ---- Reopening a cancelled order (decided by Pierre 2026-10-04) -------------------------------------------------------------
+export interface CancelledOrder {
+  id: number;
+  description: string;
+  cancelledOn: string;
+  lines: Array<{ description: string; ordered: number; unit: string | null }>;
+}
+
+export async function getCancelledOrdersForSupplier(env: Env, supplierId: number): Promise<CancelledOrder[]> {
+  await ensureCancellationTable(env);
+  const { results } = await env.OFFICE_DB.prepare(
+    `SELECT po.id AS id, po.description AS description, c.created_at AS cancelled_at
+       FROM purchase_orders po JOIN purchase_order_cancellations c ON c.purchase_order_id = po.id
+      WHERE po.supplier_id = ? ORDER BY po.created_at ASC, po.id ASC`
+  )
+    .bind(supplierId)
+    .all<{ id: number; description: string; cancelled_at: string }>();
+  const orders = results ?? [];
+  if (orders.length === 0) return [];
+  const { results: lines } = await env.OFFICE_DB.prepare(
+    `SELECT purchase_order_id, description, quantity_ordered, unit FROM po_line_items WHERE purchase_order_id IN (${orders.map(() => "?").join(",")}) ORDER BY id`
+  )
+    .bind(...orders.map((o) => o.id))
+    .all<{ purchase_order_id: number; description: string; quantity_ordered: number; unit: string | null }>();
+  return orders.map((o) => ({
+    id: o.id,
+    description: o.description,
+    cancelledOn: String(o.cancelled_at).slice(0, 10),
+    lines: (lines ?? []).filter((l) => l.purchase_order_id === o.id).map((l) => ({ description: l.description, ordered: l.quantity_ordered, unit: l.unit })),
+  }));
+}
+
+export function describeCancelledOrder(order: CancelledOrder): string {
+  const what = order.lines.map((l) => `${l.ordered}${l.unit ? ` ${l.unit}` : ""} ${l.description}`).join(", ");
+  return `#${order.id} ${order.description} (${what} ordered, cancelled ${order.cancelledOn})`;
+}
+
+// Brings the order back: it counts as outstanding again, and the shortages the CANCELLATION closed are open again. Only those: a shortage closed
+// for another reason (a credit, an acceptance, a reason given) was resolved on its own account and stays resolved.
+export async function reopenPurchaseOrder(env: Env, purchaseOrderId: number): Promise<{ alreadyOpen: boolean; reopenedShortages: number }> {
+  await ensureCancellationTable(env);
+  const cancelled = await env.OFFICE_DB.prepare("SELECT purchase_order_id FROM purchase_order_cancellations WHERE purchase_order_id = ?")
+    .bind(purchaseOrderId)
+    .first<{ purchase_order_id: number }>();
+  if (!cancelled) return { alreadyOpen: true, reopenedShortages: 0 };
+  const { results } = await env.OFFICE_DB.prepare(
+    `SELECT vd.id AS id
+       FROM variance_dispositions vd
+       JOIN grn_line_items g ON g.id = vd.grn_line_item_id
+       JOIN goods_received_notes n ON n.id = g.grn_id
+      WHERE n.purchase_order_id = ? AND vd.resolution = 'cancelled' AND vd.reason = 'order cancelled'`
+  )
+    .bind(purchaseOrderId)
+    .all<{ id: number }>();
+  for (const row of results ?? []) await env.OFFICE_DB.prepare("DELETE FROM variance_dispositions WHERE id = ?").bind(row.id).run();
+  await env.OFFICE_DB.prepare("DELETE FROM purchase_order_cancellations WHERE purchase_order_id = ?").bind(purchaseOrderId).run();
+  return { alreadyOpen: false, reopenedShortages: (results ?? []).length };
+}
+
 export function candidateOrderLines(
   outstanding: OutstandingLine[]
 ): Array<{ description: string; quantity_ordered: number; unit: string | null }> {

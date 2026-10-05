@@ -81,6 +81,16 @@ module.exports = function cases(caps) {
   // A bill in boxes, converted when it was held (decided 2026-10-04). Floornet is supplier 2 here.
   const vinylBoxConversion = (db) => { withOrder(db); db.exec(unitConversionDdl + "; INSERT INTO unit_conversions (item_key, from_unit, to_unit, factor) VALUES ('vinyl', 'box', 'sqm', 2.5);"); };
   const SIAIbox = { match: /quantity_billed/, reply: { supplier_name: 'Floornet', supplier_reference: 'INV-7731', line_items: [{ matched_description: 'Vinyl', quantity_billed: 20, unit: 'boxes', unit_price_billed: 462.5 }] } };
+  // Reopening a cancelled order (decided 2026-10-04). Floornet is supplier 2 here.
+  const cancelledWithHold = (db) => {
+    withOrder(db);
+    db.exec(cancellationDdl + ` INSERT INTO purchase_order_cancellations (purchase_order_id, cancelled_by, created_at) VALUES (1, 'owner@example.com', '2026-10-03 08:00:00');
+      INSERT INTO pending_actions (id, type, payload, source_transcript, status, created_at) VALUES (1, 'reopen_order', '{"purchaseOrderId":1,"supplierId":2,"supplierName":"Floornet"}', 'reopen the Floornet order', 'pending', '2026-10-03 10:00:00');`);
+  };
+  const openWithHold = (db) => {
+    withOrder(db);
+    db.exec(`INSERT INTO pending_actions (id, type, payload, source_transcript, status, created_at) VALUES (1, 'reopen_order', '{"purchaseOrderId":1,"supplierId":2,"supplierName":"Floornet"}', 'reopen the Floornet order', 'pending', '2026-10-03 10:00:00');`);
+  };
   const OBS = (reply) => ({ match: /Extract the structure of a tradesperson's job observation/, reply });
   const LINES = (reply) => ({ match: /Extract every distinct line item from a tradesperson's quotation or invoice description/, reply });
   const GRAI = (reply) => ({ match: /quantity_received/, reply });
@@ -151,6 +161,15 @@ module.exports = function cases(caps) {
     // ---------------- the same invoice confirmed twice ----------------
     r('confirm supplier invoice: the first of two copies is recorded', twoCopiesOfOneInvoice, '/actions/1/confirm', [], []),
     r('confirm supplier invoice: a copy of an invoice that is already recorded is not recorded again and stays waiting', copyOfRecordedInvoice, '/actions/1/confirm', [], []),
+
+    // ---------------- reopening a cancelled order ----------------
+    r('confirm reopen: owner brings a cancelled order back', cancelledWithHold, '/actions/1/confirm', [], []),
+    r('confirm reopen: the order was already open', openWithHold, '/actions/1/confirm', [], []),
+    r('confirm reopen: an installer is refused at the gate', cancelledWithHold, '/actions/1/confirm', [], [], { role: 'installer' }),
+    r('confirm reopen: confirmed twice', cancelledWithHold, '/actions/1/confirm', [confirm(1)], []),
+    r('reject reopen: the order stays cancelled', cancelledWithHold, '/actions/1/reject', [], []),
+    r('confirm reopen: the round trip, cancel then reopen, restores the shortage the cancellation closed', withDiscrepancy, '/actions/2/confirm',
+      [say('cancel the Floornet order', { intent: 'cancel_order', ...floornet }), confirm(1), say('reopen the Floornet order', { intent: 'reopen_order', ...floornet })], []),
 
     // ---------------- who is this? ----------------
     r('confirm identity question: owner, the name belongs to an installer', base, '/actions/1/confirm', [say('Jabulani called about a job', { intent: 'note', customer_name: 'Jabulani' })], []),
