@@ -719,6 +719,58 @@ export async function convertQuantity(
   return { ok: true, quantity: round4(quantity * factor), factor };
 }
 
+// ---- Seeing and removing conversions (decided by Pierre 2026-10-04) ----------------------------------------------------------
+export interface SavedConversion {
+  item: string;
+  from: string;
+  to: string;
+  factor: number;
+}
+
+function conversionMatchesItem(rowKey: string, asked: string): boolean {
+  const a = new Set(unitItemKey(asked).split(" "));
+  const r = rowKey.split(" ");
+  return rowKey === unitItemKey(asked) || r.every((w) => a.has(w)) || [...a].every((w) => r.includes(w));
+}
+
+export async function listUnitConversions(env: Env, item?: string | null): Promise<SavedConversion[]> {
+  await ensureUnitConversionTable(env);
+  const { results } = await env.OFFICE_DB.prepare("SELECT item_key, from_unit, to_unit, factor FROM unit_conversions ORDER BY item_key, from_unit, to_unit")
+    .all<{ item_key: string; from_unit: string; to_unit: string; factor: number }>();
+  return (results ?? [])
+    .filter((r) => !item || conversionMatchesItem(r.item_key, item))
+    .map((r) => ({ item: r.item_key, from: r.from_unit, to: r.to_unit, factor: r.factor }));
+}
+
+// Forgets the conversion(s) saved for EXACTLY this item (never a looser match: a wrong guess would delete the wrong one). When there
+// is none, what is saved for similar names is returned so the person can be shown it.
+export async function forgetUnitConversions(env: Env, itemName: string): Promise<{ forgotten: SavedConversion[]; similar: SavedConversion[] }> {
+  await ensureUnitConversionTable(env);
+  const key = unitItemKey(itemName);
+  const { results } = await env.OFFICE_DB.prepare("SELECT item_key, from_unit, to_unit, factor FROM unit_conversions WHERE item_key = ? ORDER BY from_unit, to_unit")
+    .bind(key)
+    .all<{ item_key: string; from_unit: string; to_unit: string; factor: number }>();
+  const forgotten = (results ?? []).map((r) => ({ item: r.item_key, from: r.from_unit, to: r.to_unit, factor: r.factor }));
+  if (forgotten.length > 0) {
+    await env.OFFICE_DB.prepare("DELETE FROM unit_conversions WHERE item_key = ?").bind(key).run();
+    return { forgotten, similar: [] };
+  }
+  return { forgotten: [], similar: await listUnitConversions(env, itemName) };
+}
+
+export function describeConversion(c: SavedConversion): string {
+  return `1 ${c.from} of ${c.item} = ${c.factor} ${c.to}`;
+}
+
+export function unitConversionsAnswer(rows: SavedConversion[], asked: string | null): string {
+  if (rows.length === 0) {
+    return asked
+      ? `No unit conversion is saved for ${asked}. Say, for example, "a box of ${asked} is 2.2 square metres".`
+      : `No unit conversions are saved yet. Say, for example, "a box of laminate is 2.2 square metres".`;
+  }
+  return `Unit conversions${asked ? ` for ${asked}` : ""}: ${rows.map(describeConversion).join("; ")}.`;
+}
+
 export interface DeliveryUnitCheck<T> {
   lines: T[];
   converted: Array<{ item: string; quantity: number; from: string; to: string; result: number }>;

@@ -33,12 +33,12 @@ export interface Extraction {
   customer_name: string | null;
   character_name: string | null;
   character_relationship: string | null;
-  intent: "payment" | "invoice" | "quotation" | "convert_quote" | "price_scope" | "work_observation" | "lookup" | "reminder" | "task_complete" | "expense" | "note" | "purchase_order" | "goods_received" | "supplier_invoice" | "variance_disposition" | "supplier_payment" | "register_stock_item" | "stock_usage" | "stocktake" | "raise_snag" | "resolve_snag" | "raise_lead" | "lose_lead" | "supplier_statement" | "cancel_order" | "set_unit_conversion" | "forget_last" | "other";
+  intent: "payment" | "invoice" | "quotation" | "convert_quote" | "price_scope" | "work_observation" | "lookup" | "reminder" | "task_complete" | "expense" | "note" | "purchase_order" | "goods_received" | "supplier_invoice" | "variance_disposition" | "supplier_payment" | "register_stock_item" | "stock_usage" | "stocktake" | "raise_snag" | "resolve_snag" | "raise_lead" | "lose_lead" | "supplier_statement" | "cancel_order" | "set_unit_conversion" | "forget_unit_conversion" | "forget_last" | "other";
   amount: number | null;
   fact_key: string | null;
   fact_value: string | null;
   personal_note: string | null;
-  query_scope: "customer" | "personal" | "business" | "character" | "material_price" | null;
+  query_scope: "customer" | "personal" | "business" | "character" | "material_price" | "unit_conversions" | null;
   deposit_percent: number | null;
   scope_document_type: "quotation" | "invoice" | null;
   // Real feature 2026-07-21 - a real, stated due time for a reminder

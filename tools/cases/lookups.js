@@ -38,6 +38,9 @@ module.exports = function cases(caps) {
   const oldMoneyNote = JSON.stringify({ facts: [{ text: 'paid Floornet R10000', storedAt: '2026-09-01T10:00:00.000Z' }, { text: 'prefers morning deliveries', storedAt: '2026-09-02T10:00:00.000Z' }] });
   const customerNote = JSON.stringify({ facts: [{ text: 'has a dog, keep the gate closed', storedAt: '2026-09-01T10:00:00.000Z' }] });
 
+  // The saved unit conversions can be asked for in words (decided 2026-10-04). The table is created by the code the first time it is needed.
+  const unitConversionDdl = "CREATE TABLE IF NOT EXISTS unit_conversions (item_key TEXT NOT NULL, from_unit TEXT NOT NULL, to_unit TEXT NOT NULL, factor REAL NOT NULL, set_by TEXT, updated_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (item_key, from_unit, to_unit))";
+  const someConversions = (db) => { books(db); db.exec(unitConversionDdl + "; INSERT INTO unit_conversions (item_key, from_unit, to_unit, factor) VALUES ('laminate', 'box', 'sqm', 2.2), ('quickstep laminate', 'box', 'sqm', 3), ('underlay', 'roll', 'sqm', 15);"); };
   const DASH = (reply) => ({ match: /broad, whole-business question wanting a real, visual snapshot/, reply });
   const TOPIC = (reply) => ({ match: /standing topic of the conversation below/, reply });
   const ANSWER = { match: /Answer the tradesperson's question using only the facts below/, reply: (input) => 'ANSWER FROM FACTS:\n' + ((input.messages.find((m) => m.role === 'system').content.split('Facts:\n')[1]) || '') };
@@ -50,6 +53,15 @@ module.exports = function cases(caps) {
     c('lookup: owner, the last price paid for a material', 'owner', withPriceHistory, { query_scope: 'material_price', fact_value: 'vinyl' }, 'what did we last pay for vinyl', []),
     c('lookup: owner, a material nobody has been invoiced for', 'owner', withPriceHistory, { query_scope: 'material_price', fact_value: 'grout' }, 'what did we last pay for grout', []),
     c('lookup: installer, the last price paid for a material', 'installer', withPriceHistory, { query_scope: 'material_price', fact_value: 'vinyl' }, 'what did we last pay for vinyl', []),
+
+    // ---------------- the saved unit conversions ----------------
+    c('lookup unit conversions: owner, all of them', 'owner', someConversions, { query_scope: 'unit_conversions' }, 'what conversions do I have', []),
+    c('lookup unit conversions: one material', 'owner', someConversions, { query_scope: 'unit_conversions', fact_value: 'laminate' }, 'how many square metres in a box of laminate', []),
+    c('lookup unit conversions: a material with none saved', 'owner', someConversions, { query_scope: 'unit_conversions', fact_value: 'grout' }, 'how many square metres in a box of grout', []),
+    c('lookup unit conversions: none saved at all', 'owner', books, { query_scope: 'unit_conversions' }, 'what conversions do I have', []),
+    c('lookup unit conversions: installer', 'installer', someConversions, { query_scope: 'unit_conversions' }, 'what conversions do I have', []),
+    c('lookup unit conversions: a role with no permissions is told it is restricted', 'stranger', someConversions, { query_scope: 'unit_conversions' }, 'what conversions do I have', []),
+    c('lookup unit conversions: a customer on screen is not borrowed as the subject', 'owner', (db) => { someConversions(db); db.exec("INSERT INTO selections (key, entity_id, label, updated_at) VALUES ('customer', 1, 'Jenny Smith', '2026-10-03 11:00:00');"); }, { query_scope: 'unit_conversions' }, 'and what conversions do I have', []),
 
     // ---------------- the delivery exception question ----------------
     c('lookup: owner, delivery exceptions are open', 'owner', withExceptions, {}, 'any delivery exceptions?', []),

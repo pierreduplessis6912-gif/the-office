@@ -105,6 +105,7 @@ export const INTENT_GROUP: Record<Intent, HandlerGroup> = {
   stock_usage: "stock",
   stocktake: "stock",
   set_unit_conversion: "stock",
+  forget_unit_conversion: "stock",
   lookup: "lookup",
   reminder: "memory",
   task_complete: "memory",

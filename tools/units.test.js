@@ -1,7 +1,7 @@
 // Tests for per-item unit conversion (decided 2026-10-04): the unit normaliser, the conversion store and its maths run against a
 // REAL SQLite database, the delivery check, and a guard that the test seeds create the same table the code does.
 module.exports = async function runUnitTests({ check, bundleTo, srcDir, fs, path, sameJson }) {
-  const { normalizeUnit, unitsDiffer, unitPlural, setUnitConversion, convertQuantity, checkDeliveryUnits, deliveryUnitQuestion, conversionNote } = bundleTo('finance.ts', 'rm-units-finance.js');
+  const { normalizeUnit, unitsDiffer, unitPlural, setUnitConversion, convertQuantity, checkDeliveryUnits, deliveryUnitQuestion, conversionNote, listUnitConversions, forgetUnitConversions, describeConversion, unitConversionsAnswer } = bundleTo('finance.ts', 'rm-units-finance.js');
   const { newDatabase, d1 } = require('./harness.js');
   const workerDir = path.join(srcDir, '..');
 
@@ -82,11 +82,36 @@ module.exports = async function runUnitTests({ check, bundleTo, srcDir, fs, path
   check(/Nothing was recorded from Floornet/.test(q) && /ordered in sqm but this delivery is in rolls/.test(q) && /a roll of Underlay is 2\.2 sqm/.test(q), 'the question says nothing was recorded, names both units, and shows how to answer');
   check(/20 boxes of Vinyl counted as 50 sqm/.test(conversionNote([{ item: 'Vinyl', quantity: 20, from: 'boxes', to: 'sqm', result: 50 }])) && conversionNote([]) === '', 'the note says what was counted as what, and nothing when nothing was converted');
 
+  // ---- 3b. Seeing and removing conversions (decided 2026-10-04) --------------------------------------------------
+  env = fresh();
+  check(sameJson(await listUnitConversions(env), []), 'with nothing saved the list is empty (and the table is created on first look)');
+  await setUnitConversion(env, 'Laminate', 'box', 'sqm', 2.2, null);
+  await setUnitConversion(env, 'Quickstep laminate', 'box', 'sqm', 3, null);
+  await setUnitConversion(env, 'Underlay', 'roll', 'sqm', 15, null);
+  let all = await listUnitConversions(env);
+  check(all.length === 3 && sameJson(all.map((c) => c.item), ['laminate', 'quickstep laminate', 'underlay']), 'the list is every saved conversion, in order of item name');
+  check(sameJson((await listUnitConversions(env, 'laminate')).map((c) => c.item), ['laminate', 'quickstep laminate']), 'asking about "laminate" shows both the laminate and the quickstep laminate conversions');
+  check(sameJson((await listUnitConversions(env, 'Quickstep laminate')).map((c) => c.item), ['laminate', 'quickstep laminate']), 'and asking about "Quickstep laminate" shows the plain laminate conversion that would apply to it too');
+  check((await listUnitConversions(env, 'grout')).length === 0, 'a material with no conversion lists nothing');
+  check(describeConversion(all[2]) === '1 roll of underlay = 15 sqm', 'a conversion reads as "1 roll of underlay = 15 sqm"');
+  check(unitConversionsAnswer(all, null) === 'Unit conversions: 1 box of laminate = 2.2 sqm; 1 box of quickstep laminate = 3 sqm; 1 roll of underlay = 15 sqm.', 'the answer lists them all');
+  check(/No unit conversions are saved yet/.test(unitConversionsAnswer([], null)) && /No unit conversion is saved for grout/.test(unitConversionsAnswer([], 'grout')), 'and says how to save one when there are none');
+  let gone = await forgetUnitConversions(env, 'Laminate');
+  check(gone.forgotten.length === 1 && gone.forgotten[0].item === 'laminate' && gone.similar.length === 0, 'forgetting "Laminate" forgets exactly the laminate conversion (case does not matter)');
+  all = await listUnitConversions(env);
+  check(sameJson(all.map((c) => c.item), ['quickstep laminate', 'underlay']), 'and does NOT touch "quickstep laminate", which merely contains the word');
+  gone = await forgetUnitConversions(env, 'laminate');
+  check(gone.forgotten.length === 0 && sameJson(gone.similar.map((c) => c.item), ['quickstep laminate']), 'forgetting a name that is not saved deletes nothing and shows what is saved under similar names');
+  gone = await forgetUnitConversions(env, 'grout');
+  check(gone.forgotten.length === 0 && gone.similar.length === 0, 'forgetting something never saved deletes nothing and finds nothing similar');
+  r = await convertQuantity(env, 'laminate', 10, 'box', 'sqm');
+  check(r.ok === false, 'once forgotten, a delivery of that item has no conversion again (it asks, as it did before one was saved)');
+
   // ---- 4. The table the seeds create is the table the code creates ----------------------------------------------
   const norm = (x) => x.replace(/\s+/g, ' ').replace(/\s*;\s*$/, '').trim();
   const code = fs.readFileSync(path.join(srcDir, 'finance.ts'), 'utf8').match(/"(CREATE TABLE IF NOT EXISTS unit_conversions [^"]*)"/);
   check(Boolean(code), 'the code creates the unit_conversions table');
-  for (const f of ['stock', 'procurement', 'actions', 'uploads']) {
+  for (const f of ['stock', 'procurement', 'actions', 'uploads', 'lookups']) {
     const seed = fs.readFileSync(path.join(__dirname, 'cases', f + '.js'), 'utf8').match(/"(CREATE TABLE IF NOT EXISTS unit_conversions [^"]*)"/);
     check(Boolean(seed) && Boolean(code) && norm(seed[1]) === norm(code[1]), `the table the ${f} cases create must be exactly the table the code creates (a drifted seed would test a table the product never has)`);
   }

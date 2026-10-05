@@ -3,7 +3,7 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 8 in progress).
+decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 8 applied).
 
 ## A. Decisions only Pierre can make
 
@@ -46,9 +46,6 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
 40. **Stock usage and stock counts are not converted.** Their readers carry no unit, so "used 3 boxes" of an item kept in
     sqm is recorded as 3 sqm. Deliveries are converted; this is the other half. *Option:* have those readers capture the unit
     and convert, or ask when it is ambiguous. (`DECISIONS.md`, "Decisions session, round 6 (part 2)".)
-41. **There is no way to list or delete a unit conversion.** Saying it again changes one, but a wrong one cannot be seen or
-    removed. *Option:* a spoken "what conversions do I have" and "forget the laminate conversion", or a screen in the
-    owner's room.
 42. **The recognised units are a fixed list** (square metres, boxes, bags, rolls, lengths, tiles, sheets, litres, kilograms,
     tubes, tins, packs, pallets, metres, each). A unit outside it (a "bundle") is never converted and never flagged, by
     design, so it cannot block a delivery. *Option:* add units as they turn up.
@@ -60,6 +57,7 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
 46. **The day-of-month reader takes the first number it sees as the day.** "5 pm on the 17th" is read as the 5th, and "3
     days from now" as the 3rd. Found while adding month names, which already skip a number that is a duration or a time.
     *Option:* apply the same guard to the plain day reader, preferring a number that has "the" or an ordinal ending.
+
 ## B. Needs a live check only a phone can give
 
 12. **The Codemagic rebuild**: the Confirm/Reject buttons for a follow-up question raised by a confirm ("Add to stock?",
@@ -68,6 +66,8 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     tests, never run on a real delivery note with two orders.
 15. **The Permissions screen on a real phone.** The web build compiles it; the phone build and a real tap-through are
     unverified (switch something off for the installer, then check on the installer's phone that the room is gone).
+14f. **A real "what conversions do I have" and "forget the laminate conversion".** Both are read by the language model, which
+    could not be run here. Say each once on the phone (and check "forget that" still means the previous message).
 14e. **A real unit conversion on a phone.** Say "a box of laminate is 2.2 square metres" (expect "Noted: 1 box of laminate =
     2.2 sqm"). Then place an order for laminate in square metres and say a delivery of it in boxes (expect "20 boxes of ... counted
     as ... sqm"), and once with no conversion on file (expect the question, and nothing recorded). The model that reads the
@@ -111,6 +111,11 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
 
 ## Settled (kept so the reasoning is not lost)
+
+- 2026-10-04, decided by Pierre (decisions session, round 8, conversions):
+  - **A spoken list and "forget" for unit conversions: built.** The list is answered in code; forgetting removes exactly the named
+    item's conversion, never a looser match, and offers near matches when the name is not saved. Materials access for both.
+    (`DECISIONS.md`, "Decisions session, round 8 (part 2)".)
 
 - 2026-10-04, decided by Pierre (decisions session, round 8):
   - **A named month is read** ("the 17th of November", "17 nov"); a date already gone by is next year; a day the month does not

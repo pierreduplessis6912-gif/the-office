@@ -10,7 +10,7 @@ import {
   verifySession, getSessionToken, getCookie, base64UrlEncode, ROLE_CAPABILITIES, ENFORCE_CAPABILITIES,
   ACTION_TYPE_CAPABILITY, ROUTE_RULES, SIGNABLE_DOCUMENT_PATHS, canResolveActionType, intentCreationRefusal, intentKeepsOutOfNotes,
 } from "./auth";
-import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote, duplicateInvoiceMessage, findDuplicateSupplierInvoice, normalizeInvoiceReference } from "./finance";
+import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote, duplicateInvoiceMessage, findDuplicateSupplierInvoice, normalizeInvoiceReference, describeConversion, forgetUnitConversions, listUnitConversions, unitConversionsAnswer } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 import { handleDebugRoute } from "./debug";
 import { DOCUMENT_KIND_LABEL, asksAboutDeliveryExceptions, deliveryExceptionAnswer, deliveryHadExceptions, deliveryHeldMessage, deliveryRecordedMessage, inferDocumentSupplier, planDelivery } from "./documents";
@@ -309,7 +309,7 @@ async function processOneExtraction(
   // through the already-existing read-only findExistingEntityByName
   // instead of the create-or-find reconcile functions.
   if (extraction?.customer_name) {
-    if (extraction.intent === "lookup" || extraction.intent === "cancel_order" || extraction.intent === "set_unit_conversion") {
+    if (extraction.intent === "lookup" || extraction.intent === "cancel_order" || extraction.intent === "set_unit_conversion" || extraction.intent === "forget_unit_conversion") {
       const found = await findExistingCustomerByName(env, extraction.customer_name);
       if (found) {
         customer = { id: found.id, name: found.name, matched: true };
@@ -428,7 +428,7 @@ async function processOneExtraction(
   }
 
   if (extraction?.character_name) {
-    if (extraction.intent === "lookup" || extraction.intent === "cancel_order" || extraction.intent === "set_unit_conversion") {
+    if (extraction.intent === "lookup" || extraction.intent === "cancel_order" || extraction.intent === "set_unit_conversion" || extraction.intent === "forget_unit_conversion") {
       const found = await findExistingCharacterByName(env, extraction.character_name);
       if (found) {
         character = { id: found.id, name: found.name, matched: true };
@@ -531,6 +531,7 @@ async function processOneExtraction(
   const scopeCouldBeEntity =
     extraction?.query_scope !== "personal" &&
     extraction?.query_scope !== "material_price" &&
+    extraction?.query_scope !== "unit_conversions" &&
     !(extraction?.query_scope === "business" && !hasBackwardReference);
   // Real, precise fix, found live: a real, explicit name that was
   // genuinely given but honestly not found (findExistingCustomerByName
@@ -931,6 +932,21 @@ async function processOneExtraction(
   // Decided by Pierre 2026-10-04: "a box of laminate is 2.2 square metres". A direct write (it is a fact about a material, no money
   // moves), gated like the rest of stock, and said again to change it. The reply always says what was understood or why not.
   let unitConversionMessage: string | null = null;
+  if (extraction?.intent === "forget_unit_conversion") {
+    // Decided by Pierre 2026-10-04: "forget the laminate conversion". Exactly that item's conversion(s), never a looser match.
+    const material = extraction.fact_value?.trim();
+    if (!material) {
+      unitConversionMessage = `Which material's conversion should I forget? Say, for example, "forget the laminate conversion".`;
+    } else {
+      const result = await forgetUnitConversions(env, material);
+      unitConversionMessage =
+        result.forgotten.length > 0
+          ? `Forgot the ${material} conversion (${result.forgotten.map((c) => `1 ${c.from} = ${c.factor} ${c.to}`).join("; ")}).`
+          : result.similar.length > 0
+          ? `I have no conversion saved for "${material}". I do have: ${result.similar.map(describeConversion).join("; ")}. Say the name exactly to forget one.`
+          : `I have no conversion saved for "${material}".`;
+    }
+  }
   if (extraction?.intent === "set_unit_conversion") {
     const conv = await extractUnitConversion(env, transcript);
     const from = normalizeUnit(conv.from_unit);
@@ -1673,7 +1689,7 @@ async function processOneExtraction(
     message = `I couldn't tell what happened with that shortage on ${character!.name}'s order. Say why it happened (short delivered, damaged and so on) or whether it is a back order or a credit, and I'll note it.`;
   } else if (extraction?.intent === "variance_disposition" && dispositionNoOpenDiscrepancy) {
     message = `I don't have an open, unresolved discrepancy on file for ${character!.name} to attach this to.`;
-  } else if (extraction?.intent === "set_unit_conversion" && unitConversionMessage) {
+  } else if ((extraction?.intent === "set_unit_conversion" || extraction?.intent === "forget_unit_conversion") && unitConversionMessage) {
     message = unitConversionMessage;
   } else if (extraction?.intent === "register_stock_item" && stockRegistrationResult) {
     message = `${stockRegistrationResult.existed ? "Already tracking" : "Now tracking"} ${stockRegistrationResult.name}${stockRegistrationResult.unit ? ` (${stockRegistrationResult.unit})` : ""} as real, running stock.`;
@@ -1849,6 +1865,12 @@ async function processOneExtraction(
       } else {
         message = `No real supplier invoice on file yet mentions "${extraction.fact_value}" — nothing to base a price on.`;
       }
+    } else if (extraction?.query_scope === "unit_conversions") {
+      // Decided by Pierre 2026-10-04: the saved unit conversions can be asked for in words. Answered in code, not paraphrased by a model, so
+      // the list is always exact. Materials access, like saving one.
+      message = capabilities.includes("can_know_materials")
+        ? unitConversionsAnswer(await listUnitConversions(env, extraction.fact_value), extraction.fact_value?.trim() || null)
+        : "Unit conversions exist for this business but are restricted for your role.";
     } else if (!customer && !character && asksAboutDeliveryExceptions(transcript)) {
       // Decided 2026-10-03 (Pierre): the delivery exception report, asked for in words. It had only
       // existed as a route and the app has no screen for it. Same permission as the report route

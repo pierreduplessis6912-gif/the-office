@@ -473,6 +473,8 @@ export const INTENT_RULES: Record<Extraction["intent"], IntentRule> = {
   register_stock_item: { produces: [], create: ["can_know_materials"], refusal: STOCK_REFUSAL },
   // How many of one unit are in another for a material (a box of laminate is 2.2 sqm). A direct write, gated like the rest of stock.
   set_unit_conversion: { produces: [], create: ["can_know_materials"], refusal: STOCK_REFUSAL },
+  // Removing a saved conversion: gated like saving one, and a direct write (it is said again to bring it back).
+  forget_unit_conversion: { produces: [], create: ["can_know_materials"], refusal: STOCK_REFUSAL },
   stock_usage: { produces: [], create: ["can_know_materials"], refusal: STOCK_REFUSAL },
   stocktake: { produces: [], create: ["can_know_materials"], refusal: STOCK_REFUSAL },
   // Decision recorded 2026-10-02 (Pierre): money is gated. A supplier
@@ -526,6 +528,7 @@ const ALSO_STRUCTURED_BUT_OPEN: ReadonlySet<string> = new Set([
   "raise_lead",
   "lose_lead",
   "set_unit_conversion",
+  "forget_unit_conversion",
 ]);
 
 export function intentKeepsOutOfNotes(intent: string | null | undefined): boolean {

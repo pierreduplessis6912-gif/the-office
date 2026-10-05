@@ -15,6 +15,7 @@ module.exports = function cases(caps) {
   const unitConversionDdl = "CREATE TABLE IF NOT EXISTS unit_conversions (item_key TEXT NOT NULL, from_unit TEXT NOT NULL, to_unit TEXT NOT NULL, factor REAL NOT NULL, set_by TEXT, updated_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (item_key, from_unit, to_unit))";
   const UCONV = (reply) => ({ match: /how a pack unit converts for a material/, reply });
   const laminateBox = (db) => { base(db); db.exec(unitConversionDdl + "; INSERT INTO unit_conversions (item_key, from_unit, to_unit, factor, set_by) VALUES ('laminate', 'box', 'sqm', 2.2, 'owner@example.com');"); };
+  const laminateAndQuickstep = (db) => { base(db); db.exec(unitConversionDdl + "; INSERT INTO unit_conversions (item_key, from_unit, to_unit, factor) VALUES ('laminate', 'box', 'sqm', 2.2), ('quickstep laminate', 'box', 'sqm', 3);"); };
   const laminateInverse = (db) => { base(db); db.exec(unitConversionDdl + "; INSERT INTO unit_conversions (item_key, from_unit, to_unit, factor, set_by) VALUES ('laminate', 'sqm', 'box', 0.4545, 'owner@example.com');"); };
   const REG = (reply) => ({ match: /registering a real, consumable material to track as running stock/, reply });
   const USE = (reply) => ({ match: /reporting real stock being used up on a job/, reply });
@@ -35,6 +36,16 @@ module.exports = function cases(caps) {
     c('unit conversion: the model finds nothing', 'owner', base, 'set_unit_conversion', 'laminate boxes', [UCONV({ item_name: null, from_unit: null, to_unit: null, factor: null })]),
     c('unit conversion: the model fails', 'owner', base, 'set_unit_conversion', 'a box of laminate is 2.2 square metres', [UCONV(boom)]),
     c('unit conversion: a material misread as a customer name creates nobody', 'owner', base, 'set_unit_conversion', 'a box of laminate is 2.2 square metres', [UCONV({ item_name: 'laminate', from_unit: 'box', to_unit: 'square metres', factor: 2.2 })], { customer_name: 'Laminate' }),
+
+    // ---------------- forget_unit_conversion ----------------
+    c('forget conversion: owner, a saved one', 'owner', laminateBox, 'forget_unit_conversion', 'forget the laminate conversion', [], { fact_value: 'laminate' }),
+    c('forget conversion: only that item, not a name that merely contains it', 'owner', laminateAndQuickstep, 'forget_unit_conversion', 'forget the laminate conversion', [], { fact_value: 'laminate' }),
+    c('forget conversion: a name that is not saved shows what is saved under similar names', 'owner', laminateAndQuickstep, 'forget_unit_conversion', 'forget the quickstep conversion', [], { fact_value: 'quickstep' }),
+    c('forget conversion: nothing is saved for that material', 'owner', base, 'forget_unit_conversion', 'forget the grout conversion', [], { fact_value: 'grout' }),
+    c('forget conversion: no material named', 'owner', laminateBox, 'forget_unit_conversion', 'forget the conversion', [], { fact_value: null }),
+    c('forget conversion: installer', 'installer', laminateBox, 'forget_unit_conversion', 'forget the laminate conversion', [], { fact_value: 'laminate' }),
+    c('forget conversion: a role with no permissions is refused', 'stranger', laminateBox, 'forget_unit_conversion', 'forget the laminate conversion', [], { fact_value: 'laminate' }),
+    c('forget conversion: a material misread as a customer name creates nobody', 'owner', laminateBox, 'forget_unit_conversion', 'forget the laminate conversion', [], { fact_value: 'laminate', customer_name: 'Laminate' }),
 
     // ---------------- register_stock_item ----------------
     c('stock register: owner, a new item', 'owner', base, 'register_stock_item', 'start tracking screed in bags', [REG({ name: 'Screed', unit: 'bags' })]),
