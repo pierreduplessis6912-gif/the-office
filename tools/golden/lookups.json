@@ -779,7 +779,157 @@
   },
   "effects": []
  },
- "lookup business: installer, a broad question still opens the snapshot screen (the screen itself is gated)": {
+ "lookup business: installer, a broad question is told the overview is restricted (not sent to an empty screen)": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "The financial overview exists for this business but is restricted for your role.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Is this a broad, whole-business question wanting a real, visual snapsh"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "how are we doing",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "how are we doing",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "lookup business: installer, an unclear broad question is told it is restricted, not asked which screen": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "The financial overview exists for this business but is restricted for your role.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Is this a broad, whole-business question wanting a real, visual snapsh"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "what is the money situation",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "what is the money situation",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "lookup business: a role with no permissions, a broad question is told it is restricted": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "The financial overview exists for this business but is restricted for your role.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Is this a broad, whole-business question wanting a real, visual snapsh"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "how are we doing",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "how are we doing",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "lookup business: accountant, a broad question opens the snapshot screen": {
   "result": {
    "customer": null,
    "character": null,
@@ -829,13 +979,223 @@
   },
   "effects": []
  },
+ "lookup business: accountant, who owes me opens the aged debtors screen": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "__OPEN_DASHBOARD__:aged_debtors",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Is this a broad, whole-business question wanting a real, visual snapsh"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "who owes me",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "who owes me",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "lookup business: installer, who owes me is told it is restricted": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "The financial overview exists for this business but is restricted for your role.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Is this a broad, whole-business question wanting a real, visual snapsh"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "who owes me",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "who owes me",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "lookup business: owner, a broad question with two quotations on file reads in the plural": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "ANSWER FROM FACTS:\n- There are 2 quotations on file, totaling R20000. 2 still open, not yet converted to an invoice.\n- Thandi Mokoena: R8000 (draft).\n- Jenny Smith: R12000 (draft).",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "The new message may refer back to the STANDING TOPIC of the conversati",
+   "The new message may refer back to the STANDING TOPIC of the conversati",
+   "The new message may refer back to the STANDING TOPIC of the conversati",
+   "Is this a broad, whole-business question wanting a real, visual snapsh",
+   "Is the new message specifically about QUOTATIONS, specifically about I",
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "and the quotes",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "and the quotes",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "lookup business: owner, expenses with one on file read in the singular": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "ANSWER FROM FACTS:\n- There is 1 expense on file, totaling R1200.\n- By category: materials R1200.\n- Floornet: R1200 — adhesive (materials).\n- Aged creditors: current R0, 30-60 days R1200, 60-90 days R0, 90+ days R0. Payments are allocated oldest-expense-first (FIFO), since payments aren't linked to a specific expense.\n- Floornet: R1200 total outstanding (current R0, 30-60d R1200, 60-90d R0, 90+d R0).",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "Does this message contain a genuine, referential pronoun or demonstrat",
+   "The new message may refer back to the STANDING TOPIC of the conversati",
+   "The new message may refer back to the STANDING TOPIC of the conversati",
+   "The new message may refer back to the STANDING TOPIC of the conversati",
+   "Is this a broad, whole-business question wanting a real, visual snapsh",
+   "Is the new message specifically about QUOTATIONS, specifically about I",
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "and what we spent",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "and what we spent",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
  "lookup business: owner, a narrow question, no history": {
   "result": {
    "customer": null,
    "character": null,
    "pendingActionId": null,
    "factPendingActionId": null,
-   "message": "ANSWER FROM FACTS:\n- Jenny Smith owes R3000 (invoiced R5000, paid R2000).\n- Thandi Mokoena owes R8000 (invoiced R8000, paid R0).\n- There are 1 quotations on file, totaling R12000. 1 still open, not yet converted to an invoice.\n- Jenny Smith: R12000 (draft).\n- There are 2 expenses on file, totaling R1850.\n- By category: fuel R650, materials R1200.\n- an unnamed supplier: R650 — diesel (fuel).\n- Floornet: R1200 — adhesive (materials).\n- Total invoiced to date: R13000.\n- Total actually received: R2000.\n- Total spent on expenses: R1850.\n- Rough cash position (received minus spent): R150. This is a cash-basis snapshot, not the formal profit and loss — see getProfitAndLoss for that.\n- Revenue: R13000.\n- Cost of Sales (materials, subcontractor): R1200.\n- Gross Profit: R11800.\n- Operating Expenses (fuel, tools, other): R650.\n- Net Profit: R11150.\n- Expense breakdown by category: fuel: R650, materials: R1200.\n- Revenue here is accrual-based (real invoiced amounts), not cash received — a different measure from the cash-position snapshot.\n- Aged debtors: current R8000, 30-60 days R0, 60-90 days R3000, 90+ days R0. Payments are allocated oldest-invoice-first (FIFO), since payments aren't linked to a specific invoice.\n- Thandi Mokoena: R8000 total overdue (current R8000, 30-60d R0, 60-90d R0, 90+d R0).\n- Jenny Smith: R3000 total overdue (current R0, 30-60d R0, 60-90d R3000, 90+d R0).\n- Aged creditors: current R0, 30-60 days R1200, 60-90 days R0, 90+ days R0. Payments are allocated oldest-expense-first (FIFO), since payments aren't linked to a specific expense.\n- Floornet: R1200 total outstanding (current R0, 30-60d R1200, 60-90d R0, 90+d R0).\n\nA more detailed aged breakdown is also available if useful.",
+   "message": "ANSWER FROM FACTS:\n- Jenny Smith owes R3000 (invoiced R5000, paid R2000).\n- Thandi Mokoena owes R8000 (invoiced R8000, paid R0).\n- There is 1 quotation on file, totaling R12000. 1 still open, not yet converted to an invoice.\n- Jenny Smith: R12000 (draft).\n- There are 2 expenses on file, totaling R1850.\n- By category: fuel R650, materials R1200.\n- an unnamed supplier: R650 — diesel (fuel).\n- Floornet: R1200 — adhesive (materials).\n- Total invoiced to date: R13000.\n- Total actually received: R2000.\n- Total spent on expenses: R1850.\n- Rough cash position (received minus spent): R150. This is a cash-basis snapshot, not the formal profit and loss — see getProfitAndLoss for that.\n- Revenue: R13000.\n- Cost of Sales (materials, subcontractor): R1200.\n- Gross Profit: R11800.\n- Operating Expenses (fuel, tools, other): R650.\n- Net Profit: R11150.\n- Expense breakdown by category: fuel: R650, materials: R1200.\n- Revenue here is accrual-based (real invoiced amounts), not cash received — a different measure from the cash-position snapshot.\n- Aged debtors: current R8000, 30-60 days R0, 60-90 days R3000, 90+ days R0. Payments are allocated oldest-invoice-first (FIFO), since payments aren't linked to a specific invoice.\n- Thandi Mokoena: R8000 total overdue (current R8000, 30-60d R0, 60-90d R0, 90+d R0).\n- Jenny Smith: R3000 total overdue (current R0, 30-60d R0, 60-90d R3000, 90+d R0).\n- Aged creditors: current R0, 30-60 days R1200, 60-90 days R0, 90+ days R0. Payments are allocated oldest-expense-first (FIFO), since payments aren't linked to a specific expense.\n- Floornet: R1200 total outstanding (current R0, 30-60d R1200, 60-90d R0, 90+d R0).\n\nA more detailed aged breakdown is also available if useful.",
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
@@ -886,7 +1246,7 @@
    "character": null,
    "pendingActionId": null,
    "factPendingActionId": null,
-   "message": "ANSWER FROM FACTS:\n- Jenny Smith owes R3000 (invoiced R5000, paid R2000).\n- Thandi Mokoena owes R8000 (invoiced R8000, paid R0).\n- There are 1 quotations on file, totaling R12000. 1 still open, not yet converted to an invoice.\n- Jenny Smith: R12000 (draft).\n- There are 2 expenses on file, totaling R1850.\n- By category: fuel R650, materials R1200.\n- an unnamed supplier: R650 — diesel (fuel).\n- Floornet: R1200 — adhesive (materials).\n- Total invoiced to date: R13000.\n- Total actually received: R2000.\n- Total spent on expenses: R1850.\n- Rough cash position (received minus spent): R150. This is a cash-basis snapshot, not the formal profit and loss — see getProfitAndLoss for that.\n- Revenue: R13000.\n- Cost of Sales (materials, subcontractor): R1200.\n- Gross Profit: R11800.\n- Operating Expenses (fuel, tools, other): R650.\n- Net Profit: R11150.\n- Expense breakdown by category: fuel: R650, materials: R1200.\n- Revenue here is accrual-based (real invoiced amounts), not cash received — a different measure from the cash-position snapshot.\n- Aged debtors: current R8000, 30-60 days R0, 60-90 days R3000, 90+ days R0. Payments are allocated oldest-invoice-first (FIFO), since payments aren't linked to a specific invoice.\n- Thandi Mokoena: R8000 total overdue (current R8000, 30-60d R0, 60-90d R0, 90+d R0).\n- Jenny Smith: R3000 total overdue (current R0, 30-60d R0, 60-90d R3000, 90+d R0).\n- Aged creditors: current R0, 30-60 days R1200, 60-90 days R0, 90+ days R0. Payments are allocated oldest-expense-first (FIFO), since payments aren't linked to a specific expense.\n- Floornet: R1200 total outstanding (current R0, 30-60d R1200, 60-90d R0, 90+d R0).\n\nA more detailed aged breakdown is also available if useful.",
+   "message": "ANSWER FROM FACTS:\n- Jenny Smith owes R3000 (invoiced R5000, paid R2000).\n- Thandi Mokoena owes R8000 (invoiced R8000, paid R0).\n- There is 1 quotation on file, totaling R12000. 1 still open, not yet converted to an invoice.\n- Jenny Smith: R12000 (draft).\n- There are 2 expenses on file, totaling R1850.\n- By category: fuel R650, materials R1200.\n- an unnamed supplier: R650 — diesel (fuel).\n- Floornet: R1200 — adhesive (materials).\n- Total invoiced to date: R13000.\n- Total actually received: R2000.\n- Total spent on expenses: R1850.\n- Rough cash position (received minus spent): R150. This is a cash-basis snapshot, not the formal profit and loss — see getProfitAndLoss for that.\n- Revenue: R13000.\n- Cost of Sales (materials, subcontractor): R1200.\n- Gross Profit: R11800.\n- Operating Expenses (fuel, tools, other): R650.\n- Net Profit: R11150.\n- Expense breakdown by category: fuel: R650, materials: R1200.\n- Revenue here is accrual-based (real invoiced amounts), not cash received — a different measure from the cash-position snapshot.\n- Aged debtors: current R8000, 30-60 days R0, 60-90 days R3000, 90+ days R0. Payments are allocated oldest-invoice-first (FIFO), since payments aren't linked to a specific invoice.\n- Thandi Mokoena: R8000 total overdue (current R8000, 30-60d R0, 60-90d R0, 90+d R0).\n- Jenny Smith: R3000 total overdue (current R0, 30-60d R0, 60-90d R3000, 90+d R0).\n- Aged creditors: current R0, 30-60 days R1200, 60-90 days R0, 90+ days R0. Payments are allocated oldest-expense-first (FIFO), since payments aren't linked to a specific expense.\n- Floornet: R1200 total outstanding (current R0, 30-60d R1200, 60-90d R0, 90+d R0).\n\nA more detailed aged breakdown is also available if useful.",
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
@@ -1039,7 +1399,7 @@
    "character": null,
    "pendingActionId": null,
    "factPendingActionId": null,
-   "message": "ANSWER FROM FACTS:\n- There are 1 quotations on file, totaling R12000. 1 still open, not yet converted to an invoice.\n- Jenny Smith: R12000 (draft).",
+   "message": "ANSWER FROM FACTS:\n- There is 1 quotation on file, totaling R12000. 1 still open, not yet converted to an invoice.\n- Jenny Smith: R12000 (draft).",
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
@@ -1369,7 +1729,7 @@
    "character": null,
    "pendingActionId": null,
    "factPendingActionId": null,
-   "message": "ANSWER FROM FACTS:\n- Jenny Smith owes R3000 (invoiced R5000, paid R2000).\n- Thandi Mokoena owes R8000 (invoiced R8000, paid R0).\n- There are 1 quotations on file, totaling R12000. 1 still open, not yet converted to an invoice.\n- Jenny Smith: R12000 (draft).\n- There are 2 expenses on file, totaling R1850.\n- By category: fuel R650, materials R1200.\n- an unnamed supplier: R650 — diesel (fuel).\n- Floornet: R1200 — adhesive (materials).\n- Total invoiced to date: R13000.\n- Total actually received: R2000.\n- Total spent on expenses: R1850.\n- Rough cash position (received minus spent): R150. This is a cash-basis snapshot, not the formal profit and loss — see getProfitAndLoss for that.\n- Revenue: R13000.\n- Cost of Sales (materials, subcontractor): R1200.\n- Gross Profit: R11800.\n- Operating Expenses (fuel, tools, other): R650.\n- Net Profit: R11150.\n- Expense breakdown by category: fuel: R650, materials: R1200.\n- Revenue here is accrual-based (real invoiced amounts), not cash received — a different measure from the cash-position snapshot.\n- Aged debtors: current R8000, 30-60 days R0, 60-90 days R3000, 90+ days R0. Payments are allocated oldest-invoice-first (FIFO), since payments aren't linked to a specific invoice.\n- Thandi Mokoena: R8000 total overdue (current R8000, 30-60d R0, 60-90d R0, 90+d R0).\n- Jenny Smith: R3000 total overdue (current R0, 30-60d R0, 60-90d R3000, 90+d R0).\n- Aged creditors: current R0, 30-60 days R1200, 60-90 days R0, 90+ days R0. Payments are allocated oldest-expense-first (FIFO), since payments aren't linked to a specific expense.\n- Floornet: R1200 total outstanding (current R0, 30-60d R1200, 60-90d R0, 90+d R0).",
+   "message": "ANSWER FROM FACTS:\n- Jenny Smith owes R3000 (invoiced R5000, paid R2000).\n- Thandi Mokoena owes R8000 (invoiced R8000, paid R0).\n- There is 1 quotation on file, totaling R12000. 1 still open, not yet converted to an invoice.\n- Jenny Smith: R12000 (draft).\n- There are 2 expenses on file, totaling R1850.\n- By category: fuel R650, materials R1200.\n- an unnamed supplier: R650 — diesel (fuel).\n- Floornet: R1200 — adhesive (materials).\n- Total invoiced to date: R13000.\n- Total actually received: R2000.\n- Total spent on expenses: R1850.\n- Rough cash position (received minus spent): R150. This is a cash-basis snapshot, not the formal profit and loss — see getProfitAndLoss for that.\n- Revenue: R13000.\n- Cost of Sales (materials, subcontractor): R1200.\n- Gross Profit: R11800.\n- Operating Expenses (fuel, tools, other): R650.\n- Net Profit: R11150.\n- Expense breakdown by category: fuel: R650, materials: R1200.\n- Revenue here is accrual-based (real invoiced amounts), not cash received — a different measure from the cash-position snapshot.\n- Aged debtors: current R8000, 30-60 days R0, 60-90 days R3000, 90+ days R0. Payments are allocated oldest-invoice-first (FIFO), since payments aren't linked to a specific invoice.\n- Thandi Mokoena: R8000 total overdue (current R8000, 30-60d R0, 60-90d R0, 90+d R0).\n- Jenny Smith: R3000 total overdue (current R0, 30-60d R0, 60-90d R3000, 90+d R0).\n- Aged creditors: current R0, 30-60 days R1200, 60-90 days R0, 90+ days R0. Payments are allocated oldest-expense-first (FIFO), since payments aren't linked to a specific expense.\n- Floornet: R1200 total outstanding (current R0, 30-60d R1200, 60-90d R0, 90+d R0).",
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
@@ -1420,7 +1780,7 @@
    "character": null,
    "pendingActionId": null,
    "factPendingActionId": null,
-   "message": "ANSWER FROM FACTS:\n- Jenny Smith owes R3000 (invoiced R5000, paid R2000).\n- Thandi Mokoena owes R8000 (invoiced R8000, paid R0).\n- There are 1 quotations on file, totaling R12000. 1 still open, not yet converted to an invoice.\n- Jenny Smith: R12000 (draft).\n- There are 2 expenses on file, totaling R1850.\n- By category: fuel R650, materials R1200.\n- an unnamed supplier: R650 — diesel (fuel).\n- Floornet: R1200 — adhesive (materials).\n- Total invoiced to date: R13000.\n- Total actually received: R2000.\n- Total spent on expenses: R1850.\n- Rough cash position (received minus spent): R150. This is a cash-basis snapshot, not the formal profit and loss — see getProfitAndLoss for that.\n- Revenue: R13000.\n- Cost of Sales (materials, subcontractor): R1200.\n- Gross Profit: R11800.\n- Operating Expenses (fuel, tools, other): R650.\n- Net Profit: R11150.\n- Expense breakdown by category: fuel: R650, materials: R1200.\n- Revenue here is accrual-based (real invoiced amounts), not cash received — a different measure from the cash-position snapshot.\n- Aged debtors: current R8000, 30-60 days R0, 60-90 days R3000, 90+ days R0. Payments are allocated oldest-invoice-first (FIFO), since payments aren't linked to a specific invoice.\n- Thandi Mokoena: R8000 total overdue (current R8000, 30-60d R0, 60-90d R0, 90+d R0).\n- Jenny Smith: R3000 total overdue (current R0, 30-60d R0, 60-90d R3000, 90+d R0).\n- Aged creditors: current R0, 30-60 days R1200, 60-90 days R0, 90+ days R0. Payments are allocated oldest-expense-first (FIFO), since payments aren't linked to a specific expense.\n- Floornet: R1200 total outstanding (current R0, 30-60d R1200, 60-90d R0, 90+d R0).\n\nA more detailed aged breakdown is also available if useful.",
+   "message": "ANSWER FROM FACTS:\n- Jenny Smith owes R3000 (invoiced R5000, paid R2000).\n- Thandi Mokoena owes R8000 (invoiced R8000, paid R0).\n- There is 1 quotation on file, totaling R12000. 1 still open, not yet converted to an invoice.\n- Jenny Smith: R12000 (draft).\n- There are 2 expenses on file, totaling R1850.\n- By category: fuel R650, materials R1200.\n- an unnamed supplier: R650 — diesel (fuel).\n- Floornet: R1200 — adhesive (materials).\n- Total invoiced to date: R13000.\n- Total actually received: R2000.\n- Total spent on expenses: R1850.\n- Rough cash position (received minus spent): R150. This is a cash-basis snapshot, not the formal profit and loss — see getProfitAndLoss for that.\n- Revenue: R13000.\n- Cost of Sales (materials, subcontractor): R1200.\n- Gross Profit: R11800.\n- Operating Expenses (fuel, tools, other): R650.\n- Net Profit: R11150.\n- Expense breakdown by category: fuel: R650, materials: R1200.\n- Revenue here is accrual-based (real invoiced amounts), not cash received — a different measure from the cash-position snapshot.\n- Aged debtors: current R8000, 30-60 days R0, 60-90 days R3000, 90+ days R0. Payments are allocated oldest-invoice-first (FIFO), since payments aren't linked to a specific invoice.\n- Thandi Mokoena: R8000 total overdue (current R8000, 30-60d R0, 60-90d R0, 90+d R0).\n- Jenny Smith: R3000 total overdue (current R0, 30-60d R0, 60-90d R3000, 90+d R0).\n- Aged creditors: current R0, 30-60 days R1200, 60-90 days R0, 90+ days R0. Payments are allocated oldest-expense-first (FIFO), since payments aren't linked to a specific expense.\n- Floornet: R1200 total outstanding (current R0, 30-60d R1200, 60-90d R0, 90+d R0).\n\nA more detailed aged breakdown is also available if useful.",
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,

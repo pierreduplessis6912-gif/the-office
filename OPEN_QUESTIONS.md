@@ -3,7 +3,7 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 8 applied).
+decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 9 in progress).
 
 ## A. Decisions only Pierre can make
 
@@ -20,8 +20,6 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     are defined but never checked anywhere.** Harmless while no payroll data is stored; a day rate or a bank detail saved
     as a "detail" would be visible to everyone. *Option:* gate the sensitive detail keys, or use the two unused
     capabilities for them.
-31. **A broad financial question from an installer still opens the snapshot screen** (its data is gated, so it shows
-    nothing). A cosmetic mismatch. Also: "There are 1 quotations on file" has a plural slip.
 34. **The "current selection" (who "her" or "him" refers to) is one setting for the whole business, not one per person.**
     One person's lookups change what another person's "and her balance" means, and "forget that" clears it for everyone.
     A leftover from when the app had one user. *Option:* a selection per signed-in member.
@@ -53,10 +51,6 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
 45. **The invoice reader captures no unit**, so an invoice in boxes against an order in square metres is matched number to
     number. The unit conversion built earlier applies to deliveries and stock, not to invoices. *Option:* have the invoice
     reader capture the unit and convert it the same way.
-
-46. **The day-of-month reader takes the first number it sees as the day.** "5 pm on the 17th" is read as the 5th, and "3
-    days from now" as the 3rd. Found while adding month names, which already skip a number that is a duration or a time.
-    *Option:* apply the same guard to the plain day reader, preferring a number that has "the" or an ordinal ending.
 
 ## B. Needs a live check only a phone can give
 
@@ -111,6 +105,12 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
 
 ## Settled (kept so the reasoning is not lost)
+
+- 2026-10-04, decided by Pierre (decisions session, round 9):
+  - **A time, a duration or an amount is never read as the day** ("5 pm on the 17th" is the 17th; "3 days from now" is no date).
+    Applied. (`DECISIONS.md`, "Decisions session, round 9 (part 1)".)
+  - **A role that cannot see the financial screens is told so instead of being sent to an empty one,** and "1 quotations" /
+    "1 expenses" read in the singular. Applied.
 
 - 2026-10-04, decided by Pierre (decisions session, round 8, conversions):
   - **A spoken list and "forget" for unit conversions: built.** The list is answered in code; forgetting removes exactly the named

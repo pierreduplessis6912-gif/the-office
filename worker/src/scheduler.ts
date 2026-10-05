@@ -7,7 +7,7 @@
 
 import type { Env, WorkObservationExtraction } from "./types";
 import { reconcileCustomer } from "./identity";
-import { getOpenProjectsForCustomer } from "./finance";
+import { getOpenProjectsForCustomer, normalizeUnit } from "./finance";
 
 
 // Unguarded, deliberately — same reasoning already applied to
@@ -80,6 +80,25 @@ export function namedMonthDate(phrase: string, now: Date): string | null | undef
   return candidate ? iso(candidate) : null;
 }
 
+// Decided by Pierre 2026-10-04: the plain day reader took the FIRST number it saw as the day, so "5 pm on the 17th" was the 5th and "3 days
+// from now" the 3rd. A number is not a day when it is a time ("5 pm", "5:30", the minutes of a time), a duration ("3 days", "2 weeks"), or an
+// amount of something ("20 sqm", "2 boxes"). Of the numbers that remain, one with an ordinal ending ("the 17th") wins over a bare one, and
+// otherwise the first is taken, exactly as before. A phrase with none of these words reads exactly as it always did.
+const NOT_A_DAY_AFTER = /^\s*(?:days?|weeks?|months?|years?|hours?|hrs?|minutes?|mins?|am|pm|a\.m|p\.m|o'?clock)\b/;
+export function pickDayOfMonth(text: string): RegExpMatchArray | null {
+  const candidates: RegExpMatchArray[] = [];
+  for (const m of text.matchAll(/\b(\d{1,2})(st|nd|rd|th)?\b/g)) {
+    const at = m.index ?? 0;
+    const after = text.slice(at + m[0].length);
+    const nextWord = after.match(/^\s*([a-z²]+)/)?.[1] ?? null;
+    if (NOT_A_DAY_AFTER.test(after)) continue;                 // a time or a duration
+    if (/^:\d/.test(after) || text[at - 1] === ":") continue;  // 5:30 (the 5) and the 30 of 5:30
+    if (nextWord && !m[2] && normalizeUnit(nextWord) !== null) continue;   // an amount: 20 sqm, 2 boxes
+    candidates.push(m);
+  }
+  return candidates.find((m) => m[2]) ?? candidates[0] ?? null;
+}
+
 export function resolveScheduledDate(rawPhrase: string | null, now: Date): string | null {
   if (!rawPhrase) return null;
   const phrase = rawPhrase.toLowerCase().trim();
@@ -149,7 +168,7 @@ export function resolveScheduledDate(rawPhrase: string | null, now: Date): strin
     return toIso(d);
   }
 
-  const dayOfMonthMatch = ordinalWordsToDigits(phrase).match(/\b(\d{1,2})(st|nd|rd|th)?\b/);
+  const dayOfMonthMatch = pickDayOfMonth(ordinalWordsToDigits(phrase));
   if (dayOfMonthMatch) {
     const day = parseInt(dayOfMonthMatch[1], 10);
     if (day >= 1 && day <= 31) {

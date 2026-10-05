@@ -1903,7 +1903,12 @@ async function processOneExtraction(
       let topic: "quotations" | "invoices" | "expenses" | "general" = "general";
       let canKnowDebtors = false;
       let outstandingFacts: string[] = [];
-      if (dashboardRoute === "financial_snapshot" || dashboardRoute === "aged_debtors") {
+      // Decided by Pierre 2026-10-04: a role that cannot see the financial screens is told so, instead of being sent to an empty screen (or
+      // asked which of two screens it would like). Same permissions as the screens' own data routes (profit or debtors).
+      const canSeeFinancialScreens = capabilities.includes("can_know_profit") || capabilities.includes("can_know_debtors");
+      if ((dashboardRoute === "financial_snapshot" || dashboardRoute === "aged_debtors" || dashboardRoute === "unsure") && !canSeeFinancialScreens) {
+        message = "The financial overview exists for this business but is restricted for your role.";
+      } else if (dashboardRoute === "financial_snapshot" || dashboardRoute === "aged_debtors") {
         message = `__OPEN_DASHBOARD__:${dashboardRoute}`;
       } else if (dashboardRoute === "unsure") {
         message = "Did you want to see the full financial snapshot, or are you asking specifically about who owes you money?";

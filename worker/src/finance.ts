@@ -2221,7 +2221,7 @@ export async function getQuotationsSummary(env: Env, range?: DateRange): Promise
 
   const total = results.reduce((sum, r) => sum + r.amount, 0);
   const openCount = results.filter((r) => r.status !== "converted").length;
-  const summary = `There are ${results.length} quotations on file${period ? ` ${period}` : ""}, totaling R${total}. ${openCount} still open, not yet converted to an invoice.`;
+  const summary = `There ${results.length === 1 ? "is" : "are"} ${results.length} ${results.length === 1 ? "quotation" : "quotations"} on file${period ? ` ${period}` : ""}, totaling R${total}. ${openCount} still open, not yet converted to an invoice.`;
   const perQuotation = results.map((r) => `${r.name}: R${r.amount} (${r.status}).`);
   return period ? [summary, RANGE_BASIS_NOTE, ...perQuotation] : [summary, ...perQuotation];
 }
@@ -2247,7 +2247,7 @@ export async function getExpenseSummary(env: Env, range?: DateRange): Promise<st
   if (results.length === 0) return [period ? `No expenses on file ${period}.` : "No expenses on file."];
 
   const total = results.reduce((sum, r) => sum + (r.amount ?? 0), 0);
-  const summary = `There are ${results.length} expenses on file${period ? ` ${period}` : ""}, totaling R${total}.`;
+  const summary = `There ${results.length === 1 ? "is" : "are"} ${results.length} ${results.length === 1 ? "expense" : "expenses"} on file${period ? ` ${period}` : ""}, totaling R${total}.`;
 
   const byCategory = new Map<string, number>();
   for (const r of results) {

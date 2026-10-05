@@ -50,4 +50,22 @@ module.exports = async function runDateTests({ check, bundleTo }) {
   check(resolveScheduledDate('may 17', now) === '2027-05-17', 'but "may 17" is the 17th of May');
   check(resolveScheduledDate('march 3 days from now', now) !== '2027-03-03', 'a number that is a duration is not a day of March');
   check(resolveScheduledDate('the 10th', now) === '2026-10-10' && resolveScheduledDate('in 3 days', now) === '2026-10-06' && resolveScheduledDate('next week monday', now) === '2026-10-12', 'phrases with no month are read exactly as before');
+
+  // ---- Times, durations and amounts are not days (decided 2026-10-04) --------------------------------------------
+  let timeOk = 0, timeTotal = 0;
+  for (let h = 1; h <= 12; h++) {
+    for (const phrase of [`${h} pm on the 17th`, `${h}pm on the 17th`, `${h} am the 17th`, `at ${h}:30 on the 17th`, `the 17th at ${h}:45`, `${h} o'clock on the 17th`]) {
+      timeTotal++;
+      if (resolveScheduledDate(phrase, now) === '2026-10-17') timeOk++; else check(false, `"${phrase}" must be the 17th, not the ${h}th (got ${resolveScheduledDate(phrase, now)})`);
+    }
+  }
+  check(timeOk === timeTotal && timeTotal === 72, `a time of day beside a date is never read as the day (${timeOk} of ${timeTotal} phrasings)`);
+  for (const phrase of ['3 days from now', '2 weeks from now', 'in about 3 hours', '10 minutes']) check(resolveScheduledDate(phrase, now) === null, `"${phrase}" is a duration, not a day of the month`);
+  for (const phrase of ['install 20 sqm on the 17th', '2 boxes on the 17th', '12 bags on the 17th', '3 rolls of underlay on the 17th']) check(resolveScheduledDate(phrase, now) === '2026-10-17', `"${phrase}": an amount of something is not the day`);
+  // The amount guard matters when the date has no ordinal ending, which is when the ordinal preference cannot help.
+  for (const phrase of ['20 sqm on the 17', '2 boxes on 17', '12 bags on the 17', '3 rolls of underlay on 17', '20 m2 for the 17']) check(resolveScheduledDate(phrase, now) === '2026-10-17', `"${phrase}": with no ordinal ending, the amount must still not be read as the day`);
+  check(resolveScheduledDate('3 rooms on the 17th', now) === '2026-10-17' && resolveScheduledDate('2 men for the 17th', now) === '2026-10-17', 'a bare number beside a date with an ordinal ending loses to the ordinal ("3 rooms on the 17th")');
+  check(resolveScheduledDate('the 10th', now) === '2026-10-10' && resolveScheduledDate('17', now) === '2026-10-17' && resolveScheduledDate('on the 17', now) === '2026-10-17', 'a plain day, with or without an ordinal ending, is read exactly as before');
+  check(resolveScheduledDate('the 5th at 3 pm', now) === '2026-10-05' && resolveScheduledDate('the 20 sqm job on the 4th', now) === '2026-10-04', 'the ordinal is found wherever it falls in the phrase');
+  check(resolveScheduledDate('in 3 days', now) === '2026-10-06' && resolveScheduledDate('tomorrow', now) === '2026-10-04', '"in 3 days" and "tomorrow" are unchanged (they are read before any day number)');
 };
