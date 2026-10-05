@@ -3,7 +3,7 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 7 applied).
+decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 8 in progress).
 
 ## A. Decisions only Pierre can make
 
@@ -53,15 +53,13 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     tubes, tins, packs, pallets, metres, each). A unit outside it (a "bundle") is never converted and never flagged, by
     design, so it cannot block a delivery. *Option:* add units as they turn up.
 
-43. **The date reader ignores month names.** "The 17th of November" is read as the 17th of the nearest month that has not
-    passed, not as 17 November. Found while teaching it the ordinal words. *Option:* read the month when one is named.
-
-44. **Nothing checks a supplier invoice's reference**, so the same invoice said twice is recorded twice (the second finds
-    nothing unbilled and falls back to the latest order). *Option:* refuse or warn when a reference has already been recorded
-    for that supplier. (`DECISIONS.md`, "Decisions session, round 7 (part 2)".)
 45. **The invoice reader captures no unit**, so an invoice in boxes against an order in square metres is matched number to
     number. The unit conversion built earlier applies to deliveries and stock, not to invoices. *Option:* have the invoice
     reader capture the unit and convert it the same way.
+
+46. **The day-of-month reader takes the first number it sees as the day.** "5 pm on the 17th" is read as the 5th, and "3
+    days from now" as the 3rd. Found while adding month names, which already skip a number that is a duration or a time.
+    *Option:* apply the same guard to the plain day reader, preferring a number that has "the" or an ordinal ending.
 ## B. Needs a live check only a phone can give
 
 12. **The Codemagic rebuild**: the Confirm/Reject buttons for a follow-up question raised by a confirm ("Add to stock?",
@@ -113,6 +111,12 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
 
 ## Settled (kept so the reasoning is not lost)
+
+- 2026-10-04, decided by Pierre (decisions session, round 8):
+  - **A named month is read** ("the 17th of November", "17 nov"); a date already gone by is next year; a day the month does not
+    have is no date; "may" and "march" as ordinary words are not months. Applied. (`DECISIONS.md`, "Decisions session, round 8 (part 1)".)
+  - **The same supplier invoice said twice is not recorded or held again,** and the reply says it is already recorded (or already
+    waiting). Same supplier and same reference only; backstop at confirmation. Applied.
 
 - 2026-10-04, decided by Pierre (decisions session, round 7, invoices):
   - **A supplier invoice is matched across all the supplier's open orders, oldest first,** as deliveries are (open = quantity

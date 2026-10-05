@@ -10,7 +10,7 @@ import {
   verifySession, getSessionToken, getCookie, base64UrlEncode, ROLE_CAPABILITIES, ENFORCE_CAPABILITIES,
   ACTION_TYPE_CAPABILITY, ROUTE_RULES, SIGNABLE_DOCUMENT_PATHS, canResolveActionType, intentCreationRefusal, intentKeepsOutOfNotes,
 } from "./auth";
-import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote } from "./finance";
+import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote, duplicateInvoiceMessage, findDuplicateSupplierInvoice, normalizeInvoiceReference } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 import { handleDebugRoute } from "./debug";
 import { DOCUMENT_KIND_LABEL, asksAboutDeliveryExceptions, deliveryExceptionAnswer, deliveryHadExceptions, deliveryHeldMessage, deliveryRecordedMessage, inferDocumentSupplier, planDelivery } from "./documents";
@@ -796,6 +796,7 @@ async function processOneExtraction(
   let supplierInvoiceNoOpenPo = false;
   let supplierInvoiceSupplierName: string | null = null;
   let supplierInvoiceOrderIds: number[] = [];
+  let supplierInvoiceDuplicate: string | null = null;
   if (extraction?.intent === "supplier_invoice") {
     if (character) {
       const openPo = await findLatestOpenPurchaseOrder(env, character.id);
@@ -804,10 +805,15 @@ async function processOneExtraction(
         // latest order only), exactly as deliveries are.
         const invoicePool = await getInvoiceMatchLines(env, character.id, openPo.id);
         const siExtraction = await extractSupplierInvoice(env, transcript, invoiceCandidatesForReader(invoicePool));
+        const duplicateInvoice =
+          siExtraction.line_items.length > 0 && siExtraction.supplier_reference ? await findDuplicateSupplierInvoice(env, character.id, siExtraction.supplier_reference) : null;
         if (siExtraction.line_items.length === 0) {
           // Found by the characterization recordings 2026-10-03: with the model down, or nothing readable, an invoice
           // with no lines was held for confirmation, which would have recorded an invoice of nothing.
           supplierInvoiceNoItems = true;
+        } else if (duplicateInvoice) {
+          // Decided by Pierre 2026-10-04: the same invoice (same supplier, same reference) is not recorded or held a second time.
+          supplierInvoiceDuplicate = duplicateInvoiceMessage(character.name, siExtraction.supplier_reference!, duplicateInvoice);
         } else {
         const allocatedInvoice = allocateInvoiceLines(siExtraction.line_items, invoicePool);
         supplierInvoiceOrderIds = allocatedInvoice.orderIds;
@@ -1649,6 +1655,8 @@ async function processOneExtraction(
     message = `Supplier invoice noted from ${supplierInvoiceSupplierName} — needs your confirmation (action #${pendingActionId}) before it's recorded.${invoiceOrdersNote(supplierInvoiceOrderIds)}`;
   } else if (extraction?.intent === "supplier_invoice" && supplierInvoiceNoItems) {
     message = `I heard a supplier invoice from ${character!.name}, but couldn't make out any items on it, so nothing was noted.`;
+  } else if (extraction?.intent === "supplier_invoice" && supplierInvoiceDuplicate) {
+    message = supplierInvoiceDuplicate;
   } else if (extraction?.intent === "supplier_invoice" && supplierInvoiceNoSupplier) {
     message = "Recognized a supplier invoice, but no supplier was named — try naming who it's from.";
   } else if (extraction?.intent === "supplier_invoice" && supplierInvoiceNoOpenPo) {
@@ -4447,6 +4455,22 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             supplierReference: string | null;
             lineItems: Array<{ matched_description: string | null; quantity_billed: number; unit_price_billed: number | null; po_line_item_id?: number | null }>;
           };
+          // Backstop: two copies of one invoice may have been held before this check existed. The second is not recorded; it goes back to
+          // waiting with the reason, and can be rejected.
+          if (payload.supplierId != null && payload.supplierReference) {
+            const recordedAlready = await env.OFFICE_DB.prepare("SELECT supplier_reference, amount, created_at FROM supplier_invoices WHERE supplier_id = ? AND supplier_reference IS NOT NULL")
+              .bind(payload.supplierId)
+              .all<{ supplier_reference: string; amount: number; created_at: string }>();
+            const wanted = normalizeInvoiceReference(payload.supplierReference);
+            const hit = (recordedAlready.results ?? []).find((r) => normalizeInvoiceReference(r.supplier_reference) === wanted);
+            if (hit) {
+              await releaseClaim(env, id);
+              return Response.json(
+                { error: duplicateInvoiceMessage(payload.supplierName ?? "the supplier", payload.supplierReference, { kind: "recorded", amount: hit.amount, date: String(hit.created_at).slice(0, 10) }), held: true },
+                { status: 409 }
+              );
+            }
+          }
           const recorded = await recordSupplierInvoice(
             env,
             payload.purchaseOrderId,
@@ -5368,8 +5392,15 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           const invoicePool = await getInvoiceMatchLines(env, subjectCharacterId, openPo.id);
           const siExtraction = await extractSupplierInvoice(env, description, invoiceCandidatesForReader(invoicePool));
           const hasRealPricing = siExtraction.line_items.some((li) => li.unit_price_billed != null);
+          const duplicateInvoice =
+            siExtraction.line_items.length > 0 && hasRealPricing && siExtraction.supplier_reference
+              ? await findDuplicateSupplierInvoice(env, subjectCharacterId, siExtraction.supplier_reference)
+              : null;
           if (siExtraction.line_items.length > 0 && hasRealPricing && supplierInvoiceRefusal) {
             uploadRefusal = supplierInvoiceRefusal;
+          } else if (duplicateInvoice) {
+            // The same invoice (same supplier, same reference) is not recorded or held a second time (decided by Pierre 2026-10-04).
+            uploadMessage = duplicateInvoiceMessage(subjectHint ?? "the supplier", siExtraction.supplier_reference!, duplicateInvoice);
           } else if (siExtraction.line_items.length > 0 && hasRealPricing) {
             const allocatedInvoice = allocateInvoiceLines(siExtraction.line_items, invoicePool);
             const held = await holdForConfirmation(
@@ -5640,8 +5671,15 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           const invoicePool = await getInvoiceMatchLines(env, subjectCharacterId, openPo.id);
           const siExtraction = await extractSupplierInvoice(env, description, invoiceCandidatesForReader(invoicePool));
           const hasRealPricing = siExtraction.line_items.some((li) => li.unit_price_billed != null);
+          const duplicateInvoice =
+            siExtraction.line_items.length > 0 && hasRealPricing && siExtraction.supplier_reference
+              ? await findDuplicateSupplierInvoice(env, subjectCharacterId, siExtraction.supplier_reference)
+              : null;
           if (siExtraction.line_items.length > 0 && hasRealPricing && supplierInvoiceRefusal) {
             uploadRefusal = supplierInvoiceRefusal;
+          } else if (duplicateInvoice) {
+            // The same invoice (same supplier, same reference) is not recorded or held a second time (decided by Pierre 2026-10-04).
+            uploadMessage = duplicateInvoiceMessage(subjectHint ?? "the supplier", siExtraction.supplier_reference!, duplicateInvoice);
           } else if (siExtraction.line_items.length > 0 && hasRealPricing) {
             const allocatedInvoice = allocateInvoiceLines(siExtraction.line_items, invoicePool);
             const held = await holdForConfirmation(

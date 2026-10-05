@@ -47,6 +47,39 @@ export function ordinalWordsToDigits(phrase: string): string {
   return out;
 }
 
+// Decided by Pierre 2026-10-04: a named month is read. "The 17th of November" used to be read as the 17th of the nearest month that
+// had not passed, with the month ignored. A month counts only when it sits NEXT TO a day number ("17th of November", "November 17th",
+// "17 nov"), so a stray "may" ("I may do it Monday") or "march" can never become a date, and a number that is a duration ("march 3
+// days from now") is not a day. The year is this year, or next when that date has already gone by. A day the month does not have
+// (31 November, 29 February in a common year) is no date at all, rather than silently becoming the 1st of the next month.
+const MONTHS: Record<string, number> = {
+  january: 0, jan: 0, february: 1, feb: 1, march: 2, mar: 2, april: 3, apr: 3, may: 4, june: 5, jun: 5, july: 6, jul: 6,
+  august: 7, aug: 7, september: 8, sept: 8, sep: 8, october: 9, oct: 9, november: 10, nov: 10, december: 11, dec: 11,
+};
+const MONTH_ALTERNATION = Object.keys(MONTHS).sort((a, b) => b.length - a.length).join("|");
+const NOT_A_DAY = "(?!\\s*(?:days?|weeks?|months?|years?|hours?|minutes?|am|pm|:)\\b)";
+
+export function namedMonthDate(phrase: string, now: Date): string | null | undefined {
+  const text = ordinalWordsToDigits(phrase);
+  const dayThenMonth = text.match(new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?${NOT_A_DAY}\\s+(?:of\\s+)?(${MONTH_ALTERNATION})\\b`));
+  const monthThenDay = text.match(new RegExp(`\\b(${MONTH_ALTERNATION})\\.?\\s+(?:the\\s+)?(\\d{1,2})(?:st|nd|rd|th)?${NOT_A_DAY}\\b`));
+  const hit = dayThenMonth ? { day: dayThenMonth[1], month: dayThenMonth[2] } : monthThenDay ? { day: monthThenDay[2], month: monthThenDay[1] } : null;
+  if (!hit) return undefined;                       // no named month next to a day: not this reader's business
+  const day = parseInt(hit.day, 10);
+  const month = MONTHS[hit.month];
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const build = (year: number): Date | null => {
+    const d = new Date(year, month, day);
+    return d.getMonth() === month && d.getDate() === day ? d : null;   // 31 November is not 1 December
+  };
+  if (day < 1 || day > 31) return null;
+  let candidate = build(now.getFullYear());
+  if (candidate && iso(candidate) < iso(now)) candidate = build(now.getFullYear() + 1);
+  else if (!candidate) candidate = build(now.getFullYear() + 1);
+  return candidate ? iso(candidate) : null;
+}
+
 export function resolveScheduledDate(rawPhrase: string | null, now: Date): string | null {
   if (!rawPhrase) return null;
   const phrase = rawPhrase.toLowerCase().trim();
@@ -59,6 +92,10 @@ export function resolveScheduledDate(rawPhrase: string | null, now: Date): strin
     d.setDate(d.getDate() + 1);
     return toIso(d);
   }
+
+  // An explicit day AND month is more exact than a weekday said beside it ("Thursday 17 November"), so it is read first.
+  const monthDate = namedMonthDate(phrase, now);
+  if (monthDate !== undefined) return monthDate;
 
   const weekdays = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 

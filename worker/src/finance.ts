@@ -1414,6 +1414,56 @@ export function invoiceOrdersNote(orderIds: number[]): string {
   return ` Matched across orders ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}.`;
 }
 
+// ---------------------------------------------------------------------------------------------------------------------------
+// The same supplier invoice said twice. Decided by Pierre 2026-10-04: nothing checked an invoice's reference, so saying the same
+// invoice twice recorded it twice. An invoice whose reference is already RECORDED for that supplier, or already WAITING for
+// confirmation, is not recorded or held again, and the reply says so. A reference is compared ignoring case and extra spaces, and
+// only for the same supplier (two suppliers can both have an INV-001). An invoice with no reference stated cannot be checked.
+// ---------------------------------------------------------------------------------------------------------------------------
+export function normalizeInvoiceReference(reference: string | null | undefined): string | null {
+  const r = (reference ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+  return r.length > 0 ? r : null;
+}
+
+export async function findDuplicateSupplierInvoice(
+  env: Env,
+  supplierId: number,
+  reference: string | null | undefined
+): Promise<{ kind: "recorded"; amount: number; date: string } | { kind: "waiting"; actionId: number } | null> {
+  const wanted = normalizeInvoiceReference(reference);
+  if (wanted === null) return null;
+  const { results: recorded } = await env.OFFICE_DB.prepare(
+    "SELECT supplier_reference, amount, created_at FROM supplier_invoices WHERE supplier_id = ? AND supplier_reference IS NOT NULL ORDER BY id"
+  )
+    .bind(supplierId)
+    .all<{ supplier_reference: string; amount: number; created_at: string }>();
+  const hit = (recorded ?? []).find((r) => normalizeInvoiceReference(r.supplier_reference) === wanted);
+  if (hit) return { kind: "recorded", amount: hit.amount, date: String(hit.created_at).slice(0, 10) };
+  const { results: waiting } = await env.OFFICE_DB.prepare(
+    "SELECT id, payload FROM pending_actions WHERE type = 'supplier_invoice' AND status IN ('pending', 'processing') ORDER BY id"
+  ).all<{ id: number; payload: string }>();
+  for (const w of waiting ?? []) {
+    try {
+      const payload = JSON.parse(w.payload) as { supplierId?: number | null; supplierReference?: string | null };
+      if (payload.supplierId === supplierId && normalizeInvoiceReference(payload.supplierReference) === wanted) return { kind: "waiting", actionId: w.id };
+    } catch {
+      /* a payload that cannot be read cannot be a duplicate */
+    }
+  }
+  return null;
+}
+
+export function duplicateInvoiceMessage(
+  supplier: string,
+  reference: string,
+  duplicate: { kind: "recorded"; amount: number; date: string } | { kind: "waiting"; actionId: number }
+): string {
+  reference = reference.replace(/\s+/g, " ").trim();
+  return duplicate.kind === "recorded"
+    ? `Invoice ${reference} from ${supplier} is already recorded (R${duplicate.amount} on ${duplicate.date}), so nothing was recorded again.`
+    : `Invoice ${reference} from ${supplier} is already waiting for your confirmation (action #${duplicate.actionId}), so nothing new was held.`;
+}
+
 export async function recordSupplierInvoice(
   env: Env,
   purchaseOrderId: number | null,

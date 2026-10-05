@@ -67,6 +67,17 @@ module.exports = function cases(caps) {
     `);
   };
   const SIAI2 = (qty) => ({ match: /quantity_billed/, reply: { supplier_name: 'Floornet', supplier_reference: 'INV-7731', line_items: [{ matched_description: 'Vinyl', quantity_billed: qty, unit_price_billed: 185 }] } });
+  // Two copies of one invoice held before the duplicate check existed. Floornet is supplier 2 here.
+  const twoCopiesOfOneInvoice = (db) => {
+    withOrder(db);
+    const row = (id) => `INSERT INTO pending_actions (id, type, payload, source_transcript, status, created_at) VALUES (${id}, 'supplier_invoice', '{"purchaseOrderId":1,"supplierId":2,"supplierName":"Floornet","supplierReference":"INV-7731","lineItems":[{"matched_description":"Vinyl","quantity_billed":50,"unit_price_billed":185}]}', 'Floornet invoice INV-7731', 'pending', '2026-10-03 09:0${id}:00');`;
+    db.exec(row(1) + row(2));
+  };
+  // The same invoice already recorded, with an explicit date (the database's own clock is real, so a seeded date keeps the recording stable).
+  const copyOfRecordedInvoice = (db) => {
+    twoCopiesOfOneInvoice(db);
+    db.exec(`INSERT INTO supplier_invoices (id, purchase_order_id, supplier_id, supplier_reference, amount, created_at) VALUES (1, 1, 2, 'INV-7731', 9250, '2026-10-03 08:00:00');`);
+  };
   const OBS = (reply) => ({ match: /Extract the structure of a tradesperson's job observation/, reply });
   const LINES = (reply) => ({ match: /Extract every distinct line item from a tradesperson's quotation or invoice description/, reply });
   const GRAI = (reply) => ({ match: /quantity_received/, reply });
@@ -130,6 +141,10 @@ module.exports = function cases(caps) {
     r('confirm supplier invoice: one invoice spanning two orders records a line against each', twoVinylOrders, '/actions/1/confirm', [say('Floornet invoice INV-7731, 70 sqm vinyl at 185', { intent: 'supplier_invoice', ...floornet })], [SIAI2(70)]),
     r('confirm supplier invoice: billing more than was ordered shows the over-billing against the last order', twoVinylOrders, '/actions/1/confirm', [say('Floornet invoice INV-7731, 100 sqm vinyl at 185', { intent: 'supplier_invoice', ...floornet })], [SIAI2(100)]),
     r('confirm supplier invoice: an invoice that fits one order is recorded against it exactly as before', twoVinylOrders, '/actions/1/confirm', [say('Floornet invoice INV-7731, 30 sqm vinyl at 185', { intent: 'supplier_invoice', ...floornet })], [SIAI2(30)]),
+
+    // ---------------- the same invoice confirmed twice ----------------
+    r('confirm supplier invoice: the first of two copies is recorded', twoCopiesOfOneInvoice, '/actions/1/confirm', [], []),
+    r('confirm supplier invoice: a copy of an invoice that is already recorded is not recorded again and stays waiting', copyOfRecordedInvoice, '/actions/1/confirm', [], []),
 
     // ---------------- who is this? ----------------
     r('confirm identity question: owner, the name belongs to an installer', base, '/actions/1/confirm', [say('Jabulani called about a job', { intent: 'note', customer_name: 'Jabulani' })], []),

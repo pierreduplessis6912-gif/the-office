@@ -77,6 +77,13 @@ module.exports = function cases(caps) {
   const everythingInvoiced = (db) => { twoVinylOrders(db); db.exec(`INSERT INTO supplier_invoices (id, purchase_order_id, supplier_id, supplier_reference, amount, created_at) VALUES (1, 1, 1, 'INV-0', 20000, '2026-10-03 08:00:00'); ` + billLine(1, 50) + billLine(3, 30) + ` INSERT INTO supplier_invoice_line_items (supplier_invoice_id, po_line_item_id, description, quantity_billed, unit_price_billed, line_total) VALUES (1, 2, 'Underlay', 100, 40, 4000);`); };
   const oldestCancelled = (db) => { twoVinylOrders(db); db.exec(`CREATE TABLE IF NOT EXISTS purchase_order_cancellations (purchase_order_id INTEGER PRIMARY KEY, cancelled_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now'))); INSERT INTO purchase_order_cancellations (purchase_order_id, cancelled_by) VALUES (1, 'owner@example.com');`); };
   const invoiceOf = (...lines) => SIAI({ supplier_name: 'Floornet', supplier_reference: 'INV-7731', line_items: lines.map(([name, qty, price]) => ({ matched_description: name, quantity_billed: qty, unit_price_billed: price })) });
+  // The same supplier invoice said twice (decided 2026-10-04). Floornet is supplier 1, Belgotex 2.
+  const recordedInvoice = (supplier) => (db) => { withOrder(db); db.exec(`INSERT INTO supplier_invoices (id, purchase_order_id, supplier_id, supplier_reference, amount, created_at) VALUES (1, 1, ${supplier}, 'INV-7731', 9250, '2026-10-03 08:00:00');`); };
+  const waitingInvoice = (db) => {
+    withOrder(db);
+    db.exec(`INSERT INTO pending_actions (id, type, payload, source_transcript, status, created_at) VALUES (1, 'supplier_invoice', '{"purchaseOrderId":1,"supplierId":1,"supplierName":"Floornet","supplierReference":"INV-7731","lineItems":[{"matched_description":"Vinyl","quantity_billed":50,"unit_price_billed":185}]}', 'Floornet invoice INV-7731', 'pending', '2026-10-03 09:00:00');`);
+  };
+  const refInvoice = (ref) => SIAI({ supplier_name: 'Floornet', supplier_reference: ref, line_items: [{ matched_description: 'Vinyl', quantity_billed: 50, unit_price_billed: 185 }] });
   const POAI = (reply) => ({ match: /line_items is every distinct material/, reply });
   const GRAI = (reply) => ({ match: /quantity_received/, reply });
   const SIAI = (reply) => ({ match: /quantity_billed/, reply });
@@ -157,6 +164,15 @@ module.exports = function cases(caps) {
     c('supplier invoice across orders: a cancelled order is not used', 'owner', oldestCancelled, 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 30 sqm vinyl at 185', [invoiceOf(['Vinyl', 30, 185])]),
     c('supplier invoice across orders: two billed lines of the same item share the capacity', 'owner', twoVinylOrders, 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 40 sqm vinyl at 185 and 40 sqm vinyl at 190', [invoiceOf(['Vinyl', 40, 185], ['Vinyl', 40, 190])]),
     c('supplier invoice across orders: an accountant, spanning two orders', 'accountant', twoVinylOrders, 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 70 sqm vinyl at 185', [invoiceOf(['Vinyl', 70, 185])]),
+
+    // ---------------- the same supplier invoice said twice ----------------
+    c('supplier invoice twice: the same reference is already recorded', 'owner', recordedInvoice(1), 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 50 sqm vinyl at 185', [refInvoice('INV-7731')]),
+    c('supplier invoice twice: the reference differs only in case and spacing', 'owner', recordedInvoice(1), 'supplier_invoice', sup(), 'Floornet invoice inv 7731', [refInvoice('  inv-7731 ')]),
+    c('supplier invoice twice: the same reference for a different supplier is not a duplicate', 'owner', recordedInvoice(2), 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 50 sqm vinyl at 185', [refInvoice('INV-7731')]),
+    c('supplier invoice twice: the same invoice is already waiting for confirmation', 'owner', waitingInvoice, 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 50 sqm vinyl at 185', [refInvoice('INV-7731')]),
+    c('supplier invoice twice: no reference stated, so it cannot be checked and is held', 'owner', recordedInvoice(1), 'supplier_invoice', sup(), 'Floornet invoice, 50 sqm vinyl at 185', [refInvoice(null)]),
+    c('supplier invoice twice: a different reference is a new invoice', 'owner', recordedInvoice(1), 'supplier_invoice', sup(), 'Floornet invoice INV-7732, 50 sqm vinyl at 185', [refInvoice('INV-7732')]),
+    c('supplier invoice twice: an accountant says an invoice that is already recorded', 'accountant', recordedInvoice(1), 'supplier_invoice', sup(), 'Floornet invoice INV-7731, 50 sqm vinyl at 185', [refInvoice('INV-7731')]),
 
     // ---------------- variance_disposition ----------------
     c('variance disposition: owner, a reason only', 'owner', withOneDiscrepancy, 'variance_disposition', sup(), 'the underlay shortage from Floornet was short delivered',

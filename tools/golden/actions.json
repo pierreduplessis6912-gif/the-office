@@ -2088,6 +2088,114 @@
   },
   "effects": []
  },
+ "confirm supplier invoice: the first of two copies is recorded": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "supplierInvoice": {
+     "supplierInvoiceId": 1,
+     "totalAmount": 9250,
+     "expenseId": 1,
+     "variances": [
+      {
+       "description": "Vinyl",
+       "quantityVariance": 0,
+       "quantityVarianceVsOrdered": 0,
+       "priceVariance": 5
+      }
+     ]
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Categorize this business expense into exactly one of: MATERIALS (stock",
+   "Categorize this business expense into exactly one of: MATERIALS (stock",
+   "Categorize this business expense into exactly one of: MATERIALS (stock"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "expenses": {
+    "added": [
+     {
+      "id": 1,
+      "character_id": 2,
+      "amount": 9250,
+      "description": "Supplier invoice INV-7731",
+      "source_transcript": "Floornet invoice INV-7731",
+      "category": "other",
+      "customer_id": null,
+      "capture_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "supplier_invoice",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185}]}",
+       "status": "pending",
+       "source_transcript": "Floornet invoice INV-7731"
+      },
+      "after": {
+       "id": 1,
+       "type": "supplier_invoice",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185}]}",
+       "status": "confirmed",
+       "source_transcript": "Floornet invoice INV-7731"
+      }
+     }
+    ]
+   },
+   "supplier_invoice_line_items": {
+    "added": [
+     {
+      "id": 1,
+      "supplier_invoice_id": 1,
+      "po_line_item_id": 1,
+      "description": "Vinyl",
+      "quantity_billed": 50,
+      "unit_price_billed": 185,
+      "quantity_variance": 0,
+      "price_variance": 5,
+      "line_total": 9250,
+      "product_id": null
+     }
+    ]
+   },
+   "supplier_invoices": {
+    "added": [
+     {
+      "id": 1,
+      "purchase_order_id": 1,
+      "supplier_id": 2,
+      "supplier_reference": "INV-7731",
+      "amount": 9250,
+      "source_transcript": "Floornet invoice INV-7731",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm supplier invoice: a copy of an invoice that is already recorded is not recorded again and stays waiting": {
+  "result": {
+   "status": 409,
+   "body": {
+    "error": "Invoice INV-7731 from Floornet is already recorded (R9250 on 2026-10-03), so nothing was recorded again.",
+    "held": true
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
  "confirm identity question: owner, the name belongs to an installer": {
   "result": {
    "status": 200,

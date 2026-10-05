@@ -3921,5 +3921,145 @@
     "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
    }
   ]
+ },
+ "document (image): a supplier invoice that is already recorded is not held again": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Invoice INV-7731 from Floornet is already recorded (R9250 on 2026-10-03), so nothing was recorded again.",
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "Floornet TAX INVOICE INV-7731 Vinyl 50 sqm at R185",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real bill has arrived for a real, already-placed order — "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet invoice\n\n[Document: Floornet TAX INVOICE INV-7731 Vinyl 50 sqm at R185]",
+      "source": "document",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "photo: a supplier invoice that is already recorded is not held again": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Invoice INV-7731 from Floornet is already recorded (R9250 on 2026-10-03), so nothing was recorded again.",
+    "pendingActionId": null,
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "Floornet TAX INVOICE INV-7731 Vinyl 50 sqm at R185",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real bill has arrived for a real, already-placed order — "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet invoice\n\n[Photo description: Floornet TAX INVOICE INV-7731 Vinyl 50 sqm at R185]",
+      "source": "photo",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "document: a supplier invoice that is already recorded (a real PDF)": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Invoice INV-7731 from Floornet is already recorded (R9250 on 2026-10-03), so nothing was recorded again.",
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd TAX INVOICE INV-7731 Vinyl 50 sqm at R185",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": null
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real bill has arrived for a real, already-placed order — "
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "Floornet invoice\n\n[Document: Floornet (Pty) Ltd TAX INVOICE INV-7731 Vinyl 50 sqm at R185]",
+      "source": "document",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
  }
 }

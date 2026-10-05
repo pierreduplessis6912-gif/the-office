@@ -32,6 +32,7 @@ module.exports = function cases(caps) {
       INSERT INTO po_line_items (id, purchase_order_id, description, quantity_ordered, unit, unit_price_expected) VALUES (3, 2, 'Vinyl', 30, 'sqm', 180);
     `);
   };
+  const withRecordedInvoice = (db) => { withOrder(db); db.exec(`INSERT INTO supplier_invoices (id, purchase_order_id, supplier_id, supplier_reference, amount, created_at) VALUES (1, 1, 1, 'INV-7731', 9250, '2026-10-03 08:00:00');`); };
   const IDENT = (reply) => ({ match: /Decide what kind of document it is and which business ISSUED it/, reply });
   const STMT = (reply) => ({ match: /claimed_closing_balance/, reply });
   const DESCRIBE = (text) => ({ match: /Describe exactly what is shown in this photo/, reply: text });
@@ -188,7 +189,14 @@ module.exports = function cases(caps) {
     up('photo: a supplier invoice that spans two orders is held and says so', 'owner', twoVinylOrders, 'photo', png, { caption: 'Floornet invoice' }, [DESCRIBE('Floornet TAX INVOICE Vinyl 70 sqm at R185'), asInvoice, span70]),
     up('document: a supplier invoice that spans two orders (a real PDF)', 'owner', twoVinylOrders, 'document', pdf(['Floornet (Pty) Ltd', 'TAX INVOICE INV-7731', 'Vinyl 70 sqm at R185']), { caption: 'Floornet invoice' }, [asInvoice, span70]),
   );
+  const dupInvoiceReply = SIAI({ supplier_name: 'Floornet', supplier_reference: 'INV-7731', line_items: [{ matched_description: 'Vinyl', quantity_billed: 50, unit_price_billed: 185 }] });
+  specs.push(
+    asImage('document (image): a supplier invoice that is already recorded is not held again', 'owner', withRecordedInvoice, { caption: 'Floornet invoice' }, [DESCRIBE('Floornet TAX INVOICE INV-7731 Vinyl 50 sqm at R185'), asInvoice, dupInvoiceReply]),
+    up('photo: a supplier invoice that is already recorded is not held again', 'owner', withRecordedInvoice, 'photo', png, { caption: 'Floornet invoice' }, [DESCRIBE('Floornet TAX INVOICE INV-7731 Vinyl 50 sqm at R185'), asInvoice, dupInvoiceReply]),
+    up('document: a supplier invoice that is already recorded (a real PDF)', 'owner', withRecordedInvoice, 'document', pdf(['Floornet (Pty) Ltd', 'TAX INVOICE INV-7731', 'Vinyl 50 sqm at R185']), { caption: 'Floornet invoice' }, [asInvoice, dupInvoiceReply]),
+  );
   specs.pairs = [
+    ['document (image): a supplier invoice that is already recorded is not held again', 'photo: a supplier invoice that is already recorded is not held again', same],
     ['document (image): a supplier invoice that spans two orders is held and says so', 'photo: a supplier invoice that spans two orders is held and says so', same],
     ['document (image): a delivery in boxes with a conversion on file is converted and held', 'photo: a delivery in boxes with a conversion on file is converted and held', same],
     ['document (image): a delivery in boxes and no conversion known asks and holds nothing', 'photo: a delivery in boxes and no conversion known asks and holds nothing', same],
