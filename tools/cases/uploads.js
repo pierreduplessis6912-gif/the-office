@@ -195,7 +195,16 @@ module.exports = function cases(caps) {
     up('photo: a supplier invoice that is already recorded is not held again', 'owner', withRecordedInvoice, 'photo', png, { caption: 'Floornet invoice' }, [DESCRIBE('Floornet TAX INVOICE INV-7731 Vinyl 50 sqm at R185'), asInvoice, dupInvoiceReply]),
     up('document: a supplier invoice that is already recorded (a real PDF)', 'owner', withRecordedInvoice, 'document', pdf(['Floornet (Pty) Ltd', 'TAX INVOICE INV-7731', 'Vinyl 50 sqm at R185']), { caption: 'Floornet invoice' }, [asInvoice, dupInvoiceReply]),
   );
+  const stmtCaption = READ({ 'statement from Floornet': { intent: 'supplier_statement', character_name: 'Floornet', character_relationship: 'supplier' } });
+  const stmtText = DESCRIBE('Floornet (Pty) Ltd STATEMENT OF ACCOUNT Closing Balance R20,000.00');
+  specs.push(
+    asImage('document (image): a statement is compared with the books and recorded', 'owner', withBooks, { caption: 'statement from Floornet' }, [stmtText, stmtCaption, STMT({ claimed_closing_balance: 20000 })]),
+    up('photo: a statement is compared with the books and recorded', 'owner', withBooks, 'photo', png, { caption: 'statement from Floornet' }, [stmtText, stmtCaption, STMT({ claimed_closing_balance: 20000 })]),
+    up('document: a statement that matches the books says so', 'owner', withBooks, 'document', pdf(stmtLines), { caption: 'statement from Floornet' }, [stmtCaption, STMT({ claimed_closing_balance: 9250 })]),
+    up('document: a statement for less than the books says so', 'owner', withBooks, 'document', pdf(stmtLines), { caption: 'statement from Floornet' }, [stmtCaption, STMT({ claimed_closing_balance: 8000 })]),
+  );
   specs.pairs = [
+    ['document (image): a statement is compared with the books and recorded', 'photo: a statement is compared with the books and recorded', same],
     ['document (image): a supplier invoice that is already recorded is not held again', 'photo: a supplier invoice that is already recorded is not held again', same],
     ['document (image): a supplier invoice that spans two orders is held and says so', 'photo: a supplier invoice that spans two orders is held and says so', same],
     ['document (image): a delivery in boxes with a conversion on file is converted and held', 'photo: a delivery in boxes with a conversion on file is converted and held', same],

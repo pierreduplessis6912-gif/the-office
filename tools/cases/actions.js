@@ -95,7 +95,8 @@ module.exports = function cases(caps) {
   return [
     // ---------------- money, and the gate in front of it ----------------
     r('confirm payment: owner', base, '/actions/1/confirm', [say('Jenny paid R500', pay)], []),
-    r('confirm payment: a payment with no amount', base, '/actions/1/confirm', [say('Jenny paid', { ...pay, amount: null })], []),
+    // A dictated payment with no amount is no longer held (it asks how much), but one held BEFORE that change can still be waiting.
+    r('confirm payment: an amountless payment held before this change is still confirmable', (db) => { base(db); db.exec(`INSERT INTO pending_actions (id, type, payload, source_transcript, status, created_at) VALUES (1, 'payment', '{"customerId":1,"customerName":"Jenny Smith","amount":null}', 'Jenny paid', 'pending', '2026-10-03 10:00:00');`); }, '/actions/1/confirm', [], []),
     r('confirm payment: accountant', base, '/actions/1/confirm', [say('Jenny paid R500', pay)], [], { role: 'accountant' }),
     r('confirm payment: an installer is refused at the gate', base, '/actions/1/confirm', [say('Jenny paid R500', pay)], [], { role: 'installer' }),
     r('confirm payment: signed out', base, '/actions/1/confirm', [say('Jenny paid R500', pay)], [], { noSession: true }),

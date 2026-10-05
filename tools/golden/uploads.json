@@ -1015,7 +1015,7 @@
    "body": {
     "status": "stored",
     "refusal": null,
-    "message": "Statement from Floornet: they claim R20000, our records show R9250.",
+    "message": "Statement from Floornet: they claim R20000, our records show R9250. They claim R10750 more than our records.",
     "pendingActionId": null,
     "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
     "captureId": 1,
@@ -1051,6 +1051,20 @@
       "character_id": 1
      }
     ]
+   },
+   "supplier_statements": {
+    "added": [
+     {
+      "id": 1,
+      "supplier_id": 1,
+      "claimed_balance": 20000,
+      "books_balance": 9250,
+      "difference": 10750,
+      "source": "document",
+      "source_text": "Floornet (Pty) Ltd STATEMENT OF ACCOUNT Closing Balance: R20,000.00",
+      "recorded_by": null
+     }
+    ]
    }
   },
   "effects": [
@@ -1066,7 +1080,7 @@
    "body": {
     "status": "stored",
     "refusal": null,
-    "message": "Statement from Floornet (read from the document): they claim R20000, our records show R9250.",
+    "message": "Statement from Floornet (read from the document): they claim R20000, our records show R9250. They claim R10750 more than our records.",
     "pendingActionId": null,
     "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
     "captureId": 1,
@@ -1100,6 +1114,20 @@
       "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
       "customer_id": null,
       "character_id": null
+     }
+    ]
+   },
+   "supplier_statements": {
+    "added": [
+     {
+      "id": 1,
+      "supplier_id": 1,
+      "claimed_balance": 20000,
+      "books_balance": 9250,
+      "difference": 10750,
+      "source": "document",
+      "source_text": "Floornet (Pty) Ltd STATEMENT OF ACCOUNT Closing Balance: R20,000.00",
+      "recorded_by": null
      }
     ]
    }
@@ -4051,6 +4079,268 @@
       "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
       "customer_id": null,
       "character_id": 1
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document (image): a statement is compared with the books and recorded": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Statement from Floornet: they claim R20000, our records show R9250. They claim R10750 more than our records.",
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd STATEMENT OF ACCOUNT Closing Balance R20,000.00",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": {
+     "supplierName": "Floornet",
+     "claimedBalance": 20000,
+     "realBalance": 9250,
+     "difference": 10750
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real monthly statement is given. Find the real, stated cl"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "statement from Floornet\n\n[Document: Floornet (Pty) Ltd STATEMENT OF ACCOUNT Closing Balance R20,000.00]",
+      "source": "document",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   },
+   "supplier_statements": {
+    "added": [
+     {
+      "id": 1,
+      "supplier_id": 1,
+      "claimed_balance": 20000,
+      "books_balance": 9250,
+      "difference": 10750,
+      "source": "document",
+      "source_text": "Floornet (Pty) Ltd STATEMENT OF ACCOUNT Closing Balance R20,000.00",
+      "recorded_by": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "photo: a statement is compared with the books and recorded": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Statement from Floornet: they claim R20000, our records show R9250. They claim R10750 more than our records.",
+    "pendingActionId": null,
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd STATEMENT OF ACCOUNT Closing Balance R20,000.00",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": {
+     "supplierName": "Floornet",
+     "claimedBalance": 20000,
+     "realBalance": 9250,
+     "difference": 10750
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "",
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real monthly statement is given. Find the real, stated cl"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "statement from Floornet\n\n[Photo description: Floornet (Pty) Ltd STATEMENT OF ACCOUNT Closing Balance R20,000.00]",
+      "source": "photo",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   },
+   "supplier_statements": {
+    "added": [
+     {
+      "id": 1,
+      "supplier_id": 1,
+      "claimed_balance": 20000,
+      "books_balance": 9250,
+      "difference": 10750,
+      "source": "photo",
+      "source_text": "Floornet (Pty) Ltd STATEMENT OF ACCOUNT Closing Balance R20,000.00",
+      "recorded_by": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png"
+   }
+  ]
+ },
+ "document: a statement that matches the books says so": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Statement from Floornet: they claim R9250, our records show R9250. That matches our records.",
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd STATEMENT OF ACCOUNT Closing Balance: R20,000.00",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": {
+     "supplierName": "Floornet",
+     "claimedBalance": 9250,
+     "realBalance": 9250,
+     "difference": 0
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real monthly statement is given. Find the real, stated cl"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "statement from Floornet\n\n[Document: Floornet (Pty) Ltd STATEMENT OF ACCOUNT Closing Balance: R20,000.00]",
+      "source": "document",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   },
+   "supplier_statements": {
+    "added": [
+     {
+      "id": 1,
+      "supplier_id": 1,
+      "claimed_balance": 9250,
+      "books_balance": 9250,
+      "difference": 0,
+      "source": "document",
+      "source_text": "Floornet (Pty) Ltd STATEMENT OF ACCOUNT Closing Balance: R20,000.00",
+      "recorded_by": null
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "r2": "put",
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf"
+   }
+  ]
+ },
+ "document: a statement for less than the books says so": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "stored",
+    "refusal": null,
+    "message": "Statement from Floornet: they claim R8000, our records show R9250. They claim R1250 less than our records.",
+    "pendingActionId": null,
+    "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+    "captureId": 1,
+    "description": "Floornet (Pty) Ltd STATEMENT OF ACCOUNT Closing Balance: R20,000.00",
+    "subjectHint": "Floornet",
+    "supplierInvoiceAction": null,
+    "goodsReceivedAction": null,
+    "supplierStatementAction": {
+     "supplierName": "Floornet",
+     "claimedBalance": 8000,
+     "realBalance": 9250,
+     "difference": -1250
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract structured facts from a tradesperson's message. The real invar",
+   "A supplier's real monthly statement is given. Find the real, stated cl"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "added": [
+     {
+      "id": 1,
+      "raw_text": "statement from Floornet\n\n[Document: Floornet (Pty) Ltd STATEMENT OF ACCOUNT Closing Balance: R20,000.00]",
+      "source": "document",
+      "subject_hint": "Floornet",
+      "extraction_status": "processed",
+      "r2_key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
+      "customer_id": null,
+      "character_id": 1
+     }
+    ]
+   },
+   "supplier_statements": {
+    "added": [
+     {
+      "id": 1,
+      "supplier_id": 1,
+      "claimed_balance": 8000,
+      "books_balance": 9250,
+      "difference": -1250,
+      "source": "document",
+      "source_text": "Floornet (Pty) Ltd STATEMENT OF ACCOUNT Closing Balance: R20,000.00",
+      "recorded_by": null
      }
     ]
    }

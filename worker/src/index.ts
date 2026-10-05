@@ -2,7 +2,7 @@ import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult, WorkObs
 import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, classifyDashboardIntent, containsBackwardReference, describeImage, embedText, extractDocumentIdentity, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractSupplierStatement, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, splitIntoTopics, storeUnscopedMemory, transcribe, transcribeWithNameHints, extractUnitConversion } from "./ai";
 import { listAudit, listPermissions, resetRole, setPermission } from "./permissions";
 import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, logInteractionEdge, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, reconcilePerson, setSelection, withArticle } from "./identity";
-import { attachToSiblingJobScope, completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveScheduledDate, resolveTaskCompletion } from "./scheduler";
+import { attachToSiblingJobScope, completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveScheduledDate, resolveTaskCompletion, hasSiblingToAttach } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText } from "./memory";
 import {
   authGate, checkIdempotencyKey, completeIdempotencyKey, runIdempotentMigration, corsHeadersFor,
@@ -10,7 +10,7 @@ import {
   verifySession, getSessionToken, getCookie, base64UrlEncode, ROLE_CAPABILITIES, ENFORCE_CAPABILITIES,
   ACTION_TYPE_CAPABILITY, ROUTE_RULES, SIGNABLE_DOCUMENT_PATHS, canResolveActionType, intentCreationRefusal, intentKeepsOutOfNotes,
 } from "./auth";
-import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote, duplicateInvoiceMessage, findDuplicateSupplierInvoice, normalizeInvoiceReference, describeConversion, forgetUnitConversions, listUnitConversions, unitConversionsAnswer, checkStockUnit } from "./finance";
+import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote, duplicateInvoiceMessage, findDuplicateSupplierInvoice, normalizeInvoiceReference, describeConversion, forgetUnitConversions, listUnitConversions, unitConversionsAnswer, checkStockUnit, listSupplierStatements, recordSupplierStatement, statementDifferenceNote, supplierStatementsAnswer } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 import { handleDebugRoute } from "./debug";
 import { DOCUMENT_KIND_LABEL, asksAboutDeliveryExceptions, deliveryExceptionAnswer, deliveryHadExceptions, deliveryHeldMessage, deliveryRecordedMessage, inferDocumentSupplier, planDelivery } from "./documents";
@@ -309,7 +309,7 @@ async function processOneExtraction(
   // through the already-existing read-only findExistingEntityByName
   // instead of the create-or-find reconcile functions.
   if (extraction?.customer_name) {
-    if (extraction.intent === "lookup" || extraction.intent === "cancel_order" || extraction.intent === "set_unit_conversion" || extraction.intent === "forget_unit_conversion") {
+    if (extraction.intent === "lookup" || extraction.intent === "cancel_order" || extraction.intent === "set_unit_conversion" || extraction.intent === "forget_unit_conversion" || extraction.intent === "supplier_statement") {
       const found = await findExistingCustomerByName(env, extraction.customer_name);
       if (found) {
         customer = { id: found.id, name: found.name, matched: true };
@@ -428,7 +428,7 @@ async function processOneExtraction(
   }
 
   if (extraction?.character_name) {
-    if (extraction.intent === "lookup" || extraction.intent === "cancel_order" || extraction.intent === "set_unit_conversion" || extraction.intent === "forget_unit_conversion") {
+    if (extraction.intent === "lookup" || extraction.intent === "cancel_order" || extraction.intent === "set_unit_conversion" || extraction.intent === "forget_unit_conversion" || extraction.intent === "supplier_statement") {
       const found = await findExistingCharacterByName(env, extraction.character_name);
       if (found) {
         character = { id: found.id, name: found.name, matched: true };
@@ -620,7 +620,9 @@ async function processOneExtraction(
   // financial write inside an intent that is otherwise open to every role.
   const canManageInvoicesForWrites = capabilities.includes("can_manage_invoices");
 
-  if (extraction?.intent === "payment" && customer) {
+  // Decided by Pierre 2026-10-04: a payment with no amount is no longer held with the amount blank for you to confirm without a number. It
+  // asks "how much?" and holds nothing, as an invoice with no amount already does.
+  if (extraction?.intent === "payment" && customer && extraction.amount) {
     const held = await holdForConfirmation(
       env,
       "payment",
@@ -931,6 +933,24 @@ async function processOneExtraction(
 
   // Decided by Pierre 2026-10-04: "a box of laminate is 2.2 square metres". A direct write (it is a fact about a material, no money
   // moves), gated like the rest of stock, and said again to change it. The reply always says what was understood or why not.
+  // Decided by Pierre 2026-10-04: a SPOKEN supplier statement ("Floornet says we owe them R12,000") used to do nothing but say "Found existing:
+  // Floornet". It is now compared with the books exactly as an uploaded one is, and recorded, so it has a home. The supplier must already be
+  // on file (a statement for a name nobody has heard of cannot create a supplier). A role that may not check statements is refused earlier.
+  let supplierStatementReply: string | null = null;
+  if (extraction?.intent === "supplier_statement") {
+    if (!extraction.character_name) {
+      supplierStatementReply = "I heard a supplier statement, but no supplier name came through — which supplier is it from?";
+    } else if (!character) {
+      supplierStatementReply = `I don't have ${extraction.character_name} as a supplier, so there is no account to compare a statement with.`;
+    } else if (extraction.amount == null) {
+      supplierStatementReply = `I heard a statement from ${character.name}, but no balance came through — what do they say is owed?`;
+    } else {
+      const booksBalance = await getOutstandingBalanceForSupplier(env, character.id);
+      const savedStatement = await recordSupplierStatement(env, character.id, extraction.amount, booksBalance, "spoken", transcript, recordingUserEmail);
+      supplierStatementReply = `Statement from ${character.name}: they claim R${extraction.amount}, our records show R${booksBalance}.${statementDifferenceNote(savedStatement.difference)}`;
+    }
+  }
+
   let unitConversionMessage: string | null = null;
   if (extraction?.intent === "forget_unit_conversion") {
     // Decided by Pierre 2026-10-04: "forget the laminate conversion". Exactly that item's conversion(s), never a looser match.
@@ -1357,15 +1377,25 @@ async function processOneExtraction(
   }
 
   let workObservationNothingObserved = false;
+  let workObservationAskCustomer: { installer: string | null; date: string | null } | null = null;
   let workObservationPricingNotMade = false;
   if (extraction?.intent === "work_observation") {
     const observation = await extractWorkObservation(env, transcript);
+    // Decided by Pierre 2026-10-04: a sentence with only an installer or a date, no customer, and no job or lead from the same capture to
+    // attach it to used to be recorded as a customer-less job, findable only by its installer or date. It now asks which customer it is for
+    // and records nothing. Decided BEFORE the installer is resolved, so a sentence that is about to be asked about creates no installer.
+    const askWhichCustomer =
+      !customer &&
+      observation.components.length === 0 &&
+      observation.tasks.length === 0 &&
+      Boolean(observation.scheduled_date_raw || observation.installer_name) &&
+      !(await hasSiblingToAttach(env, captureId));
     // Real feature 2026-07-12 — the smallest real first domino toward
     // team support: an installer is reconciled as a real character
     // (same as a supplier — a real, non-billed person), never
     // invented, only linked when genuinely named.
     let installerId: number | null = null;
-    if (observation.installer_name) {
+    if (observation.installer_name && !askWhichCustomer) {
       const installer = await reconcileCharacter(env, observation.installer_name, "installer");
       installerId = installer?.id ?? null;
     }
@@ -1402,6 +1432,8 @@ async function processOneExtraction(
       observation.components.length > 0 || observation.tasks.length > 0 || Boolean(observation.scheduled_date_raw) || Boolean(observation.installer_name);
     if (!observedSomething) {
       workObservationNothingObserved = true;
+    } else if (askWhichCustomer) {
+      workObservationAskCustomer = { installer: observation.installer_name ?? null, date: observation.scheduled_date_raw ?? null };
     } else {
     let recorded: Awaited<ReturnType<typeof recordWorkObservation>> | null = null;
     const scheduledDateForAttach = resolveScheduledDate(observation.scheduled_date_raw, nowInBusinessTimezone());
@@ -1650,6 +1682,8 @@ async function processOneExtraction(
     // Found by the characterization recordings 2026-10-03: an invoice with a named customer but no amount and nothing
     // to record fell through to the generic "Found existing customer" reply, as if it had been a lookup.
     message = `I heard an invoice for ${customer.name}, but no amount came through — how much is it for?${invoiceJobPartNotRead ? " I couldn't read any job details from that either, so say those again too." : ""}`;
+  } else if (extraction?.intent === "payment" && customer && !pendingActionId) {
+    message = `I heard a payment from ${customer.name}, but no amount came through — how much was it?`;
   } else if (extraction?.intent === "quotation" && customer && !pendingActionId) {
     // Same: a quotation with no readable items and no amount answered as a lookup.
     message = `I heard a quotation for ${customer.name}, but couldn't make out any items or an amount.`;
@@ -1701,6 +1735,8 @@ async function processOneExtraction(
     message = `I couldn't tell what happened with that shortage on ${character!.name}'s order. Say why it happened (short delivered, damaged and so on) or whether it is a back order or a credit, and I'll note it.`;
   } else if (extraction?.intent === "variance_disposition" && dispositionNoOpenDiscrepancy) {
     message = `I don't have an open, unresolved discrepancy on file for ${character!.name} to attach this to.`;
+  } else if (extraction?.intent === "supplier_statement" && supplierStatementReply) {
+    message = supplierStatementReply;
   } else if ((extraction?.intent === "set_unit_conversion" || extraction?.intent === "forget_unit_conversion") && unitConversionMessage) {
     message = unitConversionMessage;
   } else if (extraction?.intent === "register_stock_item" && stockRegistrationResult) {
@@ -1834,6 +1870,8 @@ async function processOneExtraction(
         message += ` Heads up — the same installer is already booked that day (${who}).`;
       }
     }
+  } else if (extraction?.intent === "work_observation" && workObservationAskCustomer) {
+    message = `I heard a job${workObservationAskCustomer.installer ? ` with ${workObservationAskCustomer.installer}` : ""}${workObservationAskCustomer.date ? ` for ${workObservationAskCustomer.date}` : ""}, but no customer came through — which customer is it for? Nothing was recorded.`;
   } else if (extraction?.intent === "work_observation" && workObservationNothingObserved) {
     message = customer
       ? `I heard a job observation for ${customer.name}, but couldn't make out any measurements, tasks, date or installer, so nothing was recorded.`
@@ -1879,6 +1917,12 @@ async function processOneExtraction(
       } else {
         message = `No real supplier invoice on file yet mentions "${extraction.fact_value}" — nothing to base a price on.`;
       }
+    } else if (extraction?.query_scope === "supplier_statements") {
+      // Decided by Pierre 2026-10-04: the recorded statements can be asked for ("what did Floornet claim we owe"). Answered in code. Needs the
+      // same permission as checking a statement in the first place.
+      message = intentCreationRefusal("supplier_statement", capabilities)
+        ? "Supplier statements exist for this business but are restricted for your role."
+        : supplierStatementsAnswer(await listSupplierStatements(env, character?.id ?? null), character?.name ?? null);
     } else if (extraction?.query_scope === "unit_conversions") {
       // Decided by Pierre 2026-10-04: the saved unit conversions can be asked for in words. Answered in code, not paraphrased by a model, so
       // the list is always exact. Materials access, like saving one.
@@ -5421,7 +5465,10 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             realBalance,
             difference: Math.round((stmtExtraction.claimed_closing_balance - realBalance) * 100) / 100,
           };
-          uploadMessage = `Statement from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""}: they claim R${stmtExtraction.claimed_closing_balance}, our records show R${realBalance}.`;
+          {
+            const savedStatement = await recordSupplierStatement(env, subjectCharacterId, stmtExtraction.claimed_closing_balance, realBalance, "document", description, null);
+            uploadMessage = `Statement from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""}: they claim R${stmtExtraction.claimed_closing_balance}, our records show R${realBalance}.${statementDifferenceNote(savedStatement.difference)}`;
+          }
         } else {
           uploadMessage = `I couldn't find a closing balance on this statement from ${subjectHint ?? "the supplier"}, so nothing was compared.`;
         }
@@ -5700,7 +5747,10 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             realBalance,
             difference: Math.round((stmtExtraction.claimed_closing_balance - realBalance) * 100) / 100,
           };
-          uploadMessage = `Statement from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""}: they claim R${stmtExtraction.claimed_closing_balance}, our records show R${realBalance}.`;
+          {
+            const savedStatement = await recordSupplierStatement(env, subjectCharacterId, stmtExtraction.claimed_closing_balance, realBalance, "photo", description, null);
+            uploadMessage = `Statement from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""}: they claim R${stmtExtraction.claimed_closing_balance}, our records show R${realBalance}.${statementDifferenceNote(savedStatement.difference)}`;
+          }
         } else {
           uploadMessage = `I couldn't find a closing balance on this statement from ${subjectHint ?? "the supplier"}, so nothing was compared.`;
         }

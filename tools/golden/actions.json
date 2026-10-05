@@ -49,7 +49,7 @@
   },
   "effects": []
  },
- "confirm payment: a payment with no amount": {
+ "confirm payment: an amountless payment held before this change is still confirmable": {
   "result": {
    "status": 200,
    "body": {

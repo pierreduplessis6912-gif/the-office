@@ -41,6 +41,16 @@ module.exports = function cases(caps) {
   // The saved unit conversions can be asked for in words (decided 2026-10-04). The table is created by the code the first time it is needed.
   const unitConversionDdl = "CREATE TABLE IF NOT EXISTS unit_conversions (item_key TEXT NOT NULL, from_unit TEXT NOT NULL, to_unit TEXT NOT NULL, factor REAL NOT NULL, set_by TEXT, updated_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (item_key, from_unit, to_unit))";
   const someConversions = (db) => { books(db); db.exec(unitConversionDdl + "; INSERT INTO unit_conversions (item_key, from_unit, to_unit, factor) VALUES ('laminate', 'box', 'sqm', 2.2), ('quickstep laminate', 'box', 'sqm', 3), ('underlay', 'roll', 'sqm', 15);"); };
+  // Recorded supplier statements can be asked for (decided 2026-10-04). The table is created by the code the first time it is needed.
+  const supplierStatementDdl = "CREATE TABLE IF NOT EXISTS supplier_statements (id INTEGER PRIMARY KEY AUTOINCREMENT, supplier_id INTEGER NOT NULL, claimed_balance REAL NOT NULL, books_balance REAL NOT NULL, difference REAL NOT NULL, source TEXT NOT NULL, source_text TEXT, recorded_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))";
+  const someStatements = (db) => {
+    books(db);
+    db.exec(`INSERT INTO characters (name, relationship) VALUES ('Belgotex', 'supplier'); ` + supplierStatementDdl + `; INSERT INTO supplier_statements (supplier_id, claimed_balance, books_balance, difference, source, source_text, recorded_by, created_at) VALUES
+      (1, 12000, 11000, 1000, 'spoken', 'Floornet says we owe them R12000', 'owner@example.com', '2026-10-01 08:00:00'),
+      (1, 11000, 11000, 0, 'document', NULL, NULL, '2026-10-02 08:00:00'),
+      (1, 10500, 11000, -500, 'photo', NULL, NULL, '2026-10-03 08:00:00'),
+      ((SELECT id FROM characters WHERE name = 'Belgotex'), 4000, 4000, 0, 'spoken', 'Belgotex says 4000', 'owner@example.com', '2026-10-02 09:00:00');`);
+  };
   const DASH = (reply) => ({ match: /broad, whole-business question wanting a real, visual snapshot/, reply });
   const TOPIC = (reply) => ({ match: /standing topic of the conversation below/, reply });
   const ANSWER = { match: /Answer the tradesperson's question using only the facts below/, reply: (input) => 'ANSWER FROM FACTS:\n' + ((input.messages.find((m) => m.role === 'system').content.split('Facts:\n')[1]) || '') };
@@ -53,6 +63,14 @@ module.exports = function cases(caps) {
     c('lookup: owner, the last price paid for a material', 'owner', withPriceHistory, { query_scope: 'material_price', fact_value: 'vinyl' }, 'what did we last pay for vinyl', []),
     c('lookup: owner, a material nobody has been invoiced for', 'owner', withPriceHistory, { query_scope: 'material_price', fact_value: 'grout' }, 'what did we last pay for grout', []),
     c('lookup: installer, the last price paid for a material', 'installer', withPriceHistory, { query_scope: 'material_price', fact_value: 'vinyl' }, 'what did we last pay for vinyl', []),
+
+    // ---------------- the recorded supplier statements ----------------
+    c('lookup supplier statements: one supplier, newest first', 'owner', someStatements, { query_scope: 'supplier_statements', character_name: 'Floornet', character_relationship: 'supplier' }, 'what did Floornet claim we owe', []),
+    c('lookup supplier statements: every supplier', 'owner', someStatements, { query_scope: 'supplier_statements' }, 'what have the suppliers claimed', []),
+    c('lookup supplier statements: none recorded for that supplier', 'owner', (db) => { someStatements(db); db.exec("INSERT INTO characters (name, relationship) VALUES ('Quiet Supplies', 'supplier');"); }, { query_scope: 'supplier_statements', character_name: 'Quiet Supplies', character_relationship: 'supplier' }, 'what did Quiet Supplies claim', []),
+    c('lookup supplier statements: none recorded at all', 'owner', books, { query_scope: 'supplier_statements' }, 'what have the suppliers claimed', []),
+    c('lookup supplier statements: accountant', 'accountant', someStatements, { query_scope: 'supplier_statements', character_name: 'Floornet', character_relationship: 'supplier' }, 'what did Floornet claim we owe', []),
+    c('lookup supplier statements: installer is told it is restricted', 'installer', someStatements, { query_scope: 'supplier_statements', character_name: 'Floornet', character_relationship: 'supplier' }, 'what did Floornet claim we owe', []),
 
     // ---------------- the saved unit conversions ----------------
     c('lookup unit conversions: owner, all of them', 'owner', someConversions, { query_scope: 'unit_conversions' }, 'what conversions do I have', []),

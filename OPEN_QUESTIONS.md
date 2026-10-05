@@ -3,19 +3,10 @@
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
 anyone remembering it. Each item says what the question is, what the system does **today** (the default until
 someone decides), and where the evidence is. When one is settled, move it to the bottom with the date and the
-decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 9 applied).
+decision, and say where it was applied. Last updated 2026-10-04 (decisions session, round 10 in progress).
 
 ## A. Decisions only Pierre can make
 
-7. **A spoken supplier statement now stays out of free-text notes** (it is money, and notes are ungated) and has no
-   structured home, so the words survive only in the raw capture. *Question:* should a spoken statement be recorded
-   somewhere, or is the capture enough?
-10. **A payment with no amount is held for confirmation on purpose** (`payments.amount` is nullable and
-    `recordPayment` accepts none). Confirmed as design in the code; listed in case Pierre would rather the amount
-    be asked for.
-26. **A job scope with no customer is recorded** when only an installer or a date is heard and there is nothing in the same
-    message to attach it to. It is findable only by its installer or date. May be intended (to be attached later); worth
-    confirming.
 30. **A person's details (cell, address and so on) are shown to every role, and `can_know_payroll` and `can_know_banking`
     are defined but never checked anywhere.** Harmless while no payroll data is stored; a day rate or a bank detail saved
     as a "detail" would be visible to everyone. *Option:* gate the sensitive detail keys, or use the two unused
@@ -50,6 +41,10 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     reader capture the unit and convert it the same way.
 
 
+
+47. **A job with measurements or tasks but no customer is still recorded customer-less.** Only the installer-and-date-only case
+    (nothing to measure, nothing to attach to) now asks which customer. *Option:* ask in every case where no customer was
+    named and nothing in the same message supplies one. (`DECISIONS.md`, "Decisions session, round 10 (part 1)".)
 ## B. Needs a live check only a phone can give
 
 12. **The Codemagic rebuild**: the Confirm/Reject buttons for a follow-up question raised by a confirm ("Add to stock?",
@@ -58,6 +53,9 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     tests, never run on a real delivery note with two orders.
 15. **The Permissions screen on a real phone.** The web build compiles it; the phone build and a real tap-through are
     unverified (switch something off for the installer, then check on the installer's phone that the room is gone).
+14h. **A real "Floornet says we owe them R12,000" and "what did Floornet claim we owe".** Both are read by the language model,
+    which could not be run here (the first needs the stated balance to arrive in the amount). Try each once, and "Jenny paid"
+    with no amount (expect "how much was it?") and "Sipho will install Monday" with no customer (expect "which customer?").
 14g. **A real "used 3 boxes of laminate" and "counted 10 boxes of laminate".** The reader that turns the sentence into an item,
     a number and a unit is a language model that could not be run here. Try each once for an item kept in sqm with a box
     conversion saved (expect the converted amount and the note), and once with no conversion saved (expect the question).
@@ -106,6 +104,13 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
 
 ## Settled (kept so the reasoning is not lost)
+
+- 2026-10-04, decided by Pierre (decisions session, round 10):
+  - **Supplier statements have a home, spoken or uploaded:** recorded with what the books said at that moment and the difference,
+    and the history can be asked for. The supplier must already be on file. Applied.
+  - **A payment with no amount asks how much and holds nothing.** Applied (a payment held before the change can still be confirmed).
+  - **A job with only an installer and/or a date, no customer and nothing to attach to, asks which customer** and records nothing
+    (and creates no installer). Applied. (`DECISIONS.md`, "Decisions session, round 10 (part 1)".)
 
 - 2026-10-04, decided by Pierre (decisions session, round 9, stock units):
   - **Stock usage and counts said in another unit are converted, and when no conversion is known nothing is recorded and the

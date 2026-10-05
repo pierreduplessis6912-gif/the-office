@@ -404,6 +404,16 @@ export async function recordWorkObservation(
 // the sibling segment that just described the actual job a moment
 // earlier, in the same breath. Deliberately narrow: only ever attaches
 // within the same capture, never guesses across unrelated ones.
+// Decided by Pierre 2026-10-04: is there a job (or a lead) from the SAME capture that a customer-less scheduling sentence could attach to? Asked
+// BEFORE anything is created for the sentence, so a sentence that is about to be asked about ("which customer is it for?") creates nothing.
+export async function hasSiblingToAttach(env: Env, captureId: number | null): Promise<boolean> {
+  if (captureId === null) return false;
+  const job = await env.OFFICE_DB.prepare("SELECT id FROM job_scopes WHERE capture_id = ? LIMIT 1").bind(captureId).first<{ id: number }>();
+  if (job) return true;
+  const lead = await env.OFFICE_DB.prepare("SELECT id FROM leads WHERE capture_id = ? LIMIT 1").bind(captureId).first<{ id: number }>();
+  return Boolean(lead);
+}
+
 export async function attachToSiblingJobScope(
   env: Env,
   captureId: number | null,

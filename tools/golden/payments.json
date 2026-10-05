@@ -254,7 +254,7 @@
   },
   "effects": []
  },
- "payment: owner, no amount heard": {
+ "payment: owner, no amount heard asks how much and holds nothing": {
   "result": {
    "customer": {
     "id": 1,
@@ -262,12 +262,12 @@
     "matched": true
    },
    "character": null,
-   "pendingActionId": 1,
+   "pendingActionId": null,
    "factPendingActionId": null,
-   "message": "Payment noted for Jenny Smith — needs your confirmation (action #1) before it's recorded.",
+   "message": "I heard a payment from Jenny Smith, but no amount came through — how much was it?",
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
-   "pendingActionType": "payment",
+   "pendingActionType": null,
    "pendingChanges": null
   },
   "threw": null,
@@ -300,14 +300,119 @@
      }
     ]
    },
-   "pending_actions": {
+   "selections": {
     "added": [
      {
-      "id": 1,
-      "type": "payment",
-      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"amount\":null}",
-      "status": "pending",
-      "source_transcript": "Jenny paid"
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "payment: accountant, no amount heard asks how much and holds nothing": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I heard a payment from Jenny Smith, but no amount came through — how much was it?",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jenny paid",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jenny paid",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "payment: owner, an amount of zero is not an amount": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I heard a payment from Jenny Smith, but no amount came through — how much was it?",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Jenny paid nothing",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Jenny paid nothing",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
      }
     ]
    },

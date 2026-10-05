@@ -84,6 +84,7 @@ module.exports = function cases(caps) {
     db.exec(`INSERT INTO pending_actions (id, type, payload, source_transcript, status, created_at) VALUES (1, 'supplier_invoice', '{"purchaseOrderId":1,"supplierId":1,"supplierName":"Floornet","supplierReference":"INV-7731","lineItems":[{"matched_description":"Vinyl","quantity_billed":50,"unit_price_billed":185}]}', 'Floornet invoice INV-7731', 'pending', '2026-10-03 09:00:00');`);
   };
   const refInvoice = (ref) => SIAI({ supplier_name: 'Floornet', supplier_reference: ref, line_items: [{ matched_description: 'Vinyl', quantity_billed: 50, unit_price_billed: 185 }] });
+  const owes11000 = (db) => { withOrder(db); db.exec(`INSERT INTO expenses (character_id, amount, description, source_transcript, category, created_at) VALUES (1, 11000, 'vinyl', 'Floornet invoice INV-1', 'materials', '2026-09-10 08:00:00');`); };
   const POAI = (reply) => ({ match: /line_items is every distinct material/, reply });
   const GRAI = (reply) => ({ match: /quantity_received/, reply });
   const SIAI = (reply) => ({ match: /quantity_billed/, reply });
@@ -216,7 +217,14 @@ module.exports = function cases(caps) {
     c('supplier invoice: the only order was cancelled, so there is no open order', 'owner', alreadyCancelled, 'supplier_invoice', sup(), 'Floornet invoice for 50 sqm vinyl at 185', []),
 
     // ---------------- supplier_statement, spoken ----------------
-    c('supplier statement, spoken: owner', 'owner', withOrder, 'supplier_statement', sup(), 'Floornet sent their statement, it says we owe R20000', []),
+    // Decided 2026-10-04: a spoken statement is compared with the books and recorded (it used to do nothing). Floornet's books: R11000 owed.
+    c('supplier statement, spoken: owner, no balance stated asks what they say is owed', 'owner', withOrder, 'supplier_statement', sup(), 'Floornet sent their statement', []),
+    c('supplier statement, spoken: owner states a balance higher than the books', 'owner', owes11000, 'supplier_statement', { ...sup(), amount: 12000 }, 'Floornet says we owe them R12000', []),
+    c('supplier statement, spoken: owner states a balance lower than the books', 'owner', owes11000, 'supplier_statement', { ...sup(), amount: 10000 }, 'Floornet says we owe them R10000', []),
+    c('supplier statement, spoken: owner states a balance that matches the books', 'owner', owes11000, 'supplier_statement', { ...sup(), amount: 11000 }, 'Floornet says we owe them R11000', []),
+    c('supplier statement, spoken: accountant states a balance', 'accountant', owes11000, 'supplier_statement', { ...sup(), amount: 12000 }, 'Floornet says we owe them R12000', []),
+    c('supplier statement, spoken: no supplier named asks which', 'owner', owes11000, 'supplier_statement', { amount: 12000 }, 'they say we owe them R12000', []),
+    c('supplier statement, spoken: a supplier nobody has heard of is not created', 'owner', owes11000, 'supplier_statement', { ...sup('Nobody Known'), amount: 12000 }, 'Nobody Known says we owe them R12000', []),
     c('supplier statement, spoken: installer is refused', 'installer', withOrder, 'supplier_statement', sup(), 'Floornet sent their statement, it says we owe R20000', []),
   ];
 };

@@ -4938,7 +4938,7 @@
   },
   "effects": []
  },
- "supplier statement, spoken: owner": {
+ "supplier statement, spoken: owner, no balance stated asks what they say is owed": {
   "result": {
    "customer": null,
    "character": {
@@ -4948,7 +4948,7 @@
    },
    "pendingActionId": null,
    "factPendingActionId": null,
-   "message": "Found existing: Floornet.",
+   "message": "I heard a statement from Floornet, but no balance came through — what do they say is owed?",
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
@@ -4963,7 +4963,7 @@
      {
       "before": {
        "id": 1,
-       "raw_text": "Floornet sent their statement, it says we owe R20000",
+       "raw_text": "Floornet sent their statement",
        "source": "text",
        "subject_hint": null,
        "extraction_status": "unprocessed",
@@ -4973,7 +4973,7 @@
       },
       "after": {
        "id": 1,
-       "raw_text": "Floornet sent their statement, it says we owe R20000",
+       "raw_text": "Floornet sent their statement",
        "source": "text",
        "subject_hint": "Floornet",
        "extraction_status": "processed",
@@ -4990,6 +4990,384 @@
       "key": "character",
       "entity_id": 1,
       "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "supplier statement, spoken: owner states a balance higher than the books": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Statement from Floornet: they claim R12000, our records show R11000. They claim R1000 more than our records.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Floornet says we owe them R12000",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Floornet says we owe them R12000",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
+   "supplier_statements": {
+    "added": [
+     {
+      "id": 1,
+      "supplier_id": 1,
+      "claimed_balance": 12000,
+      "books_balance": 11000,
+      "difference": 1000,
+      "source": "spoken",
+      "source_text": "Floornet says we owe them R12000",
+      "recorded_by": "owner@example.com"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "supplier statement, spoken: owner states a balance lower than the books": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Statement from Floornet: they claim R10000, our records show R11000. They claim R1000 less than our records.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Floornet says we owe them R10000",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Floornet says we owe them R10000",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
+   "supplier_statements": {
+    "added": [
+     {
+      "id": 1,
+      "supplier_id": 1,
+      "claimed_balance": 10000,
+      "books_balance": 11000,
+      "difference": -1000,
+      "source": "spoken",
+      "source_text": "Floornet says we owe them R10000",
+      "recorded_by": "owner@example.com"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "supplier statement, spoken: owner states a balance that matches the books": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Statement from Floornet: they claim R11000, our records show R11000. That matches our records.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Floornet says we owe them R11000",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Floornet says we owe them R11000",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
+   "supplier_statements": {
+    "added": [
+     {
+      "id": 1,
+      "supplier_id": 1,
+      "claimed_balance": 11000,
+      "books_balance": 11000,
+      "difference": 0,
+      "source": "spoken",
+      "source_text": "Floornet says we owe them R11000",
+      "recorded_by": "owner@example.com"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "supplier statement, spoken: accountant states a balance": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Statement from Floornet: they claim R12000, our records show R11000. They claim R1000 more than our records.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Floornet says we owe them R12000",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Floornet says we owe them R12000",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
+   "supplier_statements": {
+    "added": [
+     {
+      "id": 1,
+      "supplier_id": 1,
+      "claimed_balance": 12000,
+      "books_balance": 11000,
+      "difference": 1000,
+      "source": "spoken",
+      "source_text": "Floornet says we owe them R12000",
+      "recorded_by": "owner@example.com"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "supplier statement, spoken: no supplier named asks which": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I heard a supplier statement, but no supplier name came through — which supplier is it from?",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "they say we owe them R12000",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "they say we owe them R12000",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "supplier statement, spoken: a supplier nobody has heard of is not created": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I don't have Nobody Known as a supplier, so there is no account to compare a statement with.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Nobody Known says we owe them R12000",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Nobody Known says we owe them R12000",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
      }
     ]
    }

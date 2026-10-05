@@ -463,7 +463,8 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             'statement" — a genuinely different case from supplier_invoice, which is a single, specific ' +
             'delivery being billed. A statement covers the whole real account, not one delivery. Same ' +
             'character_name convention — the supplier goes in character_name with character_relationship ' +
-            '"supplier". ' +
+            '"supplier". If the message states the balance they say is owed ("Floornet says we owe them R12,000"), ' +
+            'put that number in amount; otherwise leave amount null. ' +
             'intent is "forget_unit_conversion" if the message asks to remove or forget a SAVED unit conversion for a ' +
             'material, for example "forget the laminate conversion" or "delete the underlay roll conversion". Put the ' +
             'material in fact_value and leave customer_name and character_name null. (This is not "forget_last", which ' +
@@ -544,6 +545,8 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             'question asks what was actually paid for a real material in the past — "what did we last ' +
             'pay for vinyl" or "what\'s the last price on screed" — never a request for a new quote or ' +
             "estimate, only a real, historical fact being asked for. Set fact_value to the real material " +
+            '"supplier_statements" if the question asks what a supplier\'s statements said or claimed ("what did ' +
+            'Floornet\'s statement say", "what do they claim we owe"); put the supplier in character_name. ' +
             '"unit_conversions" if the question asks which unit conversions are saved, or how a pack unit converts ' +
             'for a material ("what conversions do I have", "how many square metres in a box of laminate"); set fact_value ' +
             'to the material if one is named, otherwise null. ' +
@@ -570,6 +573,8 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             '"Jenny paid R850" -> {"customer_name":"Jenny","character_name":null,"character_relationship":null,"intent":"payment","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"bought glue for R850 at BUCO" -> {"customer_name":null,"character_name":"BUCO","character_relationship":"supplier","intent":"expense","amount":850,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"paid Floornet R5000 off their account" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"supplier_payment","amount":5000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
+            '"Floornet says we owe them 12000" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"supplier_statement","amount":12000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
+            '"what did Floornet claim we owe" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"supplier_statements","deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"forget the laminate conversion" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"forget_unit_conversion","amount":null,"fact_key":null,"fact_value":"laminate","personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"what conversions do I have" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"unit_conversions","deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"a box of laminate is 2.2 square metres" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"set_unit_conversion","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +

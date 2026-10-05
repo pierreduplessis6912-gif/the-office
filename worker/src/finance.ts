@@ -790,6 +790,76 @@ export async function checkStockUnit(
   };
 }
 
+// ---------------------------------------------------------------------------------------------------------------------------
+// Supplier statements have a home. Decided by Pierre 2026-10-04: a statement (a supplier's claim of what is owed) was compared with the
+// books and then forgotten, and a SPOKEN one ("Floornet says we owe them R12,000") did nothing at all. Each one, spoken or uploaded, is now
+// recorded with the books' balance at that moment and the difference, and the history can be asked for. The table is created the first
+// time it is needed, so there is no migration to run.
+// ---------------------------------------------------------------------------------------------------------------------------
+const round2 = (n: number): number => Math.round(n * 100) / 100;
+const supplierStatementTableReady = new WeakSet<object>();
+export async function ensureSupplierStatementTable(env: Env): Promise<void> {
+  if (supplierStatementTableReady.has(env.OFFICE_DB as unknown as object)) return;
+  await env.OFFICE_DB.prepare(
+    "CREATE TABLE IF NOT EXISTS supplier_statements (id INTEGER PRIMARY KEY AUTOINCREMENT, supplier_id INTEGER NOT NULL, claimed_balance REAL NOT NULL, books_balance REAL NOT NULL, difference REAL NOT NULL, source TEXT NOT NULL, source_text TEXT, recorded_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))"
+  ).run();
+  supplierStatementTableReady.add(env.OFFICE_DB as unknown as object);
+}
+
+export async function recordSupplierStatement(
+  env: Env,
+  supplierId: number,
+  claimed: number,
+  books: number,
+  source: "spoken" | "document" | "photo",
+  sourceText: string | null,
+  recordedBy: string | null
+): Promise<{ id: number; difference: number }> {
+  await ensureSupplierStatementTable(env);
+  const difference = round2(claimed - books);
+  const row = await env.OFFICE_DB.prepare(
+    "INSERT INTO supplier_statements (supplier_id, claimed_balance, books_balance, difference, source, source_text, recorded_by) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id"
+  )
+    .bind(supplierId, claimed, books, difference, source, sourceText, recordedBy)
+    .first<{ id: number }>();
+  return { id: row!.id, difference };
+}
+
+// What the difference means, in a sentence: nothing when they agree, and which way round when they do not.
+export function statementDifferenceNote(difference: number): string {
+  if (difference === 0) return " That matches our records.";
+  return difference > 0 ? ` They claim R${difference} more than our records.` : ` They claim R${Math.abs(difference)} less than our records.`;
+}
+
+export interface SavedStatement {
+  supplier: string | null;
+  date: string;
+  claimed: number;
+  books: number;
+  difference: number;
+  source: string;
+}
+
+export async function listSupplierStatements(env: Env, supplierId: number | null, limit = 5): Promise<SavedStatement[]> {
+  await ensureSupplierStatementTable(env);
+  const { results } = await env.OFFICE_DB.prepare(
+    `SELECT c.name AS supplier, s.created_at AS created_at, s.claimed_balance AS claimed, s.books_balance AS books, s.difference AS difference, s.source AS source
+       FROM supplier_statements s LEFT JOIN characters c ON c.id = s.supplier_id
+      WHERE (? IS NULL OR s.supplier_id = ?)
+      ORDER BY s.id DESC LIMIT ?`
+  )
+    .bind(supplierId, supplierId, limit)
+    .all<{ supplier: string | null; created_at: string; claimed: number; books: number; difference: number; source: string }>();
+  return (results ?? []).map((r) => ({ supplier: r.supplier, date: String(r.created_at).slice(0, 10), claimed: r.claimed, books: r.books, difference: r.difference, source: r.source }));
+}
+
+export function supplierStatementsAnswer(rows: SavedStatement[], asked: string | null): string {
+  if (rows.length === 0) return asked ? `No statements from ${asked} have been recorded yet.` : "No supplier statements have been recorded yet.";
+  const part = (r: SavedStatement) =>
+    `${asked ? "" : `${r.supplier ?? "a supplier"}, `}${r.date}: claimed R${r.claimed}, our records R${r.books}${r.difference === 0 ? " (matched)" : r.difference > 0 ? ` (R${r.difference} more)` : ` (R${Math.abs(r.difference)} less)`}`;
+  return `Statements${asked ? ` from ${asked}` : ""}: ${rows.map(part).join("; ")}.`;
+}
+
 export interface DeliveryUnitCheck<T> {
   lines: T[];
   converted: Array<{ item: string; quantity: number; from: string; to: string; result: number }>;

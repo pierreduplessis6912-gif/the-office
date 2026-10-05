@@ -134,6 +134,328 @@
   },
   "effects": []
  },
+ "lookup supplier statements: one supplier, newest first": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Statements from Floornet: 2026-10-03: claimed R10500, our records R11000 (R500 less); 2026-10-02: claimed R11000, our records R11000 (matched); 2026-10-01: claimed R12000, our records R11000 (R1000 more).",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "what did Floornet claim we owe",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "what did Floornet claim we owe",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "lookup supplier statements: every supplier": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Statements: Belgotex, 2026-10-02: claimed R4000, our records R4000 (matched); Floornet, 2026-10-03: claimed R10500, our records R11000 (R500 less); Floornet, 2026-10-02: claimed R11000, our records R11000 (matched); Floornet, 2026-10-01: claimed R12000, our records R11000 (R1000 more).",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "what have the suppliers claimed",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "what have the suppliers claimed",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "lookup supplier statements: none recorded for that supplier": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 4,
+    "name": "Quiet Supplies",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "No statements from Quiet Supplies have been recorded yet.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "what did Quiet Supplies claim",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "what did Quiet Supplies claim",
+       "source": "text",
+       "subject_hint": "Quiet Supplies",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 4
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 4,
+      "label": "Quiet Supplies"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "lookup supplier statements: none recorded at all": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "No supplier statements have been recorded yet.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "what have the suppliers claimed",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "what have the suppliers claimed",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "lookup supplier statements: accountant": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Statements from Floornet: 2026-10-03: claimed R10500, our records R11000 (R500 less); 2026-10-02: claimed R11000, our records R11000 (matched); 2026-10-01: claimed R12000, our records R11000 (R1000 more).",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "what did Floornet claim we owe",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "what did Floornet claim we owe",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "lookup supplier statements: installer is told it is restricted": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Supplier statements exist for this business but are restricted for your role.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "what did Floornet claim we owe",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "what did Floornet claim we owe",
+       "source": "text",
+       "subject_hint": "Floornet",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "selections": {
+    "added": [
+     {
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
  "lookup unit conversions: owner, all of them": {
   "result": {
    "customer": null,
