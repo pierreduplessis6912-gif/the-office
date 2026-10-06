@@ -87,6 +87,11 @@ module.exports = function cases(caps) {
     db.exec(cancellationDdl + ` INSERT INTO purchase_order_cancellations (purchase_order_id, cancelled_by, created_at) VALUES (1, 'owner@example.com', '2026-10-03 08:00:00');
       INSERT INTO pending_actions (id, type, payload, source_transcript, status, created_at) VALUES (1, 'reopen_order', '{"purchaseOrderId":1,"supplierId":2,"supplierName":"Floornet"}', 'reopen the Floornet order', 'pending', '2026-10-03 10:00:00');`);
   };
+  const cancelledAfterInvoice = (db) => {
+    withOrder(db);
+    db.exec(cancellationDdl + ` INSERT INTO purchase_order_cancellations (purchase_order_id, cancelled_by, created_at) VALUES (1, 'owner@example.com', '2026-10-03 08:00:00');
+      INSERT INTO supplier_invoices (id, purchase_order_id, supplier_id, supplier_reference, amount, created_at) VALUES (1, 1, 2, 'INV-1', 9250, '2026-10-02 08:00:00');`);
+  };
   const openWithHold = (db) => {
     withOrder(db);
     db.exec(`INSERT INTO pending_actions (id, type, payload, source_transcript, status, created_at) VALUES (1, 'reopen_order', '{"purchaseOrderId":1,"supplierId":2,"supplierName":"Floornet"}', 'reopen the Floornet order', 'pending', '2026-10-03 10:00:00');`);
@@ -170,6 +175,17 @@ module.exports = function cases(caps) {
     r('reject reopen: the order stays cancelled', cancelledWithHold, '/actions/1/reject', [], []),
     r('confirm reopen: the round trip, cancel then reopen, restores the shortage the cancellation closed', withDiscrepancy, '/actions/2/confirm',
       [say('cancel the Floornet order', { intent: 'cancel_order', ...floornet }), confirm(1), say('reopen the Floornet order', { intent: 'reopen_order', ...floornet })], []),
+
+    // ---------------- the Suppliers screen knows about a cancelled order (found by the first real phone test, 2026-10-04) ----------------
+    r('suppliers screen: an open order shows as ordered, awaiting delivery', withOrder, '/debug/suppliers-list', [], [], { method: 'GET', role: 'owner' }),
+    r('suppliers screen: a cancelled order shows as cancelled, with the day', cancelledWithHold, '/debug/suppliers-list', [], [], { method: 'GET', role: 'owner' }),
+    r('suppliers screen: an order cancelled through the app shows as cancelled', withOrder, '/debug/suppliers-list',
+      [say('cancel the Floornet order', { intent: 'cancel_order', ...floornet }), confirm(1)], [], { method: 'GET', role: 'owner' }),
+    r('suppliers screen: an order cancelled and then reopened shows as it was before', withOrder, '/debug/suppliers-list',
+      [say('cancel the Floornet order', { intent: 'cancel_order', ...floornet }), confirm(1), say('reopen the Floornet order', { intent: 'reopen_order', ...floornet }), confirm(2)], [], { method: 'GET', role: 'owner' }),
+    r('suppliers screen: a cancelled order that was partly invoiced still shows as cancelled', cancelledAfterInvoice, '/debug/suppliers-list', [], [], { method: 'GET', role: 'owner' }),
+    r('purchase orders list (admin): a cancelled order shows as cancelled', cancelledWithHold, '/debug/purchase-orders', [], [], { method: 'GET', admin: true }),
+    r('purchase orders list (admin): an open order is unchanged', withOrder, '/debug/purchase-orders', [], [], { method: 'GET', admin: true }),
 
     // ---------------- who is this? ----------------
     r('confirm identity question: owner, the name belongs to an installer', base, '/actions/1/confirm', [say('Jabulani called about a job', { intent: 'note', customer_name: 'Jabulani' })], []),

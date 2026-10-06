@@ -25,7 +25,7 @@ import {
   findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, reconcilePerson, ensureMemberSelectionTable } from "./identity";
 import { getInstallerActivity, nowInBusinessTimezone, resolveScheduledDate } from "./scheduler";
 import { getCharacterFacts, getCharacterNotes, runConsolidation } from "./memory";
-import { getAgedCreditorsReport, getDeliveryExceptions, getFinancialSnapshot, getProfitAndLoss, getTrackedStockItems, orderDeliveryStatus, parseDateRange, recordQuotation } from "./finance";
+import { getAgedCreditorsReport, getDeliveryExceptions, getFinancialSnapshot, getProfitAndLoss, getTrackedStockItems, orderDeliveryStatus, parseDateRange, recordQuotation, ensureCancellationTable } from "./finance";
 import { runIdempotentMigration, signSession, ROLE_CAPABILITIES, getRoleCapabilities } from "./auth";
 
 // The one non-route helper these routes needed, moved with its real
@@ -423,12 +423,22 @@ if (url.pathname === "/debug/suppliers-list" && request.method === "GET") {
             .first<{ count: number }>();
           const hasDeliveryNote = (grnCount?.count ?? 0) > 0;
           const hasSupplierInvoice = (invoiceCount?.count ?? 0) > 0;
-          const documentStatus = hasSupplierInvoice
+          // Found by the first real phone test 2026-10-04: a cancelled order still read "ordered, awaiting delivery" on the Suppliers screen,
+          // because this status was worked out from deliveries and invoices only and never knew about a cancellation. A cancelled order says so
+          // (whatever else has happened to it), with the day it was cancelled.
+          await ensureCancellationTable(env);
+          const cancellation = await env.OFFICE_DB.prepare("SELECT created_at FROM purchase_order_cancellations WHERE purchase_order_id = ?")
+            .bind(order.id)
+            .first<{ created_at: string }>();
+          const documentStatus = cancellation
+            ? "cancelled"
+            : hasSupplierInvoice
             ? "closed"
             : hasDeliveryNote
             ? "delivery note received, awaiting invoice"
             : "ordered, awaiting delivery";
-          return { ...order, documentStatus, deliveryStatus, hasDeliveryNote, hasSupplierInvoice, lineItems };
+          const cancelledOn = cancellation ? String(cancellation.created_at).slice(0, 10) : null;
+          return { ...order, documentStatus, cancelledOn, deliveryStatus, hasDeliveryNote, hasSupplierInvoice, lineItems };
         })
       );
 
@@ -482,12 +492,22 @@ if (url.pathname === "/debug/purchase-orders" && request.method === "GET") {
             .first<{ count: number }>();
           const hasDeliveryNote = (grnCount?.count ?? 0) > 0;
           const hasSupplierInvoice = (invoiceCount?.count ?? 0) > 0;
-          const documentStatus = hasSupplierInvoice
+          // Found by the first real phone test 2026-10-04: a cancelled order still read "ordered, awaiting delivery" on the Suppliers screen,
+          // because this status was worked out from deliveries and invoices only and never knew about a cancellation. A cancelled order says so
+          // (whatever else has happened to it), with the day it was cancelled.
+          await ensureCancellationTable(env);
+          const cancellation = await env.OFFICE_DB.prepare("SELECT created_at FROM purchase_order_cancellations WHERE purchase_order_id = ?")
+            .bind(order.id)
+            .first<{ created_at: string }>();
+          const documentStatus = cancellation
+            ? "cancelled"
+            : hasSupplierInvoice
             ? "closed"
             : hasDeliveryNote
             ? "delivery note received, awaiting invoice"
             : "ordered, awaiting delivery";
-          return { ...order, documentStatus, deliveryStatus, hasDeliveryNote, hasSupplierInvoice, lineItems };
+          const cancelledOn = cancellation ? String(cancellation.created_at).slice(0, 10) : null;
+          return { ...order, documentStatus, cancelledOn, deliveryStatus, hasDeliveryNote, hasSupplierInvoice, lineItems };
         })
       );
       return Response.json({ purchaseOrders: enriched });

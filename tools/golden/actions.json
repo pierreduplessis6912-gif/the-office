@@ -2502,6 +2502,352 @@
   },
   "effects": []
  },
+ "suppliers screen: an open order shows as ordered, awaiting delivery": {
+  "result": {
+   "status": 200,
+   "body": {
+    "items": [
+     {
+      "id": 1,
+      "supplier_id": 2,
+      "supplier_name": "Floornet",
+      "description": "Vinyl and underlay",
+      "created_at": "2026-10-01 08:00:00",
+      "documentStatus": "ordered, awaiting delivery",
+      "cancelledOn": null,
+      "deliveryStatus": "awaiting delivery",
+      "hasDeliveryNote": false,
+      "hasSupplierInvoice": false,
+      "lineItems": [
+       {
+        "id": 1,
+        "description": "Vinyl",
+        "quantity_ordered": 50,
+        "unit": "sqm",
+        "unit_price_expected": 180,
+        "quantity_received": 0,
+        "quantity_written_off": 0,
+        "quantity_outstanding": 50
+       },
+       {
+        "id": 2,
+        "description": "Underlay",
+        "quantity_ordered": 100,
+        "unit": "sqm",
+        "unit_price_expected": 40,
+        "quantity_received": 0,
+        "quantity_written_off": 0,
+        "quantity_outstanding": 100
+       }
+      ]
+     }
+    ],
+    "limit": 50,
+    "offset": 0
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "suppliers screen: a cancelled order shows as cancelled, with the day": {
+  "result": {
+   "status": 200,
+   "body": {
+    "items": [
+     {
+      "id": 1,
+      "supplier_id": 2,
+      "supplier_name": "Floornet",
+      "description": "Vinyl and underlay",
+      "created_at": "2026-10-01 08:00:00",
+      "documentStatus": "cancelled",
+      "cancelledOn": "2026-10-03",
+      "deliveryStatus": "awaiting delivery",
+      "hasDeliveryNote": false,
+      "hasSupplierInvoice": false,
+      "lineItems": [
+       {
+        "id": 1,
+        "description": "Vinyl",
+        "quantity_ordered": 50,
+        "unit": "sqm",
+        "unit_price_expected": 180,
+        "quantity_received": 0,
+        "quantity_written_off": 0,
+        "quantity_outstanding": 50
+       },
+       {
+        "id": 2,
+        "description": "Underlay",
+        "quantity_ordered": 100,
+        "unit": "sqm",
+        "unit_price_expected": 40,
+        "quantity_received": 0,
+        "quantity_written_off": 0,
+        "quantity_outstanding": 100
+       }
+      ]
+     }
+    ],
+    "limit": 50,
+    "offset": 0
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "suppliers screen: an order cancelled through the app shows as cancelled": {
+  "result": {
+   "status": 200,
+   "body": {
+    "items": [
+     {
+      "id": 1,
+      "supplier_id": 2,
+      "supplier_name": "Floornet",
+      "description": "Vinyl and underlay",
+      "created_at": "2026-10-01 08:00:00",
+      "documentStatus": "cancelled",
+      "cancelledOn": "2026-10-03",
+      "deliveryStatus": "awaiting delivery",
+      "hasDeliveryNote": false,
+      "hasSupplierInvoice": false,
+      "lineItems": [
+       {
+        "id": 1,
+        "description": "Vinyl",
+        "quantity_ordered": 50,
+        "unit": "sqm",
+        "unit_price_expected": 180,
+        "quantity_received": 0,
+        "quantity_written_off": 0,
+        "quantity_outstanding": 50
+       },
+       {
+        "id": 2,
+        "description": "Underlay",
+        "quantity_ordered": 100,
+        "unit": "sqm",
+        "unit_price_expected": 40,
+        "quantity_received": 0,
+        "quantity_written_off": 0,
+        "quantity_outstanding": 100
+       }
+      ]
+     }
+    ],
+    "limit": 50,
+    "offset": 0
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "suppliers screen: an order cancelled and then reopened shows as it was before": {
+  "result": {
+   "status": 200,
+   "body": {
+    "items": [
+     {
+      "id": 1,
+      "supplier_id": 2,
+      "supplier_name": "Floornet",
+      "description": "Vinyl and underlay",
+      "created_at": "2026-10-01 08:00:00",
+      "documentStatus": "ordered, awaiting delivery",
+      "cancelledOn": null,
+      "deliveryStatus": "awaiting delivery",
+      "hasDeliveryNote": false,
+      "hasSupplierInvoice": false,
+      "lineItems": [
+       {
+        "id": 1,
+        "description": "Vinyl",
+        "quantity_ordered": 50,
+        "unit": "sqm",
+        "unit_price_expected": 180,
+        "quantity_received": 0,
+        "quantity_written_off": 0,
+        "quantity_outstanding": 50
+       },
+       {
+        "id": 2,
+        "description": "Underlay",
+        "quantity_ordered": 100,
+        "unit": "sqm",
+        "unit_price_expected": 40,
+        "quantity_received": 0,
+        "quantity_written_off": 0,
+        "quantity_outstanding": 100
+       }
+      ]
+     }
+    ],
+    "limit": 50,
+    "offset": 0
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "suppliers screen: a cancelled order that was partly invoiced still shows as cancelled": {
+  "result": {
+   "status": 200,
+   "body": {
+    "items": [
+     {
+      "id": 1,
+      "supplier_id": 2,
+      "supplier_name": "Floornet",
+      "description": "Vinyl and underlay",
+      "created_at": "2026-10-01 08:00:00",
+      "documentStatus": "cancelled",
+      "cancelledOn": "2026-10-03",
+      "deliveryStatus": "awaiting delivery",
+      "hasDeliveryNote": false,
+      "hasSupplierInvoice": true,
+      "lineItems": [
+       {
+        "id": 1,
+        "description": "Vinyl",
+        "quantity_ordered": 50,
+        "unit": "sqm",
+        "unit_price_expected": 180,
+        "quantity_received": 0,
+        "quantity_written_off": 0,
+        "quantity_outstanding": 50
+       },
+       {
+        "id": 2,
+        "description": "Underlay",
+        "quantity_ordered": 100,
+        "unit": "sqm",
+        "unit_price_expected": 40,
+        "quantity_received": 0,
+        "quantity_written_off": 0,
+        "quantity_outstanding": 100
+       }
+      ]
+     }
+    ],
+    "limit": 50,
+    "offset": 0
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "purchase orders list (admin): a cancelled order shows as cancelled": {
+  "result": {
+   "status": 200,
+   "body": {
+    "purchaseOrders": [
+     {
+      "id": 1,
+      "supplier_id": 2,
+      "supplier_name": "Floornet",
+      "description": "Vinyl and underlay",
+      "created_at": "2026-10-01 08:00:00",
+      "documentStatus": "cancelled",
+      "cancelledOn": "2026-10-03",
+      "deliveryStatus": "awaiting delivery",
+      "hasDeliveryNote": false,
+      "hasSupplierInvoice": false,
+      "lineItems": [
+       {
+        "id": 1,
+        "description": "Vinyl",
+        "quantity_ordered": 50,
+        "unit": "sqm",
+        "unit_price_expected": 180,
+        "quantity_received": 0,
+        "quantity_written_off": 0,
+        "quantity_outstanding": 50
+       },
+       {
+        "id": 2,
+        "description": "Underlay",
+        "quantity_ordered": 100,
+        "unit": "sqm",
+        "unit_price_expected": 40,
+        "quantity_received": 0,
+        "quantity_written_off": 0,
+        "quantity_outstanding": 100
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "purchase orders list (admin): an open order is unchanged": {
+  "result": {
+   "status": 200,
+   "body": {
+    "purchaseOrders": [
+     {
+      "id": 1,
+      "supplier_id": 2,
+      "supplier_name": "Floornet",
+      "description": "Vinyl and underlay",
+      "created_at": "2026-10-01 08:00:00",
+      "documentStatus": "ordered, awaiting delivery",
+      "cancelledOn": null,
+      "deliveryStatus": "awaiting delivery",
+      "hasDeliveryNote": false,
+      "hasSupplierInvoice": false,
+      "lineItems": [
+       {
+        "id": 1,
+        "description": "Vinyl",
+        "quantity_ordered": 50,
+        "unit": "sqm",
+        "unit_price_expected": 180,
+        "quantity_received": 0,
+        "quantity_written_off": 0,
+        "quantity_outstanding": 50
+       },
+       {
+        "id": 2,
+        "description": "Underlay",
+        "quantity_ordered": 100,
+        "unit": "sqm",
+        "unit_price_expected": 40,
+        "quantity_received": 0,
+        "quantity_written_off": 0,
+        "quantity_outstanding": 100
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
  "confirm identity question: owner, the name belongs to an installer": {
   "result": {
    "status": 200,

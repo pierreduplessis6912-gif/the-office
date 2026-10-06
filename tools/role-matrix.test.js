@@ -465,7 +465,8 @@ async function expect(role, method, path, want) {
   check((indexSrc.match(/allocate: true,/g) || []).length === 3, 'all three holds (document, photo, dictation) must carry allocate: true');
   check(/payload\.allocate && payload\.supplierId != null/.test(indexSrc) && /recordDelivery\(env, payload\.supplierId, action\.source_transcript/.test(indexSrc), 'confirming a delivery held since this change must place it against the outstanding orders');
   const dbgForStatus = fs.readFileSync(path.join(srcDir, 'debug.ts'), 'utf8');
-  check(/orderDeliveryStatus\(/.test(dbgForStatus) && (dbgForStatus.match(/return \{ \.\.\.order, documentStatus, deliveryStatus,/g) || []).length === 2, 'both purchase-order views must return the order\'s delivery status, not just compute it');
+  check(/orderDeliveryStatus\(/.test(dbgForStatus) && (dbgForStatus.match(/return \{ \.\.\.order, documentStatus, (?:cancelledOn, )?deliveryStatus,/g) || []).length === 2, 'both purchase-order views must return the order\'s delivery status, not just compute it');
+  check((dbgForStatus.match(/FROM purchase_order_cancellations WHERE purchase_order_id = \?/g) || []).length === 2 && (dbgForStatus.match(/\? "cancelled"/g) || []).length === 2, 'both purchase-order views must also know about cancellations (found by the first real phone test: the Suppliers screen showed a cancelled order as awaiting delivery)');
 
   // ---- Asking for the delivery exception report in words (decided 2026-10-03) -----------------------
   const { asksAboutDeliveryExceptions, deliveryExceptionAnswer } = docsMod;

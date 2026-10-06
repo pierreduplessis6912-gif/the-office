@@ -6303,3 +6303,22 @@ Pierre typed, on the real app, "Invoice AGS Lewende Waters R3000 for carpet repa
 **Not verified, and the one thing that matters:** this was reproduced with the model's mistake *scripted* four ways, because the real model cannot run here. **Please say the original sentence again on the real app after this deploys.** Expect two lines: the invoice waiting, and "Job scope #N updated — scheduled for Sat 17 Oct."
 
 **Seen on the phone and not changed, recorded in `OPEN_QUESTIONS.md`:** every invoice sentence that mentions work **creates a new job**, even when the customer already has that job: the test sentences made three jobs (#73, #74 and #75) for one carpet repair. That is a design question, separate from this fix.
+
+
+---
+
+## Found by the second real phone test: the Suppliers screen did not know about cancellations
+
+Pierre placed an order with a throwaway supplier on the real app, then said "Cancel the Zztest order". The cancel worked on the real model: it read the sentence correctly and held "Cancel Zztest Supplies order #10 Vinyl (50 sqm Vinyl not yet received)? Needs your confirmation". **But his screenshot of the Suppliers screen, taken before he confirmed, showed that order as "ORDERED, AWAITING DELIVERY", and on reading the code I could say before he tapped Confirm that it would stay that way.**
+
+**The gap was mine.** The purchase-order list that feeds the Suppliers screen (and the admin list that shares its logic) worked out each order's status from deliveries and invoices only, and **never read the cancellations table**: not one mention of "cancel" in the file. When I built the cancel I made the money logic honour it (what is outstanding, which order an invoice is matched to, the shortages it closes) but never looked at the screen that lists orders. No test looked at that screen either, which is why a real screenshot found it.
+
+**Fix.** Both lists now say **"cancelled"** for a cancelled order (whatever else has happened to it, so an order that was partly invoiced and then cancelled still reads cancelled) with `cancelledOn` the day, and an order that is reopened reads as before. Backend only: the app shows whatever status text it is given, so no rebuild is needed.
+
+**Also fixed on the way.** The cancellation's timestamp came from the database's own clock, which the tests cannot hold still, so a case that cancelled through the app recorded the real day's date and would have broken the next morning. It now comes from the application clock (the same instant in production, and frozen in tests).
+
+**The property that matters.** Against `main`, **no existing recording changed or was removed**; 7 were added (an open order, a cancelled one with its day, one **cancelled through the app** and one **cancelled then reopened** (the real sequences), one partly invoiced and cancelled, and the two admin-list cases).
+
+**Verified:** typecheck unchanged; **4,289 checks**. **Three behaviour-only breakages were caught:** the Suppliers screen no longer finding an order's cancellation; the admin list likewise; and "closed" outranking "cancelled". **My first run of these mutations was meaningless, and I caught it:** an old source-pattern guard looked for the exact old `return { ...order, documentStatus, deliveryStatus, ...}` text, which my fix changed, so it failed on the *real* code as well, and the mutations reported "caught" only because that guard was already failing. I updated the guard, added one that requires both views to know about cancellations, and redid the mutations so they change behaviour and leave the text alone, which is the only way they prove anything.
+
+**Not changed:** the screen's colour for the new status (it is whatever the app uses for a status it has not styled); look at it on the phone and tell me if it should be different.

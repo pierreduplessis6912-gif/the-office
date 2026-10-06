@@ -580,8 +580,11 @@ export async function cancelPurchaseOrder(
     .bind(purchaseOrderId)
     .first<{ purchase_order_id: number }>();
   if (already) return { alreadyCancelled: true, closedShortages: 0 };
-  await env.OFFICE_DB.prepare("INSERT INTO purchase_order_cancellations (purchase_order_id, cancelled_by) VALUES (?, ?)")
-    .bind(purchaseOrderId, cancelledBy)
+  // The moment comes from the application's clock, not the database's: the same instant in production, and one the tests can hold still (a date
+  // that depends on the day the tests run would break the next morning).
+  const cancelledAt = new Date().toISOString().slice(0, 19).replace("T", " ");
+  await env.OFFICE_DB.prepare("INSERT INTO purchase_order_cancellations (purchase_order_id, cancelled_by, created_at) VALUES (?, ?, ?)")
+    .bind(purchaseOrderId, cancelledBy, cancelledAt)
     .run();
   // A short delivery on an order that is now cancelled is no longer an exception: close each open shortage with the order.
   const { results } = await env.OFFICE_DB.prepare(
