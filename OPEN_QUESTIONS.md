@@ -77,6 +77,10 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
 17. An app screen for the exception report (a Dart change and a Codemagic rebuild). Today it is reachable by voice or
     text ("any delivery exceptions?") and by the admin key.
 18. A late caption for an earlier upload. Deliberately not built: guessing from recency would reintroduce guessing.
+51. **Colour for a cancelled order on the Suppliers screen.** The server now sends the status "cancelled" (with the day it was
+    cancelled), and the app shows it in whatever style it uses for a status it has not styled, so it looks plain beside the
+    coloured ones. Polish only, pinned by Pierre 2026-10-04 after the second phone test; a Dart change and a Codemagic rebuild,
+    best done with the next app change. (`DECISIONS.md`, "Found by the second real phone test".)
 
 ## E. Engineering
 
