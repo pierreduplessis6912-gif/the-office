@@ -10,7 +10,7 @@ import {
   verifySession, getSessionToken, getCookie, base64UrlEncode, ROLE_CAPABILITIES, ENFORCE_CAPABILITIES,
   ACTION_TYPE_CAPABILITY, ROUTE_RULES, SIGNABLE_DOCUMENT_PATHS, canResolveActionType, intentCreationRefusal, intentKeepsOutOfNotes,
 } from "./auth";
-import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote, duplicateInvoiceMessage, findDuplicateSupplierInvoice, normalizeInvoiceReference, describeConversion, forgetUnitConversions, listUnitConversions, unitConversionsAnswer, checkStockUnit, listSupplierStatements, recordSupplierStatement, statementDifferenceNote, supplierStatementsAnswer, checkInvoiceUnits, describeCancelledOrder, getCancelledOrdersForSupplier, reopenPurchaseOrder, type CancelledOrder, getOpenOrdersAcrossSuppliers, openOrdersAnswer, linkPurchaseOrderToCustomer } from "./finance";
+import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote, duplicateInvoiceMessage, findDuplicateSupplierInvoice, normalizeInvoiceReference, describeConversion, forgetUnitConversions, listUnitConversions, unitConversionsAnswer, checkStockUnit, listSupplierStatements, recordSupplierStatement, statementDifferenceNote, supplierStatementsAnswer, checkInvoiceUnits, describeCancelledOrder, getCancelledOrdersForSupplier, reopenPurchaseOrder, type CancelledOrder, getOpenOrdersAcrossSuppliers, openOrdersAnswer, linkPurchaseOrderToCustomer, findOpenJobWithSameWork } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 import { handleDebugRoute } from "./debug";
 import { DOCUMENT_KIND_LABEL, asksAboutDeliveryExceptions, deliveryExceptionAnswer, deliveryHadExceptions, deliveryHeldMessage, deliveryRecordedMessage, inferDocumentSupplier, planDelivery } from "./documents";
@@ -1214,6 +1214,7 @@ async function processOneExtraction(
   } | null = null;
 
   let invoiceJobPartNotRead = false;
+  let invoiceMatchedJob: { id: number; description: string } | null = null;
   if (extraction?.intent === "invoice" && customer) {
     // Real bug, found live a second time: this used to require
     // extraction.amount for the whole block, including the extraction
@@ -1260,7 +1261,11 @@ async function processOneExtraction(
       // comment in finance.ts. Built once, called from every real
       // site that can produce a pure-logistics observation, not
       // patched into this one call site alone.
-      const amendment = await checkForJobScopeAmendment(env, customer.id, observation, installerId, observation.installer_name, transcript, captureId);
+      // Decided by Pierre 2026-10-04: the same work said again (an invoice for "carpet repair" when the customer already has an open "carpet repair") does
+      // NOT make a new job. Only the tasks are matched; a date or installer in the same sentence still goes to the "update that job?" question.
+      const sameWork = await findOpenJobWithSameWork(env, customer.id, observation);
+      const effectiveObservation = sameWork ? { ...observation, components: [], tasks: [] } : observation;
+      const amendment = await checkForJobScopeAmendment(env, customer.id, effectiveObservation, installerId, observation.installer_name, transcript, captureId);
       if (amendment) {
         return {
           customer,
@@ -1284,14 +1289,18 @@ async function processOneExtraction(
         };
       }
 
-      const recorded = await recordWorkObservation(env, customer.id, observation, transcript, installerId, captureId);
-      workObservationResult = {
-        jobScopeId: recorded.jobScopeId,
-        componentCount: observation.components.length,
-        taskCount: observation.tasks.length,
-        installerConflict: recorded.installerConflict,
-        scheduledDate: recorded.scheduledDate,
-      };
+      if (sameWork) {
+        invoiceMatchedJob = sameWork;
+      } else {
+        const recorded = await recordWorkObservation(env, customer.id, observation, transcript, installerId, captureId);
+        workObservationResult = {
+          jobScopeId: recorded.jobScopeId,
+          componentCount: observation.components.length,
+          taskCount: observation.tasks.length,
+          installerConflict: recorded.installerConflict,
+          scheduledDate: recorded.scheduledDate,
+        };
+      }
     }
   }
 
@@ -1765,7 +1774,7 @@ async function processOneExtraction(
   } else if (extraction?.intent === "invoice" && customer && !pendingActionId && !workObservationResult) {
     // Found by the characterization recordings 2026-10-03: an invoice with a named customer but no amount and nothing
     // to record fell through to the generic "Found existing customer" reply, as if it had been a lookup.
-    message = `I heard an invoice for ${customer.name}, but no amount came through — how much is it for?${invoiceJobPartNotRead ? " I couldn't read any job details from that either, so say those again too." : ""}`;
+    message = `I heard an invoice for ${customer.name}, but no amount came through — how much is it for?${invoiceMatchedJob ? ` This is the same work as job #${invoiceMatchedJob.id} ("${invoiceMatchedJob.description}"), so no new job was created.` : ""}${invoiceJobPartNotRead ? " I couldn't read any job details from that either, so say those again too." : ""}`;
   } else if (extraction?.intent === "payment" && customer && !pendingActionId) {
     message = `I heard a payment from ${customer.name}, but no amount came through — how much was it?`;
   } else if (extraction?.intent === "quotation" && customer && !pendingActionId) {
@@ -1958,6 +1967,9 @@ async function processOneExtraction(
     // one below are mutually exclusive (if/else-if), so an invoice
     // that also recorded a job scope needs its own note appended
     // right here, not a separate branch that would never be reached.
+    if (extraction?.intent === "invoice" && invoiceMatchedJob) {
+      message += ` This is the same work as job #${invoiceMatchedJob.id} ("${invoiceMatchedJob.description}"), so no new job was created.`;
+    }
     if (extraction?.intent === "invoice" && invoiceJobPartNotRead && !workObservationResult) {
       message += " I couldn't read any job details (measurements, an installer or a date) from that, so only the invoice was noted. Say the job part again if you want it recorded.";
     }

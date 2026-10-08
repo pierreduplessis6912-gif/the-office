@@ -572,6 +572,46 @@ export async function getCustomerForPurchaseOrders(env: Env, purchaseOrderIds: A
   return customers.size === 1 ? rows[0].customer_id : null;
 }
 
+// ---------------------------------------------------------------------------------------------------------------------------
+// The same work said twice. Decided by Pierre 2026-10-04 (seen on the phone: "invoice AGS Lewende Waters R3000 for carpet repair" said three times
+// made jobs #73, #74 and #75 for one repair): when an invoice sentence describes work the customer ALREADY has an open job for, no new job is made.
+// Same work = the same words in any order ignoring small words ("the", "of", "for"...), and the job must still be OPEN (the system's own meaning of
+// an open project, or not yet in a project). Measurements are never matched: a sentence with measurements is new detail, and silently dropping a
+// re-measure would be worse than a duplicate. A date or installer in the same sentence is NOT applied quietly: it goes to the usual "update that
+// job, or a separate new one?" question.
+// ---------------------------------------------------------------------------------------------------------------------------
+const WORK_STOPWORDS = new Set(["the", "a", "an", "of", "for", "to", "and", "in", "on", "at", "with", "my", "their", "our"]);
+export function workKey(description: string | null | undefined): string {
+  return (description ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w && !WORK_STOPWORDS.has(w))
+    .sort()
+    .join(" ");
+}
+
+export async function findOpenJobWithSameWork(
+  env: Env,
+  customerId: number,
+  observation: { job_description: string | null; components: unknown[]; tasks: Array<{ description: string }> }
+): Promise<{ id: number; description: string } | null> {
+  if (observation.components.length > 0 || observation.tasks.length === 0) return null;
+  const wanted = new Set([workKey(observation.job_description), ...observation.tasks.map((t) => workKey(t.description))].filter((k) => k && k !== "observation"));
+  if (wanted.size === 0) return null;
+  const { results } = await env.OFFICE_DB.prepare("SELECT id, description, project_id FROM job_scopes WHERE customer_id = ? ORDER BY id DESC")
+    .bind(customerId)
+    .all<{ id: number; description: string | null; project_id: number | null }>();
+  const jobs = results ?? [];
+  if (jobs.length === 0) return null;
+  const openProjectIds = new Set((await getOpenProjectsForCustomer(env, customerId)).map((p) => p.id));
+  for (const job of jobs) {
+    if (job.project_id !== null && !openProjectIds.has(job.project_id)) continue;     // its project is closed (paid in full)
+    if (wanted.has(workKey(job.description))) return { id: job.id, description: job.description ?? "" };
+  }
+  return null;
+}
+
 export interface OpenOrder {
   id: number;
   description: string;

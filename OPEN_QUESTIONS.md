@@ -14,17 +14,12 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
 
 
 
-50. **Every invoice sentence that mentions work creates a new job, even when the customer already has that job.** Seen on the
-    phone: saying "invoice AGS Lewende Waters R3000 for carpet repair" three times made jobs #73, #74 and #75 for the same repair.
-    *Options:* when the customer already has an open job with the same description, link the invoice to it instead of creating one;
-    or ask "update job #73, or a separate new job?" as a date change already does. (`DECISIONS.md`, "Found by the first real phone
-    test".)
-
 53. **Costing is per customer, not per job within a customer.** An order is linked to the customer it is for, so a customer with
     several jobs has all their orders on one costing, because this system defines a job, for costing, as the customer. *Option:*
     link an order to one of the customer's jobs and cost each separately (a bigger change). (`DECISIONS.md`, "Decision 52".)
 54. **An order placed before the link existed cannot be linked afterwards by voice.** Only an order said "for <customer>" when it is
     placed is linked. *Option:* a spoken "link order 12 to Jenny" (held, like cancel).
+
 ## B. Needs a live check only a phone can give
 
 12. **The Codemagic rebuild**: the Confirm/Reject buttons for a follow-up question raised by a confirm ("Add to stock?",
@@ -110,6 +105,10 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
 
 ## Settled (kept so the reasoning is not lost)
+
+- 2026-10-04, decided by Pierre (after the phone tests):
+  - **The same work said again makes no new job** ("link quietly"): same words in any order, an open job, tasks only (never
+    measurements); a date or installer in the same sentence still asks "update that job?". Applied. (`DECISIONS.md`, "Decision 50".)
 
 - 2026-10-04, decided by Pierre (dictated, after the third phone test):
   - **An order is linked to the customer it is placed FOR** ("order ... from Floornet for Jenny"), so the cost of its supplier invoice

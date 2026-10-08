@@ -8,6 +8,18 @@ module.exports = function cases(caps) {
     INSERT INTO customers (name, person_id) VALUES ('Jenny Smith', 1), ('Thandi Mokoena', 2);
     INSERT INTO characters (name, relationship) VALUES ('Jabulani', 'installer');
   `);
+  // Jenny already has an open job for carpet repair (seen on the phone 2026-10-04: the same invoice sentence made a new job every time).
+  const hasCarpetRepair = (db) => { base(db); db.exec(`INSERT INTO job_scopes (id, customer_id, description, created_at) VALUES (1, 1, 'carpet repair', '2026-10-01 08:00:00');`); };
+  // ...and one in a project whose invoice is paid in full: closed.
+  const hasClosedCarpetRepair = (db) => {
+    base(db);
+    db.exec(`
+      INSERT INTO projects (id, customer_id, description, created_at) VALUES (1, 1, 'Carpet repair', '2026-09-01 08:00:00');
+      INSERT INTO job_scopes (id, customer_id, description, project_id, created_at) VALUES (1, 1, 'carpet repair', 1, '2026-09-01 08:00:00');
+      INSERT INTO invoices (id, customer_id, description, amount, job_scope_id, created_at) VALUES (1, 1, 'Carpet repair', 3000, 1, '2026-09-05 08:00:00');
+      INSERT INTO payments (customer_id, amount, source_transcript, invoice_id, created_at) VALUES (1, 3000, 'Jenny paid R3000', 1, '2026-09-20 08:00:00');
+    `);
+  };
   // Jenny already has a measured job scope with one component and one task, booked for the 10th.
   const withScope = (db) => {
     base(db);
@@ -46,6 +58,21 @@ module.exports = function cases(caps) {
     c('invoice: owner, an amount and a job with measurements, a task and a date', 'owner', base, 'invoice', { amount: 3000 }, 'Invoice Jenny R3000 lounge 5 by 4 laminate on the 17th',
       [OBS(obs({ job_description: 'laminate', components: [{ name: 'lounge', width: 5, length: 4, unit: 'm', area_sqm: null }], tasks: [{ description: 'laminate', component_name: null }], scheduled_date_raw: 'the 17th' }))]),
     c('invoice: owner, an amount and a job with NO date says nothing about one', 'owner', base, 'invoice', { amount: 3000 }, 'Invoice Jenny R3000 for carpet repair',
+      [OBS(obs({ job_description: 'carpet repair', tasks: [{ description: 'carpet repair', component_name: null }] }))]),
+    // Seen on the phone 2026-10-04: the same invoice sentence said again made a new job each time. The same work as an open job makes none.
+    c('invoice: the same work as an open job makes no new job, and the reply says which job', 'owner', hasCarpetRepair, 'invoice', { amount: 3000 }, 'Invoice Jenny R3000 for carpet repair',
+      [OBS(obs({ job_description: 'carpet repair', tasks: [{ description: 'carpet repair', component_name: null }] }))]),
+    c('invoice: the same work in other words makes no new job', 'owner', hasCarpetRepair, 'invoice', { amount: 3000 }, 'Invoice Jenny R3000 for the repair of the carpet',
+      [OBS(obs({ job_description: 'repair of the carpet', tasks: [{ description: 'repair of the carpet', component_name: null }] }))]),
+    c('invoice: different work for a customer who has a job makes a new job, as before', 'owner', hasCarpetRepair, 'invoice', { amount: 3000 }, 'Invoice Jenny R3000 for curtain fitting',
+      [OBS(obs({ job_description: 'curtain fitting', tasks: [{ description: 'curtain fitting', component_name: null }] }))]),
+    c('invoice: the same words but with measurements make a new job (a re-measure is new detail)', 'owner', hasCarpetRepair, 'invoice', { amount: 3000 }, 'Invoice Jenny R3000 carpet repair in the lounge 5 by 4',
+      [OBS(obs({ job_description: 'carpet repair', components: [{ name: 'lounge', width: 5, length: 4, unit: 'm', area_sqm: null }], tasks: [{ description: 'carpet repair', component_name: null }] }))]),
+    c('invoice: the same work with a date asks whether to update that job, and makes no new one', 'owner', hasCarpetRepair, 'invoice', { amount: 3000 }, 'Invoice Jenny R3000 for carpet repair, install on the 17th',
+      [OBS(obs({ job_description: 'carpet repair', tasks: [{ description: 'carpet repair', component_name: null }], scheduled_date_raw: 'the 17th' }))]),
+    c('invoice: the same work as a job in a project that is paid in full makes a new job', 'owner', hasClosedCarpetRepair, 'invoice', { amount: 3000 }, 'Invoice Jenny R3000 for carpet repair',
+      [OBS(obs({ job_description: 'carpet repair', tasks: [{ description: 'carpet repair', component_name: null }] }))]),
+    c('invoice: no amount, the same work: says so, makes no new job', 'owner', hasCarpetRepair, 'invoice', { amount: null }, 'Invoice Jenny for carpet repair',
       [OBS(obs({ job_description: 'carpet repair', tasks: [{ description: 'carpet repair', component_name: null }] }))]),
     c('invoice: owner, an amount and the observation model fails', 'owner', base, 'invoice', { amount: 5000 }, 'invoice Jenny R5000 for repairs', [OBS(boom)]),
     c('invoice: owner, no amount and the observation model fails', 'owner', base, 'invoice', {}, 'invoice Jenny, Sepo installs on Monday', [OBS(boom)]),

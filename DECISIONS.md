@@ -6372,3 +6372,25 @@ Decided by Pierre (dictated, after the third phone test): link an order to a job
 **Verified:** typecheck unchanged; **4,409 checks**. **Eight deliberate breakages were caught:** an invoice's cost no longer put on the order's customer; a credit no longer reducing it; a linked-plus-unlinked invoice put on the linked customer; an invoice across two customers put on the first; a spoken order no longer linking; a cancelled order still counted as cost to come; an invoiced order still counted; and the open-orders list not saying who an order is for.
 
 **Limits, stated plainly.** **The link is to the customer, not to one of their jobs:** a customer with several jobs gets all their orders on one costing, because that is how this system defines a job for costing. If you want costing per job within a customer, that needs a different link and is a bigger change. **The cost is attributed when the supplier's invoice is confirmed**, so an order that has not been invoiced shows only as "ordered, not yet invoiced". An order placed before this change has no link (they cannot be guessed); an existing order cannot be linked afterwards by voice yet. The language model's reading of "for Jenny" is unverified on the real model, though the code is safe against either reading.
+
+
+---
+
+## Decision 50: the same work said again makes no new job
+
+Decided by Pierre (the opposite of my recommendation, which was to ask): **link quietly.** Seen on the phone: saying "invoice AGS Lewende Waters R3000 for carpet repair" three times made jobs #73, #74 and #75 for one repair, and a fourth (#76) on the next test.
+
+**What the code showed.** The held invoice carries **no link to a job at all** (just the customer, the amount and the words), so the duplicates came from the **job part** of the sentence, which always recorded a new job.
+
+**What it does now.** When the work in an invoice sentence is **the same work as a job the customer already has open, no new job is created**, and the reply says which: "Invoice noted for Jenny Smith of R3000 — needs your confirmation (action #1) before it's recorded. This is the same work as job #1 ("carpet repair"), so no new job was created." Three precise rules keep it from over-reaching:
+- **Same work** means the same words in any order, ignoring case, punctuation and small words ("the", "of", "for"...): "repair of the carpet" matches "carpet repair"; "carpet repairs" or "curtain fitting" do not (no guessing at plurals or meaning).
+- **Open** uses the system's own meaning of an open project: a job whose project is **paid in full is closed** and is not matched (a repair a year later makes a new job). A job not in any project is open. The most recent match wins; another customer's jobs are never considered.
+- **Tasks only, never measurements.** A sentence with measurements is new detail and still makes a job: silently dropping a re-measure would be worse than a duplicate.
+
+**A date or installer in the same sentence is not applied quietly.** "Invoice Jenny R3000 for carpet repair, install on the 17th" for a customer with that job now asks the usual question ("Job #1 ("carpet repair") — update it, or create this as a separate new job?") with the invoice waiting, and creates no new job. So the one thing that could be changed behind your back (a date) still asks.
+
+**The property that matters.** Against `main`, **no existing recording changed or was removed**; 7 were added (the same work; the same work in other words; different work; the same words with measurements; the same work with a date; a closed job; and no amount), plus 9 unit tests against a real database (the matching, the closed project, another customer, measurements, placeholders).
+
+**Verified:** typecheck unchanged; **4,449 checks**. **Four deliberate breakages were caught:** the same work making a new job again (the original problem); a sentence with measurements matched to an old job; a job in a paid-in-full project matched as open; and a date applied by recording a job instead of asking about the existing one.
+
+**Not changed, and stated plainly:** the invoice itself is still not linked to a job (it never was); only the duplicate is removed. If you want an invoice tied to its job, that is a separate change. Existing duplicates (#73 to #76) are not merged. And the language model's reading of the sentence's work description is unverified on the real model: the matching depends on it producing the same words twice, which a plainly worded repeat should; a differently worded repeat will make a new job.

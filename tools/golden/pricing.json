@@ -1027,6 +1027,605 @@
   },
   "effects": []
  },
+ "invoice: the same work as an open job makes no new job, and the reply says which job": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Invoice noted for Jenny Smith of R3000 — needs your confirmation (action #1) before it's recorded. This is the same work as job #1 (\"carpet repair\"), so no new job was created.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Invoice Jenny R3000 for carpet repair",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Invoice Jenny R3000 for carpet repair",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "invoice",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"Invoice Jenny R3000 for carpet repair\",\"amount\":3000}",
+      "status": "pending",
+      "source_transcript": "Invoice Jenny R3000 for carpet repair"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "invoice: the same work in other words makes no new job": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Invoice noted for Jenny Smith of R3000 — needs your confirmation (action #1) before it's recorded. This is the same work as job #1 (\"carpet repair\"), so no new job was created.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Invoice Jenny R3000 for the repair of the carpet",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Invoice Jenny R3000 for the repair of the carpet",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "invoice",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"Invoice Jenny R3000 for the repair of the carpet\",\"amount\":3000}",
+      "status": "pending",
+      "source_transcript": "Invoice Jenny R3000 for the repair of the carpet"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "invoice: different work for a customer who has a job makes a new job, as before": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Invoice noted for Jenny Smith of R3000 — needs your confirmation (action #1) before it's recorded. Job scope #2 also recorded — 1 task noted.",
+   "jobScopeIdForProjectResolution": 2,
+   "pendingCandidates": null,
+   "pendingActionType": "invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Invoice Jenny R3000 for curtain fitting",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Invoice Jenny R3000 for curtain fitting",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 2,
+      "customer_id": 1,
+      "description": "curtain fitting",
+      "scheduled_date_raw": null,
+      "source_transcript": "Invoice Jenny R3000 for curtain fitting",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "invoice",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"Invoice Jenny R3000 for curtain fitting\",\"amount\":3000}",
+      "status": "pending",
+      "source_transcript": "Invoice Jenny R3000 for curtain fitting"
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 2,
+      "description": "curtain fitting",
+      "component_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "invoice: the same words but with measurements make a new job (a re-measure is new detail)": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Invoice noted for Jenny Smith of R3000 — needs your confirmation (action #1) before it's recorded. Job scope #2 also recorded — 1 component measured, 1 task noted.",
+   "jobScopeIdForProjectResolution": 2,
+   "pendingCandidates": null,
+   "pendingActionType": "invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Invoice Jenny R3000 carpet repair in the lounge 5 by 4",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Invoice Jenny R3000 carpet repair in the lounge 5 by 4",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 2,
+      "customer_id": 1,
+      "description": "carpet repair",
+      "scheduled_date_raw": null,
+      "source_transcript": "Invoice Jenny R3000 carpet repair in the lounge 5 by 4",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "invoice",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"Invoice Jenny R3000 carpet repair in the lounge 5 by 4\",\"amount\":3000}",
+      "status": "pending",
+      "source_transcript": "Invoice Jenny R3000 carpet repair in the lounge 5 by 4"
+     }
+    ]
+   },
+   "scope_components": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 2,
+      "name": "lounge",
+      "width_mm": 5000,
+      "length_mm": 4000,
+      "area_sqm": 20
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 2,
+      "description": "carpet repair",
+      "component_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "invoice: the same work with a date asks whether to update that job, and makes no new one": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": 2,
+   "factPendingActionId": null,
+   "message": "Job #1 (\"carpet repair\") — update it, or create this as a separate new job? Your invoice for Jenny Smith of R3000 is also waiting for confirmation (action #1).",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": "job_scope_amendment",
+   "pendingChanges": [
+    {
+     "field": "scheduled_date_raw",
+     "label": "Date",
+     "displayValue": "the 17th"
+    }
+   ],
+   "alsoPending": [
+    {
+     "id": 1,
+     "type": "invoice"
+    }
+   ]
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Invoice Jenny R3000 for carpet repair, install on the 17th",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Invoice Jenny R3000 for carpet repair, install on the 17th",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "invoice",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"Invoice Jenny R3000 for carpet repair, install on the 17th\",\"amount\":3000}",
+      "status": "pending",
+      "source_transcript": "Invoice Jenny R3000 for carpet repair, install on the 17th"
+     },
+     {
+      "id": 2,
+      "type": "job_scope_amendment",
+      "payload": "{\"jobScopeId\":1,\"jobScopeDescription\":\"carpet repair\",\"changes\":[{\"field\":\"scheduled_date_raw\",\"oldValue\":null,\"newValue\":\"the 17th\"}],\"customerId\":1,\"observation\":{\"job_description\":\"carpet repair\",\"components\":[],\"tasks\":[],\"scheduled_date_raw\":\"the 17th\",\"installer_name\":null},\"installerId\":null,\"transcript\":\"Invoice Jenny R3000 for carpet repair, install on the 17th\",\"captureId\":1}",
+      "status": "pending",
+      "source_transcript": "Invoice Jenny R3000 for carpet repair, install on the 17th"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "invoice: the same work as a job in a project that is paid in full makes a new job": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "Invoice noted for Jenny Smith of R3000 — needs your confirmation (action #1) before it's recorded. Job scope #2 also recorded — 1 task noted.",
+   "jobScopeIdForProjectResolution": 2,
+   "pendingCandidates": null,
+   "pendingActionType": "invoice",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Invoice Jenny R3000 for carpet repair",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Invoice Jenny R3000 for carpet repair",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "job_scopes": {
+    "added": [
+     {
+      "id": 2,
+      "customer_id": 1,
+      "description": "carpet repair",
+      "scheduled_date_raw": null,
+      "source_transcript": "Invoice Jenny R3000 for carpet repair",
+      "scheduled_date": null,
+      "installer_id": null,
+      "capture_id": 1,
+      "project_id": null
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   },
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "invoice",
+      "payload": "{\"customerId\":1,\"customerName\":\"Jenny Smith\",\"description\":\"Invoice Jenny R3000 for carpet repair\",\"amount\":3000}",
+      "status": "pending",
+      "source_transcript": "Invoice Jenny R3000 for carpet repair"
+     }
+    ]
+   },
+   "scope_tasks": {
+    "added": [
+     {
+      "id": 1,
+      "job_scope_id": 2,
+      "description": "carpet repair",
+      "component_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "invoice: no amount, the same work: says so, makes no new job": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I heard an invoice for Jenny Smith, but no amount came through — how much is it for? This is the same work as job #1 (\"carpet repair\"), so no new job was created.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract the structure of a tradesperson's job observation. job_descrip"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "Invoice Jenny for carpet repair",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "Invoice Jenny for carpet repair",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
  "invoice: owner, an amount and the observation model fails": {
   "result": {
    "customer": {
