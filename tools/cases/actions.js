@@ -104,6 +104,11 @@ module.exports = function cases(caps) {
   const forDifferentCustomers = withLinks(twoVinylOrders, "INSERT INTO purchase_order_customers (purchase_order_id, customer_id) VALUES (1, 1), (2, (SELECT id FROM customers WHERE name = 'Thandi Mokoena'));");
   const oneLinkedOneNot = withLinks(twoVinylOrders, "INSERT INTO purchase_order_customers (purchase_order_id, customer_id) VALUES (1, 1);");
   const discrepancyForJenny = withLinks(withDiscrepancy, "INSERT INTO purchase_order_customers (purchase_order_id, customer_id) VALUES (1, 1);");
+  // Confirming a link: the order is linked, and the costs already recorded for it move only where the match is certain. Floornet is supplier 2.
+  const linkHold = `INSERT INTO pending_actions (id, type, payload, source_transcript, status, created_at) VALUES (1, 'link_order', '{"purchaseOrderId":1,"customerId":1,"customerName":"Jenny Smith","supplierName":"Floornet"}', 'link order 1 to Jenny', 'pending', '2026-10-03 10:00:00');`;
+  const invoiceOn1 = `INSERT INTO supplier_invoices (id, purchase_order_id, supplier_id, supplier_reference, amount, source_transcript, created_at) VALUES (1, 1, 2, 'INV-1', 9250, 'Floornet invoice INV-1', '2026-10-02 08:00:00');`;
+  const expenseFor = (id, amount, customer) => `INSERT INTO expenses (id, character_id, amount, description, source_transcript, category, customer_id, created_at) VALUES (${id}, 2, ${amount}, 'Supplier invoice INV-1', 'Floornet invoice INV-1', 'materials', ${customer}, '2026-10-02 08:00:00');`;
+  const linkSeed = (extra) => (db) => { withOrder(db); db.exec(`INSERT INTO customers (name) SELECT 'Thandi Mokoena' WHERE NOT EXISTS (SELECT 1 FROM customers WHERE name = 'Thandi Mokoena'); ` + linkHold + ' ' + (extra || '')); };
   const OBS = (reply) => ({ match: /Extract the structure of a tradesperson's job observation/, reply });
   const LINES = (reply) => ({ match: /Extract every distinct line item from a tradesperson's quotation or invoice description/, reply });
   const GRAI = (reply) => ({ match: /quantity_received/, reply });
@@ -203,6 +208,16 @@ module.exports = function cases(caps) {
     r('confirm supplier invoice: one invoice spanning a linked and an unlinked order is for no job', oneLinkedOneNot, '/actions/1/confirm', [say('Floornet invoice INV-7731, 70 sqm vinyl at 185', { intent: 'supplier_invoice', ...floornet })], [SIAI2(70)]),
     r('confirm credit: a credit for a shortage on an order placed for Jenny reduces Jenny\'s job cost', discrepancyForJenny, '/actions/1/confirm', [say('Floornet is crediting us R2000 for the underlay shortage', { intent: 'variance_disposition', ...floornet })],
       [VDAI({ matched_description: 'Underlay', reason: 'short_delivered', resolution: 'credit', credit_amount: 2000 })]),
+
+    // ---------------- linking an existing order to a customer ----------------
+    r('confirm link: owner links the order', linkSeed(), '/actions/1/confirm', [], []),
+    r('confirm link: a cost already recorded for the order moves onto the job', linkSeed(invoiceOn1 + ' ' + expenseFor(1, 9250, 'NULL')), '/actions/1/confirm', [], []),
+    r('confirm link: two identical costs cannot be told apart, so neither is moved and it says so', linkSeed(invoiceOn1 + ' ' + expenseFor(1, 9250, 'NULL') + ' ' + expenseFor(2, 9250, 'NULL')), '/actions/1/confirm', [], []),
+    r('confirm link: an order moved from another customer takes its cost with it', linkSeed(orderLinkDdl + '; INSERT INTO purchase_order_customers (purchase_order_id, customer_id) VALUES (1, (SELECT id FROM customers WHERE name = \'Thandi Mokoena\')); ' + invoiceOn1 + ' ' + expenseFor(1, 9250, '(SELECT id FROM customers WHERE name = \'Thandi Mokoena\')')), '/actions/1/confirm', [], []),
+    r('confirm link: a cost that belongs to another customer, with no link saying why, is not taken', linkSeed(invoiceOn1 + ' ' + expenseFor(1, 9250, '(SELECT id FROM customers WHERE name = \'Thandi Mokoena\')')), '/actions/1/confirm', [], []),
+    r('confirm link: an installer is refused at the gate', linkSeed(), '/actions/1/confirm', [], [], { role: 'installer' }),
+    r('confirm link: confirmed twice', linkSeed(), '/actions/1/confirm', [confirm(1)], []),
+    r('reject link: nothing is linked', linkSeed(), '/actions/1/reject', [], []),
 
     // ---------------- who is this? ----------------
     r('confirm identity question: owner, the name belongs to an installer', base, '/actions/1/confirm', [say('Jabulani called about a job', { intent: 'note', customer_name: 'Jabulani' })], []),

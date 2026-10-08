@@ -3445,6 +3445,370 @@
   },
   "effects": []
  },
+ "confirm link: owner links the order": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "linked": {
+     "previousCustomerId": null,
+     "moved": 0,
+     "movedAmount": 0,
+     "unmatched": 0
+    },
+    "message": "Linked Floornet order #1 to Jenny Smith's job."
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "link_order",
+       "payload": "{\"purchaseOrderId\":1,\"customerId\":1,\"customerName\":\"Jenny Smith\",\"supplierName\":\"Floornet\"}",
+       "status": "pending",
+       "source_transcript": "link order 1 to Jenny"
+      },
+      "after": {
+       "id": 1,
+       "type": "link_order",
+       "payload": "{\"purchaseOrderId\":1,\"customerId\":1,\"customerName\":\"Jenny Smith\",\"supplierName\":\"Floornet\"}",
+       "status": "confirmed",
+       "source_transcript": "link order 1 to Jenny"
+      }
+     }
+    ]
+   },
+   "purchase_order_customers": {
+    "added": [
+     {
+      "purchase_order_id": 1,
+      "customer_id": 1
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm link: a cost already recorded for the order moves onto the job": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "linked": {
+     "previousCustomerId": null,
+     "moved": 1,
+     "movedAmount": 9250,
+     "unmatched": 0
+    },
+    "message": "Linked Floornet order #1 to Jenny Smith's job. 1 cost already recorded for it (R9250 of supplier invoices) now counts toward the job."
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "expenses": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "character_id": 2,
+       "amount": 9250,
+       "description": "Supplier invoice INV-1",
+       "source_transcript": "Floornet invoice INV-1",
+       "category": "materials",
+       "customer_id": null,
+       "capture_id": null
+      },
+      "after": {
+       "id": 1,
+       "character_id": 2,
+       "amount": 9250,
+       "description": "Supplier invoice INV-1",
+       "source_transcript": "Floornet invoice INV-1",
+       "category": "materials",
+       "customer_id": 1,
+       "capture_id": null
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "link_order",
+       "payload": "{\"purchaseOrderId\":1,\"customerId\":1,\"customerName\":\"Jenny Smith\",\"supplierName\":\"Floornet\"}",
+       "status": "pending",
+       "source_transcript": "link order 1 to Jenny"
+      },
+      "after": {
+       "id": 1,
+       "type": "link_order",
+       "payload": "{\"purchaseOrderId\":1,\"customerId\":1,\"customerName\":\"Jenny Smith\",\"supplierName\":\"Floornet\"}",
+       "status": "confirmed",
+       "source_transcript": "link order 1 to Jenny"
+      }
+     }
+    ]
+   },
+   "purchase_order_customers": {
+    "added": [
+     {
+      "purchase_order_id": 1,
+      "customer_id": 1
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm link: two identical costs cannot be told apart, so neither is moved and it says so": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "linked": {
+     "previousCustomerId": null,
+     "moved": 0,
+     "movedAmount": 0,
+     "unmatched": 1
+    },
+    "message": "Linked Floornet order #1 to Jenny Smith's job. 1 supplier invoice could not be matched to its cost with certainty, so it was left as it was."
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "link_order",
+       "payload": "{\"purchaseOrderId\":1,\"customerId\":1,\"customerName\":\"Jenny Smith\",\"supplierName\":\"Floornet\"}",
+       "status": "pending",
+       "source_transcript": "link order 1 to Jenny"
+      },
+      "after": {
+       "id": 1,
+       "type": "link_order",
+       "payload": "{\"purchaseOrderId\":1,\"customerId\":1,\"customerName\":\"Jenny Smith\",\"supplierName\":\"Floornet\"}",
+       "status": "confirmed",
+       "source_transcript": "link order 1 to Jenny"
+      }
+     }
+    ]
+   },
+   "purchase_order_customers": {
+    "added": [
+     {
+      "purchase_order_id": 1,
+      "customer_id": 1
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm link: an order moved from another customer takes its cost with it": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "linked": {
+     "previousCustomerId": 2,
+     "moved": 1,
+     "movedAmount": 9250,
+     "unmatched": 0
+    },
+    "message": "Linked Floornet order #1 to Jenny Smith's job. 1 cost already recorded for it (R9250 of supplier invoices) now counts toward the job."
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "expenses": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "character_id": 2,
+       "amount": 9250,
+       "description": "Supplier invoice INV-1",
+       "source_transcript": "Floornet invoice INV-1",
+       "category": "materials",
+       "customer_id": 2,
+       "capture_id": null
+      },
+      "after": {
+       "id": 1,
+       "character_id": 2,
+       "amount": 9250,
+       "description": "Supplier invoice INV-1",
+       "source_transcript": "Floornet invoice INV-1",
+       "category": "materials",
+       "customer_id": 1,
+       "capture_id": null
+      }
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "link_order",
+       "payload": "{\"purchaseOrderId\":1,\"customerId\":1,\"customerName\":\"Jenny Smith\",\"supplierName\":\"Floornet\"}",
+       "status": "pending",
+       "source_transcript": "link order 1 to Jenny"
+      },
+      "after": {
+       "id": 1,
+       "type": "link_order",
+       "payload": "{\"purchaseOrderId\":1,\"customerId\":1,\"customerName\":\"Jenny Smith\",\"supplierName\":\"Floornet\"}",
+       "status": "confirmed",
+       "source_transcript": "link order 1 to Jenny"
+      }
+     }
+    ]
+   },
+   "purchase_order_customers": {
+    "added": [
+     {
+      "purchase_order_id": 1,
+      "customer_id": 1
+     }
+    ],
+    "removed": [
+     {
+      "purchase_order_id": 1,
+      "customer_id": 2
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm link: a cost that belongs to another customer, with no link saying why, is not taken": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "linked": {
+     "previousCustomerId": null,
+     "moved": 0,
+     "movedAmount": 0,
+     "unmatched": 1
+    },
+    "message": "Linked Floornet order #1 to Jenny Smith's job. 1 supplier invoice could not be matched to its cost with certainty, so it was left as it was."
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "link_order",
+       "payload": "{\"purchaseOrderId\":1,\"customerId\":1,\"customerName\":\"Jenny Smith\",\"supplierName\":\"Floornet\"}",
+       "status": "pending",
+       "source_transcript": "link order 1 to Jenny"
+      },
+      "after": {
+       "id": 1,
+       "type": "link_order",
+       "payload": "{\"purchaseOrderId\":1,\"customerId\":1,\"customerName\":\"Jenny Smith\",\"supplierName\":\"Floornet\"}",
+       "status": "confirmed",
+       "source_transcript": "link order 1 to Jenny"
+      }
+     }
+    ]
+   },
+   "purchase_order_customers": {
+    "added": [
+     {
+      "purchase_order_id": 1,
+      "customer_id": 1
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm link: an installer is refused at the gate": {
+  "result": {
+   "status": 403,
+   "body": {
+    "error": "not available for your role"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "confirm link: confirmed twice": {
+  "result": {
+   "status": 409,
+   "body": {
+    "error": "action already confirmed"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "reject link: nothing is linked": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "rejected",
+    "id": 1
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "link_order",
+       "payload": "{\"purchaseOrderId\":1,\"customerId\":1,\"customerName\":\"Jenny Smith\",\"supplierName\":\"Floornet\"}",
+       "status": "pending",
+       "source_transcript": "link order 1 to Jenny"
+      },
+      "after": {
+       "id": 1,
+       "type": "link_order",
+       "payload": "{\"purchaseOrderId\":1,\"customerId\":1,\"customerName\":\"Jenny Smith\",\"supplierName\":\"Floornet\"}",
+       "status": "rejected",
+       "source_transcript": "link order 1 to Jenny"
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
  "confirm identity question: owner, the name belongs to an installer": {
   "result": {
    "status": 200,

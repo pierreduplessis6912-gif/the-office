@@ -10,7 +10,7 @@ import {
   verifySession, getSessionToken, getCookie, base64UrlEncode, ROLE_CAPABILITIES, ENFORCE_CAPABILITIES,
   ACTION_TYPE_CAPABILITY, ROUTE_RULES, SIGNABLE_DOCUMENT_PATHS, canResolveActionType, intentCreationRefusal, intentKeepsOutOfNotes,
 } from "./auth";
-import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote, duplicateInvoiceMessage, findDuplicateSupplierInvoice, normalizeInvoiceReference, describeConversion, forgetUnitConversions, listUnitConversions, unitConversionsAnswer, checkStockUnit, listSupplierStatements, recordSupplierStatement, statementDifferenceNote, supplierStatementsAnswer, checkInvoiceUnits, describeCancelledOrder, getCancelledOrdersForSupplier, reopenPurchaseOrder, type CancelledOrder, getOpenOrdersAcrossSuppliers, openOrdersAnswer, linkPurchaseOrderToCustomer, findOpenJobWithSameWork } from "./finance";
+import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote, duplicateInvoiceMessage, findDuplicateSupplierInvoice, normalizeInvoiceReference, describeConversion, forgetUnitConversions, listUnitConversions, unitConversionsAnswer, checkStockUnit, listSupplierStatements, recordSupplierStatement, statementDifferenceNote, supplierStatementsAnswer, checkInvoiceUnits, describeCancelledOrder, getCancelledOrdersForSupplier, reopenPurchaseOrder, type CancelledOrder, getOpenOrdersAcrossSuppliers, openOrdersAnswer, linkPurchaseOrderToCustomer, findOpenJobWithSameWork, describeOrderForLinking, getOrderForLinking, getUnlinkedOrdersForSupplier, linkPurchaseOrderAndMoveCosts, type OrderForLinking } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 import { handleDebugRoute } from "./debug";
 import { DOCUMENT_KIND_LABEL, asksAboutDeliveryExceptions, deliveryExceptionAnswer, deliveryHadExceptions, deliveryHeldMessage, deliveryRecordedMessage, inferDocumentSupplier, planDelivery } from "./documents";
@@ -315,7 +315,7 @@ async function processOneExtraction(
   // through the already-existing read-only findExistingEntityByName
   // instead of the create-or-find reconcile functions.
   if (extraction?.customer_name) {
-    if (extraction.intent === "lookup" || extraction.intent === "cancel_order" || extraction.intent === "set_unit_conversion" || extraction.intent === "forget_unit_conversion" || extraction.intent === "supplier_statement" || extraction.intent === "reopen_order" || extraction.intent === "purchase_order") {
+    if (extraction.intent === "lookup" || extraction.intent === "cancel_order" || extraction.intent === "set_unit_conversion" || extraction.intent === "forget_unit_conversion" || extraction.intent === "supplier_statement" || extraction.intent === "reopen_order" || extraction.intent === "purchase_order" || extraction.intent === "link_order") {
       const found = await findExistingCustomerByName(env, extraction.customer_name);
       if (found) {
         customer = { id: found.id, name: found.name, matched: true };
@@ -434,7 +434,7 @@ async function processOneExtraction(
   }
 
   if (extraction?.character_name) {
-    if (extraction.intent === "lookup" || extraction.intent === "cancel_order" || extraction.intent === "set_unit_conversion" || extraction.intent === "forget_unit_conversion" || extraction.intent === "supplier_statement" || extraction.intent === "reopen_order") {
+    if (extraction.intent === "lookup" || extraction.intent === "cancel_order" || extraction.intent === "set_unit_conversion" || extraction.intent === "forget_unit_conversion" || extraction.intent === "supplier_statement" || extraction.intent === "reopen_order" || extraction.intent === "link_order") {
       const found = await findExistingCharacterByName(env, extraction.character_name);
       if (found) {
         character = { id: found.id, name: found.name, matched: true };
@@ -754,6 +754,54 @@ async function processOneExtraction(
         reopenOrderNumberNotCancelled = { wanted, cancelled };
       } else {
         reopenOrderWhich = cancelled;
+      }
+    }
+  }
+
+  // Linking an EXISTING order to the customer it was for (decided by Pierre 2026-10-04): "link order 12 to Jenny", or "that Floornet order was for
+  // Jenny". A held action (it moves costs between jobs). The customer must already exist, the order is named by number or is the supplier's only
+  // unlinked one, and nothing is ever guessed between several.
+  let linkOrderHold: { id: number; summary: string; customerName: string; supplier: string | null; movesFrom: string | null } | null = null;
+  let linkOrderNoCustomer = false;
+  let linkOrderUnknownCustomer: string | null = null;
+  let linkOrderNumberUnknown: number | null = null;
+  let linkOrderCancelled: OrderForLinking | null = null;
+  let linkOrderNone: string | null = null;
+  let linkOrderWhich: OrderForLinking[] | null = null;
+  let linkOrderNoOrder = false;
+  if (extraction?.intent === "link_order") {
+    if (!extraction.customer_name) {
+      linkOrderNoCustomer = true;
+    } else if (!customer) {
+      linkOrderUnknownCustomer = extraction.customer_name;
+    } else {
+      const wanted = parseOrderNumber(transcript);
+      let target: OrderForLinking | null = null;
+      if (wanted !== null) {
+        target = await getOrderForLinking(env, wanted);
+        if (!target) linkOrderNumberUnknown = wanted;
+        else if (target.cancelled) {
+          linkOrderCancelled = target;
+          target = null;
+        }
+      } else if (character) {
+        const unlinked = await getUnlinkedOrdersForSupplier(env, character.id);
+        if (unlinked.length === 1) target = unlinked[0];
+        else if (unlinked.length === 0) linkOrderNone = character.name;
+        else linkOrderWhich = unlinked;
+      } else {
+        linkOrderNoOrder = true;
+      }
+      if (target) {
+        const held = await holdForConfirmation(
+          env,
+          "link_order",
+          { purchaseOrderId: target.id, customerId: customer.id, customerName: customer.name, supplierName: target.supplier },
+          transcript
+        );
+        pendingActionId = held.id;
+        pendingActionType = "link_order";
+        linkOrderHold = { id: held.id, summary: describeOrderForLinking(target), customerName: customer.name, supplier: target.supplier, movesFrom: target.linkedTo && target.linkedTo !== customer.name ? target.linkedTo : null };
       }
     }
   }
@@ -1780,6 +1828,22 @@ async function processOneExtraction(
   } else if (extraction?.intent === "quotation" && customer && !pendingActionId) {
     // Same: a quotation with no readable items and no amount answered as a lookup.
     message = `I heard a quotation for ${customer.name}, but couldn't make out any items or an amount.`;
+  } else if (extraction?.intent === "link_order" && linkOrderHold) {
+    message = `Link ${linkOrderHold.supplier ? `${linkOrderHold.supplier} ` : ""}order ${linkOrderHold.summary} to ${linkOrderHold.customerName}'s job? Needs your confirmation (action #${linkOrderHold.id}) before it's linked.${linkOrderHold.movesFrom ? ` It is currently linked to ${linkOrderHold.movesFrom}'s job; this will move it, and its costs, to ${linkOrderHold.customerName}.` : ""}`;
+  } else if (extraction?.intent === "link_order" && linkOrderNoCustomer) {
+    message = "I heard you want to link an order to a customer, but no customer name came through — which customer is it for?";
+  } else if (extraction?.intent === "link_order" && linkOrderUnknownCustomer) {
+    message = `I don't have ${linkOrderUnknownCustomer} as a customer, so there is nothing to link the order to.`;
+  } else if (extraction?.intent === "link_order" && linkOrderNumberUnknown !== null) {
+    message = `I have no order #${linkOrderNumberUnknown}.`;
+  } else if (extraction?.intent === "link_order" && linkOrderCancelled) {
+    message = `Order #${linkOrderCancelled.id} was cancelled, so there is nothing to link. Reopen it first if it is back on.`;
+  } else if (extraction?.intent === "link_order" && linkOrderNone) {
+    message = `${linkOrderNone} has no orders waiting to be linked to a customer.`;
+  } else if (extraction?.intent === "link_order" && linkOrderWhich) {
+    message = `${character!.name} has ${linkOrderWhich.length} orders not linked to a customer: ${linkOrderWhich.map(describeOrderForLinking).join("; ")}. Say "link order" and its number to pick one.`;
+  } else if (extraction?.intent === "link_order" && linkOrderNoOrder) {
+    message = "I heard you want to link an order, but not which one. Say its number (\"link order 12 to Jenny\") or the supplier (\"the Floornet order was for Jenny\").";
   } else if (extraction?.intent === "reopen_order" && reopenOrderHold) {
     message = `Reopen ${reopenOrderHold.supplierName} order ${reopenOrderHold.summary}? Needs your confirmation (action #${reopenOrderHold.id}) before it's reopened.`;
   } else if (extraction?.intent === "reopen_order" && reopenOrderNoSupplier) {
@@ -4550,6 +4614,21 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         // a real, deterministic quantity variance, computed in
         // recordGoodsReceived, returned here so Peter sees it
         // immediately, not buried in a debug route.
+        if (action.type === "link_order") {
+          const payload = JSON.parse(action.payload) as { purchaseOrderId: number; customerId: number; customerName?: string; supplierName?: string | null };
+          const linked = await linkPurchaseOrderAndMoveCosts(env, payload.purchaseOrderId, payload.customerId);
+          await env.OFFICE_DB.prepare(
+            "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
+          )
+            .bind(id)
+            .run();
+          return Response.json({
+            status: "confirmed",
+            linked,
+            message: `Linked ${payload.supplierName ? `${payload.supplierName} ` : ""}order #${payload.purchaseOrderId} to ${payload.customerName ?? "the customer"}'s job.${linked.moved > 0 ? ` ${linked.moved} cost${linked.moved === 1 ? "" : "s"} already recorded for it${linked.movedAmount > 0 ? ` (R${linked.movedAmount} of supplier invoices)` : ""} now count${linked.moved === 1 ? "s" : ""} toward the job.` : ""}${linked.unmatched > 0 ? ` ${linked.unmatched} supplier invoice${linked.unmatched === 1 ? "" : "s"} could not be matched to ${linked.unmatched === 1 ? "its" : "their"} cost with certainty, so ${linked.unmatched === 1 ? "it was" : "they were"} left as ${linked.unmatched === 1 ? "it was" : "they were"}.` : ""}`,
+          });
+        }
+
         if (action.type === "reopen_order") {
           const payload = JSON.parse(action.payload) as { purchaseOrderId: number; supplierName?: string };
           const reopened = await reopenPurchaseOrder(env, payload.purchaseOrderId);

@@ -423,6 +423,7 @@ export const ACTION_TYPE_CAPABILITY: Record<string, string[]> = {
   stock_add: ["can_know_materials"],
   cancel_order: ["can_manage_invoices"],
   reopen_order: ["can_manage_invoices"],
+  link_order: ["can_manage_invoices"],
   job_scope_amendment: ["can_know_jobs"],
   project_ambiguity: ["can_know_jobs"],
   // Identity questions can come up in either role's dictation.
@@ -512,6 +513,8 @@ export const INTENT_RULES: Record<Extraction["intent"], IntentRule> = {
   cancel_order: { produces: ["cancel_order"], create: ["can_manage_invoices"], refusal: MONEY_REFUSAL },
   // Bringing a cancelled order back: the mirror of cancelling it, held and gated the same way.
   reopen_order: { produces: ["reopen_order"], create: ["can_manage_invoices"], refusal: MONEY_REFUSAL },
+  // Linking an existing order to the customer it was for: held and gated like cancelling it (it moves costs between jobs).
+  link_order: { produces: ["link_order"], create: ["can_manage_invoices"], refusal: MONEY_REFUSAL },
   // Decision recorded 2026-10-02 (Pierre): installers may dictate goods
   // received. They already confirm deliveries on site, and the upload path
   // already lets any member record a delivery note, so refusing dictation
@@ -588,6 +591,7 @@ const ALSO_STRUCTURED_BUT_OPEN: ReadonlySet<string> = new Set([
   "set_unit_conversion",
   "forget_unit_conversion",
   "reopen_order",
+  "link_order",
 ]);
 
 export function intentKeepsOutOfNotes(intent: string | null | undefined): boolean {

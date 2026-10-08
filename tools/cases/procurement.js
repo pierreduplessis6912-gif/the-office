@@ -93,6 +93,14 @@ module.exports = function cases(caps) {
   const secondCancelled = (db) => { twoOrders(db); db.exec(cancellationDdl + ` INSERT INTO purchase_order_cancellations (purchase_order_id, cancelled_by, created_at) VALUES (2, 'owner@example.com', '2026-10-03 09:00:00');`); };
   const withZztest = (db) => { base(db); db.exec(`INSERT INTO characters (name, relationship) VALUES ('Zztest Supplies', 'supplier');`); };
   const withJenny = (db) => { base(db); db.exec(`INSERT INTO customers (name) SELECT 'Jenny Smith' WHERE NOT EXISTS (SELECT 1 FROM customers WHERE name = 'Jenny Smith');`); };
+  // Linking an EXISTING order to a customer (decided with Pierre 2026-10-04).
+  const orderLinkDdl = "CREATE TABLE IF NOT EXISTS purchase_order_customers (purchase_order_id INTEGER PRIMARY KEY, customer_id INTEGER NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))";
+  const jennyAndThandi = (db) => { db.exec(`INSERT INTO customers (name) SELECT 'Jenny Smith' WHERE NOT EXISTS (SELECT 1 FROM customers WHERE name = 'Jenny Smith'); INSERT INTO customers (name) SELECT 'Thandi Mokoena' WHERE NOT EXISTS (SELECT 1 FROM customers WHERE name = 'Thandi Mokoena');`); };
+  const unlinkedOne = (db) => { withOrder(db); jennyAndThandi(db); };
+  const unlinkedTwo = (db) => { twoOrders(db); jennyAndThandi(db); };
+  const linkedToThandi = (db) => { withOrder(db); jennyAndThandi(db); db.exec(orderLinkDdl + `; INSERT INTO purchase_order_customers (purchase_order_id, customer_id) VALUES (1, (SELECT id FROM customers WHERE name = 'Thandi Mokoena'));`); };
+  const cancelledOne = (db) => { oneCancelledDated(db); jennyAndThandi(db); };
+  const forJenny = { customer_name: 'Jenny Smith' };
   const POAI = (reply) => ({ match: /line_items is every distinct material/, reply });
   const GRAI = (reply) => ({ match: /quantity_received/, reply });
   const SIAI = (reply) => ({ match: /quantity_billed/, reply });
@@ -173,6 +181,21 @@ module.exports = function cases(caps) {
     c('reopen order: a role with no permissions is refused', 'stranger', oneCancelledDated, 'reopen_order', sup(), 'reopen the Floornet order', []),
     c('goods received: after the order was reopened a delivery matches it again', 'owner', withOrder, 'goods_received', sup(), 'Floornet delivered the vinyl, 50 square metres',
       [GRAI({ supplier_name: 'Floornet', line_items: [{ matched_description: 'Vinyl', item_description: 'vinyl', unit: 'sqm', quantity_received: 50 }] })]),
+
+    // ---------------- link_order (a held action: it names the order, and never guesses between several) ----------------
+    c('link order: the supplier has one unlinked order, so it is held', 'owner', unlinkedOne, 'link_order', { ...sup(), ...forJenny }, 'the Floornet order was for Jenny', []),
+    c('link order: a number picks the order, with no supplier named', 'owner', unlinkedOne, 'link_order', forJenny, 'link order 1 to Jenny', []),
+    c('link order: several unlinked orders and no number, so it asks which', 'owner', unlinkedTwo, 'link_order', { ...sup(), ...forJenny }, 'the Floornet order was for Jenny', []),
+    c('link order: an order already linked to someone else says it will move it', 'owner', linkedToThandi, 'link_order', forJenny, 'link order 1 to Jenny', []),
+    c('link order: a number that is not an order', 'owner', unlinkedOne, 'link_order', forJenny, 'link order 99 to Jenny', []),
+    c('link order: a cancelled order is not linked', 'owner', cancelledOne, 'link_order', forJenny, 'link order 1 to Jenny', []),
+    c('link order: no customer named', 'owner', unlinkedOne, 'link_order', sup(), 'link the Floornet order', []),
+    c('link order: a customer nobody has heard of is not created', 'owner', unlinkedOne, 'link_order', { customer_name: 'Nobody Known' }, 'link order 1 to Nobody Known', []),
+    c('link order: no number and no supplier', 'owner', unlinkedOne, 'link_order', forJenny, 'link an order to Jenny', []),
+    c('link order: the supplier has nothing waiting to be linked', 'owner', linkedToThandi, 'link_order', { ...sup(), ...forJenny }, 'the Floornet order was for Jenny', []),
+    c('link order: accountant', 'accountant', unlinkedOne, 'link_order', { ...sup(), ...forJenny }, 'the Floornet order was for Jenny', []),
+    c('link order: installer is refused', 'installer', unlinkedOne, 'link_order', { ...sup(), ...forJenny }, 'the Floornet order was for Jenny', []),
+    c('link order: a role with no permissions is refused', 'stranger', unlinkedOne, 'link_order', { ...sup(), ...forJenny }, 'the Floornet order was for Jenny', []),
 
     // ---------------- supplier_invoice ----------------
     c('supplier invoice: owner, open order, matched and priced', 'owner', withOrder, 'supplier_invoice', sup(), 'Floornet invoice INV-7731: 50 sqm vinyl at 185 and 100 sqm underlay at 40',

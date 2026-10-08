@@ -612,6 +612,123 @@ export async function findOpenJobWithSameWork(
   return null;
 }
 
+// ---- Linking an EXISTING order to a customer (decided by Pierre 2026-10-04: "link order 12 to Jenny") --------------------------------------------------
+export interface OrderForLinking {
+  id: number;
+  description: string;
+  supplier: string | null;
+  cancelled: boolean;
+  linkedTo: string | null;
+  lines: Array<{ description: string; ordered: number; unit: string | null }>;
+}
+
+export async function getOrderForLinking(env: Env, purchaseOrderId: number): Promise<OrderForLinking | null> {
+  await ensureCancellationTable(env);
+  await ensurePurchaseOrderLinkTable(env);
+  const row = await env.OFFICE_DB.prepare(
+    `SELECT po.id AS id, po.description AS description, ch.name AS supplier,
+            EXISTS (SELECT 1 FROM purchase_order_cancellations c WHERE c.purchase_order_id = po.id) AS cancelled,
+            (SELECT cu.name FROM purchase_order_customers l JOIN customers cu ON cu.id = l.customer_id WHERE l.purchase_order_id = po.id) AS linked_to
+       FROM purchase_orders po LEFT JOIN characters ch ON ch.id = po.supplier_id WHERE po.id = ?`
+  )
+    .bind(purchaseOrderId)
+    .first<{ id: number; description: string; supplier: string | null; cancelled: number; linked_to: string | null }>();
+  if (!row) return null;
+  const { results } = await env.OFFICE_DB.prepare("SELECT description, quantity_ordered, unit FROM po_line_items WHERE purchase_order_id = ? ORDER BY id")
+    .bind(purchaseOrderId)
+    .all<{ description: string; quantity_ordered: number; unit: string | null }>();
+  return {
+    id: row.id,
+    description: row.description,
+    supplier: row.supplier,
+    cancelled: Boolean(row.cancelled),
+    linkedTo: row.linked_to,
+    lines: (results ?? []).map((l) => ({ description: l.description, ordered: l.quantity_ordered, unit: l.unit })),
+  };
+}
+
+// The supplier's orders that are not cancelled and not yet linked to a customer, oldest first.
+export async function getUnlinkedOrdersForSupplier(env: Env, supplierId: number): Promise<OrderForLinking[]> {
+  await ensureCancellationTable(env);
+  await ensurePurchaseOrderLinkTable(env);
+  const { results } = await env.OFFICE_DB.prepare(
+    `SELECT po.id AS id FROM purchase_orders po
+      WHERE po.supplier_id = ? AND po.id NOT IN (SELECT purchase_order_id FROM purchase_order_cancellations) AND po.id NOT IN (SELECT purchase_order_id FROM purchase_order_customers)
+      ORDER BY po.created_at ASC, po.id ASC`
+  )
+    .bind(supplierId)
+    .all<{ id: number }>();
+  const out: OrderForLinking[] = [];
+  for (const r of results ?? []) {
+    const o = await getOrderForLinking(env, r.id);
+    if (o) out.push(o);
+  }
+  return out;
+}
+
+export function describeOrderForLinking(o: OrderForLinking): string {
+  const what = o.lines.map((l) => `${l.ordered}${l.unit ? ` ${l.unit}` : ""} ${l.description}`).join(", ");
+  return `#${o.id} ${o.description}${what ? ` (${what} ordered)` : ""}`;
+}
+
+// Links the order, and moves the costs ALREADY recorded for it onto the customer: only where the match is certain. A supplier invoice's expense is
+// found by supplier, amount and the words it was recorded from, and must be exactly ONE candidate; a credit's expense is found by the disposition
+// that made it. Anything that cannot be matched with certainty is left alone and counted, never guessed. An order moved from another customer takes
+// its costs with it.
+export async function linkPurchaseOrderAndMoveCosts(
+  env: Env,
+  purchaseOrderId: number,
+  customerId: number
+): Promise<{ previousCustomerId: number | null; moved: number; movedAmount: number; unmatched: number }> {
+  await ensurePurchaseOrderLinkTable(env);
+  const previous = await env.OFFICE_DB.prepare("SELECT customer_id FROM purchase_order_customers WHERE purchase_order_id = ?")
+    .bind(purchaseOrderId)
+    .first<{ customer_id: number }>();
+  const previousCustomerId = previous?.customer_id ?? null;
+  await linkPurchaseOrderToCustomer(env, purchaseOrderId, customerId);
+  let moved = 0;
+  let movedAmount = 0;
+  let unmatched = 0;
+  const { results: invoices } = await env.OFFICE_DB.prepare("SELECT supplier_id, supplier_reference, amount, source_transcript FROM supplier_invoices WHERE purchase_order_id = ?")
+    .bind(purchaseOrderId)
+    .all<{ supplier_id: number | null; supplier_reference: string | null; amount: number; source_transcript: string | null }>();
+  for (const inv of invoices ?? []) {
+    const { results: candidates } = await env.OFFICE_DB.prepare(
+      `SELECT id, customer_id FROM expenses
+        WHERE character_id IS ? AND amount = ? AND source_transcript IS ? AND description = ?
+          AND (customer_id IS NULL OR customer_id = ? OR customer_id = ?)`
+    )
+      .bind(inv.supplier_id, inv.amount, inv.source_transcript, inv.supplier_reference ? `Supplier invoice ${inv.supplier_reference}` : "Supplier invoice", previousCustomerId ?? -1, customerId)
+      .all<{ id: number; customer_id: number | null }>();
+    if ((candidates ?? []).length !== 1) {
+      unmatched++;
+      continue;
+    }
+    if (candidates![0].customer_id !== customerId) {
+      await env.OFFICE_DB.prepare("UPDATE expenses SET customer_id = ? WHERE id = ?").bind(customerId, candidates![0].id).run();
+      moved++;
+      movedAmount += inv.amount;
+    }
+  }
+  const { results: credits } = await env.OFFICE_DB.prepare(
+    `SELECT vd.id AS id FROM variance_dispositions vd
+       JOIN grn_line_items g ON g.id = vd.grn_line_item_id
+       JOIN goods_received_notes n ON n.id = g.grn_id
+      WHERE n.purchase_order_id = ? AND vd.resolution = 'credit'`
+  )
+    .bind(purchaseOrderId)
+    .all<{ id: number }>();
+  for (const credit of credits ?? []) {
+    const done = await env.OFFICE_DB.prepare(
+      "UPDATE expenses SET customer_id = ? WHERE source_transcript = ? AND (customer_id IS NULL OR customer_id = ?) AND customer_id IS NOT ?"
+    )
+      .bind(customerId, `variance disposition #${credit.id}`, previousCustomerId ?? -1, customerId)
+      .run();
+    if ((done as { meta?: { changes?: number } }).meta?.changes) moved++;
+  }
+  return { previousCustomerId, moved, movedAmount: round2(movedAmount), unmatched };
+}
+
 export interface OpenOrder {
   id: number;
   description: string;
