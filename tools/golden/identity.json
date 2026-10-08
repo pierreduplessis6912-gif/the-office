@@ -2392,6 +2392,187 @@
   },
   "effects": []
  },
+ "character: a new supplier whose name sounds like a CUSTOMER on file is created, with no question": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 3,
+    "name": "TAL",
+    "matched": false
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Noted: TAL.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "order 20 bags of screed from TAL",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "order 20 bags of screed from TAL",
+       "source": "text",
+       "subject_hint": "TAL",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 3
+      }
+     }
+    ]
+   },
+   "characters": {
+    "added": [
+     {
+      "id": 3,
+      "name": "TAL",
+      "relationship": "supplier",
+      "person_id": null,
+      "merged_into_character_id": null
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 3,
+      "label": "TAL"
+     }
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kv": "put",
+    "key": "character:3",
+    "value": "{\"facts\":[{\"text\":\"order 20 bags of screed from TAL\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
+   }
+  ]
+ },
+ "character: a new supplier whose name sounds like another SUPPLIER on file still asks": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "\"Floornit\" sounds like an existing person, \"Floornet\" — is this the same one? (action #1)",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": [
+    {
+     "id": 4,
+     "name": "Floornet"
+    }
+   ],
+   "pendingActionType": "ambiguous_person",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "ambiguous_person",
+      "payload": "{\"name\":\"Floornit\",\"intendedRole\":\"character\",\"candidates\":[{\"id\":4,\"name\":\"Floornet\"}],\"extraction\":{\"customer_name\":null,\"character_name\":\"Floornit\",\"character_relationship\":\"supplier\",\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"order 20 bags of screed from Floornit\",\"captureId\":1}",
+      "status": "pending",
+      "source_transcript": "order 20 bags of screed from Floornit"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "character: a new INSTALLER whose name sounds like a customer on file still asks": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "\"TAL\" sounds like an existing person, \"Thula\" — is this the same one? (action #1)",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": [
+    {
+     "id": 5,
+     "name": "Thula"
+    }
+   ],
+   "pendingActionType": "ambiguous_person",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "ambiguous_person",
+      "payload": "{\"name\":\"TAL\",\"intendedRole\":\"character\",\"candidates\":[{\"id\":5,\"name\":\"Thula\"}],\"extraction\":{\"customer_name\":null,\"character_name\":\"TAL\",\"character_relationship\":\"installer\",\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"TAL will install it\",\"captureId\":1}",
+      "status": "pending",
+      "source_transcript": "TAL will install it"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "character: a new name with NO relationship stated that sounds like a customer on file still asks": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": 1,
+   "factPendingActionId": null,
+   "message": "\"TAL\" sounds like an existing person, \"Thula\" — is this the same one? (action #1)",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": [
+    {
+     "id": 5,
+     "name": "Thula"
+    }
+   ],
+   "pendingActionType": "ambiguous_person",
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "pending_actions": {
+    "added": [
+     {
+      "id": 1,
+      "type": "ambiguous_person",
+      "payload": "{\"name\":\"TAL\",\"intendedRole\":\"character\",\"candidates\":[{\"id\":5,\"name\":\"Thula\"}],\"extraction\":{\"customer_name\":null,\"character_name\":\"TAL\",\"character_relationship\":null,\"intent\":\"note\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null},\"transcript\":\"TAL called\",\"captureId\":1}",
+      "status": "pending",
+      "source_transcript": "TAL called"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
  "both: owner, a customer and an installer in one message": {
   "result": {
    "customer": {

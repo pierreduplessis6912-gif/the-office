@@ -3755,12 +3755,12 @@ class _PendingRoomContentState extends State<_PendingRoomContent> {
                                 children: [
                                   TextButton(
                                     onPressed: () => _resolve(id, 'confirm'),
-                                    child: Text('Confirm', style: GoogleFonts.workSans(color: _emberSage, fontWeight: FontWeight.w600)),
+                                    child: Text(_confirmLabel(type), style: GoogleFonts.workSans(color: _emberSage, fontWeight: FontWeight.w600)),
                                   ),
                                   const SizedBox(width: 8),
                                   TextButton(
                                     onPressed: () => _resolve(id, 'reject'),
-                                    child: Text('Reject', style: GoogleFonts.workSans(color: _muted)),
+                                    child: Text(_rejectLabel(type), style: GoogleFonts.workSans(color: _muted)),
                                   ),
                                 ],
                               ),
@@ -7509,6 +7509,11 @@ class _ConvergingLightPainter extends CustomPainter {
   bool shouldRepaint(covariant _ConvergingLightPainter old) => old.progress != progress;
 }
 
+// Found by the third phone test 2026-10-04: on a "sounds like someone already on file" question, Confirm meant "yes, the same one" and Reject
+// meant "no, a different one: carry on with a new person", and neither word said so. Rejecting felt like cancelling, when it carries on.
+String _confirmLabel(String type) => (type == 'ambiguous_person' || type == 'identity_collision') ? 'Same person' : 'Confirm';
+String _rejectLabel(String type) => (type == 'ambiguous_person' || type == 'identity_collision') ? 'Different' : 'Reject';
+
 class _MessageLine extends StatelessWidget {
   final ChatMessage message;
   final void Function(int itemId, {int? personId}) onConfirm;
@@ -7709,9 +7714,9 @@ class _MessageLine extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _gatedAction(item, 'Confirm', _confirmedGreen, () => onConfirm(item.id)),
+          _gatedAction(item, _confirmLabel(item.type), _confirmedGreen, () => onConfirm(item.id)),
           const SizedBox(width: 28),
-          _gatedAction(item, 'Reject', _muted, () => onReject(item.id)),
+          _gatedAction(item, _rejectLabel(item.type), _muted, () => onReject(item.id)),
         ],
       ),
     );

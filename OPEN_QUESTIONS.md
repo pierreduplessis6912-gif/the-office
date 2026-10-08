@@ -23,6 +23,10 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     work), and the proposal's `confirm_action` would let a model confirm its own money and identity actions, which defeats the rule
     that a human confirms them. *Decisions:* whether it is wanted and for whom; where it lives (inside `office-api`, a separate
     Worker, or a local stdio forwarder); how it is authenticated; how confirming stays human.
+56. **A near-duplicate supplier name is usually not caught.** A supplier created from an order sentence has no person record, so
+    "Floornit" for "Floornet" creates a second supplier instead of asking, and the sound-alike check only sees suppliers that have a
+    person record. *Option:* compare a new supplier name directly against the other suppliers' names (a different mechanism from the
+    person check, with its own question). (`DECISIONS.md`, "Found by the fourth phone test".)
 
 
 ## B. Needs a live check only a phone can give
@@ -33,6 +37,9 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     tests, never run on a real delivery note with two orders.
 15. **The Permissions screen on a real phone.** The web build compiles it; the phone build and a real tap-through are
     unverified (switch something off for the installer, then check on the installer's phone that the room is gone).
+14p. **The identity buttons (needs a Codemagic rebuild).** Say a new supplier name that sounds like a customer, and then a new
+    installer name that does (expect the question to show "Same person" and "Different"). Also say "order ... from TAL for
+    [customer]" with TAL new: expect no question about a customer, and the order linked.
 14o. **Linking an older order by voice.** Say "link order [number] to [a customer]" (expect a held "Link ... to [customer]'s job?"),
     confirm it, then ask "how is [customer] doing". If that order's supplier invoice was already confirmed, its cost should now count
     toward the job. Also try "the Floornet order was for [customer]" with two unlinked orders (expect a list and a request for a number).

@@ -10,6 +10,8 @@ module.exports = function cases(caps) {
     INSERT INTO customers (name, person_id) VALUES ('Jenny Smith', 1), ('Sipho Dlamini', 2);
     INSERT INTO characters (name, relationship, person_id) VALUES ('Jabulani', 'installer', 3), ('Floornet', 'supplier', 4);
   `);
+  // A customer called Thula (found by the third phone test 2026-10-04: a new supplier called TAL was held with "sounds like an existing customer, Thula").
+  const withThula = (db) => { base(db); db.exec(`INSERT INTO people (name) VALUES ('Thula'); INSERT INTO customers (name, person_id) VALUES ('Thula', 5);`); };
   const twoThandis = (db) => {
     base(db);
     db.exec(`
@@ -119,6 +121,11 @@ module.exports = function cases(caps) {
     c('character: owner, the name is already on file as a customer', 'owner', base, { character_name: 'Jenny Smith', character_relationship: 'installer' }, 'Jenny Smith will install it', []),
     c('character: owner, the name is already on file as a customer, no relationship stated', 'owner', base, { character_name: 'Jenny Smith' }, 'Jenny Smith will do it', []),
     c('character: owner, a name that sounds like someone on file', 'owner', base, { character_name: 'Jabulane', character_relationship: 'installer' }, 'Jabulane will install it', []),
+    // A supplier's name is only checked against people who are themselves suppliers (decided by Pierre 2026-10-04).
+    c('character: a new supplier whose name sounds like a CUSTOMER on file is created, with no question', 'owner', withThula, { character_name: 'TAL', character_relationship: 'supplier' }, 'order 20 bags of screed from TAL', []),
+    c('character: a new supplier whose name sounds like another SUPPLIER on file still asks', 'owner', base, { character_name: 'Floornit', character_relationship: 'supplier' }, 'order 20 bags of screed from Floornit', []),
+    c('character: a new INSTALLER whose name sounds like a customer on file still asks', 'owner', withThula, { character_name: 'TAL', character_relationship: 'installer' }, 'TAL will install it', []),
+    c('character: a new name with NO relationship stated that sounds like a customer on file still asks', 'owner', withThula, { character_name: 'TAL' }, 'TAL called', []),
     c('both: owner, a customer and an installer in one message', 'owner', base, { customer_name: 'Jenny Smith', character_name: 'Jabulani', character_relationship: 'installer' }, 'Jabulani is installing at Jenny\'s', []),
 
     // ---------------- a lookup finds, and never creates ----------------

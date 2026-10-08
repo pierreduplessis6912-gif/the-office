@@ -466,7 +466,7 @@ async function processOneExtraction(
         ? await env.OFFICE_DB.prepare("SELECT id FROM characters WHERE name = ? COLLATE NOCASE").bind(extraction.character_name).first()
         : null;
       if (!alreadyKnownCharacter) {
-        const personCheck = await reconcilePerson(env, extraction.character_name);
+        const personCheck = await reconcilePerson(env, extraction.character_name, { relationship: extraction.character_relationship });
         if (personCheck?.status === "ambiguous") {
           const held = await holdForConfirmation(
             env,

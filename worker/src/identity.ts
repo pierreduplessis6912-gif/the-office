@@ -141,9 +141,14 @@ export function looksLikeAQuestion(text: string): boolean {
 // ask, the same real judgment already proven tonight for role
 // collisions, extended here to name collisions between two different
 // real people.
+// Found by the third phone test 2026-10-04 ("order 20 bags of screed from TAL for jenny"): a new SUPPLIER called TAL was held with "sounds like an
+// existing customer, Thula", because the check compared a supplier name against everyone on file. A supplier company name is rarely a customer,
+// so, decided by Pierre, a supplier name is only checked against people who are themselves suppliers. Only the sound-alike and partial-name
+// checks are narrowed; an exact same name still matches across roles (the separate collision question handles that).
 export async function reconcilePerson(
   env: Env,
-  spokenName: string
+  spokenName: string,
+  options?: { relationship?: string | null }
 ): Promise<
   | { status: "matched"; id: number; name: string }
   | { status: "ambiguous"; candidates: Array<{ id: number; name: string }> }
@@ -173,9 +178,13 @@ export async function reconcilePerson(
     return { status: "ambiguous", candidates: exact.results };
   }
 
+  const onlySuppliers =
+    options?.relationship === "supplier"
+      ? " AND id IN (SELECT person_id FROM characters WHERE relationship = 'supplier' AND person_id IS NOT NULL AND merged_into_character_id IS NULL)"
+      : "";
   const firstToken = spokenName.trim().split(/\s+/)[0];
   const weak = await env.OFFICE_DB.prepare(
-    `SELECT id, name FROM people WHERE ${wholeWordClause("name")} AND merged_into_person_id IS NULL`
+    `SELECT id, name FROM people WHERE ${wholeWordClause("name")} AND merged_into_person_id IS NULL${onlySuppliers}`
   )
     .bind(...wholeWordBindings(firstToken))
     .all<{ id: number; name: string }>();
@@ -191,7 +200,7 @@ export async function reconcilePerson(
     // a human to resolve, same as every other real candidate list in
     // this function.
     const allPeople = await env.OFFICE_DB.prepare(
-      "SELECT id, name FROM people WHERE merged_into_person_id IS NULL"
+      `SELECT id, name FROM people WHERE merged_into_person_id IS NULL${onlySuppliers}`
     ).all<{ id: number; name: string }>();
     const targetCode = soundex(firstToken);
     const phoneticMatches = allPeople.results.filter((p) => soundex(p.name.trim().split(/\s+/)[0]) === targetCode);
