@@ -91,6 +91,8 @@ module.exports = function cases(caps) {
   const oneCancelledDated = (db) => { withOrder(db); db.exec(cancellationDdl + ` INSERT INTO purchase_order_cancellations (purchase_order_id, cancelled_by, created_at) VALUES (1, 'owner@example.com', '2026-10-03 08:00:00');`); };
   const twoCancelled = (db) => { twoOrders(db); db.exec(cancellationDdl + ` INSERT INTO purchase_order_cancellations (purchase_order_id, cancelled_by, created_at) VALUES (1, 'owner@example.com', '2026-10-03 08:00:00'), (2, 'owner@example.com', '2026-10-03 09:00:00');`); };
   const secondCancelled = (db) => { twoOrders(db); db.exec(cancellationDdl + ` INSERT INTO purchase_order_cancellations (purchase_order_id, cancelled_by, created_at) VALUES (2, 'owner@example.com', '2026-10-03 09:00:00');`); };
+  const withZztest = (db) => { base(db); db.exec(`INSERT INTO characters (name, relationship) VALUES ('Zztest Supplies', 'supplier');`); };
+  const withJenny = (db) => { base(db); db.exec(`INSERT INTO customers (name) SELECT 'Jenny Smith' WHERE NOT EXISTS (SELECT 1 FROM customers WHERE name = 'Jenny Smith');`); };
   const POAI = (reply) => ({ match: /line_items is every distinct material/, reply });
   const GRAI = (reply) => ({ match: /quantity_received/, reply });
   const SIAI = (reply) => ({ match: /quantity_billed/, reply });
@@ -107,6 +109,14 @@ module.exports = function cases(caps) {
         { description: 'Underlay', quantity_ordered: 100, unit: 'sqm', unit_price_expected: 40, product: 'underlay' },
         { description: 'Skirting', quantity_ordered: 10, unit: 'length', unit_price_expected: null, product: 'skirting' }] })]),
     c('purchase order: owner, a supplier nobody has heard of', 'owner', base, 'purchase_order', sup('Newco Supplies'), 'order 20 bags of adhesive from Newco Supplies',
+      [POAI({ supplier_name: 'Newco Supplies', description: 'Adhesive', line_items: [{ description: 'Adhesive', quantity_ordered: 20, unit: 'bag', unit_price_expected: null, product: 'adhesive' }] })]),
+    // Found by the second real phone test (2026-10-04): "order 10 boxes of laminate FOR zztest". A name after "for" is who an order is for, not who it is from.
+    c('purchase order: "for" a name that is a known supplier asks whether they meant "from", nothing recorded', 'owner', withZztest, 'purchase_order', { customer_name: 'Zztest' }, 'order 10 boxes of laminate for zztest', []),
+    c('purchase order: "for" a name nobody knows asks which supplier, and creates no customer', 'owner', base, 'purchase_order', { customer_name: 'Nobody Known' }, 'order 10 boxes of laminate for Nobody Known', []),
+    c('purchase order: "for" a customer on file with a supplier named records the order and says the "for" was not kept', 'owner', withJenny, 'purchase_order', { ...sup(), customer_name: 'Jenny Smith' }, 'order 20 bags of adhesive from Floornet for Jenny Smith',
+      [POAI({ supplier_name: 'Floornet', description: 'Adhesive', line_items: [{ description: 'Adhesive', quantity_ordered: 20, unit: 'bag', unit_price_expected: null, product: 'adhesive' }] })]),
+    c('purchase order: "for" a customer on file and no supplier asks which supplier, and creates no customer', 'owner', withJenny, 'purchase_order', { customer_name: 'Jenny Smith' }, 'order 20 bags of adhesive for Jenny Smith', []),
+    c('purchase order: "for" a name with a NEW supplier named records the order for the new supplier only', 'owner', base, 'purchase_order', { ...sup('Newco Supplies'), customer_name: 'Nobody Known' }, 'order 20 bags of adhesive from Newco Supplies for Nobody Known',
       [POAI({ supplier_name: 'Newco Supplies', description: 'Adhesive', line_items: [{ description: 'Adhesive', quantity_ordered: 20, unit: 'bag', unit_price_expected: null, product: 'adhesive' }] })]),
     c('purchase order: owner, no supplier named', 'owner', base, 'purchase_order', {}, 'order 20 bags of adhesive', []),
     c('purchase order: owner, the model finds no items', 'owner', base, 'purchase_order', sup(), 'order some stuff from Floornet',

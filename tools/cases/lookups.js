@@ -54,6 +54,21 @@ module.exports = function cases(caps) {
   };
   // Jabulani's details include a day rate and a bank account (decided 2026-10-04: payroll and banking details need their own permission).
   const sensitiveDetails = (db) => { books(db); db.exec("INSERT INTO character_facts (character_id, key, value, created_at) VALUES (2, 'day_rate', 'R600 a day', '2026-09-01 08:00:00'), (2, 'bank_account', 'FNB 62012345678', '2026-09-02 08:00:00');"); };
+  // "What open orders do we have?" (found by the second real phone test, 2026-10-04). Floornet has one open order and one delivered in full and one
+  // cancelled; Belgotex has one part-delivered; Quiet Supplies has none.
+  const moreOrders = (db) => {
+    books(db);
+    db.exec(`INSERT INTO characters (name, relationship) VALUES ('Belgotex', 'supplier'), ('Quiet Supplies', 'supplier');
+      INSERT INTO purchase_orders (id, supplier_id, description, created_at) VALUES
+        (101, (SELECT id FROM characters WHERE name = 'Floornet'), 'Vinyl and underlay', '2026-10-01 08:00:00'),
+        (102, (SELECT id FROM characters WHERE name = 'Floornet'), 'Grout', '2026-10-02 08:00:00'),
+        (103, (SELECT id FROM characters WHERE name = 'Belgotex'), 'Carpet', '2026-10-02 09:00:00'),
+        (104, (SELECT id FROM characters WHERE name = 'Floornet'), 'Adhesive', '2026-10-03 08:00:00');
+      INSERT INTO po_line_items (id, purchase_order_id, description, quantity_ordered, unit) VALUES (910, 101, 'Vinyl', 50, 'sqm'), (911, 101, 'Underlay', 100, 'sqm'), (902, 102, 'Grout', 20, 'bag'), (903, 103, 'Carpet', 30, 'sqm'), (904, 104, 'Adhesive', 5, 'tube');
+      INSERT INTO goods_received_notes (id, purchase_order_id, supplier_id, created_at) VALUES (801, 102, (SELECT id FROM characters WHERE name = 'Floornet'), '2026-10-03 09:00:00'), (802, 103, (SELECT id FROM characters WHERE name = 'Belgotex'), '2026-10-03 09:30:00');
+      INSERT INTO grn_line_items (id, grn_id, po_line_item_id, description, quantity_received, quantity_ordered, variance) VALUES (701, 801, 902, 'Grout', 20, 20, 0), (702, 802, 903, 'Carpet', 10, 30, -20);`);
+    db.exec(`CREATE TABLE IF NOT EXISTS purchase_order_cancellations (purchase_order_id INTEGER PRIMARY KEY, cancelled_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now'))); INSERT INTO purchase_order_cancellations (purchase_order_id, cancelled_by, created_at) VALUES (104, 'owner@example.com', '2026-10-03 10:00:00');`);
+  };
   const DASH = (reply) => ({ match: /broad, whole-business question wanting a real, visual snapshot/, reply });
   const TOPIC = (reply) => ({ match: /standing topic of the conversation below/, reply });
   const ANSWER = { match: /Answer the tradesperson's question using only the facts below/, reply: (input) => 'ANSWER FROM FACTS:\n' + ((input.messages.find((m) => m.role === 'system').content.split('Facts:\n')[1]) || '') };
@@ -66,6 +81,15 @@ module.exports = function cases(caps) {
     c('lookup: owner, the last price paid for a material', 'owner', withPriceHistory, { query_scope: 'material_price', fact_value: 'vinyl' }, 'what did we last pay for vinyl', []),
     c('lookup: owner, a material nobody has been invoiced for', 'owner', withPriceHistory, { query_scope: 'material_price', fact_value: 'grout' }, 'what did we last pay for grout', []),
     c('lookup: installer, the last price paid for a material', 'installer', withPriceHistory, { query_scope: 'material_price', fact_value: 'vinyl' }, 'what did we last pay for vinyl', []),
+
+    // ---------------- open supplier orders ----------------
+    c('lookup open orders: every supplier, not delivered or cancelled ones', 'owner', moreOrders, { query_scope: 'open_orders' }, 'what open orders do we have', []),
+    c('lookup open orders: asked in another way ("supplier orders")', 'owner', moreOrders, { query_scope: 'open_orders' }, 'what open supplier orders do we have?', []),
+    c('lookup open orders: one supplier named', 'owner', moreOrders, { query_scope: 'open_orders', character_name: 'Belgotex', character_relationship: 'supplier' }, 'what are we waiting for from Belgotex', []),
+    c('lookup open orders: a supplier with none open', 'owner', moreOrders, { query_scope: 'open_orders', character_name: 'Quiet Supplies', character_relationship: 'supplier' }, 'what is on order from Quiet Supplies', []),
+    c('lookup open orders: accountant', 'accountant', moreOrders, { query_scope: 'open_orders' }, 'what open orders do we have', []),
+    c('lookup open orders: installer is told it is restricted', 'installer', moreOrders, { query_scope: 'open_orders' }, 'what open orders do we have', []),
+    c('lookup open orders: a customer on screen is not borrowed as the subject', 'owner', (db) => { moreOrders(db); db.exec(memberSelectionDdl + "; INSERT INTO member_selections (member, key, entity_id, label, updated_at) VALUES ('owner@example.com', 'customer', 1, 'Jenny Smith', '2026-10-03 11:00:00');"); }, { query_scope: 'open_orders' }, 'and what open orders do we have', []),
 
     // ---------------- the recorded supplier statements ----------------
     c('lookup supplier statements: one supplier, newest first', 'owner', someStatements, { query_scope: 'supplier_statements', character_name: 'Floornet', character_relationship: 'supplier' }, 'what did Floornet claim we owe', []),

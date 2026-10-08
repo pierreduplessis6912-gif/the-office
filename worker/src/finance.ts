@@ -1018,6 +1018,30 @@ export async function reopenPurchaseOrder(env: Env, purchaseOrderId: number): Pr
   return { alreadyOpen: false, reopenedShortages: (results ?? []).length };
 }
 
+// ---- "What open orders do we have?" (decided with Pierre 2026-10-04, found by the second real phone test: nothing answered it, so the question was
+// read as a broad money question and the reply asked about the financial snapshot) ------------------------------------------------------------------
+export async function getOpenOrdersAcrossSuppliers(env: Env, supplierId: number | null): Promise<Array<{ supplier: string; order: OpenOrder }>> {
+  await ensureCancellationTable(env);
+  const { results } = await env.OFFICE_DB.prepare(
+    `SELECT DISTINCT po.supplier_id AS id, ch.name AS name
+       FROM purchase_orders po JOIN characters ch ON ch.id = po.supplier_id
+      WHERE (? IS NULL OR po.supplier_id = ?)
+      ORDER BY ch.name COLLATE NOCASE, ch.id`
+  )
+    .bind(supplierId, supplierId)
+    .all<{ id: number; name: string }>();
+  const out: Array<{ supplier: string; order: OpenOrder }> = [];
+  for (const supplier of results ?? []) for (const order of await getOpenOrdersForSupplier(env, supplier.id)) out.push({ supplier: supplier.name, order });
+  return out;
+}
+
+export function openOrdersAnswer(rows: Array<{ supplier: string; order: OpenOrder }>, asked: string | null, limit = 8): string {
+  if (rows.length === 0) return asked ? `${asked} has no open orders.` : "There are no open orders.";
+  const shown = rows.slice(0, limit).map((r) => `${asked ? "" : `${r.supplier} `}${describeOpenOrder(r.order)}`);
+  const more = rows.length > limit ? `; and ${rows.length - limit} more` : "";
+  return `Open orders${asked ? ` with ${asked}` : ` (${rows.length})`}: ${shown.join("; ")}${more}.`;
+}
+
 export function candidateOrderLines(
   outstanding: OutstandingLine[]
 ): Array<{ description: string; quantity_ordered: number; unit: string | null }> {

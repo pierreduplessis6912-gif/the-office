@@ -635,6 +635,9 @@ async function expect(role, method, path, want) {
   // The date reader: an ordinal word means exactly its digit form.
   await require('./dates.test.js')({ check, bundleTo });
 
+  // "What open orders do we have?": which orders count as open, and how they read.
+  await require('./openorders.test.js')({ check, bundleTo, srcDir, path, sameJson });
+
   // A scheduling continuation ("...and schedule for the 17th"): found by the first real phone test.
   await require('./continuation.test.js')({ check, bundleTo });
 

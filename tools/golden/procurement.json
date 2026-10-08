@@ -230,6 +230,379 @@
   },
   "effects": []
  },
+ "purchase order: \"for\" a name that is a known supplier asks whether they meant \"from\", nothing recorded": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I heard an order \"for Zztest\", but orders are placed from a supplier. Zztest Supplies is a supplier: did you mean \"from Zztest Supplies\"? Nothing was recorded.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "order 10 boxes of laminate for zztest",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "order 10 boxes of laminate for zztest",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "purchase order: \"for\" a name nobody knows asks which supplier, and creates no customer": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I heard an order \"for Nobody Known\", but orders are placed from a supplier and no supplier name came through, so nothing was recorded. Which supplier is it from?",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "order 10 boxes of laminate for Nobody Known",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "order 10 boxes of laminate for Nobody Known",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "purchase order: \"for\" a customer on file with a supplier named records the order and says the \"for\" was not kept": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": {
+    "id": 1,
+    "name": "Floornet",
+    "matched": true
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Purchase order #1 recorded for Floornet — 1 item(s). I heard \"for Jenny Smith\", but orders are not linked to a customer or job yet, so that part was not kept.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract a real order a tradesperson is placing with a supplier — not y"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "order 20 bags of adhesive from Floornet for Jenny Smith",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "order 20 bags of adhesive from Floornet for Jenny Smith",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": 1
+      }
+     }
+    ]
+   },
+   "interaction_edges": {
+    "added": [
+     {
+      "id": 1,
+      "capture_id": 1,
+      "entity_type_a": "customer",
+      "entity_id_a": 1,
+      "entity_type_b": "character",
+      "entity_id_b": 1,
+      "relation_type": "co_captured"
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     },
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 1,
+      "label": "Floornet"
+     }
+    ]
+   },
+   "po_line_items": {
+    "added": [
+     {
+      "id": 1,
+      "purchase_order_id": 1,
+      "description": "Adhesive",
+      "quantity_ordered": 20,
+      "unit": "bag",
+      "unit_price_expected": null,
+      "product_id": 1
+     }
+    ]
+   },
+   "products": {
+    "added": [
+     {
+      "id": 1,
+      "name": "adhesive",
+      "category": null,
+      "merged_into_product_id": null
+     }
+    ]
+   },
+   "purchase_orders": {
+    "added": [
+     {
+      "id": 1,
+      "supplier_id": 1,
+      "description": "Adhesive",
+      "source_transcript": "order 20 bags of adhesive from Floornet for Jenny Smith",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "purchase order: \"for\" a customer on file and no supplier asks which supplier, and creates no customer": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "I heard an order \"for Jenny Smith\", but orders are placed from a supplier and no supplier name came through, so nothing was recorded. Which supplier is it from?",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "order 20 bags of adhesive for Jenny Smith",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "order 20 bags of adhesive for Jenny Smith",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "purchase order: \"for\" a name with a NEW supplier named records the order for the new supplier only": {
+  "result": {
+   "customer": null,
+   "character": {
+    "id": 4,
+    "name": "Newco Supplies",
+    "matched": false
+   },
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Purchase order #1 recorded for Newco Supplies — 1 item(s). I heard \"for Nobody Known\", but orders are not linked to a customer or job yet, so that part was not kept.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Extract a real order a tradesperson is placing with a supplier — not y"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "order 20 bags of adhesive from Newco Supplies for Nobody Known",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "order 20 bags of adhesive from Newco Supplies for Nobody Known",
+       "source": "text",
+       "subject_hint": "Newco Supplies",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": 4
+      }
+     }
+    ]
+   },
+   "characters": {
+    "added": [
+     {
+      "id": 4,
+      "name": "Newco Supplies",
+      "relationship": "supplier",
+      "person_id": null,
+      "merged_into_character_id": null
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "character",
+      "entity_id": 4,
+      "label": "Newco Supplies"
+     }
+    ]
+   },
+   "po_line_items": {
+    "added": [
+     {
+      "id": 1,
+      "purchase_order_id": 1,
+      "description": "Adhesive",
+      "quantity_ordered": 20,
+      "unit": "bag",
+      "unit_price_expected": null,
+      "product_id": 1
+     }
+    ]
+   },
+   "products": {
+    "added": [
+     {
+      "id": 1,
+      "name": "adhesive",
+      "category": null,
+      "merged_into_product_id": null
+     }
+    ]
+   },
+   "purchase_orders": {
+    "added": [
+     {
+      "id": 1,
+      "supplier_id": 4,
+      "description": "Adhesive",
+      "source_transcript": "order 20 bags of adhesive from Newco Supplies for Nobody Known",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
  "purchase order: owner, no supplier named": {
   "result": {
    "customer": null,

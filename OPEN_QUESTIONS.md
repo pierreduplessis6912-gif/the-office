@@ -19,6 +19,11 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     *Options:* when the customer already has an open job with the same description, link the invoice to it instead of creating one;
     or ask "update job #73, or a separate new job?" as a date change already does. (`DECISIONS.md`, "Found by the first real phone
     test".)
+
+52. **Orders are not linked to a customer or a job.** Found by the third phone test ("order 10 boxes of laminate for Jenny"): a
+    flooring order is usually placed *for a job*, and the order table holds only a supplier, a description and a date, so a "for"
+    is now reported as not kept. *Option:* link an order to a customer or job (a small lazily-created link, no migration), shown on
+    the Suppliers screen and used for materials cost per job. (`DECISIONS.md`, "Found by the third phone test".)
 ## B. Needs a live check only a phone can give
 
 12. **The Codemagic rebuild**: the Confirm/Reject buttons for a follow-up question raised by a confirm ("Add to stock?",
@@ -27,6 +32,9 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     tests, never run on a real delivery note with two orders.
 15. **The Permissions screen on a real phone.** The web build compiles it; the phone build and a real tap-through are
     unverified (switch something off for the installer, then check on the installer's phone that the room is gone).
+14l. **Open orders and a 'for' order on the phone.** Say "what open orders do we have" (expect a list by supplier with what is still
+    due, not the financial snapshot question), and "order 10 boxes of laminate for zztest" (expect "did you mean from Zztest
+    Supplies?" and no new customer called zztest; if one already exists from the earlier test it is harmless).
 14k. **The original phone-test sentence, again, after this deploys:** "Invoice AGS Lewende Waters R3000 for carpet repair and
     schedule for the 17th". Expect the invoice waiting, then "Job scope #N updated — scheduled for Sat 17 Oct." The fix was tested
     with the model's mistake scripted four ways; only the real model can confirm it.

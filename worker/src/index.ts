@@ -10,7 +10,7 @@ import {
   verifySession, getSessionToken, getCookie, base64UrlEncode, ROLE_CAPABILITIES, ENFORCE_CAPABILITIES,
   ACTION_TYPE_CAPABILITY, ROUTE_RULES, SIGNABLE_DOCUMENT_PATHS, canResolveActionType, intentCreationRefusal, intentKeepsOutOfNotes,
 } from "./auth";
-import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote, duplicateInvoiceMessage, findDuplicateSupplierInvoice, normalizeInvoiceReference, describeConversion, forgetUnitConversions, listUnitConversions, unitConversionsAnswer, checkStockUnit, listSupplierStatements, recordSupplierStatement, statementDifferenceNote, supplierStatementsAnswer, checkInvoiceUnits, describeCancelledOrder, getCancelledOrdersForSupplier, reopenPurchaseOrder, type CancelledOrder } from "./finance";
+import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote, duplicateInvoiceMessage, findDuplicateSupplierInvoice, normalizeInvoiceReference, describeConversion, forgetUnitConversions, listUnitConversions, unitConversionsAnswer, checkStockUnit, listSupplierStatements, recordSupplierStatement, statementDifferenceNote, supplierStatementsAnswer, checkInvoiceUnits, describeCancelledOrder, getCancelledOrdersForSupplier, reopenPurchaseOrder, type CancelledOrder, getOpenOrdersAcrossSuppliers, openOrdersAnswer } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 import { handleDebugRoute } from "./debug";
 import { DOCUMENT_KIND_LABEL, asksAboutDeliveryExceptions, deliveryExceptionAnswer, deliveryHadExceptions, deliveryHeldMessage, deliveryRecordedMessage, inferDocumentSupplier, planDelivery } from "./documents";
@@ -315,7 +315,7 @@ async function processOneExtraction(
   // through the already-existing read-only findExistingEntityByName
   // instead of the create-or-find reconcile functions.
   if (extraction?.customer_name) {
-    if (extraction.intent === "lookup" || extraction.intent === "cancel_order" || extraction.intent === "set_unit_conversion" || extraction.intent === "forget_unit_conversion" || extraction.intent === "supplier_statement" || extraction.intent === "reopen_order") {
+    if (extraction.intent === "lookup" || extraction.intent === "cancel_order" || extraction.intent === "set_unit_conversion" || extraction.intent === "forget_unit_conversion" || extraction.intent === "supplier_statement" || extraction.intent === "reopen_order" || extraction.intent === "purchase_order") {
       const found = await findExistingCustomerByName(env, extraction.customer_name);
       if (found) {
         customer = { id: found.id, name: found.name, matched: true };
@@ -538,6 +538,7 @@ async function processOneExtraction(
     extraction?.query_scope !== "personal" &&
     extraction?.query_scope !== "material_price" &&
     extraction?.query_scope !== "unit_conversions" &&
+    extraction?.query_scope !== "open_orders" &&
     !(extraction?.query_scope === "business" && !hasBackwardReference);
   // Real, precise fix, found live: a real, explicit name that was
   // genuinely given but honestly not found (findExistingCustomerByName
@@ -758,7 +759,13 @@ async function processOneExtraction(
   }
 
   let purchaseOrderNoItems = false;
+  // Found by the second real phone test 2026-10-04 ("order 10 boxes of laminate FOR zztest"): a name after "for" is who an order is for, not who it is
+  // from. Orders carry no customer or job, so it cannot be kept, and it must never CREATE a customer (an order sentence is now find-only for customers).
+  // When it is said instead of a supplier we ask rather than guess (an order is written straight away, so a wrong guess would be a wrong order).
+  let purchaseOrderForName: string | null = null;
+  let purchaseOrderSuggestedSupplier: string | null = null;
   if (extraction?.intent === "purchase_order") {
+    purchaseOrderForName = extraction.customer_name?.trim() || null;
     if (character) {
       const poExtraction = await extractPurchaseOrder(env, transcript);
       if (poExtraction.line_items.length === 0) {
@@ -771,6 +778,7 @@ async function processOneExtraction(
         purchaseOrderResult = { purchaseOrderId: recorded.purchaseOrderId, lineItemCount: poExtraction.line_items.length };
       }
     } else {
+      if (purchaseOrderForName) purchaseOrderSuggestedSupplier = (await findExistingCharacterByName(env, purchaseOrderForName))?.name ?? null;
       // Honest, not silent — the same discipline as every other
       // recognized-but-nothing-to-act-on case in this project.
       purchaseOrderNoSupplier = true;
@@ -1746,7 +1754,7 @@ async function processOneExtraction(
     // crashed on customer!.name; found by the characterization recordings 2026-10-03. The no-customer reply is below.)
     message = `Found a job scope for ${customer.name}, but couldn't match any priced item to it — try naming the component or task exactly as measured.`;
   } else if (extraction?.intent === "purchase_order" && purchaseOrderResult) {
-    message = `Purchase order #${purchaseOrderResult.purchaseOrderId} recorded for ${character!.name} — ${purchaseOrderResult.lineItemCount} item(s).`;
+    message = `Purchase order #${purchaseOrderResult.purchaseOrderId} recorded for ${character!.name} — ${purchaseOrderResult.lineItemCount} item(s).${purchaseOrderForName ? ` I heard "for ${purchaseOrderForName}", but orders are not linked to a customer or job yet, so that part was not kept.` : ""}`;
   } else if (extraction?.intent === "invoice" && customer && !pendingActionId && !workObservationResult) {
     // Found by the characterization recordings 2026-10-03: an invoice with a named customer but no amount and nothing
     // to record fell through to the generic "Found existing customer" reply, as if it had been a lookup.
@@ -1785,7 +1793,11 @@ async function processOneExtraction(
   } else if (extraction?.intent === "purchase_order" && purchaseOrderNoSupplier) {
     // Honest, not silent — the same discipline as every other
     // recognized-but-nothing-to-act-on case in this project.
-    message = "Recognized a purchase order, but no supplier was named — try naming who it's from.";
+    message = purchaseOrderForName
+      ? purchaseOrderSuggestedSupplier
+        ? `I heard an order "for ${purchaseOrderForName}", but orders are placed from a supplier. ${purchaseOrderSuggestedSupplier} is a supplier: did you mean "from ${purchaseOrderSuggestedSupplier}"? Nothing was recorded.`
+        : `I heard an order "for ${purchaseOrderForName}", but orders are placed from a supplier and no supplier name came through, so nothing was recorded. Which supplier is it from?`
+      : "Recognized a purchase order, but no supplier was named — try naming who it's from.";
   } else if (extraction?.intent === "goods_received" && goodsReceivedUnitQuestion) {
     message = goodsReceivedUnitQuestion;
   } else if (pendingActionId && extraction?.intent === "goods_received" && goodsReceivedSupplierName) {
@@ -2009,6 +2021,11 @@ async function processOneExtraction(
       } else {
         message = `No real supplier invoice on file yet mentions "${extraction.fact_value}" — nothing to base a price on.`;
       }
+    } else if (extraction?.query_scope === "open_orders") {
+      // Answered in code, from the same data as the Suppliers screen, and with the same permission (invoicing).
+      message = capabilities.includes("can_manage_invoices")
+        ? openOrdersAnswer(await getOpenOrdersAcrossSuppliers(env, character?.id ?? null), character?.name ?? null)
+        : "Open orders exist for this business but are restricted for your role.";
     } else if (extraction?.query_scope === "supplier_statements") {
       // Decided by Pierre 2026-10-04: the recorded statements can be asked for ("what did Floornet claim we owe"). Answered in code. Needs the
       // same permission as checking a statement in the first place.

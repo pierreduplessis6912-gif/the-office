@@ -548,6 +548,9 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             'question asks what was actually paid for a real material in the past — "what did we last ' +
             'pay for vinyl" or "what\'s the last price on screed" — never a request for a new quote or ' +
             "estimate, only a real, historical fact being asked for. Set fact_value to the real material " +
+            '"open_orders" if the question asks which supplier orders are still open or waiting for delivery ("what open ' +
+            'orders do we have", "what are we still waiting for", "what is on order from Floornet"); put the supplier in ' +
+            'character_name only if one is named. ' +
             '"supplier_statements" if the question asks what a supplier\'s statements said or claimed ("what did ' +
             'Floornet\'s statement say", "what do they claim we owe"); put the supplier in character_name. ' +
             '"unit_conversions" if the question asks which unit conversions are saved, or how a pack unit converts ' +
@@ -578,6 +581,7 @@ export async function extractIntent(env: Env, transcript: string): Promise<{ ext
             '"paid Floornet R5000 off their account" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"supplier_payment","amount":5000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"Floornet says we owe them 12000" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"supplier_statement","amount":12000,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"what did Floornet claim we owe" -> {"customer_name":null,"character_name":"Floornet","character_relationship":"supplier","intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"supplier_statements","deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
+            '"what open orders do we have" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"open_orders","deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"forget the laminate conversion" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"forget_unit_conversion","amount":null,"fact_key":null,"fact_value":"laminate","personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"what conversions do I have" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"lookup","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":"unit_conversions","deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
             '"a box of laminate is 2.2 square metres" -> {"customer_name":null,"character_name":null,"character_relationship":null,"intent":"set_unit_conversion","amount":null,"fact_key":null,"fact_value":null,"personal_note":null,"query_scope":null,"deposit_percent":null,"scope_document_type":null,"due_date_raw":null}\n' +
