@@ -7511,8 +7511,8 @@ class _ConvergingLightPainter extends CustomPainter {
 
 // Found by the third phone test 2026-10-04: on a "sounds like someone already on file" question, Confirm meant "yes, the same one" and Reject
 // meant "no, a different one: carry on with a new person", and neither word said so. Rejecting felt like cancelling, when it carries on.
-String _confirmLabel(String type) => (type == 'ambiguous_person' || type == 'identity_collision') ? 'Same person' : 'Confirm';
-String _rejectLabel(String type) => (type == 'ambiguous_person' || type == 'identity_collision') ? 'Different' : 'Reject';
+String _confirmLabel(String? type) => (type == 'ambiguous_person' || type == 'identity_collision') ? 'Same person' : 'Confirm';
+String _rejectLabel(String? type) => (type == 'ambiguous_person' || type == 'identity_collision') ? 'Different' : 'Reject';
 
 class _MessageLine extends StatelessWidget {
   final ChatMessage message;
