@@ -32,6 +32,8 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     tests, never run on a real delivery note with two orders.
 15. **The Permissions screen on a real phone.** The web build compiles it; the phone build and a real tap-through are
     unverified (switch something off for the installer, then check on the installer's phone that the room is gone).
+14m. **A long reply scrolls (needs a Codemagic rebuild).** Ask "what open orders do we have" with several orders, and drag the
+    reply: it should scroll inside the space above the orb instead of being cut off. Say if the area is too small or too large.
 14l. **Open orders and a 'for' order on the phone.** Say "what open orders do we have" (expect a list by supplier with what is still
     due, not the financial snapshot question), and "order 10 boxes of laminate for zztest" (expect "did you mean from Zztest
     Supplies?" and no new customer called zztest; if one already exists from the earlier test it is harmless).

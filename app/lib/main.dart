@@ -7423,7 +7423,16 @@ class _ActiveResponseState extends State<_ActiveResponse> with SingleTickerProvi
                 parent: _controller,
                 curve: const Interval(0.35, 1.0, curve: Curves.easeOut),
               ),
-              child: hasPending
+              // Found by the third phone test 2026-10-04: a long reply (the list of open orders) was cut off after a couple of lines, because it sat in a
+              // fixed space with nothing to scroll it. It now takes at most the height it is given and SCROLLS inside it, so any long answer (open
+              // orders, statements, unit conversions) can be read in full. A short reply is unchanged: the scroll view is only as tall as its content.
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final limit = constraints.maxHeight.isFinite ? constraints.maxHeight : MediaQuery.of(context).size.height * 0.24;
+                  return ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: limit),
+                    child: SingleChildScrollView(
+                      child: hasPending
                   ? _MessageLine(message: msg, onConfirm: widget.onConfirm, onReject: widget.onReject, onEditField: widget.onEditField)
                   : Text(
                       msg.text,
@@ -7438,6 +7447,10 @@ class _ActiveResponseState extends State<_ActiveResponse> with SingleTickerProvi
                         ],
                       ),
                     ),
+                    ),
+                  );
+                },
+              ),
             ),
             // The converging light — ignores touch, purely atmospheric,
             // fully faded and inert well before the hold phase begins.
