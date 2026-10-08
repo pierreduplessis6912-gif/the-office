@@ -2848,6 +2848,603 @@
   "writes": {},
   "effects": []
  },
+ "confirm supplier invoice: an order placed for Jenny puts the cost on Jenny's job": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "supplierInvoice": {
+     "supplierInvoiceId": 1,
+     "totalAmount": 9250,
+     "expenseId": 1,
+     "variances": [
+      {
+       "description": "Vinyl",
+       "quantityVariance": 0,
+       "quantityVarianceVsOrdered": 0,
+       "priceVariance": 5
+      }
+     ]
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "Categorize this business expense into exactly one of: MATERIALS (stock",
+   "Categorize this business expense into exactly one of: MATERIALS (stock",
+   "Categorize this business expense into exactly one of: MATERIALS (stock"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "expenses": {
+    "added": [
+     {
+      "id": 1,
+      "character_id": 2,
+      "amount": 9250,
+      "description": "Supplier invoice INV-7731",
+      "source_transcript": "Floornet invoice INV-7731, 50 sqm vinyl at 185",
+      "category": "other",
+      "customer_id": 1,
+      "capture_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "supplier_invoice",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185}]}",
+       "status": "pending",
+       "source_transcript": "Floornet invoice INV-7731, 50 sqm vinyl at 185"
+      },
+      "after": {
+       "id": 1,
+       "type": "supplier_invoice",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185}]}",
+       "status": "confirmed",
+       "source_transcript": "Floornet invoice INV-7731, 50 sqm vinyl at 185"
+      }
+     }
+    ]
+   },
+   "supplier_invoice_line_items": {
+    "added": [
+     {
+      "id": 1,
+      "supplier_invoice_id": 1,
+      "po_line_item_id": 1,
+      "description": "Vinyl",
+      "quantity_billed": 50,
+      "unit_price_billed": 185,
+      "quantity_variance": 0,
+      "price_variance": 5,
+      "line_total": 9250,
+      "product_id": null
+     }
+    ]
+   },
+   "supplier_invoices": {
+    "added": [
+     {
+      "id": 1,
+      "purchase_order_id": 1,
+      "supplier_id": 2,
+      "supplier_reference": "INV-7731",
+      "amount": 9250,
+      "source_transcript": "Floornet invoice INV-7731, 50 sqm vinyl at 185",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm supplier invoice: an order with no link leaves the cost on no job, as before": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "supplierInvoice": {
+     "supplierInvoiceId": 1,
+     "totalAmount": 9250,
+     "expenseId": 1,
+     "variances": [
+      {
+       "description": "Vinyl",
+       "quantityVariance": 0,
+       "quantityVarianceVsOrdered": 0,
+       "priceVariance": 5
+      }
+     ]
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "Categorize this business expense into exactly one of: MATERIALS (stock",
+   "Categorize this business expense into exactly one of: MATERIALS (stock",
+   "Categorize this business expense into exactly one of: MATERIALS (stock"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "expenses": {
+    "added": [
+     {
+      "id": 1,
+      "character_id": 2,
+      "amount": 9250,
+      "description": "Supplier invoice INV-7731",
+      "source_transcript": "Floornet invoice INV-7731, 50 sqm vinyl at 185",
+      "category": "other",
+      "customer_id": null,
+      "capture_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "supplier_invoice",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185}]}",
+       "status": "pending",
+       "source_transcript": "Floornet invoice INV-7731, 50 sqm vinyl at 185"
+      },
+      "after": {
+       "id": 1,
+       "type": "supplier_invoice",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185}]}",
+       "status": "confirmed",
+       "source_transcript": "Floornet invoice INV-7731, 50 sqm vinyl at 185"
+      }
+     }
+    ]
+   },
+   "supplier_invoice_line_items": {
+    "added": [
+     {
+      "id": 1,
+      "supplier_invoice_id": 1,
+      "po_line_item_id": 1,
+      "description": "Vinyl",
+      "quantity_billed": 50,
+      "unit_price_billed": 185,
+      "quantity_variance": 0,
+      "price_variance": 5,
+      "line_total": 9250,
+      "product_id": null
+     }
+    ]
+   },
+   "supplier_invoices": {
+    "added": [
+     {
+      "id": 1,
+      "purchase_order_id": 1,
+      "supplier_id": 2,
+      "supplier_reference": "INV-7731",
+      "amount": 9250,
+      "source_transcript": "Floornet invoice INV-7731, 50 sqm vinyl at 185",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm supplier invoice: one invoice spanning two orders for the SAME customer is for that customer": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "supplierInvoice": {
+     "supplierInvoiceId": 1,
+     "totalAmount": 12950,
+     "expenseId": 1,
+     "variances": [
+      {
+       "description": "Vinyl",
+       "quantityVariance": 0,
+       "quantityVarianceVsOrdered": 0,
+       "priceVariance": 5
+      },
+      {
+       "description": "Vinyl",
+       "quantityVariance": -10,
+       "quantityVarianceVsOrdered": -10,
+       "priceVariance": 5
+      }
+     ]
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "Categorize this business expense into exactly one of: MATERIALS (stock",
+   "Categorize this business expense into exactly one of: MATERIALS (stock",
+   "Categorize this business expense into exactly one of: MATERIALS (stock"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "expenses": {
+    "added": [
+     {
+      "id": 1,
+      "character_id": 2,
+      "amount": 12950,
+      "description": "Supplier invoice INV-7731",
+      "source_transcript": "Floornet invoice INV-7731, 70 sqm vinyl at 185",
+      "category": "other",
+      "customer_id": 1,
+      "capture_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "supplier_invoice",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185,\"po_line_item_id\":1},{\"matched_description\":\"Vinyl\",\"quantity_billed\":20,\"unit_price_billed\":185,\"po_line_item_id\":3}]}",
+       "status": "pending",
+       "source_transcript": "Floornet invoice INV-7731, 70 sqm vinyl at 185"
+      },
+      "after": {
+       "id": 1,
+       "type": "supplier_invoice",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185,\"po_line_item_id\":1},{\"matched_description\":\"Vinyl\",\"quantity_billed\":20,\"unit_price_billed\":185,\"po_line_item_id\":3}]}",
+       "status": "confirmed",
+       "source_transcript": "Floornet invoice INV-7731, 70 sqm vinyl at 185"
+      }
+     }
+    ]
+   },
+   "supplier_invoice_line_items": {
+    "added": [
+     {
+      "id": 1,
+      "supplier_invoice_id": 1,
+      "po_line_item_id": 1,
+      "description": "Vinyl",
+      "quantity_billed": 50,
+      "unit_price_billed": 185,
+      "quantity_variance": 0,
+      "price_variance": 5,
+      "line_total": 9250,
+      "product_id": null
+     },
+     {
+      "id": 2,
+      "supplier_invoice_id": 1,
+      "po_line_item_id": 3,
+      "description": "Vinyl",
+      "quantity_billed": 20,
+      "unit_price_billed": 185,
+      "quantity_variance": -10,
+      "price_variance": 5,
+      "line_total": 3700,
+      "product_id": null
+     }
+    ]
+   },
+   "supplier_invoices": {
+    "added": [
+     {
+      "id": 1,
+      "purchase_order_id": 1,
+      "supplier_id": 2,
+      "supplier_reference": "INV-7731",
+      "amount": 12950,
+      "source_transcript": "Floornet invoice INV-7731, 70 sqm vinyl at 185",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm supplier invoice: one invoice spanning orders for DIFFERENT customers is for no job": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "supplierInvoice": {
+     "supplierInvoiceId": 1,
+     "totalAmount": 12950,
+     "expenseId": 1,
+     "variances": [
+      {
+       "description": "Vinyl",
+       "quantityVariance": 0,
+       "quantityVarianceVsOrdered": 0,
+       "priceVariance": 5
+      },
+      {
+       "description": "Vinyl",
+       "quantityVariance": -10,
+       "quantityVarianceVsOrdered": -10,
+       "priceVariance": 5
+      }
+     ]
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "Categorize this business expense into exactly one of: MATERIALS (stock",
+   "Categorize this business expense into exactly one of: MATERIALS (stock",
+   "Categorize this business expense into exactly one of: MATERIALS (stock"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "expenses": {
+    "added": [
+     {
+      "id": 1,
+      "character_id": 2,
+      "amount": 12950,
+      "description": "Supplier invoice INV-7731",
+      "source_transcript": "Floornet invoice INV-7731, 70 sqm vinyl at 185",
+      "category": "other",
+      "customer_id": null,
+      "capture_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "supplier_invoice",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185,\"po_line_item_id\":1},{\"matched_description\":\"Vinyl\",\"quantity_billed\":20,\"unit_price_billed\":185,\"po_line_item_id\":3}]}",
+       "status": "pending",
+       "source_transcript": "Floornet invoice INV-7731, 70 sqm vinyl at 185"
+      },
+      "after": {
+       "id": 1,
+       "type": "supplier_invoice",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185,\"po_line_item_id\":1},{\"matched_description\":\"Vinyl\",\"quantity_billed\":20,\"unit_price_billed\":185,\"po_line_item_id\":3}]}",
+       "status": "confirmed",
+       "source_transcript": "Floornet invoice INV-7731, 70 sqm vinyl at 185"
+      }
+     }
+    ]
+   },
+   "supplier_invoice_line_items": {
+    "added": [
+     {
+      "id": 1,
+      "supplier_invoice_id": 1,
+      "po_line_item_id": 1,
+      "description": "Vinyl",
+      "quantity_billed": 50,
+      "unit_price_billed": 185,
+      "quantity_variance": 0,
+      "price_variance": 5,
+      "line_total": 9250,
+      "product_id": null
+     },
+     {
+      "id": 2,
+      "supplier_invoice_id": 1,
+      "po_line_item_id": 3,
+      "description": "Vinyl",
+      "quantity_billed": 20,
+      "unit_price_billed": 185,
+      "quantity_variance": -10,
+      "price_variance": 5,
+      "line_total": 3700,
+      "product_id": null
+     }
+    ]
+   },
+   "supplier_invoices": {
+    "added": [
+     {
+      "id": 1,
+      "purchase_order_id": 1,
+      "supplier_id": 2,
+      "supplier_reference": "INV-7731",
+      "amount": 12950,
+      "source_transcript": "Floornet invoice INV-7731, 70 sqm vinyl at 185",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm supplier invoice: one invoice spanning a linked and an unlinked order is for no job": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "supplierInvoice": {
+     "supplierInvoiceId": 1,
+     "totalAmount": 12950,
+     "expenseId": 1,
+     "variances": [
+      {
+       "description": "Vinyl",
+       "quantityVariance": 0,
+       "quantityVarianceVsOrdered": 0,
+       "priceVariance": 5
+      },
+      {
+       "description": "Vinyl",
+       "quantityVariance": -10,
+       "quantityVarianceVsOrdered": -10,
+       "priceVariance": 5
+      }
+     ]
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "A supplier's real bill has arrived for a real, already-placed order — ",
+   "Categorize this business expense into exactly one of: MATERIALS (stock",
+   "Categorize this business expense into exactly one of: MATERIALS (stock",
+   "Categorize this business expense into exactly one of: MATERIALS (stock"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "expenses": {
+    "added": [
+     {
+      "id": 1,
+      "character_id": 2,
+      "amount": 12950,
+      "description": "Supplier invoice INV-7731",
+      "source_transcript": "Floornet invoice INV-7731, 70 sqm vinyl at 185",
+      "category": "other",
+      "customer_id": null,
+      "capture_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "supplier_invoice",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185,\"po_line_item_id\":1},{\"matched_description\":\"Vinyl\",\"quantity_billed\":20,\"unit_price_billed\":185,\"po_line_item_id\":3}]}",
+       "status": "pending",
+       "source_transcript": "Floornet invoice INV-7731, 70 sqm vinyl at 185"
+      },
+      "after": {
+       "id": 1,
+       "type": "supplier_invoice",
+       "payload": "{\"purchaseOrderId\":1,\"supplierId\":2,\"supplierName\":\"Floornet\",\"supplierReference\":\"INV-7731\",\"lineItems\":[{\"matched_description\":\"Vinyl\",\"quantity_billed\":50,\"unit_price_billed\":185,\"po_line_item_id\":1},{\"matched_description\":\"Vinyl\",\"quantity_billed\":20,\"unit_price_billed\":185,\"po_line_item_id\":3}]}",
+       "status": "confirmed",
+       "source_transcript": "Floornet invoice INV-7731, 70 sqm vinyl at 185"
+      }
+     }
+    ]
+   },
+   "supplier_invoice_line_items": {
+    "added": [
+     {
+      "id": 1,
+      "supplier_invoice_id": 1,
+      "po_line_item_id": 1,
+      "description": "Vinyl",
+      "quantity_billed": 50,
+      "unit_price_billed": 185,
+      "quantity_variance": 0,
+      "price_variance": 5,
+      "line_total": 9250,
+      "product_id": null
+     },
+     {
+      "id": 2,
+      "supplier_invoice_id": 1,
+      "po_line_item_id": 3,
+      "description": "Vinyl",
+      "quantity_billed": 20,
+      "unit_price_billed": 185,
+      "quantity_variance": -10,
+      "price_variance": 5,
+      "line_total": 3700,
+      "product_id": null
+     }
+    ]
+   },
+   "supplier_invoices": {
+    "added": [
+     {
+      "id": 1,
+      "purchase_order_id": 1,
+      "supplier_id": 2,
+      "supplier_reference": "INV-7731",
+      "amount": 12950,
+      "source_transcript": "Floornet invoice INV-7731, 70 sqm vinyl at 185",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "confirm credit: a credit for a shortage on an order placed for Jenny reduces Jenny's job cost": {
+  "result": {
+   "status": 200,
+   "body": {
+    "status": "confirmed",
+    "disposition": {
+     "dispositionId": 1,
+     "expenseId": 1
+    }
+   }
+  },
+  "threw": null,
+  "aiCalls": [
+   "A real, already-known delivery discrepancy is being discussed — you ar",
+   "Categorize this business expense into exactly one of: MATERIALS (stock"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "expenses": {
+    "added": [
+     {
+      "id": 1,
+      "character_id": 2,
+      "amount": -2000,
+      "description": "Credit for Underlay (short_delivered)",
+      "source_transcript": "variance disposition #1",
+      "category": "other",
+      "customer_id": 1,
+      "capture_id": null
+     }
+    ]
+   },
+   "pending_actions": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "type": "variance_disposition",
+       "payload": "{\"grnLineItemId\":2,\"description\":\"Underlay\",\"reason\":\"short_delivered\",\"resolution\":\"credit\",\"creditAmount\":2000}",
+       "status": "pending",
+       "source_transcript": "Floornet is crediting us R2000 for the underlay shortage"
+      },
+      "after": {
+       "id": 1,
+       "type": "variance_disposition",
+       "payload": "{\"grnLineItemId\":2,\"description\":\"Underlay\",\"reason\":\"short_delivered\",\"resolution\":\"credit\",\"creditAmount\":2000}",
+       "status": "confirmed",
+       "source_transcript": "Floornet is crediting us R2000 for the underlay shortage"
+      }
+     }
+    ]
+   },
+   "variance_dispositions": {
+    "added": [
+     {
+      "id": 1,
+      "grn_line_item_id": 2,
+      "reason": "short_delivered",
+      "resolution": "credit",
+      "credit_amount": 2000,
+      "recorded_by": "owner@example.com",
+      "capture_id": null
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
  "confirm identity question: owner, the name belongs to an installer": {
   "result": {
    "status": 200,

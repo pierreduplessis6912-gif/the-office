@@ -96,6 +96,14 @@ module.exports = function cases(caps) {
     withOrder(db);
     db.exec(`INSERT INTO pending_actions (id, type, payload, source_transcript, status, created_at) VALUES (1, 'reopen_order', '{"purchaseOrderId":1,"supplierId":2,"supplierName":"Floornet"}', 'reopen the Floornet order', 'pending', '2026-10-03 10:00:00');`);
   };
+  // An order placed FOR a customer (decided with Pierre 2026-10-04): the cost of its supplier invoice, and a credit, is for that customer's job.
+  const orderLinkDdl = "CREATE TABLE IF NOT EXISTS purchase_order_customers (purchase_order_id INTEGER PRIMARY KEY, customer_id INTEGER NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))";
+  const withLinks = (base, links) => (db) => { base(db); db.exec(`INSERT INTO customers (name) SELECT 'Thandi Mokoena' WHERE NOT EXISTS (SELECT 1 FROM customers WHERE name = 'Thandi Mokoena'); ` + orderLinkDdl + '; ' + links); };
+  const orderForJenny = withLinks(withOrder, "INSERT INTO purchase_order_customers (purchase_order_id, customer_id) VALUES (1, 1);");
+  const bothForJenny = withLinks(twoVinylOrders, "INSERT INTO purchase_order_customers (purchase_order_id, customer_id) VALUES (1, 1), (2, 1);");
+  const forDifferentCustomers = withLinks(twoVinylOrders, "INSERT INTO purchase_order_customers (purchase_order_id, customer_id) VALUES (1, 1), (2, (SELECT id FROM customers WHERE name = 'Thandi Mokoena'));");
+  const oneLinkedOneNot = withLinks(twoVinylOrders, "INSERT INTO purchase_order_customers (purchase_order_id, customer_id) VALUES (1, 1);");
+  const discrepancyForJenny = withLinks(withDiscrepancy, "INSERT INTO purchase_order_customers (purchase_order_id, customer_id) VALUES (1, 1);");
   const OBS = (reply) => ({ match: /Extract the structure of a tradesperson's job observation/, reply });
   const LINES = (reply) => ({ match: /Extract every distinct line item from a tradesperson's quotation or invoice description/, reply });
   const GRAI = (reply) => ({ match: /quantity_received/, reply });
@@ -186,6 +194,15 @@ module.exports = function cases(caps) {
     r('suppliers screen: a cancelled order that was partly invoiced still shows as cancelled', cancelledAfterInvoice, '/debug/suppliers-list', [], [], { method: 'GET', role: 'owner' }),
     r('purchase orders list (admin): a cancelled order shows as cancelled', cancelledWithHold, '/debug/purchase-orders', [], [], { method: 'GET', admin: true }),
     r('purchase orders list (admin): an open order is unchanged', withOrder, '/debug/purchase-orders', [], [], { method: 'GET', admin: true }),
+
+    // ---------------- the cost of an order placed for a customer is for that customer's job ----------------
+    r('confirm supplier invoice: an order placed for Jenny puts the cost on Jenny\'s job', orderForJenny, '/actions/1/confirm', [say('Floornet invoice INV-7731, 50 sqm vinyl at 185', { intent: 'supplier_invoice', ...floornet })], [SIAI2(50)]),
+    r('confirm supplier invoice: an order with no link leaves the cost on no job, as before', withOrder, '/actions/1/confirm', [say('Floornet invoice INV-7731, 50 sqm vinyl at 185', { intent: 'supplier_invoice', ...floornet })], [SIAI2(50)]),
+    r('confirm supplier invoice: one invoice spanning two orders for the SAME customer is for that customer', bothForJenny, '/actions/1/confirm', [say('Floornet invoice INV-7731, 70 sqm vinyl at 185', { intent: 'supplier_invoice', ...floornet })], [SIAI2(70)]),
+    r('confirm supplier invoice: one invoice spanning orders for DIFFERENT customers is for no job', forDifferentCustomers, '/actions/1/confirm', [say('Floornet invoice INV-7731, 70 sqm vinyl at 185', { intent: 'supplier_invoice', ...floornet })], [SIAI2(70)]),
+    r('confirm supplier invoice: one invoice spanning a linked and an unlinked order is for no job', oneLinkedOneNot, '/actions/1/confirm', [say('Floornet invoice INV-7731, 70 sqm vinyl at 185', { intent: 'supplier_invoice', ...floornet })], [SIAI2(70)]),
+    r('confirm credit: a credit for a shortage on an order placed for Jenny reduces Jenny\'s job cost', discrepancyForJenny, '/actions/1/confirm', [say('Floornet is crediting us R2000 for the underlay shortage', { intent: 'variance_disposition', ...floornet })],
+      [VDAI({ matched_description: 'Underlay', reason: 'short_delivered', resolution: 'credit', credit_amount: 2000 })]),
 
     // ---------------- who is this? ----------------
     r('confirm identity question: owner, the name belongs to an installer', base, '/actions/1/confirm', [say('Jabulani called about a job', { intent: 'note', customer_name: 'Jabulani' })], []),

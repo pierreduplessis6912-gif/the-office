@@ -20,10 +20,11 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     or ask "update job #73, or a separate new job?" as a date change already does. (`DECISIONS.md`, "Found by the first real phone
     test".)
 
-52. **Orders are not linked to a customer or a job.** Found by the third phone test ("order 10 boxes of laminate for Jenny"): a
-    flooring order is usually placed *for a job*, and the order table holds only a supplier, a description and a date, so a "for"
-    is now reported as not kept. *Option:* link an order to a customer or job (a small lazily-created link, no migration), shown on
-    the Suppliers screen and used for materials cost per job. (`DECISIONS.md`, "Found by the third phone test".)
+53. **Costing is per customer, not per job within a customer.** An order is linked to the customer it is for, so a customer with
+    several jobs has all their orders on one costing, because this system defines a job, for costing, as the customer. *Option:*
+    link an order to one of the customer's jobs and cost each separately (a bigger change). (`DECISIONS.md`, "Decision 52".)
+54. **An order placed before the link existed cannot be linked afterwards by voice.** Only an order said "for <customer>" when it is
+    placed is linked. *Option:* a spoken "link order 12 to Jenny" (held, like cancel).
 ## B. Needs a live check only a phone can give
 
 12. **The Codemagic rebuild**: the Confirm/Reject buttons for a follow-up question raised by a confirm ("Add to stock?",
@@ -32,6 +33,9 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     tests, never run on a real delivery note with two orders.
 15. **The Permissions screen on a real phone.** The web build compiles it; the phone build and a real tap-through are
     unverified (switch something off for the installer, then check on the installer's phone that the room is gone).
+14n. **Costing for a job on the phone.** Say "order 20 bags of adhesive from Floornet for [a customer]" (expect "...for [customer]'s
+    job"), then ask "how is [customer] doing" (expect "Ordered for this job and not yet invoiced: R..."). When the supplier's invoice
+    for it is confirmed, the cost should appear in "costs linked to this job".
 14m. **A long reply scrolls (needs a Codemagic rebuild).** Ask "what open orders do we have" with several orders, and drag the
     reply: it should scroll inside the space above the orb instead of being cut off. Say if the area is too small or too large.
 14l. **Open orders and a 'for' order on the phone.** Say "what open orders do we have" (expect a list by supplier with what is still
@@ -106,6 +110,11 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
 
 ## Settled (kept so the reasoning is not lost)
+
+- 2026-10-04, decided by Pierre (dictated, after the third phone test):
+  - **An order is linked to the customer it is placed FOR** ("order ... from Floornet for Jenny"), so the cost of its supplier invoice
+    (and a credit) counts against that customer's job, with a "not yet invoiced" line beside the profit. Applied.
+    (`DECISIONS.md`, "Decision 52".)
 
 - 2026-10-04, decided by Pierre (decisions session, round 13, orders):
   - **A spoken reopen for a cancelled order: built,** as a held action that names the order, never guesses between several, never

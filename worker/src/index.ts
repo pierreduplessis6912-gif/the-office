@@ -10,7 +10,7 @@ import {
   verifySession, getSessionToken, getCookie, base64UrlEncode, ROLE_CAPABILITIES, ENFORCE_CAPABILITIES,
   ACTION_TYPE_CAPABILITY, ROUTE_RULES, SIGNABLE_DOCUMENT_PATHS, canResolveActionType, intentCreationRefusal, intentKeepsOutOfNotes,
 } from "./auth";
-import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote, duplicateInvoiceMessage, findDuplicateSupplierInvoice, normalizeInvoiceReference, describeConversion, forgetUnitConversions, listUnitConversions, unitConversionsAnswer, checkStockUnit, listSupplierStatements, recordSupplierStatement, statementDifferenceNote, supplierStatementsAnswer, checkInvoiceUnits, describeCancelledOrder, getCancelledOrdersForSupplier, reopenPurchaseOrder, type CancelledOrder, getOpenOrdersAcrossSuppliers, openOrdersAnswer } from "./finance";
+import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote, duplicateInvoiceMessage, findDuplicateSupplierInvoice, normalizeInvoiceReference, describeConversion, forgetUnitConversions, listUnitConversions, unitConversionsAnswer, checkStockUnit, listSupplierStatements, recordSupplierStatement, statementDifferenceNote, supplierStatementsAnswer, checkInvoiceUnits, describeCancelledOrder, getCancelledOrdersForSupplier, reopenPurchaseOrder, type CancelledOrder, getOpenOrdersAcrossSuppliers, openOrdersAnswer, linkPurchaseOrderToCustomer } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 import { handleDebugRoute } from "./debug";
 import { DOCUMENT_KIND_LABEL, asksAboutDeliveryExceptions, deliveryExceptionAnswer, deliveryHadExceptions, deliveryHeldMessage, deliveryRecordedMessage, inferDocumentSupplier, planDelivery } from "./documents";
@@ -764,6 +764,7 @@ async function processOneExtraction(
   // When it is said instead of a supplier we ask rather than guess (an order is written straight away, so a wrong guess would be a wrong order).
   let purchaseOrderForName: string | null = null;
   let purchaseOrderSuggestedSupplier: string | null = null;
+  let purchaseOrderLinkedTo: string | null = null;
   if (extraction?.intent === "purchase_order") {
     purchaseOrderForName = extraction.customer_name?.trim() || null;
     if (character) {
@@ -776,6 +777,12 @@ async function processOneExtraction(
       } else {
         const recorded = await recordPurchaseOrder(env, character.id, poExtraction.description, transcript, poExtraction.line_items);
         purchaseOrderResult = { purchaseOrderId: recorded.purchaseOrderId, lineItemCount: poExtraction.line_items.length };
+        // Decided by Pierre 2026-10-04: "order 10 boxes of laminate for Jenny from Floornet" links the order to the customer it is FOR (found by name only: an
+        // order never creates a customer), so what the supplier later invoices for it counts against that customer's job.
+        if (purchaseOrderForName && customer) {
+          await linkPurchaseOrderToCustomer(env, recorded.purchaseOrderId, customer.id);
+          purchaseOrderLinkedTo = customer.name;
+        }
       }
     } else {
       if (purchaseOrderForName) purchaseOrderSuggestedSupplier = (await findExistingCharacterByName(env, purchaseOrderForName))?.name ?? null;
@@ -1754,7 +1761,7 @@ async function processOneExtraction(
     // crashed on customer!.name; found by the characterization recordings 2026-10-03. The no-customer reply is below.)
     message = `Found a job scope for ${customer.name}, but couldn't match any priced item to it — try naming the component or task exactly as measured.`;
   } else if (extraction?.intent === "purchase_order" && purchaseOrderResult) {
-    message = `Purchase order #${purchaseOrderResult.purchaseOrderId} recorded for ${character!.name} — ${purchaseOrderResult.lineItemCount} item(s).${purchaseOrderForName ? ` I heard "for ${purchaseOrderForName}", but orders are not linked to a customer or job yet, so that part was not kept.` : ""}`;
+    message = `Purchase order #${purchaseOrderResult.purchaseOrderId} recorded for ${character!.name} — ${purchaseOrderResult.lineItemCount} item(s)${purchaseOrderLinkedTo ? `, for ${purchaseOrderLinkedTo}'s job` : ""}.${purchaseOrderLinkedTo ? "" : purchaseOrderForName ? ` I heard "for ${purchaseOrderForName}", but that isn't a customer I have, so the order isn't linked to a job.` : ""}`;
   } else if (extraction?.intent === "invoice" && customer && !pendingActionId && !workObservationResult) {
     // Found by the characterization recordings 2026-10-03: an invoice with a named customer but no amount and nothing
     // to record fell through to the generic "Found existing customer" reply, as if it had been a lookup.

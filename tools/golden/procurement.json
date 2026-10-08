@@ -320,7 +320,7 @@
   },
   "effects": []
  },
- "purchase order: \"for\" a customer on file with a supplier named records the order and says the \"for\" was not kept": {
+ "purchase order: \"for\" a customer on file with a supplier named records the order and links it to that customer's job": {
   "result": {
    "customer": {
     "id": 1,
@@ -334,7 +334,7 @@
    },
    "pendingActionId": null,
    "factPendingActionId": null,
-   "message": "Purchase order #1 recorded for Floornet — 1 item(s). I heard \"for Jenny Smith\", but orders are not linked to a customer or job yet, so that part was not kept.",
+   "message": "Purchase order #1 recorded for Floornet — 1 item(s), for Jenny Smith's job.",
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
@@ -424,6 +424,14 @@
      }
     ]
    },
+   "purchase_order_customers": {
+    "added": [
+     {
+      "purchase_order_id": 1,
+      "customer_id": 1
+     }
+    ]
+   },
    "purchase_orders": {
     "added": [
      {
@@ -497,7 +505,7 @@
   },
   "effects": []
  },
- "purchase order: \"for\" a name with a NEW supplier named records the order for the new supplier only": {
+ "purchase order: \"for\" a name that is not a customer records the order, not linked, says so, and creates no customer (and a new supplier is still created)": {
   "result": {
    "customer": null,
    "character": {
@@ -507,7 +515,7 @@
    },
    "pendingActionId": null,
    "factPendingActionId": null,
-   "message": "Purchase order #1 recorded for Newco Supplies — 1 item(s). I heard \"for Nobody Known\", but orders are not linked to a customer or job yet, so that part was not kept.",
+   "message": "Purchase order #1 recorded for Newco Supplies — 1 item(s). I heard \"for Nobody Known\", but that isn't a customer I have, so the order isn't linked to a job.",
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,

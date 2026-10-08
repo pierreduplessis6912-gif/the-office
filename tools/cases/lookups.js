@@ -69,6 +69,16 @@ module.exports = function cases(caps) {
       INSERT INTO grn_line_items (id, grn_id, po_line_item_id, description, quantity_received, quantity_ordered, variance) VALUES (701, 801, 902, 'Grout', 20, 20, 0), (702, 802, 903, 'Carpet', 10, 30, -20);`);
     db.exec(`CREATE TABLE IF NOT EXISTS purchase_order_cancellations (purchase_order_id INTEGER PRIMARY KEY, cancelled_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now'))); INSERT INTO purchase_order_cancellations (purchase_order_id, cancelled_by, created_at) VALUES (104, 'owner@example.com', '2026-10-03 10:00:00');`);
   };
+  // Orders placed FOR a customer (decided with Pierre 2026-10-04). Jenny (customer 1) has 10 sqm at R180 and 4 unpriced sqm ordered for her.
+  const orderLinkDdl = "CREATE TABLE IF NOT EXISTS purchase_order_customers (purchase_order_id INTEGER PRIMARY KEY, customer_id INTEGER NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))";
+  const ordersForJenny = (extra) => (db) => {
+    books(db);
+    db.exec(`INSERT INTO purchase_orders (id, supplier_id, description, created_at) VALUES (201, 1, 'Vinyl', '2026-10-01 08:00:00'), (202, 1, 'Grout', '2026-10-02 08:00:00');
+      INSERT INTO po_line_items (id, purchase_order_id, description, quantity_ordered, unit, unit_price_expected) VALUES (991, 201, 'Vinyl', 10, 'sqm', 180), (992, 201, 'Underlay', 4, 'sqm', NULL), (993, 202, 'Grout', 20, 'bag', 90);
+      ` + orderLinkDdl + `; INSERT INTO purchase_order_customers (purchase_order_id, customer_id) VALUES (201, 1), (202, 1);` + (extra || ''));
+  };
+  const jennyCancelled = ordersForJenny(" CREATE TABLE IF NOT EXISTS purchase_order_cancellations (purchase_order_id INTEGER PRIMARY KEY, cancelled_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now'))); INSERT INTO purchase_order_cancellations (purchase_order_id, cancelled_by, created_at) VALUES (202, 'owner@example.com', '2026-10-03 08:00:00');");
+  const jennyInvoiced = ordersForJenny(" INSERT INTO supplier_invoices (id, purchase_order_id, supplier_id, supplier_reference, amount, created_at) VALUES (501, 202, 1, 'INV-5', 1800, '2026-10-03 08:00:00');");
   const DASH = (reply) => ({ match: /broad, whole-business question wanting a real, visual snapshot/, reply });
   const TOPIC = (reply) => ({ match: /standing topic of the conversation below/, reply });
   const ANSWER = { match: /Answer the tradesperson's question using only the facts below/, reply: (input) => 'ANSWER FROM FACTS:\n' + ((input.messages.find((m) => m.role === 'system').content.split('Facts:\n')[1]) || '') };
@@ -81,6 +91,12 @@ module.exports = function cases(caps) {
     c('lookup: owner, the last price paid for a material', 'owner', withPriceHistory, { query_scope: 'material_price', fact_value: 'vinyl' }, 'what did we last pay for vinyl', []),
     c('lookup: owner, a material nobody has been invoiced for', 'owner', withPriceHistory, { query_scope: 'material_price', fact_value: 'grout' }, 'what did we last pay for grout', []),
     c('lookup: installer, the last price paid for a material', 'installer', withPriceHistory, { query_scope: 'material_price', fact_value: 'vinyl' }, 'what did we last pay for vinyl', []),
+
+    // ---------------- the costing of a job with orders placed for it ----------------
+    c('lookup customer: a job with orders placed for it shows the cost still to come', 'owner', ordersForJenny(), { customer_name: 'Jenny Smith' }, 'how is Jenny doing', [ANSWER]),
+    c('lookup customer: a cancelled order placed for the job is not counted', 'owner', jennyCancelled, { customer_name: 'Jenny Smith' }, 'how is Jenny doing', [ANSWER]),
+    c('lookup customer: an invoiced order placed for the job is no longer a cost to come', 'owner', jennyInvoiced, { customer_name: 'Jenny Smith' }, 'how is Jenny doing', [ANSWER]),
+    c('lookup open orders: an order placed for a customer says who it is for', 'owner', ordersForJenny(), { query_scope: 'open_orders' }, 'what open orders do we have', []),
 
     // ---------------- open supplier orders ----------------
     c('lookup open orders: every supplier, not delivered or cancelled ones', 'owner', moreOrders, { query_scope: 'open_orders' }, 'what open orders do we have', []),

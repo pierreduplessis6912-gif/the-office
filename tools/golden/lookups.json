@@ -134,6 +134,234 @@
   },
   "effects": []
  },
+ "lookup customer: a job with orders placed for it shows the cost still to come": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "ANSWER FROM FACTS:\n- Jenny Smith is a known customer.\n- Jenny Smith: Owes R3000 (invoiced R5000, paid R2000).\n- Job profitability for Jenny Smith: Revenue R5000, costs linked to this job R1200, profit R3800. Ordered for this job and not yet invoiced: R3600 plus 1 unpriced line (2 orders).\n\nOnly expenses explicitly linked to this job are counted — an expense recorded without job context isn't included, since there's no way to know which job it was really for.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "how is Jenny doing",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "how is Jenny doing",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "lookup customer: a cancelled order placed for the job is not counted": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "ANSWER FROM FACTS:\n- Jenny Smith is a known customer.\n- Jenny Smith: Owes R3000 (invoiced R5000, paid R2000).\n- Job profitability for Jenny Smith: Revenue R5000, costs linked to this job R1200, profit R3800. Ordered for this job and not yet invoiced: R1800 plus 1 unpriced line (1 order).\n\nOnly expenses explicitly linked to this job are counted — an expense recorded without job context isn't included, since there's no way to know which job it was really for.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "how is Jenny doing",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "how is Jenny doing",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "lookup customer: an invoiced order placed for the job is no longer a cost to come": {
+  "result": {
+   "customer": {
+    "id": 1,
+    "name": "Jenny Smith",
+    "matched": true
+   },
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "ANSWER FROM FACTS:\n- Jenny Smith is a known customer.\n- Jenny Smith: Owes R3000 (invoiced R5000, paid R2000).\n- Job profitability for Jenny Smith: Revenue R5000, costs linked to this job R1200, profit R3800. Ordered for this job and not yet invoiced: R1800 plus 1 unpriced line (1 order).\n\nOnly expenses explicitly linked to this job are counted — an expense recorded without job context isn't included, since there's no way to know which job it was really for.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [
+   "Answer the tradesperson's question using only the facts below. First d"
+  ],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "how is Jenny doing",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "how is Jenny doing",
+       "source": "text",
+       "subject_hint": "Jenny Smith",
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": 1,
+       "character_id": null
+      }
+     }
+    ]
+   },
+   "member_selections": {
+    "added": [
+     {
+      "member": "owner@example.com",
+      "key": "customer",
+      "entity_id": 1,
+      "label": "Jenny Smith"
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
+ "lookup open orders: an order placed for a customer says who it is for": {
+  "result": {
+   "customer": null,
+   "character": null,
+   "pendingActionId": null,
+   "factPendingActionId": null,
+   "message": "Open orders (2): Floornet #201 Vinyl (10 sqm Vinyl, 4 sqm Underlay not yet received) for Jenny Smith; Floornet #202 Grout (20 bag Grout not yet received) for Jenny Smith.",
+   "jobScopeIdForProjectResolution": null,
+   "pendingCandidates": null,
+   "pendingActionType": null,
+   "pendingChanges": null
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {
+   "captures": {
+    "changed": [
+     {
+      "before": {
+       "id": 1,
+       "raw_text": "what open orders do we have",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "unprocessed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      },
+      "after": {
+       "id": 1,
+       "raw_text": "what open orders do we have",
+       "source": "text",
+       "subject_hint": null,
+       "extraction_status": "processed",
+       "r2_key": null,
+       "customer_id": null,
+       "character_id": null
+      }
+     }
+    ]
+   }
+  },
+  "effects": []
+ },
  "lookup open orders: every supplier, not delivered or cancelled ones": {
   "result": {
    "customer": null,

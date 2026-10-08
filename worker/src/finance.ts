@@ -530,10 +530,53 @@ export async function ensureCancellationTable(env: Env): Promise<void> {
   cancellationTableReady.add(env.OFFICE_DB as unknown as object);
 }
 
+// ---------------------------------------------------------------------------------------------------------------------------
+// An order is placed FOR a customer's job. Decided by Pierre 2026-10-04 ("order 10 boxes of laminate for Jenny from Floornet"): the order is linked
+// to the customer, and the cost of its supplier invoice then counts against that customer's job in the profit report. In this system a job, for
+// costing, IS the customer: job profitability is the customer's invoices less the expenses carrying that customer's id, and recordExpense already
+// takes a customerId meaning "which job this cost is FOR". The link is its own small table, created the first time it is needed, so there is no
+// migration; an order with no link is exactly what it always was.
+// ---------------------------------------------------------------------------------------------------------------------------
+const purchaseOrderLinkReady = new WeakSet<object>();
+export async function ensurePurchaseOrderLinkTable(env: Env): Promise<void> {
+  if (purchaseOrderLinkReady.has(env.OFFICE_DB as unknown as object)) return;
+  await env.OFFICE_DB.prepare(
+    "CREATE TABLE IF NOT EXISTS purchase_order_customers (purchase_order_id INTEGER PRIMARY KEY, customer_id INTEGER NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))"
+  ).run();
+  purchaseOrderLinkReady.add(env.OFFICE_DB as unknown as object);
+}
+
+export async function linkPurchaseOrderToCustomer(env: Env, purchaseOrderId: number, customerId: number): Promise<void> {
+  await ensurePurchaseOrderLinkTable(env);
+  await env.OFFICE_DB.prepare(
+    "INSERT INTO purchase_order_customers (purchase_order_id, customer_id) VALUES (?, ?) ON CONFLICT (purchase_order_id) DO UPDATE SET customer_id = excluded.customer_id"
+  )
+    .bind(purchaseOrderId, customerId)
+    .run();
+}
+
+// The ONE customer a cost is for: only when EVERY order involved is linked and they are all linked to the same customer. An invoice that spans an
+// unlinked order, or orders for two different customers, is not attributed to either: guessing would put a cost on the wrong job.
+export async function getCustomerForPurchaseOrders(env: Env, purchaseOrderIds: Array<number | null | undefined>): Promise<number | null> {
+  const ids = [...new Set(purchaseOrderIds.filter((id): id is number => typeof id === "number" && id > 0))];
+  if (ids.length === 0) return null;
+  await ensurePurchaseOrderLinkTable(env);
+  const { results } = await env.OFFICE_DB.prepare(
+    `SELECT purchase_order_id, customer_id FROM purchase_order_customers WHERE purchase_order_id IN (${ids.map(() => "?").join(",")})`
+  )
+    .bind(...ids)
+    .all<{ purchase_order_id: number; customer_id: number }>();
+  const rows = results ?? [];
+  if (rows.length !== ids.length) return null;
+  const customers = new Set(rows.map((r) => r.customer_id));
+  return customers.size === 1 ? rows[0].customer_id : null;
+}
+
 export interface OpenOrder {
   id: number;
   description: string;
   lines: Array<{ description: string; outstanding: number; unit: string | null }>;
+  forCustomer?: string | null;
 }
 
 // The supplier's orders that still have something outstanding, oldest first.
@@ -1032,12 +1075,23 @@ export async function getOpenOrdersAcrossSuppliers(env: Env, supplierId: number 
     .all<{ id: number; name: string }>();
   const out: Array<{ supplier: string; order: OpenOrder }> = [];
   for (const supplier of results ?? []) for (const order of await getOpenOrdersForSupplier(env, supplier.id)) out.push({ supplier: supplier.name, order });
+  // Who each order is FOR, when it was placed for a customer (decided by Pierre 2026-10-04).
+  if (out.length > 0) {
+    await ensurePurchaseOrderLinkTable(env);
+    const { results: links } = await env.OFFICE_DB.prepare(
+      `SELECT l.purchase_order_id AS id, c.name AS name FROM purchase_order_customers l JOIN customers c ON c.id = l.customer_id WHERE l.purchase_order_id IN (${out.map(() => "?").join(",")})`
+    )
+      .bind(...out.map((r) => r.order.id))
+      .all<{ id: number; name: string }>();
+    const forName = new Map((links ?? []).map((l) => [l.id, l.name]));
+    for (const row of out) row.order.forCustomer = forName.get(row.order.id) ?? null;
+  }
   return out;
 }
 
 export function openOrdersAnswer(rows: Array<{ supplier: string; order: OpenOrder }>, asked: string | null, limit = 8): string {
   if (rows.length === 0) return asked ? `${asked} has no open orders.` : "There are no open orders.";
-  const shown = rows.slice(0, limit).map((r) => `${asked ? "" : `${r.supplier} `}${describeOpenOrder(r.order)}`);
+  const shown = rows.slice(0, limit).map((r) => `${asked ? "" : `${r.supplier} `}${describeOpenOrder(r.order)}${r.order.forCustomer ? ` for ${r.order.forCustomer}` : ""}`);
   const more = rows.length > limit ? `; and ${rows.length - limit} more` : "";
   return `Open orders${asked ? ` with ${asked}` : ` (${rows.length})`}: ${shown.join("; ")}${more}.`;
 }
@@ -1538,20 +1592,21 @@ export async function recordVarianceDisposition(
   let expenseId: number | null = null;
   if (resolution === "credit" && creditAmount != null && creditAmount > 0) {
     const chain = await env.OFFICE_DB.prepare(
-      `SELECT gli.description, grn.supplier_id
+      `SELECT gli.description, grn.supplier_id, grn.purchase_order_id
        FROM grn_line_items gli
        JOIN goods_received_notes grn ON grn.id = gli.grn_id
        WHERE gli.id = ?`
     )
       .bind(grnLineItemId)
-      .first<{ description: string; supplier_id: number | null }>();
+      .first<{ description: string; supplier_id: number | null; purchase_order_id: number | null }>();
     if (chain?.supplier_id != null) {
       const expense = await recordExpense(
         env,
         chain.supplier_id,
         -creditAmount,
         `Credit for ${chain.description} (${reason ?? "discrepancy"})`,
-        `variance disposition #${dispositionId}`
+        `variance disposition #${dispositionId}`,
+        await getCustomerForPurchaseOrders(env, [chain.purchase_order_id])
       );
       expenseId = expense.id;
     }
@@ -1864,12 +1919,23 @@ export async function recordSupplierInvoice(
   // Real expense created here, on confirmation - the same real cost
   // recording every other supplier payment in this project already
   // goes through, not a parallel, competing system.
+  // The cost is FOR the customer the order(s) were placed for (decided by Pierre 2026-10-04), when that is clear; otherwise for no job, as before.
+  const namedLineIds = lineItems.map((li) => li.po_line_item_id).filter((id): id is number => typeof id === "number");
+  const spannedOrderIds: Array<number | null> = [purchaseOrderId];
+  if (namedLineIds.length > 0) {
+    const { results: spanned } = await env.OFFICE_DB.prepare(`SELECT DISTINCT purchase_order_id AS id FROM po_line_items WHERE id IN (${namedLineIds.map(() => "?").join(",")})`)
+      .bind(...namedLineIds)
+      .all<{ id: number }>();
+    for (const row of spanned ?? []) spannedOrderIds.push(row.id);
+  }
+  const costFor = await getCustomerForPurchaseOrders(env, spannedOrderIds);
   const expense = await recordExpense(
     env,
     supplierId,
     totalAmount,
     supplierReference ? `Supplier invoice ${supplierReference}` : "Supplier invoice",
-    sourceTranscript
+    sourceTranscript,
+    costFor
   );
 
   return {
@@ -2986,11 +3052,33 @@ export async function getJobProfitability(
     .bind(customerId, customerId)
     .first<{ revenue: number; cost: number }>();
 
-  if (!row || (row.revenue === 0 && row.cost === 0)) return null;
+  // Orders placed FOR this customer that have not been invoiced yet are a cost still to come (decided by Pierre 2026-10-04): shown beside the profit.
+  await ensurePurchaseOrderLinkTable(env);
+  await ensureCancellationTable(env);
+  const committed = await env.OFFICE_DB.prepare(
+    `SELECT COUNT(DISTINCT po.id) AS orders,
+            COALESCE(SUM(CASE WHEN pl.unit_price_expected IS NOT NULL THEN pl.quantity_ordered * pl.unit_price_expected ELSE 0 END), 0) AS value,
+            COALESCE(SUM(CASE WHEN pl.unit_price_expected IS NULL THEN 1 ELSE 0 END), 0) AS unpriced
+       FROM purchase_order_customers l
+       JOIN purchase_orders po ON po.id = l.purchase_order_id
+       JOIN po_line_items pl ON pl.purchase_order_id = po.id
+      WHERE l.customer_id = ?
+        AND po.id NOT IN (SELECT purchase_order_id FROM purchase_order_cancellations)
+        AND NOT EXISTS (SELECT 1 FROM supplier_invoices si WHERE si.purchase_order_id = po.id)`
+  )
+    .bind(customerId)
+    .first<{ orders: number; value: number; unpriced: number }>();
+  const ordered = committed ?? { orders: 0, value: 0, unpriced: 0 };
+
+  if (!row || (row.revenue === 0 && row.cost === 0 && ordered.orders === 0)) return null;
 
   const profit = row.revenue - row.cost;
+  const orderedFact =
+    ordered.orders > 0
+      ? ` Ordered for this job and not yet invoiced: R${round2(ordered.value)}${ordered.unpriced > 0 ? ` plus ${ordered.unpriced} unpriced line${ordered.unpriced === 1 ? "" : "s"}` : ""} (${ordered.orders} order${ordered.orders === 1 ? "" : "s"}).`
+      : "";
   return {
-    fact: `Revenue R${row.revenue}, costs linked to this job R${row.cost}, profit R${profit}.`,
+    fact: `Revenue R${row.revenue}, costs linked to this job R${row.cost}, profit R${profit}.${orderedFact}`,
     caveat:
       "Only expenses explicitly linked to this job are counted — an expense recorded without job context isn't included, since there's no way to know which job it was really for.",
   };
