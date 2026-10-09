@@ -602,6 +602,42 @@ export function intentKeepsOutOfNotes(intent: string | null | undefined): boolea
   return Array.isArray(rule.create) && rule.create.includes("can_manage_invoices");
 }
 
+// ---------------------------------------------------------------------------------------------------------------------------
+// Which intents may only FIND a customer or a supplier, and never create one. Rewrite Phase 3, step 3 (2026-10-04).
+//
+// This was two long conditions inside processOneExtraction's opening step, edited by hand six times as intents were added, once with an
+// intent removed from one list and not the other. The reason is old and sound (found 2026-07-11: a lookup for a Jenny who does not exist
+// silently created her): a sentence that only asks, or that acts on something that must already exist, must never create anyone. Now one
+// table, beside INTENT_RULES, so the rule can be read, tested and changed in one place. The two lists differ by exactly one intent:
+// an order may create a NEW SUPPLIER (ordering from someone for the first time is normal) but never a customer (a name after "for" is
+// who it is for, not someone to create).
+// ---------------------------------------------------------------------------------------------------------------------------
+export const INTENTS_THAT_ONLY_FIND_CUSTOMERS: ReadonlySet<string> = new Set([
+  "lookup",
+  "cancel_order",
+  "reopen_order",
+  "link_order",
+  "set_unit_conversion",
+  "forget_unit_conversion",
+  "supplier_statement",
+  "purchase_order",
+]);
+export const INTENTS_THAT_ONLY_FIND_CHARACTERS: ReadonlySet<string> = new Set([
+  "lookup",
+  "cancel_order",
+  "reopen_order",
+  "link_order",
+  "set_unit_conversion",
+  "forget_unit_conversion",
+  "supplier_statement",
+]);
+export function intentOnlyFindsCustomers(intent: string | null | undefined): boolean {
+  return INTENTS_THAT_ONLY_FIND_CUSTOMERS.has(intent ?? "");
+}
+export function intentOnlyFindsCharacters(intent: string | null | undefined): boolean {
+  return INTENTS_THAT_ONLY_FIND_CHARACTERS.has(intent ?? "");
+}
+
 // The refusal message for a role that may not create this intent, or null
 // if it may. Anything that is not a known intent is allowed through (see above).
 export function intentCreationRefusal(intent: string | null | undefined, capabilities: string[]): string | null {

@@ -12,7 +12,7 @@ if (start < 0 || end < 0) throw new Error('could not extract the deployed decisi
 const gridStart = src.indexOf('// The permission grid (2026-10-04');
 const gridEnd = src.indexOf('// Real, new, per direct instruction — the first real item on');
 if (gridStart < 0 || gridEnd < 0) throw new Error('could not extract the permission grid');
-const code = roleCaps + '\n' + src.slice(gridStart, gridEnd) + '\n' + src.slice(start, end) + '\nmodule.exports = { authorizeRestrictedMember, ENFORCE_CAPABILITIES, INTENT_RULES, intentCreationRefusal, intentKeepsOutOfNotes, canResolveActionType, ACTION_TYPE_CAPABILITY, ROLE_CAPABILITIES, getRoleCapabilities, applyOverrides, CAPABILITY_CATALOG, CAPABILITY_BY_KEY, EDITABLE_ROLES, isEditableCapability };';
+const code = roleCaps + '\n' + src.slice(gridStart, gridEnd) + '\n' + src.slice(start, end) + '\nmodule.exports = { authorizeRestrictedMember, INTENTS_THAT_ONLY_FIND_CUSTOMERS, INTENTS_THAT_ONLY_FIND_CHARACTERS, intentOnlyFindsCustomers, intentOnlyFindsCharacters, ENFORCE_CAPABILITIES, INTENT_RULES, intentCreationRefusal, intentKeepsOutOfNotes, canResolveActionType, ACTION_TYPE_CAPABILITY, ROLE_CAPABILITIES, getRoleCapabilities, applyOverrides, CAPABILITY_CATALOG, CAPABILITY_BY_KEY, EDITABLE_ROLES, isEditableCapability };';
 const js = esbuild.transformSync(code, { loader: 'ts', format: 'cjs', target: 'es2022' }).code;
 const compiled = path.join(os.tmpdir(), 'role-matrix-decision-under-test.js');
 fs.writeFileSync(compiled, js);
@@ -160,6 +160,19 @@ async function expect(role, method, path, want) {
     const at = fnBody.indexOf(writer);
     check(at < 0 || gateAt < at, `the creation gate must run before "${writer}" inside processOneExtraction, but it comes after`);
   }
+
+  // ---- Which intents only FIND a customer or supplier, never create one (rewrite Phase 3, step 3) -------------------------------
+  const sameList = (x, y) => JSON.stringify(x) === JSON.stringify(y);
+  const { INTENTS_THAT_ONLY_FIND_CUSTOMERS: FIND_C, INTENTS_THAT_ONLY_FIND_CHARACTERS: FIND_S, intentOnlyFindsCustomers, intentOnlyFindsCharacters } = require(compiled);
+  check(sameList([...FIND_C].sort(), ['cancel_order', 'forget_unit_conversion', 'link_order', 'lookup', 'purchase_order', 'reopen_order', 'set_unit_conversion', 'supplier_statement']), 'the intents that may only FIND a customer must be exactly: lookup, cancel, reopen, link, the two unit conversions, a supplier statement, and an order');
+  check(sameList([...FIND_S].sort(), ['cancel_order', 'forget_unit_conversion', 'link_order', 'lookup', 'reopen_order', 'set_unit_conversion', 'supplier_statement']), 'the intents that may only FIND a supplier must be exactly the same, without an order (an order may create a new supplier)');
+  check(sameList([...FIND_C].filter((i) => !FIND_S.has(i)), ['purchase_order']) && [...FIND_S].every((i) => FIND_C.has(i)), 'the two lists differ by exactly one intent: purchase_order');
+  check([...FIND_C].every((i) => Object.prototype.hasOwnProperty.call(INTENT_RULES, i)), 'every intent named in the find-only lists must be a real intent');
+  check(intentOnlyFindsCustomers('purchase_order') === true && intentOnlyFindsCharacters('purchase_order') === false, 'an order may create a new supplier but never a customer');
+  check(['invoice', 'payment', 'note', 'quotation', 'goods_received', 'raise_snag', 'stocktake'].every((i) => !intentOnlyFindsCustomers(i) && !intentOnlyFindsCharacters(i)), 'ordinary recording intents are not find-only');
+  check(!intentOnlyFindsCustomers(null) && !intentOnlyFindsCustomers(undefined) && !intentOnlyFindsCustomers('not_an_intent') && !intentOnlyFindsCharacters(''), 'a missing or unknown intent is not find-only (it is handled as before)');
+  check((indexSrc.match(/intentOnlyFindsCustomers\(extraction\.intent\)/g) || []).length === 1 && (indexSrc.match(/intentOnlyFindsCharacters\(extraction\.intent\)/g) || []).length === 1, 'the opening step must ask the table, once for customers and once for suppliers');
+  check(!/extraction\.intent === "lookup" \|\| extraction\.intent === "cancel_order"/.test(indexSrc), 'index.ts must not carry its own hand-written list of find-only intents');
 
   // The decided differences themselves, asserted explicitly so they cannot drift silently.
   check(intentCreationRefusal('goods_received', RC.installer) === null, 'decision 1: an installer must be able to dictate goods received');

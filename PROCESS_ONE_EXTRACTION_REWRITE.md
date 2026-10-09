@@ -323,3 +323,5 @@ Phases 0, 1 and 2 are done (the permission table; the result shape as scaffoldin
 
 **Step 2 is done (2026-10-04):** order management (cancel, reopen, link, a supplier's statement, a unit conversion) is one module, `worker/src/intents/order-admin.ts`. `processOneExtraction` is **2,039 lines** (from 2,235; it had been 1,756 at the Phase 1 measurement), `index.ts` 5,657. Not one recording changed. **Next:** the opening step's find-only lists become a table beside `INTENT_RULES`, then the next intent group; candidates by cohesion are the stock intents (register, usage, stocktake) and snags and leads, both small and well recorded (59 and 28 cases).
 
+**Step 3 is done (2026-10-04):** the opening step's two find-only conditions are one table beside `INTENT_RULES` (`INTENTS_THAT_ONLY_FIND_CUSTOMERS` and `..._CHARACTERS`, differing by exactly `purchase_order`). No recording changed. **Next:** the next intent group; candidates by cohesion are the stock intents (register, usage, stocktake; 59 recorded cases) and snags and leads (28).
+
