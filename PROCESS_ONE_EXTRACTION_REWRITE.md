@@ -310,3 +310,11 @@ The characterization harness exists and runs in CI on Node 22. Recorded: the pay
 ### Status update (2026-10-04, end of Phase 2)
 
 Phase 2 is complete for everything that matters: the function (about 260 cases), its caller (19), the confirm and reject routes (51) and the upload handlers (50) are recorded, through the real request handler and the real auth gate where a route is involved. It found and fixed roughly twenty real defects along the way (see `DECISIONS.md`). **Phase 3, the first real handler, is ready to start.** Recommended first move: the 131-line supplier-document decision section that exists twice, identically, in the document and photo upload handlers, because it is fully recorded, duplicated, and self-contained. The recordings are its specification: the new function must reproduce all 50 upload cases exactly, and the document-versus-photo pairs must keep passing.
+
+### Status update (2026-10-04): Phase 3 has begun
+
+Phases 0, 1 and 2 are done (the permission table; the result shape as scaffolding; and the characterization harness, now **751 recorded cases and 4,585 checks**). **Phase 3, step 1 is done:** the supplier-document decision that existed twice in `index.ts` is one function in `worker/src/intents/supplier-document.ts`, with no recorded behaviour changed (see `DECISIONS.md`, "Rewrite Phase 3, step 1"). `index.ts` is 5,928 lines, down from 6,297.
+
+**What the detour did to the target.** Between the Phase 1 measurement and now, `processOneExtraction` grew from 1,756 to **2,235 lines** (about 27%), because every feature added went into it (order cancel, reopen and link, supplier statements, unit conversions, the scheduling continuation, open orders). It still has 10 return points. **Decision: no new features until the next intent group has been extracted;** fixes for what the phone tests find only.
+
+**Next:** step 1b (48 duplicated lines left between the two upload handlers), then the first intent group out of `processOneExtraction` (candidate: the order-management intents, the newest and most self-contained), chosen after reading the code and showing the exact lines first.

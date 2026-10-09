@@ -151,8 +151,13 @@ module.exports = async function runIntentTests({ check, bundleTo, srcDir, fs, pa
 
   // ---- 7. The scaffold is unreachable, and the build actually checks it -----------------------------
   const srcFiles = fs.readdirSync(srcDir).filter((f) => f.endsWith('.ts'));
-  const importers = srcFiles.filter((f) => /from\s+["']\.\/intents\//.test(fs.readFileSync(path.join(srcDir, f), 'utf8')));
-  check(importers.length === 0, `nothing outside src/intents may import the scaffold in Phase 1 (imported by: ${importers.join(', ') || 'none'})`);
+  // Phase 3 has begun: the first REAL handler, supplier-document, is imported by index.ts. The rest of the scaffold (the result shape and the
+  // dispatcher table) must still be unreachable from outside src/intents, and only index.ts may import the handler.
+  const importsOf = (name) => srcFiles.filter((f) => new RegExp('from\\s+["\']\\./intents/' + name + '["\']').test(fs.readFileSync(path.join(srcDir, f), 'utf8')));
+  check(importsOf('result').length === 0 && importsOf('dispatcher').length === 0, `nothing outside src/intents may import the unfinished scaffold (result: ${importsOf('result').join(', ') || 'none'}; dispatcher: ${importsOf('dispatcher').join(', ') || 'none'})`);
+  check(sameJson(importsOf('supplier-document'), ['index.ts']), `only index.ts may import the supplier-document handler (imported by: ${importsOf('supplier-document').join(', ') || 'none'})`);
+  const anyIntentsImport = srcFiles.filter((f) => /from\s+["']\.\/intents\//.test(fs.readFileSync(path.join(srcDir, f), 'utf8')));
+  check(anyIntentsImport.every((f) => f === 'index.ts'), `only index.ts may import anything from src/intents (imported by: ${anyIntentsImport.join(', ') || 'none'})`);
   const tsconfig = fs.readFileSync(path.join(srcDir, '..', 'tsconfig.json'), 'utf8');
   check(/"include":\s*\[\s*"src\/\*\*\/\*\.ts"\s*\]/.test(tsconfig), 'tsconfig must include src/**/*.ts, or the typecheck silently skips everything in src/intents');
   check(!/Date\.now|Math\.random|fetch\(|env\.OFFICE_DB|env\.AI/.test(resSrc), 'the contract module is pure: no clock, randomness, network or database');

@@ -85,6 +85,8 @@ async function expect(role, method, path, want) {
   const srcDir = path.dirname(process.env.SRC || path.join(__dirname, '..', 'worker', 'src', 'auth.ts'));
   const typesSrc = fs.readFileSync(path.join(srcDir, 'types.ts'), 'utf8');
   const indexSrc = fs.readFileSync(path.join(srcDir, 'index.ts'), 'utf8');
+  // Rewrite Phase 3, step 1: the supplier-document decision that used to exist twice in index.ts (once per upload handler) lives in one place.
+  const sharedSrc = fs.readFileSync(path.join(srcDir, 'intents', 'supplier-document.ts'), 'utf8');
   const unionIntents = typesSrc.match(/intent:\s*((?:"[a-z_]+"\s*\|?\s*)+);/)[1].match(/"([a-z_]+)"/g).map((x) => x.replace(/"/g, ''));
   const check = (cond, msg) => { total++; if (!cond) { fails++; console.log('FAIL  ' + msg); } };
   const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
@@ -182,8 +184,12 @@ async function expect(role, method, path, want) {
   // Source-pattern guards: both handlers must keep every guard. Crude on purpose, and mutation-checked.
   const handlerSlice = (marker) => { const a = indexSrc.indexOf(marker); const b = indexSrc.indexOf('if (url.pathname === "', a + marker.length); return indexSrc.slice(a, b); };
   for (const [name, marker, respVar] of [['/files/document', 'if (url.pathname === "/files/document"', 'docResponseBody'], ['/files/photo', 'if (url.pathname === "/files/photo"', 'photoResponseBody']]) {
-    const h = handlerSlice(marker);
-    check(h.length > 500, `could not isolate the ${name} handler`);
+    // What a handler runs is its own code plus the shared decision it calls, so every guard below reads both; and each handler must really call it.
+    const own = handlerSlice(marker);
+    const h = own + '\n' + sharedSrc;
+    check(own.length > 500, `could not isolate the ${name} handler`);
+    check(own.includes('decideSupplierDocument(request, env,') && own.includes(`"${name === '/files/document' ? 'document' : 'photo'}");`), `${name}: must call the shared supplier-document decision with its own source word`);
+    check(!own.includes('inferDocumentSupplier(') && !own.includes('holdForConfirmation('), `${name}: must not carry its own copy of the supplier-document decision`);
     check(h.includes('resolveCapabilities(request, env)'), `${name}: must read the caller's capabilities`);
     // A held supplier invoice (money): its refusal branch must come before the hold that creates it.
     const siHold = h.search(/holdForConfirmation\(\s*env,\s*"supplier_invoice"/);
@@ -270,7 +276,7 @@ async function expect(role, method, path, want) {
 
   // The handlers: both must use document-first only when nothing was stated, and an inferred delivery must be HELD.
   for (const [name, marker] of [['/files/document', 'if (url.pathname === "/files/document"'], ['/files/photo', 'if (url.pathname === "/files/photo"']]) {
-    const h = handlerSlice(marker);
+    const h = handlerSlice(marker) + '\n' + sharedSrc;   // the handler's own code plus the shared decision it calls (rewrite Phase 3, step 1)
     const gate = h.indexOf('if (!subjectCharacterId && !subjectCustomerId) {');
     const call = h.indexOf('inferDocumentSupplier(env, description)');
     check(gate > 0 && call > gate, `${name}: document-first must run only when no subject was stated (caption wins)`);
@@ -464,7 +470,7 @@ async function expect(role, method, path, want) {
   check(/came in over/.test(deliveryRecordedMessage({ grnIds: [8], exceptions: [], shortCount: 0, overCount: 2 })) && /weren't on any order/.test(deliveryRecordedMessage({ grnIds: [8], exceptions: [1], shortCount: 0, overCount: 0 })), 'the recorded message says what was over and what was on no order');
   check(deliveryHadExceptions({ exceptions: [], shortCount: 0, overCount: 0 }) === false && deliveryHadExceptions({ exceptions: [], shortCount: 1, overCount: 0 }) === true, 'a clean delivery has no exceptions to report');
   // Every hold says it allocates when confirmed, and confirming uses the new routine for those.
-  check((indexSrc.match(/allocate: true,/g) || []).length === 3, 'all three holds (document, photo, dictation) must carry allocate: true');
+  check((indexSrc.match(/allocate: true,/g) || []).length === 1 && (sharedSrc.match(/allocate: true,/g) || []).length === 1, 'both holds (the shared document-and-photo decision, and dictation) must carry allocate: true');
   check(/payload\.allocate && payload\.supplierId != null/.test(indexSrc) && /recordDelivery\(env, payload\.supplierId, action\.source_transcript/.test(indexSrc), 'confirming a delivery held since this change must place it against the outstanding orders');
   const dbgForStatus = fs.readFileSync(path.join(srcDir, 'debug.ts'), 'utf8');
   check(/orderDeliveryStatus\(/.test(dbgForStatus) && (dbgForStatus.match(/return \{ \.\.\.order, documentStatus, (?:cancelledOn, )?deliveryStatus,/g) || []).length === 2, 'both purchase-order views must return the order\'s delivery status, not just compute it');
@@ -549,7 +555,7 @@ async function expect(role, method, path, want) {
   check(confirmDelivery.indexOf("UPDATE pending_actions SET status = 'confirmed'") < confirmDelivery.indexOf('proposeStockAdditions('), 'the delivery is marked confirmed before the question is raised');
   check(/pendingActionId: stockAsk \? stockAsk\.id : null,\s*pendingActionType: stockAsk \? "stock_add" : null,/.test(confirmDelivery) && /\$\{deliveryRecordedMessage\(delivered\)\} \$\{stockAsk\.message\}/.test(confirmDelivery), 'the confirm response names the question and carries its id so the app can show buttons');
   for (const [name, marker] of [['/files/document', 'if (url.pathname === "/files/document"'], ['/files/photo', 'if (url.pathname === "/files/photo"']]) {
-    const h = handlerSlice(marker);
+    const h = handlerSlice(marker) + '\n' + sharedSrc;   // the handler's own code plus the shared decision it calls (rewrite Phase 3, step 1)
     check(/try \{\s*stockAsk = await proposeStockAdditions\(env, recorded\.notInStock, subjectHint\);\s*\} catch/.test(h) && /uploadHeldActionId = stockAsk\.id;/.test(h), `${name}: a delivery recorded straight away also asks about stock, safely, and the app is given the question to show`);
   }
   const stockAddBranch = indexSrc.slice(indexSrc.indexOf('if (action.type === "stock_add") {'), indexSrc.indexOf('if (action.type === "goods_received") {'));
@@ -569,13 +575,14 @@ async function expect(role, method, path, want) {
   check(xg.line_items[0].item_description.length === 160 && xg.line_items[0].unit.length === 20, 'extractor: over-long text is bounded');
 
   // Every path hands the extraction's lines to the classifier, and nothing else ever builds a hold or a record from raw lines.
-  const rawUses = (indexSrc.match(/grnExtraction\.line_items/g) || []).length;
+  const bothSrc = indexSrc + '\n' + sharedSrc;   // dictation lives in index.ts; document and photo share one decision
+  const rawUses = (bothSrc.match(/grnExtraction\.line_items/g) || []).length;
   // The path is now: the extraction's lines -> the unit check (a delivery in another unit is converted, or the person is asked) ->
   // the classifier. Each of the three paths must do both steps, in that order, and nothing may skip the unit check.
-  const checkUses = (indexSrc.match(/checkDeliveryUnits\(env, outstanding, grnExtraction\.line_items\)/g) || []).length;
-  const classUses = (indexSrc.match(/classifyGoodsReceivedLines\(unitCheck\.lines, candidates\)/g) || []).length;
-  check(rawUses === 3 && checkUses === 3 && classUses === 3, `every goods-received path (document, photo, dictation) must unit-check then classify; raw uses ${rawUses}, unit-checked ${checkUses}, classified ${classUses}`);
-  check(!/lineItems: grnExtraction\.line_items/.test(indexSrc) && !/splitGoodsReceivedLines/.test(indexSrc), 'a hold must never be built from unclassified goods-received lines');
+  const checkUses = (bothSrc.match(/checkDeliveryUnits\(env, outstanding, grnExtraction\.line_items\)/g) || []).length;
+  const classUses = (bothSrc.match(/classifyGoodsReceivedLines\(unitCheck\.lines, candidates\)/g) || []).length;
+  check(rawUses === 2 && checkUses === 2 && classUses === 2, `every goods-received path (the shared document-and-photo decision, and dictation) must unit-check then classify; raw uses ${rawUses}, unit-checked ${checkUses}, classified ${classUses}`);
+  check(!/lineItems: grnExtraction\.line_items/.test(bothSrc) && !/splitGoodsReceivedLines/.test(bothSrc), 'a hold must never be built from unclassified goods-received lines');
   const finSrc = fs.readFileSync(path.join(srcDir, 'finance.ts'), 'utf8');
   check(!/last_insert_rowid/.test(finSrc), 'finance.ts must read new ids with RETURNING id, not last_insert_rowid(), which D1 does not guarantee across statements');
   const dictStart = indexSrc.indexOf('if (extraction?.intent === "goods_received") {');

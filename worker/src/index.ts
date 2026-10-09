@@ -1,19 +1,39 @@
+import { decideSupplierDocument } from "./intents/supplier-document";
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult, WorkObservationExtraction } from "./types";
-import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, classifyDashboardIntent, containsBackwardReference, describeImage, embedText, extractDocumentIdentity, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractSupplierStatement, extractVarianceDisposition, extractWorkObservation, rerank, resolveFollowUpEntity, splitIntoTopics, storeUnscopedMemory, transcribe, transcribeWithNameHints, extractUnitConversion } from "./ai";
+import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, classifyDashboardIntent, containsBackwardReference, describeImage, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractVarianceDisposition, extractWorkObservation, resolveFollowUpEntity, splitIntoTopics, transcribe, extractUnitConversion } from "./ai";
 import { listAudit, listPermissions, resetRole, setPermission } from "./permissions";
 import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, logInteractionEdge, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, reconcilePerson, setSelection, withArticle, clearSelections } from "./identity";
 import { attachToSiblingJobScope, completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveScheduledDate, resolveTaskCompletion, hasSiblingToAttach, findSiblingCustomer, describeDate, schedulingContinuation } from "./scheduler";
 import { appendCharacterNote, appendCustomerNote, appendLifeEvent, applyCharacterFact, applyStructuredFact, getCharacterFacts, getCharacterNotes, getCustomerNotes, getRecentLifeEvents, logCapture, runConsolidation, updateCaptureHint, updateCaptureText, mayHandleSensitiveFact, sensitiveFactKind, looksLikePayOrBankDetail } from "./memory";
 import {
-  authGate, checkIdempotencyKey, completeIdempotencyKey, runIdempotentMigration, corsHeadersFor,
-  signDocumentPath, resolveCapabilities, getMemberContext, getJobScope, denyForRole, signSession,
-  verifySession, getSessionToken, getCookie, base64UrlEncode, ROLE_CAPABILITIES, ENFORCE_CAPABILITIES,
-  ACTION_TYPE_CAPABILITY, ROUTE_RULES, SIGNABLE_DOCUMENT_PATHS, canResolveActionType, intentCreationRefusal, intentKeepsOutOfNotes,
+  authGate,
+  checkIdempotencyKey,
+  completeIdempotencyKey,
+  runIdempotentMigration,
+  corsHeadersFor,
+  signDocumentPath,
+  resolveCapabilities,
+  getMemberContext,
+  getJobScope,
+  denyForRole,
+  signSession,
+  verifySession,
+  getSessionToken,
+  getCookie,
+  base64UrlEncode,
+  ROLE_CAPABILITIES,
+  ENFORCE_CAPABILITIES,
+  ACTION_TYPE_CAPABILITY,
+  ROUTE_RULES,
+  SIGNABLE_DOCUMENT_PATHS,
+  canResolveActionType,
+  intentCreationRefusal,
+  intentKeepsOutOfNotes,
 } from "./auth";
-import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLoss, getProfitAndLossSummary, getPurchaseOrderLineItems, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote, duplicateInvoiceMessage, findDuplicateSupplierInvoice, normalizeInvoiceReference, describeConversion, forgetUnitConversions, listUnitConversions, unitConversionsAnswer, checkStockUnit, listSupplierStatements, recordSupplierStatement, statementDifferenceNote, supplierStatementsAnswer, checkInvoiceUnits, describeCancelledOrder, getCancelledOrdersForSupplier, reopenPurchaseOrder, type CancelledOrder, getOpenOrdersAcrossSuppliers, openOrdersAnswer, linkPurchaseOrderToCustomer, findOpenJobWithSameWork, describeOrderForLinking, getOrderForLinking, getUnlinkedOrdersForSupplier, linkPurchaseOrderAndMoveCosts, type OrderForLinking } from "./finance";
+import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingBalanceForSupplier, getOutstandingInvoices, getProfitAndLossSummary, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordStocktake, recordStockUsage, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, registerStockItem, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, describeOpenOrder, getOpenOrdersForSupplier, parseOrderNumber, type OpenOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, normalizeUnit, setUnitConversion, unitPlural, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote, duplicateInvoiceMessage, findDuplicateSupplierInvoice, normalizeInvoiceReference, describeConversion, forgetUnitConversions, listUnitConversions, unitConversionsAnswer, checkStockUnit, listSupplierStatements, recordSupplierStatement, statementDifferenceNote, supplierStatementsAnswer, checkInvoiceUnits, describeCancelledOrder, getCancelledOrdersForSupplier, reopenPurchaseOrder, type CancelledOrder, getOpenOrdersAcrossSuppliers, openOrdersAnswer, linkPurchaseOrderToCustomer, findOpenJobWithSameWork, describeOrderForLinking, getOrderForLinking, getUnlinkedOrdersForSupplier, linkPurchaseOrderAndMoveCosts, type OrderForLinking } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 import { handleDebugRoute } from "./debug";
-import { DOCUMENT_KIND_LABEL, asksAboutDeliveryExceptions, deliveryExceptionAnswer, deliveryHadExceptions, deliveryHeldMessage, deliveryRecordedMessage, inferDocumentSupplier, planDelivery } from "./documents";
+import { asksAboutDeliveryExceptions, deliveryExceptionAnswer, deliveryHeldMessage, deliveryRecordedMessage, planDelivery } from "./documents";
 
 // Second layer of defense against storing questions as facts — never
 // trust intent classification alone for this, since it's been
@@ -5568,204 +5588,10 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       // is the correct, real path, unguarded and recorded directly,
       // matching GRN's own precedent exactly (quantity-only, no money
       // moving, traceable rather than gated).
-      // Decision recorded 2026-10-02 (Pierre): money and stock are gated at
-      // creation, here as well as for dictation, from the same INTENT_RULES
-      // table. Uploads stay open to every member for storing the file and
-      // the capture; what a role may NOT trigger is: a held supplier invoice
-      // (money), a supplier statement reconciliation (a money read that
-      // returns the real balance owed), or a recorded goods-received note
-      // unless they hold can_manage_invoices or can_know_materials (stock;
-      // installers do). A refused upload still stores the file, and the
-      // response carries `refusal` so a client can say why nothing happened.
-      const { capabilities: uploadCapabilities } = await resolveCapabilities(request, env);
-      const statementRefusal = intentCreationRefusal("supplier_statement", uploadCapabilities);
-      const supplierInvoiceRefusal = intentCreationRefusal("supplier_invoice", uploadCapabilities);
-      const goodsReceivedRefusal = intentCreationRefusal("goods_received", uploadCapabilities);
-      let uploadRefusal: string | null = captionRefusal;
-      let uploadMessage: string | null = null;
-      let uploadHeldActionId: number | null = null;
-
-      // Document-first identification, per Pierre 2026-10-03. A delivery note
-      // already says it is one and who issued it, so a caption is no longer
-      // needed to understand a supplier document (the app could not send one
-      // at all). This replaces the old rule of never reading a subject from
-      // the file, which was right for site photos and wrong for business
-      // documents. What is kept of that rule: a file with a stated subject
-      // (a caption that resolved a customer or supplier) is never second-
-      // guessed; anything that is not clearly a supplier document does
-      // nothing, exactly as before; the issuer is matched only against
-      // suppliers that ALREADY EXIST and never creates one; and because the
-      // supplier here was READ, not stated, a delivery note is held for
-      // confirmation instead of being recorded directly.
-      let inferredFromDocument = false;
-      let documentKindLabel = "this document";
-      let documentKind: "delivery_note" | "supplier_invoice" | "supplier_statement" | "other" = "other";
-      if (!subjectCharacterId && !subjectCustomerId) {
-        const inferred = await inferDocumentSupplier(env, description);
-        if (inferred.kind !== "other") {
-          documentKindLabel = DOCUMENT_KIND_LABEL[inferred.kind];
-          documentKind = inferred.kind;
-          if (!inferred.issuer) {
-            uploadMessage = `This looks like ${documentKindLabel}, but I couldn't tell who issued it, so I've only stored it.`;
-          } else if (inferred.match?.kind === "one") {
-            subjectCharacterId = inferred.match.supplier.id;
-            subjectHint = inferred.match.supplier.name;
-            inferredFromDocument = true;
-            if (inferred.kind === "supplier_statement") captionIntent = "supplier_statement";
-            rawText = `[Read from the document, not stated by anyone: ${documentKindLabel} issued by "${inferred.issuer}", matched to supplier ${inferred.match.supplier.name}]\n\n${rawText}`;
-          } else if (inferred.match?.kind === "many") {
-            uploadMessage = `I read ${documentKindLabel} from "${inferred.issuer}", which could be ${inferred.match.suppliers.map((sp) => sp.name).join(" or ")}, so nothing was recorded.`;
-          } else {
-            uploadMessage = `I read ${documentKindLabel} from "${inferred.issuer}", but I don't have them as a supplier, so nothing was recorded.`;
-          }
-        }
-      }
-      let supplierInvoiceAction: { pendingActionId: number; supplierName: string } | null = null;
-      let goodsReceivedAction: { grnId: number; supplierName: string } | null = null;
-      let supplierStatementAction: { supplierName: string; claimedBalance: number; realBalance: number; difference: number } | null = null;
-      // Receives a delivery note against an order, or against no order at all.
-      // Decided 2026-10-03 (Pierre): items that were never ordered are RECEIVED
-      // and reported as delivery exceptions; they are not refused. What is held
-      // vs recorded, and what is told back, is decided by the pure planDelivery
-      // (tested without a database); this only carries the plan out.
-      const reconcileDelivery = async (supplierId: number) => {
-        // Decided 2026-10-03 (Pierre): a delivery is matched against ALL of the supplier's orders
-        // that still have items outstanding, oldest first, not just the most recent order; and what a
-        // line expects is what is still outstanding, so a delivery that arrives in two parts is not
-        // flagged twice. A shortage stays on the exception report until it is resolved.
-        const outstanding = await getOutstandingOrderLines(env, supplierId);
-        const candidates = candidateOrderLines(outstanding);
-        const grnExtraction = await extractGoodsReceived(env, description, candidates);
-        // A unit that differs from the order's is converted when a conversion is known; when it is not, nothing is held or recorded
-        // and the question is asked (decided by Pierre 2026-10-04). Identical in the document and photo handlers.
-        const unitCheck = await checkDeliveryUnits(env, outstanding, grnExtraction.line_items);
-        if (unitCheck.unconverted.length > 0) {
-          uploadMessage = deliveryUnitQuestion(subjectHint ?? "the supplier", unitCheck.unconverted);
-          return;
-        }
-        const classified = classifyGoodsReceivedLines(unitCheck.lines, candidates);
-        const plan = planDelivery(classified, { mustHold: inferredFromDocument, refused: Boolean(goodsReceivedRefusal) });
-        const supplierLabel = subjectHint ?? "the supplier";
-        if (plan.action === "refuse") {
-          uploadRefusal = goodsReceivedRefusal;
-        } else if (plan.action === "hold") {
-          // The supplier was read from the document, not stated, so this is held
-          // for one-tap confirmation rather than written directly.
-          const heldGrn = await holdForConfirmation(
-            env,
-            "goods_received",
-            {
-              purchaseOrderId: outstanding.length > 0 ? outstanding[outstanding.length - 1].poId : 0,
-              supplierId,
-              supplierName: subjectHint,
-              allocate: true,
-              lineItems: plan.lines,
-            },
-            rawText
-          );
-          uploadHeldActionId = heldGrn.id;
-          uploadMessage = deliveryHeldMessage(plan, supplierLabel, inferredFromDocument, heldGrn.id, outstanding.length > 0) + conversionNote(unitCheck.converted);
-        } else if (plan.action === "record") {
-          const recorded = await recordDelivery(env, supplierId, rawText, plan.lines);
-          goodsReceivedAction = { grnId: recorded.grnId, supplierName: supplierLabel };
-          // Decided 2026-10-03 (Pierre): ask whether items that are not stock should be added.
-          let stockAsk: { id: number; message: string } | null = null;
-          try {
-            stockAsk = await proposeStockAdditions(env, recorded.notInStock, subjectHint);
-          } catch {
-            // The delivery is already recorded; a failed question is not a failed delivery.
-          }
-          if (stockAsk) {
-            uploadHeldActionId = stockAsk.id;
-            uploadMessage = `${deliveryRecordedMessage(recorded)}${conversionNote(unitCheck.converted)} ${stockAsk.message}`;
-          } else if (deliveryHadExceptions(recorded) || unitCheck.converted.length > 0) {
-            uploadMessage = `${deliveryRecordedMessage(recorded)}${conversionNote(unitCheck.converted)}`;
-          }
-        } else {
-          uploadMessage = `I read ${documentKindLabel} from ${supplierLabel}, but couldn't make out any items on it, so nothing was recorded.`;
-        }
-      };
-      if (subjectCharacterId && captionIntent === "supplier_statement" && statementRefusal) {
-        uploadRefusal = statementRefusal;
-      } else if (subjectCharacterId && captionIntent === "supplier_statement") {
-        // Real feature 2026-07-25 — Supplier Statement Reconciliation,
-        // the real, buildable version of the original ERP research
-        // example. A statement covers the whole real account, not one
-        // delivery — genuinely no single PO to check against, unlike
-        // supplier_invoice and GRN above. Compares the real, claimed
-        // closing balance directly against the real, internal
-        // outstanding balance already computed for Aged Creditors.
-        const stmtExtraction = await extractSupplierStatement(env, description);
-        if (stmtExtraction.claimed_closing_balance != null) {
-          const realBalance = await getOutstandingBalanceForSupplier(env, subjectCharacterId);
-          supplierStatementAction = {
-            supplierName: subjectHint ?? "supplier",
-            claimedBalance: stmtExtraction.claimed_closing_balance,
-            realBalance,
-            difference: Math.round((stmtExtraction.claimed_closing_balance - realBalance) * 100) / 100,
-          };
-          {
-            const savedStatement = await recordSupplierStatement(env, subjectCharacterId, stmtExtraction.claimed_closing_balance, realBalance, "document", description, null);
-            uploadMessage = `Statement from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""}: they claim R${stmtExtraction.claimed_closing_balance}, our records show R${realBalance}.${statementDifferenceNote(savedStatement.difference)}`;
-          }
-        } else {
-          uploadMessage = `I couldn't find a closing balance on this statement from ${subjectHint ?? "the supplier"}, so nothing was compared.`;
-        }
-      } else if (subjectCharacterId) {
-        const openPo = await findLatestOpenPurchaseOrder(env, subjectCharacterId);
-        if (openPo) {
-          // Matched across all the supplier's open orders, oldest first (decided by Pierre 2026-10-04). Identical in the document and
-          // photo handlers.
-          const invoicePool = await getInvoiceMatchLines(env, subjectCharacterId, openPo.id);
-          const siExtraction = await extractSupplierInvoice(env, description, invoiceCandidatesForReader(invoicePool));
-          const hasRealPricing = siExtraction.line_items.some((li) => li.unit_price_billed != null);
-          const duplicateInvoice =
-            siExtraction.line_items.length > 0 && hasRealPricing && siExtraction.supplier_reference
-              ? await findDuplicateSupplierInvoice(env, subjectCharacterId, siExtraction.supplier_reference)
-              : null;
-          const invoiceUnits = siExtraction.line_items.length > 0 && hasRealPricing ? await checkInvoiceUnits(env, invoicePool, siExtraction.line_items) : null;
-          if (siExtraction.line_items.length > 0 && hasRealPricing && supplierInvoiceRefusal) {
-            uploadRefusal = supplierInvoiceRefusal;
-          } else if (duplicateInvoice) {
-            // The same invoice (same supplier, same reference) is not recorded or held a second time (decided by Pierre 2026-10-04).
-            uploadMessage = duplicateInvoiceMessage(subjectHint ?? "the supplier", siExtraction.supplier_reference!, duplicateInvoice);
-          } else if (invoiceUnits && invoiceUnits.unconverted.length > 0) {
-            uploadMessage = deliveryUnitQuestion(subjectHint ?? "the supplier", invoiceUnits.unconverted, "send the invoice again", "invoice");
-          } else if (siExtraction.line_items.length > 0 && hasRealPricing) {
-            const allocatedInvoice = allocateInvoiceLines(invoiceUnits ? invoiceUnits.lines : siExtraction.line_items, invoicePool);
-            const held = await holdForConfirmation(
-              env,
-              "supplier_invoice",
-              {
-                purchaseOrderId: allocatedInvoice.primaryPoId ?? openPo.id,
-                supplierId: subjectCharacterId,
-                supplierName: subjectHint,
-                supplierReference: siExtraction.supplier_reference,
-                lineItems: allocatedInvoice.lines,
-              },
-              rawText
-            );
-            supplierInvoiceAction = { pendingActionId: held.id, supplierName: subjectHint ?? "supplier" };
-            uploadHeldActionId = held.id;
-            uploadMessage = `Supplier invoice noted from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""} — needs your confirmation (action #${held.id}) before it's recorded.${invoiceOrdersNote(allocatedInvoice.orderIds)}${conversionNote(invoiceUnits ? invoiceUnits.converted : [])}`;
-          } else {
-            await reconcileDelivery(subjectCharacterId);
-          }
-        } else {
-          // No open order. A delivery note for items that were never ordered is
-          // still received (decided 2026-10-03) and reported as an exception.
-          // Anything else, an invoice or a statement, still needs an order to
-          // be checked against.
-          const isDeliveryNote = inferredFromDocument
-            ? documentKind === "delivery_note"
-            : (await extractDocumentIdentity(env, description)).document_type === "delivery_note";
-          if (isDeliveryNote) {
-            await reconcileDelivery(subjectCharacterId);
-          } else {
-            uploadMessage = `I read ${documentKindLabel} from ${subjectHint ?? "the supplier"}, but there's no open order for them, so nothing was recorded.`;
-          }
-        }
-      }
+      // Shared with the other upload handler: the supplier-document decision lives in intents/supplier-document.ts (rewrite Phase 3, step 1).
+      const documentDecision = await decideSupplierDocument(request, env, { subjectCharacterId, subjectCustomerId, subjectHint, description, rawText, captionIntent, captionRefusal }, "document");
+      ({ subjectCharacterId, subjectHint, rawText, captionIntent } = documentDecision);
+      let { uploadRefusal, uploadMessage, uploadHeldActionId, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction, inferredFromDocument, documentKindLabel, documentKind } = documentDecision;
 
       const docResponseBody = JSON.stringify({ status: "stored", refusal: uploadRefusal, message: uploadRefusal ?? uploadMessage, pendingActionId: uploadHeldActionId, key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction });
       await completeIdempotencyKey(env, idempotencyKey, docResponseBody);
@@ -5853,204 +5679,10 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       // any matched line item means this is a delivery note, not an
       // invoice — GRN is the correct, real path, unguarded and
       // recorded directly, matching GRN's own precedent exactly.
-      // Decision recorded 2026-10-02 (Pierre): money and stock are gated at
-      // creation, here as well as for dictation, from the same INTENT_RULES
-      // table. Uploads stay open to every member for storing the file and
-      // the capture; what a role may NOT trigger is: a held supplier invoice
-      // (money), a supplier statement reconciliation (a money read that
-      // returns the real balance owed), or a recorded goods-received note
-      // unless they hold can_manage_invoices or can_know_materials (stock;
-      // installers do). A refused upload still stores the file, and the
-      // response carries `refusal` so a client can say why nothing happened.
-      const { capabilities: uploadCapabilities } = await resolveCapabilities(request, env);
-      const statementRefusal = intentCreationRefusal("supplier_statement", uploadCapabilities);
-      const supplierInvoiceRefusal = intentCreationRefusal("supplier_invoice", uploadCapabilities);
-      const goodsReceivedRefusal = intentCreationRefusal("goods_received", uploadCapabilities);
-      let uploadRefusal: string | null = captionRefusal;
-      let uploadMessage: string | null = null;
-      let uploadHeldActionId: number | null = null;
-
-      // Document-first identification, per Pierre 2026-10-03. A delivery note
-      // already says it is one and who issued it, so a caption is no longer
-      // needed to understand a supplier document (the app could not send one
-      // at all). This replaces the old rule of never reading a subject from
-      // the file, which was right for site photos and wrong for business
-      // documents. What is kept of that rule: a file with a stated subject
-      // (a caption that resolved a customer or supplier) is never second-
-      // guessed; anything that is not clearly a supplier document does
-      // nothing, exactly as before; the issuer is matched only against
-      // suppliers that ALREADY EXIST and never creates one; and because the
-      // supplier here was READ, not stated, a delivery note is held for
-      // confirmation instead of being recorded directly.
-      let inferredFromDocument = false;
-      let documentKindLabel = "this document";
-      let documentKind: "delivery_note" | "supplier_invoice" | "supplier_statement" | "other" = "other";
-      if (!subjectCharacterId && !subjectCustomerId) {
-        const inferred = await inferDocumentSupplier(env, description);
-        if (inferred.kind !== "other") {
-          documentKindLabel = DOCUMENT_KIND_LABEL[inferred.kind];
-          documentKind = inferred.kind;
-          if (!inferred.issuer) {
-            uploadMessage = `This looks like ${documentKindLabel}, but I couldn't tell who issued it, so I've only stored it.`;
-          } else if (inferred.match?.kind === "one") {
-            subjectCharacterId = inferred.match.supplier.id;
-            subjectHint = inferred.match.supplier.name;
-            inferredFromDocument = true;
-            if (inferred.kind === "supplier_statement") captionIntent = "supplier_statement";
-            rawText = `[Read from the document, not stated by anyone: ${documentKindLabel} issued by "${inferred.issuer}", matched to supplier ${inferred.match.supplier.name}]\n\n${rawText}`;
-          } else if (inferred.match?.kind === "many") {
-            uploadMessage = `I read ${documentKindLabel} from "${inferred.issuer}", which could be ${inferred.match.suppliers.map((sp) => sp.name).join(" or ")}, so nothing was recorded.`;
-          } else {
-            uploadMessage = `I read ${documentKindLabel} from "${inferred.issuer}", but I don't have them as a supplier, so nothing was recorded.`;
-          }
-        }
-      }
-      let supplierInvoiceAction: { pendingActionId: number; supplierName: string } | null = null;
-      let goodsReceivedAction: { grnId: number; supplierName: string } | null = null;
-      let supplierStatementAction: { supplierName: string; claimedBalance: number; realBalance: number; difference: number } | null = null;
-      // Receives a delivery note against an order, or against no order at all.
-      // Decided 2026-10-03 (Pierre): items that were never ordered are RECEIVED
-      // and reported as delivery exceptions; they are not refused. What is held
-      // vs recorded, and what is told back, is decided by the pure planDelivery
-      // (tested without a database); this only carries the plan out.
-      const reconcileDelivery = async (supplierId: number) => {
-        // Decided 2026-10-03 (Pierre): a delivery is matched against ALL of the supplier's orders
-        // that still have items outstanding, oldest first, not just the most recent order; and what a
-        // line expects is what is still outstanding, so a delivery that arrives in two parts is not
-        // flagged twice. A shortage stays on the exception report until it is resolved.
-        const outstanding = await getOutstandingOrderLines(env, supplierId);
-        const candidates = candidateOrderLines(outstanding);
-        const grnExtraction = await extractGoodsReceived(env, description, candidates);
-        // A unit that differs from the order's is converted when a conversion is known; when it is not, nothing is held or recorded
-        // and the question is asked (decided by Pierre 2026-10-04). Identical in the document and photo handlers.
-        const unitCheck = await checkDeliveryUnits(env, outstanding, grnExtraction.line_items);
-        if (unitCheck.unconverted.length > 0) {
-          uploadMessage = deliveryUnitQuestion(subjectHint ?? "the supplier", unitCheck.unconverted);
-          return;
-        }
-        const classified = classifyGoodsReceivedLines(unitCheck.lines, candidates);
-        const plan = planDelivery(classified, { mustHold: inferredFromDocument, refused: Boolean(goodsReceivedRefusal) });
-        const supplierLabel = subjectHint ?? "the supplier";
-        if (plan.action === "refuse") {
-          uploadRefusal = goodsReceivedRefusal;
-        } else if (plan.action === "hold") {
-          // The supplier was read from the document, not stated, so this is held
-          // for one-tap confirmation rather than written directly.
-          const heldGrn = await holdForConfirmation(
-            env,
-            "goods_received",
-            {
-              purchaseOrderId: outstanding.length > 0 ? outstanding[outstanding.length - 1].poId : 0,
-              supplierId,
-              supplierName: subjectHint,
-              allocate: true,
-              lineItems: plan.lines,
-            },
-            rawText
-          );
-          uploadHeldActionId = heldGrn.id;
-          uploadMessage = deliveryHeldMessage(plan, supplierLabel, inferredFromDocument, heldGrn.id, outstanding.length > 0) + conversionNote(unitCheck.converted);
-        } else if (plan.action === "record") {
-          const recorded = await recordDelivery(env, supplierId, rawText, plan.lines);
-          goodsReceivedAction = { grnId: recorded.grnId, supplierName: supplierLabel };
-          // Decided 2026-10-03 (Pierre): ask whether items that are not stock should be added.
-          let stockAsk: { id: number; message: string } | null = null;
-          try {
-            stockAsk = await proposeStockAdditions(env, recorded.notInStock, subjectHint);
-          } catch {
-            // The delivery is already recorded; a failed question is not a failed delivery.
-          }
-          if (stockAsk) {
-            uploadHeldActionId = stockAsk.id;
-            uploadMessage = `${deliveryRecordedMessage(recorded)}${conversionNote(unitCheck.converted)} ${stockAsk.message}`;
-          } else if (deliveryHadExceptions(recorded) || unitCheck.converted.length > 0) {
-            uploadMessage = `${deliveryRecordedMessage(recorded)}${conversionNote(unitCheck.converted)}`;
-          }
-        } else {
-          uploadMessage = `I read ${documentKindLabel} from ${supplierLabel}, but couldn't make out any items on it, so nothing was recorded.`;
-        }
-      };
-      if (subjectCharacterId && captionIntent === "supplier_statement" && statementRefusal) {
-        uploadRefusal = statementRefusal;
-      } else if (subjectCharacterId && captionIntent === "supplier_statement") {
-        // Real feature 2026-07-25 — Supplier Statement Reconciliation,
-        // the real, buildable version of the original ERP research
-        // example. A statement covers the whole real account, not one
-        // delivery — genuinely no single PO to check against, unlike
-        // supplier_invoice and GRN above. Compares the real, claimed
-        // closing balance directly against the real, internal
-        // outstanding balance already computed for Aged Creditors.
-        const stmtExtraction = await extractSupplierStatement(env, description);
-        if (stmtExtraction.claimed_closing_balance != null) {
-          const realBalance = await getOutstandingBalanceForSupplier(env, subjectCharacterId);
-          supplierStatementAction = {
-            supplierName: subjectHint ?? "supplier",
-            claimedBalance: stmtExtraction.claimed_closing_balance,
-            realBalance,
-            difference: Math.round((stmtExtraction.claimed_closing_balance - realBalance) * 100) / 100,
-          };
-          {
-            const savedStatement = await recordSupplierStatement(env, subjectCharacterId, stmtExtraction.claimed_closing_balance, realBalance, "photo", description, null);
-            uploadMessage = `Statement from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""}: they claim R${stmtExtraction.claimed_closing_balance}, our records show R${realBalance}.${statementDifferenceNote(savedStatement.difference)}`;
-          }
-        } else {
-          uploadMessage = `I couldn't find a closing balance on this statement from ${subjectHint ?? "the supplier"}, so nothing was compared.`;
-        }
-      } else if (subjectCharacterId) {
-        const openPo = await findLatestOpenPurchaseOrder(env, subjectCharacterId);
-        if (openPo) {
-          // Matched across all the supplier's open orders, oldest first (decided by Pierre 2026-10-04). Identical in the document and
-          // photo handlers.
-          const invoicePool = await getInvoiceMatchLines(env, subjectCharacterId, openPo.id);
-          const siExtraction = await extractSupplierInvoice(env, description, invoiceCandidatesForReader(invoicePool));
-          const hasRealPricing = siExtraction.line_items.some((li) => li.unit_price_billed != null);
-          const duplicateInvoice =
-            siExtraction.line_items.length > 0 && hasRealPricing && siExtraction.supplier_reference
-              ? await findDuplicateSupplierInvoice(env, subjectCharacterId, siExtraction.supplier_reference)
-              : null;
-          const invoiceUnits = siExtraction.line_items.length > 0 && hasRealPricing ? await checkInvoiceUnits(env, invoicePool, siExtraction.line_items) : null;
-          if (siExtraction.line_items.length > 0 && hasRealPricing && supplierInvoiceRefusal) {
-            uploadRefusal = supplierInvoiceRefusal;
-          } else if (duplicateInvoice) {
-            // The same invoice (same supplier, same reference) is not recorded or held a second time (decided by Pierre 2026-10-04).
-            uploadMessage = duplicateInvoiceMessage(subjectHint ?? "the supplier", siExtraction.supplier_reference!, duplicateInvoice);
-          } else if (invoiceUnits && invoiceUnits.unconverted.length > 0) {
-            uploadMessage = deliveryUnitQuestion(subjectHint ?? "the supplier", invoiceUnits.unconverted, "send the invoice again", "invoice");
-          } else if (siExtraction.line_items.length > 0 && hasRealPricing) {
-            const allocatedInvoice = allocateInvoiceLines(invoiceUnits ? invoiceUnits.lines : siExtraction.line_items, invoicePool);
-            const held = await holdForConfirmation(
-              env,
-              "supplier_invoice",
-              {
-                purchaseOrderId: allocatedInvoice.primaryPoId ?? openPo.id,
-                supplierId: subjectCharacterId,
-                supplierName: subjectHint,
-                supplierReference: siExtraction.supplier_reference,
-                lineItems: allocatedInvoice.lines,
-              },
-              rawText
-            );
-            supplierInvoiceAction = { pendingActionId: held.id, supplierName: subjectHint ?? "supplier" };
-            uploadHeldActionId = held.id;
-            uploadMessage = `Supplier invoice noted from ${subjectHint ?? "the supplier"}${inferredFromDocument ? " (read from the document)" : ""} — needs your confirmation (action #${held.id}) before it's recorded.${invoiceOrdersNote(allocatedInvoice.orderIds)}${conversionNote(invoiceUnits ? invoiceUnits.converted : [])}`;
-          } else {
-            await reconcileDelivery(subjectCharacterId);
-          }
-        } else {
-          // No open order. A delivery note for items that were never ordered is
-          // still received (decided 2026-10-03) and reported as an exception.
-          // Anything else, an invoice or a statement, still needs an order to
-          // be checked against.
-          const isDeliveryNote = inferredFromDocument
-            ? documentKind === "delivery_note"
-            : (await extractDocumentIdentity(env, description)).document_type === "delivery_note";
-          if (isDeliveryNote) {
-            await reconcileDelivery(subjectCharacterId);
-          } else {
-            uploadMessage = `I read ${documentKindLabel} from ${subjectHint ?? "the supplier"}, but there's no open order for them, so nothing was recorded.`;
-          }
-        }
-      }
+      // Shared with the other upload handler: the supplier-document decision lives in intents/supplier-document.ts (rewrite Phase 3, step 1).
+      const photoDecision = await decideSupplierDocument(request, env, { subjectCharacterId, subjectCustomerId, subjectHint, description, rawText, captionIntent, captionRefusal }, "photo");
+      ({ subjectCharacterId, subjectHint, rawText, captionIntent } = photoDecision);
+      let { uploadRefusal, uploadMessage, uploadHeldActionId, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction, inferredFromDocument, documentKindLabel, documentKind } = photoDecision;
 
       const photoResponseBody = JSON.stringify({ status: "stored", refusal: uploadRefusal, message: uploadRefusal ?? uploadMessage, pendingActionId: uploadHeldActionId, key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction });
       await completeIdempotencyKey(env, idempotencyKey, photoResponseBody);

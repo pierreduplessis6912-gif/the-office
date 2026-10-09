@@ -118,6 +118,9 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     move:** the supplier-document decision section that exists twice, identically, in the document and photo upload
     handlers (131 lines): it is fully recorded, duplicated, and a single shared function removes the chance of the copies
     drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
+22. **Phase 3, step 1b: 48 lines are still duplicated between the two upload handlers** (the form-data and idempotency boilerplate, a block of
+    declarations, and the 32-line caption-hint logic). Small and equally safe; do it before the first intent group. (`DECISIONS.md`,
+    "Rewrite Phase 3, step 1".)
 
 ## Settled (kept so the reasoning is not lost)
 
