@@ -190,6 +190,10 @@ async function expect(role, method, path, want) {
     check(own.length > 500, `could not isolate the ${name} handler`);
     check(own.includes('decideSupplierDocument(request, env,') && own.includes(`"${name === '/files/document' ? 'document' : 'photo'}");`), `${name}: must call the shared supplier-document decision with its own source word`);
     check(!own.includes('inferDocumentSupplier(') && !own.includes('holdForConfirmation('), `${name}: must not carry its own copy of the supplier-document decision`);
+    // Rewrite Phase 3, step 1b: the caption logic (who a file is for, under the same permission check as dictation) is shared too.
+    const captionLabel = name === '/files/document' ? 'Document' : 'Photo description';
+    check(own.includes('resolveUploadCaption(request, env,') && own.includes(`label: "${captionLabel}"`), `${name}: must call the shared caption logic with its own label ("${captionLabel}")`);
+    check(!own.includes('extractIntent(env, captionText)') && !own.includes('reconcileCustomer(') && !own.includes('reconcileCharacter('), `${name}: must not carry its own copy of the caption logic`);
     check(h.includes('resolveCapabilities(request, env)'), `${name}: must read the caller's capabilities`);
     // A held supplier invoice (money): its refusal branch must come before the hold that creates it.
     const siHold = h.search(/holdForConfirmation\(\s*env,\s*"supplier_invoice"/);

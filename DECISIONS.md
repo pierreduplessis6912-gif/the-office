@@ -6451,3 +6451,18 @@ Pierre said "Order 20 bags of screed from TAL for jenny". The app asked whether 
 **Verified:** typecheck unchanged; **4,585 checks**. **Four deliberate breakages were caught,** the first two by the recorded cases themselves and not only the guards: the photo handler recording its statements as coming from a document; the photo handler ignoring what the shared decision worked out about the supplier; a duplicate supplier invoice no longer being recognised in the shared function; and someone re-creating a private copy of the decision inside the photo handler (caught by the new guard).
 
 **Still duplicated between the two handlers: 48 lines** in three blocks (the form-data and idempotency boilerplate, a set of declarations, and the 32-line caption-hint logic). That is step 1b, small and equally safe.
+
+
+---
+
+## Rewrite Phase 3, step 1b: the caption logic, once
+
+**The rest of the duplication between the two upload handlers, except one deliberate remainder.** Step 1 left 48 identical lines in three blocks. The two larger ones were really **one** 39-line block: read the caption, find or create the customer or supplier it names, under the **same permission check as dictation**, then record the text and the hint on the capture. Re-measured before moving it: **exactly one line out of 39 differs**, the label put in front of the file's description (`[Document: …]` versus `[Photo description: …]`). That label is now a parameter, and the block is **one function in `worker/src/intents/upload-caption.ts`**, called by both handlers, moved unchanged (no multi-line strings to disturb).
+
+**Left alone on purpose.** The last 8 lines are the idempotency start (`const idempotencyKey = …; checkIdempotencyKey(…); if (replay) return replay`). It is a **standard guard with an early return that appears in four routes** (audio, document, photo and one more), not logic that can drift in one place, and sharing it would mean changing routes outside this step for almost no gain. It is better handled when the routes' preambles are looked at together. The two handlers also legitimately **stay different** in how they get the file's text (a document is read for text, a photo is described by a vision model).
+
+**The result.** The document handler is now **97 lines** (was 329 before step 1) and the photo handler **56** (was 290); `index.ts` is **5,852 lines**, from 6,297 at the start of Phase 3. The two handlers share two functions and differ only where the files differ.
+
+**The property that matters.** **No recording changed, was removed or was added: all 751 are untouched**, including the document-versus-photo pairs. Unlike step 1, **not one existing guard failed**: nothing had been searching the handlers for this block's text. That is a reason for care, not comfort: a move that breaks no guard also has no guard that notices if a handler quietly grows a private copy again. **Three new guards were added:** each handler must call the shared function with **its own label**, neither may carry its own copy of the caption logic, and only `index.ts` may import it.
+
+**Verified:** typecheck unchanged; **4,590 checks**. **Four deliberate breakages were caught:** a photo's caption labelled as a document (13 failures, the new guard and recordings both); the permission check inside the shared function removed (an installer's caption would create a customer: caught by the recorded case); a private copy re-created in the photo handler (the new guard); and the capture no longer recording the caption and description text (69 recorded cases fail).

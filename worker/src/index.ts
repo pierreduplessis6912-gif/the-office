@@ -1,3 +1,4 @@
+import { resolveUploadCaption } from "./intents/upload-caption";
 import { decideSupplierDocument } from "./intents/supplier-document";
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult, WorkObservationExtraction } from "./types";
 import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, classifyDashboardIntent, containsBackwardReference, describeImage, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractStockItemRegistration, extractStockUsage, extractStocktake, extractSupplierInvoice, extractVarianceDisposition, extractWorkObservation, resolveFollowUpEntity, splitIntoTopics, transcribe, extractUnitConversion } from "./ai";
@@ -5526,48 +5527,10 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         description = `File uploaded (${document.name || "untitled"}, ${mimeType}, ${docBuffer.byteLength} bytes).`;
       }
 
-      // Same caption-based subject-hint logic as /files/photo, same
-      // reasoning: never guess a subject from the file itself, only
-      // ever from something actually said about it.
-      let subjectHint: string | null = null;
-      let subjectCustomerId: number | null = null;
-      let subjectCharacterId: number | null = null;
-      let captionIntent: string | null = null;
-      let captionRefusal: string | null = null;
-      let rawText = description;
-      if (typeof caption === "string" && caption.trim().length > 0) {
-        const captionText = caption.trim();
-        rawText = `${captionText}\n\n[Document: ${description}]`;
-        const { extraction } = await extractIntent(env, captionText);
-        captionIntent = extraction?.intent ?? null;
-        // Decided by Pierre 2026-10-04: the caption gets the same permission check as dictation, before anyone is created.
-        // It used to create the customer or supplier it named for ANY member, however little they were allowed to record
-        // (an installer's "Brand New Person lounge quote" created a customer before any check). A refused role can still
-        // have the file linked to someone who is already on file (finding is harmless) but can no longer create anyone, and
-        // the response says why the caption was not acted on.
-        const { capabilities: captionCapabilities } = await resolveCapabilities(request, env);
-        captionRefusal = intentCreationRefusal(captionIntent, captionCapabilities);
-        if (extraction?.customer_name) {
-          const customer = captionRefusal
-            ? await findExistingCustomerByName(env, extraction.customer_name)
-            : await reconcileCustomer(env, extraction.customer_name);
-          subjectHint = customer?.name ?? null;
-          subjectCustomerId = customer?.id ?? null;
-        } else if (extraction?.character_name) {
-          const character = captionRefusal
-            ? await findExistingCharacterByName(env, extraction.character_name)
-            : await reconcileCharacter(env, extraction.character_name, extraction.character_relationship);
-          subjectHint = character?.name ?? null;
-          subjectCharacterId = character?.id ?? null;
-        }
-      }
-
-      if (captureId !== null) {
-        await updateCaptureText(env, captureId, rawText);
-        if (subjectHint) {
-          await updateCaptureHint(env, captureId, subjectHint, subjectCustomerId, subjectCharacterId);
-        }
-      }
+      // Shared with the other upload handler (intents/upload-caption.ts, rewrite Phase 3, step 1b): never guess a subject from the file itself, only
+      // from something actually said about it. A caption gets the same permission check as dictation, before anyone is created.
+      const captionSubject = await resolveUploadCaption(request, env, { caption, description, captureId, label: "Document" });
+      let { subjectHint, subjectCustomerId, subjectCharacterId, captionIntent, captionRefusal, rawText } = captionSubject;
 
       // Real feature 2026-07-21 — Supplier Invoices, real document
       // ingestion. A supplier invoice very often arrives as a real
@@ -5624,50 +5587,10 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       const base64 = arrayBufferToBase64(photoBuffer);
       const description = await describeImage(env, base64, mimeType);
 
-      // A caption is optional — never invented, never guessed from the
-      // image itself. If given, it's just a spoken or typed sentence
-      // like any other, so it reuses the exact same extraction and
-      // reconciliation already proven for text and voice, rather than
-      // inventing a separate subject-detection path for photos.
-      let subjectHint: string | null = null;
-      let subjectCustomerId: number | null = null;
-      let subjectCharacterId: number | null = null;
-      let captionIntent: string | null = null;
-      let captionRefusal: string | null = null;
-      let rawText = description;
-      if (typeof caption === "string" && caption.trim().length > 0) {
-        const captionText = caption.trim();
-        rawText = `${captionText}\n\n[Photo description: ${description}]`;
-        const { extraction } = await extractIntent(env, captionText);
-        captionIntent = extraction?.intent ?? null;
-        // Decided by Pierre 2026-10-04: the caption gets the same permission check as dictation, before anyone is created.
-        // It used to create the customer or supplier it named for ANY member, however little they were allowed to record
-        // (an installer's "Brand New Person lounge quote" created a customer before any check). A refused role can still
-        // have the file linked to someone who is already on file (finding is harmless) but can no longer create anyone, and
-        // the response says why the caption was not acted on.
-        const { capabilities: captionCapabilities } = await resolveCapabilities(request, env);
-        captionRefusal = intentCreationRefusal(captionIntent, captionCapabilities);
-        if (extraction?.customer_name) {
-          const customer = captionRefusal
-            ? await findExistingCustomerByName(env, extraction.customer_name)
-            : await reconcileCustomer(env, extraction.customer_name);
-          subjectHint = customer?.name ?? null;
-          subjectCustomerId = customer?.id ?? null;
-        } else if (extraction?.character_name) {
-          const character = captionRefusal
-            ? await findExistingCharacterByName(env, extraction.character_name)
-            : await reconcileCharacter(env, extraction.character_name, extraction.character_relationship);
-          subjectHint = character?.name ?? null;
-          subjectCharacterId = character?.id ?? null;
-        }
-      }
-
-      if (captureId !== null) {
-        await updateCaptureText(env, captureId, rawText);
-        if (subjectHint) {
-          await updateCaptureHint(env, captureId, subjectHint, subjectCustomerId, subjectCharacterId);
-        }
-      }
+      // Shared with the other upload handler (intents/upload-caption.ts, rewrite Phase 3, step 1b): never guess a subject from the file itself, only
+      // from something actually said about it. A caption gets the same permission check as dictation, before anyone is created.
+      const captionSubject = await resolveUploadCaption(request, env, { caption, description, captureId, label: "Photo description" });
+      let { subjectHint, subjectCustomerId, subjectCharacterId, captionIntent, captionRefusal, rawText } = captionSubject;
 
       // Real feature 2026-07-21 — Supplier Invoices, real document
       // ingestion. A photo of a paper invoice is just as real a case
