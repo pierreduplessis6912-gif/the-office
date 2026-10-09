@@ -320,3 +320,6 @@ Phases 0, 1 and 2 are done (the permission table; the result shape as scaffoldin
 **Next:** step 1b (48 duplicated lines left between the two upload handlers), then the first intent group out of `processOneExtraction` (candidate: the order-management intents, the newest and most self-contained), chosen after reading the code and showing the exact lines first.
 
 **Step 1b is done (2026-10-04):** the caption logic is one function in `worker/src/intents/upload-caption.ts`. The document handler is 97 lines and the photo handler 56; `index.ts` is 5,852 lines. What remains between them is deliberate (the idempotency start, in four routes; and the different ways a document and a photo are read). **Next: step 2, the first intent group out of `processOneExtraction`.**
+
+**Step 2 is done (2026-10-04):** order management (cancel, reopen, link, a supplier's statement, a unit conversion) is one module, `worker/src/intents/order-admin.ts`. `processOneExtraction` is **2,039 lines** (from 2,235; it had been 1,756 at the Phase 1 measurement), `index.ts` 5,657. Not one recording changed. **Next:** the opening step's find-only lists become a table beside `INTENT_RULES`, then the next intent group; candidates by cohesion are the stock intents (register, usage, stocktake) and snags and leads, both small and well recorded (59 and 28 cases).
+

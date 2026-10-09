@@ -181,6 +181,15 @@ async function expect(role, method, path, want) {
     for (const [role, want] of Object.entries(byRole))
       check((intentCreationRefusal(out, RC[role]) === null) === want, `upload output "${out}" for ${role}: expected ${want ? 'allowed' : 'refused'}`);
   check(/Checking supplier statements isn't available/.test(intentCreationRefusal('supplier_statement', RC.installer) || ''), 'statement refusal wording changed');
+  // Rewrite Phase 3, step 2: order management (cancel, reopen, link an existing order; a supplier's statement; a unit conversion) lives in
+  // intents/order-admin.ts. Nothing may grow back in index.ts, and index.ts must really call it, in the original order.
+  const orderAdminSrc = fs.readFileSync(path.join(srcDir, 'intents', 'order-admin.ts'), 'utf8');
+  check((indexSrc.match(/handleOrderHolds\(env,/g) || []).length === 1 && (indexSrc.match(/handleOrderRecords\(env,/g) || []).length === 1, 'index.ts must call handleOrderHolds and handleOrderRecords exactly once each');
+  check(indexSrc.indexOf('handleOrderHolds(env,') > 0 && indexSrc.indexOf('handleOrderHolds(env,') < indexSrc.indexOf('handleOrderRecords(env,'), 'the held order actions must still be decided before the two that write immediately (the order of database writes must not change)');
+  check(/orderHoldsResult\.pendingActionId !== null/.test(indexSrc) && /pendingActionId = orderHoldsResult\.pendingActionId/.test(indexSrc) && /pendingActionType = orderHoldsResult\.pendingActionType/.test(indexSrc), 'the held action\'s number and type must be handed back to the caller');
+  check(/else if \(orderHoldsResult\) \{\s*message = orderHoldsResult\.message;/.test(indexSrc) && /else if \(orderRecordsResult\) \{\s*message = orderRecordsResult\.message;/.test(indexSrc), 'the order handlers\' replies must be used as the message');
+  for (const gone of ['cancelOrderHold', 'reopenOrderHold', 'linkOrderHold', 'supplierStatementReply', 'unitConversionMessage', 'holdForConfirmation(env, "cancel_order"', 'holdForConfirmation(env, "reopen_order"', 'holdForConfirmation(env,\n          "link_order"', 'recordSupplierStatement(', 'setUnitConversion(', 'forgetUnitConversions(']) check(!indexSrc.includes(gone), `index.ts must not carry its own copy of order management (found: ${gone.replace(/\n\s*/g, ' ')})`);
+  for (const must of ['holdForConfirmation(env, "cancel_order"', 'holdForConfirmation(env, "reopen_order"', '"link_order"', 'recordSupplierStatement(', 'setUnitConversion(', 'forgetUnitConversions(']) check(orderAdminSrc.includes(must), `intents/order-admin.ts must hold or record: ${must}`);
   // Source-pattern guards: both handlers must keep every guard. Crude on purpose, and mutation-checked.
   const handlerSlice = (marker) => { const a = indexSrc.indexOf(marker); const b = indexSrc.indexOf('if (url.pathname === "', a + marker.length); return indexSrc.slice(a, b); };
   for (const [name, marker, respVar] of [['/files/document', 'if (url.pathname === "/files/document"', 'docResponseBody'], ['/files/photo', 'if (url.pathname === "/files/photo"', 'photoResponseBody']]) {
