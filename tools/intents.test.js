@@ -155,6 +155,7 @@ module.exports = async function runIntentTests({ check, bundleTo, srcDir, fs, pa
   // dispatcher table) must still be unreachable from outside src/intents, and only index.ts may import the handler.
   const importsOf = (name) => srcFiles.filter((f) => new RegExp('from\\s+["\']\\./intents/' + name + '["\']').test(fs.readFileSync(path.join(srcDir, f), 'utf8')));
   check(importsOf('result').length === 0 && importsOf('dispatcher').length === 0, `nothing outside src/intents may import the unfinished scaffold (result: ${importsOf('result').join(', ') || 'none'}; dispatcher: ${importsOf('dispatcher').join(', ') || 'none'})`);
+  check(sameJson(importsOf('stock'), ['index.ts']), `only index.ts may import the stock handler (imported by: ${importsOf('stock').join(', ') || 'none'})`);
   check(sameJson(importsOf('order-admin'), ['index.ts']), `only index.ts may import the order-admin handler (imported by: ${importsOf('order-admin').join(', ') || 'none'})`);
   check(sameJson(importsOf('upload-caption'), ['index.ts']), `only index.ts may import the upload-caption handler (imported by: ${importsOf('upload-caption').join(', ') || 'none'})`);
   check(sameJson(importsOf('supplier-document'), ['index.ts']), `only index.ts may import the supplier-document handler (imported by: ${importsOf('supplier-document').join(', ') || 'none'})`);

@@ -325,3 +325,5 @@ Phases 0, 1 and 2 are done (the permission table; the result shape as scaffoldin
 
 **Step 3 is done (2026-10-04):** the opening step's two find-only conditions are one table beside `INTENT_RULES` (`INTENTS_THAT_ONLY_FIND_CUSTOMERS` and `..._CHARACTERS`, differing by exactly `purchase_order`). No recording changed. **Next:** the next intent group; candidates by cohesion are the stock intents (register, usage, stocktake; 59 recorded cases) and snags and leads (28).
 
+**Step 4 is done (2026-10-04):** stock (register, usage, stocktake) is `worker/src/intents/stock.ts`. `processOneExtraction` is **1,954 lines**, `index.ts` 5,575; no recording changed. **Next:** snags and leads (raise and resolve a snag, raise and lose a lead).
+

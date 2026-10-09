@@ -6498,3 +6498,18 @@ Pierre said "Order 20 bags of screed from TAL for jenny". The app asked whether 
 **Verified:** typecheck unchanged; **4,621 checks**. **Four deliberate breakages were caught:** an order able to create a customer again; the two lists swapped at the customer check (exactly the slip this table exists to prevent); an order unable to create a new supplier; and a lookup for someone who does not exist able to create her (the 2026-07-11 bug). **One mistake of mine, caught immediately:** the new test block used a helper defined later in the same function, and the test's compiled copy of `auth.ts` is assembled from slices with an explicit export list, so the new names had to be added to it; both showed up as a crash on the first run, not as a silent pass.
 
 **Effect on size:** `processOneExtraction` is unchanged in length (the conditions were one line each); this step is about **making the rule correct by construction**, not about size. Next: the next intent group out of the function.
+
+
+---
+
+## Rewrite Phase 3, step 4: stock leaves processOneExtraction
+
+**The second intent group out of the big function:** registering an item to track, recording stock used on a job, and a stocktake count now live in **`worker/src/intents/stock.ts`** (one handler, `handleStock`). `processOneExtraction` fell from 2,039 to **1,954 lines** and `index.ts` from 5,659 to **5,575**.
+
+**Checked before it moved.** Every variable these three intents use was private to them (seven names, none referenced anywhere else in the function); they read only the sentence and write nothing back to the caller but the reply; and **all three always produce a reply**, so the single reply branch that replaces the 20-line chain cannot change which message wins. The pieces were separated in the original only by the call to the order handlers, which does nothing for a stock sentence, and **a sentence has exactly one intent**, so one handler at the position of the first branch keeps the order of writes identical. The code is **moved unchanged**, not rewritten: the same branches, the same messages, including the unit questions and the "count looks off" note.
+
+**The property that matters.** **No recording changed, was removed or was added: all 751 are untouched,** and no existing guard failed (nothing had been watching this code in `index.ts`). **Eighteen new checks** guard it: `index.ts` calls the handler exactly once and uses its reply as the message; it may not contain its own copy (the stock functions, their result variables or the unit question); the module must do each of the five things (register, record usage, record a stocktake, check the unit, read the tracked items); and only `index.ts` may import it.
+
+**Verified:** typecheck unchanged; **4,639 checks**. **Four deliberate breakages were caught:** the stock reply no longer used; stock no longer recorded; a rule inside the moved code removed (stock used in another unit with no conversion no longer asks; caught by the recorded case); and a private copy of the stock logic grown back in `index.ts`. Seven imports `index.ts` no longer needed were removed.
+
+**Where it stands:** two groups out (order management, stock); `processOneExtraction` is **1,954 lines**, from 2,235 (and 1,756 at the Phase 1 measurement). Next: snags and leads.
