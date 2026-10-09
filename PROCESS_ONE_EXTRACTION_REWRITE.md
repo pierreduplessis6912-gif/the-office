@@ -327,3 +327,5 @@ Phases 0, 1 and 2 are done (the permission table; the result shape as scaffoldin
 
 **Step 4 is done (2026-10-04):** stock (register, usage, stocktake) is `worker/src/intents/stock.ts`. `processOneExtraction` is **1,954 lines**, `index.ts` 5,575; no recording changed. **Next:** snags and leads (raise and resolve a snag, raise and lose a lead).
 
+**Step 5 is done (2026-10-04):** snags and leads are `worker/src/intents/snags-leads.ts`. `processOneExtraction` is **1,843 lines**, `index.ts` 5,465; no recording changed. Three of the eight planned groups are out (order management, stock, snags and leads). **What is left is the harder part:** payments, procurement proper (orders, deliveries, supplier invoices, dispositions), job pricing (invoice, price_scope, work_observation, which carry their own copies of the same observation logic), lookups, notes and identity. These write held actions and share more state with the function, so each needs its own look at what it reads and writes before it moves.
+

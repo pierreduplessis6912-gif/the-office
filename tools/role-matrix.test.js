@@ -209,6 +209,17 @@ async function expect(role, method, path, want) {
   check(/else if \(stockResult\) \{\s*message = stockResult\.message;/.test(indexSrc), 'the stock handler\'s reply must be used as the message');
   for (const gone of ['registerStockItem(', 'recordStockUsage(', 'recordStocktake(', 'extractStockUsage(', 'extractStocktake(', 'extractStockItemRegistration(', 'stockRegistrationResult', 'stockUsageResult', 'stocktakeResult', 'stockUnitQuestion']) check(!indexSrc.includes(gone), `index.ts must not carry its own copy of the stock logic (found: ${gone})`);
   for (const must of ['registerStockItem(', 'recordStockUsage(', 'recordStocktake(', 'checkStockUnit(', 'getTrackedStockItems(']) check(stockSrc.includes(must), `intents/stock.ts must do: ${must}`);
+  // Rewrite Phase 3, step 5: snags and leads live in intents/snags-leads.ts. Nothing may grow back in index.ts.
+  const snagsLeadsSrc = fs.readFileSync(path.join(srcDir, 'intents', 'snags-leads.ts'), 'utf8');
+  check((indexSrc.match(/handleSnagsAndLeads\(env,/g) || []).length === 1, 'index.ts must call handleSnagsAndLeads exactly once');
+  check(/else if \(snagsLeadsResult\) \{\s*message = snagsLeadsResult\.message;/.test(indexSrc), 'the snags-and-leads reply must be used as the message');
+  // The plain REST routes (resolve a snag, mark a lead lost) legitimately use resolveSnag and markLeadLost themselves, so this guard reads only the big function.
+  const poeStart = indexSrc.indexOf('async function processOneExtraction(');
+  const poeSrc = indexSrc.slice(poeStart, indexSrc.indexOf('\n}\n', poeStart));
+  check(poeStart > 0 && poeSrc.length > 5000, 'could not isolate processOneExtraction');
+  for (const gone of ['recordSnag(', 'resolveSnag(', 'recordLead(', 'markLeadLost(', 'extractSnag(', 'extractSnagResolution(', 'extractLead(', 'extractLeadLost(', 'getOpenSnagsForCustomer(', 'getOpenLeads(', 'snagResult', 'snagResolutionResult', 'leadResult', 'leadLostResult', 'snagNoCustomer']) check(!poeSrc.includes(gone), `processOneExtraction must not carry its own copy of the snag and lead logic (found: ${gone})`);
+  for (const must of ['recordSnag(', 'resolveSnag(', 'recordLead(', 'markLeadLost(', 'getOpenSnagsForCustomer(', 'getOpenLeads(']) check(snagsLeadsSrc.includes(must), `intents/snags-leads.ts must do: ${must}`);
+  check(indexSrc.includes('extraction.intent === "raise_lead" || extraction.intent === "lose_lead"'), 'the opening step must still keep a lead\'s name from being matched as a customer');
   // Source-pattern guards: both handlers must keep every guard. Crude on purpose, and mutation-checked.
   const handlerSlice = (marker) => { const a = indexSrc.indexOf(marker); const b = indexSrc.indexOf('if (url.pathname === "', a + marker.length); return indexSrc.slice(a, b); };
   for (const [name, marker, respVar] of [['/files/document', 'if (url.pathname === "/files/document"', 'docResponseBody'], ['/files/photo', 'if (url.pathname === "/files/photo"', 'photoResponseBody']]) {

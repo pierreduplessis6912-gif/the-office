@@ -1,9 +1,10 @@
+import { handleSnagsAndLeads } from "./intents/snags-leads";
 import { handleStock } from "./intents/stock";
 import { handleOrderHolds, handleOrderRecords } from "./intents/order-admin";
 import { resolveUploadCaption } from "./intents/upload-caption";
 import { decideSupplierDocument } from "./intents/supplier-document";
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult, WorkObservationExtraction } from "./types";
-import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, classifyDashboardIntent, containsBackwardReference, describeImage, extractGoodsReceived, extractIntent, extractLead, extractLeadLost, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSnag, extractSnagResolution, extractSupplierInvoice, extractVarianceDisposition, extractWorkObservation, resolveFollowUpEntity, splitIntoTopics, transcribe } from "./ai";
+import { answerFromMemory, arrayBufferToBase64, classifyBusinessTopic, classifyDashboardIntent, containsBackwardReference, describeImage, extractGoodsReceived, extractIntent, extractLineItems, extractMultipleIntents, extractPurchaseOrder, extractScopePricing, extractSupplierInvoice, extractVarianceDisposition, extractWorkObservation, resolveFollowUpEntity, splitIntoTopics, transcribe } from "./ai";
 import { listAudit, listPermissions, resetRole, setPermission } from "./permissions";
 import { checkCrossRoleCollision, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, logInteractionEdge, looksLikeAQuestion, reconcileCharacter, reconcileCustomer, reconcilePerson, setSelection, withArticle, clearSelections } from "./identity";
 import { attachToSiblingJobScope, completeTask, createTask, getCompletedToday, getEmberCounts, getInstallerActivity, getOpenTasks, getTodaysSchedule, nowInBusinessTimezone, recordWorkObservation, resolveScheduledDate, resolveTaskCompletion, hasSiblingToAttach, findSiblingCustomer, describeDate, schedulingContinuation } from "./scheduler";
@@ -35,7 +36,7 @@ import {
   intentOnlyFindsCharacters,
   intentOnlyFindsCustomers,
 } from "./auth";
-import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOpenLeads, getOpenSnagsForCustomer, getOutstandingInvoices, getProfitAndLossSummary, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordLead, recordPayment, recordPurchaseOrder, recordQuotation, recordSnag, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote, duplicateInvoiceMessage, findDuplicateSupplierInvoice, normalizeInvoiceReference, listUnitConversions, unitConversionsAnswer, listSupplierStatements, supplierStatementsAnswer, checkInvoiceUnits, reopenPurchaseOrder, getOpenOrdersAcrossSuppliers, openOrdersAnswer, linkPurchaseOrderToCustomer, findOpenJobWithSameWork, linkPurchaseOrderAndMoveCosts } from "./finance";
+import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, findLatestJobScope, findLatestOpenPurchaseOrder, findLatestOpenQuotation, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getAgedCreditorsSummary, getAgedDebtorsSummary, getCustomerFinancialSummary, getCustomerProjectSummary, getExpenseSummary, getFinancialSnapshot, getJobProfitability, getLastPricePaid, getOpenDiscrepanciesForSupplier, getOutstandingInvoices, getProfitAndLossSummary, getQuotationsSummary, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, candidateOrderLines, classifyGoodsReceivedLines, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordPayment, recordPurchaseOrder, recordQuotation, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, checkDeliveryUnits, conversionNote, deliveryUnitQuestion, allocateInvoiceLines, getInvoiceMatchLines, invoiceCandidatesForReader, invoiceOrdersNote, duplicateInvoiceMessage, findDuplicateSupplierInvoice, normalizeInvoiceReference, listUnitConversions, unitConversionsAnswer, listSupplierStatements, supplierStatementsAnswer, checkInvoiceUnits, reopenPurchaseOrder, getOpenOrdersAcrossSuppliers, openOrdersAnswer, linkPurchaseOrderToCustomer, findOpenJobWithSameWork, linkPurchaseOrderAndMoveCosts } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 import { handleDebugRoute } from "./debug";
 import { asksAboutDeliveryExceptions, deliveryExceptionAnswer, deliveryHeldMessage, deliveryRecordedMessage, planDelivery } from "./documents";
@@ -953,98 +954,8 @@ async function processOneExtraction(
   const orderRecordsResult = await handleOrderRecords(env, { extraction, transcript, character, recordingUserEmail });
 
 
-  // Real feature 2026-07-25 — Snags, the smallest, most immediately
-  // useful piece of the job-completion/warranty/snags design.
-  // Deliberately unguarded but traceable, matching GRN's own
-  // precedent — a quality note, not money moving.
-  let snagResult: { id: number; description: string } | null = null;
-  let snagNoCustomer = false;
-  if (extraction?.intent === "raise_snag") {
-    if (customer) {
-      const snag = await extractSnag(env, transcript);
-      if (snag.description) {
-        const recorded = await recordSnag(env, customer.id, snag.description);
-        snagResult = { id: recorded.id, description: snag.description };
-      }
-    } else {
-      snagNoCustomer = true;
-    }
-  }
-
-  let snagResolutionResult: { description: string; retentionReleasable: boolean; retentionAmount: number | null } | null = null;
-  let snagResolutionNoMatch = false;
-  if (extraction?.intent === "resolve_snag") {
-    if (customer) {
-      const openSnags = await getOpenSnagsForCustomer(env, customer.id);
-      if (openSnags.length > 0) {
-        const res = await extractSnagResolution(env, transcript, openSnags);
-        const matched = res.matched_description
-          ? openSnags.find((s) => s.description.toLowerCase() === res.matched_description!.toLowerCase())
-          : openSnags.length === 1
-          ? openSnags[0]
-          : null;
-        if (matched) {
-          const resolved = await resolveSnag(env, matched.id, customer.id);
-          snagResolutionResult = {
-            description: matched.description,
-            retentionReleasable: resolved.retentionReleasable,
-            retentionAmount: resolved.retentionAmount,
-          };
-        } else {
-          snagResolutionNoMatch = true;
-        }
-      } else {
-        snagResolutionNoMatch = true;
-      }
-    } else {
-      snagNoCustomer = true;
-    }
-  }
-
-  // Real feature 2026-07-25 — the lead/enquiry stage, the fourth real
-  // gap named from the full lead-to-warranty lifecycle walk.
-  // Deliberately unguarded but traceable, matching every other
-  // quality/status note in this project. customer stays null here on
-  // purpose (see the exclusion above) — extraction.customer_name is
-  // used directly, since this name is a real lead, not yet a
-  // customer.
-  let leadResult: { id: number; name: string } | null = null;
-  let leadNoName = false;
-  if (extraction?.intent === "raise_lead") {
-    if (extraction.customer_name) {
-      const lead = await extractLead(env, transcript);
-      if (lead.name) {
-        const recorded = await recordLead(env, lead.name, lead.interest, lead.source, captureId);
-        leadResult = { id: recorded.id, name: lead.name };
-      } else {
-        leadNoName = true;
-      }
-    } else {
-      leadNoName = true;
-    }
-  }
-
-  let leadLostResult: { name: string } | null = null;
-  let leadLostNoMatch = false;
-  if (extraction?.intent === "lose_lead") {
-    const openLeads = await getOpenLeads(env);
-    if (openLeads.length > 0) {
-      const res = await extractLeadLost(env, transcript, openLeads);
-      const matched = res.matched_name
-        ? openLeads.find((l) => l.name.toLowerCase() === res.matched_name!.toLowerCase())
-        : openLeads.length === 1
-        ? openLeads[0]
-        : null;
-      if (matched) {
-        await markLeadLost(env, matched.id);
-        leadLostResult = { name: matched.name };
-      } else {
-        leadLostNoMatch = true;
-      }
-    } else {
-      leadLostNoMatch = true;
-    }
-  }
+  // Rewrite Phase 3, step 5: snags and leads (raise and resolve a snag, raise and lose a lead) live in intents/snags-leads.ts.
+  const snagsLeadsResult = await handleSnagsAndLeads(env, { extraction, transcript, customer, captureId });
 
   // Real fix 2026-08-09 — moved earlier so the invoice block below can
   // populate this too. Confirmed live via /debug/job-scopes: "invoiced
@@ -1678,29 +1589,8 @@ async function processOneExtraction(
     message = orderRecordsResult.message;
   } else if (stockResult) {
     message = stockResult.message;
-  } else if (extraction?.intent === "raise_snag" && snagResult) {
-    message = `Snag #${snagResult.id} noted for ${customer!.name}: ${snagResult.description}.`;
-  } else if (extraction?.intent === "raise_snag" && snagNoCustomer) {
-    message = "Recognized a snag, but no customer was named — try naming whose job this is.";
-  } else if (extraction?.intent === "raise_snag") {
-    message = "Recognized a snag report, but couldn't make out the actual issue — try describing it.";
-  } else if (extraction?.intent === "resolve_snag" && snagResolutionResult) {
-    const retentionNote = snagResolutionResult.retentionReleasable
-      ? ` All snags resolved — a real retention of R${snagResolutionResult.retentionAmount} may now be releasable for ${customer!.name}.`
-      : "";
-    message = `Snag resolved for ${customer!.name}: ${snagResolutionResult.description}.${retentionNote}`;
-  } else if (extraction?.intent === "resolve_snag" && snagResolutionNoMatch) {
-    message = `I don't have an open snag on file for ${customer!.name} to match this to.`;
-  } else if (extraction?.intent === "resolve_snag" && snagNoCustomer) {
-    message = "Recognized a snag resolution, but no customer was named — try naming whose job this is.";
-  } else if (extraction?.intent === "raise_lead" && leadResult) {
-    message = `Lead #${leadResult.id} noted for ${leadResult.name}.`;
-  } else if (extraction?.intent === "raise_lead" && leadNoName) {
-    message = "Recognized a new enquiry, but couldn't make out who it's from — try naming them.";
-  } else if (extraction?.intent === "lose_lead" && leadLostResult) {
-    message = `Marked the ${leadLostResult.name} enquiry as lost.`;
-  } else if (extraction?.intent === "lose_lead" && leadLostNoMatch) {
-    message = "I don't have an open enquiry on file to match this to.";
+  } else if (snagsLeadsResult) {
+    message = snagsLeadsResult.message;
   } else if (pendingActionId && extraction?.intent === "convert_quote" && convertQuoteFound) {
     const { total, depositAmount, remainingBalance, quotationId } = convertQuoteFound;
     const depositNote = extraction.deposit_percent

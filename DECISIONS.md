@@ -6513,3 +6513,20 @@ Pierre said "Order 20 bags of screed from TAL for jenny". The app asked whether 
 **Verified:** typecheck unchanged; **4,639 checks**. **Four deliberate breakages were caught:** the stock reply no longer used; stock no longer recorded; a rule inside the moved code removed (stock used in another unit with no conversion no longer asks; caught by the recorded case); and a private copy of the stock logic grown back in `index.ts`. Seven imports `index.ts` no longer needed were removed.
 
 **Where it stands:** two groups out (order management, stock); `processOneExtraction` is **1,954 lines**, from 2,235 (and 1,756 at the Phase 1 measurement). Next: snags and leads.
+
+
+---
+
+## Rewrite Phase 3, step 5: snags and leads leave processOneExtraction
+
+**The third intent group out of the big function:** raising a snag against a customer's job, resolving one (and saying whether retention can now be released), raising a lead and marking a lead lost now live in **`worker/src/intents/snags-leads.ts`** (one handler, `handleSnagsAndLeads`). `processOneExtraction` fell from 1,954 to **1,843 lines** and `index.ts` from 5,575 to **5,465**.
+
+**Checked before it moved.** Eight result variables, **none referenced anywhere else in the function**; the four intents read only the sentence, the customer and the capture, and write nothing back to the caller but the reply. The action code was one contiguous block with nothing else in it. **The one lead-specific line in the function's opening step stays where it is** (a lead's name must not be matched as a customer; it is about identity, not about recording a lead), and a new guard keeps it there. Any sentence of these four intents that produced no reply before still falls through to the same later branches: the handler returns nothing and the chain continues exactly as it did.
+
+**The property that matters.** **No recording changed, was removed or was added: all 751 are untouched,** and no existing guard failed. **Twenty-six new checks** guard it: `index.ts` calls the handler exactly once and uses its reply as the message; the big function may not contain its own copy of the snag and lead logic; the module must do each of the six things; the opening step's lead line must stay; and only `index.ts` may import it.
+
+**A guard of mine was wrong, and the way it was wrong is worth recording.** The first version of the "no private copy" guard searched the whole of `index.ts` and flagged two uses of `resolveSnag` and `markLeadLost`. Those are the plain REST routes (resolve a snag, mark a lead lost directly): separate code that legitimately uses the same functions, not copies. Rather than loosen the guard everywhere, it was **narrowed to the big function**, which is what it exists to protect, and it still fails if a copy grows back there (proved below).
+
+**Verified:** typecheck unchanged; **4,665 checks**. **Four deliberate breakages were caught:** the snag and lead replies no longer used; a raised snag no longer recorded; a rule inside the moved code removed (a single open lead no longer matched when the name is unclear: caught by the recorded case); and a private copy of the lead logic grown back in the big function. Eight imports `index.ts` no longer needed were removed.
+
+**Where it stands after five Phase 3 steps:** the duplicated upload logic is gone (steps 1 and 1b), the find-only rule is one table (step 3), and three intent groups are out of the big function (order management, stock, snags and leads). `processOneExtraction` is **1,843 lines**, from 2,235 at the start of Phase 3 and 1,756 at the Phase 1 measurement; `index.ts` is **5,465**, from 6,297. **Every step has passed with all 751 recordings untouched.**
