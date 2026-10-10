@@ -87,6 +87,8 @@ async function expect(role, method, path, want) {
   const indexSrc = fs.readFileSync(path.join(srcDir, 'index.ts'), 'utf8');
   // Rewrite Phase 3, step 1: the supplier-document decision that used to exist twice in index.ts (once per upload handler) lives in one place.
   const sharedSrc = fs.readFileSync(path.join(srcDir, 'intents', 'supplier-document.ts'), 'utf8');
+  // Rewrite Phase 3, step 6: dictation (purchase order, goods received, supplier invoice, variance disposition) lives in intents/procurement.ts.
+  const procurementSrc = fs.readFileSync(path.join(srcDir, 'intents', 'procurement.ts'), 'utf8');
   const unionIntents = typesSrc.match(/intent:\s*((?:"[a-z_]+"\s*\|?\s*)+);/)[1].match(/"([a-z_]+)"/g).map((x) => x.replace(/"/g, ''));
   const check = (cond, msg) => { total++; if (!cond) { fails++; console.log('FAIL  ' + msg); } };
   const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
@@ -220,6 +222,16 @@ async function expect(role, method, path, want) {
   for (const gone of ['recordSnag(', 'resolveSnag(', 'recordLead(', 'markLeadLost(', 'extractSnag(', 'extractSnagResolution(', 'extractLead(', 'extractLeadLost(', 'getOpenSnagsForCustomer(', 'getOpenLeads(', 'snagResult', 'snagResolutionResult', 'leadResult', 'leadLostResult', 'snagNoCustomer']) check(!poeSrc.includes(gone), `processOneExtraction must not carry its own copy of the snag and lead logic (found: ${gone})`);
   for (const must of ['recordSnag(', 'resolveSnag(', 'recordLead(', 'markLeadLost(', 'getOpenSnagsForCustomer(', 'getOpenLeads(']) check(snagsLeadsSrc.includes(must), `intents/snags-leads.ts must do: ${must}`);
   check(indexSrc.includes('extraction.intent === "raise_lead" || extraction.intent === "lose_lead"'), 'the opening step must still keep a lead\'s name from being matched as a customer');
+  // Rewrite Phase 3, step 6: procurement by dictation lives in intents/procurement.ts. Nothing may grow back in the big function, and a held
+  // action must never be lost: the handler hands back its number and type even when no reply branch matched, and the reply is used only when there is one.
+  check((indexSrc.match(/handleProcurement\(env,/g) || []).length === 1, 'index.ts must call handleProcurement exactly once');
+  check(/procurementResult\.pendingActionId !== null/.test(indexSrc) && /pendingActionId = procurementResult\.pendingActionId/.test(indexSrc) && /pendingActionType = procurementResult\.pendingActionType/.test(indexSrc), 'the procurement handler\'s held action (number and type) must be handed back to the caller');
+  check(/else if \(procurementResult && procurementResult\.message !== null\) \{\s*message = procurementResult\.message;/.test(indexSrc), 'the procurement reply must be used only when there is one (a held action must never be lost to a missing reply)');
+  check(/return \{ message, pendingActionId, pendingActionType \};/.test(procurementSrc) && !/if \(message === null\) return null;/.test(procurementSrc), 'the procurement handler must return the held action even when no reply matched');
+  const poeStart6 = indexSrc.indexOf('async function processOneExtraction(');
+  const poeSrc6 = indexSrc.slice(poeStart6, indexSrc.indexOf('\n}\n', poeStart6));
+  for (const gone of ['purchaseOrderResult', 'purchaseOrderNoItems', 'purchaseOrderNoSupplier', 'goodsReceivedMessage', 'goodsReceivedNoItems', 'goodsReceivedNoSupplier', 'supplierInvoiceDuplicate', 'supplierInvoiceNoOpenPo', 'supplierInvoiceConverted', 'dispositionResult', 'dispositionNoSupplier', 'dispositionNoOpenDiscrepancy', 'extractPurchaseOrder(', 'extractGoodsReceived(', 'extractSupplierInvoice(', 'recordPurchaseOrder(', 'planDelivery(']) check(!poeSrc6.includes(gone), `processOneExtraction must not carry its own copy of the procurement logic (found: ${gone})`);
+  for (const must of ['recordPurchaseOrder(', 'extractGoodsReceived(', 'planDelivery(', 'holdForConfirmation(', 'extractSupplierInvoice(', 'findDuplicateSupplierInvoice(']) check(procurementSrc.includes(must), `intents/procurement.ts must do: ${must}`);
   // Source-pattern guards: both handlers must keep every guard. Crude on purpose, and mutation-checked.
   const handlerSlice = (marker) => { const a = indexSrc.indexOf(marker); const b = indexSrc.indexOf('if (url.pathname === "', a + marker.length); return indexSrc.slice(a, b); };
   for (const [name, marker, respVar] of [['/files/document', 'if (url.pathname === "/files/document"', 'docResponseBody'], ['/files/photo', 'if (url.pathname === "/files/photo"', 'photoResponseBody']]) {
@@ -513,7 +525,7 @@ async function expect(role, method, path, want) {
   check(/came in over/.test(deliveryRecordedMessage({ grnIds: [8], exceptions: [], shortCount: 0, overCount: 2 })) && /weren't on any order/.test(deliveryRecordedMessage({ grnIds: [8], exceptions: [1], shortCount: 0, overCount: 0 })), 'the recorded message says what was over and what was on no order');
   check(deliveryHadExceptions({ exceptions: [], shortCount: 0, overCount: 0 }) === false && deliveryHadExceptions({ exceptions: [], shortCount: 1, overCount: 0 }) === true, 'a clean delivery has no exceptions to report');
   // Every hold says it allocates when confirmed, and confirming uses the new routine for those.
-  check((indexSrc.match(/allocate: true,/g) || []).length === 1 && (sharedSrc.match(/allocate: true,/g) || []).length === 1, 'both holds (the shared document-and-photo decision, and dictation) must carry allocate: true');
+  check((indexSrc.match(/allocate: true,/g) || []).length === 0 && (procurementSrc.match(/allocate: true,/g) || []).length === 1 && (sharedSrc.match(/allocate: true,/g) || []).length === 1, 'both holds (the shared document-and-photo decision, and dictation in intents/procurement.ts) must carry allocate: true');
   check(/payload\.allocate && payload\.supplierId != null/.test(indexSrc) && /recordDelivery\(env, payload\.supplierId, action\.source_transcript/.test(indexSrc), 'confirming a delivery held since this change must place it against the outstanding orders');
   const dbgForStatus = fs.readFileSync(path.join(srcDir, 'debug.ts'), 'utf8');
   check(/orderDeliveryStatus\(/.test(dbgForStatus) && (dbgForStatus.match(/return \{ \.\.\.order, documentStatus, (?:cancelledOn, )?deliveryStatus,/g) || []).length === 2, 'both purchase-order views must return the order\'s delivery status, not just compute it');
@@ -618,7 +630,7 @@ async function expect(role, method, path, want) {
   check(xg.line_items[0].item_description.length === 160 && xg.line_items[0].unit.length === 20, 'extractor: over-long text is bounded');
 
   // Every path hands the extraction's lines to the classifier, and nothing else ever builds a hold or a record from raw lines.
-  const bothSrc = indexSrc + '\n' + sharedSrc;   // dictation lives in index.ts; document and photo share one decision
+  const bothSrc = indexSrc + '\n' + sharedSrc + '\n' + procurementSrc;   // dictation lives in intents/procurement.ts; document and photo share one decision
   const rawUses = (bothSrc.match(/grnExtraction\.line_items/g) || []).length;
   // The path is now: the extraction's lines -> the unit check (a delivery in another unit is converted, or the person is asked) ->
   // the classifier. Each of the three paths must do both steps, in that order, and nothing may skip the unit check.
@@ -628,10 +640,11 @@ async function expect(role, method, path, want) {
   check(!/lineItems: grnExtraction\.line_items/.test(bothSrc) && !/splitGoodsReceivedLines/.test(bothSrc), 'a hold must never be built from unclassified goods-received lines');
   const finSrc = fs.readFileSync(path.join(srcDir, 'finance.ts'), 'utf8');
   check(!/last_insert_rowid/.test(finSrc), 'finance.ts must read new ids with RETURNING id, not last_insert_rowid(), which D1 does not guarantee across statements');
-  const dictStart = indexSrc.indexOf('if (extraction?.intent === "goods_received") {');
-  const dictBody = indexSrc.slice(dictStart, indexSrc.indexOf('Supplier Invoices, the third and final', dictStart));
+  const dictStart = procurementSrc.indexOf('if (extraction?.intent === "goods_received") {');
+  const dictBody = procurementSrc.slice(dictStart, procurementSrc.indexOf('Supplier Invoices, the third and final', dictStart));
+  check(dictStart > 0 && dictBody.length > 500, 'could not isolate the dictation goods-received block in intents/procurement.ts');
   check(dictBody.includes('mustHold: true') && dictBody.indexOf('grnPlan.action === "hold"') > 0 && dictBody.indexOf('grnPlan.action === "hold"') < dictBody.indexOf('holdForConfirmation('), 'dictation: a spoken delivery is always held, and only when the plan says to');
-  check(/goods_received" && goodsReceivedNoItems\) \{/.test(indexSrc) && !/goodsReceivedNoOpenPo|goodsReceivedNoMatchOnOrder/.test(indexSrc), 'dictation: a delivery with nothing readable gets its own honest reply, and having no open order no longer ends the delivery');
+  check(/goods_received" && goodsReceivedNoItems\) \{/.test(procurementSrc) && !/goodsReceivedNoOpenPo|goodsReceivedNoMatchOnOrder/.test(bothSrc), 'dictation: a delivery with nothing readable gets its own honest reply, and having no open order no longer ends the delivery');
   const confirmAt = indexSrc.indexOf('if (action.type === "goods_received") {');
   check(/logged as delivery exceptions/.test(indexSrc.slice(confirmAt, confirmAt + 6000)) && /logged as delivery exceptions/.test(fs.readFileSync(path.join(srcDir, 'documents.ts'), 'utf8')), 'confirming a delivery says in words when items were logged as exceptions, on both the current and the older held-action path');
   check(/url\.pathname === "\/delivery-exceptions" && request\.method === "GET"/.test(indexSrc), 'the delivery exception report route must exist');
