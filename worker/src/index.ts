@@ -202,6 +202,56 @@ function parsePaymentDetails(raw: string): Array<{ amount: number; date: string 
     .filter((p) => !isNaN(p.amount));
 }
 
+// ---------------------------------------------------------------------------------------------------------------------------
+// Rewrite Phase 3, step 7 (2026-10-04): two things that existed twice in processOneExtraction, once in the invoice's job part and once in a spoken
+// work observation, now written once. Moved unchanged (the two copies were verified identical before they were replaced).
+// ---------------------------------------------------------------------------------------------------------------------------
+
+// The "update that job, or make a separate new one?" question as the function's whole result. Found by the characterization recordings 2026-10-03:
+// with an amount in the sentence, the invoice hold was created and then this returned only the amendment question, so a pending invoice existed that
+// the reply never mentioned (and the app only offered buttons for the amendment). The hold is still the second thing waiting; the reply now says so,
+// with its number.
+function jobAmendmentReturn(input: {
+  customer: { id: number; name: string; matched: boolean } | null;
+  character: { id: number; name: string; matched: boolean } | null;
+  amendment: NonNullable<Awaited<ReturnType<typeof checkForJobScopeAmendment>>>;
+  pendingActionId: number | null;
+  pendingActionType: string | null;
+  amount: number | null | undefined;
+}): Awaited<ReturnType<typeof processOneExtraction>> {
+  const { customer, character, amendment, pendingActionId, pendingActionType, amount } = input;
+  return {
+    customer,
+    character,
+    pendingActionId: amendment.pendingActionId,
+    factPendingActionId: null,
+    message:
+      amendment.message +
+      (pendingActionId !== null && amount
+        ? ` Your invoice for ${customer?.name ?? "the customer"} of R${amount} is also waiting for confirmation (action #${pendingActionId}).`
+        : ""),
+    jobScopeIdForProjectResolution: null,
+    pendingCandidates: null,
+    pendingActionType: "job_scope_amendment",
+    pendingChanges: amendment.changes,
+    ...(pendingActionId !== null && pendingActionType ? { alsoPending: [{ id: pendingActionId, type: pendingActionType }] } : {}),
+  };
+}
+
+// What a recorded job observation reports back to the reply.
+function recordedObservationResult(
+  recorded: Awaited<ReturnType<typeof recordWorkObservation>>,
+  observation: Awaited<ReturnType<typeof extractWorkObservation>>
+) {
+  return {
+    jobScopeId: recorded.jobScopeId,
+    componentCount: observation.components.length,
+    taskCount: observation.tasks.length,
+    installerConflict: recorded.installerConflict,
+    scheduledDate: recorded.scheduledDate,
+  };
+}
+
 // Real feature 2026-07-13 — the reusable core of what used to be the
 // whole of processTranscript, now callable once per item in a
 // multi-intent message instead of once per raw message. Internal
@@ -809,39 +859,14 @@ async function processOneExtraction(
       const effectiveObservation = sameWork ? { ...observation, components: [], tasks: [] } : observation;
       const amendment = await checkForJobScopeAmendment(env, customer.id, effectiveObservation, installerId, observation.installer_name, transcript, captureId);
       if (amendment) {
-        return {
-          customer,
-          character,
-          pendingActionId: amendment.pendingActionId,
-          factPendingActionId: null,
-          // Found by the characterization recordings 2026-10-03: with an amount in the sentence, the invoice hold was
-          // created above and then this returned only the amendment question, so a pending invoice existed that the
-          // reply never mentioned (and the app only offered buttons for the amendment). The hold is still the
-          // second thing waiting; the reply now says so, with its number.
-          message:
-            amendment.message +
-            (pendingActionId !== null && extraction?.amount
-              ? ` Your invoice for ${customer?.name ?? "the customer"} of R${extraction.amount} is also waiting for confirmation (action #${pendingActionId}).`
-              : ""),
-          jobScopeIdForProjectResolution: null,
-          pendingCandidates: null,
-          pendingActionType: "job_scope_amendment",
-          pendingChanges: amendment.changes,
-          ...(pendingActionId !== null && pendingActionType ? { alsoPending: [{ id: pendingActionId, type: pendingActionType }] } : {}),
-        };
+        return jobAmendmentReturn({ customer, character, amendment, pendingActionId, pendingActionType, amount: extraction?.amount });
       }
 
       if (sameWork) {
         invoiceMatchedJob = sameWork;
       } else {
         const recorded = await recordWorkObservation(env, customer.id, observation, transcript, installerId, captureId);
-        workObservationResult = {
-          jobScopeId: recorded.jobScopeId,
-          componentCount: observation.components.length,
-          taskCount: observation.tasks.length,
-          installerConflict: recorded.installerConflict,
-          scheduledDate: recorded.scheduledDate,
-        };
+        workObservationResult = recordedObservationResult(recorded, observation);
       }
     }
   }
@@ -1087,36 +1112,11 @@ async function processOneExtraction(
       // above, and was never checked before this.
       const amendment = await checkForJobScopeAmendment(env, customer?.id ?? null, observation, installerId, observation.installer_name, transcript, captureId);
       if (amendment) {
-        return {
-          customer,
-          character,
-          pendingActionId: amendment.pendingActionId,
-          factPendingActionId: null,
-          // Found by the characterization recordings 2026-10-03: with an amount in the sentence, the invoice hold was
-          // created above and then this returned only the amendment question, so a pending invoice existed that the
-          // reply never mentioned (and the app only offered buttons for the amendment). The hold is still the
-          // second thing waiting; the reply now says so, with its number.
-          message:
-            amendment.message +
-            (pendingActionId !== null && extraction?.amount
-              ? ` Your invoice for ${customer?.name ?? "the customer"} of R${extraction.amount} is also waiting for confirmation (action #${pendingActionId}).`
-              : ""),
-          jobScopeIdForProjectResolution: null,
-          pendingCandidates: null,
-          pendingActionType: "job_scope_amendment",
-          pendingChanges: amendment.changes,
-          ...(pendingActionId !== null && pendingActionType ? { alsoPending: [{ id: pendingActionId, type: pendingActionType }] } : {}),
-        };
+        return jobAmendmentReturn({ customer, character, amendment, pendingActionId, pendingActionType, amount: extraction?.amount });
       }
 
       recorded = await recordWorkObservation(env, customer?.id ?? null, observation, transcript, installerId, captureId);
-      workObservationResult = {
-        jobScopeId: recorded.jobScopeId,
-        componentCount: observation.components.length,
-        taskCount: observation.tasks.length,
-        installerConflict: recorded.installerConflict,
-        scheduledDate: recorded.scheduledDate,
-      };
+      workObservationResult = recordedObservationResult(recorded, observation);
     }
 
     // Real fix 2026-07-15 — Layer 1 (Constitution Principle 28): a

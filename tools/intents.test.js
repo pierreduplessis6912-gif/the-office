@@ -77,7 +77,9 @@ module.exports = async function runIntentTests({ check, bundleTo, srcDir, fs, pa
     }
     if (/^}\s*$/.test(lines[i]) && i > 5) break;   // end of the function
   }
-  check(sites.length === 10, `processOneExtraction has 10 multi-line return sites (9 early, 1 final); it now has ${sites.length}, so the adapter's rules must be re-checked against the new site before this number is changed`);
+  // Rewrite Phase 3, step 7: two of the ten (the "update that job?" hold, identical in the invoice's job part and in a spoken observation) became calls to ONE helper,
+  // jobAmendmentReturn, so the function has 8 object-literal sites (7 early, 1 final) plus two calls. The helper's own site is held to the same rules just below.
+  check(sites.length === 8, `processOneExtraction has 8 multi-line return sites (7 early, 1 final) plus two calls to jobAmendmentReturn; it now has ${sites.length}, so the adapter's rules must be re-checked against the new site before this number is changed`);
   sites.forEach((s, n) => {
     const where = `return site ${n + 1} of ${sites.length}`;
     if (s.id === 'null') check(s.type === 'null' && s.cand === 'null' && s.chg === 'null', `${where}: with no action id, the type, candidates and changes must all be null`);
@@ -90,7 +92,14 @@ module.exports = async function runIntentTests({ check, bundleTo, srcDir, fs, pa
   // Every object-literal return in the function is a result site (no inner closure returns one), so counting
   // them in ANY formatting catches a new site written on one line, which the multi-line parse above cannot see.
   const anyReturns = (fnBody.match(/\breturn\s*\{/g) || []).length;
-  check(anyReturns === 10 && anyReturns === sites.length, `every object-literal return in processOneExtraction must be a result site the adapter's rules were checked against (found ${anyReturns} in any formatting, ${sites.length} multi-line)`);
+  check(anyReturns === 8 && anyReturns === sites.length, `every object-literal return in processOneExtraction must be a result site the adapter's rules were checked against (found ${anyReturns} in any formatting, ${sites.length} multi-line)`);
+  // The shape moved into the helper must still obey the adapter's rules, exactly as the two sites it replaced did.
+  const helperStart = indexSrc.indexOf('function jobAmendmentReturn(');
+  const helperSrc = helperStart > 0 ? indexSrc.slice(helperStart, indexSrc.indexOf('\n}\n', helperStart)) : '';
+  check(helperSrc.length > 300, 'could not isolate jobAmendmentReturn');
+  check(/pendingActionId: amendment\.pendingActionId,/.test(helperSrc) && /pendingActionType: "job_scope_amendment",/.test(helperSrc) && /pendingChanges: amendment\.changes,/.test(helperSrc) && /pendingCandidates: null,/.test(helperSrc) && /factPendingActionId: null,/.test(helperSrc) && /jobScopeIdForProjectResolution: null,/.test(helperSrc), 'jobAmendmentReturn: an action id comes with its type, changes only accompany a job_scope_amendment hold, and it carries no candidates, fact hold or job scope');
+  check((fnBody.match(/return jobAmendmentReturn\(/g) || []).length === 2, 'the two former "update that job?" return sites must each be one call to jobAmendmentReturn');
+  check((indexSrc.match(/pendingActionType: "job_scope_amendment"/g) || []).length === 1, 'the job_scope_amendment result must be written once, in the helper');
   const idWrites = (fnBody.match(/^\s+pendingActionId = /gm) || []).length, typeWrites = (fnBody.match(/^\s+pendingActionType = /gm) || []).length;
   check(idWrites > 0 && idWrites === typeWrites, `every assignment of pendingActionId must be paired with one of pendingActionType (found ${idWrites} and ${typeWrites}), which is what lets the final return be well-formed`);
 
