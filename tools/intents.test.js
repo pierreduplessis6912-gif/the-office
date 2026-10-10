@@ -94,12 +94,14 @@ module.exports = async function runIntentTests({ check, bundleTo, srcDir, fs, pa
   const anyReturns = (fnBody.match(/\breturn\s*\{/g) || []).length;
   check(anyReturns === 8 && anyReturns === sites.length, `every object-literal return in processOneExtraction must be a result site the adapter's rules were checked against (found ${anyReturns} in any formatting, ${sites.length} multi-line)`);
   // The shape moved into the helper must still obey the adapter's rules, exactly as the two sites it replaced did.
-  const helperStart = indexSrc.indexOf('function jobAmendmentReturn(');
-  const helperSrc = helperStart > 0 ? indexSrc.slice(helperStart, indexSrc.indexOf('\n}\n', helperStart)) : '';
+  // Rewrite Phase 3, step 8: the helper moved with the job-pricing region into intents/job-pricing.ts.
+  const jpSrc = fs.readFileSync(path.join(srcDir, 'intents', 'job-pricing.ts'), 'utf8');
+  const helperStart = jpSrc.indexOf('function jobAmendmentReturn(');
+  const helperSrc = helperStart > 0 ? jpSrc.slice(helperStart, jpSrc.indexOf('\n}\n', helperStart)) : '';
   check(helperSrc.length > 300, 'could not isolate jobAmendmentReturn');
   check(/pendingActionId: amendment\.pendingActionId,/.test(helperSrc) && /pendingActionType: "job_scope_amendment",/.test(helperSrc) && /pendingChanges: amendment\.changes,/.test(helperSrc) && /pendingCandidates: null,/.test(helperSrc) && /factPendingActionId: null,/.test(helperSrc) && /jobScopeIdForProjectResolution: null,/.test(helperSrc), 'jobAmendmentReturn: an action id comes with its type, changes only accompany a job_scope_amendment hold, and it carries no candidates, fact hold or job scope');
-  check((fnBody.match(/return jobAmendmentReturn\(/g) || []).length === 2, 'the two former "update that job?" return sites must each be one call to jobAmendmentReturn');
-  check((indexSrc.match(/pendingActionType: "job_scope_amendment"/g) || []).length === 1, 'the job_scope_amendment result must be written once, in the helper');
+  check((jpSrc.match(/terminal: jobAmendmentReturn\(/g) || []).length === 2 && (fnBody.match(/jobAmendmentReturn\(/g) || []).length === 0, 'the two former "update that job?" return sites must each be one call to jobAmendmentReturn, now inside the job-pricing handler');
+  check((indexSrc.match(/pendingActionType: "job_scope_amendment"/g) || []).length === 0 && (jpSrc.match(/pendingActionType: "job_scope_amendment"/g) || []).length === 1, 'the job_scope_amendment result must be written once, in the helper');
   const idWrites = (fnBody.match(/^\s+pendingActionId = /gm) || []).length, typeWrites = (fnBody.match(/^\s+pendingActionType = /gm) || []).length;
   check(idWrites > 0 && idWrites === typeWrites, `every assignment of pendingActionId must be paired with one of pendingActionType (found ${idWrites} and ${typeWrites}), which is what lets the final return be well-formed`);
 
@@ -164,6 +166,7 @@ module.exports = async function runIntentTests({ check, bundleTo, srcDir, fs, pa
   // dispatcher table) must still be unreachable from outside src/intents, and only index.ts may import the handler.
   const importsOf = (name) => srcFiles.filter((f) => new RegExp('from\\s+["\']\\./intents/' + name + '["\']').test(fs.readFileSync(path.join(srcDir, f), 'utf8')));
   check(importsOf('result').length === 0 && importsOf('dispatcher').length === 0, `nothing outside src/intents may import the unfinished scaffold (result: ${importsOf('result').join(', ') || 'none'}; dispatcher: ${importsOf('dispatcher').join(', ') || 'none'})`);
+  check(sameJson(importsOf('job-pricing'), ['index.ts']), `only index.ts may import the job-pricing handler (imported by: ${importsOf('job-pricing').join(', ') || 'none'})`);
   check(sameJson(importsOf('procurement'), ['index.ts']), `only index.ts may import the procurement handler (imported by: ${importsOf('procurement').join(', ') || 'none'})`);
   check(sameJson(importsOf('snags-leads'), ['index.ts']), `only index.ts may import the snags-and-leads handler (imported by: ${importsOf('snags-leads').join(', ') || 'none'})`);
   check(sameJson(importsOf('stock'), ['index.ts']), `only index.ts may import the stock handler (imported by: ${importsOf('stock').join(', ') || 'none'})`);
