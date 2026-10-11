@@ -6735,3 +6735,10 @@ Pierre said "Order 20 bags of screed from TAL for jenny". The app asked whether 
 - **`index.ts` is still 105 lines.** It holds the routes and the other large functions, which Phase 3 did not touch (`processTranscript`, the confirm and reject routes and the rest).
 - **The guards read source text.** Many of them are searches of the code for its shape; they proved their worth (each move was checked by deliberately breaking it) but they are brittle by nature, and a real fix for that is typed contracts, not more text searches.
 - **Real-model behaviour was never re-tested.** Everything was verified against the scripted recordings; nothing here has been looked at on the phone. The phone checks, the Codemagic rebuild (long replies scroll; Same person / Different buttons) and the timing readout (`GET /debug/timings`, admin key) are all still waiting.
+
+
+---
+
+## Phone verification after Phase 3
+
+**Reported by Pierre, 2026-10-04: "Tests ran, all came back perfect."** Recorded as his report, not as a checked result. **What is not known:** which of the phone checks he ran (the list is the "Needs a live check only a phone can give" section of `OPEN_QUESTIONS.md`), whether the app was rebuilt first (the long-reply scrolling and the Same person / Different buttons need a Codemagic rebuild), and what the timing route showed (`GET /debug/timings`, admin key), so the latency question is **still open**. What it does support: the refactor, which was verified only against scripted recordings, behaved correctly on the real model and phone in at least the flows he exercised. It does not replace itemised checks, and the section's items stay listed until each is confirmed.

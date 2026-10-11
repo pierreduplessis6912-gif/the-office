@@ -31,6 +31,10 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
 
 ## B. Needs a live check only a phone can give
 
+*2026-10-04: Pierre reported that the phone tests he ran after Phase 3 "all came back perfect". The result was not itemised, so none of the
+items below is ticked off on that report alone; each stays listed until it is confirmed individually, or Pierre says which ones were covered.*
+
+
 12. **The Codemagic rebuild**: the Confirm/Reject buttons for a follow-up question raised by a confirm ("Add to stock?",
     and a replayed invoice after an identity question). The web build compiled the change; the phone build is unverified.
 13. **A live multi-order or partial delivery**, and the exception report after it. Verified on a real database and by
@@ -108,16 +112,18 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
 
 ## E. Engineering
 
-19. **Characterization coverage.** All of `processOneExtraction` is recorded (about 260 cases), its caller
-    `processTranscript` (19), the confirm and reject routes (51) and the upload handlers (50: documents, photos, voice
-    notes, with real PDFs and document-versus-photo pairs). About 380 cases in all, run through the real request handler
-    and the real auth gate where a route is involved.
+19. **Characterization coverage.** 751 recorded cases in all (4,891 checks), covering everything `processOneExtraction` did (now in 14 modules and an
+    orchestrator of 105 lines), its caller `processTranscript`, the confirm and reject routes, the upload handlers (documents, photos, voice
+    notes, with real PDFs and document-versus-photo pairs), the permission grid and the admin timing route, run through the real request
+    handler and the real auth gate where a route is involved. Every Phase 3 step passed with all 751 untouched.
 20. **Not recorded: the remaining routes.** The list screens, the document downloads (the PDF renderer), sign-in, and the
     `/admin` and `/debug` routes. The risky paths (dictation, confirmation, uploads) are all recorded.
-21. **Phase 3 itself** (the first real handler reproducing its recording exactly) has not started. **Recommended first
-    move:** the supplier-document decision section that exists twice, identically, in the document and photo upload
-    handlers (131 lines): it is fully recorded, duplicated, and a single shared function removes the chance of the copies
-    drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
+21. **Phase 3 is complete (2026-10-04)** and was checked only against the scripted recordings and, per Pierre's report, the phone tests (see
+    `DECISIONS.md`, "Phone verification after Phase 3"). **What it did not do** (`DECISIONS.md`, "Phase 3 summary"): the Phase 1 result
+    contract (`ProcessingResult` and its adapter) was never adopted, so the handlers return their own shapes; replies are composed in
+    one place from 16 inputs rather than by each group; `index.ts` is still 3,669 lines (the routes and other large functions were not
+    touched); and the guards read source text, which is brittle. *Option:* adopt the contract so the orchestrator stops copying five
+    handlers' held actions into its own variables, and replace the text guards with typed ones.
 22. **Where does the latency Pierre has noticed come from? (instrumented 2026-10-04; waiting for data.)** Measured (`DECISIONS.md`, "Performance
     check"): the Phase 3 work and features add no model calls and about 0.9% more database calls, so they do not explain it. A per-request
     timing breakdown is now built (`GET /debug/timings`, admin key; model versus database time per route). *To do:* after the next phone
@@ -130,6 +136,7 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     message; it is not yet identified, and whether it costs anything in production depends on whether the "create once" caches survive
     between requests (they are keyed on the database binding). The spoken lookups that read the order link or cancellation tables (open
     orders, link, cancel) also still create them.
+
 ## Settled (kept so the reasoning is not lost)
 
 - 2026-10-04, decided by Pierre (after the phone tests):
