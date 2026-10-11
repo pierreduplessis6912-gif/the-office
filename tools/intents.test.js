@@ -173,9 +173,11 @@ module.exports = async function runIntentTests({ check, bundleTo, srcDir, fs, pa
   // dispatcher table) must still be unreachable from outside src/intents, and only index.ts may import the handler.
   const importsOf = (name) => srcFiles.filter((f) => new RegExp('from\\s+["\']\\./intents/' + name + '["\']').test(fs.readFileSync(path.join(srcDir, f), 'utf8')));
   check(importsOf('result').length === 0 && importsOf('dispatcher').length === 0, `nothing outside src/intents may import the unfinished scaffold (result: ${importsOf('result').join(', ') || 'none'}; dispatcher: ${importsOf('dispatcher').join(', ') || 'none'})`);
+  check(sameJson(importsOf('reply'), ['index.ts']), `only index.ts may import the reply composer (imported by: ${importsOf('reply').join(', ') || 'none'})`);
   check(sameJson(importsOf('payments'), ['index.ts']), `only index.ts may import the payments handler (imported by: ${importsOf('payments').join(', ') || 'none'})`);
   check(sameJson(importsOf('facts-notes'), ['index.ts']), `only index.ts may import the facts-and-notes handler (imported by: ${importsOf('facts-notes').join(', ') || 'none'})`);
-  check(sameJson(importsOf('lookup'), ['index.ts']), `only index.ts may import the lookup handler (imported by: ${importsOf('lookup').join(', ') || 'none'})`);
+  // Rewrite Phase 3, step 13: the lookup is asked by the reply module (inside intents/), so nothing at the top level imports it.
+  check(importsOf('lookup').length === 0 && /from "\.\/lookup"/.test(fs.readFileSync(path.join(srcDir, 'intents', 'reply.ts'), 'utf8')), `only the reply composer (intents/reply.ts) may import the lookup handler (imported at the top level by: ${importsOf('lookup').join(', ') || 'none'})`);
   check(sameJson(importsOf('opening'), ['index.ts']), `only index.ts may import the opening-step handler (imported by: ${importsOf('opening').join(', ') || 'none'})`);
   check(sameJson(importsOf('job-pricing'), ['index.ts']), `only index.ts may import the job-pricing handler (imported by: ${importsOf('job-pricing').join(', ') || 'none'})`);
   check(sameJson(importsOf('procurement'), ['index.ts']), `only index.ts may import the procurement handler (imported by: ${importsOf('procurement').join(', ') || 'none'})`);

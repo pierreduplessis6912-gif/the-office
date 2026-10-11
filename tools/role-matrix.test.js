@@ -89,6 +89,8 @@ async function expect(role, method, path, want) {
   const sharedSrc = fs.readFileSync(path.join(srcDir, 'intents', 'supplier-document.ts'), 'utf8');
   // Rewrite Phase 3, step 6: dictation (purchase order, goods received, supplier invoice, variance disposition) lives in intents/procurement.ts.
   const procurementSrc = fs.readFileSync(path.join(srcDir, 'intents', 'procurement.ts'), 'utf8');
+  // Rewrite Phase 3, step 13: what the person is told (the whole reply chain) lives in intents/reply.ts.
+  const replySrc = fs.readFileSync(path.join(srcDir, 'intents', 'reply.ts'), 'utf8');
   // Rewrite Phase 3, step 12: money said out loud (a customer paid, an expense, a payment to a supplier) lives in intents/payments.ts.
   const paymentsSrc = fs.readFileSync(path.join(srcDir, 'intents', 'payments.ts'), 'utf8');
   // Rewrite Phase 3, step 11: facts, notes and reminders live in intents/facts-notes.ts.
@@ -216,19 +218,19 @@ async function expect(role, method, path, want) {
   check((indexSrc.match(/handleOrderHolds\(env,/g) || []).length === 1 && (indexSrc.match(/handleOrderRecords\(env,/g) || []).length === 1, 'index.ts must call handleOrderHolds and handleOrderRecords exactly once each');
   check(indexSrc.indexOf('handleOrderHolds(env,') > 0 && indexSrc.indexOf('handleOrderHolds(env,') < indexSrc.indexOf('handleOrderRecords(env,'), 'the held order actions must still be decided before the two that write immediately (the order of database writes must not change)');
   check(/orderHoldsResult\.pendingActionId !== null/.test(indexSrc) && /pendingActionId = orderHoldsResult\.pendingActionId/.test(indexSrc) && /pendingActionType = orderHoldsResult\.pendingActionType/.test(indexSrc), 'the held action\'s number and type must be handed back to the caller');
-  check(/else if \(orderHoldsResult\) \{\s*message = orderHoldsResult\.message;/.test(indexSrc) && /else if \(orderRecordsResult\) \{\s*message = orderRecordsResult\.message;/.test(indexSrc), 'the order handlers\' replies must be used as the message');
+  check(/else if \(orderHoldsResult\) \{\s*message = orderHoldsResult\.message;/.test(replySrc) && /else if \(orderRecordsResult\) \{\s*message = orderRecordsResult\.message;/.test(replySrc), 'the order handlers\' replies must be used as the message');
   for (const gone of ['cancelOrderHold', 'reopenOrderHold', 'linkOrderHold', 'supplierStatementReply', 'unitConversionMessage', 'holdForConfirmation(env, "cancel_order"', 'holdForConfirmation(env, "reopen_order"', 'holdForConfirmation(env,\n          "link_order"', 'recordSupplierStatement(', 'setUnitConversion(', 'forgetUnitConversions(']) check(!indexSrc.includes(gone), `index.ts must not carry its own copy of order management (found: ${gone.replace(/\n\s*/g, ' ')})`);
   for (const must of ['holdForConfirmation(env, "cancel_order"', 'holdForConfirmation(env, "reopen_order"', '"link_order"', 'recordSupplierStatement(', 'setUnitConversion(', 'forgetUnitConversions(']) check(orderAdminSrc.includes(must), `intents/order-admin.ts must hold or record: ${must}`);
   // Rewrite Phase 3, step 4: stock (register an item, usage, stocktake) lives in intents/stock.ts. Nothing may grow back in index.ts.
   const stockSrc = fs.readFileSync(path.join(srcDir, 'intents', 'stock.ts'), 'utf8');
   check((indexSrc.match(/handleStock\(env,/g) || []).length === 1, 'index.ts must call handleStock exactly once');
-  check(/else if \(stockResult\) \{\s*message = stockResult\.message;/.test(indexSrc), 'the stock handler\'s reply must be used as the message');
+  check(/else if \(stockResult\) \{\s*message = stockResult\.message;/.test(replySrc), 'the stock handler\'s reply must be used as the message');
   for (const gone of ['registerStockItem(', 'recordStockUsage(', 'recordStocktake(', 'extractStockUsage(', 'extractStocktake(', 'extractStockItemRegistration(', 'stockRegistrationResult', 'stockUsageResult', 'stocktakeResult', 'stockUnitQuestion']) check(!indexSrc.includes(gone), `index.ts must not carry its own copy of the stock logic (found: ${gone})`);
   for (const must of ['registerStockItem(', 'recordStockUsage(', 'recordStocktake(', 'checkStockUnit(', 'getTrackedStockItems(']) check(stockSrc.includes(must), `intents/stock.ts must do: ${must}`);
   // Rewrite Phase 3, step 5: snags and leads live in intents/snags-leads.ts. Nothing may grow back in index.ts.
   const snagsLeadsSrc = fs.readFileSync(path.join(srcDir, 'intents', 'snags-leads.ts'), 'utf8');
   check((indexSrc.match(/handleSnagsAndLeads\(env,/g) || []).length === 1, 'index.ts must call handleSnagsAndLeads exactly once');
-  check(/else if \(snagsLeadsResult\) \{\s*message = snagsLeadsResult\.message;/.test(indexSrc), 'the snags-and-leads reply must be used as the message');
+  check(/else if \(snagsLeadsResult\) \{\s*message = snagsLeadsResult\.message;/.test(replySrc), 'the snags-and-leads reply must be used as the message');
   // The plain REST routes (resolve a snag, mark a lead lost) legitimately use resolveSnag and markLeadLost themselves, so this guard reads only the big function.
   const poeStart = indexSrc.indexOf('async function processOneExtraction(');
   const poeSrc = indexSrc.slice(poeStart, indexSrc.indexOf('\n}\n', poeStart));
@@ -240,7 +242,7 @@ async function expect(role, method, path, want) {
   // action must never be lost: the handler hands back its number and type even when no reply branch matched, and the reply is used only when there is one.
   check((indexSrc.match(/handleProcurement\(env,/g) || []).length === 1, 'index.ts must call handleProcurement exactly once');
   check(/procurementResult\.pendingActionId !== null/.test(indexSrc) && /pendingActionId = procurementResult\.pendingActionId/.test(indexSrc) && /pendingActionType = procurementResult\.pendingActionType/.test(indexSrc), 'the procurement handler\'s held action (number and type) must be handed back to the caller');
-  check(/else if \(procurementResult && procurementResult\.message !== null\) \{\s*message = procurementResult\.message;/.test(indexSrc), 'the procurement reply must be used only when there is one (a held action must never be lost to a missing reply)');
+  check(/else if \(procurementResult && procurementResult\.message !== null\) \{\s*message = procurementResult\.message;/.test(replySrc), 'the procurement reply must be used only when there is one (a held action must never be lost to a missing reply)');
   check(/return \{ message, pendingActionId, pendingActionType \};/.test(procurementSrc) && !/if \(message === null\) return null;/.test(procurementSrc), 'the procurement handler must return the held action even when no reply matched');
   const poeStart6 = indexSrc.indexOf('async function processOneExtraction(');
   const poeSrc6 = indexSrc.slice(poeStart6, indexSrc.indexOf('\n}\n', poeStart6));
@@ -253,8 +255,7 @@ async function expect(role, method, path, want) {
   check(/if \(jobPricing\.terminal\) return jobPricing\.terminal;/.test(indexSrc), 'a finished result from the job-pricing handler (the "update that job?" question) must be returned at once');
   check(/customer = jobPricing\.customer;/.test(indexSrc) && /pendingActionId = jobPricing\.pendingActionId;/.test(indexSrc) && /pendingActionType = jobPricing\.pendingActionType;/.test(indexSrc), 'the customer the handler found and the action it held must be handed back to the caller');
   const jpStateKeys = (jobPricingSrc.match(/export interface JobPricingState \{([\s\S]*?)\n\}/)[1].match(/^\s{2}(\w+):/gm) || []).map((s) => s.trim().replace(':', '')).sort();
-  const jpDestructure = ((indexSrc.match(/const \{ ([\w, ]+) \} = jobPricing\.state!;/) || [,''])[1]).split(',').map((s) => s.trim()).sort();
-  check(jpStateKeys.length === 10 && JSON.stringify(jpStateKeys) === JSON.stringify(jpDestructure), `the ten values the reply code reads must all come back under their original names (state: ${jpStateKeys.join(', ')}; destructured: ${jpDestructure.join(', ')})`);
+  check(jpStateKeys.length === 10 && /const jobState = jobPricing\.state!;/.test(indexSrc) && /jobPricing: jobState,/.test(indexSrc) && /jobState\.workObservationResult\?\.jobScopeId \?\? jobState\.jobScopeIdForPricing/.test(indexSrc), `all ten job-pricing values (${jpStateKeys.join(', ')}) must travel together as one object to the reply and the final return`);
   check(new RegExp('state: \\{ ' + jpStateKeys.join(', ') + ' \\}').test(jobPricingSrc), 'the handler\'s final return must hand back every one of the ten values');
   check((jobPricingSrc.match(/return \{ terminal: jobAmendmentReturn\(/g) || []).length === 2 && (jobPricingSrc.match(/state: null \};/g) || []).length === 2 && (jobPricingSrc.match(/return \{ terminal: null,/g) || []).length === 1, 'the handler must have exactly two early returns (state null: later variables do not exist yet) and one final return');
   const poeStart8 = indexSrc.indexOf('async function processOneExtraction(');
@@ -274,8 +275,8 @@ async function expect(role, method, path, want) {
   for (const gone of ['await reconcileCustomer(', 'await reconcileCharacter(', 'reconcilePerson(', 'intentCreationRefusal(extraction?.intent', 'findExistingCustomerByName(', 'findExistingCharacterByName(', 'ctx.waitUntil(setSelection(', 'ctx.waitUntil(updateCaptureHint(', 'logInteractionEdge(', 'canResolveActionType(']) check(!poeSrc9.includes(gone), `processOneExtraction must not carry its own copy of the opening step (found: ${gone}); a lookup may still check a permission with intentCreationRefusal, but the gate on the sentence's own intent belongs to the opening step`);
   for (const must of ['await reconcileCustomer(', 'await reconcileCharacter(', 'reconcilePerson(', 'intentCreationRefusal(', 'ctx.waitUntil(setSelection(', 'ctx.waitUntil(updateCaptureHint(', 'canResolveActionType(']) check(openingSrc.includes(must), `intents/opening.ts must do: ${must}`);
   // Rewrite Phase 3, step 10: answering a question (every lookup scope) lives in intents/lookup.ts. The branch CONDITION stays in the reply chain.
-  check((indexSrc.match(/answerLookup\(env,/g) || []).length === 1, 'index.ts must call answerLookup exactly once');
-  check(/else if \(extraction\?\.intent === "lookup"\) \{\s*(\/\/[^\n]*\n\s*)*message = await answerLookup\(env, \{ extraction, transcript, history, capabilities, customer, character \}\);/.test(indexSrc), 'the lookup branch must stay in the reply chain, and its answer must be the message');
+  check((replySrc.match(/answerLookup\(env,/g) || []).length === 1 && !/answerLookup\(/.test(indexSrc.replace(/^import[^\n]*\n/gm, '')), 'the reply (intents/reply.ts) must call answerLookup exactly once, and the orchestrator not at all');
+  check(/else if \(extraction\?\.intent === "lookup"\) \{\s*(\/\/[^\n]*\n\s*)*message = await answerLookup\(env, \{ extraction, transcript, history, capabilities, customer, character \}\);/.test(replySrc), 'the lookup branch must stay in the reply chain, and its answer must be the message');
   const poeStart10 = indexSrc.indexOf('async function processOneExtraction(');
   const poeSrc10 = indexSrc.slice(poeStart10, indexSrc.indexOf('\n}\n', poeStart10));
   for (const gone of ['answerFromMemory(', 'deliveryExceptionAnswer(', 'asksAboutDeliveryExceptions(', 'openOrdersAnswer(', 'supplierStatementsAnswer(', '__OPEN_DASHBOARD__', 'query_scope === "business"', 'query_scope === "open_orders"']) check(!poeSrc10.includes(gone), `processOneExtraction must not carry its own copy of the lookup logic (found: ${gone})`);
@@ -307,6 +308,26 @@ async function expect(role, method, path, want) {
     check(new RegExp('holdForConfirmation\\(\\s*env,\\s*"' + name + '",').test(paymentsCode) && new RegExp('pendingActionType = "' + type + '";').test(paymentsCode), `intents/payments.ts must HOLD a ${name}, and report its type`);
   }
   for (const writer of ['recordPayment(', 'recordExpense(', 'recordSupplierPayment(', 'INSERT INTO', 'UPDATE ', 'DELETE FROM', '.run(', 'ctx.waitUntil']) check(!paymentsCode.includes(writer), `money said out loud must only be HELD for confirmation, never written (found: ${writer})`);
+  // Rewrite Phase 3, step 13: what the person is told lives in intents/reply.ts, and processOneExtraction is only an orchestrator.
+  check((indexSrc.match(/composeReply\(env, \{/g) || []).length === 1, 'index.ts must call composeReply exactly once');
+  const replyCall = (indexSrc.match(/const message = await composeReply\(env, \{([\s\S]*?)\n  \}\);/) || [, ''])[1];
+  const callKeys = replyCall.replace(/facts: \{[^}]*\}/, 'facts').replace(/jobPricing: jobState/, 'jobPricing').split(',').map((s) => s.trim()).filter(Boolean).sort();
+  const replyKeys = (replySrc.match(/export interface ReplyInput \{([\s\S]*?)\n\}/)[1].match(/^\s{2}(\w+):/gm) || []).map((s) => s.trim().replace(':', '')).sort();
+  check(callKeys.length === 16 && JSON.stringify(callKeys) === JSON.stringify(replyKeys), `everything the reply reads must be passed to it, and nothing else (passed: ${callKeys.join(', ')}; read: ${replyKeys.join(', ')})`);
+  check(/facts: \{ factPendingActionId, sensitiveKind, sensitiveFactRefused, sensitiveNoteKeptOut \},/.test(indexSrc), 'the four facts-and-notes values must all be passed to the reply');
+  const poeStart13 = indexSrc.indexOf('async function processOneExtraction(');
+  const poeSrc13 = indexSrc.slice(poeStart13, indexSrc.indexOf('\n}\n', poeStart13));
+  check((poeSrc13.match(/\bmessage\s*\+?=[^=]/g) || []).length === 1 && /const message = await composeReply\(/.test(poeSrc13), 'the orchestrator must build no message itself: its only assignment to the message is the one that asks the reply module');
+  check(!/\bcompleteTask\(|\bgetOpenTasks\(|\banswerFromMemory\(|needs your confirmation|restricted for your role/.test(poeSrc13), 'processOneExtraction must carry none of the reply\'s wording or the task completion');
+  // Closing the gap a breakage exposed (an assignment to a variable NOT named `message` slipped past the check above): the orchestrator may build no text
+  // under ANY name. Read with comments removed, it may contain no template string, no `+=` and no string literal longer than 25 characters.
+  const poeCode13 = poeSrc13.replace(/\/\/.*$/gm, '');
+  check(!poeCode13.includes('`') && !poeCode13.includes('+=') && (poeCode13.match(/"([^"\n]{26,})"/g) || []).length === 0, 'the orchestrator must build no text at all, under any name: no template string, no +=, no long string literal (all wording belongs to the reply)');
+  const replyCode = replySrc.replace(/\/\/.*$/gm, '');
+  const replyAwaits = [...new Set((replyCode.match(/await (\w+)\(/g) || []).map((s) => s.replace(/await |\(/g, '')))].sort();
+  check(JSON.stringify(replyAwaits) === JSON.stringify(['answerLookup', 'completeTask', 'getOpenTasks']), `the reply may only read, ask a lookup, and complete a task: nothing else is awaited (found: ${replyAwaits.join(', ')})`);
+  for (const writer of ['holdForConfirmation(', 'INSERT INTO', 'UPDATE ', 'DELETE FROM', '.run(', 'ctx.waitUntil', 'recordPayment(', 'recordExpense(', 'recordSnag(', 'recordLead(']) check(!replyCode.includes(writer), `the reply must never write anything but a completed task (found: ${writer})`);
+  for (const must of ['completeTask(', 'getOpenTasks(', 'answerLookup(', 'needs your confirmation', 'handleOrderHolds', 'handleProcurement']) check(replySrc.includes(must), `intents/reply.ts must contain: ${must}`);
   // Source-pattern guards: both handlers must keep every guard. Crude on purpose, and mutation-checked.
   const handlerSlice = (marker) => { const a = indexSrc.indexOf(marker); const b = indexSrc.indexOf('if (url.pathname === "', a + marker.length); return indexSrc.slice(a, b); };
   for (const [name, marker, respVar] of [['/files/document', 'if (url.pathname === "/files/document"', 'docResponseBody'], ['/files/photo', 'if (url.pathname === "/files/photo"', 'photoResponseBody']]) {
