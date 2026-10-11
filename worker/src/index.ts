@@ -1,3 +1,4 @@
+import { handlePayments } from "./intents/payments";
 import { handleFactsAndNotes } from "./intents/facts-notes";
 import { answerLookup } from "./intents/lookup";
 import { breakdown, instrumentEnv, newTally, recordTiming, shouldRecordTiming } from "./timing";
@@ -183,65 +184,11 @@ async function processOneExtraction(
   extraction = opening.extraction;
   let { customer, character, pendingActionId, pendingActionType, canManageInvoicesForWrites } = opening;
 
-  // Decided by Pierre 2026-10-04: a payment with no amount is no longer held with the amount blank for you to confirm without a number. It
-  // asks "how much?" and holds nothing, as an invoice with no amount already does.
-  if (extraction?.intent === "payment" && customer && extraction.amount) {
-    const held = await holdForConfirmation(
-      env,
-      "payment",
-      { customerId: customer.id, customerName: customer.name, amount: extraction.amount },
-      transcript
-    );
-    pendingActionId = held.id;
-    pendingActionType = "payment";
-  }
-
-  // Real bug found live 2026-07-12: this required a named supplier
-  // (character) to exist before an expense would even be held for
-  // confirmation. A genuine, common case — "filled up the bakkie with
-  // diesel for R650," no supplier named at all — silently vanished
-  // with no record, no pending action, and no error, exactly the
-  // silent-loss failure mode the receptacle exists to prevent.
-  // recordExpense already correctly supports a null characterId;
-  // the guard just shouldn't have required one to exist. Fixed to
-  // require only a real amount, same pattern as invoice below.
-  if (extraction?.intent === "expense" && extraction.amount) {
-    const held = await holdForConfirmation(
-      env,
-      "expense",
-      {
-        characterId: character?.id ?? null,
-        characterName: character?.name,
-        customerId: customer?.id ?? null,
-        customerName: customer?.name,
-        amount: extraction.amount,
-        description: transcript,
-      },
-      transcript
-    );
-    pendingActionId = held.id;
-    pendingActionType = "expense";
-  }
-
-  // Real feature 2026-07-24 — the real prerequisite for Aged
-  // Creditors, guard()d the same as every other real financial write.
-  // Built in certain anticipation of a real, recurring need (a
-  // monthly supplier statement), not speculative completeness.
-  let supplierPaymentNoSupplier = false;
-  if (extraction?.intent === "supplier_payment" && extraction.amount) {
-    if (character) {
-      const held = await holdForConfirmation(
-        env,
-        "supplier_payment",
-        { characterId: character.id, characterName: character.name, amount: extraction.amount },
-        transcript
-      );
-      pendingActionId = held.id;
-      pendingActionType = "supplier_payment";
-    } else {
-      supplierPaymentNoSupplier = true;
-    }
-  }
+  // Rewrite Phase 3, step 12: money said out loud (a customer paid, an expense, a payment to a supplier), each HELD for confirmation, lives in intents/payments.ts.
+  const payments = await handlePayments(env, { extraction, transcript, customer, character, pendingActionId, pendingActionType });
+  pendingActionId = payments.pendingActionId;
+  pendingActionType = payments.pendingActionType;
+  const { supplierPaymentNoSupplier } = payments;
 
   // Rewrite Phase 3, step 2: cancelling, reopening and linking an existing order (held actions) live in intents/order-admin.ts.
   const orderHoldsResult = await handleOrderHolds(env, { extraction, transcript, character, customer });

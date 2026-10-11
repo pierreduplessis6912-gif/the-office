@@ -6690,3 +6690,18 @@ Pierre said "Order 20 bags of screed from TAL for jenny". The app asked whether 
 **New guards, aimed at the privacy-sensitive parts.** The four returned values must equal the four destructured by the caller (compared as sets, so one added to either side and not the other fails); the big function may not contain ten pieces of this logic; the module must do each of nine things; and two **orderings are pinned**: a supplier fact is checked for pay or bank details **before it can be held**, and a sentence holding a pay or bank detail is kept out of the notes (the decision is made before any note is written).
 
 **Verified:** typecheck unchanged; **4850 checks**. **Four deliberate breakages were caught:** a pay or bank detail saved as a supplier fact for a role that may not handle it; a held fact no longer reported to the reply; a sentence with a bank detail filed as a note (12 recorded cases fail); and a private copy of the notes step grown back in the big function (it was caught by the guard, and the breakage also showed how widely the helper is used). Nine imports `index.ts` no longer needed were removed.
+
+
+---
+
+## Rewrite Phase 3, step 12: money said out loud leaves processOneExtraction
+
+**What moved.** The three places a spoken sentence turns into money waiting for confirmation: **a customer paid, an expense, a payment to a supplier**. Each is **held, never written at once**. **59 lines** are now **`worker/src/intents/payments.ts`** (`handlePayments`). `processOneExtraction` is **331 lines**; `index.ts` is **331**. Moved unchanged, not rewritten.
+
+**Checked before it moved.** Nothing unrelated sat between the three blocks; the only variable they declare (whether a supplier payment named no supplier) is used by the reply code, so it is returned; they read five things and assign back only the held action's number and type, which are handed back. A sentence has exactly one intent, so only one block ever runs.
+
+**The property that matters.** **No recording changed, was removed or was added: all 751 are untouched**, and no existing guard failed (nothing had been watching this code in `index.ts`), so the guards for it are new, and they are the strongest of any move so far because this is money.
+
+**New guards.** **The module may only HOLD money for confirmation, never write it:** read with comments removed, `payments.ts` may not contain a payment, expense or supplier-payment write, an insert, an update, a delete, any `.run(`, or background work; each of the three must hold under its own name and report the matching type. **And `processOneExtraction` may no longer create a held action itself**: after this step every one is made by a handler, and a guard fails if the function makes one again. The held payment's number and type, and the "no supplier named" flag, must come back to the caller.
+
+**Verified:** typecheck unchanged; **4867 checks**. **Five deliberate breakages were caught:** a held payment no longer handed back (nothing to confirm); a supplier payment with no supplier named no longer reported; **a payment written immediately instead of held** (1,034 checks fail); the big function making a held action of its own again (515); and a held expense reported as a payment. **One apparent survivor was not real**: my search text for that last breakage had the wrong indentation, so the breakage was never applied (the tool reports exactly that); redone with the right text it was caught.

@@ -89,6 +89,8 @@ async function expect(role, method, path, want) {
   const sharedSrc = fs.readFileSync(path.join(srcDir, 'intents', 'supplier-document.ts'), 'utf8');
   // Rewrite Phase 3, step 6: dictation (purchase order, goods received, supplier invoice, variance disposition) lives in intents/procurement.ts.
   const procurementSrc = fs.readFileSync(path.join(srcDir, 'intents', 'procurement.ts'), 'utf8');
+  // Rewrite Phase 3, step 12: money said out loud (a customer paid, an expense, a payment to a supplier) lives in intents/payments.ts.
+  const paymentsSrc = fs.readFileSync(path.join(srcDir, 'intents', 'payments.ts'), 'utf8');
   // Rewrite Phase 3, step 11: facts, notes and reminders live in intents/facts-notes.ts.
   const factsNotesSrc = fs.readFileSync(path.join(srcDir, 'intents', 'facts-notes.ts'), 'utf8');
   // Rewrite Phase 3, step 10: answering a question (every lookup scope) lives in intents/lookup.ts.
@@ -292,6 +294,19 @@ async function expect(role, method, path, want) {
   for (const must of ['holdForConfirmation(', '"customer_fact"', '"character_fact"', 'appendLifeEvent(', 'appendCustomerNote(', 'appendCharacterNote(', 'createTask(', 'looksLikePayOrBankDetail(', 'mayHandleSensitiveFact(']) check(factsNotesSrc.includes(must), `intents/facts-notes.ts must do: ${must}`);
   check(factsNotesSrc.indexOf('const sensitiveFactRefused') > 0 && factsNotesSrc.indexOf('const sensitiveFactRefused') < factsNotesSrc.indexOf('"character_fact"'), 'a supplier fact must be checked for pay or bank details BEFORE it can be held (the refusal precedes the hold)');
   check(factsNotesSrc.indexOf('const sensitiveNoteKeptOut') > 0 && factsNotesSrc.indexOf('const sensitiveNoteKeptOut') < factsNotesSrc.indexOf('appendCustomerNote(') && /!sensitiveNoteKeptOut\)/.test(factsNotesSrc), 'a sentence holding a pay or bank detail must be kept out of the notes: the decision comes before any note is written');
+  // Rewrite Phase 3, step 12: money said out loud lives in intents/payments.ts. It may only HOLD money for confirmation, never write it.
+  check((indexSrc.match(/handlePayments\(env,/g) || []).length === 1, 'index.ts must call handlePayments exactly once');
+  check(/pendingActionId = payments\.pendingActionId;/.test(indexSrc) && /pendingActionType = payments\.pendingActionType;/.test(indexSrc) && /const \{ supplierPaymentNoSupplier \} = payments;/.test(indexSrc), 'the held payment\'s number and type, and whether a supplier payment named no supplier, must be handed back to the caller');
+  check(/return \{ pendingActionId, pendingActionType, supplierPaymentNoSupplier \};/.test(paymentsSrc), 'the payments handler must hand back both the held action and the flag');
+  const poeStart12 = indexSrc.indexOf('async function processOneExtraction(');
+  const poeSrc12 = indexSrc.slice(poeStart12, indexSrc.indexOf('\n}\n', poeStart12));
+  check(!poeSrc12.includes('holdForConfirmation('), 'processOneExtraction must create no held action itself any more: every one is made by a handler');
+  check(!poeSrc12.includes('supplierPaymentNoSupplier =') && !/intent === "(payment|expense|supplier_payment)"\) \{/.test(poeSrc12), 'processOneExtraction must not carry its own copy of the payment blocks');
+  const paymentsCode = paymentsSrc.replace(/\/\/.*$/gm, '');
+  for (const [name, type] of [['payment', 'payment'], ['expense', 'expense'], ['supplier_payment', 'supplier_payment']]) {
+    check(new RegExp('holdForConfirmation\\(\\s*env,\\s*"' + name + '",').test(paymentsCode) && new RegExp('pendingActionType = "' + type + '";').test(paymentsCode), `intents/payments.ts must HOLD a ${name}, and report its type`);
+  }
+  for (const writer of ['recordPayment(', 'recordExpense(', 'recordSupplierPayment(', 'INSERT INTO', 'UPDATE ', 'DELETE FROM', '.run(', 'ctx.waitUntil']) check(!paymentsCode.includes(writer), `money said out loud must only be HELD for confirmation, never written (found: ${writer})`);
   // Source-pattern guards: both handlers must keep every guard. Crude on purpose, and mutation-checked.
   const handlerSlice = (marker) => { const a = indexSrc.indexOf(marker); const b = indexSrc.indexOf('if (url.pathname === "', a + marker.length); return indexSrc.slice(a, b); };
   for (const [name, marker, respVar] of [['/files/document', 'if (url.pathname === "/files/document"', 'docResponseBody'], ['/files/photo', 'if (url.pathname === "/files/photo"', 'photoResponseBody']]) {

@@ -341,3 +341,5 @@ Phases 0, 1 and 2 are done (the permission table; the result shape as scaffoldin
 
 **Step 11 is done (2026-10-04):** facts, notes and reminders are `worker/src/intents/facts-notes.ts` (112 lines; the privacy rules about pay and bank details moved with it and are guarded). `processOneExtraction` is **385 lines**; `index.ts` 385; no recording changed. **What is left in the function:** three small payment holds (payment, expense, supplier payment), the `task_complete` block, and the reply chain with its final return.
 
+**Step 12 is done (2026-10-04):** the three payment holds (a customer paid, an expense, a payment to a supplier) are `worker/src/intents/payments.ts`, which may only hold money, never write it (guarded). **The big function now makes no held action itself.** `processOneExtraction` is **331 lines**; `index.ts` 331; no recording changed. **What is left:** the `task_complete` block and the reply chain with its final return.
+
