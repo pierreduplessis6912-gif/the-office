@@ -3210,21 +3210,35 @@ export async function getJobProfitability(
     .first<{ revenue: number; cost: number }>();
 
   // Orders placed FOR this customer that have not been invoiced yet are a cost still to come (decided by Pierre 2026-10-04): shown beside the profit.
-  await ensurePurchaseOrderLinkTable(env);
-  await ensureCancellationTable(env);
-  const committed = await env.OFFICE_DB.prepare(
-    `SELECT COUNT(DISTINCT po.id) AS orders,
-            COALESCE(SUM(CASE WHEN pl.unit_price_expected IS NOT NULL THEN pl.quantity_ordered * pl.unit_price_expected ELSE 0 END), 0) AS value,
-            COALESCE(SUM(CASE WHEN pl.unit_price_expected IS NULL THEN 1 ELSE 0 END), 0) AS unpriced
-       FROM purchase_order_customers l
-       JOIN purchase_orders po ON po.id = l.purchase_order_id
-       JOIN po_line_items pl ON pl.purchase_order_id = po.id
-      WHERE l.customer_id = ?
-        AND po.id NOT IN (SELECT purchase_order_id FROM purchase_order_cancellations)
-        AND NOT EXISTS (SELECT 1 FROM supplier_invoices si WHERE si.purchase_order_id = po.id)`
-  )
-    .bind(customerId)
-    .first<{ orders: number; value: number; unpriced: number }>();
+  // A READ does not create tables. Measured 2026-10-04: these two CREATE TABLE statements were the only extra database work a customer lookup had gained
+  // (up to three more calls than before this session's features, in the cases that look a customer up). A table that does not exist yet simply means
+  // nothing has been linked or cancelled, so it reads as "no orders"; the writers (the link, the cancellation) still create their tables on first use.
+  let committed: { orders: number; value: number; unpriced: number } | null = null;
+  // The two tables are handled SEPARATELY: no link table means no order was ever placed for a job (so nothing to add); no cancellation table only
+  // means nothing was ever cancelled (so the query runs again without that condition). The usual case, both present, is one query.
+  for (const withCancellations of [true, false]) {
+    try {
+      committed = await env.OFFICE_DB.prepare(
+        `SELECT COUNT(DISTINCT po.id) AS orders,
+                COALESCE(SUM(CASE WHEN pl.unit_price_expected IS NOT NULL THEN pl.quantity_ordered * pl.unit_price_expected ELSE 0 END), 0) AS value,
+                COALESCE(SUM(CASE WHEN pl.unit_price_expected IS NULL THEN 1 ELSE 0 END), 0) AS unpriced
+           FROM purchase_order_customers l
+           JOIN purchase_orders po ON po.id = l.purchase_order_id
+           JOIN po_line_items pl ON pl.purchase_order_id = po.id
+          WHERE l.customer_id = ?
+            ${withCancellations ? "AND po.id NOT IN (SELECT purchase_order_id FROM purchase_order_cancellations)" : ""}
+            AND NOT EXISTS (SELECT 1 FROM supplier_invoices si WHERE si.purchase_order_id = po.id)`
+      )
+        .bind(customerId)
+        .first<{ orders: number; value: number; unpriced: number }>();
+      break;
+    } catch (error) {
+      const message = String((error as { message?: string } | null)?.message ?? error);
+      if (withCancellations && /no such table:?\s*purchase_order_cancellations/i.test(message)) continue;   // nothing ever cancelled: ask again without it
+      if (/no such table/i.test(message)) break;                                                           // no link table: nothing was ever ordered for a job
+      throw error;
+    }
+  }
   const ordered = committed ?? { orders: 0, value: 0, unpriced: 0 };
 
   if (!row || (row.revenue === 0 && row.cost === 0 && ordered.orders === 0)) return null;

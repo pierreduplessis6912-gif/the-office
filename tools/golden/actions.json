@@ -3809,6 +3809,131 @@
   },
   "effects": []
  },
+ "timings (admin): a summary by route, slowest first, with the model and database share": {
+  "result": {
+   "status": 200,
+   "body": {
+    "enabled": false,
+    "requests": 5,
+    "from": "2026-10-03 09:00:00",
+    "to": "2026-10-03 09:04:00",
+    "note": "Times are in milliseconds and SUMMED across calls, so calls that overlap can add up to more than the request took. 'other' is notes store, memory search and file storage.",
+    "byPath": [
+     {
+      "route": "POST /messages/text",
+      "n": 3,
+      "p50Ms": 2400,
+      "p95Ms": 5100,
+      "meanAiMs": 2033.3,
+      "meanAiCalls": 2,
+      "meanDbMs": 483.3,
+      "meanDbCalls": 9.3,
+      "meanOtherMs": 10
+     },
+     {
+      "route": "POST /actions/:id/confirm",
+      "n": 2,
+      "p50Ms": 380,
+      "p95Ms": 520,
+      "meanAiMs": 0,
+      "meanAiCalls": 0,
+      "meanDbMs": 335,
+      "meanDbCalls": 7,
+      "meanOtherMs": 0
+     }
+    ],
+    "slowest": [
+     {
+      "at": "2026-10-03 09:02:00",
+      "route": "POST /messages/text",
+      "status": 200,
+      "totalMs": 5100,
+      "aiMs": 3900,
+      "aiCalls": 3,
+      "dbMs": 700,
+      "dbCalls": 11
+     },
+     {
+      "at": "2026-10-03 09:00:00",
+      "route": "POST /messages/text",
+      "status": 200,
+      "totalMs": 2400,
+      "aiMs": 1500,
+      "aiCalls": 2,
+      "dbMs": 450,
+      "dbCalls": 9
+     },
+     {
+      "at": "2026-10-03 09:01:00",
+      "route": "POST /messages/text",
+      "status": 200,
+      "totalMs": 1200,
+      "aiMs": 700,
+      "aiCalls": 1,
+      "dbMs": 300,
+      "dbCalls": 8
+     },
+     {
+      "at": "2026-10-03 09:04:00",
+      "route": "POST /actions/:id/confirm",
+      "status": 200,
+      "totalMs": 520,
+      "aiMs": 0,
+      "aiCalls": 0,
+      "dbMs": 410,
+      "dbCalls": 7
+     },
+     {
+      "at": "2026-10-03 09:03:00",
+      "route": "POST /actions/:id/confirm",
+      "status": 200,
+      "totalMs": 380,
+      "aiMs": 0,
+      "aiCalls": 0,
+      "dbMs": 260,
+      "dbCalls": 7
+     }
+    ]
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "timings (admin): nothing recorded yet is an empty summary, and reading it creates nothing": {
+  "result": {
+   "status": 200,
+   "body": {
+    "enabled": false,
+    "requests": 0,
+    "from": null,
+    "to": null,
+    "note": "Times are in milliseconds and SUMMED across calls, so calls that overlap can add up to more than the request took. 'other' is notes store, memory search and file storage.",
+    "byPath": [],
+    "slowest": []
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "timings (admin): a signed-in owner without the admin key is refused": {
+  "result": {
+   "status": 401,
+   "body": {
+    "error": "unauthorized"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
  "confirm identity question: owner, the name belongs to an installer": {
   "result": {
    "status": 200,

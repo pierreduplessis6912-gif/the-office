@@ -27,6 +27,8 @@ export interface Env {
   // can be verified on every subsequent request without re-running
   // the OAuth dance each time.
   SESSION_SECRET: string;
+  // Set to "1" in wrangler.toml to time every request by kind of call (see timing.ts). Absent everywhere else, including the tests, which therefore run unchanged.
+  RECORD_TIMINGS?: string;
 }
 
 export interface Extraction {

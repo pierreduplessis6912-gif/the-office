@@ -1,0 +1,91 @@
+// Tests for the per-request timing breakdown (added 2026-10-04 after Pierre noticed latency): it must only ever OBSERVE.
+module.exports = async function runTimingTests({ check, bundleTo, srcDir, path, fs }) {
+  const T = bundleTo('timing.ts', 'rm-timing.js');
+  const { newTally, instrumentEnv, breakdown, shouldRecordTiming, normalizeTimingPath, recordTiming, timingsSummary } = T;
+  const { newDatabase, d1 } = require('./harness.js');
+  const workerDir = path.join(srcDir, '..');
+
+  // ---- the wrapper, against a clock the test controls ---------------------------------------------------------------------------
+  const realNow = Date.now; let now = 1000; Date.now = () => now;
+  try {
+    const out = { x: 1 };
+    const boom = new Error('database went away');
+    const stmt = { first: async () => { now += 7; return out; }, all: async () => { now += 9; return { results: [] }; }, run: async () => { now += 5; return { success: true }; }, fails: async () => { now += 3; throw boom; } };
+    stmt.bind = () => stmt;
+    const env = {
+      ADMIN_KEY: 'k', RECORD_TIMINGS: '1',
+      OFFICE_DB: { label: 'db', prepare: () => stmt },
+      AI: { run: async () => { now += 300; return { response: 'hi' }; } },
+      CUSTOMER_NOTES: { get: async () => { now += 20; return 'v'; } },
+      MEMORY: { query: async () => { now += 40; return {}; } },
+      OFFICE_VAULT: { get: async () => { now += 11; return null; } },
+    };
+    const tally = newTally(); const e2 = instrumentEnv(env, tally);
+    check(e2.ADMIN_KEY === 'k' && e2.RECORD_TIMINGS === '1' && e2.OFFICE_DB.label === 'db', 'the timed environment keeps every other setting, and non-call properties pass straight through');
+    e2.OFFICE_DB.prepare('SELECT 1').bind(1);
+    check(tally.db.n === 0, 'preparing and binding a statement does no work and is not counted');
+    const r1 = await e2.OFFICE_DB.prepare('SELECT 1').bind(1).first();
+    check(r1 === out, 'it returns exactly what the call returned (the same object, not a copy)');
+    check(tally.db.n === 1 && tally.db.ms === 7, 'a database call is counted and timed (7 ms)');
+    await e2.OFFICE_DB.prepare('x').all(); await e2.OFFICE_DB.prepare('x').run();
+    check(tally.db.n === 3 && tally.db.ms === 7 + 9 + 5, 'every kind of database call is counted and the times add up');
+    let caught = null; try { await e2.OFFICE_DB.prepare('x').fails(); } catch (e) { caught = e; }
+    check(caught === boom && tally.db.n === 4 && tally.db.ms === 7 + 9 + 5 + 3, 'a failing call is still counted and timed, and rethrows the very same error');
+    await e2.AI.run('m', {}); await e2.CUSTOMER_NOTES.get('k'); await e2.MEMORY.query([]); await e2.OFFICE_VAULT.get('k');
+    check(tally.ai.n === 1 && tally.ai.ms === 300 && tally.kv.n === 1 && tally.kv.ms === 20 && tally.vec.n === 1 && tally.vec.ms === 40 && tally.r2.n === 1 && tally.r2.ms === 11, 'the model, notes store, memory search and file storage are each counted and timed on their own');
+    const before = JSON.stringify(tally); await env.OFFICE_DB.prepare('x').first(); await env.AI.run('m', {});
+    check(JSON.stringify(tally) === before && env.OFFICE_DB !== e2.OFFICE_DB, 'the original environment is untouched: calling it directly is not counted');
+    const b = breakdown(tally);
+    check(b.aiCalls === 1 && b.aiMs === 300 && b.dbCalls === 4 && b.dbMs === 24 && b.kvMs === 20 && b.vecMs === 40 && b.r2Ms === 11, 'the breakdown reports calls and milliseconds for each kind, under flat names for the log line');
+  } finally { Date.now = realNow; }
+
+  // ---- which requests are kept, and under what name -----------------------------------------------------------------------------
+  check(shouldRecordTiming('POST', '/messages/text') && shouldRecordTiming('POST', '/actions/12/confirm') && shouldRecordTiming('DELETE', '/x') && shouldRecordTiming('PATCH', '/x') && shouldRecordTiming('PUT', '/x'), 'requests that change something are kept');
+  check(!shouldRecordTiming('GET', '/debug/suppliers-list') && !shouldRecordTiming('OPTIONS', '/messages/text') && !shouldRecordTiming('HEAD', '/x'), 'the app\'s constant reading is never kept (it would add a write to every poll)');
+  check(!shouldRecordTiming('POST', '/debug/timings') && !shouldRecordTiming('GET', '/debug/timings'), 'the timing route never records itself');
+  check(normalizeTimingPath('/actions/123/confirm') === '/actions/:id/confirm' && normalizeTimingPath('/customers/5') === '/customers/:id' && normalizeTimingPath('/messages/text') === '/messages/text' && normalizeTimingPath('/a/12b/c') === '/a/12b/c', 'ids are folded out of the route so the same route is one row group');
+
+  // ---- recording and the rolling limit ------------------------------------------------------------------------------------------
+  const db = newDatabase(workerDir); const denv = { OFFICE_DB: d1(db), RECORD_TIMINGS: '1' };
+  const tl = (aiN, aiMs, dbN, dbMs) => { const t = newTally(); t.ai = { n: aiN, ms: aiMs }; t.db = { n: dbN, ms: dbMs }; return t; };
+  await recordTiming(denv, { method: 'POST', pathname: '/actions/12/confirm', status: 200, totalMs: 400, tally: tl(0, 0, 9, 180) }, 3);
+  const first = db.prepare('SELECT * FROM request_timings').all();
+  check(first.length === 1 && first[0].path === '/actions/:id/confirm' && first[0].total_ms === 400 && first[0].db_n === 9 && first[0].db_ms === 180 && first[0].method === 'POST', 'a request is recorded with its route (ids folded out), status, total and per-kind counts and times');
+  for (let i = 2; i <= 5; i++) await recordTiming(denv, { method: 'POST', pathname: '/messages/text', status: 200, totalMs: i * 100, tally: tl(1, i * 60, 8, i * 10) }, 3);
+  const kept = db.prepare('SELECT total_ms FROM request_timings ORDER BY id').all().map((r) => r.total_ms);
+  check(kept.length === 3 && kept[0] === 300 && kept[2] === 500, 'only the most recent are kept (here 3 of 5), so the history can never grow without limit');
+
+  // ---- the summary --------------------------------------------------------------------------------------------------------------
+  const db2 = newDatabase(workerDir); const env2 = { OFFICE_DB: d1(db2), RECORD_TIMINGS: '1' };
+  const empty = await timingsSummary({ OFFICE_DB: d1(newDatabase(workerDir)) });
+  check(empty.requests === 0 && empty.byPath.length === 0 && empty.enabled === false, 'with nothing recorded (no table yet) the summary is empty, and says timing is not switched on');
+  check(db2.prepare("SELECT name FROM sqlite_master WHERE name = 'request_timings'").all().length === 0, 'and reading a summary does not create the table');
+  for (let i = 1; i <= 10; i++) await recordTiming(env2, { method: 'POST', pathname: '/messages/text', status: 200, totalMs: i * 100, tally: tl(1, i * 50, 8, i * 10) });
+  await recordTiming(env2, { method: 'POST', pathname: '/actions/7/confirm', status: 200, totalMs: 120, tally: tl(0, 0, 6, 60) });
+  const s = await timingsSummary(env2);
+  const msg = s.byPath.find((r) => r.route === 'POST /messages/text');
+  check(s.enabled === true && s.requests === 11 && s.byPath.length === 2, 'the summary counts the requests and groups them by route');
+  check(msg.n === 10 && msg.p50Ms === 500 && msg.p95Ms === 1000, 'it reports the median and the 95th percentile (100 to 1000 ms: 500 and 1000)');
+  check(msg.meanAiMs === 275 && msg.meanAiCalls === 1 && msg.meanDbMs === 55 && msg.meanDbCalls === 8, 'and how much of the time went to the model and to the database, with how many calls');
+  check(s.byPath[0].route === 'POST /messages/text', 'routes are listed slowest first');
+  check(s.slowest.length === 10 && s.slowest[0].totalMs === 1000 && s.slowest[0].aiMs === 500 && s.slowest[9].totalMs <= s.slowest[0].totalMs, 'the slowest requests are listed with their breakdown, slowest first');
+
+  // ---- it can only observe: the Worker's front door ------------------------------------------------------------------------------
+  const indexSrc = fs.readFileSync(path.join(srcDir, 'index.ts'), 'utf8');
+  const timingSrc = fs.readFileSync(path.join(srcDir, 'timing.ts'), 'utf8');
+  check(/const timingOn = env\.RECORD_TIMINGS === "1";/.test(indexSrc), 'timing must be off unless RECORD_TIMINGS is "1", so the tests and every other environment run exactly as before');
+  check(/handleRequest\(request, timingOn \? instrumentEnv\(env, tally\) : env, ctx, requestId\)/.test(indexSrc), 'the request must be handled with the timed environment only when timing is on');
+  check(/ctx\.waitUntil\(recordTiming\(env,/.test(indexSrc) && !/await recordTiming\(/.test(indexSrc), 'recording must happen after the response has gone (waitUntil) and never be awaited, so it cannot slow a request');
+  check(indexSrc.indexOf('recordTiming(env,') > indexSrc.indexOf('handleRequest(request, timingOn'), 'and only after the request has been handled');
+  check(/recordTiming\(env, \{/.test(indexSrc) && !/recordTiming\(timedEnv|recordTiming\(instrumentEnv/.test(indexSrc), 'recording must use the ORIGINAL environment, so it does not time itself');
+  check(!/^import .* from "\.\/(?!types")/m.test(timingSrc) && !/\bctx\b|waitUntil/.test(timingSrc.replace(/\/\/.*$/gm, '')), 'timing.ts must import nothing but types and never run anything in the background itself');
+  check(!/RECORD_TIMINGS/.test(fs.readFileSync(path.join(__dirname, 'harness.js'), 'utf8')), 'the test harness must never switch timing on (the recordings must run exactly as before)');
+  const norm = (x) => x.replace(/\s+/g, ' ').trim();
+  const codeDdl = timingSrc.match(/"(CREATE TABLE IF NOT EXISTS request_timings [^"]*)"/);
+  const seedDdl = fs.readFileSync(path.join(__dirname, 'cases', 'actions.js'), 'utf8').match(/"(CREATE TABLE IF NOT EXISTS request_timings [^"]*)"/);
+  check(Boolean(codeDdl) && Boolean(seedDdl) && norm(codeDdl[1]) === norm(seedDdl[1]), 'the table the recorded cases create must be exactly the table the code creates');
+  const toml = path.join(workerDir, 'wrangler.toml');
+  if (fs.existsSync(toml)) check(/^RECORD_TIMINGS = "1"/m.test(fs.readFileSync(toml, 'utf8')), 'timing must be switched on in wrangler.toml for production');
+  const debugSrc = fs.readFileSync(path.join(srcDir, 'debug.ts'), 'utf8');
+  check(/url\.pathname === "\/debug\/timings" && request\.method === "GET"/.test(debugSrc) && !/"\/debug\/timings"/.test(fs.readFileSync(path.join(srcDir, 'auth.ts'), 'utf8')), '/debug/timings must exist and must not be one of the app\'s own routes (so it needs the admin key)');
+};

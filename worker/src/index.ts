@@ -1,3 +1,4 @@
+import { breakdown, instrumentEnv, newTally, recordTiming, shouldRecordTiming } from "./timing";
 import { handleOpeningStep } from "./intents/opening";
 import { handleJobPricing } from "./intents/job-pricing";
 import { handleProcurement } from "./intents/procurement";
@@ -4255,8 +4256,15 @@ export default {
     const url = new URL(request.url);
     log("info", requestId, "request start", { method: request.method, path: url.pathname });
 
-    const response = await handleRequest(request, env, ctx, requestId);
-    log("info", requestId, "request end", { status: response.status, durationMs: Date.now() - startedAt });
+    // Where the time goes (timing.ts): off unless RECORD_TIMINGS is "1". It only observes; recording happens after the response has gone.
+    const timingOn = env.RECORD_TIMINGS === "1";
+    const tally = newTally();
+    const response = await handleRequest(request, timingOn ? instrumentEnv(env, tally) : env, ctx, requestId);
+    const totalMs = Date.now() - startedAt;
+    log("info", requestId, "request end", { status: response.status, durationMs: totalMs, ...(timingOn ? breakdown(tally) : {}) });
+    if (timingOn && shouldRecordTiming(request.method, url.pathname)) {
+      ctx.waitUntil(recordTiming(env, { method: request.method, pathname: url.pathname, status: response.status, totalMs, tally }).catch(() => undefined));
+    }
 
     const newHeaders = new Headers(response.headers);
     for (const [key, value] of Object.entries(corsHeaders)) {

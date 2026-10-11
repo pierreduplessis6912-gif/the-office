@@ -738,6 +738,9 @@ async function expect(role, method, path, want) {
   // Linking an existing order to a customer, and moving the costs already recorded for it.
   await require('./linkorder.test.js')({ check, bundleTo, srcDir, path, sameJson });
 
+  // Per-request timing (where does the time go?): it must only ever observe.
+  await require('./timing.test.js')({ check, bundleTo, srcDir, path, fs });
+
   // The same work said twice makes no new job.
   await require('./samework.test.js')({ check, bundleTo, srcDir, path, sameJson });
 

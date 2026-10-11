@@ -33,6 +33,21 @@ module.exports = async function runOrderLinkTests({ check, bundleTo, srcDir, fs,
   const rowCount = (await env.OFFICE_DB.prepare('SELECT COUNT(*) AS n FROM purchase_order_customers').first()).n;
   check(rowCount === 3, 'and never leaves two links for one order');
 
+  // ---- a READ does not create tables (measured 2026-10-04: two CREATE TABLE statements were all a customer lookup had gained) -------------
+  ({ env } = fresh());
+  const tablesBefore = (await env.OFFICE_DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('purchase_order_customers', 'purchase_order_cancellations')").all()).results.length;
+  const readJob = await getJobProfitability(env, 1);
+  const tablesAfter = (await env.OFFICE_DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('purchase_order_customers', 'purchase_order_cancellations')").all()).results.length;
+  check(tablesBefore === 0 && tablesAfter === 0, 'looking at a job\'s costing must not create the link or cancellation tables');
+  check(readJob.fact === 'Revenue R5000, costs linked to this job R1200, profit R3800.', 'and with neither table yet, the costing reads as it always did (nothing ordered for the job)');
+  check(!/ensure\w+Table/.test(fs.readFileSync(path.join(srcDir, 'finance.ts'), 'utf8').match(/export async function getJobProfitability\([\s\S]*?\n\}\n/)[0]), 'getJobProfitability must not call any ensure...Table function');
+  // The two tables are independent: orders linked but nothing ever cancelled is the common case, and it must still count the order.
+  ({ env } = fresh());
+  await linkPurchaseOrderToCustomer(env, 1, 1);
+  const cancelTableExists = (await env.OFFICE_DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'purchase_order_cancellations'").all()).results.length;
+  const linkedOnly = await getJobProfitability(env, 1);
+  check(cancelTableExists === 0 && /Ordered for this job and not yet invoiced: R1800 plus 1 unpriced line \(1 order\)\.$/.test(linkedOnly.fact), 'an order linked to the job counts even though no cancellation table exists yet (nothing has ever been cancelled)');
+  check((await env.OFFICE_DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'purchase_order_cancellations'").all()).results.length === 0, 'and reading it still does not create the cancellation table');
   // ---- what a job's costing shows -----------------------------------------------------------------------------------
   ({ env } = fresh());
   let job = await getJobProfitability(env, 1);

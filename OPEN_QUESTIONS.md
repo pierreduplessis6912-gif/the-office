@@ -118,15 +118,18 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     move:** the supplier-document decision section that exists twice, identically, in the document and photo upload
     handlers (131 lines): it is fully recorded, duplicated, and a single shared function removes the chance of the copies
     drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
-22. **Where does the latency Pierre has noticed come from?** Measured 2026-10-04 (`DECISIONS.md`, "Performance check"): this session's work adds **no model
-    calls** and about 0.9% more database calls, so it does not explain a lot of delay. The cause is unknown. Candidates: cold starts after
-    deploys (about 16 pushed in one session; each re-creates its lazy tables), the distance to the database (about nine round trips per
-    message), and Workers AI speed. *Option:* return a per-request timing breakdown (time in the model, time in the database, number of
-    each) with the reply and log it, so the next phone test shows where the seconds go.
-23. **Reads should not run `CREATE TABLE`.** A customer lookup ("how is Jenny doing") runs two `CREATE TABLE IF NOT EXISTS` statements (the order link
-    and the cancellation table) that a read does not need: a missing table just means "no rows". *Option:* query inside a try that treats
-    "no such table" as empty, and leave table creation to the writers. The same pattern applies to the other lazily-created tables on read paths.
-
+22. **Where does the latency Pierre has noticed come from? (instrumented 2026-10-04; waiting for data.)** Measured (`DECISIONS.md`, "Performance
+    check"): the Phase 3 work and features add no model calls and about 0.9% more database calls, so they do not explain it. A per-request
+    timing breakdown is now built (`GET /debug/timings`, admin key; model versus database time per route). *To do:* after the next phone
+    test, read it. If slow requests are mostly model time, it is the model's speed; mostly many database calls, the distance to the
+    database; neither, it is outside the Worker (network, the app). Candidates still open: cold starts after deploys (about 16 in one session,
+    each re-creating lazy tables), the distance to the database, and Workers AI speed.
+23. **Reads should not run `CREATE TABLE`: done for the costing read, not yet for the others.** The customer-lookup costing read no longer
+    creates tables (`DECISIONS.md`, "Latency follow-up"). **Still to check:** the baseline (before this session's features) already ran one
+    `CREATE TABLE` per message in the test harness (mean 1.00 per case), so one lazily-created table is touched on the path of *every*
+    message; it is not yet identified, and whether it costs anything in production depends on whether the "create once" caches survive
+    between requests (they are keyed on the database binding). The spoken lookups that read the order link or cancellation tables (open
+    orders, link, cancel) also still create them.
 ## Settled (kept so the reasoning is not lost)
 
 - 2026-10-04, decided by Pierre (after the phone tests):

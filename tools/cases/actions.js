@@ -109,6 +109,16 @@ module.exports = function cases(caps) {
   const invoiceOn1 = `INSERT INTO supplier_invoices (id, purchase_order_id, supplier_id, supplier_reference, amount, source_transcript, created_at) VALUES (1, 1, 2, 'INV-1', 9250, 'Floornet invoice INV-1', '2026-10-02 08:00:00');`;
   const expenseFor = (id, amount, customer) => `INSERT INTO expenses (id, character_id, amount, description, source_transcript, category, customer_id, created_at) VALUES (${id}, 2, ${amount}, 'Supplier invoice INV-1', 'Floornet invoice INV-1', 'materials', ${customer}, '2026-10-02 08:00:00');`;
   const linkSeed = (extra) => (db) => { withOrder(db); db.exec(`INSERT INTO customers (name) SELECT 'Thandi Mokoena' WHERE NOT EXISTS (SELECT 1 FROM customers WHERE name = 'Thandi Mokoena'); ` + linkHold + ' ' + (extra || '')); };
+  // The per-request timing summary (added 2026-10-04 after Pierre noticed latency). Explicit rows and times so the recording never depends on the clock.
+  const timingsDdl = "CREATE TABLE IF NOT EXISTS request_timings (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL DEFAULT (datetime('now')), method TEXT NOT NULL, path TEXT NOT NULL, status INTEGER NOT NULL, total_ms INTEGER NOT NULL, ai_n INTEGER NOT NULL, ai_ms INTEGER NOT NULL, db_n INTEGER NOT NULL, db_ms INTEGER NOT NULL, kv_n INTEGER NOT NULL, kv_ms INTEGER NOT NULL, vec_n INTEGER NOT NULL, vec_ms INTEGER NOT NULL, r2_n INTEGER NOT NULL, r2_ms INTEGER NOT NULL)";
+  const timingRow = (at, method, path, status, total, aiN, aiMs, dbN, dbMs, kvMs) => `INSERT INTO request_timings (created_at, method, path, status, total_ms, ai_n, ai_ms, db_n, db_ms, kv_n, kv_ms, vec_n, vec_ms, r2_n, r2_ms) VALUES ('${at}', '${method}', '${path}', ${status}, ${total}, ${aiN}, ${aiMs}, ${dbN}, ${dbMs}, 0, ${kvMs}, 0, 0, 0, 0);`;
+  const withTimings = (db) => db.exec(timingsDdl + '; ' + [
+    timingRow('2026-10-03 09:00:00', 'POST', '/messages/text', 200, 2400, 2, 1500, 9, 450, 20),
+    timingRow('2026-10-03 09:01:00', 'POST', '/messages/text', 200, 1200, 1, 700, 8, 300, 10),
+    timingRow('2026-10-03 09:02:00', 'POST', '/messages/text', 200, 5100, 3, 3900, 11, 700, 0),
+    timingRow('2026-10-03 09:03:00', 'POST', '/actions/:id/confirm', 200, 380, 0, 0, 7, 260, 0),
+    timingRow('2026-10-03 09:04:00', 'POST', '/actions/:id/confirm', 200, 520, 0, 0, 7, 410, 0),
+  ].join(' '));
   const OBS = (reply) => ({ match: /Extract the structure of a tradesperson's job observation/, reply });
   const LINES = (reply) => ({ match: /Extract every distinct line item from a tradesperson's quotation or invoice description/, reply });
   const GRAI = (reply) => ({ match: /quantity_received/, reply });
@@ -218,6 +228,11 @@ module.exports = function cases(caps) {
     r('confirm link: an installer is refused at the gate', linkSeed(), '/actions/1/confirm', [], [], { role: 'installer' }),
     r('confirm link: confirmed twice', linkSeed(), '/actions/1/confirm', [confirm(1)], []),
     r('reject link: nothing is linked', linkSeed(), '/actions/1/reject', [], []),
+
+    // ---------------- where the time goes (admin only) ----------------
+    r('timings (admin): a summary by route, slowest first, with the model and database share', withTimings, '/debug/timings', [], [], { method: 'GET', admin: true }),
+    r('timings (admin): nothing recorded yet is an empty summary, and reading it creates nothing', withOrder, '/debug/timings', [], [], { method: 'GET', admin: true }),
+    r('timings (admin): a signed-in owner without the admin key is refused', withTimings, '/debug/timings', [], [], { method: 'GET', role: 'owner' }),
 
     // ---------------- who is this? ----------------
     r('confirm identity question: owner, the name belongs to an installer', base, '/actions/1/confirm', [say('Jabulani called about a job', { intent: 'note', customer_name: 'Jabulani' })], []),

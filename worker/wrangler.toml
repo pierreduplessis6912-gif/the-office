@@ -39,6 +39,9 @@ id = "5c76e3a5c8f645c29d693ce5577872a1"
 
 [vars]
 ENVIRONMENT = "production"
+# Times every request that changes something, by kind of call (model, database, ...), and keeps the last 1000 for GET /debug/timings (admin key).
+# It only observes and records after the response has gone (see src/timing.ts). Remove this line to switch it off.
+RECORD_TIMINGS = "1"
 
 # Subdomain route on the existing websitehub.co.za zone — see README
 # for the DNS-record curl that has to run once before this route works.

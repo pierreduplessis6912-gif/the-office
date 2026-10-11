@@ -15,6 +15,7 @@
 // are NOT imported here beyond what a route genuinely reads directly
 // (like ROLE_CAPABILITIES, to validate a role name) — the actual
 // gating already ran in index.ts before this function is ever called.
+import { timingsSummary } from "./timing";
 import { Env, Extraction, HistoryTurn, LineItemWithTotal } from "./types";
 import {
   classifyDashboardIntent, containsBackwardReference, embedText, extractIntent,
@@ -59,6 +60,11 @@ export async function handleDebugRoute(
   url: URL,
   ctx: ExecutionContext
 ): Promise<Response | null> {
+// Where the time goes, per route (timing.ts). Admin key, like every /debug route that is not one of the app's own.
+if (url.pathname === "/debug/timings" && request.method === "GET") {
+      return Response.json(await timingsSummary(env));
+    }
+
 if (url.pathname === "/debug/list-audio" && request.method === "GET") {
       const listed = await env.OFFICE_VAULT.list({ prefix: "voice-notes/" });
       return Response.json({
