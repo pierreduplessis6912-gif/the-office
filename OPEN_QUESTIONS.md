@@ -137,7 +137,7 @@ items below is ticked off on that report alone; each stays listed until it is co
     between requests (they are keyed on the database binding). The spoken lookups that read the order link or cancellation tables (open
     orders, link, cancel) also still create them.
 
-\n\n## F. Hardening (Pierre's definition of "complete", 2026-10-11; from two outside reviews, each claim verified: `DECISIONS.md`)
+## F. Hardening (Pierre's definition of "complete", 2026-10-11; from two outside reviews, each claim verified: `DECISIONS.md`)
 
 *Item 1 (the front door) is done. The rest are open, in the proposed order, which Pierre has not yet confirmed. The latency work is paused until this list and the refactor tidy-ups are done.*
 
