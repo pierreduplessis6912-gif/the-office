@@ -18,16 +18,39 @@
 import { timingsSummary } from "./timing";
 import { Env, Extraction, HistoryTurn, LineItemWithTotal } from "./types";
 import {
-  classifyDashboardIntent, containsBackwardReference, embedText, extractIntent,
-  extractMultipleIntents, extractWorkObservation, resolveFollowUpEntity, splitIntoTopics,
-  storeUnscopedMemory, transcribe, transcribeWithNameHints,
+  classifyDashboardIntent,
+  containsBackwardReference,
+  embedText,
+  extractIntent,
+  extractMultipleIntents,
+  extractWorkObservation,
+  resolveFollowUpEntity,
+  splitIntoTopics,
+  storeUnscopedMemory,
+  transcribe,
+  transcribeWithNameHints,
 } from "./ai";
 import {
-  findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, reconcilePerson, ensureMemberSelectionTable } from "./identity";
+  findExistingCharacterByName,
+  findExistingCustomerByName,
+  findExistingEntityByName,
+  reconcilePerson,
+  ensureMemberSelectionTable,
+} from "./identity";
 import { getInstallerActivity, nowInBusinessTimezone, resolveScheduledDate } from "./scheduler";
 import { getCharacterFacts, getCharacterNotes, runConsolidation } from "./memory";
-import { getAgedCreditorsReport, getDeliveryExceptions, getFinancialSnapshot, getProfitAndLoss, getTrackedStockItems, orderDeliveryStatus, parseDateRange, recordQuotation, ensureCancellationTable } from "./finance";
-import { runIdempotentMigration, signSession, ROLE_CAPABILITIES, getRoleCapabilities } from "./auth";
+import {
+  getAgedCreditorsReport,
+  getDeliveryExceptions,
+  getFinancialSnapshot,
+  getProfitAndLoss,
+  getTrackedStockItems,
+  orderDeliveryStatus,
+  parseDateRange,
+  recordQuotation,
+  ensureCancellationTable,
+} from "./finance";
+import { runIdempotentMigration, ROLE_CAPABILITIES, getRoleCapabilities } from "./auth";
 
 // The one non-route helper these routes needed, moved with its real
 // callers (/admin/export and /admin/flush) rather than left behind in
@@ -1709,16 +1732,6 @@ if (url.pathname === "/debug/recent-supplier-invoice-line-items" && request.meth
       return Response.json({ supplierInvoiceLineItems: results });
     }
 
-if (url.pathname === "/admin/mint-session" && request.method === "POST") {
-      const body = (await request.json().catch(() => ({}))) as { google_email?: string };
-      if (!body.google_email) return Response.json({ error: "google_email is required" }, { status: 400 });
-      const sessionToken = await signSession(env, body.google_email);
-      return Response.json(
-        { status: "minted", google_email: body.google_email, sessionToken },
-        { headers: { "Set-Cookie": `office_session=${sessionToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000` } }
-      );
-    }
-
 if (url.pathname === "/admin/export" && request.method === "GET") {
       try {
         const tables = await getRealTableNames(env);
@@ -1735,95 +1748,6 @@ if (url.pathname === "/admin/export" && request.method === "GET") {
       } catch (err) {
         return Response.json(
           { error: "export failed", detail: err instanceof Error ? err.message : String(err) },
-          { status: 500 }
-        );
-      }
-    }
-
-if (url.pathname === "/admin/flush" && request.method === "POST") {
-      const body = (await request.json().catch(() => ({}))) as { confirm?: string };
-      if (body.confirm !== "DELETE ALL DATA") {
-        return Response.json(
-          { error: 'missing or incorrect confirmation — send {"confirm": "DELETE ALL DATA"}' },
-          { status: 400 }
-        );
-      }
-
-      try {
-        // Real fix found live 2026-07-14: customers failed with a
-        // genuine foreign key constraint violation, because tables
-        // were cleared in whatever order the schema happened to list
-        // them, not dependency order — customers was deleted before
-        // the child rows (invoices, tasks, job_scopes, and more)
-        // still pointing at it, and SQLite correctly refused. Fixed
-        // by disabling foreign key enforcement for the duration of
-        // the flush, rather than maintaining a fragile, hardcoded
-        // dependency order that would silently go stale the next time
-        // a new table gets added.
-        await env.OFFICE_DB.prepare("PRAGMA foreign_keys = OFF").run();
-
-        const tables = await getRealTableNames(env);
-        const deletedCounts: Record<string, number | { error: string }> = {};
-        for (const table of tables) {
-          try {
-            const countRow = await env.OFFICE_DB.prepare(`SELECT COUNT(*) as n FROM "${table}"`).first<{ n: number }>();
-            deletedCounts[table] = countRow?.n ?? 0;
-            await env.OFFICE_DB.prepare(`DELETE FROM "${table}"`).run();
-          } catch (err) {
-            deletedCounts[table] = { error: err instanceof Error ? err.message : String(err) };
-          }
-        }
-
-        await env.OFFICE_DB.prepare("PRAGMA foreign_keys = ON").run();
-
-        // KV has no bulk-clear operation — list every real key, delete
-        // each one explicitly.
-        let kvKeysDeleted = 0;
-        let kvError: string | null = null;
-        try {
-          let cursor: string | undefined;
-          do {
-            const listed = await env.CUSTOMER_NOTES.list({ cursor });
-            for (const key of listed.keys) {
-              await env.CUSTOMER_NOTES.delete(key.name);
-              kvKeysDeleted++;
-            }
-            cursor = listed.list_complete ? undefined : listed.cursor;
-          } while (cursor);
-        } catch (err) {
-          kvError = err instanceof Error ? err.message : String(err);
-        }
-
-        // Same for R2 — every real uploaded file, not just the D1
-        // records that reference them.
-        let r2ObjectsDeleted = 0;
-        let r2Error: string | null = null;
-        try {
-          let r2Cursor: string | undefined;
-          do {
-            const listed = await env.OFFICE_VAULT.list({ cursor: r2Cursor });
-            for (const obj of listed.objects) {
-              await env.OFFICE_VAULT.delete(obj.key);
-              r2ObjectsDeleted++;
-            }
-            r2Cursor = listed.truncated ? listed.cursor : undefined;
-          } while (r2Cursor);
-        } catch (err) {
-          r2Error = err instanceof Error ? err.message : String(err);
-        }
-
-        return Response.json({
-          status: "flushed",
-          flushedAt: new Date().toISOString(),
-          d1RowsDeleted: deletedCounts,
-          kvKeysDeleted,
-          kvError,
-          r2ObjectsDeleted,
-          r2Error,
-        });
-      } catch (err) {
-        return Response.json(
-          { error: "flush failed", detail: err instanceof Error ? err.message : String(err) },
           { status: 500 }
         );
       }

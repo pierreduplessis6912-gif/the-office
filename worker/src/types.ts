@@ -16,6 +16,8 @@ export interface Env {
   // wait for the larger auth build, it's the smallest correct
   // safeguard available now, checked on every admin request.
   ADMIN_KEY: string;
+  // The second secret that privileged admin routes need (see admin-gate.ts). While it is not set, those routes are switched off.
+  ADMIN_CONFIRM_KEY?: string;
   // Real feature 2026-07-14 — step 1 of the phased auth scope
   // (Constitution Principles 25-27). Google handles identity; these
   // are what the Worker needs to verify a real sign-in actually

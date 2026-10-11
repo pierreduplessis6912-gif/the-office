@@ -283,6 +283,32 @@
   "writes": {},
   "effects": []
  },
+ "merge stock items: the admin key alone is refused, a privileged route also needs the confirmation key": {
+  "result": {
+   "status": 403,
+   "body": {
+    "error": "this route needs the confirmation key (X-Admin-Confirm)"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
+ "an admin route that is not in the tier table is refused even with both keys": {
+  "result": {
+   "status": 403,
+   "body": {
+    "error": "no such admin route"
+   }
+  },
+  "threw": null,
+  "aiCalls": [],
+  "backgroundErrors": [],
+  "writes": {},
+  "effects": []
+ },
  "merge stock items: no admin key is refused": {
   "result": {
    "status": 401,

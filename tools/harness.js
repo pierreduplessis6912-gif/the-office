@@ -261,10 +261,11 @@ async function runRouteCase(fns, workerDir, spec) {
   const pendingWork = [], backgroundErrors = [];
   const ctx = { waitUntil: (p) => pendingWork.push(Promise.resolve(p).catch((e) => backgroundErrors.push(String(e && e.message || e)))), passThroughOnException() {} };
   const effects = [];
-  const env = { OFFICE_DB: d1(db), AI: ai, CUSTOMER_NOTES: fakeKv(effects, spec.kvSeed), OFFICE_VAULT: fakeR2(effects), MEMORY: fakeVectorize(effects), SESSION_SECRET: 'harness-session-secret', ADMIN_KEY: 'harness-admin-key', GOOGLE_CLIENT_ID: 'harness-client-id' };
+  const env = { OFFICE_DB: d1(db), AI: ai, CUSTOMER_NOTES: fakeKv(effects, spec.kvSeed), OFFICE_VAULT: fakeR2(effects), MEMORY: fakeVectorize(effects), SESSION_SECRET: 'harness-session-secret', ADMIN_CONFIRM_KEY: 'test-confirm-key', ADMIN_KEY: 'harness-admin-key', GOOGLE_CLIENT_ID: 'harness-client-id' };
   const call = async (step) => {
     const headers = step.form ? {} : { 'content-type': 'application/json' };   // a form sets its own boundary
-    if (step.admin) headers['X-Admin-Key'] = env.ADMIN_KEY;   // /debug and /admin routes are opened by the admin key, never by a session
+    if (step.admin) headers['X-Admin-Key'] = env.ADMIN_KEY;
+    if (step.admin && !step.adminNoConfirm && env.ADMIN_CONFIRM_KEY) headers['X-Admin-Confirm'] = env.ADMIN_CONFIRM_KEY;   // privileged admin routes also need the second secret   // /debug and /admin routes are opened by the admin key, never by a session
     else if (!step.noSession) headers.cookie = `office_session=${await auth.signSession(env, `${step.role || 'owner'}@example.com`)}`;
     const payload = step.form ? await buildForm(step.form) : step.body === undefined ? undefined : JSON.stringify(step.body);
     const request = new Request('https://office.test' + step.path, { method: step.method || 'POST', headers, body: payload });

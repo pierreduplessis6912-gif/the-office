@@ -1,3 +1,4 @@
+import { adminTierOf, hashSource, recordAdminCall } from "./admin-gate";
 import { runGuarded } from "./frontdoor";
 import { composeReply } from "./intents/reply";
 import { handlePayments } from "./intents/payments";
@@ -38,8 +39,7 @@ import {
   ACTION_TYPE_CAPABILITY,
   ROUTE_RULES,
   SIGNABLE_DOCUMENT_PATHS,
-  intentCreationRefusal,
-} from "./auth";
+  intentCreationRefusal, isAdminPath } from "./auth";
 import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getCustomerFinancialSummary, getJobProfitability, getOpenDiscrepanciesForSupplier, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordPayment, recordQuotation, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, checkDeliveryUnits, deliveryUnitQuestion, duplicateInvoiceMessage, normalizeInvoiceReference, reopenPurchaseOrder, linkPurchaseOrderAndMoveCosts } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 import { handleDebugRoute } from "./debug";
@@ -3603,6 +3603,15 @@ export default {
     const response = await runGuarded(request, requestId, () => handleRequest(request, timingOn ? instrumentEnv(env, tally) : env, ctx, requestId), log);
     const totalMs = Date.now() - startedAt;
     log("info", requestId, "request end", { status: response.status, durationMs: totalMs, ...(timingOn ? breakdown(tally) : {}) });
+    // Every admin call is recorded (route, tier, outcome, hashed source; never the key), after the response has gone. A call refused only because the source
+    // is locked out (429) is not recorded, so a flood of guesses cannot fill the table.
+    if (isAdminPath(url.pathname) && response.status !== 429) {
+      ctx.waitUntil(
+        hashSource(env, request)
+          .then((source) => recordAdminCall(env, { method: request.method, path: url.pathname, tier: adminTierOf(request.method, url.pathname), status: response.status, source }))
+          .catch(() => undefined)
+      );
+    }
     if (timingOn && shouldRecordTiming(request.method, url.pathname)) {
       ctx.waitUntil(recordTiming(env, { method: request.method, pathname: url.pathname, status: response.status, totalMs, tally }).catch(() => undefined));
     }

@@ -22,6 +22,8 @@ module.exports = function cases(caps) {
     m('merge stock items: three rows with names that differ only in case and spaces, one without a unit', three, { confirm: true }),
     m('merge stock items: run again after a merge, there is nothing left to do', dupes, { confirm: true }, { before: [{ route: true, method: 'POST', path: '/debug/merge-stock-items', admin: true, body: { confirm: true } }] }),
     m('merge stock items: a request that is not exactly confirm:true is only a dry run', dupes, { confirm: 'yes' }),
+    { kind: 'route', name: 'merge stock items: the admin key alone is refused, a privileged route also needs the confirmation key', seed: dupes, path: '/debug/merge-stock-items', admin: true, adminNoConfirm: true, before: [], ai: [], body: { confirm: true } },
+    { kind: 'route', name: 'an admin route that is not in the tier table is refused even with both keys', seed: dupes, path: '/debug/no-such-route', admin: true, before: [], ai: [], body: {} },
     { kind: 'route', name: 'merge stock items: no admin key is refused', seed: dupes, path: '/debug/merge-stock-items', noSession: true, before: [], ai: [], body: { confirm: true } },
     { kind: 'route', name: 'merge stock items: a signed-in owner without the admin key is refused', seed: dupes, path: '/debug/merge-stock-items', role: 'owner', before: [], ai: [], body: { confirm: true } },
   ];

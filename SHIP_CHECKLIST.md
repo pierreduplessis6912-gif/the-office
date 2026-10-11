@@ -11,9 +11,9 @@ Status key: **DONE** / **PARTLY** / **OPEN**. The latency work is paused until t
 | # | Item | Status | What the code shows |
 |---|------|--------|---------------------|
 | 1 | Front-door error handling | **DONE** (`b09d1f6`) | Every uncaught error is logged with the request id and answered with a JSON 500 that carries the CORS headers. |
-| 2 | The shared admin key | **OPEN** | One key protects 8 privileged routes (erase everything, export, merges, minting a session as any user). Compared with a plain `!==`, **no lockout on wrong keys, no audit trail of admin calls.** |
+| 2 | The shared admin key | **DONE** (2026-10-11) | Mint-session and erase-everything are **removed** (nothing used them). All 124 remaining admin routes have a tier, enforced by a test. 11 **privileged** routes need a second secret and are **switched off until `ADMIN_CONFIRM_KEY` is set**. Wrong guesses are throttled (5 in 15 minutes), the key is compared in constant time, and every call is recorded. |
 | 3 | Signed document links | **PARTLY** | Only 6 routes are public (root, health, sign-in). But customer-facing PDF links are valid for **365 days** and **cannot be revoked**, and the PDF carries the business's banking details. |
-| 4 | Every route classified | **PARTLY** | Dictation permissions are a full table with tests, and non-owner roles are default-deny. **No test fails when a new route is added without being classified.** |
+| 4 | Every route classified | **PARTLY** | Dictation permissions are a full table with tests, and non-owner roles are default-deny. **The 124 admin and debug routes are now fully classified and a test fails on an unclassified one.** The app-facing routes still have no such test. |
 | 5 | Staging, smoke test, rollback | **OPEN** | One environment, one database, no `[env]` in `wrangler.toml`. Every push deploys straight to production; nothing checks it afterwards. |
 | 6 | Model cost controls | **OPEN** | No rate limit, no daily cap, no budget alert. The model is the main running cost. |
 | 7 | Observability and alerting | **PARTLY** | Structured logs with a request id and per-request timings exist. **No `[observability]` block in `wrangler.toml`** (log retention must be confirmed in the dashboard), no user in log lines, nothing that alerts. |
@@ -28,7 +28,7 @@ Status key: **DONE** / **PARTLY** / **OPEN**. The latency work is paused until t
 
 ## Exit criteria and what each item needs
 
-**2. Admin key.** Every `/admin` and `/debug` route sits in a tier table (read-only, privileged, destructive) and a test fails if one is unclassified. Every admin call leaves an audit row (route, time, outcome, hashed source). Wrong keys are logged and throttled, and compared in constant time. Destructive routes need a second secret. *NEEDS PIERRE: (a) which routes to remove from production altogether (minting a session and erase-everything are the candidates); (b) to set a second Cloudflare secret.*
+**2. Admin key. DONE 2026-10-11** (`DECISIONS.md`, "Hardening item 2"). Every `/admin` and `/debug` route sits in a tier table (read-only, privileged, destructive) and a test fails if one is unclassified. Every admin call leaves an audit row (route, time, outcome, hashed source). Wrong keys are logged and throttled, and compared in constant time. Destructive routes need a second secret. *NEEDS PIERRE: (a) which routes to remove from production altogether (minting a session and erase-everything are the candidates); (b) to set a second Cloudflare secret.*
 
 **3. Signed links.** The token is confirmed to bind to its exact path and to expire; the lifetime is shortened or links become revocable; a test proves an expired, tampered or wrong-path link is refused. *NEEDS PIERRE: how long should a customer's invoice link live (30, 60 or 90 days)?*
 

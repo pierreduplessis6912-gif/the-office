@@ -11,6 +11,7 @@
 // test suite (the 165-case role matrix, the PDF-signing round-trip,
 // the CORS allowlist test, and the live-bug regression test) all
 // re-extract from this file now and still pass.
+import { authorizeAdmin } from "./admin-gate";
 import { Env, Extraction } from "./types";
 
 // Real feature 2026-07-14 — session signing/verification, step 1 of
@@ -384,6 +385,11 @@ const APP_DEBUG_ROUTES = new Set([
   "/debug/finance-list",
   "/debug/characters-list",
 ]);
+
+// A route the admin key opens: every /admin and /debug route except the few the app itself uses (those need a signed-in session instead).
+export function isAdminPath(path: string): boolean {
+  return (path.startsWith("/admin/") || path.startsWith("/debug/")) && !APP_DEBUG_ROUTES.has(path);
+}
 
 // Real, new, per direct instruction — the second layer. The gate above
 // proves *who* someone is; this decides *what they may do*, and it is
@@ -872,12 +878,10 @@ export async function authGate(request: Request, env: Env, url: URL): Promise<Re
   // sits in the file. Deliberately independent of ENFORCE_APP_AUTH —
   // this is the same real protection that has covered /admin since
   // 13 July, and it must keep working even while stage 1 is off.
-  if ((path.startsWith("/admin/") || path.startsWith("/debug/")) && !APP_DEBUG_ROUTES.has(path)) {
-    const providedKey = request.headers.get("X-Admin-Key");
-    if (!providedKey || providedKey !== env.ADMIN_KEY) {
-      return Response.json({ error: "unauthorized" }, { status: 401 });
-    }
-    return null; // admin-key holders bypass session/role entirely, same as /admin/ always has.
+  if (isAdminPath(path)) {
+    // admin-key holders bypass session/role entirely, same as /admin/ always has. The key, the route's tier, the second secret for a privileged route and
+    // the throttle on wrong guesses are all in admin-gate.ts; null means the call may go ahead.
+    return authorizeAdmin(request, env, path);
   }
 
   // Stage 2, real, per direct instruction: also deliberately

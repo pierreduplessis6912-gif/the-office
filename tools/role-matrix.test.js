@@ -804,6 +804,8 @@ async function expect(role, method, path, want) {
   await require('./timing.test.js')({ check, bundleTo, srcDir, path, fs });
   // The Worker's front door: nothing that goes wrong inside a request may escape as a bare failure.
   await require('./frontdoor.test.js')({ check, bundleTo, srcDir, path, fs });
+  // The admin gate: tiers for every admin route, a second secret for privileged ones, throttled wrong guesses, a record of every call.
+  await require('./admin-gate.test.js')({ check, bundleTo, srcDir, path, fs });
 
   // The same work said twice makes no new job.
   await require('./samework.test.js')({ check, bundleTo, srcDir, path, sameJson });
