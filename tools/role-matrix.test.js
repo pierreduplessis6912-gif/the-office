@@ -89,6 +89,8 @@ async function expect(role, method, path, want) {
   const sharedSrc = fs.readFileSync(path.join(srcDir, 'intents', 'supplier-document.ts'), 'utf8');
   // Rewrite Phase 3, step 6: dictation (purchase order, goods received, supplier invoice, variance disposition) lives in intents/procurement.ts.
   const procurementSrc = fs.readFileSync(path.join(srcDir, 'intents', 'procurement.ts'), 'utf8');
+  // Rewrite Phase 3, step 10: answering a question (every lookup scope) lives in intents/lookup.ts.
+  const lookupSrc = fs.readFileSync(path.join(srcDir, 'intents', 'lookup.ts'), 'utf8');
   const unionIntents = typesSrc.match(/intent:\s*((?:"[a-z_]+"\s*\|?\s*)+);/)[1].match(/"([a-z_]+)"/g).map((x) => x.replace(/"/g, ''));
   const check = (cond, msg) => { total++; if (!cond) { fails++; console.log('FAIL  ' + msg); } };
   const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
@@ -267,6 +269,16 @@ async function expect(role, method, path, want) {
   const poeSrc9 = indexSrc.slice(poeStart9, indexSrc.indexOf('\n}\n', poeStart9));
   for (const gone of ['await reconcileCustomer(', 'await reconcileCharacter(', 'reconcilePerson(', 'intentCreationRefusal(extraction?.intent', 'findExistingCustomerByName(', 'findExistingCharacterByName(', 'ctx.waitUntil(setSelection(', 'ctx.waitUntil(updateCaptureHint(', 'logInteractionEdge(', 'canResolveActionType(']) check(!poeSrc9.includes(gone), `processOneExtraction must not carry its own copy of the opening step (found: ${gone}); a lookup may still check a permission with intentCreationRefusal, but the gate on the sentence's own intent belongs to the opening step`);
   for (const must of ['await reconcileCustomer(', 'await reconcileCharacter(', 'reconcilePerson(', 'intentCreationRefusal(', 'ctx.waitUntil(setSelection(', 'ctx.waitUntil(updateCaptureHint(', 'canResolveActionType(']) check(openingSrc.includes(must), `intents/opening.ts must do: ${must}`);
+  // Rewrite Phase 3, step 10: answering a question (every lookup scope) lives in intents/lookup.ts. The branch CONDITION stays in the reply chain.
+  check((indexSrc.match(/answerLookup\(env,/g) || []).length === 1, 'index.ts must call answerLookup exactly once');
+  check(/else if \(extraction\?\.intent === "lookup"\) \{\s*(\/\/[^\n]*\n\s*)*message = await answerLookup\(env, \{ extraction, transcript, history, capabilities, customer, character \}\);/.test(indexSrc), 'the lookup branch must stay in the reply chain, and its answer must be the message');
+  const poeStart10 = indexSrc.indexOf('async function processOneExtraction(');
+  const poeSrc10 = indexSrc.slice(poeStart10, indexSrc.indexOf('\n}\n', poeStart10));
+  for (const gone of ['answerFromMemory(', 'deliveryExceptionAnswer(', 'asksAboutDeliveryExceptions(', 'openOrdersAnswer(', 'supplierStatementsAnswer(', '__OPEN_DASHBOARD__', 'query_scope === "business"', 'query_scope === "open_orders"']) check(!poeSrc10.includes(gone), `processOneExtraction must not carry its own copy of the lookup logic (found: ${gone})`);
+  for (const must of ['answerFromMemory(', 'deliveryExceptionAnswer(', 'openOrdersAnswer(', 'supplierStatementsAnswer(', '__OPEN_DASHBOARD__', 'restricted for your role']) check(lookupSrc.includes(must), `intents/lookup.ts must do: ${must}`);
+  // A question must never change anything. Comments are removed first, so only real code is read.
+  const lookupCode = lookupSrc.replace(/\/\/.*$/gm, '');
+  for (const writer of ['holdForConfirmation(', 'INSERT INTO', 'UPDATE ', 'DELETE FROM', '.run(', 'recordPayment(', 'recordExpense(', 'recordSnag(', 'recordLead(', 'registerStockItem(', 'ctx.waitUntil']) check(!lookupCode.includes(writer), `a lookup must never write anything (found: ${writer})`);
   // Source-pattern guards: both handlers must keep every guard. Crude on purpose, and mutation-checked.
   const handlerSlice = (marker) => { const a = indexSrc.indexOf(marker); const b = indexSrc.indexOf('if (url.pathname === "', a + marker.length); return indexSrc.slice(a, b); };
   for (const [name, marker, respVar] of [['/files/document', 'if (url.pathname === "/files/document"', 'docResponseBody'], ['/files/photo', 'if (url.pathname === "/files/photo"', 'photoResponseBody']]) {
@@ -582,10 +594,11 @@ async function expect(role, method, path, want) {
   const many = deliveryExceptionAnswer(new Array(25).fill(0).map((_, i) => X('short', 'S' + i, 'Item', 1, 2, -1, true, '2026-10-03')));
   check(many.split('\n').filter((l) => l.startsWith('- ')).length === 20 && /\.\.\.and 5 more\./.test(many), 'a long list is cut at 20 lines and says how many more there are');
   // The branch itself: ahead of the general business branch, gated by the same permission as the report route, and never paraphrased by a model.
-  const exBranch = indexSrc.indexOf('} else if (!customer && !character && asksAboutDeliveryExceptions(transcript)) {');
-  const bizBranch = indexSrc.indexOf('} else if (extraction?.query_scope === "business") {');
+  // Rewrite Phase 3, step 10: the lookup scopes live in intents/lookup.ts, so the order of these two branches is read there.
+  const exBranch = lookupSrc.indexOf('} else if (!customer && !character && asksAboutDeliveryExceptions(transcript)) {');
+  const bizBranch = lookupSrc.indexOf('} else if (extraction?.query_scope === "business") {');
   check(exBranch > 0 && bizBranch > exBranch, 'the exception question must be handled before the general business branch');
-  const exBody = indexSrc.slice(exBranch, bizBranch);
+  const exBody = lookupSrc.slice(exBranch, bizBranch);
   check(/capabilities\.includes\("can_manage_invoices"\)\s*\?\s*deliveryExceptionAnswer\(await getDeliveryExceptions\(env, "open"\)\)/.test(exBody) && /restricted for your role/.test(exBody), 'the report may only be read by a role that can manage invoices, exactly as the report route');
   check(!/answerFromMemory|classifyBusinessTopic|classifyDashboardIntent/.test(exBody), 'the exception answer is built in code, with no model call');
   check(/"any delivery exceptions\?"/.test(fs.readFileSync(path.join(srcDir, 'ai.ts'), 'utf8')), 'the question classifier must have an example of this question');

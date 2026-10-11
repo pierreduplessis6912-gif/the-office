@@ -30,6 +30,8 @@ module.exports = async function runPermissionTests({ check, compiled, srcDir, fs
   let everything = authSrc.slice(0, gridStart) + authSrc.slice(gridEnd);
   everything = everything.replace(tableMatch, '');
   for (const f of fs.readdirSync(srcDir)) if (f.endsWith('.ts') && f !== 'auth.ts') everything += '\n' + fs.readFileSync(path.join(srcDir, f), 'utf8');
+  // The code that checks a permission now also lives in src/intents (rewrite Phase 3): read it too, or a permission checked only there would look unused.
+  for (const f of fs.readdirSync(path.join(srcDir, 'intents'))) if (f.endsWith('.ts')) everything += '\n' + fs.readFileSync(path.join(srcDir, 'intents', f), 'utf8');
   for (const c of CAPABILITY_CATALOG) {
     const uses = everything.split(`"${c.key}"`).length - 1;
     check(c.inUse ? uses > 0 : uses === 0, c.inUse
