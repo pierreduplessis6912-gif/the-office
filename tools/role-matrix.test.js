@@ -89,6 +89,8 @@ async function expect(role, method, path, want) {
   const sharedSrc = fs.readFileSync(path.join(srcDir, 'intents', 'supplier-document.ts'), 'utf8');
   // Rewrite Phase 3, step 6: dictation (purchase order, goods received, supplier invoice, variance disposition) lives in intents/procurement.ts.
   const procurementSrc = fs.readFileSync(path.join(srcDir, 'intents', 'procurement.ts'), 'utf8');
+  // Rewrite Phase 3, step 11: facts, notes and reminders live in intents/facts-notes.ts.
+  const factsNotesSrc = fs.readFileSync(path.join(srcDir, 'intents', 'facts-notes.ts'), 'utf8');
   // Rewrite Phase 3, step 10: answering a question (every lookup scope) lives in intents/lookup.ts.
   const lookupSrc = fs.readFileSync(path.join(srcDir, 'intents', 'lookup.ts'), 'utf8');
   const unionIntents = typesSrc.match(/intent:\s*((?:"[a-z_]+"\s*\|?\s*)+);/)[1].match(/"([a-z_]+)"/g).map((x) => x.replace(/"/g, ''));
@@ -279,6 +281,17 @@ async function expect(role, method, path, want) {
   // A question must never change anything. Comments are removed first, so only real code is read.
   const lookupCode = lookupSrc.replace(/\/\/.*$/gm, '');
   for (const writer of ['holdForConfirmation(', 'INSERT INTO', 'UPDATE ', 'DELETE FROM', '.run(', 'recordPayment(', 'recordExpense(', 'recordSnag(', 'recordLead(', 'registerStockItem(', 'ctx.waitUntil']) check(!lookupCode.includes(writer), `a lookup must never write anything (found: ${writer})`);
+  // Rewrite Phase 3, step 11: facts, notes and reminders (what a sentence leaves behind besides its main effect) live in intents/facts-notes.ts.
+  check((indexSrc.match(/handleFactsAndNotes\(env, ctx,/g) || []).length === 1, 'index.ts must call handleFactsAndNotes exactly once');
+  const fnReturn = (factsNotesSrc.match(/return \{ ([\w, ]+) \};\n\}\n/) || [, ''])[1].split(',').map((s) => s.trim()).sort();
+  const fnDestructured = ((indexSrc.match(/const \{ ([\w, ]+) \} = await handleFactsAndNotes\(/) || [, ''])[1]).split(',').map((s) => s.trim()).sort();
+  check(fnReturn.length === 4 && JSON.stringify(fnReturn) === JSON.stringify(fnDestructured), `the four values the reply code reads must all come back under their original names (returned: ${fnReturn.join(', ')}; destructured: ${fnDestructured.join(', ')})`);
+  const poeStart11 = indexSrc.indexOf('async function processOneExtraction(');
+  const poeSrc11 = indexSrc.slice(poeStart11, indexSrc.indexOf('\n}\n', poeStart11));
+  for (const gone of ['appendLifeEvent(', 'appendCustomerNote(', 'appendCharacterNote(', 'createTask(', 'looksLikePayOrBankDetail(', 'sensitiveFactKind(', 'mayHandleSensitiveFact(', '"customer_fact"', '"character_fact"', 'personalNoteIsSensitive']) check(!poeSrc11.includes(gone), `processOneExtraction must not carry its own copy of the facts-and-notes step (found: ${gone})`);
+  for (const must of ['holdForConfirmation(', '"customer_fact"', '"character_fact"', 'appendLifeEvent(', 'appendCustomerNote(', 'appendCharacterNote(', 'createTask(', 'looksLikePayOrBankDetail(', 'mayHandleSensitiveFact(']) check(factsNotesSrc.includes(must), `intents/facts-notes.ts must do: ${must}`);
+  check(factsNotesSrc.indexOf('const sensitiveFactRefused') > 0 && factsNotesSrc.indexOf('const sensitiveFactRefused') < factsNotesSrc.indexOf('"character_fact"'), 'a supplier fact must be checked for pay or bank details BEFORE it can be held (the refusal precedes the hold)');
+  check(factsNotesSrc.indexOf('const sensitiveNoteKeptOut') > 0 && factsNotesSrc.indexOf('const sensitiveNoteKeptOut') < factsNotesSrc.indexOf('appendCustomerNote(') && /!sensitiveNoteKeptOut\)/.test(factsNotesSrc), 'a sentence holding a pay or bank detail must be kept out of the notes: the decision comes before any note is written');
   // Source-pattern guards: both handlers must keep every guard. Crude on purpose, and mutation-checked.
   const handlerSlice = (marker) => { const a = indexSrc.indexOf(marker); const b = indexSrc.indexOf('if (url.pathname === "', a + marker.length); return indexSrc.slice(a, b); };
   for (const [name, marker, respVar] of [['/files/document', 'if (url.pathname === "/files/document"', 'docResponseBody'], ['/files/photo', 'if (url.pathname === "/files/photo"', 'photoResponseBody']]) {
@@ -717,7 +730,7 @@ async function expect(role, method, path, want) {
   for (const i of unionIntents) check(intentKeepsOutOfNotes(i) === MONEY_AND_STRUCTURED.includes(i), `intent "${i}": ${MONEY_AND_STRUCTURED.includes(i) ? 'must keep its transcript out of notes (it has structured, gated storage)' : 'is narrative and may still be noted'}`);
   check([null, undefined, '', 'some_future_intent', 'constructor', '__proto__'].every((x) => intentKeepsOutOfNotes(x) === false), 'a value that is not an intent is never treated as having structured storage');
   for (const [i, r] of Object.entries(INTENT_RULES)) if (Array.isArray(r.create) && r.create.includes('can_manage_invoices')) check(intentKeepsOutOfNotes(i) === true, `"${i}" needs can_manage_invoices to create, so it is money and must be kept out of notes (a new gated money intent is covered automatically)`);
-  check(!/hasStructuredHomeAlready\s*=\s*\[/.test(indexSrc) && /hasStructuredHomeAlready = intentKeepsOutOfNotes\(extraction\?\.intent\)/.test(indexSrc), 'index.ts must ask intentKeepsOutOfNotes, never carry its own list of intents again');
+  check(!/hasStructuredHomeAlready\s*=\s*\[/.test(indexSrc + factsNotesSrc) && /hasStructuredHomeAlready = intentKeepsOutOfNotes\(extraction\?\.intent\)/.test(factsNotesSrc) && !/intentKeepsOutOfNotes/.test(indexSrc.replace(/^import[^\n]*\n/gm, '')), 'the notes step (intents/facts-notes.ts) must ask intentKeepsOutOfNotes, never carry its own list of intents again');
 
   // ---- "Forget that" may only abandon what the caller could resolve (found 2026-10-03) ---------------------
   // It used to abandon the newest pending action whoever it belonged to, so an installer, or a role with no permissions,

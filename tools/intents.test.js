@@ -173,6 +173,7 @@ module.exports = async function runIntentTests({ check, bundleTo, srcDir, fs, pa
   // dispatcher table) must still be unreachable from outside src/intents, and only index.ts may import the handler.
   const importsOf = (name) => srcFiles.filter((f) => new RegExp('from\\s+["\']\\./intents/' + name + '["\']').test(fs.readFileSync(path.join(srcDir, f), 'utf8')));
   check(importsOf('result').length === 0 && importsOf('dispatcher').length === 0, `nothing outside src/intents may import the unfinished scaffold (result: ${importsOf('result').join(', ') || 'none'}; dispatcher: ${importsOf('dispatcher').join(', ') || 'none'})`);
+  check(sameJson(importsOf('facts-notes'), ['index.ts']), `only index.ts may import the facts-and-notes handler (imported by: ${importsOf('facts-notes').join(', ') || 'none'})`);
   check(sameJson(importsOf('lookup'), ['index.ts']), `only index.ts may import the lookup handler (imported by: ${importsOf('lookup').join(', ') || 'none'})`);
   check(sameJson(importsOf('opening'), ['index.ts']), `only index.ts may import the opening-step handler (imported by: ${importsOf('opening').join(', ') || 'none'})`);
   check(sameJson(importsOf('job-pricing'), ['index.ts']), `only index.ts may import the job-pricing handler (imported by: ${importsOf('job-pricing').join(', ') || 'none'})`);
