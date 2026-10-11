@@ -66,20 +66,26 @@ module.exports = async function runIntentTests({ check, bundleTo, srcDir, fs, pa
   // ---- 3. The rules the adapter relies on really are obeyed at every return site of the real function ---
   const fnStart = indexSrc.indexOf('async function processOneExtraction(');
   const lines = indexSrc.slice(fnStart).split('\n');
+  // Rewrite Phase 3, step 9: seven of the eight result sites are in the opening step (intents/opening.ts), written exactly as they always were. The sites are
+  // collected from the opening step FIRST and the function after it, so the last site is still the function's final return.
+  const openingSrcP1 = fs.readFileSync(path.join(srcDir, 'intents', 'opening.ts'), 'utf8');
+  const openingFnLines = openingSrcP1.slice(openingSrcP1.indexOf('export async function handleOpeningStep(')).split('\n');
   const sites = [];
-  for (let i = 0; i < lines.length; i++) {
-    if (/^\s+return \{\s*$/.test(lines[i])) {
-      const ind = lines[i].length - lines[i].trimStart().length;
-      let j = i; while (j < lines.length && !(lines[j].length - lines[j].trimStart().length === ind && lines[j].trim().startsWith('};'))) j++;
-      const block = lines.slice(i, j + 1);
+  for (const siteLines of [openingFnLines, lines]) {
+  for (let i = 0; i < siteLines.length; i++) {
+    if (/^\s+return \{\s*$/.test(siteLines[i])) {
+      const ind = siteLines[i].length - siteLines[i].trimStart().length;
+      let j = i; while (j < siteLines.length && !(siteLines[j].length - siteLines[j].trimStart().length === ind && siteLines[j].trim().startsWith('};'))) j++;
+      const block = siteLines.slice(i, j + 1);
       const val = (k) => { for (const l of block) { const m = l.match(new RegExp('^\\s+' + k + '(?::\\s*(.*?))?,?\\s*$')); if (m) return (m[1] || k).replace(/,$/, ''); } return '?'; };
       sites.push({ id: val('pendingActionId'), type: val('pendingActionType'), cand: val('pendingCandidates'), chg: val('pendingChanges'), fact: val('factPendingActionId'), js: val('jobScopeIdForProjectResolution') });
     }
-    if (/^}\s*$/.test(lines[i]) && i > 5) break;   // end of the function
+    if (/^}\s*$/.test(siteLines[i]) && i > 5) break;   // end of the function
+  }
   }
   // Rewrite Phase 3, step 7: two of the ten (the "update that job?" hold, identical in the invoice's job part and in a spoken observation) became calls to ONE helper,
   // jobAmendmentReturn, so the function has 8 object-literal sites (7 early, 1 final) plus two calls. The helper's own site is held to the same rules just below.
-  check(sites.length === 8, `processOneExtraction has 8 multi-line return sites (7 early, 1 final) plus two calls to jobAmendmentReturn; it now has ${sites.length}, so the adapter's rules must be re-checked against the new site before this number is changed`);
+  check(sites.length === 8, `the opening step (7 early sites) and processOneExtraction (1 final) have 8 multi-line return sites between them, plus two calls to jobAmendmentReturn; there are now ${sites.length}, so the adapter's rules must be re-checked against the new site before this number is changed`);
   sites.forEach((s, n) => {
     const where = `return site ${n + 1} of ${sites.length}`;
     if (s.id === 'null') check(s.type === 'null' && s.cand === 'null' && s.chg === 'null', `${where}: with no action id, the type, candidates and changes must all be null`);
@@ -91,7 +97,8 @@ module.exports = async function runIntentTests({ check, bundleTo, srcDir, fs, pa
   const fnBody = indexSrc.slice(fnStart, fnStart + lines.slice(0, lines.findIndex((l, i) => /^}\s*$/.test(l) && i > 5)).join('\n').length);
   // Every object-literal return in the function is a result site (no inner closure returns one), so counting
   // them in ANY formatting catches a new site written on one line, which the multi-line parse above cannot see.
-  const anyReturns = (fnBody.match(/\breturn\s*\{/g) || []).length;
+  const openingSrcBody = openingFnLines.join('\n').slice(0, openingFnLines.join('\n').indexOf('\n}\n'));
+  const anyReturns = (fnBody.match(/\breturn\s*\{/g) || []).length + ((openingSrcBody.match(/\breturn\s*\{/g) || []).length - 1);   // the opening step's own state return is not a result site
   check(anyReturns === 8 && anyReturns === sites.length, `every object-literal return in processOneExtraction must be a result site the adapter's rules were checked against (found ${anyReturns} in any formatting, ${sites.length} multi-line)`);
   // The shape moved into the helper must still obey the adapter's rules, exactly as the two sites it replaced did.
   // Rewrite Phase 3, step 8: the helper moved with the job-pricing region into intents/job-pricing.ts.
@@ -102,7 +109,7 @@ module.exports = async function runIntentTests({ check, bundleTo, srcDir, fs, pa
   check(/pendingActionId: amendment\.pendingActionId,/.test(helperSrc) && /pendingActionType: "job_scope_amendment",/.test(helperSrc) && /pendingChanges: amendment\.changes,/.test(helperSrc) && /pendingCandidates: null,/.test(helperSrc) && /factPendingActionId: null,/.test(helperSrc) && /jobScopeIdForProjectResolution: null,/.test(helperSrc), 'jobAmendmentReturn: an action id comes with its type, changes only accompany a job_scope_amendment hold, and it carries no candidates, fact hold or job scope');
   check((jpSrc.match(/terminal: jobAmendmentReturn\(/g) || []).length === 2 && (fnBody.match(/jobAmendmentReturn\(/g) || []).length === 0, 'the two former "update that job?" return sites must each be one call to jobAmendmentReturn, now inside the job-pricing handler');
   check((indexSrc.match(/pendingActionType: "job_scope_amendment"/g) || []).length === 0 && (jpSrc.match(/pendingActionType: "job_scope_amendment"/g) || []).length === 1, 'the job_scope_amendment result must be written once, in the helper');
-  const idWrites = (fnBody.match(/^\s+pendingActionId = /gm) || []).length, typeWrites = (fnBody.match(/^\s+pendingActionType = /gm) || []).length;
+  const idWrites = ((fnBody + openingSrcBody).match(/^\s+pendingActionId = /gm) || []).length, typeWrites = ((fnBody + openingSrcBody).match(/^\s+pendingActionType = /gm) || []).length;
   check(idWrites > 0 && idWrites === typeWrites, `every assignment of pendingActionId must be paired with one of pendingActionType (found ${idWrites} and ${typeWrites}), which is what lets the final return be well-formed`);
 
   // ---- 4. The scaffold cannot drift from the live function -----------------------------------------
@@ -166,6 +173,7 @@ module.exports = async function runIntentTests({ check, bundleTo, srcDir, fs, pa
   // dispatcher table) must still be unreachable from outside src/intents, and only index.ts may import the handler.
   const importsOf = (name) => srcFiles.filter((f) => new RegExp('from\\s+["\']\\./intents/' + name + '["\']').test(fs.readFileSync(path.join(srcDir, f), 'utf8')));
   check(importsOf('result').length === 0 && importsOf('dispatcher').length === 0, `nothing outside src/intents may import the unfinished scaffold (result: ${importsOf('result').join(', ') || 'none'}; dispatcher: ${importsOf('dispatcher').join(', ') || 'none'})`);
+  check(sameJson(importsOf('opening'), ['index.ts']), `only index.ts may import the opening-step handler (imported by: ${importsOf('opening').join(', ') || 'none'})`);
   check(sameJson(importsOf('job-pricing'), ['index.ts']), `only index.ts may import the job-pricing handler (imported by: ${importsOf('job-pricing').join(', ') || 'none'})`);
   check(sameJson(importsOf('procurement'), ['index.ts']), `only index.ts may import the procurement handler (imported by: ${importsOf('procurement').join(', ') || 'none'})`);
   check(sameJson(importsOf('snags-leads'), ['index.ts']), `only index.ts may import the snags-and-leads handler (imported by: ${importsOf('snags-leads').join(', ') || 'none'})`);

@@ -154,13 +154,21 @@ async function expect(role, method, path, want) {
   // Decision 3 (2026-10-02): the permission check must run before ANYTHING that can write for a
   // name. reconcileCustomer/reconcileCharacter insert rows, and the identity checks hold actions.
   // Asserted on source order inside processOneExtraction, so a later edit cannot quietly reorder it.
+  // Rewrite Phase 3, step 9: the opening step (the creation gate, who the sentence is about, the selection) lives in intents/opening.ts, and
+  // processOneExtraction enters it first. "The gate runs before anything is written" now has two halves, both checked: the gate comes before every
+  // writer inside the opening step, and the opening step is called before any writer in the function that follows it.
+  const openingSrc = fs.readFileSync(path.join(srcDir, 'intents', 'opening.ts'), 'utf8');
   const fnStart = indexSrc.indexOf('async function processOneExtraction(');
   const fnBody = indexSrc.slice(fnStart);
-  const gateAt = fnBody.indexOf('intentCreationRefusal(extraction?.intent, capabilities)');
-  check(fnStart > 0 && gateAt > 0, 'could not find the creation gate inside processOneExtraction');
+  const gateAt = openingSrc.indexOf('intentCreationRefusal(extraction?.intent, capabilities)');
+  check(fnStart > 0 && gateAt > 0, 'could not find the creation gate inside the opening step');
+  const openingCallAt = fnBody.indexOf('handleOpeningStep(env, ctx,');
+  check(openingCallAt > 0, 'processOneExtraction must enter the opening step');
   for (const writer of ['await reconcileCustomer(', 'await reconcileCharacter(', 'holdForConfirmation(', 'ctx.waitUntil(setSelection(', 'ctx.waitUntil(updateCaptureHint(']) {
-    const at = fnBody.indexOf(writer);
-    check(at < 0 || gateAt < at, `the creation gate must run before "${writer}" inside processOneExtraction, but it comes after`);
+    const at = openingSrc.indexOf(writer);
+    check(at < 0 || gateAt < at, `the creation gate must run before "${writer}" inside the opening step, but it comes after`);
+    const at2 = fnBody.indexOf(writer);
+    check(at2 < 0 || openingCallAt < at2, `the opening step (and its creation gate) must run before "${writer}" inside processOneExtraction, but it comes after`);
   }
 
   // ---- Which intents only FIND a customer or supplier, never create one (rewrite Phase 3, step 3) -------------------------------
@@ -173,7 +181,7 @@ async function expect(role, method, path, want) {
   check(intentOnlyFindsCustomers('purchase_order') === true && intentOnlyFindsCharacters('purchase_order') === false, 'an order may create a new supplier but never a customer');
   check(['invoice', 'payment', 'note', 'quotation', 'goods_received', 'raise_snag', 'stocktake'].every((i) => !intentOnlyFindsCustomers(i) && !intentOnlyFindsCharacters(i)), 'ordinary recording intents are not find-only');
   check(!intentOnlyFindsCustomers(null) && !intentOnlyFindsCustomers(undefined) && !intentOnlyFindsCustomers('not_an_intent') && !intentOnlyFindsCharacters(''), 'a missing or unknown intent is not find-only (it is handled as before)');
-  check((indexSrc.match(/intentOnlyFindsCustomers\(extraction\.intent\)/g) || []).length === 1 && (indexSrc.match(/intentOnlyFindsCharacters\(extraction\.intent\)/g) || []).length === 1, 'the opening step must ask the table, once for customers and once for suppliers');
+  check((openingSrc.match(/intentOnlyFindsCustomers\(extraction\.intent\)/g) || []).length === 1 && (openingSrc.match(/intentOnlyFindsCharacters\(extraction\.intent\)/g) || []).length === 1 && !/intentOnlyFinds/.test(indexSrc), 'the opening step must ask the table, once for customers and once for suppliers (and nothing else in index.ts may)');
   check(!/extraction\.intent === "lookup" \|\| extraction\.intent === "cancel_order"/.test(indexSrc), 'index.ts must not carry its own hand-written list of find-only intents');
 
   // The decided differences themselves, asserted explicitly so they cannot drift silently.
@@ -221,7 +229,7 @@ async function expect(role, method, path, want) {
   check(poeStart > 0 && poeSrc.length > 5000, 'could not isolate processOneExtraction');
   for (const gone of ['recordSnag(', 'resolveSnag(', 'recordLead(', 'markLeadLost(', 'extractSnag(', 'extractSnagResolution(', 'extractLead(', 'extractLeadLost(', 'getOpenSnagsForCustomer(', 'getOpenLeads(', 'snagResult', 'snagResolutionResult', 'leadResult', 'leadLostResult', 'snagNoCustomer']) check(!poeSrc.includes(gone), `processOneExtraction must not carry its own copy of the snag and lead logic (found: ${gone})`);
   for (const must of ['recordSnag(', 'resolveSnag(', 'recordLead(', 'markLeadLost(', 'getOpenSnagsForCustomer(', 'getOpenLeads(']) check(snagsLeadsSrc.includes(must), `intents/snags-leads.ts must do: ${must}`);
-  check(indexSrc.includes('extraction.intent === "raise_lead" || extraction.intent === "lose_lead"'), 'the opening step must still keep a lead\'s name from being matched as a customer');
+  check(openingSrc.includes('extraction.intent === "raise_lead" || extraction.intent === "lose_lead"'), 'the opening step must still keep a lead\'s name from being matched as a customer');
   // Rewrite Phase 3, step 6: procurement by dictation lives in intents/procurement.ts. Nothing may grow back in the big function, and a held
   // action must never be lost: the handler hands back its number and type even when no reply branch matched, and the reply is used only when there is one.
   check((indexSrc.match(/handleProcurement\(env,/g) || []).length === 1, 'index.ts must call handleProcurement exactly once');
@@ -247,6 +255,18 @@ async function expect(role, method, path, want) {
   const poeSrc8 = indexSrc.slice(poeStart8, indexSrc.indexOf('\n}\n', poeStart8));
   for (const gone of ['extractWorkObservation(', 'recordWorkObservation(', 'checkForJobScopeAmendment(', 'findOpenJobWithSameWork(', 'extractScopePricing(', 'attachToSiblingJobScope(', 'findSiblingCustomer(', 'holdForConfirmation(env,\n        "invoice"', 'transcriptMentionsPricing', 'buildQuotationLineItems', 'jobScopeIdForPricing =', 'invoiceMatchedJob =']) check(!poeSrc8.includes(gone), `processOneExtraction must not carry its own copy of the job-pricing logic (found: ${gone.replace(/\n\s*/g, ' ')})`);
   for (const must of ['extractWorkObservation(', 'recordWorkObservation(', 'checkForJobScopeAmendment(', 'findOpenJobWithSameWork(', 'extractScopePricing(', 'attachToSiblingJobScope(', 'findSiblingCustomer(', 'buildQuotationLineItems(', 'transcriptMentionsPricing(']) check(jobPricingSrc.includes(must), `intents/job-pricing.ts must do: ${must}`);
+  // Rewrite Phase 3, step 9: the opening step lives in intents/opening.ts. It returns EITHER a finished result OR a small state object.
+  check((indexSrc.match(/handleOpeningStep\(env, ctx,/g) || []).length === 1, 'index.ts must call handleOpeningStep exactly once');
+  check(/if \(!\("opening" in opening\)\) return opening;/.test(indexSrc), 'a finished result from the opening step (a refusal, an identity question, forget-last) must be returned at once');
+  check(/extraction = opening\.extraction;/.test(indexSrc) && /let \{ customer, character, pendingActionId, pendingActionType, canManageInvoicesForWrites \} = opening;/.test(indexSrc), 'the extraction (which the opening step may update) and the five values the rest of the function needs must come back');
+  const openingStateKeys = (openingSrc.match(/export interface OpeningState \{([\s\S]*?)\n\}/)[1].match(/^\s{2}(\w+):/gm) || []).map((s) => s.trim().replace(':', '')).filter((k) => k !== 'opening' && k !== 'extraction').sort();
+  const openingDestructured = ((indexSrc.match(/let \{ ([\w, ]+) \} = opening;/) || [,''])[1]).split(',').map((s) => s.trim()).sort();
+  check(JSON.stringify(openingStateKeys) === JSON.stringify(openingDestructured) && openingStateKeys.length === 5, `the five values the function needs must all come back under their original names (state: ${openingStateKeys.join(', ')}; destructured: ${openingDestructured.join(', ')})`);
+  check(/return \{ opening: true, extraction, customer, character, pendingActionId, pendingActionType, canManageInvoicesForWrites \};/.test(openingSrc), 'the opening step\'s final return must hand back the extraction and all five values');
+  const poeStart9 = indexSrc.indexOf('async function processOneExtraction(');
+  const poeSrc9 = indexSrc.slice(poeStart9, indexSrc.indexOf('\n}\n', poeStart9));
+  for (const gone of ['await reconcileCustomer(', 'await reconcileCharacter(', 'reconcilePerson(', 'intentCreationRefusal(extraction?.intent', 'findExistingCustomerByName(', 'findExistingCharacterByName(', 'ctx.waitUntil(setSelection(', 'ctx.waitUntil(updateCaptureHint(', 'logInteractionEdge(', 'canResolveActionType(']) check(!poeSrc9.includes(gone), `processOneExtraction must not carry its own copy of the opening step (found: ${gone}); a lookup may still check a permission with intentCreationRefusal, but the gate on the sentence's own intent belongs to the opening step`);
+  for (const must of ['await reconcileCustomer(', 'await reconcileCharacter(', 'reconcilePerson(', 'intentCreationRefusal(', 'ctx.waitUntil(setSelection(', 'ctx.waitUntil(updateCaptureHint(', 'canResolveActionType(']) check(openingSrc.includes(must), `intents/opening.ts must do: ${must}`);
   // Source-pattern guards: both handlers must keep every guard. Crude on purpose, and mutation-checked.
   const handlerSlice = (marker) => { const a = indexSrc.indexOf(marker); const b = indexSrc.indexOf('if (url.pathname === "', a + marker.length); return indexSrc.slice(a, b); };
   for (const [name, marker, respVar] of [['/files/document', 'if (url.pathname === "/files/document"', 'docResponseBody'], ['/files/photo', 'if (url.pathname === "/files/photo"', 'photoResponseBody']]) {
@@ -699,7 +719,7 @@ async function expect(role, method, path, want) {
     }
   }
   check(canResolveActionType('a_type_nobody_has_heard_of', RC.owner) === true && canResolveActionType('a_type_nobody_has_heard_of', RC.accountant) === false && canResolveActionType('a_type_nobody_has_heard_of', []) === false, 'a type with no entry is owner-only');
-  check(/canResolveActionType\(p\.type, capabilities\)/.test(indexSrc) && !/SELECT id FROM pending_actions WHERE status = 'pending' ORDER BY created_at DESC LIMIT 1/.test(indexSrc), 'forget_last must choose among the actions the caller may resolve, never "the newest of anyone\'s"');
+  check(/canResolveActionType\(p\.type, capabilities\)/.test(openingSrc) && !/SELECT id FROM pending_actions WHERE status = 'pending' ORDER BY created_at DESC LIMIT 1/.test(openingSrc + indexSrc), 'forget_last must choose among the actions the caller may resolve, never "the newest of anyone\'s"');
   check(withArticle('installer') === 'an installer' && withArticle('supplier') === 'a supplier' && withArticle('contact') === 'a contact' && withArticle(' Electrician ') === 'an Electrician', 'the right article goes before a role named in a question');
   check(!/is already on file as a \$\{collision\.existingRole\}/.test(indexSrc), 'a collision question must name the real relationship, not the system\'s word "character"');
 

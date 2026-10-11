@@ -118,6 +118,14 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
     move:** the supplier-document decision section that exists twice, identically, in the document and photo upload
     handlers (131 lines): it is fully recorded, duplicated, and a single shared function removes the chance of the copies
     drifting. (`DECISIONS.md`, "Rewrite Phase 2, the upload handlers".)
+22. **Where does the latency Pierre has noticed come from?** Measured 2026-10-04 (`DECISIONS.md`, "Performance check"): this session's work adds **no model
+    calls** and about 0.9% more database calls, so it does not explain a lot of delay. The cause is unknown. Candidates: cold starts after
+    deploys (about 16 pushed in one session; each re-creates its lazy tables), the distance to the database (about nine round trips per
+    message), and Workers AI speed. *Option:* return a per-request timing breakdown (time in the model, time in the database, number of
+    each) with the reply and log it, so the next phone test shows where the seconds go.
+23. **Reads should not run `CREATE TABLE`.** A customer lookup ("how is Jenny doing") runs two `CREATE TABLE IF NOT EXISTS` statements (the order link
+    and the cancellation table) that a read does not need: a missing table just means "no rows". *Option:* query inside a try that treats
+    "no such table" as empty, and leave table creation to the writers. The same pattern applies to the other lazily-created tables on read paths.
 
 ## Settled (kept so the reasoning is not lost)
 
