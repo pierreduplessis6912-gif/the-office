@@ -139,7 +139,7 @@ items below is ticked off on that report alone; each stays listed until it is co
 
 ## F. Hardening (Pierre's definition of "complete", 2026-10-11; from two outside reviews, each claim verified: `DECISIONS.md`)
 
-*Item 1 (the front door) is done. The rest are open, in the proposed order, which Pierre has not yet confirmed. The latency work is paused until this list and the refactor tidy-ups are done.*
+***Superseded by `SHIP_CHECKLIST.md` (2026-10-11), which is the working list: it was written after a third review and every claim was checked against the code.** The items below are kept for the reasoning. The latency work is paused until the checklist is done.*
 
 24. **The one shared admin key protects 8 privileged routes** (erase everything, export, merges, minting a session as any user). The erase route already needs a typed confirmation, but that guards against accidents, not a stolen key (the error message gives the phrase). *Options:* rotate the key and keep it out of scripts; log every admin action with when and what; take the most dangerous routes off the live Worker or put them behind something stronger than a static key.
 25. **Deploys go straight to production.** No staging, no post-deploy smoke test, no rollback step.
