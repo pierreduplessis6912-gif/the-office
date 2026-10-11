@@ -802,6 +802,8 @@ async function expect(role, method, path, want) {
 
   // Per-request timing (where does the time go?): it must only ever observe.
   await require('./timing.test.js')({ check, bundleTo, srcDir, path, fs });
+  // The Worker's front door: nothing that goes wrong inside a request may escape as a bare failure.
+  await require('./frontdoor.test.js')({ check, bundleTo, srcDir, path, fs });
 
   // The same work said twice makes no new job.
   await require('./samework.test.js')({ check, bundleTo, srcDir, path, sameJson });

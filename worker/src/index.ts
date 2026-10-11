@@ -1,3 +1,4 @@
+import { runGuarded } from "./frontdoor";
 import { composeReply } from "./intents/reply";
 import { handlePayments } from "./intents/payments";
 import { handleFactsAndNotes } from "./intents/facts-notes";
@@ -3598,7 +3599,8 @@ export default {
     // Where the time goes (timing.ts): off unless RECORD_TIMINGS is "1". It only observes; recording happens after the response has gone.
     const timingOn = env.RECORD_TIMINGS === "1";
     const tally = newTally();
-    const response = await handleRequest(request, timingOn ? instrumentEnv(env, tally) : env, ctx, requestId);
+    // The front door (frontdoor.ts): an error nothing else caught is logged with this request's id and answered with a small JSON 500, never a bare failure.
+    const response = await runGuarded(request, requestId, () => handleRequest(request, timingOn ? instrumentEnv(env, tally) : env, ctx, requestId), log);
     const totalMs = Date.now() - startedAt;
     log("info", requestId, "request end", { status: response.status, durationMs: totalMs, ...(timingOn ? breakdown(tally) : {}) });
     if (timingOn && shouldRecordTiming(request.method, url.pathname)) {

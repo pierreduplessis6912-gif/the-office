@@ -124,7 +124,7 @@ items below is ticked off on that report alone; each stays listed until it is co
     one place from 16 inputs rather than by each group; `index.ts` is still 3,669 lines (the routes and other large functions were not
     touched); and the guards read source text, which is brittle. *Option:* adopt the contract so the orchestrator stops copying five
     handlers' held actions into its own variables, and replace the text guards with typed ones.
-22. **Where does the latency Pierre has noticed come from? (instrumented 2026-10-04; waiting for data.)** Measured (`DECISIONS.md`, "Performance
+22. **Where does the latency Pierre has noticed come from? (instrumented 2026-10-04; data read 2026-10-11; PAUSED by Pierre until the refactor and hardening are complete.)** Measured (`DECISIONS.md`, "Performance
     check"): the Phase 3 work and features add no model calls and about 0.9% more database calls, so they do not explain it. A per-request
     timing breakdown is now built (`GET /debug/timings`, admin key; model versus database time per route). *To do:* after the next phone
     test, read it. If slow requests are mostly model time, it is the model's speed; mostly many database calls, the distance to the
@@ -136,6 +136,18 @@ items below is ticked off on that report alone; each stays listed until it is co
     message; it is not yet identified, and whether it costs anything in production depends on whether the "create once" caches survive
     between requests (they are keyed on the database binding). The spoken lookups that read the order link or cancellation tables (open
     orders, link, cancel) also still create them.
+
+\n\n## F. Hardening (Pierre's definition of "complete", 2026-10-11; from two outside reviews, each claim verified: `DECISIONS.md`)
+
+*Item 1 (the front door) is done. The rest are open, in the proposed order, which Pierre has not yet confirmed. The latency work is paused until this list and the refactor tidy-ups are done.*
+
+24. **The one shared admin key protects 8 privileged routes** (erase everything, export, merges, minting a session as any user). The erase route already needs a typed confirmation, but that guards against accidents, not a stolen key (the error message gives the phrase). *Options:* rotate the key and keep it out of scripts; log every admin action with when and what; take the most dangerous routes off the live Worker or put them behind something stronger than a static key.
+25. **Deploys go straight to production.** No staging, no post-deploy smoke test, no rollback step.
+26. **No rate limit or daily cap on model calls.** A stuck or hostile client could run unlimited spend.
+27. **Migrations are not versioned.** Only a baseline file exists; most tables are made lazily or by `/debug/init-*` routes.
+28. **The app has no tests and no `pubspec.lock`**, and the Android scaffold is generated at build time, so builds are not reproducible.
+29. **No written backup-and-restore procedure** (an export route and an hourly job exist). Confirm what Cloudflare's own point-in-time recovery for D1 covers, then do a real restore once.
+30. **No alerting.** Nothing notifies on errors, slow requests or a failing deploy.
 
 ## Settled (kept so the reasoning is not lost)
 
