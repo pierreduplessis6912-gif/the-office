@@ -1,17 +1,38 @@
 name: Deploy office-api
 
+# SHIP_CHECKLIST.md item 5. Three changes from the old pipeline:
+#   1. The tests run on EVERY push to main. They used to run only when a file under worker/ changed, so a change to the tests, the recordings or the route policy
+#      was never checked by CI at all.
+#   2. The Worker is deployed only when the Worker itself changed (or this file did, or a person asked).
+#   3. After a deploy a smoke test checks the LIVE Worker. If it fails, the previous version is restored automatically and the run is marked failed.
+# A manual run with "drill" ticked proves the rollback works: it deploys the same code, forces the smoke test to fail, and shows the rollback and a healthy Worker
+# afterwards (production ends on identical code, so nothing is at risk).
 on:
   push:
     branches: [main]
-    paths:
-      - "worker/**"
-      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+    inputs:
+      drill:
+        description: "Rollback drill: deploy, force the smoke test to fail, prove the automatic rollback works"
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-office-api
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
-  deploy:
+  test:
     runs-on: ubuntu-latest
+    outputs:
+      deploy_needed: ${{ steps.changes.outputs.deploy_needed }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -30,6 +51,40 @@ jobs:
         env:
           NODE_PATH: worker/node_modules
 
+      - name: Did the Worker change?
+        id: changes
+        env:
+          BEFORE: ${{ github.event.before }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "deploy_needed=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            echo "deploy_needed=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if git diff --name-only "$BEFORE" "$GITHUB_SHA" | grep -qE '^(worker/|\.github/workflows/deploy\.yml$)'; then
+            echo "deploy_needed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy_needed=false" >> "$GITHUB_OUTPUT"
+            echo "Only tests or documents changed: nothing to deploy."
+          fi
+
+  deploy:
+    needs: test
+    if: needs.test.outputs.deploy_needed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        working-directory: worker
+        run: npm ci
+
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
@@ -37,3 +92,33 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: worker
           command: deploy
+
+      - name: Smoke test the live Worker
+        id: smoke
+        continue-on-error: true
+        env:
+          FORCE_FAIL: ${{ github.event.inputs.drill == 'true' && '1' || '0' }}
+        run: bash tools/smoke-test.sh https://office.websitehub.co.za
+
+      - name: Roll back to the previous version
+        if: steps.smoke.outcome == 'failure'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: worker
+          command: 'rollback --message "Automatic rollback after a failed smoke test" --yes'
+
+      - name: Smoke test again after the rollback
+        if: steps.smoke.outcome == 'failure'
+        run: bash tools/smoke-test.sh https://office.websitehub.co.za
+
+      - name: Mark the run failed (the deploy was rolled back)
+        if: steps.smoke.outcome == 'failure' && github.event.inputs.drill != 'true'
+        run: |
+          echo "The new version failed its smoke test and was rolled back. Production is on the previous version. Fix the cause and push again."
+          exit 1
+
+      - name: Drill result
+        if: steps.smoke.outcome == 'failure' && github.event.inputs.drill == 'true'
+        run: echo "DRILL PASSED. The smoke test failed on purpose, the automatic rollback ran, and the Worker is healthy again."

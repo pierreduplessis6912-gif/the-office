@@ -810,6 +810,9 @@ async function expect(role, method, path, want) {
   await require('./signed-links.test.js')({ check, bundleTo, srcDir, path, fs });
   // The route policy: every non-admin route, what each kind of caller may do, checked against the real gate.
   await require('./route-policy.test.js')({ check, srcDir, path, fs });
+  // The deploy pipeline's safety: a smoke test of the live Worker, and an automatic rollback.
+  await require('./smoke.test.js')({ check, path, fs });
+  await require('./pipeline.test.js')({ check, path, fs });
 
   // The same work said twice makes no new job.
   await require('./samework.test.js')({ check, bundleTo, srcDir, path, sameJson });
