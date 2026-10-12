@@ -6,6 +6,7 @@
 //
 // On its first wake the object creates its tables from the baseline schema; on EVERY wake it applies the indexes (idempotent, and it picks up tables that were created on first use
 // since the last wake). The Worker forwards to an object only when BUSINESS_MODE is "object" and the object exists; otherwise nothing changes.
+import { scopeBindings } from "./scoped-bindings";
 import { isBusinessId } from "./directory";
 import { BASELINE_SQL } from "./baseline-sql";
 import { applyIndexes, type IndexReport } from "./indexes";
@@ -78,7 +79,8 @@ export function makeBusinessObject(serve: Serve) {
         this.businessId = known ?? claimed;
       }
       if (this.businessId !== claimed) return Response.json({ error: "this object belongs to another business" }, { status: 403 });
-      const objectEnv = { ...this.env, OFFICE_DB: this.db as unknown as D1Database, BUSINESS_ID: claimed } as Env;
+      // The notes store, the file storage and the memory index are shared by every business, so each is confined to this business (scoped-bindings.ts).
+      const objectEnv = scopeBindings({ ...this.env, OFFICE_DB: this.db as unknown as D1Database, BUSINESS_ID: claimed } as Env, claimed);
       const ctx = { waitUntil: (p: Promise<unknown>) => this.state.waitUntil(p), passThroughOnException: () => undefined } as unknown as ExecutionContext;
       return serve(request, objectEnv, ctx);
     }

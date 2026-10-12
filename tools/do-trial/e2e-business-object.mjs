@@ -73,6 +73,26 @@ check(nameless.status === 400 && /X-Target-Business/.test(nameless.body.error), 
 const wrongKey = await call("/debug/customers", { headers: { "X-Admin-Key": "wrong", "X-Target-Business": "alpha-co" } });
 check(wrongKey.status === 401, "a wrong admin key can never name a business", `status ${wrongKey.status}`);
 
+// ---- the shared notes store and file storage: the same key and the same file name in both businesses --------------------------------------------------------------
+const setNote = (biz, value) => call("/debug/kv-set", { method: "POST", headers: { ...admin, "X-Target-Business": biz, ...json }, body: JSON.stringify({ key: "customer:1", value }) });
+const readNote = (biz) => call("/debug/customer-notes?customerId=1", { headers: { ...admin, "X-Target-Business": biz } });
+await setNote("alpha-co", { note: "ALPHA only" }); await setNote("beta-co", { note: "BETA only" });
+const noteA = await readNote("alpha-co"), noteB = await readNote("beta-co");
+check(JSON.stringify(noteA.body).includes("ALPHA only") && !JSON.stringify(noteA.body).includes("BETA") && JSON.stringify(noteB.body).includes("BETA only") && !JSON.stringify(noteB.body).includes("ALPHA"), "both businesses write the SAME note key (customer:1) and each reads back only its own (before the scoping they overwrote each other)");
+const png = (tag) => { const boundary = "----logo"; const head = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]); const body = Buffer.concat([Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="logo"; filename="logo.png"\r\nContent-Type: image/png\r\n\r\n`), head, Buffer.from(tag), Buffer.from(`\r\n--${boundary}--\r\n`)]); return { boundary, body }; };
+const sendLogo = (who, tag) => { const { boundary, body } = png(tag); return call("/business-profile/logo", { method: "POST", headers: { ...who, "Content-Type": `multipart/form-data; boundary=${boundary}` }, body }); };
+const upA = await sendLogo(A, "ALPHA-LOGO"), upB = await sendLogo(B, "BETA-LOGO");
+check(upA.status === 200 && upB.status === 200, "each business uploads its logo to the shared file storage", `alpha ${upA.status}, beta ${upB.status}`);
+const logoA = await mf.dispatchFetch("http://localhost/business-profile/logo", { headers: A }), logoB = await mf.dispatchFetch("http://localhost/business-profile/logo", { headers: B });
+const bytesA = Buffer.from(await logoA.arrayBuffer()).toString("latin1"), bytesB = Buffer.from(await logoB.arrayBuffer()).toString("latin1");
+check(logoA.status === 200 && bytesA.includes("ALPHA-LOGO") && !bytesA.includes("BETA") && logoB.status === 200 && bytesB.includes("BETA-LOGO") && !bytesB.includes("ALPHA"), "each business fetches back only its own logo");
+const kvKeys = (await (await mf.getKVNamespace("CUSTOMER_NOTES")).list()).keys.map((k) => k.name);
+const r2Keys = (await (await mf.getR2Bucket("OFFICE_VAULT")).list()).objects.map((o) => o.key);
+const prefixed = (k, a, b) => k.startsWith(a) || k.startsWith(b);
+check(kvKeys.length >= 2 && kvKeys.every((k) => prefixed(k, "b:alpha-co:", "b:beta-co:")) && r2Keys.length >= 2 && r2Keys.every((k) => prefixed(k, "b/alpha-co/", "b/beta-co/")), "LOOKING AT THE SHARED STORES THEMSELVES: every key in the notes store and every file in the bucket sits under its own business's prefix, none unprefixed", `${kvKeys.length} notes keys, ${r2Keys.length} files`);
+const refile = await call("/debug/customer-notes?customerId=1", { headers: { ...admin, "X-Target-Business": "alpha-co" } });
+check(!JSON.stringify(refile.body).includes("BETA"), "reading customer 1's notes in one business never returns the other's");
+
 // ---- the Worker holds no business data -------------------------------------------------------------------------------------------------------------------------
 const workerD1 = await mf.getD1Database("OFFICE_DB");
 const tables = (await workerD1.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '_cf_%' AND name NOT LIKE 'sqlite_%'").all()).results.map((t) => t.name).sort();

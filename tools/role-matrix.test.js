@@ -825,6 +825,8 @@ async function expect(role, method, path, want) {
   await require('./routing.test.js')({ check, srcDir });
   await require('./business-session.test.js')({ check, srcDir });
   await require('./directory.test.js')({ check, srcDir });
+  // The notes store, the file storage and the memory index are shared by every business: each business sees only its own.
+  await require('./scoped-bindings.test.js')({ check, srcDir });
 
   // The same work said twice makes no new job.
   await require('./samework.test.js')({ check, bundleTo, srcDir, path, sameJson });

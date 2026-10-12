@@ -266,6 +266,11 @@ jobs:
           S_NOB=$(list "$COOKIE_NOB" "$RESULTS/list-nob.json")
           S_STRANGER=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/customers")
           S_NAMELESS=$(curl -s -o /dev/null -w '%{http_code}' -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/customers")
+          for pair in "staging-co:FIRST only" "staging-two:SECOND only"; do
+            curl -s -o /dev/null -X POST "$BASE/debug/kv-set" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Target-Business: ${pair%%:*}" -H "Content-Type: application/json" -d "{\"key\":\"customer:1\",\"value\":{\"note\":\"${pair#*:}\"}}"
+          done
+          curl -s -o "$RESULTS/notes-a.json" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Target-Business: staging-co" "$BASE/debug/customer-notes?customerId=1"
+          curl -s -o "$RESULTS/notes-b.json" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Target-Business: staging-two" "$BASE/debug/customer-notes?customerId=1"
           : > "$RESULTS/times.txt"
           for i in 1 2 3 4 5; do curl -s -o /dev/null -w '%{time_total}\n' -H "Cookie: $COOKIE_A" "$BASE/customers" >> "$RESULTS/times.txt"; done
           S_IMPORT_A="$S_IMPORT_A" S_IMPORT_B="$S_IMPORT_B" S_LIST_A="$S_LIST_A" S_LIST_B="$S_LIST_B" S_WRONG="$S_WRONG" S_NOB="$S_NOB" S_STRANGER="$S_STRANGER" S_NAMELESS="$S_NAMELESS" python3 - <<'PY' > "$RESULTS/e2e.json"
@@ -278,12 +283,15 @@ jobs:
                   return None
           a, b = names("list-a.json"), names("list-b.json")
           times = [float(x) for x in open(os.path.join(r, "times.txt")).read().split()]
+          note_a, note_b = open(os.path.join(r, "notes-a.json")).read(), open(os.path.join(r, "notes-b.json")).read()
+          notes_isolated = "FIRST only" in note_a and "SECOND only" not in note_a and "SECOND only" in note_b and "FIRST only" not in note_b
           isolated = bool(a is not None and b is not None and "Staging Customer One" in a and "Staging Customer Two" in a and "Second Company Customer" in b
                           and "Second Company Customer" not in a and not any(n.startswith("Staging Customer") for n in b))
           print(json.dumps({
               "imports": {"first_business": os.environ["S_IMPORT_A"], "second_business": os.environ["S_IMPORT_B"]},
               "lists": {"first_business": os.environ["S_LIST_A"], "second_business": os.environ["S_LIST_B"]},
               "each_business_sees_only_its_own_customers": isolated,
+              "same_note_key_in_both_businesses_stays_separate": notes_isolated,
               "first_business_customer_count": len(a) if a is not None else None,
               "second_business_customer_count": len(b) if b is not None else None,
               "refused": {"owner_session_placed_in_the_other_business": os.environ["S_WRONG"], "session_with_no_business": os.environ["S_NOB"], "stranger": os.environ["S_STRANGER"], "admin_call_naming_no_business": os.environ["S_NAMELESS"]},
