@@ -50,12 +50,28 @@ async function loadProcessor(workerDir) {
 function newDatabase(workerDir) {
   const db = new DatabaseSync(':memory:');
   db.exec(fs.readFileSync(path.join(workerDir, 'migrations', '0001_baseline.sql'), 'utf8'));
+  applyIndexesSync(db);
   return db;
 }
 
 // A D1-shaped wrapper. Deliberately as strict as D1: binding undefined or a boolean throws, as it does there.
 // HARNESS_BACKEND=do runs the WHOLE suite against the Durable Object adapter (worker/src/storage/do-d1.ts) instead of the D1 emulation below, on top of a stand-in for
 // the Durable Object's SQL storage. If every recording still passes, the adapter behaves like D1 for everything the application does (architecture trial, 2026-10-12).
+// HARNESS_INDEXES=1 applies the application's indexes (worker/src/indexes.ts) to every test database, and again each time a table is created, so the WHOLE suite can prove that
+// adding the indexes changes no answer (pre-staging audit, 2026-10-12).
+let indexModule = null;
+function applyIndexesSync(db) {
+  if (process.env.HARNESS_INDEXES !== '1') return;
+  if (!indexModule) {
+    const out = path.join(os.tmpdir(), 'harness-indexes.js');
+    require('esbuild').buildSync({ entryPoints: [path.join(__dirname, '..', 'worker', 'src', 'indexes.ts')], bundle: true, platform: 'node', format: 'cjs', outfile: out, logLevel: 'silent' });
+    indexModule = require(out);
+  }
+  const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((r) => r.name));
+  const have = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all().map((r) => r.name));
+  for (const ix of indexModule.INDEXES) if (tables.has(ix.table) && !have.has(ix.name)) { try { db.exec(indexModule.createIndexSql(ix)); } catch (e) { throw new Error('index ' + ix.name + ' could not be created: ' + e.message); } }
+}
+function afterDdl(db, sql) { if (/^\s*create\s+table/i.test(sql)) applyIndexesSync(db); }
 function d1(db) {
   if (process.env.HARNESS_BACKEND === 'do') return doBackend(db);
   return d1Shim(db);
@@ -76,6 +92,7 @@ function doBackend(db) {
         return { toArray: () => rows, rowsRead: rows.length, rowsWritten: 0 };
       }
       const r = stmt.run(...binds);
+      afterDdl(db, query);
       return { toArray: () => [], rowsRead: 0, rowsWritten: Number(r.changes) };
     },
   };
@@ -87,7 +104,7 @@ function d1Shim(db) {
     bind: (...b) => stmt(sql, b),
     first: async (col) => { const row = plain(db.prepare(sql).get(...binds)) ?? null; return col && row ? row[col] : row; },
     all: async () => ({ results: db.prepare(sql).all(...binds).map(plain), success: true, meta: {} }),
-    run: async () => { const r = db.prepare(sql).run(...binds); return { success: true, meta: { last_row_id: Number(r.lastInsertRowid), changes: Number(r.changes) } }; },
+    run: async () => { const r = db.prepare(sql).run(...binds); afterDdl(db, sql); return { success: true, meta: { last_row_id: Number(r.lastInsertRowid), changes: Number(r.changes) } }; },
     raw: async () => db.prepare(sql).all(...binds).map((r) => Object.values(r)),
   });
   return {

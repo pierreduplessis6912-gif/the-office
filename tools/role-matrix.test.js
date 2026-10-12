@@ -813,6 +813,8 @@ async function expect(role, method, path, want) {
   // The deploy pipeline's safety: a smoke test of the live Worker, and an automatic rollback.
   // The Durable Object adapter: the same answers as the real Durable Object runtime.
   await require('./do-adapter.test.js')({ check });
+  // The database's indexes: valid on the real schema, safe to repeat, and the statements they fix use them.
+  await require('./indexes.test.js')({ check, srcDir });
   await require('./smoke.test.js')({ check, path, fs });
   await require('./pipeline.test.js')({ check, path, fs });
 

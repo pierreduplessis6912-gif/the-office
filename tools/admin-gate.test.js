@@ -37,13 +37,13 @@ async function adminGateTests({ check, bundleTo, srcDir, path, fs }) {
   const unclassified = [...found].filter((k) => !tabled.has(k)), stale = [...tabled].filter((k) => !found.has(k));
   check(unclassified.length === 0, `every admin and debug route must be in the tier table (not in it: ${unclassified.join(', ')})`);
   check(stale.length === 0, `the tier table must list only routes that exist (listed but not found: ${stale.join(', ')})`);
-  check(found.size === 129 && ![...found].some((k) => k.startsWith('ANY ')), 'there are 129 admin and debug routes (127 exact paths and 2 with an id in the path), each checked for its HTTP method');
+  check(found.size === 130 && ![...found].some((k) => k.startsWith('ANY ')), 'there are 130 admin and debug routes (128 exact paths and 2 with an id in the path), each checked for its HTTP method');
 
   // ---- the tiers themselves ---------------------------------------------------------------------------------------------------------------
   const privileged = Object.entries(ADMIN_ROUTE_TIERS).filter(([, t]) => t === 'privileged').map(([k]) => k).sort();
   const expectedPrivileged = ['GET /admin/export', 'POST /debug/business-profile', 'POST /debug/create-membership', 'POST /debug/delete-character', 'POST /debug/delete-customer', 'POST /debug/delete-membership', 'POST /debug/merge-characters', 'POST /debug/merge-customers', 'POST /debug/merge-stock-items', 'POST /debug/migrate-jobscopes-nullable-customer', 'POST /debug/set-membership-character'];
   check(JSON.stringify(privileged) === JSON.stringify(expectedPrivileged), `the privileged routes (change who has access, change banking details, delete or merge, read everything) must be exactly these 11 (found: ${privileged.join(', ')})`);
-  check(Object.entries(ADMIN_ROUTE_TIERS).filter(([k]) => k.includes('/init-')).every(([, t]) => t === 'schema') && Object.keys(ADMIN_ROUTE_TIERS).filter((k) => k.includes('/init-')).length === 38, 'the 38 set-up routes are all "schema"');
+  check(Object.entries(ADMIN_ROUTE_TIERS).filter(([k]) => k.includes('/init-')).every(([, t]) => t === 'schema') && Object.keys(ADMIN_ROUTE_TIERS).filter((k) => k.includes('/init-')).length === 39, 'the 39 set-up routes are all "schema"');
   check(['GET /debug/smoke-test', 'GET /debug/intent-test', 'GET /debug/reprocess', 'GET /debug/stress-memory', 'GET /debug/search-memory', 'GET /debug/rewrite-thinking-test'].every((k) => ADMIN_ROUTE_TIERS[k] === 'write'), 'a GET that spends model budget or changes data is "write", not "read"');
   check(ADMIN_ROUTE_TIERS['GET /debug/customers'] === 'read' && ADMIN_ROUTE_TIERS['GET /debug/timings'] === 'read', 'a plain look at data is "read"');
 

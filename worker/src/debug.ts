@@ -15,6 +15,7 @@
 // are NOT imported here beyond what a route genuinely reads directly
 // (like ROLE_CAPABILITIES, to validate a role name) — the actual
 // gating already ran in index.ts before this function is ever called.
+import { applyIndexes } from "./indexes";
 import { trialAi, trialD1, trialDo } from "./trial";
 import { timingsSummary } from "./timing";
 import { Env, Extraction, HistoryTurn, LineItemWithTotal } from "./types";
@@ -87,6 +88,11 @@ export async function handleDebugRoute(
 // Where the time goes, per route (timing.ts). Admin key, like every /debug route that is not one of the app's own.
 if (url.pathname === "/debug/timings" && request.method === "GET") {
       return Response.json(await timingsSummary(env));
+    }
+
+// Create the database's indexes (indexes.ts). Idempotent and safe to run any time; tables that do not exist yet are skipped and picked up on the next run.
+if (url.pathname === "/debug/init-indexes" && request.method === "POST") {
+      return Response.json(await applyIndexes(env));
     }
 
 // The architecture trial (trial.ts): what does it cost to run next to the data? Admin key only; touches no business data.

@@ -8,7 +8,7 @@ module.exports = async function runPipelineTests({ check, path, fs }) {
 
   check(!/\bpaths:/.test(trigger), 'the tests must run on EVERY push to main: the trigger must not have a paths filter (it used to, so a change to the tests, the recordings or the route policy was never checked)');
   check(/workflow_dispatch:/.test(trigger) && /drill:/.test(trigger), 'a person can start the pipeline by hand, with a "drill" option that proves the rollback works');
-  check(/name: Role-matrix test on the Durable Object adapter\s*\n\s*run: node tools\/role-matrix\.test\.js\s*\n\s*env:\s*\n\s*NODE_PATH: worker\/node_modules\s*\n\s*HARNESS_BACKEND: do/.test(code), 'CI also runs the whole suite through the Durable Object adapter, so the adapter cannot drift from D1 unnoticed');
+  check(/name: Role-matrix test on the Durable Object adapter, with every index applied\s*\n\s*run: node tools\/role-matrix\.test\.js\s*\n\s*env:\s*\n\s*NODE_PATH: worker\/node_modules\s*\n\s*HARNESS_BACKEND: do\s*\n\s*HARNESS_INDEXES: "1"/.test(code), 'CI also runs the whole suite through the Durable Object adapter WITH every index applied, so neither the adapter nor the indexes can drift from the real behaviour unnoticed');
   check(/test:\s*\n\s*runs-on/.test(code) && /npm run typecheck/.test(code) && /node tools\/role-matrix\.test\.js/.test(code), 'the test job runs the typecheck and the whole suite');
   check(/deploy:\s*\n\s*needs: test\s*\n\s*if: needs\.test\.outputs\.deploy_needed == 'true'/.test(code), 'the deploy job needs the tests to pass, and runs only when the Worker changed');
   check(/\^\(worker\/\|\\\.github\/workflows\/deploy\\\.yml\$\)/.test(code), 'the Worker counts as changed when anything under worker/ or this pipeline file changes');

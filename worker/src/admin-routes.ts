@@ -65,7 +65,8 @@ export const ADMIN_ROUTE_TIERS: Readonly<Record<string, AdminTier>> = {
   "GET /debug/tasks-list": "read",
   "GET /debug/timings": "read",
   "GET /debug/variance-dispositions": "read",
-  // ---- schema (38): Idempotent set-up of a table or a column. Changes the shape of the database, never its contents.
+  // ---- schema (39): Idempotent set-up of a table or a column. Changes the shape of the database, never its contents.
+  "POST /debug/init-indexes": "schema",
   "POST /debug/init-capture-id-column": "schema",
   "POST /debug/init-captures-fk": "schema",
   "POST /debug/init-character-facts": "schema",

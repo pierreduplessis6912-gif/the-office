@@ -1,0 +1,352 @@
+{
+ "fixed": [
+  "SELECT id FROM customers WHERE name = ? COLLATE NOCASE AND merged_into_customer_id IS NULL",
+  "SELECT id FROM customers WHERE name = ? COLLATE NOCASE",
+  "SELECT id, name FROM people WHERE name = ? COLLATE NOCASE AND merged_into_person_id IS NULL",
+  "SELECT id, name FROM customers WHERE person_id = ? LIMIT 1",
+  "SELECT id FROM characters WHERE name = ? COLLATE NOCASE AND merged_into_character_id IS NULL",
+  "SELECT id FROM characters WHERE name = ? COLLATE NOCASE",
+  "SELECT id, amount, description FROM quotations WHERE customer_id = ? AND status != 'converted' ORDER BY created_at DESC LIMIT 1",
+  "SELECT pl.id AS po_line_id, pl.purchase_order_id AS po_id, pl.description AS description, pl.quantity_ordered AS ordered, pl.unit AS unit, COALESCE((SELECT SUM(g.quantity_received) FROM grn_line_items g WHERE g.po_line_item_id = pl.id), 0) AS received, COALESCE((SELECT SUM(-g.variance) FROM grn_line_items g WHERE g.po_line_item_id = pl.id AND g.variance < 0 AND EXISTS (SELECT 1 FROM variance_dispositions vd WHERE vd.grn_line_item_id = g.id AND vd.resolution = 'credit')), 0) AS written_off FROM po_line_items pl JOIN purchase_orders po ON po.id = pl.purchase_order_id WHERE po.supplier_id = ? AND po.id NOT IN (SELECT purchase_order_id FROM purchase_order_cancellations) ORDER BY po.created_at ASC, po.id ASC, pl.id ASC",
+  "SELECT id, description FROM purchase_orders WHERE supplier_id = ? AND id NOT IN (SELECT purchase_order_id FROM purchase_order_cancellations) ORDER BY created_at DESC LIMIT 1",
+  "SELECT supplier_reference, amount, created_at FROM supplier_invoices WHERE supplier_id = ? AND supplier_reference IS NOT NULL ORDER BY id",
+  "SELECT id, payload FROM pending_actions WHERE type = 'supplier_invoice' AND status IN ('pending', 'processing') ORDER BY id",
+  "SELECT supplier_reference, amount, created_at FROM supplier_invoices WHERE supplier_id = ? AND supplier_reference IS NOT NULL",
+  "SELECT id, description, quantity_ordered, unit, unit_price_expected, product_id FROM po_line_items WHERE purchase_order_id = ?",
+  "SELECT COALESCE(SUM(quantity_received), 0) as total FROM grn_line_items WHERE po_line_item_id = ?",
+  "SELECT COUNT(*) as count FROM grn_line_items WHERE po_line_item_id = ?",
+  "SELECT gli.id, gli.description, gli.variance FROM grn_line_items gli JOIN goods_received_notes grn ON grn.id = gli.grn_id LEFT JOIN variance_dispositions vd ON vd.grn_line_item_id = gli.id WHERE grn.supplier_id = ? AND gli.variance IS NOT NULL AND gli.variance != 0 AND vd.id IS NULL ORDER BY grn.created_at DESC",
+  "SELECT g.id AS id FROM grn_line_items g JOIN goods_received_notes n ON n.id = g.grn_id WHERE n.purchase_order_id = ? AND g.variance < 0 AND NOT EXISTS (SELECT 1 FROM variance_dispositions vd WHERE vd.grn_line_item_id = g.id)",
+  "SELECT vd.id AS id FROM variance_dispositions vd JOIN grn_line_items g ON g.id = vd.grn_line_item_id JOIN goods_received_notes n ON n.id = g.grn_id WHERE n.purchase_order_id = ? AND vd.resolution = 'cancelled' AND vd.reason = 'order cancelled'",
+  "SELECT po.id AS id, po.description AS description, c.created_at AS cancelled_at FROM purchase_orders po JOIN purchase_order_cancellations c ON c.purchase_order_id = po.id WHERE po.supplier_id = ? ORDER BY po.created_at ASC, po.id ASC",
+  "SELECT purchase_order_id, description, quantity_ordered, unit FROM po_line_items WHERE purchase_order_id IN (?) ORDER BY id",
+  "SELECT pl.id, pl.description, pl.quantity_ordered, pl.unit, pl.unit_price_expected, COALESCE((SELECT SUM(g.quantity_received) FROM grn_line_items g WHERE g.po_line_item_id = pl.id), 0) AS quantity_received, COALESCE((SELECT SUM(-g.variance) FROM grn_line_items g WHERE g.po_line_item_id = pl.id AND g.variance < 0 AND EXISTS (SELECT 1 FROM variance_dispositions vd WHERE vd.grn_line_item_id = g.id AND vd.resolution = 'credit')), 0) AS quantity_written_off FROM po_line_items pl WHERE pl.purchase_order_id = ?",
+  "SELECT COUNT(*) as count FROM goods_received_notes WHERE purchase_order_id = ?",
+  "SELECT COUNT(*) as count FROM supplier_invoices WHERE purchase_order_id = ?",
+  "SELECT supplier_id, supplier_reference, amount, source_transcript FROM supplier_invoices WHERE purchase_order_id = ?",
+  "SELECT vd.id AS id FROM variance_dispositions vd JOIN grn_line_items g ON g.id = vd.grn_line_item_id JOIN goods_received_notes n ON n.id = g.grn_id WHERE n.purchase_order_id = ? AND vd.resolution = 'credit'",
+  "SELECT id, customer_id FROM expenses WHERE character_id IS ? AND amount = ? AND source_transcript IS ? AND description = ? AND (customer_id IS NULL OR customer_id = ? OR customer_id = ?)",
+  "SELECT id, name, relationship FROM characters WHERE name = ? COLLATE NOCASE AND merged_into_character_id IS NULL",
+  "SELECT id, person_id FROM characters WHERE name = ? COLLATE NOCASE AND merged_into_character_id IS NULL ORDER BY id LIMIT 1",
+  "SELECT id, name FROM customers WHERE name = ? COLLATE NOCASE AND merged_into_customer_id IS NULL",
+  "SELECT id, person_id FROM customers WHERE name = ? COLLATE NOCASE AND merged_into_customer_id IS NULL ORDER BY id LIMIT 1",
+  "SELECT id, description FROM job_scopes WHERE customer_id = ? ORDER BY created_at DESC",
+  "SELECT id, name, area_sqm FROM scope_components WHERE job_scope_id = ?",
+  "SELECT id, description, component_id FROM scope_tasks WHERE job_scope_id = ?",
+  "SELECT id, project_id FROM job_scopes WHERE capture_id = ? AND customer_id = ? AND id != ?",
+  "SELECT js.description, c.name as customer_name FROM job_scopes js JOIN customers c ON c.id = js.customer_id WHERE js.scheduled_date = ?",
+  "SELECT id, description, customer_id, character_id, due_date_raw, due_date FROM tasks WHERE done = 0 ORDER BY due_date IS NULL, due_date ASC, created_at DESC",
+  "SELECT type, payload FROM pending_actions WHERE status = 'confirmed' AND date(resolved_at) = ?",
+  "SELECT COALESCE((SELECT SUM(amount) FROM invoices WHERE customer_id = ?), 0) as invoiced, COALESCE((SELECT SUM(amount) FROM payments WHERE customer_id = ?), 0) as paid",
+  "SELECT COALESCE((SELECT SUM(amount) FROM invoices WHERE customer_id = ?), 0) as revenue, COALESCE((SELECT SUM(amount) FROM expenses WHERE customer_id = ?), 0) as cost",
+  "SELECT COUNT(DISTINCT po.id) AS orders, COALESCE(SUM(CASE WHEN pl.unit_price_expected IS NOT NULL THEN pl.quantity_ordered * pl.unit_price_expected ELSE 0 END), 0) AS value, COALESCE(SUM(CASE WHEN pl.unit_price_expected IS NULL THEN 1 ELSE 0 END), 0) AS unpriced FROM purchase_order_customers l JOIN purchase_orders po ON po.id = l.purchase_order_id JOIN po_line_items pl ON pl.purchase_order_id = po.id WHERE l.customer_id = ? AND po.id NOT IN (SELECT purchase_order_id FROM purchase_order_cancellations) AND NOT EXISTS (SELECT 1 FROM supplier_invoices si WHERE si.purchase_order_id = po.id)",
+  "SELECT id, type FROM pending_actions WHERE status = 'pending' ORDER BY created_at DESC, id DESC",
+  "SELECT id, name FROM customers WHERE name LIKE ? AND name LIKE ? LIMIT 1",
+  "SELECT id, description FROM projects WHERE customer_id = ? ORDER BY created_at DESC",
+  "SELECT js.description, js.scheduled_date, c.name as customer_name FROM job_scopes js JOIN customers c ON c.id = js.customer_id WHERE js.installer_id = ? ORDER BY js.scheduled_date ASC",
+  "SELECT id, name FROM customers WHERE (name = ? COLLATE NOCASE OR name LIKE ? OR name LIKE ? OR name LIKE ?) LIMIT 1",
+  "SELECT COUNT(DISTINCT po.id) AS orders, COALESCE(SUM(CASE WHEN pl.unit_price_expected IS NOT NULL THEN pl.quantity_ordered * pl.unit_price_expected ELSE 0 END), 0) AS value, COALESCE(SUM(CASE WHEN pl.unit_price_expected IS NULL THEN 1 ELSE 0 END), 0) AS unpriced FROM purchase_order_customers l JOIN purchase_orders po ON po.id = l.purchase_order_id JOIN po_line_items pl ON pl.purchase_order_id = po.id WHERE l.customer_id = ? AND NOT EXISTS (SELECT 1 FROM supplier_invoices si WHERE si.purchase_order_id = po.id)",
+  "SELECT DISTINCT po.supplier_id AS id, ch.name AS name FROM purchase_orders po JOIN characters ch ON ch.id = po.supplier_id WHERE (? IS NULL OR po.supplier_id = ?) ORDER BY ch.name COLLATE NOCASE, ch.id",
+  "SELECT amount, created_at FROM expenses WHERE character_id = ? ORDER BY created_at ASC",
+  "SELECT amount, created_at FROM invoices WHERE customer_id = ? ORDER BY created_at ASC",
+  "SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE customer_id = ?",
+  "SELECT id FROM job_scopes WHERE capture_id = ? LIMIT 1",
+  "SELECT js.id, c.name as customer_name FROM job_scopes js LEFT JOIN customers c ON c.id = js.customer_id WHERE js.capture_id = ? ORDER BY js.created_at DESC LIMIT 1",
+  "SELECT id FROM leads WHERE capture_id = ? LIMIT 1",
+  "SELECT id, name FROM leads WHERE capture_id = ? ORDER BY created_at DESC LIMIT 1",
+  "SELECT c.id AS id, c.name AS name FROM job_scopes js JOIN customers c ON c.id = js.customer_id WHERE js.capture_id = ? AND js.customer_id IS NOT NULL ORDER BY js.created_at DESC, js.id DESC LIMIT 1",
+  "SELECT js.description, c.name as customer_name FROM job_scopes js LEFT JOIN customers c ON c.id = js.customer_id WHERE js.installer_id = ? AND js.scheduled_date = ? LIMIT 1",
+  "SELECT id, description, capture_id, created_at FROM job_scopes WHERE project_id = ?",
+  "SELECT COALESCE(SUM(i.amount), 0) as total FROM invoices i JOIN job_scopes js ON js.id = i.job_scope_id WHERE js.project_id = ?",
+  "SELECT COUNT(*) as n FROM tasks WHERE done = 0",
+  "SELECT COUNT(*) as n FROM job_scopes WHERE scheduled_date >= ? AND scheduled_date <= ?",
+  "SELECT COUNT(*) as n FROM expenses WHERE date(created_at) = ?",
+  "SELECT e.id, e.amount, e.description, e.category, c.name as supplier_name, e.created_at FROM expenses e LEFT JOIN characters c ON c.id = e.character_id WHERE date(e.created_at) = ? ORDER BY e.created_at DESC",
+  "SELECT id, description, project_id FROM job_scopes WHERE customer_id = ? ORDER BY id DESC",
+  "SELECT i.amount, i.created_at, js.project_id FROM invoices i LEFT JOIN job_scopes js ON js.id = i.job_scope_id WHERE i.customer_id = ? ORDER BY i.created_at ASC",
+  "SELECT id, name FROM products WHERE name = ? COLLATE NOCASE AND merged_into_product_id IS NULL",
+  "SELECT purchase_order_id, description, quantity_ordered, unit FROM po_line_items WHERE purchase_order_id IN (?,?) ORDER BY id",
+  "SELECT po.id AS id FROM purchase_orders po WHERE po.supplier_id = ? AND po.id NOT IN (SELECT purchase_order_id FROM purchase_order_cancellations) AND po.id NOT IN (SELECT purchase_order_id FROM purchase_order_customers) ORDER BY po.created_at ASC, po.id ASC",
+  "SELECT description, quantity_ordered, unit FROM po_line_items WHERE purchase_order_id = ? ORDER BY id",
+  "SELECT COALESCE(SUM(retention_amount), 0) as total FROM invoices WHERE customer_id = ?"
+ ],
+ "remaining": [
+  {
+   "sql": "SELECT id, name FROM characters WHERE (name = ? COLLATE NOCASE OR name LIKE ? OR name LIKE ? OR name LIKE ?) AND merged_into_character_id IS NULL LIMIT 1",
+   "scans": [
+    "SCAN characters"
+   ]
+  },
+  {
+   "sql": "UPDATE leads SET status = 'quoted', customer_id = ? WHERE name = ? COLLATE NOCASE AND status = 'enquired'",
+   "scans": [
+    "SCAN leads"
+   ]
+  },
+  {
+   "sql": "UPDATE leads SET status = 'won' WHERE customer_id = ? AND status = 'quoted'",
+   "scans": [
+    "SCAN leads"
+   ]
+  },
+  {
+   "sql": "SELECT id FROM stock_items WHERE name = ? COLLATE NOCASE",
+   "scans": [
+    "SCAN stock_items"
+   ]
+  },
+  {
+   "sql": "SELECT 1 AS hit FROM pending_actions pa, json_each(pa.payload, '$.items') je WHERE pa.type = 'stock_add' AND pa.status IN ('pending', 'rejected') AND lower(json_extract(je.value, '$.name')) = lower(?) LIMIT 1",
+   "scans": [
+    "SCAN je VIRTUAL TABLE INDEX 3:"
+   ]
+  },
+  {
+   "sql": "SELECT po.id AS po_id, pl.id AS po_line_id, pl.description AS description, pl.quantity_ordered AS ordered, pl.unit AS unit, pl.unit_price_expected AS unit_price_expected, COALESCE((SELECT SUM(sl.quantity_billed) FROM supplier_invoice_line_items sl WHERE sl.po_line_item_id = pl.id), 0) AS billed FROM po_line_items pl JOIN purchase_orders po ON po.id = pl.purchase_order_id WHERE po.supplier_id = ? AND po.id NOT IN (SELECT purchase_order_id FROM purchase_order_cancellations) ORDER BY po.created_at ASC, po.id ASC, pl.id ASC",
+   "scans": [
+    "SCAN sl"
+   ]
+  },
+  {
+   "sql": "SELECT id FROM stock_items WHERE name = ? COLLATE NOCASE ORDER BY id LIMIT 1",
+   "scans": [
+    "SCAN stock_items"
+   ]
+  },
+  {
+   "sql": "SELECT item_key, from_unit, to_unit, factor FROM unit_conversions WHERE (from_unit = ? AND to_unit = ?) OR (from_unit = ? AND to_unit = ?)",
+   "scans": [
+    "SCAN unit_conversions"
+   ]
+  },
+  {
+   "sql": "SELECT po.id, po.supplier_id, ch.name as supplier_name, po.description, po.created_at FROM purchase_orders po LEFT JOIN characters ch ON ch.id = po.supplier_id WHERE (?1 IS NULL OR ch.name LIKE ?2 OR po.description LIKE ?2) ORDER BY po.created_at DESC LIMIT ?3 OFFSET ?4",
+   "scans": [
+    "SCAN po"
+   ]
+  },
+  {
+   "sql": "SELECT po.id, po.supplier_id, ch.name as supplier_name, po.description, po.created_at FROM purchase_orders po LEFT JOIN characters ch ON ch.id = po.supplier_id ORDER BY po.created_at DESC LIMIT 10",
+   "scans": [
+    "SCAN po"
+   ]
+  },
+  {
+   "sql": "SELECT id, name FROM people WHERE (name = ? COLLATE NOCASE OR name LIKE ? OR name LIKE ? OR name LIKE ?) AND merged_into_person_id IS NULL",
+   "scans": [
+    "SCAN people"
+   ]
+  },
+  {
+   "sql": "SELECT id, name FROM people WHERE merged_into_person_id IS NULL",
+   "scans": [
+    "SCAN people"
+   ]
+  },
+  {
+   "sql": "SELECT id, name FROM customers WHERE name LIKE ? AND name LIKE ? AND merged_into_customer_id IS NULL LIMIT 1",
+   "scans": [
+    "SCAN customers"
+   ]
+  },
+  {
+   "sql": "SELECT id, name FROM characters WHERE name LIKE ? AND name LIKE ? AND merged_into_character_id IS NULL LIMIT 1",
+   "scans": [
+    "SCAN characters"
+   ]
+  },
+  {
+   "sql": "SELECT description FROM tasks WHERE done = 1 AND date(completed_at) = ?",
+   "scans": [
+    "SCAN tasks"
+   ]
+  },
+  {
+   "sql": "SELECT id, name FROM people WHERE (name = ? COLLATE NOCASE OR name LIKE ? OR name LIKE ? OR name LIKE ?) AND merged_into_person_id IS NULL AND id IN (SELECT person_id FROM characters WHERE relationship = 'supplier' AND person_id IS NOT NULL AND merged_into_character_id IS NULL)",
+   "scans": [
+    "SCAN characters"
+   ]
+  },
+  {
+   "sql": "SELECT id, name FROM people WHERE merged_into_person_id IS NULL AND id IN (SELECT person_id FROM characters WHERE relationship = 'supplier' AND person_id IS NOT NULL AND merged_into_character_id IS NULL)",
+   "scans": [
+    "SCAN characters"
+   ]
+  },
+  {
+   "sql": "SELECT key, value FROM character_facts WHERE character_id = ? ORDER BY created_at DESC",
+   "scans": [
+    "SCAN character_facts"
+   ]
+  },
+  {
+   "sql": "SELECT c.name as name, COALESCE(SUM(i.amount), 0) as invoiced, COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.customer_id = c.id), 0) as paid FROM customers c JOIN invoices i ON i.customer_id = c.id GROUP BY c.id HAVING invoiced > paid",
+   "scans": [
+    "SCAN c"
+   ]
+  },
+  {
+   "sql": "SELECT c.name as name, q.amount as amount, q.status as status FROM quotations q JOIN customers c ON c.id = q.customer_id ORDER BY q.created_at DESC",
+   "scans": [
+    "SCAN q"
+   ]
+  },
+  {
+   "sql": "SELECT COALESCE(c.name, 'an unnamed supplier') as name, e.amount as amount, e.description as description, COALESCE(e.category, 'uncategorized') as category FROM expenses e LEFT JOIN characters c ON c.id = e.character_id ORDER BY e.created_at DESC",
+   "scans": [
+    "SCAN e"
+   ]
+  },
+  {
+   "sql": "SELECT COALESCE(SUM(amount), 0) as total FROM invoices",
+   "scans": [
+    "SCAN invoices"
+   ]
+  },
+  {
+   "sql": "SELECT COALESCE(SUM(amount), 0) as total FROM payments",
+   "scans": [
+    "SCAN payments"
+   ]
+  },
+  {
+   "sql": "SELECT COALESCE(SUM(amount), 0) as total FROM expenses",
+   "scans": [
+    "SCAN expenses"
+   ]
+  },
+  {
+   "sql": "SELECT DISTINCT c.id, c.name FROM customers c JOIN invoices i ON i.customer_id = c.id",
+   "scans": [
+    "SCAN c"
+   ]
+  },
+  {
+   "sql": "SELECT DISTINCT ch.id, ch.name FROM characters ch JOIN expenses e ON e.character_id = ch.id",
+   "scans": [
+    "SCAN ch"
+   ]
+  },
+  {
+   "sql": "SELECT COALESCE(category, 'other') as category, COALESCE(SUM(amount), 0) as total FROM expenses GROUP BY COALESCE(category, 'other')",
+   "scans": [
+    "SCAN expenses"
+   ]
+  },
+  {
+   "sql": "SELECT sili.description, sili.unit_price_billed, ch.name as supplier_name, si.created_at FROM supplier_invoice_line_items sili JOIN supplier_invoices si ON si.id = sili.supplier_invoice_id LEFT JOIN characters ch ON ch.id = si.supplier_id WHERE sili.description LIKE ? COLLATE NOCASE AND sili.unit_price_billed IS NOT NULL ORDER BY si.created_at DESC LIMIT 1",
+   "scans": [
+    "SCAN sili"
+   ]
+  },
+  {
+   "sql": "SELECT c.name AS supplier, s.created_at AS created_at, s.claimed_balance AS claimed, s.books_balance AS books, s.difference AS difference, s.source AS source FROM supplier_statements s LEFT JOIN characters c ON c.id = s.supplier_id WHERE (? IS NULL OR s.supplier_id = ?) ORDER BY s.id DESC LIMIT ?",
+   "scans": [
+    "SCAN s"
+   ]
+  },
+  {
+   "sql": "SELECT gli.id AS grn_line_item_id, grn.id AS grn_id, grn.supplier_id AS supplier_id, ch.name AS supplier_name, gli.description AS description, gli.quantity_received AS quantity_received, gli.quantity_ordered AS quantity_ordered, gli.variance AS variance, gli.po_line_item_id AS po_line_item_id, grn.purchase_order_id AS purchase_order_id, grn.recorded_by AS recorded_by, grn.created_at AS created_at, vd.id AS disposition_id, vd.reason AS reason, vd.resolution AS resolution FROM grn_line_items gli JOIN goods_received_notes grn ON grn.id = gli.grn_id LEFT JOIN characters ch ON ch.id = grn.supplier_id LEFT JOIN variance_dispositions vd ON vd.grn_line_item_id = gli.id WHERE ((gli.po_line_item_id IS NULL AND gli.quantity_ordered = 0) OR (gli.po_line_item_id IS NOT NULL AND gli.variance IS NOT NULL AND gli.variance != 0)) AND (? = 'all' OR vd.id IS NULL) ORDER BY grn.created_at DESC, gli.id DESC LIMIT ?",
+   "scans": [
+    "SCAN gli"
+   ]
+  },
+  {
+   "sql": "SELECT COALESCE(SUM(amount), 0) as total FROM supplier_payments WHERE character_id = ?",
+   "scans": [
+    "SCAN supplier_payments"
+   ]
+  },
+  {
+   "sql": "SELECT id, name, unit, quantity_on_hand FROM stock_items ORDER BY id",
+   "scans": [
+    "SCAN stock_items"
+   ]
+  },
+  {
+   "sql": "UPDATE stock_usage_log SET stock_item_id = ? WHERE stock_item_id = ?",
+   "scans": [
+    "SCAN stock_usage_log"
+   ]
+  },
+  {
+   "sql": "UPDATE stocktake_lines SET stock_item_id = ? WHERE stock_item_id = ?",
+   "scans": [
+    "SCAN stocktake_lines"
+   ]
+  },
+  {
+   "sql": "SELECT id, name, unit, quantity_on_hand FROM stock_items",
+   "scans": [
+    "SCAN stock_items"
+   ]
+  },
+  {
+   "sql": "SELECT p.id, p.customer_id, c.name as customer_name, p.description, p.created_at FROM projects p LEFT JOIN customers c ON c.id = p.customer_id WHERE (?2 = 0 OR p.customer_id IN (SELECT customer_id FROM job_scopes WHERE installer_id = ?1)) ORDER BY p.created_at DESC",
+   "scans": [
+    "SCAN p"
+   ]
+  },
+  {
+   "sql": "SELECT COALESCE(SUM(q.amount), 0) as total FROM quotations q JOIN job_scopes js ON js.id = q.job_scope_id WHERE js.project_id = ?",
+   "scans": [
+    "SCAN q"
+   ]
+  },
+  {
+   "sql": "SELECT COUNT(*) as n FROM ( SELECT c.id, COALESCE(SUM(i.amount), 0) - COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.customer_id = c.id), 0) as balance FROM customers c JOIN invoices i ON i.customer_id = c.id GROUP BY c.id HAVING balance > 0 )",
+   "scans": [
+    "SCAN c",
+    "SCAN (subquery-2)"
+   ]
+  },
+  {
+   "sql": "SELECT id, name, interest, source, status, customer_id, created_at FROM leads ORDER BY (status IN ('enquired', 'quoted')) DESC, created_at DESC",
+   "scans": [
+    "SCAN leads"
+   ]
+  },
+  {
+   "sql": "SELECT id, changed_by, role, capability, old_granted, new_granted, created_at FROM permission_audit ORDER BY id DESC LIMIT ?",
+   "scans": [
+    "SCAN permission_audit"
+   ]
+  },
+  {
+   "sql": "SELECT id, name FROM products WHERE (name = ? COLLATE NOCASE OR name LIKE ? OR name LIKE ? OR name LIKE ?) AND merged_into_product_id IS NULL",
+   "scans": [
+    "SCAN products"
+   ]
+  },
+  {
+   "sql": "SELECT id, name FROM products WHERE merged_into_product_id IS NULL",
+   "scans": [
+    "SCAN products"
+   ]
+  },
+  {
+   "sql": "SELECT id, description FROM snags WHERE customer_id = ? AND status = 'open'",
+   "scans": [
+    "SCAN snags"
+   ]
+  },
+  {
+   "sql": "SELECT COUNT(*) as count FROM snags WHERE customer_id = ? AND status = 'open'",
+   "scans": [
+    "SCAN snags"
+   ]
+  },
+  {
+   "sql": "SELECT id, name FROM leads WHERE status IN ('enquired', 'quoted')",
+   "scans": [
+    "SCAN leads"
+   ]
+  },
+  {
+   "sql": "SELECT ch.id AS id, ch.name AS name FROM characters ch WHERE ch.merged_into_character_id IS NULL AND (LOWER(COALESCE(ch.relationship, '')) LIKE '%supplier%' OR EXISTS (SELECT 1 FROM purchase_orders po WHERE po.supplier_id = ch.id))",
+   "scans": [
+    "SCAN ch"
+   ]
+  }
+ ]
+}
