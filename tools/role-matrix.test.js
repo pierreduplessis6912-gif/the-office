@@ -817,6 +817,8 @@ async function expect(role, method, path, want) {
   await require('./indexes.test.js')({ check, srcDir });
   await require('./smoke.test.js')({ check, path, fs });
   await require('./pipeline.test.js')({ check, path, fs });
+  // The staging workflow: it creates real resources, so its safety must not be removable by accident.
+  await require('./staging.test.js')({ check, path, fs });
 
   // The same work said twice makes no new job.
   await require('./samework.test.js')({ check, bundleTo, srcDir, path, sameJson });

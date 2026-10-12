@@ -1,0 +1,249 @@
+name: Staging environment
+
+# SHIP_CHECKLIST.md item 5b / item A. A second, separate instance of the application used to try changes (the business object, migrations, restores) without touching real data:
+# its own Worker (office-staging-api), database, notes store, file storage and memory index, at office-staging.websitehub.co.za. Durable Objects belong to a Worker, so staging's
+# objects are separate from production's by construction. Model usage and limits are the Cloudflare ACCOUNT's, so staging shares them.
+#
+# Safe to re-run: every resource is looked up before it is created. Admin keys are DERIVED from one repository secret (STAGING_KEY_SEED), so this workflow, CI and any later test
+# compute the same keys without anyone copying a random value around; the keys never appear in a log (masked). It writes what it did to ops/staging-last-run.json so the result can be
+# read from the repository. Started by hand only.
+on:
+  workflow_dispatch:
+    inputs:
+      owner_email:
+        description: "Optional: a Google account to make an owner of staging (needs the redirect URI added to the Google OAuth client first)"
+        required: false
+        default: ""
+
+concurrency:
+  group: staging
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  staging:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.PROVISION }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      SLUG: office-staging
+      SEED: ${{ secrets.STAGING_KEY_SEED }}
+      RESULTS: ${{ github.workspace }}/results
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install tools
+        run: |
+          npm install -g wrangler@4
+          mkdir -p "$RESULTS"
+
+      - name: Derive the staging keys from the seed
+        run: |
+          derive() { printf '%s' "$2" | openssl dgst -sha256 -hmac "$1" -binary | base64 | tr -d '=+/\n' | cut -c1-43; }
+          ADMIN=$(derive "$SEED" admin); CONFIRM=$(derive "$SEED" confirm); SESSION=$(derive "$SEED" session)
+          echo "::add-mask::$ADMIN"; echo "::add-mask::$CONFIRM"; echo "::add-mask::$SESSION"
+          { echo "STAGING_ADMIN_KEY=$ADMIN"; echo "STAGING_CONFIRM_KEY=$CONFIRM"; echo "STAGING_SESSION_SECRET=$SESSION"; } >> "$GITHUB_ENV"
+
+      - name: Create the database (safe to re-run)
+        id: d1
+        run: |
+          RESPONSE=$(curl -s "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database?name=${SLUG}-db" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+          EXISTING=$(echo "$RESPONSE" | python3 -c "import json,sys; r=json.load(sys.stdin).get('result',[]); print(r[0]['uuid'] if r else '')")
+          if [ -n "$EXISTING" ]; then
+            echo "The database already exists: reusing it."
+            echo "id=$EXISTING" >> "$GITHUB_OUTPUT"
+          else
+            OUTPUT=$(wrangler d1 create "${SLUG}-db" --location weur 2>&1)
+            echo "$OUTPUT"
+            DB_ID=$(echo "$OUTPUT" | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
+            if [ -z "$DB_ID" ]; then echo "::error::Could not read a database id from wrangler's output."; exit 1; fi
+            echo "id=$DB_ID" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create the notes store (safe to re-run)
+        id: kv
+        run: |
+          RESPONSE=$(curl -s "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces?per_page=100" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+          EXISTING=$(echo "$RESPONSE" | python3 -c "import json,sys; r=json.load(sys.stdin).get('result',[]); m=next((n for n in r if n['title']=='${SLUG}_notes'),None); print(m['id'] if m else '')")
+          if [ -n "$EXISTING" ]; then
+            echo "The namespace already exists: reusing it."
+            echo "id=$EXISTING" >> "$GITHUB_OUTPUT"
+          else
+            OUTPUT=$(wrangler kv namespace create "${SLUG}_notes" 2>&1)
+            echo "$OUTPUT"
+            KV_ID=$(echo "$OUTPUT" | grep -i '"id"' | grep -oE '[0-9a-f]{32}' | head -1)
+            if [ -z "$KV_ID" ]; then echo "::error::Could not read a namespace id from wrangler's output."; exit 1; fi
+            echo "id=$KV_ID" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create the file storage (safe to re-run)
+        run: |
+          wrangler r2 bucket create "${SLUG}-vault" || echo "The bucket probably exists already, continuing."
+
+      - name: Create the memory index (safe to re-run)
+        run: |
+          wrangler vectorize create "${SLUG}-memory" --dimensions=768 --metric=cosine || echo "The index probably exists already, continuing."
+
+      - name: Look up the zone
+        id: zone
+        run: |
+          RESPONSE=$(curl -s "https://api.cloudflare.com/client/v4/zones?name=websitehub.co.za" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+          ZONE_ID=$(echo "$RESPONSE" | python3 -c "import json,sys; print(json.load(sys.stdin)['result'][0]['id'])")
+          if [ -z "$ZONE_ID" ]; then echo "::error::Could not find the zone."; exit 1; fi
+          echo "id=$ZONE_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Create the hostname (safe to re-run)
+        run: |
+          EXISTING=$(curl -s "https://api.cloudflare.com/client/v4/zones/${{ steps.zone.outputs.id }}/dns_records?name=${SLUG}.websitehub.co.za" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['result']))")
+          if [ "$EXISTING" != "0" ]; then
+            echo "The DNS record already exists."
+          else
+            curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${{ steps.zone.outputs.id }}/dns_records" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H "Content-Type: application/json" -d "{\"type\":\"CNAME\",\"name\":\"${SLUG}\",\"content\":\"websitehub.co.za\",\"proxied\":true}"
+          fi
+
+      - name: Write staging's Worker configuration
+        run: |
+          cat > worker/wrangler.staging.toml << EOF
+          name = "${SLUG}-api"
+          main = "src/index.ts"
+          compatibility_date = "2026-07-01"
+
+          [ai]
+          binding = "AI"
+
+          [[d1_databases]]
+          binding = "OFFICE_DB"
+          database_name = "${SLUG}-db"
+          database_id = "${{ steps.d1.outputs.id }}"
+
+          [[r2_buckets]]
+          binding = "OFFICE_VAULT"
+          bucket_name = "${SLUG}-vault"
+
+          [[vectorize]]
+          binding = "MEMORY"
+          index_name = "${SLUG}-memory"
+
+          [[kv_namespaces]]
+          binding = "CUSTOMER_NOTES"
+          id = "${{ steps.kv.outputs.id }}"
+
+          [vars]
+          ENVIRONMENT = "staging"
+          RECORD_TIMINGS = "1"
+
+          [[routes]]
+          pattern = "${SLUG}.websitehub.co.za/*"
+          zone_name = "websitehub.co.za"
+
+          [[durable_objects.bindings]]
+          name = "TRIAL"
+          class_name = "TrialObject"
+
+          [[migrations]]
+          tag = "trial-v1"
+          new_sqlite_classes = ["TrialObject"]
+          EOF
+          cat worker/wrangler.staging.toml
+
+      - name: Create the tables
+        working-directory: worker
+        run: wrangler d1 migrations apply OFFICE_DB --remote --config wrangler.staging.toml
+
+      - name: Deploy staging's Worker
+        working-directory: worker
+        run: |
+          npm ci
+          wrangler deploy --config wrangler.staging.toml
+
+      - name: Set staging's secrets
+        working-directory: worker
+        run: |
+          printf '%s' "$STAGING_ADMIN_KEY" | wrangler secret put ADMIN_KEY --config wrangler.staging.toml
+          printf '%s' "$STAGING_CONFIRM_KEY" | wrangler secret put ADMIN_CONFIRM_KEY --config wrangler.staging.toml
+          printf '%s' "$STAGING_SESSION_SECRET" | wrangler secret put SESSION_SECRET --config wrangler.staging.toml
+          printf '%s' "${{ secrets.GOOGLE_CLIENT_ID }}" | wrangler secret put GOOGLE_CLIENT_ID --config wrangler.staging.toml
+          printf '%s' "${{ secrets.GOOGLE_CLIENT_SECRET }}" | wrangler secret put GOOGLE_CLIENT_SECRET --config wrangler.staging.toml
+
+      - name: Smoke test staging
+        id: smoke
+        continue-on-error: true
+        env:
+          SMOKE_RETRIES: "24"
+          SMOKE_DELAY: "10"
+        run: bash tools/smoke-test.sh https://${SLUG}.websitehub.co.za
+
+      - name: Set up staging's schema and indexes
+        id: init
+        continue-on-error: true
+        run: |
+          BASE="https://${SLUG}.websitehub.co.za"
+          : > "$RESULTS/init.txt"
+          for route in $(grep -oE 'POST /debug/init-[a-z0-9-]+' worker/src/admin-routes.ts | sed 's/POST //' | grep -v 'init-indexes'); do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE$route")
+            echo "$route $CODE" >> "$RESULTS/init.txt"
+          done
+          curl -s -X POST -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/init-indexes" > "$RESULTS/indexes.json"
+
+      - name: Measure the Durable Object on staging
+        id: trial
+        continue-on-error: true
+        run: |
+          BASE="https://${SLUG}.websitehub.co.za"
+          curl -s -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/trial-do?n=20&hint=weur&name=staging-a&repeat=4" > "$RESULTS/trial-do.json"
+          curl -s -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/trial-d1?n=10" > "$RESULTS/trial-d1.json"
+
+      - name: Make the owner of staging
+        if: github.event.inputs.owner_email != ''
+        run: |
+          curl -s -X POST "https://${SLUG}.websitehub.co.za/debug/create-membership" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY" -H "Content-Type: application/json" -d "{\"google_email\": \"${{ github.event.inputs.owner_email }}\", \"role\": \"owner\"}"
+
+      - name: Record what happened
+        if: always()
+        env:
+          D1_ID: ${{ steps.d1.outputs.id }}
+          KV_ID: ${{ steps.kv.outputs.id }}
+          SMOKE: ${{ steps.smoke.outcome }}
+          INIT: ${{ steps.init.outcome }}
+          TRIAL: ${{ steps.trial.outcome }}
+        run: |
+          mkdir -p ops
+          python3 - <<'PY'
+          import json, os, datetime
+          r = os.environ["RESULTS"]
+          def read(name):
+              try:
+                  return open(os.path.join(r, name)).read().strip()
+              except Exception:
+                  return None
+          def readjson(name):
+              t = read(name)
+              try:
+                  return json.loads(t) if t else None
+              except Exception:
+                  return t
+          out = {
+              "when": datetime.datetime.utcnow().isoformat() + "Z",
+              "run": os.environ.get("GITHUB_RUN_ID"),
+              "commit": os.environ.get("GITHUB_SHA", "")[:7],
+              "resources": {"database_id": os.environ.get("D1_ID"), "kv_namespace_id": os.environ.get("KV_ID"), "worker": "office-staging-api", "host": "office-staging.websitehub.co.za"},
+              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL")},
+              "init_routes": (read("init.txt") or "").splitlines(),
+              "indexes": readjson("indexes.json"),
+              "trial_do": readjson("trial-do.json"),
+              "trial_d1": readjson("trial-d1.json"),
+          }
+          json.dump(out, open("ops/staging-last-run.json", "w"), indent=1)
+          PY
+          git config user.name "staging-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/staging-last-run.json
+          git commit -m "Staging run record (no secrets: ids and results only)" || echo "nothing to record"
+          git pull --rebase origin main
+          git push origin HEAD:main
