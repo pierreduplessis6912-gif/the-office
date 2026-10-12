@@ -33,6 +33,11 @@ export interface Env {
   RECORD_TIMINGS?: string;
   // The architecture trial's Durable Object (trial.ts): admin-only, holds nothing but a scratch table.
   TRIAL: DurableObjectNamespace;
+  // Architecture stage 1: when BUSINESS_MODE is "object" and BUSINESS exists, every request is served by the business's own Durable Object (business-object.ts) instead of the
+  // Worker itself. Absent everywhere else, so nothing changes unless a deployment asks for it (staging does; production does not).
+  BUSINESS?: DurableObjectNamespace;
+  BUSINESS_MODE?: string;
+  BUSINESS_OBJECT_NAME?: string;
 }
 
 export interface Extraction {

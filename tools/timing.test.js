@@ -33,6 +33,9 @@ module.exports = async function runTimingTests({ check, bundleTo, srcDir, path, 
     check(caught === boom && tally.db.n === 4 && tally.db.ms === 7 + 9 + 5 + 3, 'a failing call is still counted and timed, and rethrows the very same error');
     await e2.AI.run('m', {}); await e2.CUSTOMER_NOTES.get('k'); await e2.MEMORY.query([]); await e2.OFFICE_VAULT.get('k');
     check(tally.ai.n === 1 && tally.ai.ms === 300 && tally.kv.n === 1 && tally.kv.ms === 20 && tally.vec.n === 1 && tally.vec.ms === 40 && tally.r2.n === 1 && tally.r2.ms === 11, 'the model, notes store, memory search and file storage are each counted and timed on their own');
+    // a missing binding must be left alone, not crash every request (found by the first end-to-end run of a business object)
+    const bare = instrumentEnv({ ADMIN_KEY: 'k', OFFICE_DB: env.OFFICE_DB }, newTally());
+    check(bare.AI === undefined && bare.MEMORY === undefined && bare.CUSTOMER_NOTES === undefined && bare.OFFICE_VAULT === undefined && typeof bare.OFFICE_DB.prepare === 'function' && bare.ADMIN_KEY === 'k', 'a binding that is not there (no model, no memory index) is left as it is, instead of crashing every request');
     const before = JSON.stringify(tally); await env.OFFICE_DB.prepare('x').first(); await env.AI.run('m', {});
     check(JSON.stringify(tally) === before && env.OFFICE_DB !== e2.OFFICE_DB, 'the original environment is untouched: calling it directly is not counted');
     const b = breakdown(tally);

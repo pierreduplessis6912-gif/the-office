@@ -1,4 +1,5 @@
 export { TrialObject } from "./trial";
+import { makeBusinessObject } from "./business-object";
 import { adminTierOf, hashSource, recordAdminCall } from "./admin-gate";
 import { runGuarded } from "./frontdoor";
 import { composeReply } from "./intents/reply";
@@ -3580,62 +3581,83 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
 }
 
 
+// The application's whole request pipeline: request id, CORS, the front door, timing, the admin audit, and every route. Both the Worker (as it always has) and a business's
+// Durable Object (business-object.ts) run THIS function, so there is exactly one copy of the pipeline and the object cannot drift from the Worker.
+export async function serveRequest(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const corsHeaders = corsHeadersFor(request);
+  if (request.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
+
+  // Real, new, per direct instruction: one real ID per request,
+  // generated here — the one place every real request genuinely
+  // passes through — and threaded into handleRequest so any deeper
+  // logging (the confirm handler's own real error log, for one) can
+  // tie back to the exact same request without re-deriving anything.
+  const requestId = crypto.randomUUID();
+  const startedAt = Date.now();
+  const url = new URL(request.url);
+  log("info", requestId, "request start", { method: request.method, path: url.pathname });
+
+  // Where the time goes (timing.ts): off unless RECORD_TIMINGS is "1". It only observes; recording happens after the response has gone.
+  const timingOn = env.RECORD_TIMINGS === "1";
+  const tally = newTally();
+  // The front door (frontdoor.ts): an error nothing else caught is logged with this request's id and answered with a small JSON 500, never a bare failure.
+  const response = await runGuarded(request, requestId, () => handleRequest(request, timingOn ? instrumentEnv(env, tally) : env, ctx, requestId), log);
+  const totalMs = Date.now() - startedAt;
+  log("info", requestId, "request end", { status: response.status, durationMs: totalMs, ...(timingOn ? breakdown(tally) : {}) });
+  // Every admin call is recorded (route, tier, outcome, hashed source; never the key), after the response has gone. A call refused only because the source
+  // is locked out (429) is not recorded, so a flood of guesses cannot fill the table.
+  if (isAdminPath(url.pathname) && response.status !== 429) {
+    ctx.waitUntil(
+      hashSource(env, request)
+        .then((source) => recordAdminCall(env, { method: request.method, path: url.pathname, tier: adminTierOf(request.method, url.pathname), status: response.status, source }))
+        .catch(() => undefined)
+    );
+  }
+  if (timingOn && shouldRecordTiming(request.method, url.pathname)) {
+    ctx.waitUntil(recordTiming(env, { method: request.method, pathname: url.pathname, status: response.status, totalMs, tally }).catch(() => undefined));
+  }
+
+  const newHeaders = new Headers(response.headers);
+  for (const [key, value] of Object.entries(corsHeaders)) {
+    newHeaders.set(key, value);
+  }
+  // Real fix, found live via the logo-retrieval feature: streaming
+  // response.body directly here silently truncated every binary
+  // response to 0 bytes, even though the inner route already read
+  // its own full buffer correctly — the headers (including a
+  // correct Content-Length) came through fine, but the body itself
+  // never did. Never surfaced before, since every prior response in
+  // this Worker was JSON; this is the first binary response ever
+  // produced. Reading the full buffer here, at the one real place
+  // that wraps every response, is the correct, permanent fix.
+  const bodyBuffer = await response.arrayBuffer();
+  return new Response(bodyBuffer, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: newHeaders,
+  });
+}
+
+// Architecture stage 1: one named object serves the whole business (stage 2 will choose the object from the signed-in member's business). The hint only matters when the object is
+// first created: Western Europe, next to the shared layer and the best placement Cloudflare offers for South Africa.
+async function forwardToBusiness(request: Request, env: Env): Promise<Response> {
+  const namespace = env.BUSINESS as DurableObjectNamespace;
+  const id = namespace.idFromName(env.BUSINESS_OBJECT_NAME ?? "business-default");
+  return namespace.get(id, { locationHint: "weur" }).fetch(request);
+}
+
+export const BusinessObject = makeBusinessObject(serveRequest);
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const corsHeaders = corsHeadersFor(request);
-    if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: corsHeaders });
+    if (env.BUSINESS_MODE === "object" && env.BUSINESS) {
+      // A preflight needs no data, so it never goes to the object.
+      if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeadersFor(request) });
+      return forwardToBusiness(request, env);
     }
-
-    // Real, new, per direct instruction: one real ID per request,
-    // generated here — the one place every real request genuinely
-    // passes through — and threaded into handleRequest so any deeper
-    // logging (the confirm handler's own real error log, for one) can
-    // tie back to the exact same request without re-deriving anything.
-    const requestId = crypto.randomUUID();
-    const startedAt = Date.now();
-    const url = new URL(request.url);
-    log("info", requestId, "request start", { method: request.method, path: url.pathname });
-
-    // Where the time goes (timing.ts): off unless RECORD_TIMINGS is "1". It only observes; recording happens after the response has gone.
-    const timingOn = env.RECORD_TIMINGS === "1";
-    const tally = newTally();
-    // The front door (frontdoor.ts): an error nothing else caught is logged with this request's id and answered with a small JSON 500, never a bare failure.
-    const response = await runGuarded(request, requestId, () => handleRequest(request, timingOn ? instrumentEnv(env, tally) : env, ctx, requestId), log);
-    const totalMs = Date.now() - startedAt;
-    log("info", requestId, "request end", { status: response.status, durationMs: totalMs, ...(timingOn ? breakdown(tally) : {}) });
-    // Every admin call is recorded (route, tier, outcome, hashed source; never the key), after the response has gone. A call refused only because the source
-    // is locked out (429) is not recorded, so a flood of guesses cannot fill the table.
-    if (isAdminPath(url.pathname) && response.status !== 429) {
-      ctx.waitUntil(
-        hashSource(env, request)
-          .then((source) => recordAdminCall(env, { method: request.method, path: url.pathname, tier: adminTierOf(request.method, url.pathname), status: response.status, source }))
-          .catch(() => undefined)
-      );
-    }
-    if (timingOn && shouldRecordTiming(request.method, url.pathname)) {
-      ctx.waitUntil(recordTiming(env, { method: request.method, pathname: url.pathname, status: response.status, totalMs, tally }).catch(() => undefined));
-    }
-
-    const newHeaders = new Headers(response.headers);
-    for (const [key, value] of Object.entries(corsHeaders)) {
-      newHeaders.set(key, value);
-    }
-    // Real fix, found live via the logo-retrieval feature: streaming
-    // response.body directly here silently truncated every binary
-    // response to 0 bytes, even though the inner route already read
-    // its own full buffer correctly — the headers (including a
-    // correct Content-Length) came through fine, but the body itself
-    // never did. Never surfaced before, since every prior response in
-    // this Worker was JSON; this is the first binary response ever
-    // produced. Reading the full buffer here, at the one real place
-    // that wraps every response, is the correct, permanent fix.
-    const bodyBuffer = await response.arrayBuffer();
-    return new Response(bodyBuffer, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: newHeaders,
-    });
+    return serveRequest(request, env, ctx);
   },
 
   // The real hourly consolidation — same job the manual

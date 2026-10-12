@@ -52,13 +52,16 @@ function timed<T extends object>(target: T, kind: Kind, tally: Tally): T {
 }
 
 export function instrumentEnv(env: Env, tally: Tally): Env {
+  // A binding that is not there (a local run without the model or the memory index, a deployment that does not use one) is left as it is. Found 2026-10-12 by the first end-to-end run of
+  // a business object: wrapping an absent binding made EVERY request fail, so timing could take a whole Worker down.
+  const wrap = <T extends object>(binding: T, kind: Kind): T => (binding ? timed(binding, kind, tally) : binding);
   return {
     ...env,
-    AI: timed(env.AI, "ai", tally),
-    OFFICE_DB: timed(env.OFFICE_DB, "db", tally),
-    CUSTOMER_NOTES: timed(env.CUSTOMER_NOTES, "kv", tally),
-    MEMORY: timed(env.MEMORY, "vec", tally),
-    OFFICE_VAULT: timed(env.OFFICE_VAULT, "r2", tally),
+    AI: wrap(env.AI, "ai"),
+    OFFICE_DB: wrap(env.OFFICE_DB, "db"),
+    CUSTOMER_NOTES: wrap(env.CUSTOMER_NOTES, "kv"),
+    MEMORY: wrap(env.MEMORY, "vec"),
+    OFFICE_VAULT: wrap(env.OFFICE_VAULT, "r2"),
   };
 }
 

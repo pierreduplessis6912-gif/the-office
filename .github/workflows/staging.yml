@@ -137,6 +137,7 @@ jobs:
           [vars]
           ENVIRONMENT = "staging"
           RECORD_TIMINGS = "1"
+          BUSINESS_MODE = "object"
 
           [[routes]]
           pattern = "${SLUG}.websitehub.co.za/*"
@@ -146,9 +147,17 @@ jobs:
           name = "TRIAL"
           class_name = "TrialObject"
 
+          [[durable_objects.bindings]]
+          name = "BUSINESS"
+          class_name = "BusinessObject"
+
           [[migrations]]
           tag = "trial-v1"
           new_sqlite_classes = ["TrialObject"]
+
+          [[migrations]]
+          tag = "business-v1"
+          new_sqlite_classes = ["BusinessObject"]
           EOF
           cat worker/wrangler.staging.toml
 
@@ -206,6 +215,39 @@ jobs:
           curl -s -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/trial-do?n=20&hint=weur&name=staging-a&repeat=4" > "$RESULTS/trial-do.json"
           curl -s -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/trial-d1?n=10" > "$RESULTS/trial-d1.json"
 
+      - name: Exercise the business object end to end
+        id: e2e
+        continue-on-error: true
+        run: |
+          BASE="https://${SLUG}.websitehub.co.za"
+          OWNER="staging-owner@example.com"
+          CODE_MEMBER=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/debug/create-membership" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY" -H "Content-Type: application/json" -d "{\"google_email\":\"$OWNER\",\"role\":\"owner\"}")
+          OWNER="$OWNER" python3 - <<'PY' > "$RESULTS/cookie.txt"
+          import os, json, hmac, hashlib, base64, time
+          b = lambda x: base64.urlsafe_b64encode(x).rstrip(b"=").decode()
+          p = b(json.dumps({"email": os.environ["OWNER"], "exp": int(time.time() * 1000) + 3600000}, separators=(",", ":")).encode())
+          s = b(hmac.new(os.environ["STAGING_SESSION_SECRET"].encode(), p.encode(), hashlib.sha256).digest())
+          print("office_session=" + p + "." + s)
+          PY
+          COOKIE=$(cat "$RESULTS/cookie.txt")
+          echo "::add-mask::$COOKIE"
+          CODE_LIST_A=$(curl -s -o "$RESULTS/list-a.json" -w '%{http_code}' -H "Cookie: $COOKIE" "$BASE/customers")
+          printf 'name,address\nStaging Customer One,1 Test Rd\nStaging Customer Two,2 Test Rd\n' > "$RESULTS/customers.csv"
+          CODE_IMPORT=$(curl -s -o "$RESULTS/import.json" -w '%{http_code}' -X POST -H "Cookie: $COOKIE" -F "csv=@$RESULTS/customers.csv;type=text/csv" "$BASE/files/customers-csv-import")
+          CODE_LIST_B=$(curl -s -o "$RESULTS/list-b.json" -w '%{http_code}' -H "Cookie: $COOKIE" "$BASE/customers")
+          : > "$RESULTS/times.txt"
+          for i in 1 2 3 4 5; do curl -s -o /dev/null -w '%{time_total}\n' -H "Cookie: $COOKIE" "$BASE/customers" >> "$RESULTS/times.txt"; done
+          CODE_MEMBER="$CODE_MEMBER" CODE_LIST_A="$CODE_LIST_A" CODE_IMPORT="$CODE_IMPORT" CODE_LIST_B="$CODE_LIST_B" python3 - <<'PY' > "$RESULTS/e2e.json"
+          import os, json
+          def items(name):
+              try:
+                  return len(json.load(open(os.path.join(os.environ["RESULTS"], name))).get("items", []))
+              except Exception:
+                  return None
+          times = [float(x) for x in open(os.path.join(os.environ["RESULTS"], "times.txt")).read().split()]
+          print(json.dumps({"membership_status": os.environ["CODE_MEMBER"], "list_status_before": os.environ["CODE_LIST_A"], "customers_before": items("list-a.json"), "import_status": os.environ["CODE_IMPORT"], "list_status_after": os.environ["CODE_LIST_B"], "customers_after": items("list-b.json"), "five_list_calls_seconds_from_a_US_runner": times}))
+          PY
+
       - name: Make the owner of staging
         if: github.event.inputs.owner_email != ''
         run: |
@@ -219,6 +261,7 @@ jobs:
           SMOKE: ${{ steps.smoke.outcome }}
           INIT: ${{ steps.init.outcome }}
           TRIAL: ${{ steps.trial.outcome }}
+          E2E: ${{ steps.e2e.outcome }}
         run: |
           mkdir -p ops
           python3 - <<'PY'
@@ -240,11 +283,12 @@ jobs:
               "run": os.environ.get("GITHUB_RUN_ID"),
               "commit": os.environ.get("GITHUB_SHA", "")[:7],
               "resources": {"database_id": os.environ.get("D1_ID"), "kv_namespace_id": os.environ.get("KV_ID"), "worker": "office-staging-api", "host": "office-staging.websitehub.co.za"},
-              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL")},
+              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E")},
               "init_routes": (read("init.txt") or "").splitlines(),
               "indexes": readjson("indexes.json"),
               "trial_do": readjson("trial-do.json"),
               "trial_d1": readjson("trial-d1.json"),
+              "business_object_e2e": readjson("e2e.json"),
           }
           json.dump(out, open("ops/staging-last-run.json", "w"), indent=1)
           PY
