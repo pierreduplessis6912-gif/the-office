@@ -6871,3 +6871,14 @@ Pierre said "Order 20 bags of screed from TAL for jenny". The app asked whether 
 **What deploying this changes.** `wrangler.toml` registers the Durable Object with SQLite storage (a class cannot be switched to SQLite after it is first deployed, which is why it is created that way; removing it later needs a `deleted_classes` migration). Two admin routes are added (tiers: `trial-d1` read, `trial-do` write); the route count is 128. Nothing in the application's behaviour changes.
 
 **Mistakes of mine, all caught.** (a) **A test passed while the adapter was broken:** it loaded a cached copy of the adapter built by an earlier run, so a deliberate break (a failed batch no longer rolling back) survived; it now always builds fresh from the source, and the breakage is caught (two failing checks). (b) The first local runtime I installed was an alpha with a different configuration format; the stable version 4 worked. (c) The sandbox cannot reach `cloudflare.com`, so the object's own location lookup could not be tested here (the code reports no location and carries on).
+
+
+---
+
+## Database architecture trial: first measurements (2026-10-12)
+
+**Baseline, measured from Pierre's phone: `GET /debug/trial-d1?n=20` = 3,817 ms for 20 round trips to the production database, 190.9 ms each**, matching the 185-190 ms per call seen in the live timings.
+
+**First reading of the Durable Object: not yet a valid measurement, and part of the cause was my instrument.** `GET /debug/trial-do?n=20&hint=weur&name=a` answered `objectColo: LHR` (the object runs in **London**, so the Western Europe hint works), `insideTheObjectMs: 0` (20 statements run locally cost nothing measurable), and `workerToObjectAndBackMs: 1418`. **That 1,418 ms is not the cost of a normal message.** It was the **first call**, which creates and places the object and starts its database (7 rows in its table shows it was a single call), **and it included a network trip of my own**: I had made the object look up its own location before answering, inside the timed section. The honest reading is that the cold first call is expensive and the warm cost is still unmeasured.
+
+**The correction.** The location lookup is now opt-in (`trace=1`) and outside the measurement, and `repeat=5` calls the object five times in one request and reports each call separately (`callsMs`, `firstCallMs`, `warmCallsMedianMs`), so the cold call and the warm calls are seen together. Verified in the local Durable Object runtime (5 calls reported, 35 rows after 5 calls of 7, no location lookup unless asked). **What would decide it:** a warm call is one hop from South Africa to London (about 190 ms if the network is the same as to D1), against about 3,800 ms for 20 database trips. **A separate point to measure and design for:** the cold first call, which a real business would pay after its object has been idle.

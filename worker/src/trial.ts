@@ -41,12 +41,15 @@ export class TrialObject {
       for (let i = 0; i < shared; i++) await this.env.OFFICE_DB.prepare("SELECT 1 AS one").first();
       sharedMs = Date.now() - s0;
     }
+    // Which data centre is this object in? Asked only when `trace=1`, because it is a network trip of its own and must never be inside a measurement.
     let colo: string | null = null;
-    try {
-      const trace = await (await fetch("https://cloudflare.com/cdn-cgi/trace")).text();
-      colo = /^colo=(\w+)$/m.exec(trace)?.[1] ?? null;   // the data centre this object is actually running in
-    } catch {
-      colo = null;
+    if (url.searchParams.get("trace") === "1") {
+      try {
+        const trace = await (await fetch("https://cloudflare.com/cdn-cgi/trace")).text();
+        colo = /^colo=(\w+)$/m.exec(trace)?.[1] ?? null;
+      } catch {
+        colo = null;
+      }
     }
     const rows = (sql.exec("SELECT COUNT(*) AS c FROM trial").toArray()[0] as { c: number }).c;
     return Response.json({ statements: n, insideTheObjectMs: insideMs, sharedTrips: shared, sharedMs, objectColo: colo, rowsInThisObjectsOwnTable: rows });
@@ -59,10 +62,31 @@ export async function trialDo(env: Env, url: URL): Promise<Response> {
   if (hintParam !== "auto" && !(HINTS as readonly string[]).includes(hintParam)) return Response.json({ error: `hint must be auto or one of ${HINTS.join(", ")}` }, { status: 400 });
   const id = env.TRIAL.idFromName(name);
   const stub = hintParam === "auto" ? env.TRIAL.get(id) : env.TRIAL.get(id, { locationHint: hintParam as Hint });
-  const params = new URLSearchParams({ n: String(clamp(url.searchParams.get("n"), 1, 200, 20)), shared: String(clamp(url.searchParams.get("shared"), 0, 10, 0)) });
-  const started = Date.now();
-  const inner = (await (await stub.fetch(`https://trial/work?${params}`)).json()) as Record<string, unknown>;
-  return Response.json({ ...inner, object: name, hint: hintParam, workerToObjectAndBackMs: Date.now() - started });
+  const params = new URLSearchParams({
+    n: String(clamp(url.searchParams.get("n"), 1, 200, 20)),
+    shared: String(clamp(url.searchParams.get("shared"), 0, 10, 0)),
+    trace: url.searchParams.get("trace") === "1" ? "1" : "0",
+  });
+  // `repeat` calls the object several times in a row and times each call on its own: the FIRST call includes creating and placing the object, the rest are what a
+  // real message pays. (A lookup of the object's location, `trace=1`, adds a network trip to every call, so leave it off when measuring.)
+  const repeat = clamp(url.searchParams.get("repeat"), 1, 10, 1);
+  const callsMs: number[] = [];
+  let inner: Record<string, unknown> = {};
+  for (let i = 0; i < repeat; i++) {
+    const started = Date.now();
+    inner = (await (await stub.fetch(`https://trial/work?${params}`)).json()) as Record<string, unknown>;
+    callsMs.push(Date.now() - started);
+  }
+  const warm = callsMs.slice(1).sort((a, b) => a - b);
+  return Response.json({
+    ...inner,
+    object: name,
+    hint: hintParam,
+    callsMs,
+    firstCallMs: callsMs[0],
+    warmCallsMedianMs: warm.length ? warm[Math.floor(warm.length / 2)] : null,
+    workerToObjectAndBackMs: callsMs[callsMs.length - 1],
+  });
 }
 
 export async function trialD1(env: Env, url: URL): Promise<Response> {
