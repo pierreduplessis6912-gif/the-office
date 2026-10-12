@@ -334,8 +334,8 @@
      "amount": 5000,
      "retentionAmount": 0
     },
-    "pdfUrl": "https://office.test/invoices/1/pdf?sig=eyJwYXRoIjoiL2ludm9pY2VzLzEvcGRmIiwiZXhwIjoxODIyNTY0ODAwMDAwfQ.LYKqEa99504rZzmI9q9QD0MwKrA5ImnpdS8EY17pzzQ",
-    "shareMessage": "Hi Jenny, here's your invoice from us — R5,000. View it here: https://office.test/invoices/1/pdf?sig=eyJwYXRoIjoiL2ludm9pY2VzLzEvcGRmIiwiZXhwIjoxODIyNTY0ODAwMDAwfQ.LYKqEa99504rZzmI9q9QD0MwKrA5ImnpdS8EY17pzzQ"
+    "pdfUrl": "https://office.test/invoices/1/pdf?sig=eyJwYXRoIjoiL2ludm9pY2VzLzEvcGRmIiwiZXhwIjoxNzk2MjEyODAwMDAwfQ.KEuZJ1hPDNCZfv5gL2lX-xfNF7G1-qjwh3T1HY3TGMA",
+    "shareMessage": "Hi Jenny, here's your invoice from us — R5,000. View it here: https://office.test/invoices/1/pdf?sig=eyJwYXRoIjoiL2ludm9pY2VzLzEvcGRmIiwiZXhwIjoxNzk2MjEyODAwMDAwfQ.KEuZJ1hPDNCZfv5gL2lX-xfNF7G1-qjwh3T1HY3TGMA"
    }
   },
   "threw": null,
@@ -406,8 +406,8 @@
      "amount": 5000,
      "retentionAmount": 0
     },
-    "pdfUrl": "https://office.test/invoices/1/pdf?sig=eyJwYXRoIjoiL2ludm9pY2VzLzEvcGRmIiwiZXhwIjoxODIyNTY0ODAwMDAwfQ.LYKqEa99504rZzmI9q9QD0MwKrA5ImnpdS8EY17pzzQ",
-    "shareMessage": "Hi Jenny, here's your invoice from us — R5,000. View it here: https://office.test/invoices/1/pdf?sig=eyJwYXRoIjoiL2ludm9pY2VzLzEvcGRmIiwiZXhwIjoxODIyNTY0ODAwMDAwfQ.LYKqEa99504rZzmI9q9QD0MwKrA5ImnpdS8EY17pzzQ"
+    "pdfUrl": "https://office.test/invoices/1/pdf?sig=eyJwYXRoIjoiL2ludm9pY2VzLzEvcGRmIiwiZXhwIjoxNzk2MjEyODAwMDAwfQ.KEuZJ1hPDNCZfv5gL2lX-xfNF7G1-qjwh3T1HY3TGMA",
+    "shareMessage": "Hi Jenny, here's your invoice from us — R5,000. View it here: https://office.test/invoices/1/pdf?sig=eyJwYXRoIjoiL2ludm9pY2VzLzEvcGRmIiwiZXhwIjoxNzk2MjEyODAwMDAwfQ.KEuZJ1hPDNCZfv5gL2lX-xfNF7G1-qjwh3T1HY3TGMA"
    }
   },
   "threw": null,
@@ -477,8 +477,8 @@
      "customerId": 1,
      "amount": 9000
     },
-    "pdfUrl": "https://office.test/quotations/1/pdf?sig=eyJwYXRoIjoiL3F1b3RhdGlvbnMvMS9wZGYiLCJleHAiOjE4MjI1NjQ4MDAwMDB9.CWvAQmpQY1fhA7pnkltmL8ww9iAX5ZlDsBu6jVkuyDQ",
-    "shareMessage": "Hi Jenny, here's your quote from us — R9,000. View it here: https://office.test/quotations/1/pdf?sig=eyJwYXRoIjoiL3F1b3RhdGlvbnMvMS9wZGYiLCJleHAiOjE4MjI1NjQ4MDAwMDB9.CWvAQmpQY1fhA7pnkltmL8ww9iAX5ZlDsBu6jVkuyDQ"
+    "pdfUrl": "https://office.test/quotations/1/pdf?sig=eyJwYXRoIjoiL3F1b3RhdGlvbnMvMS9wZGYiLCJleHAiOjE3OTYyMTI4MDAwMDB9.6o_25Hie_v-TKaGjy8gMX_YeQBLHscZoa4IO7JS6XC0",
+    "shareMessage": "Hi Jenny, here's your quote from us — R9,000. View it here: https://office.test/quotations/1/pdf?sig=eyJwYXRoIjoiL3F1b3RhdGlvbnMvMS9wZGYiLCJleHAiOjE3OTYyMTI4MDAwMDB9.6o_25Hie_v-TKaGjy8gMX_YeQBLHscZoa4IO7JS6XC0"
    }
   },
   "threw": null,
@@ -560,8 +560,8 @@
     "invoice": {
      "invoiceId": 1
     },
-    "pdfUrl": "https://office.test/invoices/1/pdf?sig=eyJwYXRoIjoiL2ludm9pY2VzLzEvcGRmIiwiZXhwIjoxODIyNTY0ODAwMDAwfQ.LYKqEa99504rZzmI9q9QD0MwKrA5ImnpdS8EY17pzzQ",
-    "shareMessage": "Hi Jenny, here's your invoice from us — R8,400. View it here: https://office.test/invoices/1/pdf?sig=eyJwYXRoIjoiL2ludm9pY2VzLzEvcGRmIiwiZXhwIjoxODIyNTY0ODAwMDAwfQ.LYKqEa99504rZzmI9q9QD0MwKrA5ImnpdS8EY17pzzQ"
+    "pdfUrl": "https://office.test/invoices/1/pdf?sig=eyJwYXRoIjoiL2ludm9pY2VzLzEvcGRmIiwiZXhwIjoxNzk2MjEyODAwMDAwfQ.KEuZJ1hPDNCZfv5gL2lX-xfNF7G1-qjwh3T1HY3TGMA",
+    "shareMessage": "Hi Jenny, here's your invoice from us — R8,400. View it here: https://office.test/invoices/1/pdf?sig=eyJwYXRoIjoiL2ludm9pY2VzLzEvcGRmIiwiZXhwIjoxNzk2MjEyODAwMDAwfQ.KEuZJ1hPDNCZfv5gL2lX-xfNF7G1-qjwh3T1HY3TGMA"
    }
   },
   "threw": null,

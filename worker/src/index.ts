@@ -39,7 +39,7 @@ import {
   ACTION_TYPE_CAPABILITY,
   ROUTE_RULES,
   SIGNABLE_DOCUMENT_PATHS,
-  intentCreationRefusal, isAdminPath } from "./auth";
+  intentCreationRefusal, isAdminPath, CUSTOMER_LINK_TTL_MS } from "./auth";
 import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getCustomerFinancialSummary, getJobProfitability, getOpenDiscrepanciesForSupplier, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordPayment, recordQuotation, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, checkDeliveryUnits, deliveryUnitQuestion, duplicateInvoiceMessage, normalizeInvoiceReference, reopenPurchaseOrder, linkPurchaseOrderAndMoveCosts } from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 import { handleDebugRoute } from "./debug";
@@ -2700,7 +2700,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             invoice.id,
             payload.customerName,
             invoice.amount,
-            (p) => signDocumentPath(env, p, 365 * 24 * 60 * 60 * 1000),
+            (p) => signDocumentPath(env, p, CUSTOMER_LINK_TTL_MS),
             (await resolveCapabilities(request, env)).email
           );
           return Response.json({ status: "confirmed", invoice, pdfUrl, shareMessage });
@@ -2736,7 +2736,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             quotation.id,
             payload.customerName,
             quotation.amount,
-            (p) => signDocumentPath(env, p, 365 * 24 * 60 * 60 * 1000),
+            (p) => signDocumentPath(env, p, CUSTOMER_LINK_TTL_MS),
             (await resolveCapabilities(request, env)).email
           );
           return Response.json({ status: "confirmed", quotation, pdfUrl, shareMessage });
@@ -2774,7 +2774,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             result.invoiceId,
             payload.customerName,
             payload.remainingBalance,
-            (p) => signDocumentPath(env, p, 365 * 24 * 60 * 60 * 1000),
+            (p) => signDocumentPath(env, p, CUSTOMER_LINK_TTL_MS),
             (await resolveCapabilities(request, env)).email
           );
           return Response.json({ status: "confirmed", invoice: result, pdfUrl, shareMessage });

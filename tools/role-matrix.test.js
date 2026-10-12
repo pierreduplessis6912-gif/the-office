@@ -806,6 +806,8 @@ async function expect(role, method, path, want) {
   await require('./frontdoor.test.js')({ check, bundleTo, srcDir, path, fs });
   // The admin gate: tiers for every admin route, a second secret for privileged ones, throttled wrong guesses, a record of every call.
   await require('./admin-gate.test.js')({ check, bundleTo, srcDir, path, fs });
+  // The signed links sent to customers: tied to one document, expiring, unforgeable.
+  await require('./signed-links.test.js')({ check, bundleTo, srcDir, path, fs });
 
   // The same work said twice makes no new job.
   await require('./samework.test.js')({ check, bundleTo, srcDir, path, sameJson });

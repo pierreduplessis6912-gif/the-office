@@ -53,6 +53,12 @@ export async function signSession(env: Env, email: string): Promise<string> {
 // tied to the exact path, not a bare secret query param, is what stops
 // copying one document's link onto another id. Reuses SESSION_SECRET
 // and hmacKey rather than a new secret needing its own Cloudflare setup.
+// How long a link sent to a CUSTOMER (an invoice or a quotation PDF) stays valid. It was a year, with no way to take a link back, and the PDF carries the
+// business's banking details. 60 days is twice the 30-day payment terms the invoices carry, so a customer paying late still has a working link. One value, used
+// by every place a customer link is made (SHIP_CHECKLIST.md item 3, 2026-10-11). Links already sent keep the expiry they were made with; the emergency lever that
+// kills every link (and every session) at once is changing SESSION_SECRET.
+export const CUSTOMER_LINK_TTL_MS = 60 * 24 * 60 * 60 * 1000;
+
 export async function signDocumentPath(env: Env, path: string, ttlMs: number): Promise<string> {
   const payload = JSON.stringify({ path, exp: Date.now() + ttlMs });
   const payloadB64 = base64UrlEncode(new TextEncoder().encode(payload));

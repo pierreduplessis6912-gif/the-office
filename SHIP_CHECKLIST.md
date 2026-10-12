@@ -12,7 +12,7 @@ Status key: **DONE** / **PARTLY** / **OPEN**. The latency work is paused until t
 |---|------|--------|---------------------|
 | 1 | Front-door error handling | **DONE** (`b09d1f6`) | Every uncaught error is logged with the request id and answered with a JSON 500 that carries the CORS headers. |
 | 2 | The shared admin key | **DONE** (2026-10-11) | Mint-session and erase-everything are **removed** (nothing used them). All 124 remaining admin routes have a tier, enforced by a test. 11 **privileged** routes need a second secret and are **switched off until `ADMIN_CONFIRM_KEY` is set**. Wrong guesses are throttled (5 in 15 minutes), the key is compared in constant time, and every call is recorded. |
-| 3 | Signed document links | **PARTLY** | Only 6 routes are public (root, health, sign-in). But customer-facing PDF links are valid for **365 days** and **cannot be revoked**, and the PDF carries the business's banking details. |
+| 3 | Signed document links | **DONE** (2026-10-11) | Already sound: HMAC-signed, expiring, and tied to one exact document. The gap was the **365-day lifetime**; customer links now last **60 days** (one value, `CUSTOMER_LINK_TTL_MS`), all now tested. Links already sent keep their original expiry; not revocable one by one (changing `SESSION_SECRET` kills every link and session at once). |
 | 4 | Every route classified | **PARTLY** | Dictation permissions are a full table with tests, and non-owner roles are default-deny. **The 124 admin and debug routes are now fully classified and a test fails on an unclassified one.** The app-facing routes still have no such test. |
 | 5 | Staging, smoke test, rollback | **OPEN** | One environment, one database, no `[env]` in `wrangler.toml`. Every push deploys straight to production; nothing checks it afterwards. |
 | 6 | Model cost controls | **OPEN** | No rate limit, no daily cap, no budget alert. The model is the main running cost. |
@@ -30,7 +30,7 @@ Status key: **DONE** / **PARTLY** / **OPEN**. The latency work is paused until t
 
 **2. Admin key. DONE 2026-10-11** (`DECISIONS.md`, "Hardening item 2"). Every `/admin` and `/debug` route sits in a tier table (read-only, privileged, destructive) and a test fails if one is unclassified. Every admin call leaves an audit row (route, time, outcome, hashed source). Wrong keys are logged and throttled, and compared in constant time. Destructive routes need a second secret. *NEEDS PIERRE: (a) which routes to remove from production altogether (minting a session and erase-everything are the candidates); (b) to set a second Cloudflare secret.*
 
-**3. Signed links.** The token is confirmed to bind to its exact path and to expire; the lifetime is shortened or links become revocable; a test proves an expired, tampered or wrong-path link is refused. *NEEDS PIERRE: how long should a customer's invoice link live (30, 60 or 90 days)?*
+**3. Signed links. DONE 2026-10-11** (`DECISIONS.md`, "Hardening item 3"; the 60 days is my default, Pierre has not chosen). The token is confirmed to bind to its exact path and to expire; the lifetime is shortened or links become revocable; a test proves an expired, tampered or wrong-path link is refused. *NEEDS PIERRE: how long should a customer's invoice link live (30, 60 or 90 days)?*
 
 **4. Route classification.** A table lists every route with the roles allowed; a test fails if a route exists that is not in it. A policy matrix is generated from the code, not hand-written.
 
