@@ -11,6 +11,7 @@
 // test suite (the 165-case role matrix, the PDF-signing round-trip,
 // the CORS allowlist test, and the live-bug regression test) all
 // re-extract from this file now and still pass.
+import { isBusinessId } from "./directory";
 import { authorizeAdmin } from "./admin-gate";
 import { Env, Extraction } from "./types";
 
@@ -38,8 +39,10 @@ async function hmacKey(secret: string): Promise<CryptoKey> {
     "verify",
   ]);
 }
-export async function signSession(env: Env, email: string): Promise<string> {
-  const payload = JSON.stringify({ email, exp: Date.now() + 30 * 24 * 60 * 60 * 1000 }); // 30 real days
+// `businessId` is set when the sign-in found the member's business in the directory (object mode): the session then carries it (`b`), so a request can be routed to that
+// business's object without any lookup, and an object can refuse a session that was made for another business.
+export async function signSession(env: Env, email: string, businessId?: string): Promise<string> {
+  const payload = JSON.stringify({ email, exp: Date.now() + 30 * 24 * 60 * 60 * 1000, ...(businessId ? { b: businessId } : {}) }); // 30 real days
   const payloadB64 = base64UrlEncode(new TextEncoder().encode(payload));
   const key = await hmacKey(env.SESSION_SECRET);
   const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payloadB64));
@@ -60,7 +63,8 @@ export async function signSession(env: Env, email: string): Promise<string> {
 export const CUSTOMER_LINK_TTL_MS = 60 * 24 * 60 * 60 * 1000;
 
 export async function signDocumentPath(env: Env, path: string, ttlMs: number): Promise<string> {
-  const payload = JSON.stringify({ path, exp: Date.now() + ttlMs });
+  // Inside a business's object the link carries that business (`b`), so it is routed to, and only honoured by, the business it was made for.
+  const payload = JSON.stringify({ path, exp: Date.now() + ttlMs, ...(env.BUSINESS_ID ? { b: env.BUSINESS_ID } : {}) });
   const payloadB64 = base64UrlEncode(new TextEncoder().encode(payload));
   const key = await hmacKey(env.SESSION_SECRET);
   const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payloadB64));
@@ -81,8 +85,9 @@ async function verifyDocumentToken(env: Env, path: string, token: string | null)
       new TextEncoder().encode(payloadB64)
     );
     if (!valid) return false;
-    const decoded = JSON.parse(new TextDecoder().decode(base64UrlDecode(payloadB64))) as { path: string; exp: number };
+    const decoded = JSON.parse(new TextDecoder().decode(base64UrlDecode(payloadB64))) as { path: string; exp: number; b?: string };
     if (Date.now() > decoded.exp) return false;
+    if (env.BUSINESS_MODE === "object" && (!env.BUSINESS_ID || decoded.b !== env.BUSINESS_ID)) return false;   // a link opens only the business it was made for
     // Tied to the exact request path — a valid signature for invoice 3
     // must never also open invoice 4.
     return decoded.path === path;
@@ -91,37 +96,44 @@ async function verifyDocumentToken(env: Env, path: string, token: string | null)
   }
 }
 
-export async function verifySession(env: Env, token: string | null): Promise<{ email: string } | null> {
+// The verified content of a session: its signature, its expiry and its shape. Used by the Worker's ROUTER (to find the business) and by verifySession below.
+export async function readSessionPayload(env: Env, token: string | null): Promise<{ email: string; b?: string } | null> {
   if (!token) return null;
   const parts = token.split(".");
   if (parts.length !== 2) return null;
   const [payloadB64, sigB64] = parts;
   try {
     const key = await hmacKey(env.SESSION_SECRET);
-    const valid = await crypto.subtle.verify(
-      "HMAC",
-      key,
-      base64UrlDecode(sigB64),
-      new TextEncoder().encode(payloadB64)
-    );
+    const valid = await crypto.subtle.verify("HMAC", key, base64UrlDecode(sigB64), new TextEncoder().encode(payloadB64));
     if (!valid) return null;
-    const payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(payloadB64))) as {
-      email: string;
-      exp: number;
-    };
+    const payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(payloadB64))) as { email: string; exp: number; b?: unknown };
     if (Date.now() > payload.exp) return null; // real expiry, not just a signature check
-    return { email: payload.email };
+    return { email: payload.email, ...(isBusinessId(payload.b) ? { b: payload.b } : {}) };
   } catch {
-    return null; // malformed token — never trust something that fails to parse cleanly
+    return null; // malformed token: never trust something that fails to parse cleanly
   }
 }
-// Real, deliberately incomplete role-capability map — only Owner and
-// Installer are defined, because those are the only two roles anyone
-// has actually specified a concrete capability list for. Extensible
-// when a real third role is needed, not enumerated in advance for
-// roles nobody has asked for yet (Principle 22). Module scope, shared
-// by the membership debug routes and real capability resolution below
-// — one single source of truth, never duplicated.
+
+// The gates' view of a session. In OBJECT MODE a session belongs to exactly one business: the Worker itself never serves business data (a request with a session is forwarded to that
+// business's object), so there it accepts none; and an object accepts only a session made for ITS business. So a routing mistake cannot show one business another's data.
+export async function verifySession(env: Env, token: string | null): Promise<{ email: string } | null> {
+  const payload = await readSessionPayload(env, token);
+  if (!payload) return null;
+  if (env.BUSINESS_MODE === "object" && (!env.BUSINESS_ID || payload.b !== env.BUSINESS_ID)) return null;
+  return { email: payload.email };
+}
+
+// Which business a signed link was made for, read WITHOUT verifying it, only so the Worker can route the request to that business's object, which then verifies the signature.
+export function peekBusinessFromToken(token: string | null): string | null {
+  if (!token || token.split(".").length !== 2) return null;
+  try {
+    const decoded = JSON.parse(new TextDecoder().decode(base64UrlDecode(token.split(".")[0]))) as { b?: unknown };
+    return isBusinessId(decoded.b) ? decoded.b : null;
+  } catch {
+    return null;
+  }
+}
+
 export const ROLE_CAPABILITIES: Record<string, string[]> = {
   owner: [
     "can_know_profit",

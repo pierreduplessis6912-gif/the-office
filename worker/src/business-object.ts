@@ -6,6 +6,7 @@
 //
 // On its first wake the object creates its tables from the baseline schema; on EVERY wake it applies the indexes (idempotent, and it picks up tables that were created on first use
 // since the last wake). The Worker forwards to an object only when BUSINESS_MODE is "object" and the object exists; otherwise nothing changes.
+import { isBusinessId } from "./directory";
 import { BASELINE_SQL } from "./baseline-sql";
 import { applyIndexes, type IndexReport } from "./indexes";
 import { DoD1Database, type SqlStorageLike, type StorageLike } from "./storage/do-d1";
@@ -53,6 +54,7 @@ export function makeBusinessObject(serve: Serve) {
     env: Env;
     state: DurableObjectState;
     ready: Promise<void>;
+    businessId: string | null = null;
 
     constructor(state: DurableObjectState, env: Env) {
       this.state = state;
@@ -66,7 +68,17 @@ export function makeBusinessObject(serve: Serve) {
 
     async fetch(request: Request): Promise<Response> {
       await this.ready;
-      const objectEnv = { ...this.env, OFFICE_DB: this.db as unknown as D1Database } as Env;
+      // The Worker names the business on every request it forwards (and overwrites anything a client sent). An object belongs to exactly ONE business: the first name it is given is
+      // remembered, and a request naming any other is refused, so even a routing mistake in the Worker cannot make an object serve the wrong business.
+      const claimed = request.headers.get("X-Business-Id");
+      if (!isBusinessId(claimed)) return Response.json({ error: "no business named" }, { status: 400 });
+      if (this.businessId === null) {
+        const known = (await this.db.prepare("SELECT value FROM object_meta WHERE key = 'business_id'").first<{ value: string }>())?.value ?? null;
+        if (known === null) await this.db.prepare("INSERT INTO object_meta (key, value) VALUES ('business_id', ?)").bind(claimed).run();
+        this.businessId = known ?? claimed;
+      }
+      if (this.businessId !== claimed) return Response.json({ error: "this object belongs to another business" }, { status: 403 });
+      const objectEnv = { ...this.env, OFFICE_DB: this.db as unknown as D1Database, BUSINESS_ID: claimed } as Env;
       const ctx = { waitUntil: (p: Promise<unknown>) => this.state.waitUntil(p), passThroughOnException: () => undefined } as unknown as ExecutionContext;
       return serve(request, objectEnv, ctx);
     }

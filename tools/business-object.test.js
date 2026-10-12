@@ -4,7 +4,14 @@
 const path = require('path'), fs = require('fs'), os = require('os'), esbuild = require('esbuild');
 const { DatabaseSync } = require('node:sqlite');
 
-module.exports = async function runBusinessObjectTests({ check, srcDir }) {
+// The object answers a request that names no business, or the wrong one, with a real Response; the permission tests swap in a bare stand-in, so the real one is used for the duration.
+module.exports = async function runBusinessObjectTests(context) {
+  const standIn = global.Response;
+  if (global.__RealResponse) global.Response = global.__RealResponse;
+  try { await businessObjectTests(context); } finally { global.Response = standIn; }
+};
+
+async function businessObjectTests({ check, srcDir }) {
   const bundle = (entry) => { const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'bo-')), 'm.js'); esbuild.buildSync({ entryPoints: [path.join(srcDir, entry)], bundle: true, platform: 'node', format: 'cjs', outfile: out, logLevel: 'silent' }); return require(out); };
   const bo = bundle('business-object.ts');
   const baseline = bundle('baseline-sql.ts');
@@ -28,7 +35,8 @@ module.exports = async function runBusinessObjectTests({ check, srcDir }) {
   const dbA = new DatabaseSync(':memory:'); const A = makeState(dbA);
   const workerEnv = { ADMIN_KEY: 'k', AI: 'the-ai-binding', OFFICE_DB: 'the-workers-own-d1', SESSION_SECRET: 's' };
   const objA = new Business(A.state, { ...workerEnv, __peek: () => tableNames(dbA).length });
-  const reply = await objA.fetch({ url: 'https://x/health', method: 'GET' });
+  const named = (id) => ({ url: 'https://x/health', method: 'GET', headers: new Headers(id ? { 'X-Business-Id': id } : {}) });
+  const reply = await objA.fetch(named('alpha-co'));
   check(reply.status === 200 && seen.length === 1, 'the object serves a request through the application\'s pipeline function');
   check(seen[0].tablesAtServeTime >= 42, `the tables already exist when the first request is served (tables: ${seen[0].tablesAtServeTime})`);
   check(tableNames(dbA).filter((t) => !t.startsWith('sqlite_')).length === 42 && dbA.prepare("SELECT value FROM object_meta WHERE key = 'schema_version'").get().value === '1', 'a new object creates the 41 baseline tables (and its own small meta table) and records its schema version');
@@ -44,6 +52,18 @@ module.exports = async function runBusinessObjectTests({ check, srcDir }) {
   const marker = Promise.resolve(1); seen[0].ctx.waitUntil(marker);
   check(A.waited.includes(marker) && typeof seen[0].ctx.passThroughOnException === 'function', 'background work the pipeline starts (timing, the admin audit) is kept alive by the object');
 
+  // ---- an object belongs to exactly one business ----------------------------------------------------------------------------------------------
+  check(env.BUSINESS_ID === 'alpha-co', 'the pipeline is told which business it is serving (BUSINESS_ID), taken from the Worker\'s header and never from a client');
+  const before = seen.length;
+  const none = await objA.fetch(named(null)); const bad = await objA.fetch(named('NOT a valid id!'));
+  check(none.status === 400 && bad.status === 400 && seen.length === before, 'a request that names no business, or an invalid one, is refused and never reaches the pipeline');
+  check(dbA.prepare("SELECT value FROM object_meta WHERE key = 'business_id'").get().value === 'alpha-co', 'the first business an object is named for is remembered in its own storage');
+  const wrong = await objA.fetch(named('beta-co'));
+  check(wrong.status === 403 && (await wrong.json()).error === 'this object belongs to another business' && seen.length === before, 'a request naming ANY OTHER business is refused with a 403 and never reaches the pipeline (so a routing mistake in the Worker cannot make this object serve the wrong business)');
+  check((await objA.fetch(named('alpha-co'))).status === 200 && seen.length === before + 1, 'and its own business is served as before');
+  const woken = new Business(A.state, workerEnv);
+  check((await woken.fetch(named('beta-co'))).status === 403 && (await woken.fetch(named('alpha-co'))).status === 200, 'a fresh wake over the same storage still remembers which business it is');
+
   // ---- a second wake ---------------------------------------------------------------------------------------------------------------------------
   const again = await bo.ensureObjectSchema(objA.db, workerEnv);
   check(again.appliedBaseline === false && again.indexes.created.length === 0 && dbA.prepare('SELECT COUNT(*) AS n FROM customers').get().n === 1, 'a second wake does not redo the baseline, creates no index twice, and keeps the data');
@@ -55,7 +75,7 @@ module.exports = async function runBusinessObjectTests({ check, srcDir }) {
   // ---- two businesses -----------------------------------------------------------------------------------------------------------------------------
   const dbB = new DatabaseSync(':memory:'); const B = makeState(dbB);
   const objB = new Business(B.state, workerEnv);
-  await objB.fetch({ url: 'https://x/health', method: 'GET' });
+  await objB.fetch(named('beta-co'));
   check(dbB.prepare('SELECT COUNT(*) AS n FROM customers').get().n === 0 && dbA.prepare('SELECT COUNT(*) AS n FROM customers').get().n === 1, 'two businesses are two separate databases: one cannot see the other\'s customer');
 
   // ---- the schema source -----------------------------------------------------------------------------------------------------------------------
@@ -71,8 +91,9 @@ module.exports = async function runBusinessObjectTests({ check, srcDir }) {
   check((indexSrc.match(/export async function serveRequest\(/g) || []).length === 1 && (indexSrc.match(/\brunGuarded\(/g) || []).length === 1 && /export const BusinessObject = makeBusinessObject\(serveRequest\);/.test(indexSrc), 'the Worker and the object run the SAME pipeline function (serveRequest), handed to the object by the entry module');
   check(!/runGuarded|handleRequest|corsHeadersFor|recordTiming|instrumentEnv/.test(objectSrc), 'the business object contains no copy of any part of the pipeline: it only supplies the database and the schema');
   const entry = indexSrc.slice(indexSrc.indexOf('export default {'), indexSrc.indexOf('async scheduled('));
-  check(/if \(env\.BUSINESS_MODE === "object" && env\.BUSINESS\) \{\s*(\/\/[^\n]*\n\s*)*if \(request\.method === "OPTIONS"\) return new Response\(null, \{ status: 204, headers: corsHeadersFor\(request\) \}\);\s*return forwardToBusiness\(request, env\);\s*\}\s*return serveRequest\(request, env, ctx\);/.test(entry), 'the Worker forwards to the object ONLY when the mode is "object" and the object exists; otherwise it serves as it always did (and a preflight never goes to the object)');
-  check(/idFromName\(env\.BUSINESS_OBJECT_NAME \?\? "business-default"\)/.test(indexSrc) && /locationHint: "weur"/.test(indexSrc), 'stage 1 uses one named object, placed in Western Europe');
+  check(/if \(env\.BUSINESS_MODE === "object" && env\.BUSINESS\) \{[\s\S]*?if \(request\.method === "OPTIONS"\) return new Response\(null, \{ status: 204, headers: corsHeadersFor\(request\) \}\);[\s\S]*?const route = await routeRequest\(request, env\);[\s\S]*?if \(route\.kind === "business"\) return forwardToBusiness\(request, env, route\.businessId\);[\s\S]*?\}\s*return serveRequest\(request, env, ctx\);/.test(entry), 'the Worker routes ONLY when the mode is "object" and the object exists, answers a preflight itself, forwards to a business only on a business route, and otherwise serves as it always did');
+  const routingSrc = fs.readFileSync(path.join(srcDir, 'routing.ts'), 'utf8').replace(/\/\/.*$/gm, '');
+  check(/headers\.delete\("X-Target-Business"\)/.test(routingSrc) && /headers\.set\("X-Business-Id", businessId\)/.test(routingSrc) && /idFromName\(objectNameFor\(businessId\)\)/.test(routingSrc) && /locationHint: "weur"/.test(routingSrc), 'forwarding overwrites any client-supplied business header, removes the admin targeting header, names the object from the business id, and places it in Western Europe');
   const cfgFile = path.join(srcDir, '..', 'wrangler.toml');
   if (fs.existsSync(cfgFile)) { const cfg = fs.readFileSync(cfgFile, 'utf8'); check(!/BUSINESS/.test(cfg), 'production\'s configuration has no business object and no BUSINESS_MODE: stage 1 is staging only, production is unchanged'); }
 };

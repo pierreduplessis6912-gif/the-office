@@ -1,4 +1,6 @@
 export { TrialObject } from "./trial";
+import { callBusiness, forwardToBusiness, routeRequest } from "./routing";
+import { lookupBusinessForEmail, normaliseEmail } from "./directory";
 import { makeBusinessObject } from "./business-object";
 import { adminTierOf, hashSource, recordAdminCall } from "./admin-gate";
 import { runGuarded } from "./frontdoor";
@@ -1593,9 +1595,22 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         return Response.json({ error: "Google account email is not verified" }, { status: 401 });
       }
 
-      const membership = await env.OFFICE_DB.prepare("SELECT * FROM memberships WHERE google_email = ?")
-        .bind(claims.email)
-        .first<{ id: number; google_email: string; role: string; status: string }>();
+      let membership: { id?: number; google_email?: string; role: string; status: string } | null;
+      let sessionEmail = claims.email;
+      let sessionBusiness: string | undefined;
+      if (env.BUSINESS_MODE === "object") {
+        // Object mode: the DIRECTORY says which business this member signs in to, and that business's own object says whether the membership is active and what role it has.
+        sessionEmail = normaliseEmail(claims.email);
+        const businessId = await lookupBusinessForEmail(env, sessionEmail);
+        const reply = businessId ? await callBusiness(env, businessId, "GET", `/debug/membership-check?email=${encodeURIComponent(sessionEmail)}`) : null;
+        const found = reply && reply.ok ? ((await reply.json()) as { found: boolean; role: string | null; status: string | null }) : null;
+        membership = found?.found && found.role && found.status ? { role: found.role, status: found.status } : null;
+        sessionBusiness = businessId ?? undefined;
+      } else {
+        membership = await env.OFFICE_DB.prepare("SELECT * FROM memberships WHERE google_email = ?")
+          .bind(claims.email)
+          .first<{ id: number; google_email: string; role: string; status: string }>();
+      }
 
       if (!membership || membership.status !== "active") {
         return Response.json(
@@ -1604,7 +1619,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         );
       }
 
-      const sessionToken = await signSession(env, claims.email);
+      const sessionToken = await signSession(env, sessionEmail, sessionBusiness);
       // Real, final form 2026-07-27 — the redirect target is now
       // platform-aware. flutter_web_auth_2's web implementation
       // requires landing on the exact same origin the app is running
@@ -3640,22 +3655,17 @@ export async function serveRequest(request: Request, env: Env, ctx: ExecutionCon
   });
 }
 
-// Architecture stage 1: one named object serves the whole business (stage 2 will choose the object from the signed-in member's business). The hint only matters when the object is
-// first created: Western Europe, next to the shared layer and the best placement Cloudflare offers for South Africa.
-async function forwardToBusiness(request: Request, env: Env): Promise<Response> {
-  const namespace = env.BUSINESS as DurableObjectNamespace;
-  const id = namespace.idFromName(env.BUSINESS_OBJECT_NAME ?? "business-default");
-  return namespace.get(id, { locationHint: "weur" }).fetch(request);
-}
-
 export const BusinessObject = makeBusinessObject(serveRequest);
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     if (env.BUSINESS_MODE === "object" && env.BUSINESS) {
-      // A preflight needs no data, so it never goes to the object.
+      // A preflight needs no data, so it never goes to an object.
       if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeadersFor(request) });
-      return forwardToBusiness(request, env);
+      const route = await routeRequest(request, env);
+      if (route.kind === "business") return forwardToBusiness(request, env, route.businessId);
+      if (route.kind === "refuse") return Response.json({ error: route.error }, { status: route.status, headers: corsHeadersFor(request) });
+      // Otherwise the Worker answers it itself: a public route, a refusal (no usable session, a wrong admin key) or a shared-layer admin route. No object is woken.
     }
     return serveRequest(request, env, ctx);
   },

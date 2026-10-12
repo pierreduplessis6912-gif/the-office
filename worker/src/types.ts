@@ -38,6 +38,8 @@ export interface Env {
   BUSINESS?: DurableObjectNamespace;
   BUSINESS_MODE?: string;
   BUSINESS_OBJECT_NAME?: string;
+  // Set by a business's object for each request it serves (never by a client): which business this is. See business-object.ts.
+  BUSINESS_ID?: string;
 }
 
 export interface Extraction {

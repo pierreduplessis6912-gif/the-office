@@ -821,6 +821,10 @@ async function expect(role, method, path, want) {
   await require('./staging.test.js')({ check, path, fs });
   // A business's Durable Object: the application's real pipeline over the object's own SQLite.
   await require('./business-object.test.js')({ check, srcDir });
+  // The Worker's router and the shared directory (architecture stage 2b).
+  await require('./routing.test.js')({ check, srcDir });
+  await require('./business-session.test.js')({ check, srcDir });
+  await require('./directory.test.js')({ check, srcDir });
 
   // The same work said twice makes no new job.
   await require('./samework.test.js')({ check, bundleTo, srcDir, path, sameJson });

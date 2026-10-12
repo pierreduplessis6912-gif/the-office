@@ -1,8 +1,8 @@
-// End to end, on the local Cloudflare runtime: the WHOLE application (bundled from worker/src) with BUSINESS_MODE=object, so every request is served by a business's Durable Object.
-// Usage (from a scratch folder holding a copy of worker/ with its dependencies installed and miniflare@4 installed):
+// End to end on the local Cloudflare runtime, architecture stage 2b: the WHOLE application (bundled from worker/src) in object mode with TWO businesses in ONE Worker, created through the
+// shared directory. It proves each business has its own data, and attacks the boundary every way it can: a client naming another business, a validly signed session for the wrong business, a
+// session with no business, a stranger, an admin without the key, and moving a member between businesses.
+// Usage (from a scratch folder holding a copy of worker/ with its dependencies installed, and miniflare@4):
 //   node e2e-business-object.mjs <path-to-worker-folder> <path-to-esbuild>
-// It signs in as an owner WITHOUT Google (a session cookie is just a signed {email, exp}), creates customers through the real CSV import, reads them back, and shows that the Worker's
-// own database was never touched: every byte of the business's data is inside the object.
 import { Miniflare } from "miniflare";
 import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
@@ -16,7 +16,7 @@ execFileSync(esbuild, ["src/index.ts", "--bundle", "--format=esm", "--platform=n
 
 const SECRET = "e2e-session-secret";
 const b64u = (buf) => Buffer.from(buf).toString("base64url");
-const cookieFor = (email) => { const p = b64u(JSON.stringify({ email, exp: Date.now() + 3600_000 })); return `office_session=${p}.${b64u(crypto.createHmac("sha256", SECRET).update(p).digest())}`; };
+const cookieFor = (email, b) => { const p = b64u(JSON.stringify({ email, exp: Date.now() + 3600_000, ...(b ? { b } : {}) })); return { Cookie: `office_session=${p}.${b64u(crypto.createHmac("sha256", SECRET).update(p).digest())}` }; };
 
 const mf = new Miniflare({
   modules: true, script: fs.readFileSync(out, "utf8"), compatibilityDate: "2026-07-01", compatibilityFlags: ["nodejs_compat"],
@@ -26,40 +26,67 @@ const mf = new Miniflare({
 });
 const call = async (p, init = {}) => { const t = performance.now(); const r = await mf.dispatchFetch("http://localhost" + p, init); const text = await r.text(); let body; try { body = JSON.parse(text); } catch { body = text; } return { status: r.status, body, headers: r.headers, ms: Math.round(performance.now() - t) }; };
 const results = []; const check = (ok, what, detail = "") => { results.push({ ok, what, detail }); console.log((ok ? "ok   " : "FAIL ") + what + (detail ? "  [" + detail + "]" : "")); };
-const origin = { Origin: "https://the-office-preview.pages.dev" };
-const admin = { "X-Admin-Key": "k-admin" };
+const admin = { "X-Admin-Key": "k-admin" }, both = { ...admin, "X-Admin-Confirm": "k-confirm" }, json = { "Content-Type": "application/json" };
+const names = (r) => (Array.isArray(r.body?.items) ? r.body.items.map((c) => c.name).sort() : null);
+const upload = (rows, who) => { const boundary = "----e2e"; const body = `--${boundary}\r\nContent-Disposition: form-data; name="csv"; filename="c.csv"\r\nContent-Type: text/csv\r\n\r\nname\n${rows.join("\n")}\n\r\n--${boundary}--\r\n`; return call("/files/customers-csv-import", { method: "POST", headers: { ...who, "Content-Type": `multipart/form-data; boundary=${boundary}` }, body }); };
 
+// ---- the Worker answers what needs no business ---------------------------------------------------------------------------------------------------------------
 const health = await call("/health");
-check(health.status === 200 && health.body.status === "ok", "GET /health is served through the business object", `status ${health.status}`);
-const stranger = await call("/customers", { headers: origin });
-check(stranger.status === 401 && stranger.body.error === "sign in required" && stranger.headers.get("access-control-allow-origin") === origin.Origin, "a stranger is refused with a JSON 401 and the CORS header (the front door and the sign-in gate run inside the object)");
-const noKey = await call("/debug/customers");
-check(noKey.status === 401, "an admin route without the key is refused (the admin gate runs inside the object)");
-const privileged = await call("/debug/create-membership", { method: "POST", headers: { ...admin, "Content-Type": "application/json" }, body: JSON.stringify({ google_email: "owner@example.com", role: "owner" }) });
-check(privileged.status === 403, "a privileged route with only the admin key is refused", `status ${privileged.status}`);
-const member = await call("/debug/create-membership", { method: "POST", headers: { ...admin, "X-Admin-Confirm": "k-confirm", "Content-Type": "application/json" }, body: JSON.stringify({ google_email: "owner@example.com", role: "owner" }) });
-check(member.status === 200, "an owner is created with both keys", `status ${member.status} ${JSON.stringify(member.body).slice(0, 80)}`);
-const cookie = { Cookie: cookieFor("owner@example.com") };
-const itemsOf = (b) => (Array.isArray(b?.items) ? b.items : []);
-const empty = await call("/customers", { headers: cookie });
-check(empty.status === 200 && Array.isArray(empty.body.items) && empty.body.items.length === 0, "signed in as the owner, the customer list is empty", `status ${empty.status}`);
-const boundary = "----e2eboundary";
-const csv = "name,address\nJenny Smith,1 Main Rd\nSipho Dlamini,2 High St\n";
-const upload = `--${boundary}\r\nContent-Disposition: form-data; name="csv"; filename="customers.csv"\r\nContent-Type: text/csv\r\n\r\n${csv}\r\n--${boundary}--\r\n`;
-const imported = await call("/files/customers-csv-import", { method: "POST", headers: { ...cookie, "Content-Type": `multipart/form-data; boundary=${boundary}` }, body: upload });
-check(imported.status === 200, "the real customer CSV import runs inside the object", `status ${imported.status} ${JSON.stringify(imported.body).slice(0, 120)}`);
-const after = await call("/customers", { headers: cookie });
-const list = itemsOf(after.body);
-check(after.status === 200 && list.length === 2 && list.some((c) => c.name === "Jenny Smith"), "the two customers are read back out of the object", `${list.length} customers`);
+check(health.status === 200 && health.body.status === "ok", "GET /health is answered by the Worker itself");
+const stranger = await call("/customers", { headers: { Origin: "https://the-office-preview.pages.dev" } });
+check(stranger.status === 401 && stranger.headers.get("access-control-allow-origin") === "https://the-office-preview.pages.dev", "a stranger is refused with a JSON 401 and the CORS header, and no object is woken");
+
+// ---- two businesses, created through the directory ---------------------------------------------------------------------------------------------------------
+const onlyAdmin = await call("/debug/directory/create-business", { method: "POST", headers: { ...admin, ...json }, body: JSON.stringify({ id: "alpha-co", name: "Alpha Flooring", owner_email: "owner@alpha.co" }) });
+check(onlyAdmin.status === 403, "creating a business needs BOTH admin keys (the admin key alone is refused)", `status ${onlyAdmin.status}`);
+const makeA = await call("/debug/directory/create-business", { method: "POST", headers: { ...both, ...json }, body: JSON.stringify({ id: "alpha-co", name: "Alpha Flooring", owner_email: "Owner@Alpha.co" }) });
+const makeB = await call("/debug/directory/create-business", { method: "POST", headers: { ...both, ...json }, body: JSON.stringify({ id: "beta-co", name: "Beta Blinds", owner_email: "owner@beta.co" }) });
+check(makeA.status === 200 && makeA.body.created === true && makeA.body.ownerMembershipStatus === 200 && makeB.status === 200 && makeB.body.ownerMembershipStatus === 200, "two businesses are created, each with its owner made INSIDE its own object", `alpha ${makeA.ms} ms, beta ${makeB.ms} ms (includes creating the object)`);
+const listing = await call("/debug/directory", { headers: admin });
+check(listing.status === 200 && listing.body.businesses.length === 2 && listing.body.businesses.every((b) => b.members === 1) && !JSON.stringify(listing.body).includes("@"), "the directory lists both businesses with one member each and never shows an email address");
+const move = await call("/debug/directory/add-member", { method: "POST", headers: { ...both, ...json }, body: JSON.stringify({ email: "owner@alpha.co", business_id: "beta-co", role: "owner" }) });
+check(move.status === 400 && /already belongs to another business/.test(move.body.error), "a member already in one business cannot be added to another", move.body.error);
+
+// ---- each business has its own data ---------------------------------------------------------------------------------------------------------------------------
+const A = cookieFor("owner@alpha.co", "alpha-co"), B = cookieFor("owner@beta.co", "beta-co");
+const emptyA = await call("/customers", { headers: A }), emptyB = await call("/customers", { headers: B });
+check(emptyA.status === 200 && names(emptyA).length === 0 && emptyB.status === 200 && names(emptyB).length === 0, "each owner signs in to their own business, and both start empty (the owner's email was matched without regard to case)");
+const importA = await upload(["Jenny Smith", "Sipho Dlamini"], A), importB = await upload(["Ben Adams"], B);
+check(importA.status === 200 && importA.body.created === 2 && importB.status === 200 && importB.body.created === 1, "each business imports its own customers", `alpha ${importA.body.created}, beta ${importB.body.created}`);
+const listA = await call("/customers", { headers: A }), listB = await call("/customers", { headers: B });
+check(JSON.stringify(names(listA)) === JSON.stringify(["Jenny Smith", "Sipho Dlamini"]) && JSON.stringify(names(listB)) === JSON.stringify(["Ben Adams"]), "alpha sees only Jenny and Sipho; beta sees only Ben: neither can see the other's customers");
+
+// ---- attacks on the boundary -------------------------------------------------------------------------------------------------------------------------------------
+const spoof = await call("/customers", { headers: { ...A, "X-Business-Id": "beta-co" } });
+check(JSON.stringify(names(spoof)) === JSON.stringify(["Jenny Smith", "Sipho Dlamini"]), "alpha's owner naming BETA in a header still gets ALPHA's data (the header is overwritten)");
+const wrongB = await call("/customers", { headers: cookieFor("owner@alpha.co", "beta-co") });
+check(wrongB.status === 403 || wrongB.status === 401, "a validly signed session putting alpha's owner INSIDE beta is refused (not a member there)", `status ${wrongB.status}`);
+const noB = await call("/customers", { headers: cookieFor("owner@alpha.co") });
+check(noB.status === 401, "a session with no business is refused", `status ${noB.status}`);
+const unknown = await call("/customers", { headers: cookieFor("owner@alpha.co", "ghost-co") });
+check(unknown.status === 403 || unknown.status === 401, "a session for a business that does not exist is refused (it would create an empty object, but see no data)", `status ${unknown.status}`);
+const targetA = await call("/debug/customers", { headers: { ...admin, "X-Target-Business": "alpha-co" } }), targetB = await call("/debug/customers", { headers: { ...admin, "X-Target-Business": "beta-co" } });
+const adminNames = (r) => (r.body.customers ?? r.body.items ?? r.body).map?.((c) => c.name).sort();
+check(targetA.status === 200 && adminNames(targetA).includes("Jenny Smith") && !adminNames(targetA).includes("Ben Adams") && targetB.status === 200 && adminNames(targetB).includes("Ben Adams") && !adminNames(targetB).includes("Jenny Smith"), "an administrator names the business, and sees only that business's data");
+const nameless = await call("/debug/customers", { headers: admin });
+check(nameless.status === 400 && /X-Target-Business/.test(nameless.body.error), "an admin call that names no business is refused with a clear message");
+const wrongKey = await call("/debug/customers", { headers: { "X-Admin-Key": "wrong", "X-Target-Business": "alpha-co" } });
+check(wrongKey.status === 401, "a wrong admin key can never name a business", `status ${wrongKey.status}`);
+
+// ---- the Worker holds no business data -------------------------------------------------------------------------------------------------------------------------
 const workerD1 = await mf.getD1Database("OFFICE_DB");
-const tables = (await workerD1.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '_cf_%' AND name NOT LIKE 'sqlite_%'").all()).results;
-check(tables.length === 0, "the Worker's OWN database was never touched: every byte of the business's data is inside the object", `tables in the Worker's D1: ${tables.length}`);
-const timings = await call("/debug/timings", { headers: admin });
-check(timings.status === 200 && timings.body.requests >= 1, "per-request timing is recorded from inside the object", `requests recorded: ${timings.body.requests}`);
-const burst = await Promise.all(Array.from({ length: 12 }, () => call("/customers", { headers: cookie })));
-check(burst.every((r) => r.status === 200 && itemsOf(r.body).length === 2), "12 concurrent requests all succeed and agree", `slowest ${Math.max(...burst.map((r) => r.ms))} ms`);
-const indexes = await call("/debug/init-indexes", { method: "POST", headers: admin });
-check(indexes.status === 200 && indexes.body.failed.length === 0 && indexes.body.alreadyThere.length >= 20, "the object applied the indexes itself on wake", `${indexes.body.alreadyThere?.length} already there, ${indexes.body.created?.length} created now (tables made on first use)`);
+const tables = (await workerD1.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '_cf_%' AND name NOT LIKE 'sqlite_%'").all()).results.map((t) => t.name).sort();
+check(!tables.includes("customers") && !tables.includes("invoices") && !tables.includes("captures") && tables.includes("businesses") && tables.includes("directory_members"), "the Worker's own database holds only the shared layer (the directory, its audit): no customers, no invoices", `tables: ${tables.join(", ")}`);
+
+// ---- many at once ---------------------------------------------------------------------------------------------------------------------------------------------------------
+const burst = await Promise.all(Array.from({ length: 16 }, (_, i) => call("/customers", { headers: i % 2 ? A : B })));
+check(burst.every((r, i) => r.status === 200 && (i % 2 ? names(r).length === 2 : names(r).length === 1)), "16 concurrent requests alternating between the two businesses each get their own business's data", `slowest ${Math.max(...burst.map((r) => r.ms))} ms`);
+const checkA = await call("/debug/membership-check?email=Owner@Alpha.co", { headers: { ...admin, "X-Target-Business": "alpha-co" } }), checkB = await call("/debug/membership-check?email=owner@alpha.co", { headers: { ...admin, "X-Target-Business": "beta-co" } });
+check(checkA.body.found === true && checkA.body.role === "owner" && checkA.body.status === "active" && checkB.body.found === false, "the membership check (used at sign-in) finds the owner in their own business and NOT in the other");
+const timings = await call("/debug/timings", { headers: { ...admin, "X-Target-Business": "alpha-co" } });
+check(timings.status === 200 && timings.body.requests >= 2, "request timings are read from a business's own object by naming it (only requests that change something are recorded: its owner's creation and the import)", `requests recorded in alpha: ${timings.body.requests}`);
+const timingsNameless = await call("/debug/timings", { headers: admin });
+check(timingsNameless.status === 400, "and asking for timings without naming a business is refused");
 await mf.dispose();
 const failed = results.filter((r) => !r.ok).length;
 console.log(failed ? `\n${failed} FAILED` : `\nall ${results.length} end-to-end checks passed`);

@@ -188,6 +188,24 @@ jobs:
           SMOKE_DELAY: "10"
         run: bash tools/smoke-test.sh https://${SLUG}.websitehub.co.za
 
+      - name: Create two businesses in the shared directory
+        id: businesses
+        continue-on-error: true
+        run: |
+          BASE="https://${SLUG}.websitehub.co.za"
+          make_business() {
+            CODE=000
+            for attempt in 1 2 3 4 5; do
+              CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/debug/directory/create-business" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY" -H "Content-Type: application/json" -d "{\"id\":\"$1\",\"name\":\"$2\",\"owner_email\":\"$3\"}")
+              if [ "$CODE" = "200" ]; then break; fi
+              sleep 6
+            done
+            echo "$CODE"
+          }
+          ONE=$(make_business staging-co "Staging Company" staging-owner@example.com)
+          TWO=$(make_business staging-two "Second Staging Company" staging-two-owner@example.com)
+          printf '{"staging-co": "%s", "staging-two": "%s"}' "$ONE" "$TWO" > "$RESULTS/businesses.json"
+
       - name: Set up staging's schema and indexes
         id: init
         continue-on-error: true
@@ -199,13 +217,13 @@ jobs:
           for route in $(grep -oE 'POST /debug/init-[a-z0-9-]+' worker/src/admin-routes.ts | sed 's/POST //' | grep -v 'init-indexes'); do
             CODE=000
             for attempt in 1 2 3 4 5; do
-              CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE$route")
+              CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Target-Business: staging-co" "$BASE$route")
               if [ "$CODE" = "200" ]; then break; fi
               sleep 6
             done
             echo "$route $CODE" >> "$RESULTS/init.txt"
           done
-          curl -s -X POST -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/init-indexes" > "$RESULTS/indexes.json"
+          curl -s -X POST -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Target-Business: staging-co" "$BASE/debug/init-indexes" > "$RESULTS/indexes.json"
 
       - name: Measure the Durable Object on staging
         id: trial
@@ -215,37 +233,62 @@ jobs:
           curl -s -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/trial-do?n=20&hint=weur&name=staging-a&repeat=4" > "$RESULTS/trial-do.json"
           curl -s -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/trial-d1?n=10" > "$RESULTS/trial-d1.json"
 
-      - name: Exercise the business object end to end
+      - name: Exercise two businesses end to end
         id: e2e
         continue-on-error: true
         run: |
           BASE="https://${SLUG}.websitehub.co.za"
-          OWNER="staging-owner@example.com"
-          CODE_MEMBER=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/debug/create-membership" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY" -H "Content-Type: application/json" -d "{\"google_email\":\"$OWNER\",\"role\":\"owner\"}")
-          OWNER="$OWNER" python3 - <<'PY' > "$RESULTS/cookie.txt"
+          cat > "$RESULTS/mkcookie.py" <<'PY'
           import os, json, hmac, hashlib, base64, time
           b = lambda x: base64.urlsafe_b64encode(x).rstrip(b"=").decode()
-          p = b(json.dumps({"email": os.environ["OWNER"], "exp": int(time.time() * 1000) + 3600000}, separators=(",", ":")).encode())
+          body = {"email": os.environ["EMAIL"], "exp": int(time.time() * 1000) + 3600000}
+          if os.environ.get("BIZ"):
+              body["b"] = os.environ["BIZ"]
+          p = b(json.dumps(body, separators=(",", ":")).encode())
           s = b(hmac.new(os.environ["STAGING_SESSION_SECRET"].encode(), p.encode(), hashlib.sha256).digest())
           print("office_session=" + p + "." + s)
           PY
-          COOKIE=$(cat "$RESULTS/cookie.txt")
-          echo "::add-mask::$COOKIE"
-          CODE_LIST_A=$(curl -s -o "$RESULTS/list-a.json" -w '%{http_code}' -H "Cookie: $COOKIE" "$BASE/customers")
-          printf 'name,address\nStaging Customer One,1 Test Rd\nStaging Customer Two,2 Test Rd\n' > "$RESULTS/customers.csv"
-          CODE_IMPORT=$(curl -s -o "$RESULTS/import.json" -w '%{http_code}' -X POST -H "Cookie: $COOKIE" -F "csv=@$RESULTS/customers.csv;type=text/csv" "$BASE/files/customers-csv-import")
-          CODE_LIST_B=$(curl -s -o "$RESULTS/list-b.json" -w '%{http_code}' -H "Cookie: $COOKIE" "$BASE/customers")
+          COOKIE_A=$(EMAIL="staging-owner@example.com" BIZ="staging-co" python3 "$RESULTS/mkcookie.py")
+          COOKIE_B=$(EMAIL="staging-two-owner@example.com" BIZ="staging-two" python3 "$RESULTS/mkcookie.py")
+          COOKIE_WRONG=$(EMAIL="staging-owner@example.com" BIZ="staging-two" python3 "$RESULTS/mkcookie.py")
+          COOKIE_NOB=$(EMAIL="staging-owner@example.com" BIZ="" python3 "$RESULTS/mkcookie.py")
+          echo "::add-mask::$COOKIE_A"; echo "::add-mask::$COOKIE_B"; echo "::add-mask::$COOKIE_WRONG"; echo "::add-mask::$COOKIE_NOB"
+          printf '%s' "$COOKIE_A" > "$RESULTS/cookie.txt"
+          list() { curl -s -o "$2" -w '%{http_code}' -H "Cookie: $1" "$BASE/customers"; }
+          upload() { curl -s -o "$3" -w '%{http_code}' -X POST -H "Cookie: $1" -F "csv=@$2;type=text/csv" "$BASE/files/customers-csv-import"; }
+          printf 'name\nStaging Customer One\nStaging Customer Two\n' > "$RESULTS/a.csv"
+          printf 'name\nSecond Company Customer\n' > "$RESULTS/b.csv"
+          S_IMPORT_A=$(upload "$COOKIE_A" "$RESULTS/a.csv" "$RESULTS/import-a.json")
+          S_IMPORT_B=$(upload "$COOKIE_B" "$RESULTS/b.csv" "$RESULTS/import-b.json")
+          S_LIST_A=$(list "$COOKIE_A" "$RESULTS/list-a.json")
+          S_LIST_B=$(list "$COOKIE_B" "$RESULTS/list-b.json")
+          S_WRONG=$(list "$COOKIE_WRONG" "$RESULTS/list-wrong.json")
+          S_NOB=$(list "$COOKIE_NOB" "$RESULTS/list-nob.json")
+          S_STRANGER=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/customers")
+          S_NAMELESS=$(curl -s -o /dev/null -w '%{http_code}' -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/customers")
           : > "$RESULTS/times.txt"
-          for i in 1 2 3 4 5; do curl -s -o /dev/null -w '%{time_total}\n' -H "Cookie: $COOKIE" "$BASE/customers" >> "$RESULTS/times.txt"; done
-          CODE_MEMBER="$CODE_MEMBER" CODE_LIST_A="$CODE_LIST_A" CODE_IMPORT="$CODE_IMPORT" CODE_LIST_B="$CODE_LIST_B" python3 - <<'PY' > "$RESULTS/e2e.json"
+          for i in 1 2 3 4 5; do curl -s -o /dev/null -w '%{time_total}\n' -H "Cookie: $COOKIE_A" "$BASE/customers" >> "$RESULTS/times.txt"; done
+          S_IMPORT_A="$S_IMPORT_A" S_IMPORT_B="$S_IMPORT_B" S_LIST_A="$S_LIST_A" S_LIST_B="$S_LIST_B" S_WRONG="$S_WRONG" S_NOB="$S_NOB" S_STRANGER="$S_STRANGER" S_NAMELESS="$S_NAMELESS" python3 - <<'PY' > "$RESULTS/e2e.json"
           import os, json
-          def items(name):
+          r = os.environ["RESULTS"]
+          def names(f):
               try:
-                  return len(json.load(open(os.path.join(os.environ["RESULTS"], name))).get("items", []))
+                  return sorted(c["name"] for c in json.load(open(os.path.join(r, f))).get("items", []))
               except Exception:
                   return None
-          times = [float(x) for x in open(os.path.join(os.environ["RESULTS"], "times.txt")).read().split()]
-          print(json.dumps({"membership_status": os.environ["CODE_MEMBER"], "list_status_before": os.environ["CODE_LIST_A"], "customers_before": items("list-a.json"), "import_status": os.environ["CODE_IMPORT"], "list_status_after": os.environ["CODE_LIST_B"], "customers_after": items("list-b.json"), "five_list_calls_seconds_from_a_US_runner": times}))
+          a, b = names("list-a.json"), names("list-b.json")
+          times = [float(x) for x in open(os.path.join(r, "times.txt")).read().split()]
+          isolated = bool(a is not None and b is not None and "Staging Customer One" in a and "Staging Customer Two" in a and "Second Company Customer" in b
+                          and "Second Company Customer" not in a and not any(n.startswith("Staging Customer") for n in b))
+          print(json.dumps({
+              "imports": {"first_business": os.environ["S_IMPORT_A"], "second_business": os.environ["S_IMPORT_B"]},
+              "lists": {"first_business": os.environ["S_LIST_A"], "second_business": os.environ["S_LIST_B"]},
+              "each_business_sees_only_its_own_customers": isolated,
+              "first_business_customer_count": len(a) if a is not None else None,
+              "second_business_customer_count": len(b) if b is not None else None,
+              "refused": {"owner_session_placed_in_the_other_business": os.environ["S_WRONG"], "session_with_no_business": os.environ["S_NOB"], "stranger": os.environ["S_STRANGER"], "admin_call_naming_no_business": os.environ["S_NAMELESS"]},
+              "five_list_calls_seconds_from_a_US_runner": times,
+          }))
           PY
 
       - name: Send a real sentence through the business object
@@ -261,7 +304,7 @@ jobs:
           if [ -n "$PENDING" ]; then
             curl -s -o "$RESULTS/confirm.json" -w '%{http_code} %{time_total}' -X POST "$BASE/actions/$PENDING/confirm" -H "Cookie: $COOKIE" -H "Content-Type: application/json" -d '{}' > "$RESULTS/confirm.code"
           fi
-          curl -s -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/timings" > "$RESULTS/timings.json"
+          curl -s -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Target-Business: staging-co" "$BASE/debug/timings" > "$RESULTS/timings.json"
           python3 - <<'PY' > "$RESULTS/sentence.json"
           import os, json
           r = os.environ["RESULTS"]
@@ -305,6 +348,7 @@ jobs:
           TRIAL: ${{ steps.trial.outcome }}
           E2E: ${{ steps.e2e.outcome }}
           SENTENCE: ${{ steps.sentence.outcome }}
+          BUSINESSES: ${{ steps.businesses.outcome }}
         run: |
           mkdir -p ops
           python3 - <<'PY'
@@ -326,11 +370,12 @@ jobs:
               "run": os.environ.get("GITHUB_RUN_ID"),
               "commit": os.environ.get("GITHUB_SHA", "")[:7],
               "resources": {"database_id": os.environ.get("D1_ID"), "kv_namespace_id": os.environ.get("KV_ID"), "worker": "office-staging-api", "host": "office-staging.websitehub.co.za"},
-              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E"), "real_sentence": os.environ.get("SENTENCE")},
+              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E"), "real_sentence": os.environ.get("SENTENCE"), "businesses_created": os.environ.get("BUSINESSES")},
               "init_routes": (read("init.txt") or "").splitlines(),
               "indexes": readjson("indexes.json"),
               "trial_do": readjson("trial-do.json"),
               "trial_d1": readjson("trial-d1.json"),
+              "businesses": readjson("businesses.json"),
               "business_object_e2e": readjson("e2e.json"),
               "real_sentence": readjson("sentence.json"),
           }
