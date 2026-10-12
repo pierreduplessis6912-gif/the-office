@@ -1,7 +1,7 @@
 {
- "when": "2026-10-12T13:36:19.144001Z",
- "run": "38256652009",
- "commit": "a1bea14",
+ "when": "2026-10-12T13:38:29.997703Z",
+ "run": "38256962602",
+ "commit": "f88a66e",
  "resources": {
   "database_id": "527785b0-2ca7-4d18-a3b0-0a1d6d0d671a",
   "kv_namespace_id": "5cb9a972eeef4e6b95fea4f6ed95e28a",
@@ -14,10 +14,10 @@
   "trial": "success"
  },
  "init_routes": [
-  "/debug/init-capture-id-column 404",
+  "/debug/init-capture-id-column 200",
   "/debug/init-captures-fk 200",
   "/debug/init-character-facts 200",
-  "/debug/init-character-merge 401",
+  "/debug/init-character-merge 200",
   "/debug/init-customer-merge 200",
   "/debug/init-discount-column 200",
   "/debug/init-expenses-category 200",
@@ -30,7 +30,7 @@
   "/debug/init-interaction-edges 200",
   "/debug/init-invoices-due-date 200",
   "/debug/init-job-scope-amendments 200",
-  "/debug/init-job-scope-links 404",
+  "/debug/init-job-scope-links 200",
   "/debug/init-job-scopes-date 200",
   "/debug/init-jobscopes-installer 200",
   "/debug/init-leads 200",
@@ -54,7 +54,8 @@
   "/debug/init-vat-exempt-column 200"
  ],
  "indexes": {
-  "created": [
+  "created": [],
+  "alreadyThere": [
    "idx_customers_name",
    "idx_customers_person",
    "idx_people_name",
@@ -90,7 +91,6 @@
    "idx_variance_grn_line",
    "idx_pending_actions_status"
   ],
-  "alreadyThere": [],
   "tableNotYetCreated": [
    "idx_po_customers_customer",
    "idx_po_cancellations_order"
@@ -103,23 +103,23 @@
   "sharedTrips": 0,
   "sharedMs": null,
   "objectColo": null,
-  "rowsInThisObjectsOwnTable": 28,
+  "rowsInThisObjectsOwnTable": 56,
   "object": "staging-a",
   "hint": "weur",
   "callsMs": [
-   772,
-   179,
-   178,
-   177
+   547,
+   131,
+   132,
+   131
   ],
-  "firstCallMs": 772,
-  "warmCallsMedianMs": 178,
-  "workerToObjectAndBackMs": 177
+  "firstCallMs": 547,
+  "warmCallsMedianMs": 131,
+  "workerToObjectAndBackMs": 131
  },
  "trial_d1": {
   "statements": 10,
-  "totalMs": 1562,
-  "perStatementMs": 156.2,
+  "totalMs": 1733,
+  "perStatementMs": 173.3,
   "note": "SELECT 1 against the production database: reads no data"
  }
 }
