@@ -3,7 +3,7 @@
 // Added 2026-10-11 (hardening, SHIP_CHECKLIST.md item 2). It replaces a plain comparison of one shared key, which had no limit on wrong guesses, no record
 // of who called what, and opened everything. Now: wrong guesses are throttled; the key is compared in constant time; every route has a tier (admin-routes.ts);
 // a "privileged" route also needs a second secret (ADMIN_CONFIRM_KEY), and is switched OFF while that secret is not set; and every call is recorded.
-import { ADMIN_ROUTE_TIERS, type AdminTier } from "./admin-routes";
+import { ADMIN_ROUTE_TIERS, normalizeAdminPath, type AdminTier } from "./admin-routes";
 import type { Env } from "./types";
 
 export const MAX_FAILED_ATTEMPTS = 5;
@@ -23,7 +23,7 @@ export async function safeEqual(a: string, b: string): Promise<boolean> {
 }
 
 export function adminTierOf(method: string, path: string): AdminTier | null {
-  return ADMIN_ROUTE_TIERS[`${method} ${path}`] ?? null;
+  return ADMIN_ROUTE_TIERS[`${method} ${normalizeAdminPath(path)}`] ?? null;
 }
 
 // Who is calling, as a short hash: enough to throttle one source and to see in the record that two calls came from the same place, never the address itself.

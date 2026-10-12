@@ -2,11 +2,13 @@
 //
 // Added 2026-10-11 (hardening, SHIP_CHECKLIST.md item 2). The admin key alone used to open all 126 of these, including erase-everything and minting a session
 // as any user (both removed now: nothing used them). This table makes the decision for each route explicit. A test fails if a route exists that is not in
-// this table, or a route is listed that does not exist, so a new route cannot quietly arrive with full power. Keys are "METHOD /path".
+// this table, or a route is listed that does not exist, so a new route cannot quietly arrive with full power. Keys are "METHOD /path"; an id in the path is
+// written ":id" (a route like /debug/pending-action/12 is looked up as /debug/pending-action/:id, see normalizeAdminPath).
 export type AdminTier = "read" | "schema" | "write" | "privileged";
 
 export const ADMIN_ROUTE_TIERS: Readonly<Record<string, AdminTier>> = {
-  // ---- read (55): Looks at data and changes nothing, spends nothing.
+  // ---- read (56): Looks at data and changes nothing, spends nothing.
+  "GET /debug/pending-action/:id": "read",
   "GET /debug/aged-creditors": "read",
   "GET /debug/business-profile": "read",
   "GET /debug/capture-id-audit": "read",
@@ -101,7 +103,8 @@ export const ADMIN_ROUTE_TIERS: Readonly<Record<string, AdminTier>> = {
   "POST /debug/init-tasks-table": "schema",
   "POST /debug/init-variance-dispositions": "schema",
   "POST /debug/init-vat-exempt-column": "schema",
-  // ---- write (20): Changes data, or spends model budget (every route that calls the model or re-runs a recorded note is here, even a GET).
+  // ---- write (21): Changes data, or spends model budget (every route that calls the model or re-runs a recorded note is here, even a GET).
+  "POST /debug/complete-task/:id": "write",
   "GET /debug/backward-reference-test": "write",
   "GET /debug/dashboard-route-test": "write",
   "GET /debug/intent-test": "write",
@@ -135,3 +138,8 @@ export const ADMIN_ROUTE_TIERS: Readonly<Record<string, AdminTier>> = {
   "POST /debug/migrate-jobscopes-nullable-customer": "privileged",
   "POST /debug/set-membership-character": "privileged",
 };
+
+// /debug/pending-action/12 and /debug/pending-action/13 are the same route.
+export function normalizeAdminPath(path: string): string {
+  return path.replace(/\/\d+(?=\/|$)/g, "/:id");
+}

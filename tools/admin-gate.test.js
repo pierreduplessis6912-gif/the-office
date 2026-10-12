@@ -25,13 +25,19 @@ async function adminGateTests({ check, bundleTo, srcDir, path, fs }) {
     for (const line of text.split('\n')) {
       const m = line.match(/pathname === "(\/(?:debug|admin)\/[^"]+)"(?: && request\.method === "(\w+)")?/);
       if (m && (line.trim().startsWith('if (') || line.trim().startsWith('} else if'))) found.add(`${m[2] || 'ANY'} ${m[1]}`);
+      // A route matched by a pattern with an id in it (the id is written :id in the table), which an exact-match search cannot see.
+      const rx = line.match(/url\.pathname\.match\(\/\^(.+?)\$\/\) && request\.method === "(\w+)"/);
+      if (rx && (line.trim().startsWith('if (') || line.trim().startsWith('} else if'))) {
+        const p = rx[1].replace(/\\\//g, '/').replace(/\\d\+/g, ':id');
+        if (/^\/(debug|admin)\//.test(p)) found.add(`${rx[2]} ${p}`);
+      }
     }
   }
   const tabled = new Set(Object.keys(ADMIN_ROUTE_TIERS));
   const unclassified = [...found].filter((k) => !tabled.has(k)), stale = [...tabled].filter((k) => !found.has(k));
   check(unclassified.length === 0, `every admin and debug route must be in the tier table (not in it: ${unclassified.join(', ')})`);
   check(stale.length === 0, `the tier table must list only routes that exist (listed but not found: ${stale.join(', ')})`);
-  check(found.size === 124 && ![...found].some((k) => k.startsWith('ANY ')), 'there are 124 admin and debug routes, each checked for its HTTP method');
+  check(found.size === 126 && ![...found].some((k) => k.startsWith('ANY ')), 'there are 126 admin and debug routes (124 exact paths and 2 with an id in the path), each checked for its HTTP method');
 
   // ---- the tiers themselves ---------------------------------------------------------------------------------------------------------------
   const privileged = Object.entries(ADMIN_ROUTE_TIERS).filter(([, t]) => t === 'privileged').map(([k]) => k).sort();
@@ -53,6 +59,8 @@ async function adminGateTests({ check, bundleTo, srcDir, path, fs }) {
   check((await status(call('GET', '/debug/customers', { 'X-Admin-Key': 'wrong' }))) === 401, 'a wrong key is refused');
   check((await status(call('GET', '/debug/customers', { 'X-Admin-Key': 'k-admin-123' }))) === 'allowed', 'the right key opens a read route');
   check((await status(call('GET', '/debug/customers', { 'X-Admin-Key': '' }, { ...env, ADMIN_KEY: '' }))) === 401, 'with no admin key configured at all, nothing is let in (not even an empty key)');
+  check((await status(call('GET', '/debug/pending-action/12', { 'X-Admin-Key': 'k-admin-123' }))) === 'allowed' && (await status(call('POST', '/debug/complete-task/7', { 'X-Admin-Key': 'k-admin-123' }))) === 'allowed', 'a route with an id in its path (pending-action/12, complete-task/7) is found in the table by its :id form and opens with the admin key');
+  check((await status(call('GET', '/debug/pending-action/abc', { 'X-Admin-Key': 'k-admin-123' }))) === 403, 'but an id that is not a number is not that route');
   const unknown = await call('GET', '/debug/no-such-route', { 'X-Admin-Key': 'k-admin-123' });
   check(unknown !== null && unknown.status === 403, 'a route that is not in the tier table is refused even with the right key (fail closed)');
   check((await status(call('POST', '/debug/merge-customers', { 'X-Admin-Key': 'k-admin-123' }))) === 403, 'a privileged route with only the admin key is refused');
