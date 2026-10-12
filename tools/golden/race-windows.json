@@ -1,0 +1,50 @@
+{
+ "_about": "Reviewed race windows (architecture stage 2, 2026-10-12): a table READ, then an outside call that waits, then the same table WRITTEN. Key: outside-call kind | the function that made the call | table | the function that wrote. See tools/race-windows.test.js.",
+ "ignoredTables": [
+  "captures",
+  "member_selections",
+  "request_timings",
+  "admin_audit",
+  "idempotency_keys",
+  "object_meta",
+  "interaction_edges",
+  "pending_memory_flush",
+  "memory_errors",
+  "sqlite_master",
+  "sqlite_sequence"
+ ],
+ "windows": {
+  "ai|extractLeadLost|leads|markLeadLost": {
+   "verdict": "safe",
+   "reason": "markLeadLost is an UPDATE of one lead by its id to a fixed status; running it twice, or after another request touched the lead, gives the same result."
+  },
+  "ai|extractSnagResolution|snags|resolveSnag": {
+   "verdict": "safe",
+   "reason": "resolveSnag updates one snag by id to a fixed status, and everything it then decides (are any snags still open, is retention releasable) is read AFTER that write, in one database-only section."
+  },
+  "ai|extractStockUsage|stock_items|recordStockUsage": {
+   "verdict": "safe",
+   "reason": "recordStockUsage subtracts relatively (quantity_on_hand = quantity_on_hand - ?), so a stock level read before the model call can never overwrite another request's change."
+  },
+  "ai|extractStocktake|stock_items|recordStocktake": {
+   "verdict": "safe",
+   "reason": "recordStocktake re-reads the current quantity itself, after the model call and inside the write, to work out the variance; the counted figure is the authoritative new value."
+  },
+  "ai|extractVarianceDisposition|variance_dispositions|recordVarianceDisposition": {
+   "verdict": "accepted",
+   "reason": "An insert for one delivery line by its id. Risk accepted: the same disposition spoken twice at the same moment by two different people would record two (a retried request is already stopped by its idempotency key)."
+  },
+  "ai|extractWorkObservation|job_scopes|attachToSiblingJobScope": {
+   "verdict": "accepted",
+   "reason": "The read before the model call (the customer's latest job) only chooses the branch. The decisions that matter, the same-work check (findOpenJobWithSameWork) and which scope to attach to, are fresh reads taken AFTER the model call, inside one database-only section that cannot interleave in an object. Risk accepted: two people describing different work for the same customer within the same second could each take the 'no job yet' branch and create two scopes, which can be merged."
+  },
+  "ai|extractWorkObservation|job_scopes|recordWorkObservation": {
+   "verdict": "accepted",
+   "reason": "The read before the model call (the customer's latest job) only chooses the branch. The decisions that matter, the same-work check (findOpenJobWithSameWork) and which scope to attach to, are fresh reads taken AFTER the model call, inside one database-only section that cannot interleave in an object. Risk accepted: two people describing different work for the same customer within the same second could each take the 'no job yet' branch and create two scopes, which can be merged."
+  },
+  "ai|extractWorkObservation|job_scopes|resolveCrossCaptureAttachment": {
+   "verdict": "accepted",
+   "reason": "The read before the model call (the customer's latest job) only chooses the branch. The decisions that matter, the same-work check (findOpenJobWithSameWork) and which scope to attach to, are fresh reads taken AFTER the model call, inside one database-only section that cannot interleave in an object. Risk accepted: two people describing different work for the same customer within the same second could each take the 'no job yet' branch and create two scopes, which can be merged."
+  }
+ }
+}

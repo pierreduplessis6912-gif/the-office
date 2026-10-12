@@ -1,3 +1,19 @@
+// Race-window audit (architecture stage 2, 2026-10-12): every database statement and every outside call (the model, the notes store, memory search, file storage) is logged in order,
+// with the function that made it, for each case. tools/race-windows.test.js looks for the dangerous pattern: a table READ, then an outside call that WAITS, then a WRITE of that table.
+// Inside a Durable Object, database-only sections cannot interleave with other requests, but a wait on an outside call can; so each such window needs a written reason.
+const RACE_LOG = [];
+let RACE_CURRENT = null;
+const raceEvent = (e) => { if (RACE_CURRENT) RACE_CURRENT.push(e); };
+const raceCaller = () => {
+  for (const line of String(new Error().stack).split('\n').slice(2)) {
+    const m = line.match(/at (?:async )?([A-Za-z0-9_$.]+)/);
+    if (!m || /harness|node:/.test(line)) continue;
+    if (/^(Object|Proxy|new|__|Array|Promise|process|async|d1Shim|stmt|run|runSync|all|first|raw|exec|prepare|bind|batch|withRetry|Generator|eval|anonymous|DoStatement|DoD1Database|raceWrap)/.test(m[1])) continue;
+    return m[1];
+  }
+  return '?';
+};
+const raceWrap = (obj, kind) => new Proxy(obj, { get(target, key) { const v = target[key]; if (typeof v !== 'function') return v; return (...a) => { raceEvent({ k: 'io', kind, fn: raceCaller() }); return v.apply(target, a); }; } });
 // Characterization harness for processOneExtraction (rewrite Phase 2).
 //
 // Runs the REAL function, unmodified, against a REAL SQLite database built from the live baseline schema
@@ -86,6 +102,7 @@ function doBackend(db) {
   // A stand-in for ctx.storage.sql: exec() runs ONE statement and returns a cursor with toArray(), rowsRead and rowsWritten.
   const sql = {
     exec(query, ...binds) {
+      raceEvent({ k: 'sql', s: query, fn: raceCaller() });
       const stmt = db.prepare(query);
       if (/^\s*(select|with|pragma|values)\b/i.test(query) || /\breturning\b/i.test(query)) {
         const rows = stmt.all(...binds).map(plain);
@@ -102,9 +119,9 @@ function doBackend(db) {
 function d1Shim(db) {
   const stmt = (sql, binds = []) => ({
     bind: (...b) => stmt(sql, b),
-    first: async (col) => { const row = plain(db.prepare(sql).get(...binds)) ?? null; return col && row ? row[col] : row; },
-    all: async () => ({ results: db.prepare(sql).all(...binds).map(plain), success: true, meta: {} }),
-    run: async () => { const r = db.prepare(sql).run(...binds); afterDdl(db, sql); return { success: true, meta: { last_row_id: Number(r.lastInsertRowid), changes: Number(r.changes) } }; },
+    first: async (col) => { raceEvent({ k: 'sql', s: sql, fn: raceCaller() }); const row = plain(db.prepare(sql).get(...binds)) ?? null; return col && row ? row[col] : row; },
+    all: async () => { raceEvent({ k: 'sql', s: sql, fn: raceCaller() }); return { results: db.prepare(sql).all(...binds).map(plain), success: true, meta: {} }; },
+    run: async () => { raceEvent({ k: 'sql', s: sql, fn: raceCaller() }); const r = db.prepare(sql).run(...binds); afterDdl(db, sql); return { success: true, meta: { last_row_id: Number(r.lastInsertRowid), changes: Number(r.changes) } }; },
     raw: async () => db.prepare(sql).all(...binds).map((r) => Object.values(r)),
   });
   return {
@@ -241,7 +258,7 @@ async function buildForm(spec) {
   return form;
 }
 
-async function runCase(processOne, workerDir, spec) {
+async function __runCase(processOne, workerDir, spec) {
   const db = newDatabase(workerDir);
   if (spec.seed) spec.seed(db);
   db.prepare("INSERT INTO captures (raw_text, source) VALUES (?, 'text')").run(spec.transcript);
@@ -251,7 +268,7 @@ async function runCase(processOne, workerDir, spec) {
   const pendingWork = [], backgroundErrors = [];
   const ctx = { waitUntil: (p) => pendingWork.push(Promise.resolve(p).catch((e) => backgroundErrors.push(String(e && e.message || e)))), passThroughOnException() {} };
   const effects = [];
-  const env = { OFFICE_DB: d1(db), AI: ai, CUSTOMER_NOTES: fakeKv(effects, spec.kvSeed), OFFICE_VAULT: fakeR2(effects), MEMORY: fakeVectorize(effects) };
+  const env = { OFFICE_DB: d1(db), AI: raceWrap(ai, 'ai'), CUSTOMER_NOTES: raceWrap(fakeKv(effects, spec.kvSeed), 'kv'), OFFICE_VAULT: raceWrap(fakeR2(effects), 'r2'), MEMORY: raceWrap(fakeVectorize(effects), 'vec') };
   const extraction = spec.extraction === null ? null : { ...EXTRACTION_DEFAULTS, ...spec.extraction };
   let result = null, threw = null;
   await withFrozenClock(async () => {
@@ -270,7 +287,7 @@ async function runCase(processOne, workerDir, spec) {
 // Runs the caller of processOneExtraction: it logs the capture, asks a model to split the message into topics, runs each
 // topic through processOneExtraction, attaches a new job scope to the customer's open project, and joins the replies.
 // Unlike runCase, no capture is pre-inserted (logCapture does it) and no extraction is passed in (a model reads each topic).
-async function runTranscriptCase(processTranscript, workerDir, spec) {
+async function __runTranscriptCase(processTranscript, workerDir, spec) {
   const db = newDatabase(workerDir);
   if (spec.seed) spec.seed(db);
   const before = snapshot(db);
@@ -278,7 +295,7 @@ async function runTranscriptCase(processTranscript, workerDir, spec) {
   const pendingWork = [], backgroundErrors = [];
   const ctx = { waitUntil: (p) => pendingWork.push(Promise.resolve(p).catch((e) => backgroundErrors.push(String(e && e.message || e)))), passThroughOnException() {} };
   const effects = [];
-  const env = { OFFICE_DB: d1(db), AI: ai, CUSTOMER_NOTES: fakeKv(effects, spec.kvSeed), OFFICE_VAULT: fakeR2(effects), MEMORY: fakeVectorize(effects) };
+  const env = { OFFICE_DB: d1(db), AI: raceWrap(ai, 'ai'), CUSTOMER_NOTES: raceWrap(fakeKv(effects, spec.kvSeed), 'kv'), OFFICE_VAULT: raceWrap(fakeR2(effects), 'r2'), MEMORY: raceWrap(fakeVectorize(effects), 'vec') };
   let result = null, threw = null;
   await withFrozenClock(async () => {
     try {
@@ -297,7 +314,7 @@ async function runTranscriptCase(processTranscript, workerDir, spec) {
 // A case may begin with `before` steps: { say: true, transcript, extraction, role } runs the real dictation (so the held
 // action's payload is exactly what the code writes, not a hand-copied guess) and { route: true, method, path, body, role }
 // makes an earlier request. The recorded writes are only those of the final request.
-async function runRouteCase(fns, workerDir, spec) {
+async function __runRouteCase(fns, workerDir, spec) {
   const { processOne, handleRequest, auth } = fns;
   const db = newDatabase(workerDir);
   if (spec.seed) spec.seed(db);
@@ -306,7 +323,7 @@ async function runRouteCase(fns, workerDir, spec) {
   const pendingWork = [], backgroundErrors = [];
   const ctx = { waitUntil: (p) => pendingWork.push(Promise.resolve(p).catch((e) => backgroundErrors.push(String(e && e.message || e)))), passThroughOnException() {} };
   const effects = [];
-  const env = { OFFICE_DB: d1(db), AI: ai, CUSTOMER_NOTES: fakeKv(effects, spec.kvSeed), OFFICE_VAULT: fakeR2(effects), MEMORY: fakeVectorize(effects), SESSION_SECRET: 'harness-session-secret', ADMIN_CONFIRM_KEY: 'test-confirm-key', ADMIN_KEY: 'harness-admin-key', GOOGLE_CLIENT_ID: 'harness-client-id' };
+  const env = { OFFICE_DB: d1(db), AI: raceWrap(ai, 'ai'), CUSTOMER_NOTES: raceWrap(fakeKv(effects, spec.kvSeed), 'kv'), OFFICE_VAULT: raceWrap(fakeR2(effects), 'r2'), MEMORY: raceWrap(fakeVectorize(effects), 'vec'), SESSION_SECRET: 'harness-session-secret', ADMIN_CONFIRM_KEY: 'test-confirm-key', ADMIN_KEY: 'harness-admin-key', GOOGLE_CLIENT_ID: 'harness-client-id' };
   const call = async (step) => {
     const headers = step.form ? {} : { 'content-type': 'application/json' };   // a form sets its own boundary
     if (step.admin) headers['X-Admin-Key'] = env.ADMIN_KEY;
@@ -357,4 +374,11 @@ async function runRouteCase(fns, workerDir, spec) {
   return { result, threw, aiCalls: ai.calls, aiInputs: ai.inputs, backgroundErrors, writes: diff(before, snapshot(db)), effects, errorLogs };
 }
 
-module.exports = { loadFunctions, loadProcessor, runCase, runTranscriptCase, runRouteCase, newDatabase, d1, EXTRACTION_DEFAULTS };
+module.exports = { loadFunctions, loadProcessor, get runCase() { return runCase; }, get runTranscriptCase() { return runTranscriptCase; }, get runRouteCase() { return runRouteCase; }, newDatabase, d1, EXTRACTION_DEFAULTS, raceLog };
+
+// Each case's events are kept for the race-window test (tools/race-windows.test.js).
+const recordCase = (name, kind, run) => async (...a) => { RACE_CURRENT = []; try { return await run(...a); } finally { RACE_LOG.push({ n: a[2].name, kind: name, ev: RACE_CURRENT }); RACE_CURRENT = null; } };
+const runCase = recordCase('runCase', null, __runCase);
+const runTranscriptCase = recordCase('runTranscriptCase', null, __runTranscriptCase);
+const runRouteCase = recordCase('runRouteCase', null, __runRouteCase);
+function raceLog() { return RACE_LOG; }   // a declaration, so it exists when module.exports (above) is evaluated

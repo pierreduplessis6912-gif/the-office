@@ -248,6 +248,48 @@ jobs:
           print(json.dumps({"membership_status": os.environ["CODE_MEMBER"], "list_status_before": os.environ["CODE_LIST_A"], "customers_before": items("list-a.json"), "import_status": os.environ["CODE_IMPORT"], "list_status_after": os.environ["CODE_LIST_B"], "customers_after": items("list-b.json"), "five_list_calls_seconds_from_a_US_runner": times}))
           PY
 
+      - name: Send a real sentence through the business object
+        id: sentence
+        continue-on-error: true
+        run: |
+          BASE="https://${SLUG}.websitehub.co.za"
+          COOKIE=$(cat "$RESULTS/cookie.txt")
+          echo "::add-mask::$COOKIE"
+          SENTENCE="Invoice Staging Customer One R1500 for repairing the bathroom floor"
+          curl -s -o "$RESULTS/message.json" -w '%{http_code} %{time_total}' -X POST "$BASE/messages/text" -H "Cookie: $COOKIE" -H "Content-Type: application/json" -d "{\"text\":\"$SENTENCE\",\"idempotency_key\":\"staging-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}\"}" > "$RESULTS/message.code"
+          PENDING=$(python3 -c "import json; print(json.load(open('$RESULTS/message.json')).get('pendingActionId') or '')" 2>/dev/null || true)
+          if [ -n "$PENDING" ]; then
+            curl -s -o "$RESULTS/confirm.json" -w '%{http_code} %{time_total}' -X POST "$BASE/actions/$PENDING/confirm" -H "Cookie: $COOKIE" -H "Content-Type: application/json" -d '{}' > "$RESULTS/confirm.code"
+          fi
+          curl -s -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/timings" > "$RESULTS/timings.json"
+          python3 - <<'PY' > "$RESULTS/sentence.json"
+          import os, json
+          r = os.environ["RESULTS"]
+          def load(name):
+              try:
+                  return json.load(open(os.path.join(r, name)))
+              except Exception:
+                  return None
+          def code(name):
+              try:
+                  return open(os.path.join(r, name)).read().strip()
+              except Exception:
+                  return None
+          msg, conf, tim = load("message.json") or {}, load("confirm.json") or {}, load("timings.json") or {}
+          customer = msg.get("customer") if isinstance(msg, dict) else None
+          routes = {x["route"]: {k: x[k] for k in ("n", "p50Ms", "p95Ms", "meanAiMs", "meanAiCalls", "meanDbMs", "meanDbCalls")} for x in (tim.get("byPath") or [])}
+          print(json.dumps({
+              "sentence": "Invoice Staging Customer One R1500 for repairing the bathroom floor",
+              "message_status_and_seconds_from_a_US_runner": code("message.code"),
+              "reply": (msg.get("message") or "")[:300] if isinstance(msg, dict) else None,
+              "held_action": {"id": msg.get("pendingActionId"), "type": msg.get("pendingActionType")} if isinstance(msg, dict) else None,
+              "customer_matched": (customer or {}).get("name") if isinstance(customer, dict) else None,
+              "confirm_status_and_seconds": code("confirm.code"),
+              "confirm_reply": (conf.get("message") or conf.get("status") or "")[:300] if isinstance(conf, dict) else None,
+              "inside_the_object_model_versus_database": routes,
+          }))
+          PY
+
       - name: Make the owner of staging
         if: github.event.inputs.owner_email != ''
         run: |
@@ -262,6 +304,7 @@ jobs:
           INIT: ${{ steps.init.outcome }}
           TRIAL: ${{ steps.trial.outcome }}
           E2E: ${{ steps.e2e.outcome }}
+          SENTENCE: ${{ steps.sentence.outcome }}
         run: |
           mkdir -p ops
           python3 - <<'PY'
@@ -283,12 +326,13 @@ jobs:
               "run": os.environ.get("GITHUB_RUN_ID"),
               "commit": os.environ.get("GITHUB_SHA", "")[:7],
               "resources": {"database_id": os.environ.get("D1_ID"), "kv_namespace_id": os.environ.get("KV_ID"), "worker": "office-staging-api", "host": "office-staging.websitehub.co.za"},
-              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E")},
+              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E"), "real_sentence": os.environ.get("SENTENCE")},
               "init_routes": (read("init.txt") or "").splitlines(),
               "indexes": readjson("indexes.json"),
               "trial_do": readjson("trial-do.json"),
               "trial_d1": readjson("trial-d1.json"),
               "business_object_e2e": readjson("e2e.json"),
+              "real_sentence": readjson("sentence.json"),
           }
           json.dump(out, open("ops/staging-last-run.json", "w"), indent=1)
           PY

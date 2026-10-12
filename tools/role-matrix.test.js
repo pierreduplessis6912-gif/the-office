@@ -857,6 +857,9 @@ async function expect(role, method, path, want) {
   check(/payments, invoices, quotations, or supplier transactions/.test(intentCreationRefusal('payment', RC.installer) || ''), 'money refusal wording changed');
   check(/Managing leads isn't available/.test(intentCreationRefusal('lose_lead', RC.accountant) || ''), 'leads refusal wording changed');
 
+  // Race windows: every read, outside call and write recorded across the cases above is examined (it must run AFTER them).
+  require('./race-windows.test.js')({ check });
+
   console.log(`\n${total - fails}/${total} decisions correct` + (fails ? `  —  ${fails} WRONG` : '  —  all correct'));
   process.exit(fails ? 1 : 0);
 })();
