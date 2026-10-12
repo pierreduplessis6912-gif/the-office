@@ -104,7 +104,8 @@ export const ADMIN_ROUTE_TIERS: Readonly<Record<string, AdminTier>> = {
   "POST /debug/init-tasks-table": "schema",
   "POST /debug/init-variance-dispositions": "schema",
   "POST /debug/init-vat-exempt-column": "schema",
-  // ---- write (22): Changes data, or spends model budget (every route that calls the model or re-runs a recorded note is here, even a GET).
+  // ---- write (23): Changes data, or spends model budget (every route that calls the model or re-runs a recorded note is here, even a GET).
+  "GET /debug/trial-ai": "write",
   "GET /debug/trial-do": "write",
   "POST /debug/complete-task/:id": "write",
   "GET /debug/backward-reference-test": "write",

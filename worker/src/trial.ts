@@ -16,6 +16,27 @@ const clamp = (value: unknown, low: number, high: number, fallback: number): num
   return Number.isFinite(n) ? Math.min(high, Math.max(low, Math.floor(n))) : fallback;
 };
 
+// The same tiny question put to the main model n times in a row, each call timed. Written exactly like the application's own calls (Kimi, thinking off) but with a five-token
+// answer, so it costs a fraction of a cent. Called with a cast because the binding's own types do not know every option the model accepts (the application's calls are the same).
+async function askModel(env: Env, n: number): Promise<number[]> {
+  const ai = env.AI as unknown as { run: (model: string, input: unknown) => Promise<unknown> };
+  const times: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const started = Date.now();
+    await ai.run("@cf/moonshotai/kimi-k2.6", {
+      temperature: 0,
+      max_tokens: 5,
+      chat_template_kwargs: { thinking: false },
+      messages: [
+        { role: "system", content: "Answer with one word." },
+        { role: "user", content: "Say ok." },
+      ],
+    });
+    times.push(Date.now() - started);
+  }
+  return times;
+}
+
 export class TrialObject {
   constructor(
     private readonly ctx: DurableObjectState,
@@ -24,6 +45,10 @@ export class TrialObject {
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname === "/ai") {
+      const times = await askModel(this.env, clamp(url.searchParams.get("n"), 1, 10, 3));
+      return Response.json({ callsMs: times });
+    }
     const n = clamp(url.searchParams.get("n"), 1, 200, 20);
     const shared = clamp(url.searchParams.get("shared"), 0, 10, 0);
     const sql = this.ctx.storage.sql;
@@ -95,4 +120,23 @@ export async function trialD1(env: Env, url: URL): Promise<Response> {
   for (let i = 0; i < n; i++) await env.OFFICE_DB.prepare("SELECT 1 AS one").first();
   const totalMs = Date.now() - started;
   return Response.json({ statements: n, totalMs, perStatementMs: Math.round((totalMs / n) * 10) / 10, note: "SELECT 1 against the production database: reads no data" });
+}
+
+// Where is the model slower or faster from? `where=worker` asks it from the Worker that serves the request today (a South African data centre for a South African phone);
+// `where=object` asks it from INSIDE the Durable Object (placed with `hint`, London by default), which is where the business's logic would run.
+export async function trialAi(env: Env, url: URL): Promise<Response> {
+  const n = clamp(url.searchParams.get("n"), 1, 10, 3);
+  const where = url.searchParams.get("where") === "object" ? "object" : "worker";
+  let times: number[];
+  if (where === "worker") {
+    times = await askModel(env, n);
+  } else {
+    const hintParam = url.searchParams.get("hint") ?? "weur";
+    if (hintParam !== "auto" && !(HINTS as readonly string[]).includes(hintParam)) return Response.json({ error: `hint must be auto or one of ${HINTS.join(", ")}` }, { status: 400 });
+    const id = env.TRIAL.idFromName("ai-trial");
+    const stub = hintParam === "auto" ? env.TRIAL.get(id) : env.TRIAL.get(id, { locationHint: hintParam as Hint });
+    times = ((await (await stub.fetch(`https://trial/ai?n=${n}`)).json()) as { callsMs: number[] }).callsMs;
+  }
+  const sorted = [...times].sort((a, b) => a - b);
+  return Response.json({ where, calls: n, callsMs: times, medianMs: sorted[Math.floor(sorted.length / 2)], note: "a five-token answer from the main model: this is mostly the cost of reaching and starting the model, not of generating text" });
 }

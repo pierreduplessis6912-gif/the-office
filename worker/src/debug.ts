@@ -15,7 +15,7 @@
 // are NOT imported here beyond what a route genuinely reads directly
 // (like ROLE_CAPABILITIES, to validate a role name) — the actual
 // gating already ran in index.ts before this function is ever called.
-import { trialD1, trialDo } from "./trial";
+import { trialAi, trialD1, trialDo } from "./trial";
 import { timingsSummary } from "./timing";
 import { Env, Extraction, HistoryTurn, LineItemWithTotal } from "./types";
 import {
@@ -95,6 +95,9 @@ if (url.pathname === "/debug/trial-d1" && request.method === "GET") {
     }
     if (url.pathname === "/debug/trial-do" && request.method === "GET") {
       return trialDo(env, url);
+    }
+    if (url.pathname === "/debug/trial-ai" && request.method === "GET") {
+      return trialAi(env, url);
     }
 
 if (url.pathname === "/debug/list-audio" && request.method === "GET") {
