@@ -1,0 +1,672 @@
+[
+ {
+  "route": "GET /",
+  "pattern": "/",
+  "how": "public list",
+  "none": "A",
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "public"
+ },
+ {
+  "route": "GET /actions/pending",
+  "pattern": "/actions/pending",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "any member"
+ },
+ {
+  "route": "GET /auth/google/callback",
+  "pattern": "/auth/google/callback",
+  "how": "public list",
+  "none": "A",
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "public"
+ },
+ {
+  "route": "GET /auth/google/login",
+  "pattern": "/auth/google/login",
+  "how": "public list",
+  "none": "A",
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "public"
+ },
+ {
+  "route": "GET /auth/logout",
+  "pattern": "/auth/logout",
+  "how": "public list",
+  "none": "A",
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "public"
+ },
+ {
+  "route": "GET /auth/me",
+  "pattern": "/auth/me",
+  "how": "public list",
+  "none": "A",
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "public"
+ },
+ {
+  "route": "GET /business-profile/logo",
+  "pattern": "/business-profile/logo",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "any member"
+ },
+ {
+  "route": "GET /customers",
+  "pattern": "/customers",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "any member"
+ },
+ {
+  "route": "GET /customers/:id/profitability",
+  "pattern": "/customers/:id/profitability",
+  "how": "id in path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": 403,
+  "class": "some roles"
+ },
+ {
+  "route": "GET /customers/:id/statement/pdf",
+  "pattern": "/customers/:id/statement/pdf",
+  "how": "id in path",
+  "none": 403,
+  "owner": 403,
+  "accountant": 403,
+  "installer": 403,
+  "class": "signed link"
+ },
+ {
+  "route": "GET /debug/captures",
+  "pattern": "/debug/captures",
+  "how": "app screen (debug path)",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
+ },
+ {
+  "route": "GET /debug/characters-list",
+  "pattern": "/debug/characters-list",
+  "how": "app screen (debug path)",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "any member"
+ },
+ {
+  "route": "GET /debug/finance-list",
+  "pattern": "/debug/finance-list",
+  "how": "app screen (debug path)",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": 403,
+  "class": "some roles"
+ },
+ {
+  "route": "GET /debug/financial-snapshot",
+  "pattern": "/debug/financial-snapshot",
+  "how": "app screen (debug path)",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": 403,
+  "class": "some roles"
+ },
+ {
+  "route": "GET /debug/schedule",
+  "pattern": "/debug/schedule",
+  "how": "app screen (debug path)",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": "A",
+  "class": "some roles"
+ },
+ {
+  "route": "GET /debug/suppliers-list",
+  "pattern": "/debug/suppliers-list",
+  "how": "app screen (debug path)",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": 403,
+  "class": "some roles"
+ },
+ {
+  "route": "GET /debug/tasks-list",
+  "pattern": "/debug/tasks-list",
+  "how": "app screen (debug path)",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": "A",
+  "class": "some roles"
+ },
+ {
+  "route": "GET /delivery-exceptions",
+  "pattern": "/delivery-exceptions",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": 403,
+  "class": "some roles"
+ },
+ {
+  "route": "GET /documents/sign",
+  "pattern": "/documents/sign",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
+ },
+ {
+  "route": "GET /embers/expenses",
+  "pattern": "/embers/expenses",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": 403,
+  "class": "some roles"
+ },
+ {
+  "route": "GET /embers/finance",
+  "pattern": "/embers/finance",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": 403,
+  "class": "some roles"
+ },
+ {
+  "route": "GET /embers/pending",
+  "pattern": "/embers/pending",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "any member"
+ },
+ {
+  "route": "GET /embers/scheduler",
+  "pattern": "/embers/scheduler",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": "A",
+  "class": "some roles"
+ },
+ {
+  "route": "GET /embers/suppliers",
+  "pattern": "/embers/suppliers",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": 403,
+  "class": "some roles"
+ },
+ {
+  "route": "GET /embers/tasks",
+  "pattern": "/embers/tasks",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": "A",
+  "class": "some roles"
+ },
+ {
+  "route": "GET /files/*",
+  "pattern": "/files/*",
+  "how": "any path under /files",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
+ },
+ {
+  "route": "GET /health",
+  "pattern": "/health",
+  "how": "public list",
+  "none": "A",
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "public"
+ },
+ {
+  "route": "GET /invoices/:id/pdf",
+  "pattern": "/invoices/:id/pdf",
+  "how": "id in path",
+  "none": 403,
+  "owner": 403,
+  "accountant": 403,
+  "installer": 403,
+  "class": "signed link"
+ },
+ {
+  "route": "GET /leads",
+  "pattern": "/leads",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
+ },
+ {
+  "route": "GET /projects",
+  "pattern": "/projects",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": "A",
+  "class": "some roles"
+ },
+ {
+  "route": "GET /quotations/:id/pdf",
+  "pattern": "/quotations/:id/pdf",
+  "how": "id in path",
+  "none": 403,
+  "owner": 403,
+  "accountant": 403,
+  "installer": 403,
+  "class": "signed link"
+ },
+ {
+  "route": "GET /reports/aged-creditors/pdf",
+  "pattern": "/reports/aged-creditors/pdf",
+  "how": "exact path",
+  "none": 403,
+  "owner": 403,
+  "accountant": 403,
+  "installer": 403,
+  "class": "signed link"
+ },
+ {
+  "route": "GET /reports/aged-debtors/pdf",
+  "pattern": "/reports/aged-debtors/pdf",
+  "how": "exact path",
+  "none": 403,
+  "owner": 403,
+  "accountant": 403,
+  "installer": 403,
+  "class": "signed link"
+ },
+ {
+  "route": "GET /reports/profit-and-loss/pdf",
+  "pattern": "/reports/profit-and-loss/pdf",
+  "how": "exact path",
+  "none": 403,
+  "owner": 403,
+  "accountant": 403,
+  "installer": 403,
+  "class": "signed link"
+ },
+ {
+  "route": "GET /settings/permissions",
+  "pattern": "/settings/permissions",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
+ },
+ {
+  "route": "GET /settings/permissions/audit",
+  "pattern": "/settings/permissions/audit",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
+ },
+ {
+  "route": "GET /snags",
+  "pattern": "/snags",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": "A",
+  "class": "some roles"
+ },
+ {
+  "route": "GET /stock",
+  "pattern": "/stock",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "any member"
+ },
+ {
+  "route": "GET /suppliers/:id/discrepancies",
+  "pattern": "/suppliers/:id/discrepancies",
+  "how": "id in path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": 403,
+  "class": "some roles"
+ },
+ {
+  "route": "PATCH /customers/:id",
+  "pattern": "/customers/:id",
+  "how": "id in path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": 403,
+  "class": "some roles"
+ },
+ {
+  "route": "PATCH /invoices/:id",
+  "pattern": "/invoices/:id",
+  "how": "id in path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": 403,
+  "class": "some roles"
+ },
+ {
+  "route": "PATCH /quotations/:id",
+  "pattern": "/quotations/:id",
+  "how": "id in path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": 403,
+  "class": "some roles"
+ },
+ {
+  "route": "PATCH /settings/permissions",
+  "pattern": "/settings/permissions",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
+ },
+ {
+  "route": "POST /",
+  "pattern": "/",
+  "how": "exact path, any method",
+  "none": "A",
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "public"
+ },
+ {
+  "route": "POST /actions/:id/confirm [invoice]",
+  "pattern": "/actions/:id/confirm",
+  "how": "id in path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": 403,
+  "class": "some roles"
+ },
+ {
+  "route": "POST /actions/:id/confirm [job_scope_amendment]",
+  "pattern": "/actions/:id/confirm",
+  "how": "id in path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": "A",
+  "class": "some roles"
+ },
+ {
+  "route": "POST /actions/:id/confirm [stock_add]",
+  "pattern": "/actions/:id/confirm",
+  "how": "id in path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "any member"
+ },
+ {
+  "route": "POST /actions/:id/edit-field [invoice]",
+  "pattern": "/actions/:id/edit-field",
+  "how": "id in path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": 403,
+  "class": "some roles"
+ },
+ {
+  "route": "POST /actions/:id/edit-field [job_scope_amendment]",
+  "pattern": "/actions/:id/edit-field",
+  "how": "id in path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": "A",
+  "class": "some roles"
+ },
+ {
+  "route": "POST /actions/:id/edit-field [stock_add]",
+  "pattern": "/actions/:id/edit-field",
+  "how": "id in path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "any member"
+ },
+ {
+  "route": "POST /actions/:id/reject [invoice]",
+  "pattern": "/actions/:id/reject",
+  "how": "id in path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": 403,
+  "class": "some roles"
+ },
+ {
+  "route": "POST /actions/:id/reject [job_scope_amendment]",
+  "pattern": "/actions/:id/reject",
+  "how": "id in path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": "A",
+  "class": "some roles"
+ },
+ {
+  "route": "POST /actions/:id/reject [stock_add]",
+  "pattern": "/actions/:id/reject",
+  "how": "id in path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "any member"
+ },
+ {
+  "route": "POST /auth/logout",
+  "pattern": "/auth/logout",
+  "how": "exact path",
+  "none": "A",
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "public"
+ },
+ {
+  "route": "POST /business-profile/logo",
+  "pattern": "/business-profile/logo",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
+ },
+ {
+  "route": "POST /files/*",
+  "pattern": "/files/*",
+  "how": "any path under /files",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
+ },
+ {
+  "route": "POST /files/audio",
+  "pattern": "/files/audio",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "any member"
+ },
+ {
+  "route": "POST /files/customers-csv-import",
+  "pattern": "/files/customers-csv-import",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
+ },
+ {
+  "route": "POST /files/document",
+  "pattern": "/files/document",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "any member"
+ },
+ {
+  "route": "POST /files/invoices-csv-import",
+  "pattern": "/files/invoices-csv-import",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
+ },
+ {
+  "route": "POST /files/photo",
+  "pattern": "/files/photo",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "any member"
+ },
+ {
+  "route": "POST /leads/:id/mark-lost",
+  "pattern": "/leads/:id/mark-lost",
+  "how": "id in path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
+ },
+ {
+  "route": "POST /messages/text",
+  "pattern": "/messages/text",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "any member"
+ },
+ {
+  "route": "POST /settings/permissions/reset",
+  "pattern": "/settings/permissions/reset",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
+ },
+ {
+  "route": "POST /snags/:id/resolve",
+  "pattern": "/snags/:id/resolve",
+  "how": "id in path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": "A",
+  "class": "some roles"
+ },
+ {
+  "route": "POST /suppliers/discrepancies/:id/resolve",
+  "pattern": "/suppliers/discrepancies/:id/resolve",
+  "how": "id in path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": 403,
+  "class": "some roles"
+ },
+ {
+  "route": "POST /tasks/:id/done",
+  "pattern": "/tasks/:id/done",
+  "how": "id in path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": "A",
+  "class": "some roles"
+ }
+]

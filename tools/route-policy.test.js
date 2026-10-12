@@ -1,0 +1,55 @@
+// The route policy (SHIP_CHECKLIST.md item 4): every non-admin route is in tools/route-policy.json, the REAL gate behaves exactly as that file says for each kind of
+// caller, ROUTE_POLICY.md is the readable form of it, and a handful of invariants (written here, independent of the file) say what must never be true whatever the
+// file says. To change who may do something: change the code, run `node tools/route-policy-gen.js`, review the diff.
+// The permission tests swap in a bare stand-in for Response; the real one is kept in __RealResponse. The gate needs the real one, so it is swapped in and restored.
+module.exports = async function runRoutePolicyTests(context) {
+  const standIn = global.Response;
+  if (global.__RealResponse) global.Response = global.__RealResponse;
+  try {
+    await routePolicyTests(context);
+  } finally {
+    global.Response = standIn;
+  }
+};
+
+async function routePolicyTests({ check, srcDir, path, fs }) {
+  const lib = require('./route-policy-lib.js');
+  const workerDir = path.join(srcDir, '..');
+  const expected = JSON.parse(fs.readFileSync(path.join(__dirname, 'route-policy.json'), 'utf8'));
+  const observed = await lib.observe(srcDir, workerDir);
+  const byRoute = (rows) => new Map(rows.map((r) => [r.route, r]));
+  const exp = byRoute(expected), obs = byRoute(observed);
+
+  // ---- every route is in the policy, and the policy lists nothing that does not exist ---------------------------------------------------
+  const missing = [...obs.keys()].filter((k) => !exp.has(k)), stale = [...exp.keys()].filter((k) => !obs.has(k));
+  check(missing.length === 0, `every route must be in tools/route-policy.json (run node tools/route-policy-gen.js and review the diff). Not in it: ${missing.join(', ')}`);
+  check(stale.length === 0, `tools/route-policy.json must list only routes that exist. Listed but not found: ${stale.join(', ')}`);
+  check(observed.length === 67, 'there are 67 route rows (63 routes, with confirm, reject and edit-field each shown for a money, a stock and a job action)');
+
+  // ---- the real gate behaves exactly as the file says, for each kind of caller ------------------------------------------------------------
+  const changed = [];
+  for (const [route, o] of obs) {
+    const e = exp.get(route);
+    if (!e) continue;
+    for (const who of ['none', 'owner', 'accountant', 'installer']) if (e[who] !== o[who]) changed.push(`${route} for ${who}: file says ${e[who]}, the gate now gives ${o[who]}`);
+  }
+  check(changed.length === 0, `the gate must behave as route-policy.json says (a change to who may do what must be deliberate: regenerate and review). Differences: ${changed.slice(0, 4).join(' | ')}${changed.length > 4 ? ` (and ${changed.length - 4} more)` : ''}`);
+  check(fs.readFileSync(path.join(__dirname, '..', 'ROUTE_POLICY.md'), 'utf8') === lib.toMarkdown(expected), 'ROUTE_POLICY.md must be exactly the readable form of route-policy.json (run node tools/route-policy-gen.js)');
+
+  // ---- invariants: what must never be true, whatever the file says ------------------------------------------------------------------------
+  const rows = observed;
+  const reachableWithoutLogin = rows.filter((r) => r.none === 'A').map((r) => r.route).sort();
+  const expectedPublic = ['GET /', 'GET /auth/google/callback', 'GET /auth/google/login', 'GET /auth/logout', 'GET /auth/me', 'GET /health', 'POST /', 'POST /auth/logout'].sort();
+  check(JSON.stringify(reachableWithoutLogin) === JSON.stringify(expectedPublic), `without signing in, ONLY the sign-in routes, the health check and the root may be reached (found: ${reachableWithoutLogin.join(', ')})`);
+  check(rows.filter((r) => r.class === 'signed link').every((r) => [r.none, r.owner, r.accountant, r.installer].every((v) => v === 403)) && rows.filter((r) => r.class === 'signed link').length === 6, 'the six document routes are opened ONLY by a signed link: a person who is signed in, owner included, is refused without one');
+  check(rows.filter((r) => r.class !== 'public' && r.class !== 'signed link').every((r) => r.none === 401), 'every route that is not public or a signed link asks for a sign-in (401), never serves a stranger');
+  check(rows.filter((r) => r.class !== 'signed link').every((r) => r.owner === 'A'), 'the owner can reach every route that is not a signed link (no route locks the owner out)');
+
+  const moneyRoutes = rows.filter((r) => /\/invoices\/:id|\/quotations\/:id|profitability|finance|financial-snapshot|suppliers|delivery-exceptions|embers\/(expenses|finance|suppliers)|^PATCH \/customers\/:id|\[invoice\]/.test(r.route));
+  check(moneyRoutes.length >= 16 && moneyRoutes.every((r) => r.installer !== 'A'), `an installer must be refused on every money route (checked ${moneyRoutes.length}; allowed: ${moneyRoutes.filter((r) => r.installer === 'A').map((r) => r.route).join(', ') || 'none'})`);
+  check(rows.filter((r) => /\[invoice\]/.test(r.route)).length === 3 && rows.filter((r) => /\[invoice\]/.test(r.route)).every((r) => r.owner === 'A' && r.accountant === 'A' && r.installer === 403), 'confirming, rejecting or editing a MONEY action is for the owner and the accountant, never the installer');
+
+  const ownerOnly = rows.filter((r) => /settings\/permissions|csv-import|^POST \/business-profile\/logo|\/leads|^GET \/debug\/captures|documents\/sign|^(GET|POST) \/files\/\*/.test(r.route));
+  check(ownerOnly.length === 13 && ownerOnly.every((r) => r.class === 'owner only'), `changing permissions, importing customers or invoices, uploading the logo, leads, raw captures, signing documents and raw file access are the OWNER only (checked ${ownerOnly.length})`);
+  check(rows.filter((r) => /settings\/permissions/.test(r.route)).length === 4 && rows.filter((r) => /settings\/permissions/.test(r.route)).every((r) => r.accountant === 403 && r.installer === 403), 'nobody but the owner can read or change who may do what');
+}

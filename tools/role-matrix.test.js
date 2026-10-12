@@ -808,6 +808,8 @@ async function expect(role, method, path, want) {
   await require('./admin-gate.test.js')({ check, bundleTo, srcDir, path, fs });
   // The signed links sent to customers: tied to one document, expiring, unforgeable.
   await require('./signed-links.test.js')({ check, bundleTo, srcDir, path, fs });
+  // The route policy: every non-admin route, what each kind of caller may do, checked against the real gate.
+  await require('./route-policy.test.js')({ check, srcDir, path, fs });
 
   // The same work said twice makes no new job.
   await require('./samework.test.js')({ check, bundleTo, srcDir, path, sameJson });
