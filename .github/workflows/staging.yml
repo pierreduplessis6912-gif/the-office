@@ -185,8 +185,15 @@ jobs:
         run: |
           BASE="https://${SLUG}.websitehub.co.za"
           : > "$RESULTS/init.txt"
+          # A new version and its secrets take a moment to reach every Cloudflare location (found live: the first run had 3 of 38 routes answer 404 or 401, and the second run
+          # had none), so each route is retried a few times before a failure is recorded.
           for route in $(grep -oE 'POST /debug/init-[a-z0-9-]+' worker/src/admin-routes.ts | sed 's/POST //' | grep -v 'init-indexes'); do
-            CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE$route")
+            CODE=000
+            for attempt in 1 2 3 4 5; do
+              CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE$route")
+              if [ "$CODE" = "200" ]; then break; fi
+              sleep 6
+            done
             echo "$route $CODE" >> "$RESULTS/init.txt"
           done
           curl -s -X POST -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/init-indexes" > "$RESULTS/indexes.json"

@@ -21,5 +21,6 @@ module.exports = async function runStagingTests({ check, path, fs }) {
   const writer = code.slice(code.indexOf("python3 - <<'PY'"), code.indexOf('\n          PY'));
   check(writer.length > 100 && !/KEY|SECRET|SEED|TOKEN/.test(writer.replace(/kv_namespace_id|database_id/g, '')), 'the record of what happened (committed to the repository) can never contain a key, a secret or a token: only ids and results');
   check(/permissions:\s*\n\s*contents: write/.test(code) && /git add ops\/staging-last-run\.json/.test(code) && !/git add -A|git add \./.test(code), 'it may write only to the repository, and only adds its own record file');
+  check(/for attempt in 1 2 3 4 5/.test(code) && /if \[ "\$CODE" = "200" \]; then break; fi\s*\n\s*sleep 6/.test(code), 'each set-up route is retried before a failure is recorded (a new version takes a moment to reach every location: found live, 3 of 38 failed on the first run and none on the second)');
   check(/Create the tables[\s\S]*?Deploy staging[\s\S]*?Set staging's secrets[\s\S]*?Smoke test staging[\s\S]*?Set up staging's schema and indexes/.test(code), 'the order is: tables, deploy, secrets, smoke test, schema and indexes');
 };
