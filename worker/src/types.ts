@@ -31,6 +31,8 @@ export interface Env {
   SESSION_SECRET: string;
   // Set to "1" in wrangler.toml to time every request by kind of call (see timing.ts). Absent everywhere else, including the tests, which therefore run unchanged.
   RECORD_TIMINGS?: string;
+  // The architecture trial's Durable Object (trial.ts): admin-only, holds nothing but a scratch table.
+  TRIAL: DurableObjectNamespace;
 }
 
 export interface Extraction {

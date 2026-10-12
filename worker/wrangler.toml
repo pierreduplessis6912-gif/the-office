@@ -54,3 +54,13 @@ zone_name = "websitehub.co.za"
 # schema candidates. See the scheduled() handler in src/index.ts.
 [triggers]
 crons = ["0 * * * *"]
+
+# Architecture trial (2026-10-12, DECISIONS.md "Database architecture"): a Durable Object with its own SQLite (src/trial.ts). Two admin-only routes measure it;
+# it holds nothing but a scratch table. A Durable Object class cannot be switched to SQLite storage after it is first deployed, so it is created with SQLite now.
+[[durable_objects.bindings]]
+name = "TRIAL"
+class_name = "TrialObject"
+
+[[migrations]]
+tag = "trial-v1"
+new_sqlite_classes = ["TrialObject"]

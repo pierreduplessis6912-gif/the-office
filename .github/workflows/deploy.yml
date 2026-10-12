@@ -51,6 +51,12 @@ jobs:
         env:
           NODE_PATH: worker/node_modules
 
+      - name: Role-matrix test on the Durable Object adapter
+        run: node tools/role-matrix.test.js
+        env:
+          NODE_PATH: worker/node_modules
+          HARNESS_BACKEND: do
+
       - name: Did the Worker change?
         id: changes
         env:

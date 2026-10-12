@@ -1,3 +1,4 @@
+export { TrialObject } from "./trial";
 import { adminTierOf, hashSource, recordAdminCall } from "./admin-gate";
 import { runGuarded } from "./frontdoor";
 import { composeReply } from "./intents/reply";

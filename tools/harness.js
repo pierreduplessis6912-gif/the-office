@@ -54,7 +54,35 @@ function newDatabase(workerDir) {
 }
 
 // A D1-shaped wrapper. Deliberately as strict as D1: binding undefined or a boolean throws, as it does there.
+// HARNESS_BACKEND=do runs the WHOLE suite against the Durable Object adapter (worker/src/storage/do-d1.ts) instead of the D1 emulation below, on top of a stand-in for
+// the Durable Object's SQL storage. If every recording still passes, the adapter behaves like D1 for everything the application does (architecture trial, 2026-10-12).
 function d1(db) {
+  if (process.env.HARNESS_BACKEND === 'do') return doBackend(db);
+  return d1Shim(db);
+}
+let doAdapter = null;
+function doBackend(db) {
+  if (!doAdapter) {
+    const out = path.join(os.tmpdir(), 'harness-do-d1.js');
+    require('esbuild').buildSync({ entryPoints: [path.join(__dirname, '..', 'worker', 'src', 'storage', 'do-d1.ts')], bundle: true, platform: 'node', format: 'cjs', outfile: out, logLevel: 'silent' });
+    doAdapter = require(out);
+  }
+  // A stand-in for ctx.storage.sql: exec() runs ONE statement and returns a cursor with toArray(), rowsRead and rowsWritten.
+  const sql = {
+    exec(query, ...binds) {
+      const stmt = db.prepare(query);
+      if (/^\s*(select|with|pragma|values)\b/i.test(query) || /\breturning\b/i.test(query)) {
+        const rows = stmt.all(...binds).map(plain);
+        return { toArray: () => rows, rowsRead: rows.length, rowsWritten: 0 };
+      }
+      const r = stmt.run(...binds);
+      return { toArray: () => [], rowsRead: 0, rowsWritten: Number(r.changes) };
+    },
+  };
+  const storage = { transactionSync(fn) { db.exec('BEGIN'); try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; } } };
+  return new doAdapter.DoD1Database(sql, storage);
+}
+function d1Shim(db) {
   const stmt = (sql, binds = []) => ({
     bind: (...b) => stmt(sql, b),
     first: async (col) => { const row = plain(db.prepare(sql).get(...binds)) ?? null; return col && row ? row[col] : row; },

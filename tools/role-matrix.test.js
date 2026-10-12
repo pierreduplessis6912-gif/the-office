@@ -811,6 +811,8 @@ async function expect(role, method, path, want) {
   // The route policy: every non-admin route, what each kind of caller may do, checked against the real gate.
   await require('./route-policy.test.js')({ check, srcDir, path, fs });
   // The deploy pipeline's safety: a smoke test of the live Worker, and an automatic rollback.
+  // The Durable Object adapter: the same answers as the real Durable Object runtime.
+  await require('./do-adapter.test.js')({ check });
   await require('./smoke.test.js')({ check, path, fs });
   await require('./pipeline.test.js')({ check, path, fs });
 

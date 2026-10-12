@@ -15,6 +15,7 @@
 // are NOT imported here beyond what a route genuinely reads directly
 // (like ROLE_CAPABILITIES, to validate a role name) — the actual
 // gating already ran in index.ts before this function is ever called.
+import { trialD1, trialDo } from "./trial";
 import { timingsSummary } from "./timing";
 import { Env, Extraction, HistoryTurn, LineItemWithTotal } from "./types";
 import {
@@ -86,6 +87,14 @@ export async function handleDebugRoute(
 // Where the time goes, per route (timing.ts). Admin key, like every /debug route that is not one of the app's own.
 if (url.pathname === "/debug/timings" && request.method === "GET") {
       return Response.json(await timingsSummary(env));
+    }
+
+// The architecture trial (trial.ts): what does it cost to run next to the data? Admin key only; touches no business data.
+if (url.pathname === "/debug/trial-d1" && request.method === "GET") {
+      return trialD1(env, url);
+    }
+    if (url.pathname === "/debug/trial-do" && request.method === "GET") {
+      return trialDo(env, url);
     }
 
 if (url.pathname === "/debug/list-audio" && request.method === "GET") {

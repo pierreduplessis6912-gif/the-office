@@ -1,0 +1,79 @@
+{
+ "insert": {
+  "changes": 1,
+  "last_row_id": 1,
+  "duration": 0
+ },
+ "insert returning": {
+  "id": 2,
+  "name": "b"
+ },
+ "first column": 1.5,
+ "first none": null,
+ "all": [
+  {
+   "id": 1,
+   "name": "a"
+  },
+  {
+   "id": 2,
+   "name": "b"
+  }
+ ],
+ "raw": [
+  [
+   1,
+   "a"
+  ],
+  [
+   2,
+   "b"
+  ]
+ ],
+ "update changes": 2,
+ "delete nothing": 0,
+ "unique violation": {
+  "threw": "UNIQUE constraint failed: t.name: SQLITE_CONSTRAINT (extende"
+ },
+ "missing table": {
+  "threw": "no such table: nope: SQLITE_ERROR"
+ },
+ "duplicate column": {
+  "threw": "duplicate column name: qty: SQLITE_ERROR"
+ },
+ "bind undefined": {
+  "threw": "not supported for value 'undefined' (parameter 1)"
+ },
+ "bind boolean": {
+  "threw": "not supported for value 'true' (parameter 1)"
+ },
+ "bind null": {
+  "v": null
+ },
+ "bind number and text": {
+  "n": 7,
+  "s": "x y"
+ },
+ "batch ok": [
+  1,
+  1
+ ],
+ "batch fails halfway": {
+  "threw": "UNIQUE constraint failed: t.name: SQLITE_CONSTRAINT (extende"
+ },
+ "rows before and after the failed batch": [
+  4,
+  4
+ ],
+ "collate nocase": 1,
+ "like": 4,
+ "aggregate and group": [
+  {
+   "n": 4,
+   "q": 5.5
+  }
+ ],
+ "comment and newline in sql": 1,
+ "default datetime is text": "string",
+ "large text round trip": 200000
+}
