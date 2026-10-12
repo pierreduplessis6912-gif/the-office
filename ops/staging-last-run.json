@@ -1,7 +1,7 @@
 {
- "when": "2026-10-12T13:38:29.997703Z",
- "run": "38256962602",
- "commit": "f88a66e",
+ "when": "2026-10-12T14:13:02.897889Z",
+ "run": "38261161869",
+ "commit": "2f7d193",
  "resources": {
   "database_id": "527785b0-2ca7-4d18-a3b0-0a1d6d0d671a",
   "kv_namespace_id": "5cb9a972eeef4e6b95fea4f6ed95e28a",
@@ -11,7 +11,8 @@
  "outcomes": {
   "smoke_test": "success",
   "schema_and_indexes": "success",
-  "trial": "success"
+  "trial": "success",
+  "business_object_e2e": "success"
  },
  "init_routes": [
   "/debug/init-capture-id-column 200",
@@ -103,23 +104,38 @@
   "sharedTrips": 0,
   "sharedMs": null,
   "objectColo": null,
-  "rowsInThisObjectsOwnTable": 56,
+  "rowsInThisObjectsOwnTable": 84,
   "object": "staging-a",
   "hint": "weur",
   "callsMs": [
-   547,
-   131,
-   132,
-   131
+   473,
+   22,
+   23,
+   23
   ],
-  "firstCallMs": 547,
-  "warmCallsMedianMs": 131,
-  "workerToObjectAndBackMs": 131
+  "firstCallMs": 473,
+  "warmCallsMedianMs": 23,
+  "workerToObjectAndBackMs": 23
  },
  "trial_d1": {
   "statements": 10,
-  "totalMs": 1733,
-  "perStatementMs": 173.3,
+  "totalMs": 0,
+  "perStatementMs": 0,
   "note": "SELECT 1 against the production database: reads no data"
+ },
+ "business_object_e2e": {
+  "membership_status": "200",
+  "list_status_before": "200",
+  "customers_before": 0,
+  "import_status": "200",
+  "list_status_after": "200",
+  "customers_after": 2,
+  "five_list_calls_seconds_from_a_US_runner": [
+   0.290239,
+   0.415429,
+   0.430027,
+   0.289764,
+   0.305851
+  ]
  }
 }
