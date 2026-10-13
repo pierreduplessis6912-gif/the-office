@@ -1,0 +1,7 @@
+{
+ "when": "2026-10-13T16:18:04.350915Z",
+ "run": "38429319852",
+ "bucket": "office-backups",
+ "the_bucket_exists_now": true,
+ "create_output": "ice-backups'...\n\u2705 Created bucket 'office-backups' with default storage class of Standard.\nTo access your new R2 Bucket in your Worker, add the following snippet to your configuration file:\n{\n  \"r2_buckets\": [\n    {\n      \"bucket_name\": \"office-backups\",\n      \"binding\": \"office_backups\"\n    }\n  ]\n}\n"
+}
