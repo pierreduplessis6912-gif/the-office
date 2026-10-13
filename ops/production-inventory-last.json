@@ -1,0 +1,124 @@
+{
+ "when": "2026-10-13T09:42:01.162127Z",
+ "run": "38378106162",
+ "commit": "a15d84b",
+ "read_only": true,
+ "inventory_exit": "exit=0",
+ "database_as_cloudflare_reports_it": {
+  "file_size_bytes": 847872,
+  "tables": 49,
+  "region": "WEUR"
+ },
+ "memory_index_as_cloudflare_reports_it": {
+  "vectors": 67,
+  "dimensions": 768,
+  "processed_up_to": "2026-09-14T09:00:38.848Z"
+ },
+ "inventory": {
+  "ok": true,
+  "readOnly": true,
+  "requests": 6,
+  "database": {
+   "tables": 46,
+   "rows": 2002,
+   "autoincrementCounters": 37,
+   "emptyTables": 5,
+   "largestTables": [
+    {
+     "name": "captures",
+     "rows": 393
+    },
+    {
+     "name": "payments",
+     "rows": 388
+    },
+    {
+     "name": "invoices",
+     "rows": 306
+    },
+    {
+     "name": "people",
+     "rows": 224
+    },
+    {
+     "name": "customers",
+     "rows": 214
+    },
+    {
+     "name": "pending_actions",
+     "rows": 124
+    },
+    {
+     "name": "job_scopes",
+     "rows": 68
+    },
+    {
+     "name": "scope_components",
+     "rows": 37
+    },
+    {
+     "name": "line_items",
+     "rows": 23
+    },
+    {
+     "name": "characters",
+     "rows": 21
+    },
+    {
+     "name": "quotations",
+     "rows": 21
+    },
+    {
+     "name": "scope_tasks",
+     "rows": 21
+    }
+   ]
+  },
+  "team": {
+   "activeByRole": {
+    "owner": 1,
+    "installer": 1,
+    "accountant": 2
+   },
+   "activeTotal": 4,
+   "notActive": 0
+  },
+  "notes": {
+   "count": 42,
+   "bytes": 19702
+  },
+  "files": {
+   "count": 129,
+   "bytes": 32650518,
+   "largestFile": null,
+   "byFolder": {
+    "documents": {
+     "count": 17,
+     "bytes": 1606700
+    },
+    "logos": {
+     "count": 3,
+     "bytes": 142695
+    },
+    "photos": {
+     "count": 7,
+     "bytes": 8793064
+    },
+    "voice-notes": {
+     "count": 102,
+     "bytes": 22108059
+    }
+   }
+  },
+  "memories": {
+   "count": 67
+  },
+  "estimate": {
+   "sequentialSecondsExpected": 399,
+   "sequentialSecondsLow": 200,
+   "sequentialSecondsHigh": 798,
+   "note": "sequential, from the rehearsal rates; a guide only. The copy can be made concurrent; the final copy needs the freeze for about this long unless it is."
+  },
+  "seconds": 33
+ }
+}
