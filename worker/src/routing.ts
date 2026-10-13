@@ -3,7 +3,7 @@
 // Architecture stage 2b, 2026-10-12. A request is routed with NO database lookup: a signed-in member's session carries the business id (`b`), a customer's signed link carries it, and an
 // administrator names it in a header. The router verifies the signature before it trusts a session, and what it finds is only a ROUTING hint: every object independently refuses a session
 // or a link made for another business (auth.ts), so a mistake here can send a request to the wrong object but can never show it another business's data.
-import { getSessionToken, isAdminPath, peekBusinessFromToken, readSessionPayload } from "./auth";
+import { getSessionToken, isAdminPath, peekBusinessFromToken, peekIsLegacyLink, readSessionPayload } from "./auth";
 import { safeEqual } from "./admin-gate";
 import { isBusinessId, objectNameFor } from "./directory";
 import type { Env } from "./types";
@@ -34,7 +34,9 @@ export async function routeRequest(request: Request, env: Env): Promise<Route> {
   }
   if (path.endsWith("/pdf")) {
     const business = peekBusinessFromToken(url.searchParams.get("sig"));
-    return business ? { kind: "business", businessId: business } : { kind: "worker" };   // a link with no business is refused by the Worker's own gate
+    if (business) return { kind: "business", businessId: business };
+    // A link issued before the move carries no business: it belongs to the one business designated for such links (that object verifies the signature itself); with none designated, the Worker's gate refuses it.
+    return isBusinessId(env.LEGACY_LINK_BUSINESS) && peekIsLegacyLink(url.searchParams.get("sig")) ? { kind: "business", businessId: env.LEGACY_LINK_BUSINESS } : { kind: "worker" };
   }
   const session = await readSessionPayload(env, getSessionToken(request));
   if (session?.b) return { kind: "business", businessId: session.b };

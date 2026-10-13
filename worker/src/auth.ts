@@ -87,7 +87,12 @@ async function verifyDocumentToken(env: Env, path: string, token: string | null)
     if (!valid) return false;
     const decoded = JSON.parse(new TextDecoder().decode(base64UrlDecode(payloadB64))) as { path: string; exp: number; b?: string };
     if (Date.now() > decoded.exp) return false;
-    if (env.BUSINESS_MODE === "object" && (!env.BUSINESS_ID || decoded.b !== env.BUSINESS_ID)) return false;   // a link opens only the business it was made for
+    if (env.BUSINESS_MODE === "object") {
+      if (!env.BUSINESS_ID) return false;
+      // A link opens only the business it was made for. The one exception: a link issued BEFORE the move (no business in it) is honoured by the single business that owns such links, and only by it.
+      const legacy = decoded.b === undefined && env.LEGACY_LINK_BUSINESS !== undefined && env.LEGACY_LINK_BUSINESS === env.BUSINESS_ID;
+      if (decoded.b !== env.BUSINESS_ID && !legacy) return false;
+    }
     // Tied to the exact request path — a valid signature for invoice 3
     // must never also open invoice 4.
     return decoded.path === path;
@@ -1025,4 +1030,15 @@ export function corsHeadersFor(request: Request): Record<string, string> {
   // server), but a browser from an origin that isn't the real,
   // known preview can no longer read the response.
   return headers;
+}
+
+// Is this a well-formed signed link that names NO business (issued before the move)? Read without verifying, only to route it; the object verifies the signature.
+export function peekIsLegacyLink(token: string | null): boolean {
+  if (!token || token.split(".").length !== 2) return false;
+  try {
+    const decoded = JSON.parse(new TextDecoder().decode(base64UrlDecode(token.split(".")[0]))) as { path?: unknown; b?: unknown };
+    return typeof decoded.path === "string" && decoded.b === undefined;
+  } catch {
+    return false;
+  }
 }

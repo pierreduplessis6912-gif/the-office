@@ -40,6 +40,9 @@ module.exports = async function runRoutingTests({ check, srcDir }) {
   // ---- signed links -----------------------------------------------------------------------------------------------------------------------------------
   const link = await auth.signDocumentPath({ ...base, BUSINESS_ID: 'alpha-co' }, '/invoices/3/pdf', 60000), linkNoB = await auth.signDocumentPath(base, '/invoices/3/pdf', 60000);
   check(is(await route('/invoices/3/pdf?sig=' + encodeURIComponent(link)), 'business', 'alpha-co'), 'a customer\'s signed link goes to the business it was made for');
+  const legacyEnv = { ...base, LEGACY_LINK_BUSINESS: 'alpha-co' };
+  check(is(await route('/invoices/3/pdf?sig=' + encodeURIComponent(linkNoB), undefined, legacyEnv), 'business', 'alpha-co') && is(await route('/invoices/3/pdf?sig=' + encodeURIComponent(link), undefined, { ...base, LEGACY_LINK_BUSINESS: 'beta-co' }), 'business', 'alpha-co'), 'a link made before the move goes to the one business designated for such links, and a link that names a business still goes to THAT business');
+  check(is(await route('/invoices/3/pdf?sig=garbage', undefined, legacyEnv), 'worker') && is(await route('/invoices/3/pdf', undefined, legacyEnv), 'worker') && is(await route('/invoices/3/pdf?sig=' + encodeURIComponent(linkNoB), undefined, { ...base, LEGACY_LINK_BUSINESS: 'NOT valid' }), 'worker'), 'garbage, no link, and an invalid designation are still left to the Worker, which refuses them');
   check(is(await route('/invoices/3/pdf?sig=' + encodeURIComponent(linkNoB)), 'worker') && is(await route('/invoices/3/pdf?sig=garbage'), 'worker') && is(await route('/invoices/3/pdf'), 'worker'), 'a link with no business, a garbled link and no link are left to the Worker, which refuses them');
 
   // ---- forwarding -------------------------------------------------------------------------------------------------------------------------------------

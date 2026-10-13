@@ -47,15 +47,28 @@ export async function ensureObjectSchema(db: DoD1Database, env: Env): Promise<Sc
 }
 
 type Serve = (request: Request, env: Env, ctx: ExecutionContext) => Promise<Response>;
+// What a business's object does by itself, once an hour (the application's own consolidation: flushing pending memories into the memory index). Handed in by the entry module, like the pipeline.
+export interface BusinessJobs {
+  consolidate: (env: Env) => Promise<unknown>;
+}
+
+const HOUR_MS = 3_600_000;
+// Each business's hourly job is spread across the hour by its name, so a thousand businesses do not all wake at the same minute.
+export const jitterMs = (businessId: string): number => {
+  let h = 0;
+  for (const c of businessId) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return (h % 3000) * 1000;
+};
 
 // Takes the application's request pipeline so this file never imports the (huge) entry module: the entry module hands its own pipeline in.
-export function makeBusinessObject(serve: Serve) {
+export function makeBusinessObject(serve: Serve, jobs?: BusinessJobs) {
   return class BusinessObject {
     db: DoD1Database;
     env: Env;
     state: DurableObjectState;
     ready: Promise<void>;
     businessId: string | null = null;
+    alarmChecked = false;
 
     constructor(state: DurableObjectState, env: Env) {
       this.state = state;
@@ -65,6 +78,20 @@ export function makeBusinessObject(serve: Serve) {
       this.ready = state.blockConcurrencyWhile(async () => {
         await ensureObjectSchema(this.db, env);
       });
+    }
+
+    // Runs the application's hourly job INSIDE this business's object: its own database, and the memory index and notes store confined to this business. Whatever happens, the next alarm is armed, so one
+    // failure cannot stop a business's memories for good (and a failing job cannot retry in a tight loop).
+    async alarm(): Promise<void> {
+      await this.ready;
+      try {
+        const named = this.businessId ?? (await this.db.prepare("SELECT value FROM object_meta WHERE key = 'business_id'").first<{ value: string }>())?.value ?? null;
+        if (jobs && isBusinessId(named)) await jobs.consolidate(scopeBindings({ ...this.env, OFFICE_DB: this.db as unknown as D1Database, BUSINESS_ID: named } as Env, named));
+      } catch (error) {
+        console.error(JSON.stringify({ level: "error", message: "a business's hourly job failed", error: String((error as { message?: string } | null)?.message ?? error) }));
+      } finally {
+        await this.state.storage.setAlarm(Date.now() + HOUR_MS);
+      }
     }
 
     async fetch(request: Request): Promise<Response> {
@@ -79,6 +106,11 @@ export function makeBusinessObject(serve: Serve) {
         this.businessId = known ?? claimed;
       }
       if (this.businessId !== claimed) return Response.json({ error: "this object belongs to another business" }, { status: 403 });
+      // The hourly job: an object that has been named arms its own alarm once (nothing runs for a business nobody has used).
+      if (jobs && !this.alarmChecked) {
+        if ((await this.state.storage.getAlarm()) === null) await this.state.storage.setAlarm(Date.now() + jitterMs(claimed) + 60_000);
+        this.alarmChecked = true;
+      }
       // The notes store, the file storage and the memory index are shared by every business, so each is confined to this business (scoped-bindings.ts).
       const objectEnv = scopeBindings({ ...this.env, OFFICE_DB: this.db as unknown as D1Database, BUSINESS_ID: claimed } as Env, claimed);
       const ctx = { waitUntil: (p: Promise<unknown>) => this.state.waitUntil(p), passThroughOnException: () => undefined } as unknown as ExecutionContext;

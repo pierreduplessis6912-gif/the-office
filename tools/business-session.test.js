@@ -42,5 +42,13 @@ async function businessSessionTests({ check, srcDir }) {
   check((await open(A, linkA)) === 'open', 'A\'s object opens A\'s link');
   check((await open(B, linkA)) === 403 && (await open(W, linkA)) === 403 && (await open(A, linkNone)) === 403, 'B\'s object, and the Worker, refuse A\'s link, and A\'s object refuses a link made with no business');
   check((await open(secret, linkA)) === 'open' && (await open(secret, linkNone)) === 'open', 'without objects, links behave exactly as before (with or without a business in them)');
+  // ---- links customers already hold (issued before the move, so they carry no business) --------------------------------------------------------------------------------
+  const legacyOwner = { ...A, LEGACY_LINK_BUSINESS: 'alpha-co' }, legacyOther = { ...B, LEGACY_LINK_BUSINESS: 'alpha-co' }, legacyNone = A;
+  check((await open(legacyOwner, linkNone)) === 'open', 'a link issued BEFORE the move (no business in it) is honoured by the one business designated to own such links');
+  check((await open(legacyOther, linkNone)) === 403 && (await open(legacyNone, linkNone)) === 403 && (await open(W, linkNone)) === 403, 'and by NO other business, nor by one when none is designated, nor by the Worker');
+  check((await open({ ...legacyOwner, BUSINESS_ID: 'alpha-co' }, await auth.signDocumentPath(B, '/invoices/3/pdf', 60000))) === 403, 'even the legacy business refuses a link that names ANOTHER business (the exception is only for links that name none)');
+  const otherPath = new URL('https://office.example/invoices/4/pdf?sig=' + encodeURIComponent(linkNone)); const wrongPath = await auth.authGate(new Request(otherPath), legacyOwner, otherPath);
+  check(wrongPath && wrongPath.status === 403, 'and a legacy link is still tied to its exact path (a link for invoice 3 does not open invoice 4)');
+  check(auth.peekIsLegacyLink(linkNone) === true && auth.peekIsLegacyLink(linkA) === false && auth.peekIsLegacyLink('garbage') === false && auth.peekIsLegacyLink(null) === false, 'the router can tell a business-less link from one that names a business, without trusting either');
   check(auth.peekBusinessFromToken(linkA) === 'alpha-co' && auth.peekBusinessFromToken(linkNone) === null && auth.peekBusinessFromToken('garbage') === null && auth.peekBusinessFromToken(null) === null, 'the router can read which business a link is for without trusting it (the object verifies it)');
 }

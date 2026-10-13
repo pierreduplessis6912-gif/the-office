@@ -834,6 +834,8 @@ async function expect(role, method, path, want) {
   await require('./seed-synthetic.test.js')({ check, srcDir });
   // The model probe that measures what prompt size and prompt caching do to latency.
   await require('./trial.test.js')({ check, srcDir });
+  // A read-only freeze for the final copy of a migration.
+  await require('./freeze.test.js')({ check, srcDir });
   // The rehearsal workflow creates real resources, so its safety must not be removable by accident.
   await require('./rehearsal.test.js')({ check, path, fs });
 

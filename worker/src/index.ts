@@ -1,4 +1,5 @@
 export { TrialObject } from "./trial";
+import { readOnlyRefusal } from "./freeze";
 import { callBusiness, forwardToBusiness, routeRequest } from "./routing";
 import { lookupBusinessForEmail, normaliseEmail } from "./directory";
 import { makeBusinessObject } from "./business-object";
@@ -421,6 +422,9 @@ function log(level: "info" | "error", requestId: string, message: string, fields
 }
 
 async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, requestId: string): Promise<Response> {
+  // A read-only freeze (the final copy of a migration): refuse anything that would change data. Off unless READ_ONLY is "1".
+  const frozen = readOnlyRefusal(request, env);
+  if (frozen) return frozen;
     const url = new URL(request.url);
 
     // Inside handleRequest, not the outer fetch wrapper, so a 401/403
@@ -3655,7 +3659,7 @@ export async function serveRequest(request: Request, env: Env, ctx: ExecutionCon
   });
 }
 
-export const BusinessObject = makeBusinessObject(serveRequest);
+export const BusinessObject = makeBusinessObject(serveRequest, { consolidate: runConsolidation });
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -3674,6 +3678,8 @@ export default {
   // /admin/flush-memory debug route triggers, running on its own
   // schedule now (see [triggers] in wrangler.toml).
   async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    // In object mode each business's own object runs the hourly job (an alarm, business-object.ts); this Worker's database holds no business data, so there is nothing for it to consolidate.
+    if (env.BUSINESS_MODE === "object") return;
     ctx.waitUntil(runConsolidation(env).then(() => undefined));
   },
 };
