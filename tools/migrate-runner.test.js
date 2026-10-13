@@ -59,7 +59,7 @@ async function runnerTests({ check, srcDir }) {
       if (hooks.rewriteBody) body = hooks.rewriteBody({ host, method, path: u.pathname, body }) ?? body;
       if (host === 'api.cloudflare.com') {
         if (u.pathname.endsWith('/src-index/list')) return Response.json({ success: true, result: { vectors: [...S.mem.vecs.keys()].map((id) => ({ id })), isTruncated: false } });
-        if (u.pathname.endsWith('/tgt-index/info')) return Response.json({ success: true, result: { processedUpToMutation: T.mem.processNext() } });
+        if (u.pathname.endsWith('/info')) return Response.json({ success: true, result: { processedUpToMutation: T.mem.processNext() } });
         return new Response('not found', { status: 404 });
       }
       if (u.pathname === '/debug/directory/check-members') { const asked = JSON.parse(body); (hooks.asked ??= []).push(asked); return Response.json({ conflicts: (hooks.conflicts ?? []).filter((c) => asked.emails.includes(c.email)) }); }
@@ -131,6 +131,13 @@ async function runnerTests({ check, srcDir }) {
   const broken = fresh(); broken.T.mem.hide('zulu-co:pmf-3');
   const brun = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wire(broken, { scopedTarget: true }).fetchImpl, vectors: { ...vopts, verifyMaxMs: 20 }, pollMs: 1 });
   check(!brun.ok && /1 differ after being read back/.test(brun.mismatches.join()) && brun.steps.find((s) => s.name === 'memories').firstPassDiffered === 1, 'but a memory that NEVER reads back correctly is still reported once the time is up: the re-checking only forgives lag, not damage');
+  // Production has ONE index: on a re-run the business's own copies (prefixed ids) are in the listing and must not be copied again as if they were originals.
+  const shared = fresh();
+  for (let i = 1; i <= 3; i++) shared.S.mem.vecs.set(`zulu-co:pmf-${i}`, { values: [i, 1, 0], metadata: { customerId: '1', text: `copy ${i}` }, namespace: 'zulu-co' });
+  const wsh = wire(shared, { scopedTarget: true });
+  const shrun = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wsh.fetchImpl, vectors: { ...vopts, targetIndexName: 'src-index' }, pollMs: 1 });
+  const shstep = shrun.steps.find((s) => s.name === 'memories');
+  check(shrun.ok === true && shstep.listed === 45 && shstep.skippedCopiesAlreadyInTheIndex === 3 && shstep.copied === 45, 'when the source and the target use the SAME index, the business\'s own copies already in it are skipped, not copied again as if they were originals (3 skipped, 45 copied)', JSON.stringify(shstep));
   const stalled = fresh(); stalled.T.mem.stall(true);
   const srun = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wire(stalled, { scopedTarget: true }).fetchImpl, vectors: { ...vopts, maxWaitMs: 20 }, pollMs: 1 });
   check(srun.steps.find((s) => s.name === 'memories').readLagSeconds === 0, 'and it does not then burn its whole re-checking time on writes that were never processed');

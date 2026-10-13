@@ -122,5 +122,9 @@ async function businessObjectTests({ check, srcDir }) {
   const routingSrc = fs.readFileSync(path.join(srcDir, 'routing.ts'), 'utf8').replace(/\/\/.*$/gm, '');
   check(/headers\.delete\("X-Target-Business"\)/.test(routingSrc) && /headers\.set\("X-Business-Id", businessId\)/.test(routingSrc) && /idFromName\(objectNameFor\(businessId\)\)/.test(routingSrc) && /locationHint: "weur"/.test(routingSrc), 'forwarding overwrites any client-supplied business header, removes the admin targeting header, names the object from the business id, and places it in Western Europe');
   const cfgFile = path.join(srcDir, '..', 'wrangler.toml');
-  if (fs.existsSync(cfgFile)) { const cfg = fs.readFileSync(cfgFile, 'utf8'); check(!/BUSINESS/.test(cfg), 'production\'s configuration has no business object and no BUSINESS_MODE: stage 1 is staging only, production is unchanged'); }
+  if (fs.existsSync(cfgFile)) {
+    const cfg = fs.readFileSync(cfgFile, 'utf8');
+    check(/\[\[durable_objects\.bindings\]\]\s*\nname = "BUSINESS"\s*\nclass_name = "BusinessObject"/.test(cfg) && /tag = "business-v1"\s*\nnew_sqlite_classes = \["BusinessObject"\]/.test(cfg) && cfg.indexOf('tag = "trial-v1"') < cfg.indexOf('tag = "business-v1"'), 'production registers the business object with SQLite storage (a class cannot be switched to SQLite later), after the trial\'s migration');
+    check(!/BUSINESS_MODE/.test(cfg.replace(/^\s*#.*$/gm, '')), 'but production does NOT set BUSINESS_MODE: it still serves everyone from the database exactly as before, until a cutover flips it on purpose');
+  }
 };

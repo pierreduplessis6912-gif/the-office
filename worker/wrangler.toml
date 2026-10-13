@@ -64,3 +64,13 @@ class_name = "TrialObject"
 [[migrations]]
 tag = "trial-v1"
 new_sqlite_classes = ["TrialObject"]
+
+# The business object (business-object.ts), registered 2026-10-13 on Pierre's go-ahead, to receive a COPY of the business's data and be checked while everyone is still served from the database. BUSINESS_MODE is
+# deliberately NOT set: the Worker serves exactly as it always has until a cutover flips it. A class cannot be switched to SQLite storage after it is first deployed, so it is registered with SQLite storage now.
+[[durable_objects.bindings]]
+name = "BUSINESS"
+class_name = "BusinessObject"
+
+[[migrations]]
+tag = "business-v1"
+new_sqlite_classes = ["BusinessObject"]

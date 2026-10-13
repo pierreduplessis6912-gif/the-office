@@ -840,6 +840,8 @@ async function expect(role, method, path, want) {
   await require('./inventory.test.js')({ check, srcDir });
   // The workflow that runs the inventory against PRODUCTION: provably read-only.
   await require('./prod-inventory.test.js')({ check, path, fs });
+  // The two production workflows that prepare the real migration.
+  await require('./prod-migration.test.js')({ check, path, fs });
   // The rehearsal workflow creates real resources, so its safety must not be removable by accident.
   await require('./rehearsal.test.js')({ check, path, fs });
 

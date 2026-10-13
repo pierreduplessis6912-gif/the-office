@@ -1,0 +1,86 @@
+name: Production business (create it empty)
+
+# SHIP_CHECKLIST.md item A. Creates the business `zululand-flooring-and-blinds` in the production Worker's directory and wakes its (empty) Durable Object, ready to receive a copy. Approved by Pierre, 2026-10-13.
+# The ONLY write is one POST to create the business; the Worker keeps serving everyone from the database exactly as before. It then READS: the directory, who the object says it is, and that the object is empty.
+# The record holds ids, counts and statuses only. Started by hand only.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: prod-create-business
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    env:
+      PROD_URL: https://office.websitehub.co.za
+      BUSINESS_ID: zululand-flooring-and-blinds
+      RESULTS: ${{ github.workspace }}/results
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create the business, empty (the only write)
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+          CONFIRM: ${{ secrets.PROD_CONFIRM_KEY }}
+        run: |
+          mkdir -p "$RESULTS"
+          CODE=000
+          for attempt in 1 2 3; do
+            CODE=$(curl -s -o "$RESULTS/create.json" -w '%{http_code}' -X POST "$PROD_URL/debug/directory/create-business" -H "X-Admin-Key: $ADMIN" -H "X-Admin-Confirm: $CONFIRM" -H "Content-Type: application/json" -d "{\"id\":\"$BUSINESS_ID\",\"name\":\"Zululand Flooring and Blinds\",\"migrating\":true}")
+            if [ "$CODE" = "200" ]; then break; fi
+            sleep 8
+          done
+          echo "$CODE" > "$RESULTS/create.status"
+          echo "create-business answered $CODE"
+
+      - name: Check what exists (reads only)
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+          CONFIRM: ${{ secrets.PROD_CONFIRM_KEY }}
+        run: |
+          curl -s "$PROD_URL/debug/directory" -H "X-Admin-Key: $ADMIN" > "$RESULTS/directory.json"
+          curl -s "$PROD_URL/admin/migration/whoami" -H "X-Admin-Key: $ADMIN" -H "X-Admin-Confirm: $CONFIRM" -H "X-Target-Business: $BUSINESS_ID" > "$RESULTS/whoami-business.json"
+          curl -s "$PROD_URL/admin/migration/whoami" -H "X-Admin-Key: $ADMIN" -H "X-Admin-Confirm: $CONFIRM" > "$RESULTS/whoami-worker.json"
+          curl -s "$PROD_URL/admin/migration/fingerprint" -H "X-Admin-Key: $ADMIN" -H "X-Admin-Confirm: $CONFIRM" -H "X-Target-Business: $BUSINESS_ID" > "$RESULTS/fingerprint-business.json"
+          curl -s -o /dev/null -w '%{http_code}' "$PROD_URL/health" > "$RESULTS/health.status"
+
+      - name: Record what was found
+        if: always()
+        run: |
+          mkdir -p ops
+          python3 - <<'PY'
+          import json, os, datetime
+          r = os.environ["RESULTS"]
+          def read(n):
+              try:
+                  return open(os.path.join(r, n)).read().strip()
+              except Exception:
+                  return None
+          def readjson(n):
+              t = read(n)
+              try:
+                  return json.loads(t) if t else None
+              except Exception:
+                  return None
+          fp = readjson("fingerprint-business.json") or {}
+          out = {
+              "when": datetime.datetime.utcnow().isoformat() + "Z", "run": os.environ.get("GITHUB_RUN_ID"), "commit": os.environ.get("GITHUB_SHA", "")[:7],
+              "business": os.environ.get("BUSINESS_ID"), "create_status": read("create.status"), "create_answer": readjson("create.json"),
+              "directory": readjson("directory.json"),
+              "the_business_object_says_it_is": readjson("whoami-business.json"), "the_worker_says_it_is": readjson("whoami-worker.json"),
+              "the_object_holds": {"tables_with_rows": [k for k, v in (fp.get("tables") or {}).items() if v.get("count")], "notes": (fp.get("notes") or {}).get("count"), "files": (fp.get("files") or {}).get("count")},
+              "production_health_status": read("health.status"),
+          }
+          json.dump(out, open("ops/production-business-last.json", "w"), indent=1)
+          PY
+          git config user.name "production-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/production-business-last.json
+          git commit -m "Production business record (ids, counts and statuses only)" || echo "nothing to record"
+          git pull --rebase origin main
+          git push origin HEAD:main
