@@ -164,8 +164,22 @@ jobs:
         run: |
           SRC_BASE="https://${SRC}.websitehub.co.za"
           node tools/seed-synthetic.mjs "$RESULTS/seed" > "$RESULTS/expected-line.json"
-          COUNT=$(curl -s "$SRC_BASE/admin/migration/fingerprint" -H "X-Admin-Key: $KEY_ADMIN_SRC" -H "X-Admin-Confirm: $KEY_CONFIRM_SRC" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('tables',{}).get('customers',{}).get('count', -1))")
-          echo "customers already in the source: $COUNT"
+          # A new version and its secrets take a moment to reach every location (found live), so the source's first answers can be refusals: ask again. An UNREADABLE source must never be taken for
+          # an already-seeded one (the first run of this workflow did exactly that, skipped the seed, and then waited for memories that were never loaded).
+          COUNT=-1; CODE=000
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            CODE=$(curl -s -o "$RESULTS/src-fp.json" -w '%{http_code}' "$SRC_BASE/admin/migration/fingerprint" -H "X-Admin-Key: $KEY_ADMIN_SRC" -H "X-Admin-Confirm: $KEY_CONFIRM_SRC")
+            COUNT=$(python3 -c "import json,sys; d=json.load(open('$RESULTS/src-fp.json')); print(d['tables']['customers']['count'])" 2>/dev/null || echo -1)
+            if [ "$COUNT" != "-1" ]; then break; fi
+            sleep 8
+          done
+          printf '{"http": "%s", "customers": %s, "attempts": %s}' "$CODE" "$COUNT" "$attempt" > "$RESULTS/src-probe.json"
+          echo "the source's fingerprint answered $CODE; customers in it: $COUNT"
+          if [ "$COUNT" = "-1" ]; then
+            echo "::error::the source could not be read (HTTP $CODE): $(head -c 200 "$RESULTS/src-fp.json")"
+            echo "seeded=unreadable" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
           if [ "$COUNT" != "0" ]; then
             echo "The source is already seeded (or unreadable): not seeding again."
             echo "seeded=skipped" >> "$GITHUB_OUTPUT"
@@ -339,6 +353,7 @@ jobs:
               "second_run_without_force": {"exit": read("refused.exit"), "ok": refused.get("ok"), "said": refused.get("mismatches"), "target_unchanged": readjson("fp-settled.json") == readjson("fp-after-refusal.json")},
               "forced_run": {"exit": read("forced.exit"), "ok": forced.get("ok"), "target_unchanged": readjson("fp-settled.json") == readjson("fp-after-force.json")},
               "target_after": fp_summary("fp-after-force.json"),
+              "source_probe": readjson("src-probe.json"),
               "verification": readjson("verify.json"),
           }
           json.dump(out, open("ops/migration-rehearsal-last-run.json", "w"), indent=1)
