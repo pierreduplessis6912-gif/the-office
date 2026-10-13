@@ -57,8 +57,9 @@ export async function migrationRoute(request: Request, env: Env, url: URL): Prom
       case "POST /vectors": {
         const body = (await request.json()) as { vectors?: { id: string; values: number[]; metadata?: Record<string, unknown> }[] };
         if (!Array.isArray(body.vectors)) return bad("missing vectors");
-        if (body.vectors.length) await env.MEMORY.upsert(body.vectors.map((v) => ({ id: v.id, values: v.values, metadata: v.metadata as Record<string, string | number | boolean> | undefined })));
-        return Response.json({ written: body.vectors.length });
+        // Vectorize applies a write asynchronously: the mutation id lets a caller wait until THAT write has been processed.
+        const queued = body.vectors.length ? await env.MEMORY.upsert(body.vectors.map((v) => ({ id: v.id, values: v.values, metadata: v.metadata as Record<string, string | number | boolean> | undefined }))) : null;
+        return Response.json({ written: body.vectors.length, mutationId: (queued as { mutationId?: string } | null)?.mutationId ?? null });
       }
       case "POST /vectors-by-ids": {
         const body = (await request.json()) as { ids?: string[] };

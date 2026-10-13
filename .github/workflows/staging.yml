@@ -304,6 +304,7 @@ jobs:
         continue-on-error: true
         run: |
           BASE="https://${SLUG}.websitehub.co.za"
+          INDEX_API="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/vectorize/v2/indexes/${SLUG}-memory"
           python3 - <<'PY'
           import json, os
           r = os.environ["RESULTS"]
@@ -311,13 +312,26 @@ jobs:
           for name, text in (("first", "FIRST probe"), ("second", "SECOND probe")):
               json.dump({"vectors": [{"id": "probe-1", "values": e1, "metadata": {"customerId": "1", "text": text}}]}, open(os.path.join(r, "vec-" + name + ".json"), "w"))
           json.dump({"vector": e1, "topK": 10}, open(os.path.join(r, "vec-query.json"), "w"))
+          json.dump({"vector": e1, "topK": 10, "returnMetadata": "all", "namespace": "staging-co"}, open(os.path.join(r, "rest-q-first.json"), "w"))
+          json.dump({"vector": e1, "topK": 10, "returnMetadata": "all", "namespace": "staging-two"}, open(os.path.join(r, "rest-q-second.json"), "w"))
+          json.dump({"vector": e1, "topK": 10, "returnMetadata": "all"}, open(os.path.join(r, "rest-q-all.json"), "w"))
           json.dump({"ids": ["probe-1"]}, open(os.path.join(r, "vec-ids.json"), "w"))
+          json.dump({"ids": ["staging-co:probe-1", "staging-two:probe-1"]}, open(os.path.join(r, "rest-ids.json"), "w"))
           PY
           post() { curl -s -o "$3" -w '%{http_code}' -X POST "$BASE$1" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY" -H "X-Target-Business: $2" -H "Content-Type: application/json" --data-binary "@$4"; }
+          rest() { curl -s -o "$2" -X "$3" "$INDEX_API$1" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H "Content-Type: application/json" ${4:+--data-binary "@$4"}; }
           S1=$(post /admin/migration/vectors staging-co "$RESULTS/up-first.json" "$RESULTS/vec-first.json")
           S2=$(post /admin/migration/vectors staging-two "$RESULTS/up-second.json" "$RESULTS/vec-second.json")
-          attempt=0
-          for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+          LAST=$(python3 -c "import json; print(json.load(open('$RESULTS/up-second.json')).get('mutationId') or '')")
+          # Vectorize applies writes asynchronously. Wait for Cloudflare's own marker (processedUpToMutation) to reach the LAST write, up to three minutes, then look.
+          rest /info "$RESULTS/info-first.json" GET
+          waited=0
+          for tick in $(seq 1 36); do
+            rest /info "$RESULTS/info-last.json" GET
+            if [ -n "$LAST" ] && grep -q "$LAST" "$RESULTS/info-last.json"; then break; fi
+            sleep 5; waited=$((waited + 5))
+          done
+          for attempt in 1 2 3 4 5 6; do
             post /admin/migration/vectors-query staging-co "$RESULTS/q-first.json" "$RESULTS/vec-query.json" > /dev/null
             post /admin/migration/vectors-query staging-two "$RESULTS/q-second.json" "$RESULTS/vec-query.json" > /dev/null
             if grep -q "probe" "$RESULTS/q-first.json" && grep -q "probe" "$RESULTS/q-second.json"; then break; fi
@@ -325,8 +339,12 @@ jobs:
           done
           post /admin/migration/vectors-by-ids staging-co "$RESULTS/ids-first.json" "$RESULTS/vec-ids.json" > /dev/null
           post /admin/migration/vectors-by-ids staging-two "$RESULTS/ids-second.json" "$RESULTS/vec-ids.json" > /dev/null
-          curl -s "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/vectorize/v2/indexes/${SLUG}-memory/list?count=100" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" > "$RESULTS/vec-list.json"
-          UPSERT_FIRST="$S1" UPSERT_SECOND="$S2" ATTEMPTS="$attempt" python3 - <<'PY' > "$RESULTS/vectors.json"
+          rest "/list?count=100" "$RESULTS/vec-list.json" GET
+          rest /query "$RESULTS/rq-first.json" POST "$RESULTS/rest-q-first.json"
+          rest /query "$RESULTS/rq-second.json" POST "$RESULTS/rest-q-second.json"
+          rest /query "$RESULTS/rq-all.json" POST "$RESULTS/rest-q-all.json"
+          rest /get_by_ids "$RESULTS/rest-ids-out.json" POST "$RESULTS/rest-ids.json"
+          UPSERT_FIRST="$S1" UPSERT_SECOND="$S2" WAITED="$waited" python3 - <<'PY' > "$RESULTS/vectors.json"
           import os, json
           r = os.environ["RESULTS"]
           def load(name):
@@ -334,17 +352,26 @@ jobs:
                   return json.load(open(os.path.join(r, name)))
               except Exception:
                   return None
+          def raw(name):
+              try:
+                  return open(os.path.join(r, name)).read()[:380]
+              except Exception:
+                  return None
           def texts(doc):
               return sorted((m.get("metadata") or {}).get("text") for m in (doc or {}).get("matches", []))
+          def rest_texts(doc):
+              return sorted(((m.get("metadata") or {}).get("text")) for m in ((doc or {}).get("result") or {}).get("matches", []))
           def by_id(doc):
-              vs = (doc or {}).get("vectors", [])
-              return [(v.get("metadata") or {}).get("text") for v in vs]
+              return [(v.get("metadata") or {}).get("text") for v in (doc or {}).get("vectors", [])]
           listed = load("vec-list.json") or {}
           ids = sorted(v["id"] for v in (listed.get("result") or {}).get("vectors", []) if "probe-1" in v["id"])
           qa, qb = texts(load("q-first.json")), texts(load("q-second.json"))
+          info_a, info_b = (load("info-first.json") or {}).get("result"), (load("info-last.json") or {}).get("result")
           print(json.dumps({
               "upsert_status": {"first_business": os.environ["UPSERT_FIRST"], "second_business": os.environ["UPSERT_SECOND"]},
-              "seconds_until_searchable": int(os.environ["ATTEMPTS"]) * 5,
+              "seconds_waited_for_cloudflare_to_process_the_writes": int(os.environ["WAITED"]),
+              "index_info_before_waiting": info_a,
+              "index_info_after_waiting": info_b,
               "search_in_first_business_returns": qa,
               "search_in_second_business_returns": qb,
               "each_business_searches_only_its_own_memory": qa == ["FIRST probe"] and qb == ["SECOND probe"],
@@ -352,6 +379,15 @@ jobs:
               "physical_ids_in_the_shared_index": ids,
               "ids_are_prefixed_with_the_business": ids == ["staging-co:probe-1", "staging-two:probe-1"],
               "list_api_total_vectors": (listed.get("result") or {}).get("totalCount"),
+              "DIRECT_api_query_in_namespace_staging_co": rest_texts(load("rq-first.json")),
+              "DIRECT_api_query_in_namespace_staging_two": rest_texts(load("rq-second.json")),
+              "DIRECT_api_query_with_no_namespace": rest_texts(load("rq-all.json")),
+              "DIRECT_api_get_by_prefixed_ids": [(v.get("metadata") or {}).get("text") for v in ((load("rest-ids-out.json") or {}).get("result") or [])] if isinstance((load("rest-ids-out.json") or {}).get("result"), list) else (load("rest-ids-out.json") or {}).get("result"),
+              "raw_first_search_answer": raw("q-first.json"),
+              "raw_first_by_id_answer": raw("ids-first.json"),
+              "raw_first_upsert_answer": raw("up-first.json"),
+              "raw_second_upsert_answer": raw("up-second.json"),
+              "raw_direct_query_staging_two": raw("rq-second.json"),
           }))
           PY
 
