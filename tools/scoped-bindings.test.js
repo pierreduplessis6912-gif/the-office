@@ -61,6 +61,7 @@ module.exports = async function runScopedBindingTests({ check, srcDir }) {
   const none = await A.MEMORY.query([1, 0], { topK: 8 });
   check(none.matches.length === 1 && !JSON.stringify(none).includes('BETA'), 'a search with no filter at all still sees only the business\'s own memories');
   await A.MEMORY.deleteByIds(['pmf-1-2026']);
+  check((await B.MEMORY.getByIds(['pmf-1-2026']))[0].id === 'pmf-1-2026', 'reading a memory back by id returns the id the application knows, not the stored prefixed one (found on the real index: the migration read-back compares by id)');
   check(vecStore.length === 1 && vecStore[0].namespace === 'beta-co' && (await B.MEMORY.getByIds(['pmf-1-2026'])).length === 1, 'deleting a memory by id in one business never deletes the other\'s');
   threw = ''; try { await A.MEMORY.describe(); } catch (e) { threw = String(e.message); }
   check(/not available to a business/.test(threw), 'an unscoped memory-index method is not offered either');

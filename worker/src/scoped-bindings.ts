@@ -79,7 +79,11 @@ export function scopeVectors(index: VectorizeIndex, businessId: string): Vectori
       const result = (await raw.query.call(index, vector, { ...((options ?? {}) as object), namespace: businessId })) as { matches?: { id: string }[] };
       return { ...result, matches: (result.matches ?? []).map((m) => ({ ...m, id: m.id.startsWith(p) ? m.id.slice(p.length) : m.id })) };
     },
-    getByIds: (ids) => raw.getByIds.call(index, (ids as string[]).map((i) => p + i)),
+    // Found on the real index (2026-10-13): the vectors come back with their STORED, prefixed ids, so the prefix is removed, as it is for a search.
+    getByIds: async (ids) => {
+      const found = (await raw.getByIds.call(index, (ids as string[]).map((i) => p + i))) as { id: string }[];
+      return found.map((v) => ({ ...v, id: v.id.startsWith(p) ? v.id.slice(p.length) : v.id }));
+    },
     deleteByIds: (ids) => raw.deleteByIds.call(index, (ids as string[]).map((i) => p + i)),
   });
 }

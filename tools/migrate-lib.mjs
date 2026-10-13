@@ -36,7 +36,7 @@ export function copyOrder(tables) {
   return order;
 }
 
-export async function migrate({ source, target, include = {}, vectors = null, force = false, pageSize = 200, log = () => {}, fetchImpl = fetch }) {
+export async function migrate({ source, target, include = {}, vectors = null, force = false, pageSize = 200, log = () => {}, fetchImpl = fetch, pollMs = 5000 }) {
   const want = { db: true, notes: true, files: true, ...include };
   const started = Date.now();
   const report = { ok: false, steps: [], mismatches: [] };
@@ -131,17 +131,35 @@ export async function migrate({ source, target, include = {}, vectors = null, fo
     const api = (path) => fetchImpl(`https://api.cloudflare.com/client/v4/accounts/${vectors.accountId}/vectorize/v2/indexes/${vectors.indexName}${path}`, { headers: { Authorization: `Bearer ${vectors.apiToken}` } }).then((r) => r.json());
     const ids = []; let cursor = null;
     do { const r = await api(`/list?count=1000${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`); if (!r.success) throw new Error(`could not list the memory index: ${JSON.stringify(r.errors)}`); ids.push(...r.result.vectors.map((v) => v.id)); cursor = r.result.isTruncated ? r.result.nextCursor : null; } while (cursor);
-    let copied = 0, differ = 0;
+    // Vectorize applies a write ASYNCHRONOUSLY (found on the real index: about 100 seconds for two vectors), so reading back straight after writing would report false differences. Every write
+    // returns a mutation id; Cloudflare's index info says how far it has processed (processedUpToMutation). Wait for the LAST write, then read everything back and compare.
+    let copied = 0, differ = 0, lastMutation = null;
+    const copiedVectors = [];
     for (let i = 0; i < ids.length; i += 20) {
       const chunk = ids.slice(i, i + 20);
       const got = await call(source, 'POST', '/admin/migration/vectors-by-ids', { json: { ids: chunk } });
-      await call(target, 'POST', '/admin/migration/vectors', { json: { vectors: got.vectors } });
-      const back = await call(target, 'POST', '/admin/migration/vectors-by-ids', { json: { ids: chunk } });
-      const byId = new Map(back.vectors.map((v) => [v.id, v]));
-      for (const v of got.vectors) { const b = byId.get(v.id); if (!b || JSON.stringify(b.metadata) !== JSON.stringify(v.metadata) || b.values.length !== v.values.length || b.values.some((x, j) => Math.abs(x - v.values[j]) > 1e-6)) differ++; }
-      copied += got.vectors.length;
+      const written = await call(target, 'POST', '/admin/migration/vectors', { json: { vectors: got.vectors } });
+      if (written.mutationId) lastMutation = written.mutationId;
+      copiedVectors.push(...got.vectors); copied += got.vectors.length;
     }
-    step('memories', { listed: ids.length, copied, differ });
+    let waitedMs = 0, processed = lastMutation === null;
+    if (lastMutation && vectors.targetIndexName) {
+      const infoUrl = `https://api.cloudflare.com/client/v4/accounts/${vectors.accountId}/vectorize/v2/indexes/${vectors.targetIndexName}/info`;
+      const limit = vectors.maxWaitMs ?? 600000;
+      while (waitedMs <= limit) {
+        const info = await fetchImpl(infoUrl, { headers: { Authorization: `Bearer ${vectors.apiToken}` } }).then((r) => r.json());
+        if (info.success && info.result?.processedUpToMutation === lastMutation) { processed = true; break; }
+        await sleep(pollMs); waitedMs += pollMs;
+      }
+    }
+    if (!processed) report.mismatches.push(`memories: the target index had not processed the writes after ${Math.round(waitedMs / 1000)} s, so they could not be verified`);
+    for (let i = 0; i < copiedVectors.length; i += 20) {
+      const chunk = copiedVectors.slice(i, i + 20);
+      const back = await call(target, 'POST', '/admin/migration/vectors-by-ids', { json: { ids: chunk.map((v) => v.id) } });
+      const byId = new Map(back.vectors.map((v) => [v.id, v]));
+      for (const v of chunk) { const b = byId.get(v.id); if (!b || JSON.stringify(b.metadata) !== JSON.stringify(v.metadata) || b.values.length !== v.values.length || b.values.some((x, j) => Math.abs(x - v.values[j]) > 1e-6)) differ++; }
+    }
+    step('memories', { listed: ids.length, copied, differ, waitedSeconds: Math.round(waitedMs / 1000), processed });
     if (differ || copied !== ids.length) report.mismatches.push(`memories: ${ids.length} listed, ${copied} copied, ${differ} differ after being read back`);
   }
 

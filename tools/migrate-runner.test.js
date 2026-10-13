@@ -13,7 +13,7 @@ module.exports = async function runMigrateRunnerTests(context) {
 
 async function runnerTests({ check, srcDir }) {
   const bundle = (entry) => { const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'mr-')), 'm.js'); esbuild.buildSync({ entryPoints: [path.join(srcDir, entry)], bundle: true, platform: 'node', format: 'cjs', outfile: out, logLevel: 'silent' }); return require(out); };
-  const routes = bundle('migration-routes.ts'), mg = bundle('migration.ts'), { DoD1Database } = bundle('storage/do-d1.ts');
+  const routes = bundle('migration-routes.ts'), mg = bundle('migration.ts'), { DoD1Database } = bundle('storage/do-d1.ts'), sb = bundle('scoped-bindings.ts');
   const lib = await import(pathToFileURL(path.join(__dirname, 'migrate-lib.mjs')).href);
   const baseline = fs.readFileSync(path.join(srcDir, '..', 'migrations', '0001_baseline.sql'), 'utf8');
   const plain = (r) => (r ? { ...r } : r);
@@ -22,13 +22,17 @@ async function runnerTests({ check, srcDir }) {
     const sql = { exec(query, ...binds) { const s = db.prepare(query); if (/^\s*(select|with|pragma|values)\b/i.test(query) || /\breturning\b/i.test(query)) { const rows = s.all(...binds).map(plain); return { toArray: () => rows, rowsRead: rows.length, rowsWritten: 0 }; } const r = s.run(...binds); return { toArray: () => [], rowsRead: 0, rowsWritten: Number(r.changes) }; } };
     const storage = { transactionSync(fn) { db.exec('BEGIN'); try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; } } };
     const kv = new Map(), r2 = new Map();
+    // A memory index that applies a write LATE (found on the real index: about 100 seconds): upsert only queues, and processNext() applies one queued write, as Cloudflare's index info would report.
+    const vecs = new Map(), queue = []; let mutation = 0, processed = null, stall = false;
+    const mem = { vecs, processNext: () => { if (!stall && queue.length) { const q = queue.shift(); for (const v of q.vs) vecs.set(v.id, { values: Array.from(v.values), metadata: v.metadata, namespace: v.namespace }); processed = q.id; } return processed; }, stall: (on) => { stall = on; } };
     const page = (all, limit, cursor) => { const start = cursor ? Number(cursor) : 0; return { slice: all.slice(start, start + limit), more: start + limit < all.length, cursor: start + limit < all.length ? String(start + limit) : undefined }; };
     const env = {
       OFFICE_DB: new DoD1Database(sql, storage),
       CUSTOMER_NOTES: { get: async (k) => kv.get(k) ?? null, put: async (k, v) => { kv.set(k, v); }, list: async ({ limit = 1000, cursor } = {}) => { const p = page([...kv.keys()].sort(), limit, cursor); return { keys: p.slice.map((name) => ({ name })), list_complete: !p.more, cursor: p.cursor }; } },
+      MEMORY: { upsert: async (vs) => { const id = `mutation-${++mutation}`; queue.push({ id, vs }); return { mutationId: id }; }, getByIds: async (ids) => ids.filter((i) => vecs.has(i)).map((i) => ({ id: i, ...vecs.get(i) })) },
       OFFICE_VAULT: { get: async (k) => (r2.has(k) ? { body: r2.get(k).bytes, httpMetadata: { contentType: r2.get(k).type }, arrayBuffer: async () => r2.get(k).bytes.buffer.slice(r2.get(k).bytes.byteOffset, r2.get(k).bytes.byteOffset + r2.get(k).bytes.byteLength) } : null), put: async (k, body, o) => { r2.set(k, { bytes: new Uint8Array(body), type: o?.httpMetadata?.contentType }); }, list: async ({ limit = 1000, cursor } = {}) => { const p = page([...r2.keys()].sort(), limit, cursor); return { objects: p.slice.map((key) => ({ key, size: r2.get(key).bytes.length })), truncated: p.more, cursor: p.cursor }; } },
     };
-    return { db, env, kv, r2 };
+    return { db, env, kv, r2, mem };
   };
   const fresh = () => {
     const S = makeSide((db) => {
@@ -38,22 +42,29 @@ async function runnerTests({ check, srcDir }) {
       db.prepare('INSERT INTO memberships (google_email, role, status) VALUES (?, ?, ?)').run('owner@x.co', 'owner', 'active'); db.prepare('INSERT INTO memberships (google_email, role, status) VALUES (?, ?, ?)').run('crew@x.co', 'installer', 'active'); db.prepare('INSERT INTO memberships (google_email, role, status) VALUES (?, ?, ?)').run('gone@x.co', 'installer', 'suspended');
     });
     for (let i = 1; i <= 120; i++) S.kv.set(`customer:${i}`, `note ${i}`);
+    for (let i = 1; i <= 45; i++) S.mem.vecs.set(`pmf-${i}`, { values: [i, 1, 0], metadata: { customerId: '1', text: `memory ${i}` } });
     for (let i = 1; i <= 105; i++) S.r2.set(`photos/${i}.bin`, { bytes: new Uint8Array([i, 255 - i, i]), type: 'image/png' });
     return { S, T: makeSide() };
   };
   // the runner talks to this instead of the network; every call is recorded
   const wire = ({ S, T }, hooks = {}) => {
     const calls = [], directory = [];
+    const targetEnv = hooks.scopedTarget ? sb.scopeBindings(T.env, 'zulu-co') : T.env;
     const fetchImpl = async (url, init = {}) => {
       const u = new URL(url), host = u.host, method = init.method ?? 'GET';
       calls.push({ host, method, path: u.pathname });
       if (hooks.before) { const early = await hooks.before({ host, method, path: u.pathname, init, calls }); if (early) return early; }
       let body = init.body;
       if (hooks.rewriteBody) body = hooks.rewriteBody({ host, method, path: u.pathname, body }) ?? body;
+      if (host === 'api.cloudflare.com') {
+        if (u.pathname.endsWith('/src-index/list')) return Response.json({ success: true, result: { vectors: [...S.mem.vecs.keys()].map((id) => ({ id })), isTruncated: false } });
+        if (u.pathname.endsWith('/tgt-index/info')) return Response.json({ success: true, result: { processedUpToMutation: T.mem.processNext() } });
+        return new Response('not found', { status: 404 });
+      }
       if (u.pathname === '/debug/directory/add-member') { directory.push(JSON.parse(body)); return Response.json({ inDirectory: true }); }
       if (u.pathname === '/debug/init-indexes') return Response.json({ created: [], alreadyThere: [], failed: [] });
       const request = new Request(url, { method, headers: init.headers, body });
-      return (await routes.migrationRoute(request, host === 'source' ? S.env : T.env, u)) ?? new Response('not found', { status: 404 });
+      return (await routes.migrationRoute(request, host === 'source' ? S.env : targetEnv, u)) ?? new Response('not found', { status: 404 });
     };
     return { fetchImpl, calls, directory };
   };
@@ -69,6 +80,18 @@ async function runnerTests({ check, srcDir }) {
   check(writesToSource.length === 0 && w.calls.some((c) => c.host === 'source') && w.calls.some((c) => c.host === 'target' && c.method === 'POST'), 'the runner NEVER writes to the source: every call it makes to the source is a read');
   check(w.directory.length === 2 && w.directory.every((d) => d.business_id === 'zulu-co' && d.skip_membership === true) && w.directory.map((d) => d.email).sort().join() === 'crew@x.co,owner@x.co', 'only the ACTIVE members are registered in the directory (the suspended one is not), and without re-creating their memberships');
   check(w.calls.filter((c) => c.host === 'target' && c.method === 'GET' && c.path.endsWith('/fingerprint')).length === 2, 'the target\'s fingerprint is taken before (to check it is empty) and after (to prove the copy)');
+
+  // ---- memories: listed through Cloudflare's API, copied in batches, verified AFTER the target has processed them ----------------------------------------------------------
+  const vw = fresh(), wv = wire(vw, { scopedTarget: true });
+  const vopts = { accountId: 'a', apiToken: 't', indexName: 'src-index', targetIndexName: 'tgt-index', maxWaitMs: 400 };
+  const vrun = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wv.fetchImpl, vectors: vopts, pollMs: 1 });
+  const mstep = vrun.steps.find((s) => s.name === 'memories');
+  check(vrun.ok === true && mstep.listed === 45 && mstep.copied === 45 && mstep.differ === 0 && mstep.processed === true, 'memories: 45 are listed through Cloudflare\'s API, copied in batches of 20, the runner WAITS until the target index reports it has processed the last write, and every one reads back identical', JSON.stringify(mstep) + ' ' + vrun.mismatches.join('; '));
+  check([...vw.T.mem.vecs.keys()].length === 45 && [...vw.T.mem.vecs.entries()].every(([id, v]) => id.startsWith('zulu-co:') && v.namespace === 'zulu-co'), 'in the target index every memory sits under the business\'s prefix and namespace');
+  check(wv.calls.filter((c) => c.host === 'api.cloudflare.com' && c.path.endsWith('/info')).length >= 2, 'the wait really polled Cloudflare\'s index info (the writes were not visible at first, as on the real index)');
+  const stalled = fresh(); stalled.T.mem.stall(true);
+  const srun = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wire(stalled, { scopedTarget: true }).fetchImpl, vectors: { ...vopts, maxWaitMs: 20 }, pollMs: 1 });
+  check(!srun.ok && srun.mismatches.some((m) => /had not processed the writes/.test(m)), 'if the target index never catches up, the run is NOT ok and says it could not verify the memories (it does not report them as copied)');
 
   // ---- it will not mix, and a second run is safe ---------------------------------------------------------------------------------------------------------------------
   const w2 = wire(world);
