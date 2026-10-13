@@ -86,6 +86,10 @@ jobs:
         run: |
           wrangler r2 bucket create "${SLUG}-vault" || echo "The bucket probably exists already, continuing."
 
+      - name: Create the backup bucket (safe to re-run)
+        run: |
+          wrangler r2 bucket create "${SLUG}-backups" || echo "The bucket probably exists already, continuing."
+
       - name: Create the memory index (safe to re-run)
         run: |
           wrangler vectorize create "${SLUG}-memory" --dimensions=768 --metric=cosine || echo "The index probably exists already, continuing."
@@ -125,6 +129,10 @@ jobs:
           [[r2_buckets]]
           binding = "OFFICE_VAULT"
           bucket_name = "${SLUG}-vault"
+
+          [[r2_buckets]]
+          binding = "BACKUPS"
+          bucket_name = "${SLUG}-backups"
 
           [[vectorize]]
           binding = "MEMORY"
@@ -296,6 +304,64 @@ jobs:
               "second_business_customer_count": len(b) if b is not None else None,
               "refused": {"owner_session_placed_in_the_other_business": os.environ["S_WRONG"], "session_with_no_business": os.environ["S_NOB"], "stranger": os.environ["S_STRANGER"], "admin_call_naming_no_business": os.environ["S_NAMELESS"]},
               "five_list_calls_seconds_from_a_US_runner": times,
+          }))
+          PY
+
+      - name: Back up, damage and restore a business on Cloudflare
+        id: backup
+        continue-on-error: true
+        run: |
+          BASE="https://${SLUG}.websitehub.co.za"
+          A=(-H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY")
+          COOKIE=$(cat "$RESULTS/cookie.txt")
+          fingerprint() { curl -s "${A[@]}" -H "X-Target-Business: $1" "$BASE/admin/migration/fingerprint" > "$RESULTS/$2"; }
+          customers() { curl -s -H "Cookie: $COOKIE" "$BASE/customers" > "$RESULTS/$1"; }
+          customers backup-customers-before.json
+          fingerprint staging-co backup-fp-original.json
+          fingerprint staging-two backup-fp-other-before.json
+          curl -s -X POST "${A[@]}" -H "X-Target-Business: staging-co" "$BASE/admin/backup/run" > "$RESULTS/backup-run.json"
+          curl -s "${A[@]}" -H "X-Target-Business: staging-co" "$BASE/admin/backup/status" > "$RESULTS/backup-status.json"
+          SNAPSHOT=$(python3 -c "import json; print(json.load(open('$RESULTS/backup-run.json')).get('snapshot',''))")
+          echo "snapshot: $SNAPSHOT"
+          # Damage the business the way a bad day would: add customers that were never there.
+          printf 'name\nDAMAGE ONE\nDAMAGE TWO\nDAMAGE THREE\n' > "$RESULTS/damage.csv"
+          curl -s -o "$RESULTS/backup-damage.json" -X POST -H "Cookie: $COOKIE" -F "csv=@$RESULTS/damage.csv;type=text/csv" "$BASE/files/customers-csv-import"
+          customers backup-customers-damaged.json
+          fingerprint staging-co backup-fp-damaged.json
+          curl -s -X POST "${A[@]}" -H "X-Target-Business: staging-co" -H "Content-Type: application/json" -d "{\"snapshot\":\"$SNAPSHOT\",\"confirm\":\"staging-co\"}" "$BASE/admin/backup/restore" > "$RESULTS/backup-restore.json"
+          customers backup-customers-restored.json
+          fingerprint staging-co backup-fp-restored.json
+          fingerprint staging-two backup-fp-other-after.json
+          curl -s "${A[@]}" -H "X-Target-Business: staging-co" "$BASE/admin/backup/list" > "$RESULTS/backup-list.json"
+          python3 - <<'PY' > "$RESULTS/backup.json"
+          import json, os
+          r = os.environ["RESULTS"]
+          def read(n):
+              try:
+                  return json.load(open(os.path.join(r, n)))
+              except Exception:
+                  return None
+          def names(doc):
+              rows = doc if isinstance(doc, list) else (doc or {}).get("customers") or (doc or {}).get("results") or []
+              return sorted(str(x.get("name")) for x in rows if isinstance(x, dict))
+          def core(fp):
+              return {"tables": (fp or {}).get("tables"), "notes": (fp or {}).get("notes"), "files": (fp or {}).get("files")}
+          before, damaged, restored = (read("backup-customers-%s.json" % k) for k in ("before", "damaged", "restored"))
+          fo, fd, fr = read("backup-fp-original.json"), read("backup-fp-damaged.json"), read("backup-fp-restored.json")
+          rep = read("backup-restore.json") or {}
+          run = read("backup-run.json") or {}
+          lst = (read("backup-list.json") or {}).get("snapshots") or []
+          print(json.dumps({
+              "snapshot": run.get("snapshot"), "snapshot_took": {k: run.get(k) for k in ("tables", "rows", "notes", "files", "filesMirroredNow", "ms")},
+              "status_after_the_snapshot": {k: (read("backup-status.json") or {}).get(k) for k in ("backupBucketConfigured", "lastAttemptOk", "complete", "newestAgeHours")},
+              "customers": {"before": len(names(before)), "damaged": len(names(damaged)), "restored": len(names(restored))},
+              "the_damage_was_real": names(damaged) != names(before) and core(fd) != core(fo),
+              "restore_report": {k: rep.get(k) for k in ("ok", "tablesRestored", "rowsRestored", "notesRestored", "filesRestoredFromMirror", "filesMissingEverywhere", "differences", "error")},
+              "customers_are_back_exactly_as_before": names(restored) == names(before),
+              "the_whole_business_fingerprint_equals_the_original": core(fr) == core(fo),
+              "no_damage_left": not any(n.startswith("DAMAGE") for n in names(restored)),
+              "a_safety_snapshot_was_taken": any(str(s.get("name", "")).endswith("-pre-restore") for s in lst),
+              "the_other_business_is_untouched": core(read("backup-fp-other-before.json")) == core(read("backup-fp-other-after.json")),
           }))
           PY
 
@@ -489,6 +555,7 @@ jobs:
           BUSINESSES: ${{ steps.businesses.outcome }}
           VECTORS: ${{ steps.vectors.outcome }}
           MODEL: ${{ steps.model.outcome }}
+          BACKUP: ${{ steps.backup.outcome }}
         run: |
           mkdir -p ops
           python3 - <<'PY'
@@ -510,7 +577,7 @@ jobs:
               "run": os.environ.get("GITHUB_RUN_ID"),
               "commit": os.environ.get("GITHUB_SHA", "")[:7],
               "resources": {"database_id": os.environ.get("D1_ID"), "kv_namespace_id": os.environ.get("KV_ID"), "worker": "office-staging-api", "host": "office-staging.websitehub.co.za"},
-              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E"), "real_sentence": os.environ.get("SENTENCE"), "businesses_created": os.environ.get("BUSINESSES"), "memory_index_probe": os.environ.get("VECTORS"), "model_probe": os.environ.get("MODEL")},
+              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E"), "real_sentence": os.environ.get("SENTENCE"), "businesses_created": os.environ.get("BUSINESSES"), "memory_index_probe": os.environ.get("VECTORS"), "model_probe": os.environ.get("MODEL"), "backup_restore": os.environ.get("BACKUP")},
               "init_routes": (read("init.txt") or "").splitlines(),
               "indexes": readjson("indexes.json"),
               "trial_do": readjson("trial-do.json"),
@@ -519,6 +586,7 @@ jobs:
               "business_object_e2e": readjson("e2e.json"),
               "memory_index_probe": readjson("vectors.json"),
               "model_probe": readjson("model.json"),
+              "backup_restore": readjson("backup.json"),
               "real_sentence": readjson("sentence.json"),
           }
           json.dump(out, open("ops/staging-last-run.json", "w"), indent=1)

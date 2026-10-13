@@ -6,6 +6,8 @@
 //
 // On its first wake the object creates its tables from the baseline schema; on EVERY wake it applies the indexes (idempotent, and it picks up tables that were created on first use
 // since the last wake). The Worker forwards to an object only when BUSINESS_MODE is "object" and the object exists; otherwise nothing changes.
+import { isAdminPath } from "./auth";
+import { readBackupMeta, recordBackupResult } from "./backup";
 import { scopeBindings } from "./scoped-bindings";
 import { isBusinessId } from "./directory";
 import { BASELINE_SQL } from "./baseline-sql";
@@ -50,7 +52,11 @@ type Serve = (request: Request, env: Env, ctx: ExecutionContext) => Promise<Resp
 // What a business's object does by itself, once an hour (the application's own consolidation: flushing pending memories into the memory index). Handed in by the entry module, like the pipeline.
 export interface BusinessJobs {
   consolidate: (env: Env) => Promise<unknown>;
+  // The daily snapshot (backup.ts). Run from the hourly alarm when more than BACKUP_EVERY_MS have passed since the last success.
+  backup?: (env: Env) => Promise<unknown>;
 }
+
+export const BACKUP_EVERY_MS = 20 * 3_600_000;
 
 const HOUR_MS = 3_600_000;
 // Each business's hourly job is spread across the hour by its name, so a thousand businesses do not all wake at the same minute.
@@ -89,6 +95,19 @@ export function makeBusinessObject(serve: Serve, jobs?: BusinessJobs) {
         if (jobs && isBusinessId(named)) await jobs.consolidate(scopeBindings({ ...this.env, OFFICE_DB: this.db as unknown as D1Database, BUSINESS_ID: named } as Env, named));
       } catch (error) {
         console.error(JSON.stringify({ level: "error", message: "a business's hourly job failed", error: String((error as { message?: string } | null)?.message ?? error) }));
+      }
+      // The daily backup is separate from the hourly job: neither can stop the other, and a failed backup is RECORDED (so an alert can see it) and tried again next hour.
+      try {
+        const named = this.businessId;
+        if (jobs?.backup && this.env.BACKUPS && isBusinessId(named)) {
+          const last = Date.parse((await readBackupMeta({ ...this.env, OFFICE_DB: this.db as unknown as D1Database } as Env)).lastSuccessAt ?? "");
+          if (!Number.isFinite(last) || Date.now() - last >= BACKUP_EVERY_MS) {
+            const env = scopeBindings({ ...this.env, OFFICE_DB: this.db as unknown as D1Database, BUSINESS_ID: named } as Env, named);
+            try { await jobs.backup(env); await recordBackupResult(env, null); } catch (error) { await recordBackupResult(env, String((error as { message?: string } | null)?.message ?? error).slice(0, 300)); throw error; }
+          }
+        }
+      } catch (error) {
+        console.error(JSON.stringify({ level: "error", message: "a business's daily backup failed", error: String((error as { message?: string } | null)?.message ?? error) }));
       } finally {
         await this.state.storage.setAlarm(Date.now() + HOUR_MS);
       }
@@ -106,6 +125,10 @@ export function makeBusinessObject(serve: Serve, jobs?: BusinessJobs) {
         this.businessId = known ?? claimed;
       }
       if (this.businessId !== claimed) return Response.json({ error: "this object belongs to another business" }, { status: 403 });
+      // While a restore is running, everyone but an administrator is turned away: a half-replaced business must not be read or written.
+      if (!isAdminPath(new URL(request.url).pathname) && (await this.db.prepare("SELECT value FROM object_meta WHERE key = 'restoring'").first<{ value: string }>())?.value === "1") {
+        return Response.json({ error: "This business is being restored from a backup and is unavailable for a few minutes. Please try again shortly.", restoring: true, retryAfterSeconds: 60 }, { status: 503, headers: { "Retry-After": "60" } });
+      }
       // The hourly job: an object that has been named arms its own alarm once (nothing runs for a business nobody has used).
       if (jobs && !this.alarmChecked) {
         if ((await this.state.storage.getAlarm()) === null) await this.state.storage.setAlarm(Date.now() + jitterMs(claimed) + 60_000);

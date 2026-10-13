@@ -15,6 +15,7 @@
 // are NOT imported here beyond what a route genuinely reads directly
 // (like ROLE_CAPABILITIES, to validate a role name) — the actual
 // gating already ran in index.ts before this function is ever called.
+import { backupRoute } from "./backup-routes";
 import { migrationRoute } from "./migration-routes";
 import { addDirectoryMember, createBusiness, findDirectoryConflicts, isBusinessId, listDirectory, normaliseEmail } from "./directory";
 import { callBusiness } from "./routing";
@@ -96,6 +97,8 @@ if (url.pathname === "/debug/timings" && request.method === "GET") {
 // Moving a business's data in or out (migration.ts): privileged, both directions.
     const migrationReply = await migrationRoute(request, env, url);
     if (migrationReply) return migrationReply;
+    const backupReply = await backupRoute(request, env, url);
+    if (backupReply) return backupReply;
 
 // The shared directory (directory.ts): which email belongs to which business. Worker-level admin routes (the shared layer is the Worker's own D1); the two that write are privileged.
 if (url.pathname === "/debug/directory" && request.method === "GET") {

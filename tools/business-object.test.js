@@ -103,7 +103,54 @@ async function businessObjectTests({ check, srcDir }) {
   await unnamed.alarm();
   check(ran.length === before2, 'an alarm in an object that was never named runs nothing');
   check(/async scheduled\([^)]*\)[^{]*\{\s*(\/\/[^\n]*\n\s*)*if \(env\.BUSINESS_MODE === "object"\) return;\s*ctx\.waitUntil\(runConsolidation\(env\)/.test(fs.readFileSync(path.join(srcDir, 'index.ts'), 'utf8')), 'the Worker\'s own hourly cron does nothing in object mode (each business\'s object runs its own), and runs exactly as before without objects');
-  check(/makeBusinessObject\(serveRequest, \{ consolidate: runConsolidation \}\)/.test(fs.readFileSync(path.join(srcDir, 'index.ts'), 'utf8')), 'the entry module hands the object the application\'s own consolidation (the one the Worker\'s cron runs today)');
+  check(/makeBusinessObject\(serveRequest, \{ consolidate: runConsolidation, backup: \(env\) => takeSnapshot\(env\) \}\)/.test(fs.readFileSync(path.join(srcDir, 'index.ts'), 'utf8')), 'the entry module hands the object the application\'s own consolidation (the one the Worker\'s cron runs today)');
+
+  // ---- the daily backup, run from the hourly alarm; and the restore lock ----------------------------------------------------------------------------------------------------------------
+  const orderBk = [], backupEnvsBk = [];
+  const BusinessBBk = bo.makeBusinessObject(serve, { consolidate: async () => { orderBk.push('consolidate'); }, backup: async (e) => { orderBk.push('backup'); backupEnvsBk.push(e); } });
+  const bucketEnvBk = { ...jobEnv, BACKUPS: { marker: 'the-backup-bucket' } };
+  const dbBBk = new DatabaseSync(':memory:'); const BsBk = makeState(dbBBk); const objBBk = new BusinessBBk(BsBk.state, bucketEnvBk);
+  const bmetaBk = (k) => dbBBk.prepare('SELECT value FROM object_meta WHERE key = ?').get(k)?.value ?? null;
+  await objBBk.fetch(named('alpha-co')); await objBBk.alarm();
+  check(orderBk.join() === 'consolidate,backup' && backupEnvsBk[0].BUSINESS_ID === 'alpha-co' && backupEnvsBk[0].BACKUPS.marker === 'the-backup-bucket' && backupEnvsBk[0].OFFICE_DB !== workerEnv.OFFICE_DB, 'the first hourly alarm runs the hourly job and then the DAILY BACKUP, with this business\'s own database and the backup bucket');
+  check(bmetaBk('last_backup_ok') === '1' && bmetaBk('last_backup_error') === '' && Number.isFinite(Date.parse(bmetaBk('last_backup_success_at'))), 'its success is recorded in the object, so it can be asked and an alert can see it');
+  await objBBk.alarm();
+  check(orderBk.join() === 'consolidate,backup,consolidate', 'the next hour it does NOT back up again (a backup is due only after about 20 hours)');
+  dbBBk.prepare("UPDATE object_meta SET value = ? WHERE key = 'last_backup_success_at'").run(new Date(Date.now() - 21 * 3_600_000).toISOString());
+  await objBBk.alarm();
+  check(orderBk.join() === 'consolidate,backup,consolidate,consolidate,backup', 'and once 21 hours have passed it is due again');
+  // a failing backup
+  const failOrderBk = [];
+  const BusinessCBk = bo.makeBusinessObject(serve, { consolidate: async () => { failOrderBk.push('consolidate'); }, backup: async () => { failOrderBk.push('backup'); throw new Error('the backup bucket is unreachable'); } });
+  const dbCBk = new DatabaseSync(':memory:'); const CsBk = makeState(dbCBk); const objCBk = new BusinessCBk(CsBk.state, bucketEnvBk);
+  await objCBk.fetch(named('beta-co')); const setsBeforeBk = CsBk.alarmSets();
+  const quiet2Bk = console.error; const logged2Bk = []; console.error = (m) => logged2Bk.push(m);
+  try { await objCBk.alarm(); await objCBk.alarm(); } finally { console.error = quiet2Bk; }
+  const cmetaBk = (k) => dbCBk.prepare('SELECT value FROM object_meta WHERE key = ?').get(k)?.value ?? null;
+  check(failOrderBk.join() === 'consolidate,backup,consolidate,backup' && cmetaBk('last_backup_ok') === '0' && /unreachable/.test(cmetaBk('last_backup_error')) && cmetaBk('last_backup_success_at') === null, 'a FAILED backup is recorded (that it failed, why, and that there has been no success) and is tried again the next hour');
+  check(CsBk.alarmSets() === setsBeforeBk + 2 && logged2Bk.length === 2 && /daily backup failed/.test(logged2Bk[0]), 'a failed backup is logged, and the next alarm is still armed');
+  const order2Bk = [];
+  const BusinessDBk = bo.makeBusinessObject(serve, { consolidate: async () => { throw new Error('embedding failed'); }, backup: async () => { order2Bk.push('backup'); } });
+  const dbDBk = new DatabaseSync(':memory:'); const DsBk = makeState(dbDBk); const objDBk = new BusinessDBk(DsBk.state, bucketEnvBk);
+  await objDBk.fetch(named('gamma-co'));
+  const quiet3Bk = console.error; console.error = () => {};
+  try { await objDBk.alarm(); } finally { console.error = quiet3Bk; }
+  check(order2Bk.join() === 'backup', 'a failing hourly job does NOT stop the daily backup (they cannot stop each other)');
+  const order3Bk = [];
+  const BusinessEBk = bo.makeBusinessObject(serve, { consolidate: async () => {}, backup: async () => { order3Bk.push('backup'); } });
+  const dbEBk = new DatabaseSync(':memory:'); const EsBk = makeState(dbEBk); const objEBk = new BusinessEBk(EsBk.state, jobEnv);
+  await objEBk.fetch(named('delta-co')); await objEBk.alarm();
+  check(order3Bk.length === 0, 'with no backup bucket configured, no backup is attempted');
+  // the restore lock
+  dbBBk.prepare("INSERT INTO object_meta (key, value) VALUES ('restoring', '1') ON CONFLICT(key) DO UPDATE SET value = excluded.value").run();
+  const adminReqBk = { url: 'https://x/admin/backup/status', method: 'GET', headers: new Headers({ 'X-Business-Id': 'alpha-co' }) };
+  const seenBeforeLockBk = seen.length;
+  const lockedBk = await objBBk.fetch(named('alpha-co')), lockedBodyBk = await lockedBk.json(), servedBeforeBk = seen.length;
+  const adminGotBk = await objBBk.fetch(adminReqBk);
+  check(lockedBk.status === 503 && lockedBk.headers.get('Retry-After') === '60' && lockedBodyBk.restoring === true && /being restored/.test(lockedBodyBk.error) && servedBeforeBk === seenBeforeLockBk, 'while a restore is running everyone but an administrator is turned away with a clear 503, and the request never reaches the application');
+  check(adminGotBk.status === 200 && seen.length === servedBeforeBk + 1, 'an administrator is NOT lockedBk out (the restore itself, and unlock, are admin calls)');
+  dbBBk.prepare("UPDATE object_meta SET value = '0' WHERE key = 'restoring'").run();
+  check((await objBBk.fetch(named('alpha-co'))).status === 200, 'and once the restore finishes the business is served again');
 
   // ---- the schema source -----------------------------------------------------------------------------------------------------------------------
   const migration = fs.readFileSync(path.join(srcDir, '..', 'migrations', '0001_baseline.sql'), 'utf8');
@@ -115,7 +162,7 @@ async function businessObjectTests({ check, srcDir }) {
   // ---- one copy of the pipeline ------------------------------------------------------------------------------------------------------------------
   const indexSrc = fs.readFileSync(path.join(srcDir, 'index.ts'), 'utf8');
   const objectSrc = fs.readFileSync(path.join(srcDir, 'business-object.ts'), 'utf8').replace(/\/\/.*$/gm, '');
-  check((indexSrc.match(/export async function serveRequest\(/g) || []).length === 1 && (indexSrc.match(/\brunGuarded\(/g) || []).length === 1 && /export const BusinessObject = makeBusinessObject\(serveRequest, \{ consolidate: runConsolidation \}\);/.test(indexSrc), 'the Worker and the object run the SAME pipeline function (serveRequest), handed to the object by the entry module');
+  check((indexSrc.match(/export async function serveRequest\(/g) || []).length === 1 && (indexSrc.match(/\brunGuarded\(/g) || []).length === 1 && /export const BusinessObject = makeBusinessObject\(serveRequest, \{ consolidate: runConsolidation, backup: \(env\) => takeSnapshot\(env\) \}\);/.test(indexSrc), 'the Worker and the object run the SAME pipeline function (serveRequest), handed to the object by the entry module');
   check(!/runGuarded|handleRequest|corsHeadersFor|recordTiming|instrumentEnv/.test(objectSrc), 'the business object contains no copy of any part of the pipeline: it only supplies the database and the schema');
   const entry = indexSrc.slice(indexSrc.indexOf('export default {'), indexSrc.indexOf('async scheduled('));
   check(/if \(env\.BUSINESS_MODE === "object" && env\.BUSINESS\) \{[\s\S]*?if \(request\.method === "OPTIONS"\) return new Response\(null, \{ status: 204, headers: corsHeadersFor\(request\) \}\);[\s\S]*?const route = await routeRequest\(request, env\);[\s\S]*?if \(route\.kind === "business"\) return forwardToBusiness\(request, env, route\.businessId\);[\s\S]*?\}\s*return serveRequest\(request, env, ctx\);/.test(entry), 'the Worker routes ONLY when the mode is "object" and the object exists, answers a preflight itself, forwards to a business only on a business route, and otherwise serves as it always did');

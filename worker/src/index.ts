@@ -1,4 +1,5 @@
 export { TrialObject } from "./trial";
+import { takeSnapshot } from "./backup";
 import { readOnlyRefusal } from "./freeze";
 import { adminTargetBusiness, callBusiness, forwardToBusiness, routeRequest } from "./routing";
 import { lookupBusinessForEmail, normaliseEmail } from "./directory";
@@ -3659,7 +3660,7 @@ export async function serveRequest(request: Request, env: Env, ctx: ExecutionCon
   });
 }
 
-export const BusinessObject = makeBusinessObject(serveRequest, { consolidate: runConsolidation });
+export const BusinessObject = makeBusinessObject(serveRequest, { consolidate: runConsolidation, backup: (env) => takeSnapshot(env) });
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {

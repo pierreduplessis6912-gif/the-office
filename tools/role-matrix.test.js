@@ -842,6 +842,8 @@ async function expect(role, method, path, want) {
   await require('./prod-inventory.test.js')({ check, path, fs });
   // The two production workflows that prepare the real migration.
   await require('./prod-migration.test.js')({ check, path, fs });
+  // Backup and restore of a business's data.
+  await require('./backup.test.js')({ check, srcDir });
   // The rehearsal workflow creates real resources, so its safety must not be removable by accident.
   await require('./rehearsal.test.js')({ check, path, fs });
 

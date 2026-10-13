@@ -7,7 +7,9 @@
 export type AdminTier = "read" | "schema" | "write" | "privileged";
 
 export const ADMIN_ROUTE_TIERS: Readonly<Record<string, AdminTier>> = {
-  // ---- read (59): Looks at data and changes nothing, spends nothing.
+  // ---- read (61): Looks at data and changes nothing, spends nothing.
+  "GET /admin/backup/status": "read",
+  "GET /admin/backup/list": "read",
   "GET /debug/directory": "read",
   "GET /debug/membership-check": "read",
   "GET /debug/trial-d1": "read",
@@ -107,7 +109,8 @@ export const ADMIN_ROUTE_TIERS: Readonly<Record<string, AdminTier>> = {
   "POST /debug/init-tasks-table": "schema",
   "POST /debug/init-variance-dispositions": "schema",
   "POST /debug/init-vat-exempt-column": "schema",
-  // ---- write (23): Changes data, or spends model budget (every route that calls the model or re-runs a recorded note is here, even a GET).
+  // ---- write (24): Changes data, or spends model budget (every route that calls the model or re-runs a recorded note is here, even a GET).
+  "POST /admin/backup/run": "write",
   "GET /debug/trial-ai": "write",
   "GET /debug/trial-do": "write",
   "POST /debug/complete-task/:id": "write",
@@ -131,7 +134,9 @@ export const ADMIN_ROUTE_TIERS: Readonly<Record<string, AdminTier>> = {
   "POST /debug/resolve-entity-test": "write",
   "POST /debug/retry-quotation": "write",
   "POST /debug/split-topics": "write",
-  // ---- privileged (29): Can change who has access, change the banking details on invoices, delete or merge records, or read everything at once. Needs a SECOND secret (ADMIN_CONFIRM_KEY) on top of the admin key, and is switched off while that secret is not set.
+  // ---- privileged (31): Can change who has access, change the banking details on invoices, delete or merge records, or read everything at once. Needs a SECOND secret (ADMIN_CONFIRM_KEY) on top of the admin key, and is switched off while that secret is not set.
+  "POST /admin/backup/restore": "privileged",
+  "POST /admin/backup/unlock": "privileged",
   "GET /admin/migration/whoami": "privileged",
   "POST /debug/directory/check-members": "privileged",
   "POST /admin/migration/vectors-query": "privileged",

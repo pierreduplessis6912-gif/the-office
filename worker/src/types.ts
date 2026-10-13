@@ -42,6 +42,8 @@ export interface Env {
   BUSINESS_ID?: string;
   // The ONE business that owns the document links customers already hold (issued before the move, so they carry no business). Set only for the business that was migrated from the single-business deployment.
   LEGACY_LINK_BUSINESS?: string;
+  // A SEPARATE bucket for backups (backup.ts): snapshots and a mirror of the files, kept apart from the business's own file storage. Absent where no backup bucket is configured.
+  BACKUPS?: R2Bucket;
   // "1" freezes every request that changes something (for the final copy of a migration). See freeze.ts.
   READ_ONLY?: string;
 }
