@@ -66,126 +66,134 @@ export async function migrate({ source, target, include = {}, vectors = null, fo
     throw last;
   }
 
-  // ---- pre-flight ---------------------------------------------------------------------------------------------------------------------------------------------------------
-  const manifest = await call(source, 'GET', '/admin/migration/manifest');
-  step('source manifest', { tables: manifest.tables.length, rows: manifest.tables.reduce((n, t) => n + t.count, 0), counters: manifest.sequences.length });
-  const before = await call(target, 'GET', '/admin/migration/fingerprint');
-  const occupied = Object.entries(before.tables).filter(([, t]) => t.count > 0).map(([n, t]) => `${n} (${t.count})`);
-  if ((occupied.length || before.notes.count || before.files.count) && !force) {
-    step('target is not empty', { occupied, notes: before.notes.count, files: before.files.count });
-    report.mismatches.push('the target business already holds data; refusing to mix (use force to copy over it)');
-    report.durationMs = Date.now() - started;
-    return report;
-  }
-  const order = copyOrder(manifest.tables);
+  // Whatever goes wrong, the caller gets back what was done, how far it got and the error: a failure must never lose the report (the first real rehearsal crashed and printed nothing).
+  try {
+    // ---- pre-flight ---------------------------------------------------------------------------------------------------------------------------------------------------------
+    const manifest = await call(source, 'GET', '/admin/migration/manifest');
+    step('source manifest', { tables: manifest.tables.length, rows: manifest.tables.reduce((n, t) => n + t.count, 0), counters: manifest.sequences.length });
+    const before = await call(target, 'GET', '/admin/migration/fingerprint');
+    const occupied = Object.entries(before.tables).filter(([, t]) => t.count > 0).map(([n, t]) => `${n} (${t.count})`);
+    if ((occupied.length || before.notes.count || before.files.count) && !force) {
+      step('target is not empty', { occupied, notes: before.notes.count, files: before.files.count });
+      report.mismatches.push('the target business already holds data; refusing to mix (use force to copy over it)');
+      report.durationMs = Date.now() - started;
+      return report;
+    }
+    const order = copyOrder(manifest.tables);
 
-  // ---- the database ---------------------------------------------------------------------------------------------------------------------------------------------------------
-  const memberships = [];
-  if (want.db) {
-    const schema = await call(target, 'POST', '/admin/migration/schema', { json: { tables: order.map((n) => manifest.tables.find((t) => t.name === n)).map(({ name, sql, columns }) => ({ name, sql, columns })) } });
-    step('schema', { created: schema.created, columnsAdded: schema.columnsAdded });
-    let total = 0;
-    for (const name of order) {
-      let after = 0, n = 0;
-      for (;;) {
-        const page = await call(source, 'GET', '/admin/migration/rows', { query: { table: name, after, limit: pageSize } });
-        if (!page.rows.length) break;
-        await call(target, 'POST', '/admin/migration/rows', { json: { table: name, rows: page.rows } });
-        if (name === 'memberships') memberships.push(...page.rows);
-        n += page.rows.length; after = page.last;
+    // ---- the database ---------------------------------------------------------------------------------------------------------------------------------------------------------
+    const memberships = [];
+    if (want.db) {
+      const schema = await call(target, 'POST', '/admin/migration/schema', { json: { tables: order.map((n) => manifest.tables.find((t) => t.name === n)).map(({ name, sql, columns }) => ({ name, sql, columns })) } });
+      step('schema', { created: schema.created, columnsAdded: schema.columnsAdded });
+      let total = 0;
+      for (const name of order) {
+        let after = 0, n = 0;
+        for (;;) {
+          const page = await call(source, 'GET', '/admin/migration/rows', { query: { table: name, after, limit: pageSize } });
+          if (!page.rows.length) break;
+          await call(target, 'POST', '/admin/migration/rows', { json: { table: name, rows: page.rows } });
+          if (name === 'memberships') memberships.push(...page.rows);
+          n += page.rows.length; after = page.last;
+        }
+        total += n;
+        if (n) step(`rows ${name}`, { copied: n });
       }
-      total += n;
-      if (n) step(`rows ${name}`, { copied: n });
+      const seq = await call(target, 'POST', '/admin/migration/sequences', { json: { sequences: manifest.sequences } });
+      step('id counters', { carried: seq.set });
+      step('database done', { rows: total });
     }
-    const seq = await call(target, 'POST', '/admin/migration/sequences', { json: { sequences: manifest.sequences } });
-    step('id counters', { carried: seq.set });
-    step('database done', { rows: total });
-  }
 
-  // ---- notes ------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  if (want.notes) {
-    let cursor = null, n = 0;
-    do {
-      const page = await call(source, 'GET', '/admin/migration/notes', { query: cursor ? { cursor } : {} });
-      if (page.entries.length) await call(target, 'POST', '/admin/migration/notes', { json: { entries: page.entries } });
-      n += page.entries.length; cursor = page.cursor;
-    } while (cursor);
-    step('notes', { copied: n });
-  }
+    // ---- notes ------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    if (want.notes) {
+      let cursor = null, n = 0;
+      do {
+        const page = await call(source, 'GET', '/admin/migration/notes', { query: cursor ? { cursor } : {} });
+        if (page.entries.length) await call(target, 'POST', '/admin/migration/notes', { json: { entries: page.entries } });
+        n += page.entries.length; cursor = page.cursor;
+      } while (cursor);
+      step('notes', { copied: n });
+    }
 
-  // ---- files ------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  if (want.files) {
-    let cursor = null, n = 0, bytes = 0;
-    do {
-      const page = await call(source, 'GET', '/admin/migration/files', { query: cursor ? { cursor } : {} });
-      for (const o of page.objects) {
-        const res = await call(source, 'GET', '/admin/migration/file', { query: { key: o.key }, raw: true });
-        const data = new Uint8Array(await res.arrayBuffer());
-        await call(target, 'POST', '/admin/migration/file', { query: { key: o.key, type: res.headers.get('content-type') ?? 'application/octet-stream' }, body: data });
-        n++; bytes += data.length;
+    // ---- files ------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    if (want.files) {
+      let cursor = null, n = 0, bytes = 0;
+      do {
+        const page = await call(source, 'GET', '/admin/migration/files', { query: cursor ? { cursor } : {} });
+        for (const o of page.objects) {
+          const res = await call(source, 'GET', '/admin/migration/file', { query: { key: o.key }, raw: true });
+          const data = new Uint8Array(await res.arrayBuffer());
+          await call(target, 'POST', '/admin/migration/file', { query: { key: o.key, type: res.headers.get('content-type') ?? 'application/octet-stream' }, body: data });
+          n++; bytes += data.length;
+        }
+        cursor = page.cursor;
+      } while (cursor);
+      step('files', { copied: n, bytes });
+    }
+
+    // ---- memories (through Cloudflare's API: the Worker cannot list a Vectorize index) -------------------------------------------------------------------------
+    if (vectors) {
+      const api = (path) => fetchImpl(`https://api.cloudflare.com/client/v4/accounts/${vectors.accountId}/vectorize/v2/indexes/${vectors.indexName}${path}`, { headers: { Authorization: `Bearer ${vectors.apiToken}` } }).then((r) => r.json());
+      const ids = []; let cursor = null;
+      do { const r = await api(`/list?count=1000${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`); if (!r.success) throw new Error(`could not list the memory index: ${JSON.stringify(r.errors)}`); ids.push(...r.result.vectors.map((v) => v.id)); cursor = r.result.isTruncated ? r.result.nextCursor : null; } while (cursor);
+      // Vectorize applies a write ASYNCHRONOUSLY (found on the real index: about 100 seconds for two vectors), so reading back straight after writing would report false differences. Every write
+      // returns a mutation id; Cloudflare's index info says how far it has processed (processedUpToMutation). Wait for the LAST write, then read everything back and compare.
+      let copied = 0, differ = 0, lastMutation = null;
+      const copiedVectors = [];
+      for (let i = 0; i < ids.length; i += 20) {
+        const chunk = ids.slice(i, i + 20);
+        const got = await call(source, 'POST', '/admin/migration/vectors-by-ids', { json: { ids: chunk } });
+        const written = await call(target, 'POST', '/admin/migration/vectors', { json: { vectors: got.vectors } });
+        if (written.mutationId) lastMutation = written.mutationId;
+        copiedVectors.push(...got.vectors); copied += got.vectors.length;
       }
-      cursor = page.cursor;
-    } while (cursor);
-    step('files', { copied: n, bytes });
-  }
-
-  // ---- memories (through Cloudflare's API: the Worker cannot list a Vectorize index) -------------------------------------------------------------------------
-  if (vectors) {
-    const api = (path) => fetchImpl(`https://api.cloudflare.com/client/v4/accounts/${vectors.accountId}/vectorize/v2/indexes/${vectors.indexName}${path}`, { headers: { Authorization: `Bearer ${vectors.apiToken}` } }).then((r) => r.json());
-    const ids = []; let cursor = null;
-    do { const r = await api(`/list?count=1000${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`); if (!r.success) throw new Error(`could not list the memory index: ${JSON.stringify(r.errors)}`); ids.push(...r.result.vectors.map((v) => v.id)); cursor = r.result.isTruncated ? r.result.nextCursor : null; } while (cursor);
-    // Vectorize applies a write ASYNCHRONOUSLY (found on the real index: about 100 seconds for two vectors), so reading back straight after writing would report false differences. Every write
-    // returns a mutation id; Cloudflare's index info says how far it has processed (processedUpToMutation). Wait for the LAST write, then read everything back and compare.
-    let copied = 0, differ = 0, lastMutation = null;
-    const copiedVectors = [];
-    for (let i = 0; i < ids.length; i += 20) {
-      const chunk = ids.slice(i, i + 20);
-      const got = await call(source, 'POST', '/admin/migration/vectors-by-ids', { json: { ids: chunk } });
-      const written = await call(target, 'POST', '/admin/migration/vectors', { json: { vectors: got.vectors } });
-      if (written.mutationId) lastMutation = written.mutationId;
-      copiedVectors.push(...got.vectors); copied += got.vectors.length;
-    }
-    let waitedMs = 0, processed = lastMutation === null;
-    if (lastMutation && vectors.targetIndexName) {
-      const infoUrl = `https://api.cloudflare.com/client/v4/accounts/${vectors.accountId}/vectorize/v2/indexes/${vectors.targetIndexName}/info`;
-      const limit = vectors.maxWaitMs ?? 600000;
-      while (waitedMs <= limit) {
-        const info = await fetchImpl(infoUrl, { headers: { Authorization: `Bearer ${vectors.apiToken}` } }).then((r) => r.json());
-        if (info.success && info.result?.processedUpToMutation === lastMutation) { processed = true; break; }
-        await sleep(pollMs); waitedMs += pollMs;
+      let waitedMs = 0, processed = lastMutation === null;
+      if (lastMutation && vectors.targetIndexName) {
+        const infoUrl = `https://api.cloudflare.com/client/v4/accounts/${vectors.accountId}/vectorize/v2/indexes/${vectors.targetIndexName}/info`;
+        const limit = vectors.maxWaitMs ?? 600000;
+        while (waitedMs <= limit) {
+          const info = await fetchImpl(infoUrl, { headers: { Authorization: `Bearer ${vectors.apiToken}` } }).then((r) => r.json());
+          if (info.success && info.result?.processedUpToMutation === lastMutation) { processed = true; break; }
+          await sleep(pollMs); waitedMs += pollMs;
+        }
       }
+      if (!processed) report.mismatches.push(`memories: the target index had not processed the writes after ${Math.round(waitedMs / 1000)} s, so they could not be verified`);
+      for (let i = 0; i < copiedVectors.length; i += 20) {
+        const chunk = copiedVectors.slice(i, i + 20);
+        const back = await call(target, 'POST', '/admin/migration/vectors-by-ids', { json: { ids: chunk.map((v) => v.id) } });
+        const byId = new Map(back.vectors.map((v) => [v.id, v]));
+        for (const v of chunk) { const b = byId.get(v.id); if (!b || canonicalJson(b.metadata) !== canonicalJson(v.metadata) || b.values.length !== v.values.length || b.values.some((x, j) => Math.abs(x - v.values[j]) > 1e-6)) differ++; }
+      }
+      step('memories', { listed: ids.length, copied, differ, waitedSeconds: Math.round(waitedMs / 1000), processed });
+      if (differ || copied !== ids.length) report.mismatches.push(`memories: ${ids.length} listed, ${copied} copied, ${differ} differ after being read back`);
     }
-    if (!processed) report.mismatches.push(`memories: the target index had not processed the writes after ${Math.round(waitedMs / 1000)} s, so they could not be verified`);
-    for (let i = 0; i < copiedVectors.length; i += 20) {
-      const chunk = copiedVectors.slice(i, i + 20);
-      const back = await call(target, 'POST', '/admin/migration/vectors-by-ids', { json: { ids: chunk.map((v) => v.id) } });
-      const byId = new Map(back.vectors.map((v) => [v.id, v]));
-      for (const v of chunk) { const b = byId.get(v.id); if (!b || canonicalJson(b.metadata) !== canonicalJson(v.metadata) || b.values.length !== v.values.length || b.values.some((x, j) => Math.abs(x - v.values[j]) > 1e-6)) differ++; }
-    }
-    step('memories', { listed: ids.length, copied, differ, waitedSeconds: Math.round(waitedMs / 1000), processed });
-    if (differ || copied !== ids.length) report.mismatches.push(`memories: ${ids.length} listed, ${copied} copied, ${differ} differ after being read back`);
-  }
 
-  // ---- the team can sign in: register each ACTIVE member in the directory -------------------------------------------------------------------------
-  if (want.db && memberships.length) {
-    const registered = [], skipped = [];
-    for (const m of memberships) {
-      if (m.status !== 'active') { skipped.push(m.status); continue; }
-      await call(target, 'POST', '/debug/directory/add-member', { json: { email: m.google_email, business_id: target.business, role: m.role, skip_membership: true }, workerLevel: true });
-      registered.push(m.role);
+    // ---- the team can sign in: register each ACTIVE member in the directory -------------------------------------------------------------------------
+    if (want.db && memberships.length) {
+      const registered = [], skipped = [];
+      for (const m of memberships) {
+        if (m.status !== 'active') { skipped.push(m.status); continue; }
+        await call(target, 'POST', '/debug/directory/add-member', { json: { email: m.google_email, business_id: target.business, role: m.role, skip_membership: true }, workerLevel: true });
+        registered.push(m.role);
+      }
+      step('directory', { registered: registered.length, notActive: skipped.length });
     }
-    step('directory', { registered: registered.length, notActive: skipped.length });
-  }
-  const indexes = await call(target, 'POST', '/debug/init-indexes');
-  step('indexes', { created: indexes.created.length, failed: indexes.failed.length });
+    const indexes = await call(target, 'POST', '/debug/init-indexes');
+    step('indexes', { created: indexes.created.length, failed: indexes.failed.length });
 
-  // ---- the proof --------------------------------------------------------------------------------------------------------------------------------------------------------------
-  const fs = await call(source, 'GET', '/admin/migration/fingerprint');
-  const ft = await call(target, 'GET', '/admin/migration/fingerprint');
-  const diff = compareFingerprints(fs, ft);
-  report.mismatches.push(...diff);
-  step('fingerprints compared', { tables: Object.keys(fs.tables).length, notes: fs.notes.count, files: fs.files.count, differences: diff.length });
-  report.ok = report.mismatches.length === 0;
+    // ---- the proof --------------------------------------------------------------------------------------------------------------------------------------------------------------
+    const fs = await call(source, 'GET', '/admin/migration/fingerprint');
+    const ft = await call(target, 'GET', '/admin/migration/fingerprint');
+    const diff = compareFingerprints(fs, ft);
+    report.mismatches.push(...diff);
+    step('fingerprints compared', { tables: Object.keys(fs.tables).length, notes: fs.notes.count, files: fs.files.count, differences: diff.length });
+
+    report.ok = report.mismatches.length === 0;
+  } catch (e) {
+    report.ok = false;
+    report.error = String(e && e.message ? e.message : e).slice(0, 700);
+    report.failedAfter = report.steps.length ? report.steps[report.steps.length - 1].name : 'the start';
+  }
   report.durationMs = Date.now() - started;
   return report;
 }

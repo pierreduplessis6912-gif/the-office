@@ -349,7 +349,7 @@ jobs:
               "when": datetime.datetime.utcnow().isoformat() + "Z", "run": os.environ.get("GITHUB_RUN_ID"), "commit": os.environ.get("GITHUB_SHA", "")[:7],
               "source": "office-rehearsal-src (D1 mode)", "target_business": os.environ.get("BUSINESS"),
               "outcomes": {"migrate": os.environ.get("MIGRATE"), "rerun": os.environ.get("RERUN"), "verify": os.environ.get("VERIFY")}, "source_loaded": os.environ.get("SOURCE_LOADED"),
-              "migration": {"ok": report.get("ok"), "seconds": round((report.get("durationMs") or 0) / 1000), "mismatches": report.get("mismatches"), "steps": report.get("steps")},
+              "migration": {"ok": report.get("ok"), "seconds": round((report.get("durationMs") or 0) / 1000), "mismatches": report.get("mismatches"), "error": report.get("error"), "failed_after": report.get("failedAfter"), "steps": report.get("steps"), "exit": read("report.exit"), "log_tail": (read("report.log") or "")[-1500:]},
               "second_run_without_force": {"exit": read("refused.exit"), "ok": refused.get("ok"), "said": refused.get("mismatches"), "target_unchanged": readjson("fp-settled.json") == readjson("fp-after-refusal.json")},
               "forced_run": {"exit": read("forced.exit"), "ok": forced.get("ok"), "target_unchanged": readjson("fp-settled.json") == readjson("fp-after-force.json")},
               "target_after": fp_summary("fp-after-force.json"),

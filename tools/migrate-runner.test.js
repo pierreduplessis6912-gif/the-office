@@ -110,9 +110,9 @@ async function runnerTests({ check, srcDir }) {
   const lossy = fresh();
   const lost = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wire(lossy, dropFrom('lazy_things')).fetchImpl, pageSize: 1 });
   check(!lost.ok && lost.mismatches.some((m) => /table lazy_things: 2 rows in the source, 0 in the target/.test(m)), 'if the target silently drops rows, the run is NOT ok and says which table', lost.mismatches.join('; '));
-  const orphaned = fresh(); let orphanError = '';
-  try { await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wire(orphaned, dropFrom('customers')).fetchImpl, pageSize: 1 }); } catch (e) { orphanError = String(e.message); }
-  check(/FOREIGN KEY constraint failed/.test(orphanError) && orphaned.T.db.prepare('SELECT COUNT(*) AS n FROM payments').get().n === 0, 'and if a parent row goes missing, the database REFUSES the payment that references it (no orphan is ever created) and the run stops loudly');
+  const orphaned = fresh();
+  const orphanRun = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wire(orphaned, dropFrom('customers')).fetchImpl, pageSize: 1 });
+  check(orphanRun.ok === false && /FOREIGN KEY constraint failed/.test(orphanRun.error ?? '') && typeof orphanRun.failedAfter === 'string' && orphanRun.failedAfter.length > 0 && orphanRun.steps.length === orphanRun.steps.filter((s) => s.name).length && orphaned.T.db.prepare('SELECT COUNT(*) AS n FROM payments').get().n === 0, 'and if a parent row goes missing, the database REFUSES the payment that references it (no orphan is ever created) and the run stops, reporting the error and the last step it completed', JSON.stringify({ error: orphanRun.error, after: orphanRun.failedAfter }));
   const garbled = fresh();
   const wg = wire(garbled, { before: async ({ host, method, path, init }) => { if (host === 'target' && method === 'POST' && path === '/admin/migration/file') { const bytes = new Uint8Array(init.body); bytes[0] ^= 1; init.body = bytes; } return null; } });
   const garble = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wg.fetchImpl });
@@ -125,8 +125,9 @@ async function runnerTests({ check, srcDir }) {
   check(ok503.ok === true && boom === 3, 'a 503 glitch is retried and the run still completes (found live: a new deploy takes a moment to reach every location)');
   const denied = fresh(); let tries = 0;
   const wd = wire(denied, { before: async ({ host, path }) => { if (host === 'source' && path === '/admin/migration/manifest') { tries++; return new Response('{"error":"forbidden"}', { status: 403 }); } return null; } });
-  let failure = ''; try { await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wd.fetchImpl }); } catch (e) { failure = String(e.message); }
-  check(/403/.test(failure) && tries === 1, 'a 403 is an ANSWER, not a glitch: it stops at once and is not retried');
+  const denial = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wd.fetchImpl });
+  check(denial.ok === false && /403/.test(denial.error ?? '') && tries === 1 && denial.failedAfter === 'the start', 'a 403 is an ANSWER, not a glitch: it stops at once, is not retried, and is REPORTED (the first real rehearsal crashed and printed nothing)');
+  check(Array.isArray(denial.steps) && typeof denial.durationMs === 'number', 'a failed run still returns its steps and its duration, so the command line can always print a report');
 
   // ---- pieces ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   const m = await mg.manifest(world.S.env), order = lib.copyOrder(m.tables);
