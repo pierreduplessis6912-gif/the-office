@@ -1,7 +1,7 @@
 {
- "when": "2026-10-12T21:57:49.101418Z",
- "run": "38313746559",
- "commit": "d4a161b",
+ "when": "2026-10-13T04:21:05.061071Z",
+ "run": "38345529536",
+ "commit": "e05850a",
  "resources": {
   "database_id": "527785b0-2ca7-4d18-a3b0-0a1d6d0d671a",
   "kv_namespace_id": "5cb9a972eeef4e6b95fea4f6ed95e28a",
@@ -14,7 +14,8 @@
   "trial": "success",
   "business_object_e2e": "success",
   "real_sentence": "success",
-  "businesses_created": "success"
+  "businesses_created": "success",
+  "memory_index_probe": "success"
  },
  "init_routes": [
   "/debug/init-capture-id-column 200",
@@ -106,23 +107,23 @@
   "sharedTrips": 0,
   "sharedMs": null,
   "objectColo": null,
-  "rowsInThisObjectsOwnTable": 168,
+  "rowsInThisObjectsOwnTable": 196,
   "object": "staging-a",
   "hint": "weur",
   "callsMs": [
-   530,
-   119,
-   117,
-   117
+   475,
+   98,
+   98,
+   100
   ],
-  "firstCallMs": 530,
-  "warmCallsMedianMs": 117,
-  "workerToObjectAndBackMs": 117
+  "firstCallMs": 475,
+  "warmCallsMedianMs": 98,
+  "workerToObjectAndBackMs": 100
  },
  "trial_d1": {
   "statements": 10,
-  "totalMs": 1354,
-  "perStatementMs": 135.4,
+  "totalMs": 1050,
+  "perStatementMs": 105,
   "note": "SELECT 1 against the production database: reads no data"
  },
  "businesses": {
@@ -149,45 +150,88 @@
    "admin_call_naming_no_business": "400"
   },
   "five_list_calls_seconds_from_a_US_runner": [
-   0.220616,
-   0.221491,
-   0.203278,
-   0.224989,
-   0.22952
+   0.134813,
+   0.143325,
+   3.536443,
+   0.151591,
+   2.368281
   ]
+ },
+ "memory_index_probe": {
+  "upsert_status": {
+   "first_business": "200",
+   "second_business": "200"
+  },
+  "seconds_until_searchable": 60,
+  "search_in_first_business_returns": [],
+  "search_in_second_business_returns": [],
+  "each_business_searches_only_its_own_memory": false,
+  "same_id_in_both_businesses_reads_back_its_own": false,
+  "physical_ids_in_the_shared_index": [
+   "staging-co:probe-1"
+  ],
+  "ids_are_prefixed_with_the_business": false,
+  "list_api_total_vectors": 1
  },
  "real_sentence": {
   "sentence": "Invoice Staging Customer One R1500 for repairing the bathroom floor",
-  "message_status_and_seconds_from_a_US_runner": "200 7.408062",
-  "reply": "Invoice noted for Staging Customer One of R1500 \u2014 needs your confirmation (action #2) before it's recorded. Job scope #2 also recorded \u2014 1 component measured, 1 task noted.",
+  "message_status_and_seconds_from_a_US_runner": "200 10.782355",
+  "reply": "Invoice noted for Staging Customer One of R1500 \u2014 needs your confirmation (action #3) before it's recorded. Job scope #3 also recorded \u2014 1 component measured, 1 task noted.",
   "held_action": {
-   "id": 2,
+   "id": 3,
    "type": "invoice"
   },
   "customer_matched": "Staging Customer One",
-  "confirm_status_and_seconds": "200 0.238984",
+  "confirm_status_and_seconds": "200 0.414300",
   "confirm_reply": "confirmed",
   "inside_the_object_model_versus_database": {
    "POST /messages/text": {
-    "n": 2,
-    "p50Ms": 7176,
-    "p95Ms": 7519,
-    "meanAiMs": 7347.5,
+    "n": 3,
+    "p50Ms": 7519,
+    "p95Ms": 10602,
+    "meanAiMs": 8432.3,
     "meanAiCalls": 3,
     "meanDbMs": 0,
     "meanDbCalls": 26
    },
-   "POST /debug/kv-set": {
+   "POST /admin/migration/vectors": {
     "n": 1,
+    "p50Ms": 2037,
+    "p95Ms": 2037,
+    "meanAiMs": 0,
+    "meanAiCalls": 0,
+    "meanDbMs": 0,
+    "meanDbCalls": 1
+   },
+   "POST /admin/migration/vectors-query": {
+    "n": 12,
+    "p50Ms": 150,
+    "p95Ms": 559,
+    "meanAiMs": 0,
+    "meanAiCalls": 0,
+    "meanDbMs": 0,
+    "meanDbCalls": 1
+   },
+   "POST /admin/migration/vectors-by-ids": {
+    "n": 1,
+    "p50Ms": 151,
+    "p95Ms": 151,
+    "meanAiMs": 0,
+    "meanAiCalls": 0,
+    "meanDbMs": 0,
+    "meanDbCalls": 1
+   },
+   "POST /debug/kv-set": {
+    "n": 2,
     "p50Ms": 48,
-    "p95Ms": 48,
+    "p95Ms": 53,
     "meanAiMs": 0,
     "meanAiCalls": 0,
     "meanDbMs": 0,
     "meanDbCalls": 1
    },
    "POST /actions/:id/confirm": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -196,16 +240,16 @@
     "meanDbCalls": 10
    },
    "POST /files/customers-csv-import": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
     "meanAiCalls": 0,
     "meanDbMs": 0,
-    "meanDbCalls": 10
+    "meanDbCalls": 9.7
    },
    "POST /debug/init-indexes": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -214,7 +258,7 @@
     "meanDbCalls": 3
    },
    "POST /debug/init-vat-exempt-column": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -223,7 +267,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-variance-dispositions": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -232,7 +276,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-tasks-table": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -241,7 +285,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-tasks-fk": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -250,7 +294,7 @@
     "meanDbCalls": 3
    },
    "POST /debug/init-task-due-date-columns": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -259,7 +303,7 @@
     "meanDbCalls": 3
    },
    "POST /debug/init-supplier-payments": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -268,7 +312,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-supplier-invoices": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -277,7 +321,7 @@
     "meanDbCalls": 3
    },
    "POST /debug/init-stock": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -286,7 +330,7 @@
     "meanDbCalls": 5
    },
    "POST /debug/init-snags": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -295,7 +339,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-selections-table": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -304,7 +348,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-retention-columns": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -313,7 +357,7 @@
     "meanDbCalls": 4
    },
    "POST /debug/init-purchase-orders": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -322,7 +366,7 @@
     "meanDbCalls": 3
    },
    "POST /debug/init-projects": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -331,7 +375,7 @@
     "meanDbCalls": 3
    },
    "POST /debug/init-products": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -340,7 +384,7 @@
     "meanDbCalls": 6
    },
    "POST /debug/init-people-merge": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -349,7 +393,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-memberships": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -358,7 +402,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-membership-character": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -367,7 +411,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-leads-capture-id": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -376,7 +420,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-leads": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -385,7 +429,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-jobscopes-installer": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -394,7 +438,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-job-scopes-date": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -403,7 +447,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-job-scope-links": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -412,7 +456,7 @@
     "meanDbCalls": 3
    },
    "POST /debug/init-job-scope-amendments": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -421,7 +465,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-invoices-due-date": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -430,7 +474,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-interaction-edges": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -439,7 +483,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-identity-layer": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -448,7 +492,7 @@
     "meanDbCalls": 6
    },
    "POST /debug/init-idempotency-keys": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -457,7 +501,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-grn-recorded-by": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -466,7 +510,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-goods-received": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -475,7 +519,7 @@
     "meanDbCalls": 3
    },
    "POST /debug/init-expenses-table": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -484,7 +528,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-expenses-jobcost": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -493,7 +537,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-expenses-category": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -502,7 +546,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-discount-column": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -511,7 +555,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-customer-merge": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -520,7 +564,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-character-merge": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -529,7 +573,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-character-facts": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -538,7 +582,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-captures-fk": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -547,7 +591,7 @@
     "meanDbCalls": 3
    },
    "POST /debug/init-capture-id-column": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -556,7 +600,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/create-membership": {
-    "n": 2,
+    "n": 3,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
