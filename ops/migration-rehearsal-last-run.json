@@ -1,9 +1,9 @@
 {
- "when": "2026-10-13T06:07:30.842380Z",
- "run": "38354371029",
- "commit": "7b8177f",
+ "when": "2026-10-13T06:24:03.374945Z",
+ "run": "38355463926",
+ "commit": "83daa87",
  "source": "office-rehearsal-src (D1 mode)",
- "target_business": "reh-38354371029",
+ "target_business": "reh-38355463926",
  "outcomes": {
   "migrate": "success",
   "rerun": "success",
@@ -11,10 +11,105 @@
  },
  "source_loaded": "skipped",
  "migration": {
-  "ok": null,
-  "seconds": 0,
-  "mismatches": null,
-  "steps": null
+  "ok": false,
+  "seconds": 337,
+  "mismatches": [],
+  "error": "POST /debug/directory/add-member -> 400 {\"error\":\"that email already belongs to another business\"}",
+  "failed_after": "memories",
+  "steps": [
+   {
+    "name": "source manifest",
+    "tables": 41,
+    "rows": 16,
+    "counters": 8,
+    "ms": 31044
+   },
+   {
+    "name": "schema",
+    "created": [
+     "lazy_things"
+    ],
+    "columnsAdded": [
+     {
+      "table": "tasks",
+      "column": "priority"
+     }
+    ],
+    "ms": 877
+   },
+   {
+    "name": "rows customers",
+    "copied": 4,
+    "ms": 3396
+   },
+   {
+    "name": "rows expenses",
+    "copied": 1,
+    "ms": 1112
+   },
+   {
+    "name": "rows invoices",
+    "copied": 2,
+    "ms": 2713
+   },
+   {
+    "name": "rows lazy_things",
+    "copied": 2,
+    "ms": 2448
+   },
+   {
+    "name": "rows memberships",
+    "copied": 3,
+    "ms": 2416
+   },
+   {
+    "name": "rows payments",
+    "copied": 1,
+    "ms": 1557
+   },
+   {
+    "name": "rows stock_items",
+    "copied": 1,
+    "ms": 6944
+   },
+   {
+    "name": "rows tasks",
+    "copied": 2,
+    "ms": 4068
+   },
+   {
+    "name": "id counters",
+    "carried": 8,
+    "ms": 660
+   },
+   {
+    "name": "database done",
+    "rows": 16,
+    "ms": 1
+   },
+   {
+    "name": "notes",
+    "copied": 250,
+    "ms": 53133
+   },
+   {
+    "name": "files",
+    "copied": 40,
+    "bytes": 21020,
+    "ms": 47628
+   },
+   {
+    "name": "memories",
+    "listed": 45,
+    "copied": 45,
+    "differ": 0,
+    "waitedSeconds": 160,
+    "processed": true,
+    "ms": 177828
+   }
+  ],
+  "exit": "exit=1",
+  "log_tail": "source manifest {\"tables\":41,\"rows\":16,\"counters\":8}\nschema {\"created\":[\"lazy_things\"],\"columnsAdded\":[{\"table\":\"tasks\",\"column\":\"priority\"}]}\nrows customers {\"copied\":4}\nrows expenses {\"copied\":1}\nrows invoices {\"copied\":2}\nrows lazy_things {\"copied\":2}\nrows memberships {\"copied\":3}\nrows payments {\"copied\":1}\nrows stock_items {\"copied\":1}\nrows tasks {\"copied\":2}\nid counters {\"carried\":8}\ndatabase done {\"rows\":16}\nnotes {\"copied\":250}\nfiles {\"copied\":40,\"bytes\":21020}\nmemories {\"listed\":45,\"copied\":45,\"differ\":0,\"waitedSeconds\":160,\"processed\":true}"
  },
  "second_run_without_force": {
   "exit": "exit=1",
@@ -26,7 +121,7 @@
  },
  "forced_run": {
   "exit": "exit=1",
-  "ok": null,
+  "ok": false,
   "target_unchanged": true
  },
  "target_after": {
