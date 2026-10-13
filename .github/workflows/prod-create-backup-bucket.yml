@@ -1,0 +1,61 @@
+name: Production backup bucket (create it)
+
+# SHIP_CHECKLIST.md item 10. Creates the SEPARATE bucket the daily backups go into (`office-backups`), kept apart from the business's own file storage (`office-vault`). It must exist BEFORE the production configuration
+# that binds it is deployed. It only creates (and lists to confirm); it deletes nothing. Safe to re-run. Started by hand only.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: prod-create-backup-bucket
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.PROVISION }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      BUCKET: office-backups
+      RESULTS: ${{ github.workspace }}/results
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Create the bucket (safe to re-run) and confirm it exists
+        run: |
+          mkdir -p "$RESULTS"
+          npm install -g wrangler@4
+          wrangler r2 bucket create "$BUCKET" > "$RESULTS/create.txt" 2>&1 || echo "The bucket probably exists already, continuing."
+          cat "$RESULTS/create.txt"
+          wrangler r2 bucket list > "$RESULTS/list.txt" 2>&1
+          grep -q "$BUCKET" "$RESULTS/list.txt"
+
+      - name: Record what was found
+        if: always()
+        run: |
+          mkdir -p ops
+          python3 - <<'PY'
+          import json, os, datetime
+          r = os.environ["RESULTS"]
+          def read(n):
+              try:
+                  return open(os.path.join(r, n)).read()
+              except Exception:
+                  return ""
+          listing = read("list.txt")
+          out = {"when": datetime.datetime.utcnow().isoformat() + "Z", "run": os.environ.get("GITHUB_RUN_ID"), "bucket": os.environ.get("BUCKET"),
+                 "the_bucket_exists_now": os.environ.get("BUCKET") in listing, "create_output": read("create.txt")[-300:]}
+          json.dump(out, open("ops/production-backup-bucket-last.json", "w"), indent=1)
+          PY
+          git config user.name "production-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/production-backup-bucket-last.json
+          git commit -m "Production backup bucket record" || echo "nothing to record"
+          git pull --rebase origin main
+          git push origin HEAD:main

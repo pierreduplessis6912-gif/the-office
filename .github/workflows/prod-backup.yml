@@ -1,0 +1,112 @@
+name: Production backup (daily check, and take one now)
+
+# SHIP_CHECKLIST.md item 10. The ALERT for the backups, and a way to take one by hand.
+# Every day it READS the business's backup status and goes RED (so GitHub emails the owner) if the backups are not healthy: no backup bucket configured, the last attempt failed, no complete snapshot, or the newest
+# is more than 30 hours old. By hand it can also take a snapshot now (the only write, and only when asked: action = run). It never restores. The record (counts and statuses only) is committed only for a manual run.
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "status = just check; run = also take a snapshot now"
+        type: choice
+        options:
+          - status
+          - run
+        default: status
+
+concurrency:
+  group: prod-backup
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      PROD_URL: https://office.websitehub.co.za
+      BUSINESS: zululand-flooring-and-blinds
+      STALE_AFTER_HOURS: "30"
+      RESULTS: ${{ github.workspace }}/results
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Take a snapshot now (only when asked, by hand)
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'run'
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+        run: |
+          mkdir -p "$RESULTS"
+          curl -s -X POST "$PROD_URL/admin/backup/run" -H "X-Admin-Key: $ADMIN" -H "X-Target-Business: $BUSINESS" > "$RESULTS/run.json"
+          cat "$RESULTS/run.json"; echo
+
+      - name: Read the backup status (reads only)
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+        run: |
+          mkdir -p "$RESULTS"
+          curl -s "$PROD_URL/admin/backup/status" -H "X-Admin-Key: $ADMIN" -H "X-Target-Business: $BUSINESS" > "$RESULTS/status.json"
+          curl -s "$PROD_URL/admin/backup/list" -H "X-Admin-Key: $ADMIN" -H "X-Target-Business: $BUSINESS" > "$RESULTS/list.json"
+          cat "$RESULTS/status.json"; echo
+
+      - name: Judge the backups
+        id: judge
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          r = os.environ["RESULTS"]
+          try:
+              s = json.load(open(os.path.join(r, "status.json")))
+          except Exception:
+              s = {}
+          limit = float(os.environ["STALE_AFTER_HOURS"])
+          problems = []
+          if s.get("backupBucketConfigured") is not True:
+              problems.append("no backup bucket is configured")
+          if s.get("lastAttemptOk") is False:
+              problems.append("the last backup attempt FAILED: %s" % s.get("lastError"))
+          if not s.get("complete"):
+              problems.append("there is no complete snapshot")
+          age = s.get("newestAgeHours")
+          if age is None:
+              problems.append("the newest snapshot has no age")
+          elif age > limit:
+              problems.append("the newest snapshot is %s hours old (limit %s)" % (age, limit))
+          verdict = {"healthy": not problems, "problems": problems, "snapshots_complete": s.get("complete"), "newest_age_hours": age, "keep": s.get("keep"), "last_attempt_ok": s.get("lastAttemptOk")}
+          json.dump(verdict, open(os.path.join(r, "verdict.json"), "w"))
+          print(json.dumps(verdict, indent=1))
+          open(os.environ["GITHUB_OUTPUT"], "a").write("healthy=%s\n" % ("true" if not problems else "false"))
+          PY
+
+      - name: Record what was found (manual runs only)
+        if: always() && github.event_name == 'workflow_dispatch'
+        run: |
+          mkdir -p ops
+          python3 - <<'PY'
+          import json, os, datetime
+          r = os.environ["RESULTS"]
+          def readjson(n):
+              try:
+                  return json.load(open(os.path.join(r, n)))
+              except Exception:
+                  return None
+          snaps = (readjson("list.json") or {}).get("snapshots") or []
+          out = {"when": datetime.datetime.utcnow().isoformat() + "Z", "run": os.environ.get("GITHUB_RUN_ID"), "business": os.environ.get("BUSINESS"),
+                 "took_a_snapshot_now": readjson("run.json"), "verdict": readjson("verdict.json"), "snapshots": [{k: x.get(k) for k in ("name", "complete", "finishedAt", "tables", "rows", "notes", "files")} for x in snaps]}
+          json.dump(out, open("ops/production-backup-last.json", "w"), indent=1)
+          PY
+          git config user.name "production-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/production-backup-last.json
+          git commit -m "Production backup record (counts and statuses only)" || echo "nothing to record"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Go RED if the backups are not healthy
+        if: always() && steps.judge.outputs.healthy != 'true'
+        run: |
+          echo "The backups are NOT healthy. See the 'Judge the backups' step."
+          exit 1
