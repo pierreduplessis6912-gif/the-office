@@ -12,10 +12,32 @@
 import type { Env } from "./types";
 
 export type Kind = "ai" | "db" | "kv" | "vec" | "r2";
-export type Tally = Record<Kind, { n: number; ms: number }>;
+// What the model REPORTS it used (Workers AI returns `usage` on a chat call, including `neurons`, Cloudflare's billing unit: $0.011 per 1,000 above 10,000 a day for the whole account). Until 2026-10-14 this
+// was thrown away. `calls` counts the calls that reported usage (an embedding call reports none); `failures` counts calls that threw.
+export interface ModelUsage {
+  calls: number;
+  failures: number;
+  prompt: number;
+  completion: number;
+  cached: number;
+  neurons: number;
+}
+export type Tally = Record<Kind, { n: number; ms: number }> & { usage: ModelUsage };
 
 export function newTally(): Tally {
-  return { ai: { n: 0, ms: 0 }, db: { n: 0, ms: 0 }, kv: { n: 0, ms: 0 }, vec: { n: 0, ms: 0 }, r2: { n: 0, ms: 0 } };
+  return { ai: { n: 0, ms: 0 }, db: { n: 0, ms: 0 }, kv: { n: 0, ms: 0 }, vec: { n: 0, ms: 0 }, r2: { n: 0, ms: 0 }, usage: { calls: 0, failures: 0, prompt: 0, completion: 0, cached: 0, neurons: 0 } };
+}
+
+// Reads what a model call says it used. Anything that is not a plain non-negative number counts as nothing, and a response with no `usage` (an embedding) adds nothing.
+function addUsage(total: ModelUsage, response: unknown): void {
+  const u = (response as { usage?: { prompt_tokens?: unknown; completion_tokens?: unknown; neurons?: unknown; prompt_tokens_details?: { cached_tokens?: unknown } } } | null | undefined)?.usage;
+  if (!u || typeof u !== "object") return;
+  const num = (x: unknown): number => (typeof x === "number" && Number.isFinite(x) && x >= 0 ? x : 0);
+  total.calls += 1;
+  total.prompt += num(u.prompt_tokens);
+  total.completion += num(u.completion_tokens);
+  total.cached += num(u.prompt_tokens_details?.cached_tokens);
+  total.neurons += num(u.neurons);
 }
 
 // Wraps a binding so each awaited call is counted and timed. `prepare` and `bind` build a statement and do no work, so they are wrapped but not counted;
@@ -36,10 +58,12 @@ function timed<T extends object>(target: T, kind: Kind, tally: Tally): T {
           return (result as Promise<unknown>).then(
             (v) => {
               done();
+              if (kind === "ai") addUsage(tally.usage, v);
               return v;
             },
             (e) => {
               done();
+              if (kind === "ai") tally.usage.failures += 1;
               throw e;
             }
           );
@@ -51,10 +75,11 @@ function timed<T extends object>(target: T, kind: Kind, tally: Tally): T {
   });
 }
 
-export function instrumentEnv(env: Env, tally: Tally): Env {
+export function instrumentEnv(env: Env, tally: Tally, only?: Kind): Env {
   // A binding that is not there (a local run without the model or the memory index, a deployment that does not use one) is left as it is. Found 2026-10-12 by the first end-to-end run of
   // a business object: wrapping an absent binding made EVERY request fail, so timing could take a whole Worker down.
-  const wrap = <T extends object>(binding: T, kind: Kind): T => (binding ? timed(binding, kind, tally) : binding);
+  // `only` wraps just one kind of binding (usage metering needs only the model; the full timing wraps them all).
+  const wrap = <T extends object>(binding: T, kind: Kind): T => (binding && (!only || only === kind) ? timed(binding, kind, tally) : binding);
   return {
     ...env,
     AI: wrap(env.AI, "ai"),

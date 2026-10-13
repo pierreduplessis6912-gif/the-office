@@ -40,7 +40,7 @@ async function adminGateTests({ check, bundleTo, srcDir, path, fs }) {
   const unclassified = [...found].filter((k) => !tabled.has(k)), stale = [...tabled].filter((k) => !found.has(k));
   check(unclassified.length === 0, `every admin and debug route must be in the tier table (not in it: ${unclassified.join(', ')})`);
   check(stale.length === 0, `the tier table must list only routes that exist (listed but not found: ${stale.join(', ')})`);
-  check(found.size === 155 && ![...found].some((k) => k.startsWith('ANY ')), 'there are 155 admin and debug routes (153 exact paths and 2 with an id in the path), each checked for its HTTP method');
+  check(found.size === 156 && ![...found].some((k) => k.startsWith('ANY ')), 'there are 156 admin and debug routes (154 exact paths and 2 with an id in the path), each checked for its HTTP method');
 
   // ---- the tiers themselves ---------------------------------------------------------------------------------------------------------------
   const privileged = Object.entries(ADMIN_ROUTE_TIERS).filter(([, t]) => t === 'privileged').map(([k]) => k).sort();

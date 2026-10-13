@@ -152,6 +152,27 @@ async function businessObjectTests({ check, srcDir }) {
   dbBBk.prepare("UPDATE object_meta SET value = '0' WHERE key = 'restoring'").run();
   check((await objBBk.fetch(named('alpha-co'))).status === 200, 'and once the restore finishes the business is served again');
 
+  // ---- the hourly job's outcome is RECORDED in the object, so a job that fails or stops is visible ------------------------------------------------------------------------------------
+  const BusinessHl = bo.makeBusinessObject(serve, { consolidate: async () => { await new Promise((r) => setTimeout(r, 5)); } });
+  const dbHl = new DatabaseSync(':memory:'); const Hls = makeState(dbHl); const objHl = new BusinessHl(Hls.state, jobEnv);
+  const hmeta = (k) => dbHl.prepare('SELECT value FROM object_meta WHERE key = ?').get(k)?.value ?? null;
+  await objHl.fetch(named('alpha-co'));
+  check(Date.parse(hmeta('next_alarm_at')) > Date.now() && hmeta('last_job_at') === null, 'when the object first arms its alarm it records WHEN it will run, and nothing has run yet');
+  await objHl.alarm();
+  check(hmeta('last_job_ok') === '1' && hmeta('last_job_error') === '' && Date.now() - Date.parse(hmeta('last_job_at')) < 5000 && Number(hmeta('last_job_ms')) >= 0, 'a successful hourly job records when it ran, that it succeeded, and how long it took');
+  check(Date.parse(hmeta('next_alarm_at')) - Date.now() > 3_590_000 && Date.parse(hmeta('next_alarm_at')) - Date.now() <= 3_600_000, 'and when the next run is (an hour away)');
+  const BusinessHf = bo.makeBusinessObject(serve, { consolidate: async () => { throw new Error('embedding failed: the model is unreachable'); } });
+  const dbHf = new DatabaseSync(':memory:'); const Hfs = makeState(dbHf); const objHf = new BusinessHf(Hfs.state, jobEnv);
+  const hfmeta = (k) => dbHf.prepare('SELECT value FROM object_meta WHERE key = ?').get(k)?.value ?? null;
+  await objHf.fetch(named('beta-co'));
+  const quietHl = console.error; console.error = () => {};
+  try { await objHf.alarm(); } finally { console.error = quietHl; }
+  check(hfmeta('last_job_ok') === '0' && /model is unreachable/.test(hfmeta('last_job_error')) && Number.isFinite(Date.parse(hfmeta('last_job_at'))), 'a FAILED hourly job is recorded as failed, with its error and when (so it is visible instead of silent)');
+  check(Date.parse(hfmeta('next_alarm_at')) > Date.now() + 3_500_000 && Hfs.alarmSets() >= 2, 'and the next alarm is still armed and recorded');
+  const dbHu = new DatabaseSync(':memory:'); const Hus = makeState(dbHu); const objHu = new BusinessHl(Hus.state, jobEnv);
+  await objHu.alarm();
+  check(dbHu.prepare("SELECT value FROM object_meta WHERE key = 'last_job_at'").get() === undefined, 'an object that was never named records no job (nothing ran)');
+
   // ---- the schema source -----------------------------------------------------------------------------------------------------------------------
   const migration = fs.readFileSync(path.join(srcDir, '..', 'migrations', '0001_baseline.sql'), 'utf8');
   check(baseline.BASELINE_SQL === migration, 'the baseline an object creates is exactly the migration file (regenerate with node tools/gen-baseline.js)');

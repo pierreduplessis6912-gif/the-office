@@ -1,4 +1,5 @@
 export { TrialObject } from "./trial";
+import { recordModelUsage } from "./usage";
 import { takeSnapshot } from "./backup";
 import { readOnlyRefusal } from "./freeze";
 import { adminTargetBusiness, callBusiness, forwardToBusiness, routeRequest } from "./routing";
@@ -3621,9 +3622,11 @@ export async function serveRequest(request: Request, env: Env, ctx: ExecutionCon
 
   // Where the time goes (timing.ts): off unless RECORD_TIMINGS is "1". It only observes; recording happens after the response has gone.
   const timingOn = env.RECORD_TIMINGS === "1";
+  // What the model costs is metered for every request (usage.ts), independently of the timing history: only the model binding is wrapped for it. METER_USAGE = "0" switches it off.
+  const meterOn = env.METER_USAGE !== "0";
   const tally = newTally();
   // The front door (frontdoor.ts): an error nothing else caught is logged with this request's id and answered with a small JSON 500, never a bare failure.
-  const response = await runGuarded(request, requestId, () => handleRequest(request, timingOn ? instrumentEnv(env, tally) : env, ctx, requestId), log);
+  const response = await runGuarded(request, requestId, () => handleRequest(request, timingOn ? instrumentEnv(env, tally) : meterOn ? instrumentEnv(env, tally, "ai") : env, ctx, requestId), log);
   const totalMs = Date.now() - startedAt;
   log("info", requestId, "request end", { status: response.status, durationMs: totalMs, ...(timingOn ? breakdown(tally) : {}) });
   // Every admin call is recorded (route, tier, outcome, hashed source; never the key), after the response has gone. A call refused only because the source
@@ -3634,6 +3637,9 @@ export async function serveRequest(request: Request, env: Env, ctx: ExecutionCon
         .then((source) => recordAdminCall(env, { method: request.method, path: url.pathname, tier: adminTierOf(request.method, url.pathname), status: response.status, source }))
         .catch(() => undefined)
     );
+  }
+  if (meterOn && tally.ai.n > 0) {
+    ctx.waitUntil(recordModelUsage(env, tally).catch(() => undefined));
   }
   if (timingOn && shouldRecordTiming(request.method, url.pathname)) {
     ctx.waitUntil(recordTiming(env, { method: request.method, pathname: url.pathname, status: response.status, totalMs, tally }).catch(() => undefined));

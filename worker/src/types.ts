@@ -44,6 +44,8 @@ export interface Env {
   LEGACY_LINK_BUSINESS?: string;
   // A SEPARATE bucket for backups (backup.ts): snapshots and a mirror of the files, kept apart from the business's own file storage. Absent where no backup bucket is configured.
   BACKUPS?: R2Bucket;
+  // "0" switches off the per-business model usage metering (usage.ts). On by default.
+  METER_USAGE?: string;
   // "1" freezes every request that changes something (for the final copy of a migration). See freeze.ts.
   READ_ONLY?: string;
 }

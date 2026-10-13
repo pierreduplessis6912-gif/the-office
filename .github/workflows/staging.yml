@@ -554,6 +554,35 @@ jobs:
           }))
           PY
 
+      - name: Read the health report and what the model cost (after the real sentence)
+        id: health
+        continue-on-error: true
+        run: |
+          BASE="https://${SLUG}.websitehub.co.za"
+          sleep 8
+          curl -s "$BASE/admin/health" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Target-Business: staging-co" > "$RESULTS/health-raw.json"
+          curl -s "$BASE/admin/health" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Target-Business: staging-two" > "$RESULTS/health-other-raw.json"
+          python3 - <<'PY' > "$RESULTS/health.json"
+          import json, os
+          r = os.environ["RESULTS"]
+          def load(n):
+              try:
+                  return json.load(open(os.path.join(r, n)))
+              except Exception:
+                  return {}
+          h, o = load("health-raw.json"), load("health-other-raw.json")
+          t = (h.get("model") or {}).get("today") or {}
+          ot = (o.get("model") or {}).get("today") or {}
+          print(json.dumps({
+              "business": h.get("business"), "model_today": t, "estimated_usd_today": t.get("estimatedUsd"),
+              "usage_was_recorded": bool(t.get("requests", 0) >= 1 and t.get("neurons", 0) > 0 and t.get("promptTokens", 0) > 0 and t.get("completionTokens", 0) > 0),
+              "cached_tokens_seen": t.get("cachedTokens"),
+              "the_other_business_was_not_charged": ot.get("neurons", 0) == 0 and ot.get("requests", 0) == 0,
+              "hourly_job": h.get("hourlyJob"), "next_alarm_is_recorded": bool((h.get("hourlyJob") or {}).get("nextAlarmAt")),
+              "memory_queue": h.get("memoryQueue"), "backup": h.get("backup"), "requests": h.get("requests"),
+          }))
+          PY
+
       - name: Make the owner of staging
         if: github.event.inputs.owner_email != ''
         run: |
@@ -573,6 +602,7 @@ jobs:
           VECTORS: ${{ steps.vectors.outcome }}
           MODEL: ${{ steps.model.outcome }}
           BACKUP: ${{ steps.backup.outcome }}
+          HEALTH: ${{ steps.health.outcome }}
         run: |
           mkdir -p ops
           python3 - <<'PY'
@@ -594,7 +624,7 @@ jobs:
               "run": os.environ.get("GITHUB_RUN_ID"),
               "commit": os.environ.get("GITHUB_SHA", "")[:7],
               "resources": {"database_id": os.environ.get("D1_ID"), "kv_namespace_id": os.environ.get("KV_ID"), "worker": "office-staging-api", "host": "office-staging.websitehub.co.za"},
-              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E"), "real_sentence": os.environ.get("SENTENCE"), "businesses_created": os.environ.get("BUSINESSES"), "memory_index_probe": os.environ.get("VECTORS"), "model_probe": os.environ.get("MODEL"), "backup_restore": os.environ.get("BACKUP")},
+              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E"), "real_sentence": os.environ.get("SENTENCE"), "businesses_created": os.environ.get("BUSINESSES"), "memory_index_probe": os.environ.get("VECTORS"), "model_probe": os.environ.get("MODEL"), "backup_restore": os.environ.get("BACKUP"), "health_report": os.environ.get("HEALTH")},
               "init_routes": (read("init.txt") or "").splitlines(),
               "indexes": readjson("indexes.json"),
               "trial_do": readjson("trial-do.json"),
@@ -604,6 +634,7 @@ jobs:
               "memory_index_probe": readjson("vectors.json"),
               "model_probe": readjson("model.json"),
               "backup_restore": readjson("backup.json"),
+              "health_report": readjson("health.json"),
               "real_sentence": readjson("sentence.json"),
           }
           json.dump(out, open("ops/staging-last-run.json", "w"), indent=1)

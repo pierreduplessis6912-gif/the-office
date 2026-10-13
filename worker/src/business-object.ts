@@ -90,11 +90,29 @@ export function makeBusinessObject(serve: Serve, jobs?: BusinessJobs) {
     // failure cannot stop a business's memories for good (and a failing job cannot retry in a tight loop).
     async alarm(): Promise<void> {
       await this.ready;
+      // The hourly job's outcome is RECORDED in the object (health.ts reads it), so a job that fails or stops is visible, not silent.
+      const jobStarted = Date.now();
+      let jobRan = false;
+      let jobError: string | null = null;
       try {
         const named = this.businessId ?? (await this.db.prepare("SELECT value FROM object_meta WHERE key = 'business_id'").first<{ value: string }>())?.value ?? null;
-        if (jobs && isBusinessId(named)) await jobs.consolidate(scopeBindings({ ...this.env, OFFICE_DB: this.db as unknown as D1Database, BUSINESS_ID: named } as Env, named));
+        if (jobs && isBusinessId(named)) {
+          jobRan = true;
+          await jobs.consolidate(scopeBindings({ ...this.env, OFFICE_DB: this.db as unknown as D1Database, BUSINESS_ID: named } as Env, named));
+        }
       } catch (error) {
+        jobError = String((error as { message?: string } | null)?.message ?? error).slice(0, 300);
         console.error(JSON.stringify({ level: "error", message: "a business's hourly job failed", error: String((error as { message?: string } | null)?.message ?? error) }));
+      }
+      if (jobRan) {
+        try {
+          await this.setMeta("last_job_at", new Date().toISOString());
+          await this.setMeta("last_job_ok", jobError === null ? "1" : "0");
+          await this.setMeta("last_job_error", jobError ?? "");
+          await this.setMeta("last_job_ms", String(Date.now() - jobStarted));
+        } catch {
+          // recording must never stop the job or the next alarm
+        }
       }
       // The daily backup is separate from the hourly job: neither can stop the other, and a failed backup is RECORDED (so an alert can see it) and tried again next hour.
       try {
@@ -109,8 +127,14 @@ export function makeBusinessObject(serve: Serve, jobs?: BusinessJobs) {
       } catch (error) {
         console.error(JSON.stringify({ level: "error", message: "a business's daily backup failed", error: String((error as { message?: string } | null)?.message ?? error) }));
       } finally {
-        await this.state.storage.setAlarm(Date.now() + HOUR_MS);
+        const next = Date.now() + HOUR_MS;
+        await this.state.storage.setAlarm(next);
+        await this.setMeta("next_alarm_at", new Date(next).toISOString()).catch(() => undefined);
       }
+    }
+
+    private async setMeta(key: string, value: string): Promise<void> {
+      await this.db.prepare("INSERT INTO object_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(key, value).run();
     }
 
     async fetch(request: Request): Promise<Response> {
@@ -131,7 +155,11 @@ export function makeBusinessObject(serve: Serve, jobs?: BusinessJobs) {
       }
       // The hourly job: an object that has been named arms its own alarm once (nothing runs for a business nobody has used).
       if (jobs && !this.alarmChecked) {
-        if ((await this.state.storage.getAlarm()) === null) await this.state.storage.setAlarm(Date.now() + jitterMs(claimed) + 60_000);
+        if ((await this.state.storage.getAlarm()) === null) {
+          const first = Date.now() + jitterMs(claimed) + 60_000;
+          await this.state.storage.setAlarm(first);
+          await this.setMeta("next_alarm_at", new Date(first).toISOString()).catch(() => undefined);
+        }
         this.alarmChecked = true;
       }
       // The notes store, the file storage and the memory index are shared by every business, so each is confined to this business (scoped-bindings.ts).

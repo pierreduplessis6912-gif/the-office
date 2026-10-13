@@ -7,7 +7,8 @@
 export type AdminTier = "read" | "schema" | "write" | "privileged";
 
 export const ADMIN_ROUTE_TIERS: Readonly<Record<string, AdminTier>> = {
-  // ---- read (61): Looks at data and changes nothing, spends nothing.
+  // ---- read (62): Looks at data and changes nothing, spends nothing.
+  "GET /admin/health": "read",
   "GET /admin/backup/status": "read",
   "GET /admin/backup/list": "read",
   "GET /debug/directory": "read",

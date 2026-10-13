@@ -77,7 +77,7 @@ module.exports = async function runTimingTests({ check, bundleTo, srcDir, path, 
   const indexSrc = fs.readFileSync(path.join(srcDir, 'index.ts'), 'utf8');
   const timingSrc = fs.readFileSync(path.join(srcDir, 'timing.ts'), 'utf8');
   check(/const timingOn = env\.RECORD_TIMINGS === "1";/.test(indexSrc), 'timing must be off unless RECORD_TIMINGS is "1", so the tests and every other environment run exactly as before');
-  check(/handleRequest\(request, timingOn \? instrumentEnv\(env, tally\) : env, ctx, requestId\)/.test(indexSrc), 'the request must be handled with the timed environment only when timing is on');
+  check(/handleRequest\(request, timingOn \? instrumentEnv\(env, tally\) : meterOn \? instrumentEnv\(env, tally, \"ai\"\) : env, ctx, requestId\)/.test(indexSrc), 'the request is handled with the FULLY timed environment only when timing is on; otherwise only the model binding is wrapped (usage metering), and with metering off nothing is');
   check(/ctx\.waitUntil\(recordTiming\(env,/.test(indexSrc) && !/await recordTiming\(/.test(indexSrc), 'recording must happen after the response has gone (waitUntil) and never be awaited, so it cannot slow a request');
   check(indexSrc.indexOf('recordTiming(env,') > indexSrc.indexOf('handleRequest(request, timingOn'), 'and only after the request has been handled');
   check(/recordTiming\(env, \{/.test(indexSrc) && !/recordTiming\(timedEnv|recordTiming\(instrumentEnv/.test(indexSrc), 'recording must use the ORIGINAL environment, so it does not time itself');

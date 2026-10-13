@@ -15,6 +15,7 @@
 // are NOT imported here beyond what a route genuinely reads directly
 // (like ROLE_CAPABILITIES, to validate a role name) — the actual
 // gating already ran in index.ts before this function is ever called.
+import { healthReport } from "./health";
 import { backupRoute } from "./backup-routes";
 import { migrationRoute } from "./migration-routes";
 import { addDirectoryMember, createBusiness, findDirectoryConflicts, isBusinessId, listDirectory, normaliseEmail } from "./directory";
@@ -92,6 +93,11 @@ export async function handleDebugRoute(
 // Where the time goes, per route (timing.ts). Admin key, like every /debug route that is not one of the app's own.
 if (url.pathname === "/debug/timings" && request.method === "GET") {
       return Response.json(await timingsSummary(env));
+    }
+
+    // One read-only health report for a business (health.ts): its hourly job, backup, memory queue, request errors and what the model is costing.
+    if (url.pathname === "/admin/health" && request.method === "GET") {
+      return Response.json(await healthReport(env));
     }
 
 // Moving a business's data in or out (migration.ts): privileged, both directions.
