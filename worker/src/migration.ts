@@ -12,6 +12,12 @@ import type { Env } from "./types";
 // `d1_migrations` is wrangler's own record of which schema files it has applied to a D1 database (found on the first real rehearsal: it was being copied as if it were business data).
 export const SKIP_TABLES = new Set(["request_timings", "admin_audit", "object_meta", "idempotency_keys", "businesses", "directory_members", "sqlite_sequence", "d1_migrations"]);
 
+// Every business's object keeps its notes under `b:<id>:` and its files under `b/<id>/` in the SAME notes store and bucket the single-business deployment uses (scoped-bindings.ts). The single-business
+// deployment sees those stores UNSCOPED, so it would see the business's copies as if they were its own originals: the first real production copy reported double the notes and files, and a re-run would have
+// copied the copies. These prefixes are reserved: an unscoped listing never includes them. (No original key starts with either.)
+const RESERVED_NOTE_PREFIX = "b:";
+const RESERVED_FILE_PREFIX = "b/";
+
 export interface ColumnInfo {
   name: string;
   type: string;
@@ -151,6 +157,7 @@ export async function readNotes(env: Env, cursor: string | null): Promise<{ entr
   const listed = await env.CUSTOMER_NOTES.list({ limit: 100, ...(cursor ? { cursor } : {}) });
   const entries: { key: string; value: string }[] = [];
   for (const k of listed.keys) {
+    if (!env.BUSINESS_ID && k.name.startsWith(RESERVED_NOTE_PREFIX)) continue;   // a business's own copy, not an original
     const value = await env.CUSTOMER_NOTES.get(k.name);
     if (value !== null) entries.push({ key: k.name, value });
   }
@@ -168,7 +175,7 @@ export async function writeNotes(env: Env, entries: { key: string; value: string
 // ---- files ------------------------------------------------------------------------------------------------------------------------------------------------------------
 export async function listFiles(env: Env, cursor: string | null): Promise<{ objects: { key: string; size: number }[]; cursor: string | null; truncated: boolean }> {
   const listed = await env.OFFICE_VAULT.list({ limit: 100, ...(cursor ? { cursor } : {}) });
-  return { objects: listed.objects.map((o) => ({ key: o.key, size: o.size })), cursor: listed.truncated ? (listed as unknown as { cursor: string }).cursor : null, truncated: listed.truncated };
+  return { objects: listed.objects.filter((o) => env.BUSINESS_ID || !o.key.startsWith(RESERVED_FILE_PREFIX)).map((o) => ({ key: o.key, size: o.size })), cursor: listed.truncated ? (listed as unknown as { cursor: string }).cursor : null, truncated: listed.truncated };
 }
 
 // ---- fingerprints -----------------------------------------------------------------------------------------------------------------------------------------------------

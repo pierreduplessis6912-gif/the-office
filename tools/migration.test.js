@@ -97,6 +97,17 @@ module.exports = async function runMigrationTests({ check, srcDir }) {
   check((await mg.readRows(S.env, 'tasks', 0, 5000)).rows.length === 2 && (await mg.readRows(S.env, 'customers', 0, 2)).rows.length === 2 && (await mg.readRows(S.env, 'customers', 4, 10)).rows.length === 0, 'a page is bounded, and paging past the last row returns nothing');
   check(/not a table with a counter/.test(await rejects(() => mg.writeSequences(T.env, [{ name: 'nope', seq: 1 }]))) && /needs a key/.test(await rejects(() => mg.writeNotes(T.env, [{ key: '', value: 'x' }]))), 'counters and notes are validated too');
 
+  // ---- the single-business deployment must not see a business's copies in the shared stores ----------------------------------------------------------------------------------
+  // (Found on the first REAL production copy: the source reported double the notes and files, because the business's prefixed copies share the notes store and bucket with the originals.)
+  const R = makeSide();
+  R.kv.set('customer:1', 'original'); R.kv.set('b:zulu-co:customer:1', 'a business copy');
+  R.r2.set('photos/1.bin', { bytes: new Uint8Array([1, 2, 3]), type: 'image/png' }); R.r2.set('b/zulu-co/photos/1.bin', { bytes: new Uint8Array([1, 2, 3]), type: 'image/png' });
+  const seenNotes = (await mg.readNotes(R.env, null)).entries.map((e) => e.key), seenFiles = (await mg.listFiles(R.env, null)).objects.map((o) => o.key);
+  const fpR = await mg.fingerprint(R.env);
+  check(seenNotes.join() === 'customer:1' && seenFiles.join() === 'photos/1.bin' && fpR.notes.count === 1 && fpR.files.count === 1, 'the single-business deployment does NOT see a business\'s prefixed copies (b:... notes, b/... files) in the stores they share: only its originals are listed, counted and fingerprinted');
+  R.env.BUSINESS_ID = 'zulu-co';
+  check((await mg.readNotes(R.env, null)).entries.length === 2 && (await mg.listFiles(R.env, null)).objects.length === 2, 'while a business\'s own (scoped) view lists everything it is given');
+
   // ---- the routes ----------------------------------------------------------------------------------------------------------------------------------------------------------
   const tiers = fs.readFileSync(path.join(srcDir, 'admin-routes.ts'), 'utf8');
   const migRoutes = [...tiers.matchAll(/"((?:GET|POST) \/admin\/migration\/[a-z-]+)": "(\w+)"/g)];

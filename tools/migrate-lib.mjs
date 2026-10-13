@@ -38,7 +38,7 @@ export function copyOrder(tables) {
   return order;
 }
 
-export async function migrate({ source, target, include = {}, vectors = null, force = false, pageSize = 200, log = () => {}, fetchImpl = fetch, pollMs = 5000 }) {
+export async function migrate({ source, target, include = {}, vectors = null, force = false, verifyOnly = false, pageSize = 200, log = () => {}, fetchImpl = fetch, pollMs = 5000 }) {
   const want = { db: true, notes: true, files: true, ...include };
   const started = Date.now();
   const report = { ok: false, steps: [], mismatches: [] };
@@ -76,6 +76,16 @@ export async function migrate({ source, target, include = {}, vectors = null, fo
     step('who is who', { source: sourceIs.businessId ?? 'the single-business deployment', target: targetIs.businessId ?? 'the single-business deployment' });
     if (wrongSource || wrongTarget || (sourceIs.businessId === null && targetIs.businessId === null)) {
       report.mismatches.push(`refusing to copy: the ${wrongSource ? 'source' : 'target'} is not what was asked for (source answered as ${sourceIs.businessId ?? 'the single-business deployment'}, target answered as ${targetIs.businessId ?? 'the single-business deployment'}). Nothing was copied.`);
+      report.durationMs = Date.now() - started;
+      return report;
+    }
+    // Verify only: both ends have said who they are; compare their fingerprints and write NOTHING anywhere.
+    if (verifyOnly) {
+      const fsrc = await call(source, 'GET', '/admin/migration/fingerprint'), ftgt = await call(target, 'GET', '/admin/migration/fingerprint');
+      const diffs = compareFingerprints(fsrc, ftgt);
+      report.mismatches.push(...diffs);
+      step('fingerprints compared', { tables: Object.keys(fsrc.tables).length, notes: fsrc.notes.count, files: fsrc.files.count, differences: diffs.length });
+      report.ok = diffs.length === 0;
       report.durationMs = Date.now() - started;
       return report;
     }

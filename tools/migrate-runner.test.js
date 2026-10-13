@@ -28,9 +28,9 @@ async function runnerTests({ check, srcDir }) {
     const page = (all, limit, cursor) => { const start = cursor ? Number(cursor) : 0; return { slice: all.slice(start, start + limit), more: start + limit < all.length, cursor: start + limit < all.length ? String(start + limit) : undefined }; };
     const env = {
       OFFICE_DB: new DoD1Database(sql, storage),
-      CUSTOMER_NOTES: { get: async (k) => kv.get(k) ?? null, put: async (k, v) => { kv.set(k, v); }, list: async ({ limit = 1000, cursor } = {}) => { const p = page([...kv.keys()].sort(), limit, cursor); return { keys: p.slice.map((name) => ({ name })), list_complete: !p.more, cursor: p.cursor }; } },
+      CUSTOMER_NOTES: { get: async (k) => kv.get(k) ?? null, put: async (k, v) => { kv.set(k, v); }, list: async ({ limit = 1000, cursor, prefix = '' } = {}) => { const p = page([...kv.keys()].filter((k) => k.startsWith(prefix)).sort(), limit, cursor); return { keys: p.slice.map((name) => ({ name })), list_complete: !p.more, cursor: p.cursor }; } },
       MEMORY: { upsert: async (vs) => { const id = `mutation-${++mutation}`; queue.push({ id, vs }); return { mutationId: id }; }, getByIds: async (ids) => { if (lagReads > 0) { lagReads--; return []; } return ids.filter((i) => vecs.has(i) && i !== hidden).map((i) => ({ id: i, ...vecs.get(i) })); } },
-      OFFICE_VAULT: { get: async (k) => (r2.has(k) ? { body: r2.get(k).bytes, httpMetadata: { contentType: r2.get(k).type }, arrayBuffer: async () => r2.get(k).bytes.buffer.slice(r2.get(k).bytes.byteOffset, r2.get(k).bytes.byteOffset + r2.get(k).bytes.byteLength) } : null), put: async (k, body, o) => { r2.set(k, { bytes: new Uint8Array(body), type: o?.httpMetadata?.contentType }); }, list: async ({ limit = 1000, cursor } = {}) => { const p = page([...r2.keys()].sort(), limit, cursor); return { objects: p.slice.map((key) => ({ key, size: r2.get(key).bytes.length })), truncated: p.more, cursor: p.cursor }; } },
+      OFFICE_VAULT: { get: async (k) => (r2.has(k) ? { body: r2.get(k).bytes, httpMetadata: { contentType: r2.get(k).type }, arrayBuffer: async () => r2.get(k).bytes.buffer.slice(r2.get(k).bytes.byteOffset, r2.get(k).bytes.byteOffset + r2.get(k).bytes.byteLength) } : null), put: async (k, body, o) => { r2.set(k, { bytes: new Uint8Array(body), type: o?.httpMetadata?.contentType }); }, list: async ({ limit = 1000, cursor, prefix = '' } = {}) => { const p = page([...r2.keys()].filter((k) => k.startsWith(prefix)).sort(), limit, cursor); return { objects: p.slice.map((key) => ({ key, size: r2.get(key).bytes.length })), truncated: p.more, cursor: p.cursor }; } },
     };
     return { db, env, kv, r2, mem };
   };
@@ -142,6 +142,30 @@ async function runnerTests({ check, srcDir }) {
   const srun = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wire(stalled, { scopedTarget: true }).fetchImpl, vectors: { ...vopts, maxWaitMs: 20 }, pollMs: 1 });
   check(srun.steps.find((s) => s.name === 'memories').readLagSeconds === 0, 'and it does not then burn its whole re-checking time on writes that were never processed');
   check(!srun.ok && srun.mismatches.some((m) => /had not processed the writes/.test(m)), 'if the target index never catches up, the run is NOT ok and says it could not verify the memories (it does not report them as copied)');
+
+  // ---- ONE notes store and ONE bucket sharedStores by the source and the business's object: exactly production --------------------------------------------------------------------------
+  const sharedStores = fresh();
+  sharedStores.T.env = { ...sharedStores.T.env, BUSINESS_ID: 'zulu-co', CUSTOMER_NOTES: sb.scopeKv(sharedStores.S.env.CUSTOMER_NOTES, 'zulu-co'), OFFICE_VAULT: sb.scopeR2(sharedStores.S.env.OFFICE_VAULT, 'zulu-co') };
+  const wShared = wire(sharedStores);
+  const sharedRun = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wShared.fetchImpl, pageSize: 50 });
+  check(sharedRun.ok === true && sharedRun.mismatches.length === 0, `with the notes store and bucket SHARED by the source and the target (production), the run passes: the source does not count the business\'s own copies (the first real copy reported double and failed here) [ok=${sharedRun.ok} error=${sharedRun.error} after=${sharedRun.failedAfter} mismatches=${sharedRun.mismatches.join('; ')}]`);
+  const physical = [...sharedStores.S.kv.keys()];
+  const detail = `[kv=${physical.length} prefixedOnce=${physical.filter((k) => k.startsWith('b:zulu-co:')).length} twice=${physical.filter((k) => k.includes('b:zulu-co:b:')).length} r2=${[...sharedStores.S.r2.keys()].length}]`;
+  check(physical.length === 240 && physical.filter((k) => k.startsWith('b:zulu-co:')).length === 120 && !physical.some((k) => k.includes('b:zulu-co:b:')) && [...sharedStores.S.r2.keys()].length === 210 && ![...sharedStores.S.r2.keys()].some((k) => k.includes('b/zulu-co/b/')), 'physically the store holds the 120 originals and the 120 prefixed copies (and the files likewise), and nothing is prefixed twice ' + detail);
+  const forcedAgain = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wire(sharedStores).fetchImpl, force: true, pageSize: 50 });
+  check(forcedAgain.ok === true && [...sharedStores.S.kv.keys()].length === 240 && ![...sharedStores.S.kv.keys()].some((k) => k.includes('b:zulu-co:b:')), 'a forced SECOND run in the sharedStores stores copies the originals again and does NOT copy the copies (still 240 keys, none prefixed twice)');
+
+  // ---- verify only: read both ends, write NOTHING ------------------------------------------------------------------------------------------------------------------------------
+  const wVerify = wire(sharedStores);
+  const verified = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wVerify.fetchImpl, verifyOnly: true });
+  check(verified.ok === true && verified.steps.map((s) => s.name).join() === 'who is who,fingerprints compared' && !wVerify.calls.some((c) => c.method === 'POST'), 'verify-only asks both ends who they are, compares their fingerprints, and makes NO write request of any kind');
+  sharedStores.T.db.prepare("UPDATE customers SET name = 'TAMPERED' WHERE id = 1").run();
+  const tampered = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wire(sharedStores).fetchImpl, verifyOnly: true });
+  check(!tampered.ok && tampered.mismatches.some((m) => /table customers: same row count/.test(m)), 'and it notices a changed cell');
+  const selfVerify = fresh(); selfVerify.T.env = selfVerify.S.env;
+  const refusedVerify = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wire(selfVerify).fetchImpl, verifyOnly: true });
+  check(!refusedVerify.ok && /refusing to copy/.test(refusedVerify.mismatches.join()), 'verify-only still refuses when the two ends are not what was asked for (the same deployment)');
+  check(/--verify-only/.test(fs.readFileSync(path.join(__dirname, 'migrate.mjs'), 'utf8')) && /verifyOnly: process\.argv\.includes\('--verify-only'\)/.test(fs.readFileSync(path.join(__dirname, 'migrate.mjs'), 'utf8')), 'the command line has --verify-only');
 
   // ---- it will not mix, and a second run is safe ---------------------------------------------------------------------------------------------------------------------
   const w2 = wire(world);
