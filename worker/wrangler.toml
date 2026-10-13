@@ -43,6 +43,12 @@ ENVIRONMENT = "production"
 # It only observes and records after the response has gone (see src/timing.ts). Remove this line to switch it off.
 RECORD_TIMINGS = "1"
 
+# THE CUTOVER, 2026-10-13. Pierre (the only user): "just migrate". From this deploy production serves the business from its Durable Object (`zululand-flooring-and-blinds`), verified against the database copy
+# first. LEGACY_LINK_BUSINESS lets that business honour the document links customers already hold (they carry no business). To ROLL BACK: delete these two lines and deploy (production serves from the database
+# again; anything written after the cutover is not in the database). Admin calls now name the business: send  X-Target-Business: zululand-flooring-and-blinds.
+BUSINESS_MODE = "object"
+LEGACY_LINK_BUSINESS = "zululand-flooring-and-blinds"
+
 # Subdomain route on the existing websitehub.co.za zone — see README
 # for the DNS-record curl that has to run once before this route works.
 [[routes]]

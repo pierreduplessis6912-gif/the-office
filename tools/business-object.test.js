@@ -125,6 +125,7 @@ async function businessObjectTests({ check, srcDir }) {
   if (fs.existsSync(cfgFile)) {
     const cfg = fs.readFileSync(cfgFile, 'utf8');
     check(/\[\[durable_objects\.bindings\]\]\s*\nname = "BUSINESS"\s*\nclass_name = "BusinessObject"/.test(cfg) && /tag = "business-v1"\s*\nnew_sqlite_classes = \["BusinessObject"\]/.test(cfg) && cfg.indexOf('tag = "trial-v1"') < cfg.indexOf('tag = "business-v1"'), 'production registers the business object with SQLite storage (a class cannot be switched to SQLite later), after the trial\'s migration');
-    check(!/BUSINESS_MODE/.test(cfg.replace(/^\s*#.*$/gm, '')), 'but production does NOT set BUSINESS_MODE: it still serves everyone from the database exactly as before, until a cutover flips it on purpose');
+    const live = cfg.replace(/^\s*#.*$/gm, '');
+    check(/^BUSINESS_MODE = "object"$/m.test(live) && /^LEGACY_LINK_BUSINESS = "zululand-flooring-and-blinds"$/m.test(live), 'production is CUT OVER (2026-10-13): it serves the business from its object, and that one business honours the links customers already hold');
   }
 };

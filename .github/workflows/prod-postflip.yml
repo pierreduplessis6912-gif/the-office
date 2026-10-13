@@ -1,0 +1,109 @@
+name: Production after the cutover (read-only checks)
+
+# SHIP_CHECKLIST.md item A. Run right after the cutover (production serving the business from its Durable Object). READ-ONLY: it makes only GET requests. It checks that the front door is healthy and still refuses
+# strangers, that sign-in still points at the production address, that the Worker and the business's object each say what they are, that the directory holds the team, and that the object's data matches the
+# counts taken from production BEFORE the cutover (ops/production-inventory-last.json). The record holds counts and statuses only. Started by hand only.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: prod-postflip
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      PROD_URL: https://office.websitehub.co.za
+      BUSINESS: zululand-flooring-and-blinds
+      RESULTS: ${{ github.workspace }}/results
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Public checks (no keys)
+        run: |
+          mkdir -p "$RESULTS"
+          curl -s -o /dev/null -w '%{http_code}' "$PROD_URL/health" > "$RESULTS/health.status"
+          curl -s -o "$RESULTS/stranger.body" -D "$RESULTS/stranger.headers" -w '%{http_code}' "$PROD_URL/customers" > "$RESULTS/stranger.status"
+          curl -s -o /dev/null -D "$RESULTS/login.headers" "$PROD_URL/auth/google/login"
+          bash tools/smoke-test.sh "$PROD_URL" > "$RESULTS/smoke.log" 2>&1
+          echo "$?" > "$RESULTS/smoke.exit"
+
+      - name: Ask the Worker and the business who they are, and look at the directory (reads only)
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+          CONFIRM: ${{ secrets.PROD_CONFIRM_KEY }}
+        run: |
+          curl -s -o "$RESULTS/whoami-business.json" "$PROD_URL/admin/migration/whoami" -H "X-Admin-Key: $ADMIN" -H "X-Admin-Confirm: $CONFIRM" -H "X-Target-Business: $BUSINESS"
+          curl -s -o "$RESULTS/whoami-worker.json" -w '%{http_code}' "$PROD_URL/admin/migration/whoami" -H "X-Admin-Key: $ADMIN" -H "X-Admin-Confirm: $CONFIRM" > "$RESULTS/whoami-worker.status"
+          curl -s -o "$RESULTS/directory.json" "$PROD_URL/debug/directory" -H "X-Admin-Key: $ADMIN"
+
+      - name: Count the business's data in its object (reads only)
+        env:
+          SOURCE_URL: ${{ env.PROD_URL }}
+          SOURCE_ADMIN_KEY: ${{ secrets.PROD_ADMIN_KEY }}
+          SOURCE_CONFIRM_KEY: ${{ secrets.PROD_CONFIRM_KEY }}
+          SOURCE_BUSINESS: ${{ env.BUSINESS }}
+        run: |
+          set +e
+          node tools/inventory.mjs > "$RESULTS/inventory.json" 2> /dev/null
+          echo "exit=$?" > "$RESULTS/inventory.exit"
+
+      - name: Record what was found
+        if: always()
+        run: |
+          mkdir -p ops
+          python3 - <<'PY'
+          import json, os, datetime, urllib.parse
+          r = os.environ["RESULTS"]
+          def read(n):
+              try:
+                  return open(os.path.join(r, n)).read().strip()
+              except Exception:
+                  return None
+          def readjson(n):
+              t = read(n)
+              try:
+                  return json.loads(t) if t else None
+              except Exception:
+                  return None
+          before = None
+          try:
+              before = json.load(open("ops/production-inventory-last.json")).get("inventory") or {}
+          except Exception:
+              before = {}
+          now = readjson("inventory.json") or {}
+          bdb, ndb = before.get("database") or {}, now.get("database") or {}
+          location = ""
+          for line in (read("login.headers") or "").splitlines():
+              if line.lower().startswith("location:"):
+                  location = urllib.parse.unquote(line.split(":", 1)[1].strip())
+          stranger_headers = (read("stranger.headers") or "").lower()
+          directory = (readjson("directory.json") or {}).get("businesses") or []
+          mine = next((b for b in directory if b.get("id") == os.environ["BUSINESS"]), {})
+          out = {
+              "when": datetime.datetime.utcnow().isoformat() + "Z", "run": os.environ.get("GITHUB_RUN_ID"), "commit": os.environ.get("GITHUB_SHA", "")[:7], "read_only": True,
+              "front_door": {"health": read("health.status"), "a_stranger_gets": read("stranger.status"), "refusal_is_json": "application/json" in stranger_headers, "smoke_test_exit": read("smoke.exit")},
+              "sign_in_points_at_production": "redirect_uri=https://office.websitehub.co.za/auth/google/callback" in location,
+              "the_business_object_says_it_is": readjson("whoami-business.json"), "the_worker_without_naming_a_business_gets": read("whoami-worker.status"),
+              "directory_members_for_the_business": mine.get("members"),
+              "counts_before_the_cutover": {"rows": bdb.get("rows"), "tables": bdb.get("tables"), "notes": (before.get("notes") or {}).get("count"), "files": (before.get("files") or {}).get("count"), "file_bytes": (before.get("files") or {}).get("bytes")},
+              "counts_in_the_object_now": {"rows": ndb.get("rows"), "tables": ndb.get("tables"), "notes": (now.get("notes") or {}).get("count"), "files": (now.get("files") or {}).get("count"), "file_bytes": (now.get("files") or {}).get("bytes")},
+              "the_object_matches_the_counts_from_before": bool(bdb) and bdb.get("rows") == ndb.get("rows") and (before.get("notes") or {}).get("count") == (now.get("notes") or {}).get("count") and (before.get("files") or {}).get("count") == (now.get("files") or {}).get("count") and (before.get("files") or {}).get("bytes") == (now.get("files") or {}).get("bytes"),
+              "inventory_exit": read("inventory.exit"),
+          }
+          json.dump(out, open("ops/production-postflip-last.json", "w"), indent=1)
+          PY
+          git config user.name "production-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/production-postflip-last.json
+          git commit -m "Production post-cutover record (counts and statuses only)" || echo "nothing to record"
+          git pull --rebase origin main
+          git push origin HEAD:main

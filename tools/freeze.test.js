@@ -26,5 +26,5 @@ async function freezeTests({ check, srcDir }) {
   const handle = index.slice(index.indexOf('async function handleRequest('));
   check(/handleRequest\([^)]*\)[^{]*\{\s*(\/\/[^\n]*\n\s*)*const frozen = readOnlyRefusal\(request, env\);\s*if \(frozen\) return frozen;/.test(handle), 'the freeze is the FIRST thing the application\'s pipeline does, so nothing can change data before it is checked');
   const wrangler = path.join(srcDir, '..', 'wrangler.toml');
-  if (fs.existsSync(wrangler)) check(!/READ_ONLY|LEGACY_LINK_BUSINESS/.test(fs.readFileSync(wrangler, 'utf8')), 'production\'s configuration does not set the freeze or a legacy-link business: they are switched on only for a cutover, on purpose');
+  if (fs.existsSync(wrangler)) check(!/^READ_ONLY\s*=/m.test(fs.readFileSync(wrangler, 'utf8')), 'production does NOT leave the read-only freeze switched on (it is for the final copy of a migration only)');
 }
