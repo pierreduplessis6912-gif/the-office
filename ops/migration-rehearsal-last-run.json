@@ -1,9 +1,9 @@
 {
- "when": "2026-10-13T06:54:58.758648Z",
- "run": "38358539643",
- "commit": "40448d0",
+ "when": "2026-10-13T07:25:08.063425Z",
+ "run": "38361362934",
+ "commit": "d73637c",
  "source": "office-rehearsal-src (D1 mode)",
- "target_business": "reh-38358539643",
+ "target_business": "reh-38361362934",
  "outcomes": {
   "migrate": "success",
   "rerun": "success",
@@ -11,11 +11,9 @@
  },
  "source_loaded": "skipped",
  "migration": {
-  "ok": false,
-  "seconds": 312,
-  "mismatches": [
-   "memories: 45 listed, 45 copied, 25 differ after being read back"
-  ],
+  "ok": true,
+  "seconds": 363,
+  "mismatches": [],
   "error": null,
   "failed_after": null,
   "steps": [
@@ -24,13 +22,13 @@
     "tables": 41,
     "rows": 16,
     "counters": 8,
-    "ms": 23714
+    "ms": 31610
    },
    {
     "name": "team check",
     "activeMembers": 2,
     "alreadyInAnotherBusiness": 0,
-    "ms": 2534
+    "ms": 2207
    },
    {
     "name": "schema",
@@ -43,52 +41,52 @@
       "column": "priority"
      }
     ],
-    "ms": 229
+    "ms": 217
    },
    {
     "name": "rows customers",
     "copied": 4,
-    "ms": 2802
+    "ms": 3606
    },
    {
     "name": "rows expenses",
     "copied": 1,
-    "ms": 858
+    "ms": 1179
    },
    {
     "name": "rows invoices",
     "copied": 2,
-    "ms": 1988
+    "ms": 2484
    },
    {
     "name": "rows lazy_things",
     "copied": 2,
-    "ms": 1847
+    "ms": 2467
    },
    {
     "name": "rows memberships",
     "copied": 3,
-    "ms": 1459
+    "ms": 2037
    },
    {
     "name": "rows payments",
     "copied": 1,
-    "ms": 1190
+    "ms": 1547
    },
    {
     "name": "rows stock_items",
     "copied": 1,
-    "ms": 5092
+    "ms": 6863
    },
    {
     "name": "rows tasks",
     "copied": 2,
-    "ms": 2855
+    "ms": 3867
    },
    {
     "name": "id counters",
     "carried": 8,
-    "ms": 448
+    "ms": 623
    },
    {
     "name": "database done",
@@ -98,34 +96,36 @@
    {
     "name": "notes",
     "copied": 250,
-    "ms": 34648
+    "ms": 40617
    },
    {
     "name": "files",
     "copied": 40,
     "bytes": 21020,
-    "ms": 36455
+    "ms": 40521
    },
    {
     "name": "memories",
     "listed": 45,
     "copied": 45,
-    "differ": 25,
-    "waitedSeconds": 120,
+    "differ": 0,
+    "firstPassDiffered": 0,
+    "readLagSeconds": 0,
+    "waitedSeconds": 130,
     "processed": true,
-    "ms": 135994
+    "ms": 147828
    },
    {
     "name": "directory",
     "registered": 2,
     "notActive": 1,
-    "ms": 1761
+    "ms": 2425
    },
    {
     "name": "indexes",
     "created": 0,
     "failed": 0,
-    "ms": 135
+    "ms": 176
    },
    {
     "name": "fingerprints compared",
@@ -133,11 +133,11 @@
     "notes": 250,
     "files": 40,
     "differences": 0,
-    "ms": 57919
+    "ms": 72734
    }
   ],
-  "exit": "exit=1",
-  "log_tail": "source manifest {\"tables\":41,\"rows\":16,\"counters\":8}\nteam check {\"activeMembers\":2,\"alreadyInAnotherBusiness\":0}\nschema {\"created\":[\"lazy_things\"],\"columnsAdded\":[{\"table\":\"tasks\",\"column\":\"priority\"}]}\nrows customers {\"copied\":4}\nrows expenses {\"copied\":1}\nrows invoices {\"copied\":2}\nrows lazy_things {\"copied\":2}\nrows memberships {\"copied\":3}\nrows payments {\"copied\":1}\nrows stock_items {\"copied\":1}\nrows tasks {\"copied\":2}\nid counters {\"carried\":8}\ndatabase done {\"rows\":16}\nnotes {\"copied\":250}\nfiles {\"copied\":40,\"bytes\":21020}\nmemories {\"listed\":45,\"copied\":45,\"differ\":25,\"waitedSeconds\":120,\"processed\":true}\ndirectory {\"registered\":2,\"notActive\":1}\nindexes {\"created\":0,\"failed\":0}\nfingerprints compared {\"tables\":41,\"notes\":250,\"files\":40,\"differences\":0}"
+  "exit": "exit=0",
+  "log_tail": "source manifest {\"tables\":41,\"rows\":16,\"counters\":8}\nteam check {\"activeMembers\":2,\"alreadyInAnotherBusiness\":0}\nschema {\"created\":[\"lazy_things\"],\"columnsAdded\":[{\"table\":\"tasks\",\"column\":\"priority\"}]}\nrows customers {\"copied\":4}\nrows expenses {\"copied\":1}\nrows invoices {\"copied\":2}\nrows lazy_things {\"copied\":2}\nrows memberships {\"copied\":3}\nrows payments {\"copied\":1}\nrows stock_items {\"copied\":1}\nrows tasks {\"copied\":2}\nid counters {\"carried\":8}\ndatabase done {\"rows\":16}\nnotes {\"copied\":250}\nfiles {\"copied\":40,\"bytes\":21020}\nmemories {\"listed\":45,\"copied\":45,\"differ\":0,\"firstPassDiffered\":0,\"readLagSeconds\":0,\"waitedSeconds\":130,\"processed\":true}\ndirectory {\"registered\":2,\"notActive\":1}\nindexes {\"created\":0,\"failed\":0}\nfingerprints compared {\"tables\":41,\"notes\":250,\"files\":40,\"differences\":0}"
  },
  "second_run_without_force": {
   "exit": "exit=1",
@@ -176,7 +176,7 @@
   "other_business_sees_the_note": false,
   "memory_search_in_migrated_business": [
    "REHEARSAL memory 1",
-   "REHEARSAL memory 7",
+   "REHEARSAL memory 8",
    "REHEARSAL memory 9"
   ],
   "memory_search_in_the_other_business_mentions_rehearsal": false
