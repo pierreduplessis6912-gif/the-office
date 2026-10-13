@@ -1,9 +1,9 @@
 {
- "when": "2026-10-13T06:24:03.374945Z",
- "run": "38355463926",
- "commit": "83daa87",
+ "when": "2026-10-13T06:54:58.758648Z",
+ "run": "38358539643",
+ "commit": "40448d0",
  "source": "office-rehearsal-src (D1 mode)",
- "target_business": "reh-38355463926",
+ "target_business": "reh-38358539643",
  "outcomes": {
   "migrate": "success",
   "rerun": "success",
@@ -12,17 +12,25 @@
  "source_loaded": "skipped",
  "migration": {
   "ok": false,
-  "seconds": 337,
-  "mismatches": [],
-  "error": "POST /debug/directory/add-member -> 400 {\"error\":\"that email already belongs to another business\"}",
-  "failed_after": "memories",
+  "seconds": 312,
+  "mismatches": [
+   "memories: 45 listed, 45 copied, 25 differ after being read back"
+  ],
+  "error": null,
+  "failed_after": null,
   "steps": [
    {
     "name": "source manifest",
     "tables": 41,
     "rows": 16,
     "counters": 8,
-    "ms": 31044
+    "ms": 23714
+   },
+   {
+    "name": "team check",
+    "activeMembers": 2,
+    "alreadyInAnotherBusiness": 0,
+    "ms": 2534
    },
    {
     "name": "schema",
@@ -35,81 +43,101 @@
       "column": "priority"
      }
     ],
-    "ms": 877
+    "ms": 229
    },
    {
     "name": "rows customers",
     "copied": 4,
-    "ms": 3396
+    "ms": 2802
    },
    {
     "name": "rows expenses",
     "copied": 1,
-    "ms": 1112
+    "ms": 858
    },
    {
     "name": "rows invoices",
     "copied": 2,
-    "ms": 2713
+    "ms": 1988
    },
    {
     "name": "rows lazy_things",
     "copied": 2,
-    "ms": 2448
+    "ms": 1847
    },
    {
     "name": "rows memberships",
     "copied": 3,
-    "ms": 2416
+    "ms": 1459
    },
    {
     "name": "rows payments",
     "copied": 1,
-    "ms": 1557
+    "ms": 1190
    },
    {
     "name": "rows stock_items",
     "copied": 1,
-    "ms": 6944
+    "ms": 5092
    },
    {
     "name": "rows tasks",
     "copied": 2,
-    "ms": 4068
+    "ms": 2855
    },
    {
     "name": "id counters",
     "carried": 8,
-    "ms": 660
+    "ms": 448
    },
    {
     "name": "database done",
     "rows": 16,
-    "ms": 1
+    "ms": 0
    },
    {
     "name": "notes",
     "copied": 250,
-    "ms": 53133
+    "ms": 34648
    },
    {
     "name": "files",
     "copied": 40,
     "bytes": 21020,
-    "ms": 47628
+    "ms": 36455
    },
    {
     "name": "memories",
     "listed": 45,
     "copied": 45,
-    "differ": 0,
-    "waitedSeconds": 160,
+    "differ": 25,
+    "waitedSeconds": 120,
     "processed": true,
-    "ms": 177828
+    "ms": 135994
+   },
+   {
+    "name": "directory",
+    "registered": 2,
+    "notActive": 1,
+    "ms": 1761
+   },
+   {
+    "name": "indexes",
+    "created": 0,
+    "failed": 0,
+    "ms": 135
+   },
+   {
+    "name": "fingerprints compared",
+    "tables": 41,
+    "notes": 250,
+    "files": 40,
+    "differences": 0,
+    "ms": 57919
    }
   ],
   "exit": "exit=1",
-  "log_tail": "source manifest {\"tables\":41,\"rows\":16,\"counters\":8}\nschema {\"created\":[\"lazy_things\"],\"columnsAdded\":[{\"table\":\"tasks\",\"column\":\"priority\"}]}\nrows customers {\"copied\":4}\nrows expenses {\"copied\":1}\nrows invoices {\"copied\":2}\nrows lazy_things {\"copied\":2}\nrows memberships {\"copied\":3}\nrows payments {\"copied\":1}\nrows stock_items {\"copied\":1}\nrows tasks {\"copied\":2}\nid counters {\"carried\":8}\ndatabase done {\"rows\":16}\nnotes {\"copied\":250}\nfiles {\"copied\":40,\"bytes\":21020}\nmemories {\"listed\":45,\"copied\":45,\"differ\":0,\"waitedSeconds\":160,\"processed\":true}"
+  "log_tail": "source manifest {\"tables\":41,\"rows\":16,\"counters\":8}\nteam check {\"activeMembers\":2,\"alreadyInAnotherBusiness\":0}\nschema {\"created\":[\"lazy_things\"],\"columnsAdded\":[{\"table\":\"tasks\",\"column\":\"priority\"}]}\nrows customers {\"copied\":4}\nrows expenses {\"copied\":1}\nrows invoices {\"copied\":2}\nrows lazy_things {\"copied\":2}\nrows memberships {\"copied\":3}\nrows payments {\"copied\":1}\nrows stock_items {\"copied\":1}\nrows tasks {\"copied\":2}\nid counters {\"carried\":8}\ndatabase done {\"rows\":16}\nnotes {\"copied\":250}\nfiles {\"copied\":40,\"bytes\":21020}\nmemories {\"listed\":45,\"copied\":45,\"differ\":25,\"waitedSeconds\":120,\"processed\":true}\ndirectory {\"registered\":2,\"notActive\":1}\nindexes {\"created\":0,\"failed\":0}\nfingerprints compared {\"tables\":41,\"notes\":250,\"files\":40,\"differences\":0}"
  },
  "second_run_without_force": {
   "exit": "exit=1",
@@ -120,8 +148,8 @@
   "target_unchanged": true
  },
  "forced_run": {
-  "exit": "exit=1",
-  "ok": false,
+  "exit": "exit=0",
+  "ok": true,
   "target_unchanged": true
  },
  "target_after": {
@@ -141,7 +169,7 @@
   "emoji_and_quote_names_intact": true,
   "active_crew_member_status": "200",
   "suspended_member_status": "403",
-  "directory_members_for_this_business": 0,
+  "directory_members_for_this_business": 2,
   "new_customer_import_status": "200",
   "new_customer_id": 6,
   "migrated_note_readable": true,
