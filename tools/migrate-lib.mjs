@@ -5,6 +5,8 @@
 //
 // It refuses to copy into a target that already holds data unless `force` is set (a half-finished earlier run is the usual reason).
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Two metadata objects are the same if they hold the same content, whatever order their keys come back in.
+const canonicalJson = (v) => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => (a < b ? -1 : 1))) : x));
 
 // The same comparison as worker/src/migration.ts (a test pins that the two agree).
 export function compareFingerprints(source, target) {
@@ -40,7 +42,8 @@ export async function migrate({ source, target, include = {}, vectors = null, fo
   const want = { db: true, notes: true, files: true, ...include };
   const started = Date.now();
   const report = { ok: false, steps: [], mismatches: [] };
-  const step = (name, detail = {}) => { report.steps.push({ name, ...detail }); log(`${name} ${JSON.stringify(detail)}`); };
+  let lastTick = Date.now();
+  const step = (name, detail = {}) => { const now = Date.now(); report.steps.push({ name, ...detail, ms: now - lastTick }); lastTick = now; log(`${name} ${JSON.stringify(detail)}`); };
 
   async function call(side, method, path, { query = {}, json, body, type, raw = false, workerLevel = false } = {}) {
     const url = new URL(path, side.base);
@@ -157,7 +160,7 @@ export async function migrate({ source, target, include = {}, vectors = null, fo
       const chunk = copiedVectors.slice(i, i + 20);
       const back = await call(target, 'POST', '/admin/migration/vectors-by-ids', { json: { ids: chunk.map((v) => v.id) } });
       const byId = new Map(back.vectors.map((v) => [v.id, v]));
-      for (const v of chunk) { const b = byId.get(v.id); if (!b || JSON.stringify(b.metadata) !== JSON.stringify(v.metadata) || b.values.length !== v.values.length || b.values.some((x, j) => Math.abs(x - v.values[j]) > 1e-6)) differ++; }
+      for (const v of chunk) { const b = byId.get(v.id); if (!b || canonicalJson(b.metadata) !== canonicalJson(v.metadata) || b.values.length !== v.values.length || b.values.some((x, j) => Math.abs(x - v.values[j]) > 1e-6)) differ++; }
     }
     step('memories', { listed: ids.length, copied, differ, waitedSeconds: Math.round(waitedMs / 1000), processed });
     if (differ || copied !== ids.length) report.mismatches.push(`memories: ${ids.length} listed, ${copied} copied, ${differ} differ after being read back`);

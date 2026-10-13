@@ -89,6 +89,11 @@ async function runnerTests({ check, srcDir }) {
   check(vrun.ok === true && mstep.listed === 45 && mstep.copied === 45 && mstep.differ === 0 && mstep.processed === true, 'memories: 45 are listed through Cloudflare\'s API, copied in batches of 20, the runner WAITS until the target index reports it has processed the last write, and every one reads back identical', JSON.stringify(mstep) + ' ' + vrun.mismatches.join('; '));
   check([...vw.T.mem.vecs.keys()].length === 45 && [...vw.T.mem.vecs.entries()].every(([id, v]) => id.startsWith('zulu-co:') && v.namespace === 'zulu-co'), 'in the target index every memory sits under the business\'s prefix and namespace');
   check(wv.calls.filter((c) => c.host === 'api.cloudflare.com' && c.path.endsWith('/info')).length >= 2, 'the wait really polled Cloudflare\'s index info (the writes were not visible at first, as on the real index)');
+  check(vrun.steps.every((s) => typeof s.ms === 'number' && s.ms >= 0), 'every step of the run is timed, so a slow migration shows where its time went');
+  const reordered = fresh();
+  for (const [id, v] of reordered.S.mem.vecs) reordered.S.mem.vecs.set(id, { ...v, metadata: { text: v.metadata.text, customerId: v.metadata.customerId } });   // the same metadata, keys in the other order
+  const rrun = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wire(reordered, { scopedTarget: true }).fetchImpl, vectors: vopts, pollMs: 1 });
+  check(rrun.ok === true && rrun.steps.find((s) => s.name === 'memories').differ === 0, 'memories whose metadata comes back with its keys in a different order are still the same memories');
   const stalled = fresh(); stalled.T.mem.stall(true);
   const srun = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wire(stalled, { scopedTarget: true }).fetchImpl, vectors: { ...vopts, maxWaitMs: 20 }, pollMs: 1 });
   check(!srun.ok && srun.mismatches.some((m) => /had not processed the writes/.test(m)), 'if the target index never catches up, the run is NOT ok and says it could not verify the memories (it does not report them as copied)');

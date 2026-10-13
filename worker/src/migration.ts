@@ -9,7 +9,8 @@
 import type { Env } from "./types";
 
 // Telemetry and the shared layer's own tables are not a business's data and are never moved.
-export const SKIP_TABLES = new Set(["request_timings", "admin_audit", "object_meta", "idempotency_keys", "businesses", "directory_members", "sqlite_sequence"]);
+// `d1_migrations` is wrangler's own record of which schema files it has applied to a D1 database (found on the first real rehearsal: it was being copied as if it were business data).
+export const SKIP_TABLES = new Set(["request_timings", "admin_audit", "object_meta", "idempotency_keys", "businesses", "directory_members", "sqlite_sequence", "d1_migrations"]);
 
 export interface ColumnInfo {
   name: string;

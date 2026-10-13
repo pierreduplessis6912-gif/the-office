@@ -30,6 +30,7 @@ module.exports = async function runMigrationTests({ check, srcDir }) {
     db.exec("ALTER TABLE tasks ADD COLUMN priority TEXT");                                               // a column a lazy ALTER added
     db.exec("CREATE TABLE lazy_things (id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT)");                // a table created on first use
     db.exec("CREATE TABLE admin_audit (id INTEGER PRIMARY KEY AUTOINCREMENT, route TEXT)"); db.exec("INSERT INTO admin_audit (route) VALUES ('/debug/x')");   // telemetry: never moved
+    db.exec("CREATE TABLE d1_migrations (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, applied_at TEXT)"); db.exec("INSERT INTO d1_migrations (name) VALUES ('0001_baseline.sql')");   // wrangler's own bookkeeping: never moved
     const cust = db.prepare('INSERT INTO customers (name, address, retention_percent) VALUES (?, ?, ?)');
     cust.run("O'Brien \"Big\" Dlamini", '1 Main Rd', 7.5); cust.run('José 🙂 Ñandú', null, null); cust.run('multi\nline\ttab', big, 0.1); cust.run('Plain Name', '', 10); cust.run('Deleted Soon', 'x', null);
     db.exec("DELETE FROM customers WHERE name = 'Deleted Soon'");                                          // the highest id is gone: the counter must still say 5
@@ -45,7 +46,7 @@ module.exports = async function runMigrationTests({ check, srcDir }) {
   // ---- the manifest ---------------------------------------------------------------------------------------------------------------------------------------------------
   const m = await mg.manifest(S.env);
   const names = m.tables.map((t) => t.name);
-  check(names.includes('customers') && names.includes('lazy_things') && !names.includes('admin_audit') && !names.includes('object_meta') && !names.some((n) => n.startsWith('sqlite_')), 'the manifest lists the business\'s tables (including one created on first use) and never the telemetry or the shared layer');
+  check(names.includes('customers') && names.includes('lazy_things') && !names.includes('admin_audit') && !names.includes('d1_migrations') && !names.includes('object_meta') && !names.some((n) => n.startsWith('sqlite_')), 'the manifest lists the business\'s tables (including one created on first use) and never the telemetry, wrangler\'s own migration record, or the shared layer');
   check(m.tables.find((t) => t.name === 'customers').count === 4 && m.tables.find((t) => t.name === 'customers').rowidAlias === true && m.tables.find((t) => t.name === 'payments').parents.length === 1, 'it reports each table\'s row count, whether its id is the rowid, and which tables it references');
   check(m.sequences.find((s) => s.name === 'customers').seq === 5, 'it reports the id counters: customers is at 5 although the highest remaining id is 4');
 
