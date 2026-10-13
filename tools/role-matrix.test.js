@@ -830,6 +830,10 @@ async function expect(role, method, path, want) {
   // Moving a business's data in, and proving it arrived.
   await require('./migration.test.js')({ check, srcDir });
   await require('./migrate-runner.test.js')({ check, srcDir });
+  // The synthetic business a rehearsal migrates.
+  await require('./seed-synthetic.test.js')({ check, srcDir });
+  // The rehearsal workflow creates real resources, so its safety must not be removable by accident.
+  await require('./rehearsal.test.js')({ check, path, fs });
 
   // The same work said twice makes no new job.
   await require('./samework.test.js')({ check, bundleTo, srcDir, path, sameJson });

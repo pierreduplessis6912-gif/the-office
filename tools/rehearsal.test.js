@@ -1,0 +1,27 @@
+// Guards on the migration rehearsal workflow (.github/workflows/migration-rehearsal.yml). It creates real cloud resources and runs the migration runner, so its safety must not be removable by accident:
+// it never names production, its keys are derived and masked, its source is a plain D1-mode instance (how production is today), and its record can never carry a secret.
+module.exports = async function runRehearsalTests({ check, path, fs }) {
+  const yml = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'migration-rehearsal.yml'), 'utf8');
+  const code = yml.replace(/^\s*#.*$/gm, '');
+  const trigger = code.slice(code.indexOf('on:'), code.indexOf('concurrency:'));
+  check(/workflow_dispatch:/.test(trigger) && !/\bpush:/.test(trigger) && !/\bschedule:/.test(trigger) && !/pull_request/.test(trigger), 'the rehearsal creates real resources, so it starts by hand only');
+  check(/SRC: office-rehearsal-src/.test(code) && /TARGET_SLUG: office-staging/.test(code) && !/(SRC|TARGET_SLUG): \$\{\{/.test(code), 'the source and the target are FIXED: it cannot be pointed at production or at a business');
+  check(!/\boffice\.websitehub\.co\.za/.test(code) && !/office-api/.test(code) && !/d5343bef/.test(code) && !/office-db\b|office-vault\b|office-memory\b/.test(code.replace(/office-(staging|rehearsal)[a-z-]*/g, '')), 'nothing in it names production: not its hostname, its Worker, its database, its bucket or its index');
+  const labels = ['admin-src', 'confirm-src', 'session-src', 'admin', 'confirm', 'session'];
+  check(labels.every((l) => code.includes(l)) && /derive\(\)/.test(code) && /openssl dgst -sha256 -hmac/.test(code) && !/openssl rand/.test(code) && /::add-mask::\$value/.test(code), 'its keys are DERIVED from the seed with a different label for the source and for staging, and masked, never random and lost');
+  const sourceConfig = code.slice(code.indexOf('name = "${SRC}-api"'), code.indexOf('cat worker/wrangler.source.toml'));
+  check(/ENVIRONMENT = "rehearsal-source"/.test(sourceConfig) && !/durable_objects|BUSINESS_MODE|migrations|crons/.test(sourceConfig) && /\$\{SRC\}-db/.test(sourceConfig) && /\$\{SRC\}-vault/.test(sourceConfig) && /\$\{SRC\}-memory/.test(sourceConfig), 'the source is a plain D1-mode instance, how production is today (no objects, no switch, no hourly job), using only its own resources');
+  for (const step of ['Create the source database', 'Create the source notes store', 'Create the source file storage', 'Create the source memory index', 'Create the source hostname']) check(code.includes(`name: ${step} (safe to re-run)`), `"${step}" is safe to re-run`);
+  check(/Seed the source with the synthetic business \(once\)/.test(code) && /if \[ "\$COUNT" != "0" \]; then[\s\S]*?not seeding again[\s\S]*?exit 0/.test(code) && /node tools\/seed-synthetic\.mjs/.test(code), 'the source is seeded from the synthetic generator only ONCE (it skips if the source already holds customers)');
+  check(/reh-\$\{GITHUB_RUN_ID\}/.test(code) && /\\"migrating\\":true/.test(code) && !/--force/.test(code.slice(code.indexOf('name: Run the migration'), code.indexOf('name: Run it again'))), 'every run migrates into a FRESH business made empty for the purpose, and the first run does not force');
+  const again = code.slice(code.indexOf('name: Run it again'), code.indexOf('name: Check what a person would depend on'));
+  check(/migrate\.mjs --skip=files > "\$RESULTS\/refused\.json"/.test(again) && /migrate\.mjs --force --skip=files > "\$RESULTS\/forced\.json"/.test(again) && /fp-settled/.test(again) && /fp-after-refusal/.test(again) && /fp-after-force/.test(again), 'it runs the migration a second time (which must be refused) and then with force (which must change nothing), and compares the target\'s fingerprint each time');
+  const verify = code.slice(code.indexOf('name: Check what a person would depend on'), code.indexOf('name: Record what happened'));
+  check(/rehearsal-owner@example\.com/.test(verify) && /rehearsal-old@example\.com/.test(verify) && /Brand New/.test(verify) && /vectors-query/.test(verify) && /staging-co/.test(verify) && /memory_search_in_the_other_business_mentions_rehearsal/.test(verify) && /other_business_sees_the_note/.test(verify), 'it checks sign-in (active and suspended), a new customer\'s id, a migrated note, a memory search, and that the OTHER staging business sees none of it');
+  check((code.match(/::add-mask::/g) || []).length === 4, 'every derived key and every session cookie is masked in the log');
+  const recordStart = code.indexOf('mkdir -p ops');
+  const writerStart = code.indexOf("python3 - <<'PY'", recordStart);
+  const writer = code.slice(writerStart, code.indexOf('\n          PY', writerStart));
+  check(writer.length > 200 && !/KEY|SECRET|SEED|TOKEN|COOKIE/.test(writer), 'the record of what happened (committed to the repository) can never contain a key, a secret, a token or a cookie');
+  check(/permissions:\s*\n\s*contents: write/.test(code) && /git add ops\/migration-rehearsal-last-run\.json/.test(code) && !/git add -A|git add \./.test(code), 'it may write only to the repository, and only adds its own record file');
+};

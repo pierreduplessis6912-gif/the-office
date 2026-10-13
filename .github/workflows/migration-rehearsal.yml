@@ -1,0 +1,351 @@
+name: Migration rehearsal
+
+# SHIP_CHECKLIST.md item A. A full rehearsal of moving a business into a business object, on real Cloudflare, with SYNTHETIC data (tools/seed-synthetic.mjs: every email is @example.com).
+# SOURCE: a separate D1-mode instance, office-rehearsal-src, shaped like production is today (own database, notes store, file storage, memory index, hostname), seeded once with the synthetic business.
+# TARGET: the existing staging Worker (office-staging), into a FRESH business made for each run. Production is never touched: nothing here names its Worker, database, bucket or index.
+# The real runner (tools/migrate.mjs) does the copy; this workflow then checks what a person would depend on. Keys are DERIVED from STAGING_KEY_SEED (labels admin-src, confirm-src, session-src for the
+# source; admin, confirm, session for staging) and masked. It writes ops/migration-rehearsal-last-run.json (ids and results only, never a key). Safe to re-run; started by hand only.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: migration-rehearsal
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  rehearse:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.PROVISION }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      SRC: office-rehearsal-src
+      TARGET_SLUG: office-staging
+      SEED: ${{ secrets.STAGING_KEY_SEED }}
+      RESULTS: ${{ github.workspace }}/results
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install tools
+        run: |
+          npm install -g wrangler@4
+          mkdir -p "$RESULTS"
+
+      - name: Derive the keys from the seed
+        run: |
+          derive() { printf '%s' "$2" | openssl dgst -sha256 -hmac "$1" -binary | base64 | tr -d '=+/\n' | cut -c1-43; }
+          for label in admin-src confirm-src session-src admin confirm session; do
+            value=$(derive "$SEED" "$label")
+            echo "::add-mask::$value"
+            name=$(echo "$label" | tr 'a-z-' 'A-Z_')
+            echo "KEY_$name=$value" >> "$GITHUB_ENV"
+          done
+
+      - name: Check that staging is there
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' "https://${TARGET_SLUG}.websitehub.co.za/health")
+            if [ "$CODE" = "200" ]; then exit 0; fi
+            sleep 10
+          done
+          echo "::error::staging is not answering: run the Staging environment workflow first."
+          exit 1
+
+      - name: Create the source database (safe to re-run)
+        id: d1
+        run: |
+          RESPONSE=$(curl -s "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database?name=${SRC}-db" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+          EXISTING=$(echo "$RESPONSE" | python3 -c "import json,sys; r=json.load(sys.stdin).get('result',[]); print(r[0]['uuid'] if r else '')")
+          if [ -n "$EXISTING" ]; then
+            echo "id=$EXISTING" >> "$GITHUB_OUTPUT"
+          else
+            OUTPUT=$(wrangler d1 create "${SRC}-db" --location weur 2>&1)
+            DB_ID=$(echo "$OUTPUT" | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
+            if [ -z "$DB_ID" ]; then echo "::error::Could not read a database id."; exit 1; fi
+            echo "id=$DB_ID" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create the source notes store (safe to re-run)
+        id: kv
+        run: |
+          RESPONSE=$(curl -s "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces?per_page=100" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+          EXISTING=$(echo "$RESPONSE" | python3 -c "import json,sys; r=json.load(sys.stdin).get('result',[]); m=next((n for n in r if n['title']=='${SRC}_notes'),None); print(m['id'] if m else '')")
+          if [ -n "$EXISTING" ]; then
+            echo "id=$EXISTING" >> "$GITHUB_OUTPUT"
+          else
+            OUTPUT=$(wrangler kv namespace create "${SRC}_notes" 2>&1)
+            KV_ID=$(echo "$OUTPUT" | grep -i '"id"' | grep -oE '[0-9a-f]{32}' | head -1)
+            if [ -z "$KV_ID" ]; then echo "::error::Could not read a namespace id."; exit 1; fi
+            echo "id=$KV_ID" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create the source file storage (safe to re-run)
+        run: |
+          wrangler r2 bucket create "${SRC}-vault" || echo "The bucket probably exists already, continuing."
+
+      - name: Create the source memory index (safe to re-run)
+        run: |
+          wrangler vectorize create "${SRC}-memory" --dimensions=768 --metric=cosine || echo "The index probably exists already, continuing."
+
+      - name: Look up the zone
+        id: zone
+        run: |
+          ZONE_ID=$(curl -s "https://api.cloudflare.com/client/v4/zones?name=websitehub.co.za" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | python3 -c "import json,sys; print(json.load(sys.stdin)['result'][0]['id'])")
+          if [ -z "$ZONE_ID" ]; then echo "::error::Could not find the zone."; exit 1; fi
+          echo "id=$ZONE_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Create the source hostname (safe to re-run)
+        run: |
+          EXISTING=$(curl -s "https://api.cloudflare.com/client/v4/zones/${{ steps.zone.outputs.id }}/dns_records?name=${SRC}.websitehub.co.za" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['result']))")
+          if [ "$EXISTING" = "0" ]; then
+            curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${{ steps.zone.outputs.id }}/dns_records" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H "Content-Type: application/json" -d "{\"type\":\"CNAME\",\"name\":\"${SRC}\",\"content\":\"websitehub.co.za\",\"proxied\":true}"
+          fi
+
+      - name: Write the source Worker's configuration
+        run: |
+          cat > worker/wrangler.source.toml << EOF
+          name = "${SRC}-api"
+          main = "src/index.ts"
+          compatibility_date = "2026-07-01"
+
+          [ai]
+          binding = "AI"
+
+          [[d1_databases]]
+          binding = "OFFICE_DB"
+          database_name = "${SRC}-db"
+          database_id = "${{ steps.d1.outputs.id }}"
+
+          [[r2_buckets]]
+          binding = "OFFICE_VAULT"
+          bucket_name = "${SRC}-vault"
+
+          [[vectorize]]
+          binding = "MEMORY"
+          index_name = "${SRC}-memory"
+
+          [[kv_namespaces]]
+          binding = "CUSTOMER_NOTES"
+          id = "${{ steps.kv.outputs.id }}"
+
+          [vars]
+          ENVIRONMENT = "rehearsal-source"
+
+          [[routes]]
+          pattern = "${SRC}.websitehub.co.za/*"
+          zone_name = "websitehub.co.za"
+          EOF
+          cat worker/wrangler.source.toml
+
+      - name: Create the source tables, deploy it and set its secrets
+        working-directory: worker
+        run: |
+          wrangler d1 migrations apply OFFICE_DB --remote --config wrangler.source.toml
+          npm ci
+          wrangler deploy --config wrangler.source.toml
+          printf '%s' "$KEY_ADMIN_SRC" | wrangler secret put ADMIN_KEY --config wrangler.source.toml
+          printf '%s' "$KEY_CONFIRM_SRC" | wrangler secret put ADMIN_CONFIRM_KEY --config wrangler.source.toml
+          printf '%s' "$KEY_SESSION_SRC" | wrangler secret put SESSION_SECRET --config wrangler.source.toml
+
+      - name: Smoke test the source
+        env:
+          SMOKE_RETRIES: "24"
+          SMOKE_DELAY: "10"
+        run: bash tools/smoke-test.sh https://${SRC}.websitehub.co.za
+
+      - name: Seed the source with the synthetic business (once)
+        id: seed
+        run: |
+          SRC_BASE="https://${SRC}.websitehub.co.za"
+          node tools/seed-synthetic.mjs "$RESULTS/seed" > "$RESULTS/expected-line.json"
+          COUNT=$(curl -s "$SRC_BASE/admin/migration/fingerprint" -H "X-Admin-Key: $KEY_ADMIN_SRC" -H "X-Admin-Confirm: $KEY_CONFIRM_SRC" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('tables',{}).get('customers',{}).get('count', -1))")
+          echo "customers already in the source: $COUNT"
+          if [ "$COUNT" != "0" ]; then
+            echo "The source is already seeded (or unreadable): not seeding again."
+            echo "seeded=skipped" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          (cd worker && wrangler d1 execute OFFICE_DB --remote --file "$RESULTS/seed/seed.sql" --config wrangler.source.toml)
+          curl -s -X PUT "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${{ steps.kv.outputs.id }}/bulk" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H "Content-Type: application/json" --data-binary "@$RESULTS/seed/kv.json" > "$RESULTS/kv-bulk.json"
+          python3 - <<'PY' > "$RESULTS/put-files.sh"
+          import json, os
+          r = os.environ["RESULTS"]
+          for f in json.load(open(os.path.join(r, "seed", "files.json"))):
+              print('wrangler r2 object put "%s-vault/%s" --file "%s/seed/files/%s" --content-type "%s" --remote' % (os.environ["SRC"], f["key"], r, f["file"], f["contentType"]))
+          PY
+          bash "$RESULTS/put-files.sh"
+          curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/vectorize/v2/indexes/${SRC}-memory/upsert" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H "Content-Type: application/x-ndjson" --data-binary "@$RESULTS/seed/vectors.ndjson" > "$RESULTS/vec-upsert.json"
+          echo "seeded=done" >> "$GITHUB_OUTPUT"
+
+      - name: Wait until the source memory index has processed the seed
+        run: |
+          for tick in $(seq 1 60); do
+            COUNT=$(curl -s "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/vectorize/v2/indexes/${SRC}-memory/info" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | python3 -c "import json,sys; print(json.load(sys.stdin).get('result',{}).get('vectorCount', 0))")
+            echo "vectors processed so far: $COUNT"
+            if [ "$COUNT" -ge 45 ]; then exit 0; fi
+            sleep 5
+          done
+          echo "::error::the source memory index did not process the seed in five minutes."
+          exit 1
+
+      - name: Make a fresh business for this run in staging
+        id: business
+        run: |
+          BIZ="reh-${GITHUB_RUN_ID}"
+          echo "id=$BIZ" >> "$GITHUB_OUTPUT"
+          for attempt in 1 2 3 4 5; do
+            CODE=$(curl -s -o "$RESULTS/create-business.json" -w '%{http_code}' -X POST "https://${TARGET_SLUG}.websitehub.co.za/debug/directory/create-business" -H "X-Admin-Key: $KEY_ADMIN" -H "X-Admin-Confirm: $KEY_CONFIRM" -H "Content-Type: application/json" -d "{\"id\":\"$BIZ\",\"name\":\"Rehearsal $GITHUB_RUN_ID\",\"migrating\":true}")
+            if [ "$CODE" = "200" ]; then break; fi
+            sleep 6
+          done
+          echo "business creation answered $CODE"
+
+      - name: Run the migration
+        id: migrate
+        continue-on-error: true
+        env:
+          BUSINESS: reh-${{ github.run_id }}
+        run: |
+          export SOURCE_URL="https://${SRC}.websitehub.co.za" SOURCE_ADMIN_KEY="$KEY_ADMIN_SRC" SOURCE_CONFIRM_KEY="$KEY_CONFIRM_SRC"
+          export TARGET_URL="https://${TARGET_SLUG}.websitehub.co.za" TARGET_ADMIN_KEY="$KEY_ADMIN" TARGET_CONFIRM_KEY="$KEY_CONFIRM"
+          export CF_ACCOUNT_ID="$CLOUDFLARE_ACCOUNT_ID" CF_API_TOKEN="$CLOUDFLARE_API_TOKEN" VECTOR_INDEX="${SRC}-memory" TARGET_VECTOR_INDEX="${TARGET_SLUG}-memory"
+          set +e
+          node tools/migrate.mjs > "$RESULTS/report.json" 2> "$RESULTS/report.log"
+          echo "exit=$?" > "$RESULTS/report.exit"
+          cat "$RESULTS/report.exit"
+          tail -n 12 "$RESULTS/report.log"
+
+      - name: Run it again (it must be refused), then again with force (it must change nothing)
+        id: rerun
+        continue-on-error: true
+        env:
+          BUSINESS: reh-${{ github.run_id }}
+        run: |
+          export SOURCE_URL="https://${SRC}.websitehub.co.za" SOURCE_ADMIN_KEY="$KEY_ADMIN_SRC" SOURCE_CONFIRM_KEY="$KEY_CONFIRM_SRC"
+          export TARGET_URL="https://${TARGET_SLUG}.websitehub.co.za" TARGET_ADMIN_KEY="$KEY_ADMIN" TARGET_CONFIRM_KEY="$KEY_CONFIRM"
+          fingerprint() { curl -s "$TARGET_URL/admin/migration/fingerprint" -H "X-Admin-Key: $KEY_ADMIN" -H "X-Admin-Confirm: $KEY_CONFIRM" -H "X-Target-Business: $BUSINESS"; }
+          fingerprint > "$RESULTS/fp-settled.json"
+          set +e
+          node tools/migrate.mjs --skip=files > "$RESULTS/refused.json" 2> /dev/null
+          echo "exit=$?" > "$RESULTS/refused.exit"
+          fingerprint > "$RESULTS/fp-after-refusal.json"
+          node tools/migrate.mjs --force --skip=files > "$RESULTS/forced.json" 2> /dev/null
+          echo "exit=$?" > "$RESULTS/forced.exit"
+          fingerprint > "$RESULTS/fp-after-force.json"
+
+      - name: Check what a person would depend on
+        id: verify
+        continue-on-error: true
+        env:
+          BUSINESS: reh-${{ github.run_id }}
+        run: |
+          BASE="https://${TARGET_SLUG}.websitehub.co.za"
+          cat > "$RESULTS/mkcookie.py" <<'PY'
+          import os, json, hmac, hashlib, base64, time
+          b = lambda x: base64.urlsafe_b64encode(x).rstrip(b"=").decode()
+          p = b(json.dumps({"email": os.environ["EMAIL"], "exp": int(time.time() * 1000) + 3600000, "b": os.environ["BIZ"]}, separators=(",", ":")).encode())
+          print("office_session=" + p + "." + b(hmac.new(os.environ["KEY_SESSION"].encode(), p.encode(), hashlib.sha256).digest()))
+          PY
+          cookie() { EMAIL="$1" BIZ="$2" python3 "$RESULTS/mkcookie.py"; }
+          OWNER=$(cookie rehearsal-owner@example.com "$BUSINESS"); CREW=$(cookie rehearsal-crew@example.com "$BUSINESS"); OLD=$(cookie rehearsal-old@example.com "$BUSINESS")
+          echo "::add-mask::$OWNER"; echo "::add-mask::$CREW"; echo "::add-mask::$OLD"
+          S_OWNER=$(curl -s -o "$RESULTS/v-list.json" -w '%{http_code}' -H "Cookie: $OWNER" "$BASE/customers")
+          S_CREW=$(curl -s -o /dev/null -w '%{http_code}' -H "Cookie: $CREW" "$BASE/customers")
+          S_OLD=$(curl -s -o /dev/null -w '%{http_code}' -H "Cookie: $OLD" "$BASE/customers")
+          printf 'name\nBrand New\n' > "$RESULTS/new.csv"
+          S_IMPORT=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Cookie: $OWNER" -F "csv=@$RESULTS/new.csv;type=text/csv" "$BASE/files/customers-csv-import")
+          curl -s -o "$RESULTS/v-list2.json" -H "Cookie: $OWNER" "$BASE/customers"
+          curl -s -o "$RESULTS/v-note.json" -H "X-Admin-Key: $KEY_ADMIN" -H "X-Target-Business: $BUSINESS" "$BASE/debug/customer-notes?customerId=1"
+          curl -s -o "$RESULTS/v-note-other.json" -H "X-Admin-Key: $KEY_ADMIN" -H "X-Target-Business: staging-co" "$BASE/debug/customer-notes?customerId=1"
+          python3 - <<'PY'
+          import json, os
+          json.dump({"vector": [0.0] * 7 + [1.0] + [0.0] * 760, "topK": 3}, open(os.path.join(os.environ["RESULTS"], "v-query.json"), "w"))
+          PY
+          for biz in "$BUSINESS" staging-co; do
+            curl -s -o "$RESULTS/v-search-$biz.json" -X POST "$BASE/admin/migration/vectors-query" -H "X-Admin-Key: $KEY_ADMIN" -H "X-Admin-Confirm: $KEY_CONFIRM" -H "X-Target-Business: $biz" -H "Content-Type: application/json" --data-binary "@$RESULTS/v-query.json"
+          done
+          curl -s "$BASE/debug/directory" -H "X-Admin-Key: $KEY_ADMIN" > "$RESULTS/v-directory.json"
+          S_OWNER="$S_OWNER" S_CREW="$S_CREW" S_OLD="$S_OLD" S_IMPORT="$S_IMPORT" python3 - <<'PY' > "$RESULTS/verify.json"
+          import os, json
+          r, biz = os.environ["RESULTS"], os.environ["BUSINESS"]
+          def load(n):
+              try:
+                  return json.load(open(os.path.join(r, n)))
+              except Exception:
+                  return None
+          def text(n):
+              try:
+                  return open(os.path.join(r, n)).read()
+              except Exception:
+                  return ""
+          items = (load("v-list.json") or {}).get("items", [])
+          after = (load("v-list2.json") or {}).get("items", [])
+          new = next((c for c in after if c.get("name") == "Brand New"), None)
+          members = next((b["members"] for b in (load("v-directory.json") or {}).get("businesses", []) if b["id"] == biz), None)
+          found = lambda n: sorted(((m.get("metadata") or {}).get("text")) for m in (load(n) or {}).get("matches", []))
+          print(json.dumps({
+              "owner_signs_in": os.environ["S_OWNER"], "customers_seen_by_owner": len(items),
+              "emoji_and_quote_names_intact": any(c.get("name") == "José 🙂 Ñandú" for c in items) and any(c.get("name") == "O'Brien \"Big\" Dlamini" for c in items),
+              "active_crew_member_status": os.environ["S_CREW"], "suspended_member_status": os.environ["S_OLD"],
+              "directory_members_for_this_business": members,
+              "new_customer_import_status": os.environ["S_IMPORT"], "new_customer_id": (new or {}).get("id"),
+              "migrated_note_readable": "REHEARSAL note 1 " in text("v-note.json"),
+              "other_business_sees_the_note": "REHEARSAL" in text("v-note-other.json"),
+              "memory_search_in_migrated_business": found("v-search-" + biz + ".json"),
+              "memory_search_in_the_other_business_mentions_rehearsal": any("REHEARSAL" in (t or "") for t in found("v-search-staging-co.json")),
+          }))
+          PY
+
+      - name: Record what happened
+        if: always()
+        env:
+          BUSINESS: reh-${{ github.run_id }}
+          MIGRATE: ${{ steps.migrate.outcome }}
+          RERUN: ${{ steps.rerun.outcome }}
+          VERIFY: ${{ steps.verify.outcome }}
+          SOURCE_LOADED: ${{ steps.seed.outputs.seeded }}
+        run: |
+          mkdir -p ops
+          python3 - <<'PY'
+          import json, os, datetime
+          r = os.environ["RESULTS"]
+          def read(n):
+              try:
+                  return open(os.path.join(r, n)).read().strip()
+              except Exception:
+                  return None
+          def readjson(n):
+              t = read(n)
+              try:
+                  return json.loads(t) if t else None
+              except Exception:
+                  return t
+          def fp_summary(n):
+              d = readjson(n) or {}
+              return {"tables": len(d.get("tables", {})), "customers": d.get("tables", {}).get("customers", {}).get("count"), "notes": d.get("notes", {}).get("count"), "files": d.get("files", {}).get("count")}
+          report = readjson("report.json") or {}
+          refused, forced = readjson("refused.json") or {}, readjson("forced.json") or {}
+          out = {
+              "when": datetime.datetime.utcnow().isoformat() + "Z", "run": os.environ.get("GITHUB_RUN_ID"), "commit": os.environ.get("GITHUB_SHA", "")[:7],
+              "source": "office-rehearsal-src (D1 mode)", "target_business": os.environ.get("BUSINESS"),
+              "outcomes": {"migrate": os.environ.get("MIGRATE"), "rerun": os.environ.get("RERUN"), "verify": os.environ.get("VERIFY")}, "source_loaded": os.environ.get("SOURCE_LOADED"),
+              "migration": {"ok": report.get("ok"), "seconds": round((report.get("durationMs") or 0) / 1000), "mismatches": report.get("mismatches"), "steps": report.get("steps")},
+              "second_run_without_force": {"exit": read("refused.exit"), "ok": refused.get("ok"), "said": refused.get("mismatches"), "target_unchanged": readjson("fp-settled.json") == readjson("fp-after-refusal.json")},
+              "forced_run": {"exit": read("forced.exit"), "ok": forced.get("ok"), "target_unchanged": readjson("fp-settled.json") == readjson("fp-after-force.json")},
+              "target_after": fp_summary("fp-after-force.json"),
+              "verification": readjson("verify.json"),
+          }
+          json.dump(out, open("ops/migration-rehearsal-last-run.json", "w"), indent=1)
+          PY
+          git config user.name "rehearsal-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/migration-rehearsal-last-run.json
+          git commit -m "Migration rehearsal record (ids and results only, no keys)" || echo "nothing to record"
+          git pull --rebase origin main
+          git push origin HEAD:main
