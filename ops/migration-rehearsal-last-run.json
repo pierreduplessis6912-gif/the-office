@@ -1,0 +1,37 @@
+{
+ "when": "2026-10-13T05:08:24.760548Z",
+ "run": "38349399154",
+ "commit": "ab2e94b",
+ "source": "office-rehearsal-src (D1 mode)",
+ "target_business": "reh-38349399154",
+ "outcomes": {
+  "migrate": "skipped",
+  "rerun": "skipped",
+  "verify": "skipped"
+ },
+ "source_loaded": "skipped",
+ "migration": {
+  "ok": null,
+  "seconds": 0,
+  "mismatches": null,
+  "steps": null
+ },
+ "second_run_without_force": {
+  "exit": null,
+  "ok": null,
+  "said": null,
+  "target_unchanged": true
+ },
+ "forced_run": {
+  "exit": null,
+  "ok": null,
+  "target_unchanged": true
+ },
+ "target_after": {
+  "tables": 0,
+  "customers": null,
+  "notes": null,
+  "files": null
+ },
+ "verification": null
+}
