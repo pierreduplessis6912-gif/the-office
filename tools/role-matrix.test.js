@@ -836,6 +836,10 @@ async function expect(role, method, path, want) {
   await require('./trial.test.js')({ check, srcDir });
   // A read-only freeze for the final copy of a migration.
   await require('./freeze.test.js')({ check, srcDir });
+  // A read-only inventory that sizes real data before a migration.
+  await require('./inventory.test.js')({ check, srcDir });
+  // The workflow that runs the inventory against PRODUCTION: provably read-only.
+  await require('./prod-inventory.test.js')({ check, path, fs });
   // The rehearsal workflow creates real resources, so its safety must not be removable by accident.
   await require('./rehearsal.test.js')({ check, path, fs });
 

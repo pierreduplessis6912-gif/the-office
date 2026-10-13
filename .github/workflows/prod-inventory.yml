@@ -1,0 +1,90 @@
+name: Production inventory (read-only)
+
+# SHIP_CHECKLIST.md item A. Counts and sizes the PRODUCTION business data so a migration can be sized and planned. READ-ONLY: it makes only GET requests (to the privileged /admin/migration routes with the
+# production admin keys, and to Cloudflare's API for the database and memory-index sizes), writes nothing to production, and asks for no fingerprint (which reads and hashes everything in one request).
+# The record it commits to the repository holds COUNTS and SIZES only: no names, no email addresses, no values, no keys. Started by hand only.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: prod-inventory
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    env:
+      PROD_URL: https://office.websitehub.co.za
+      CLOUDFLARE_API_TOKEN: ${{ secrets.PROVISION }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      RESULTS: ${{ github.workspace }}/results
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Ask Cloudflare how big the database and the memory index are (reads only)
+        run: |
+          mkdir -p "$RESULTS"
+          DB_ID=$(grep -A4 'd1_databases' worker/wrangler.toml | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
+          INDEX=$(grep -A3 '^\[\[vectorize\]\]' worker/wrangler.toml | grep index_name | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "database id from the configuration: $DB_ID, memory index: $INDEX"
+          curl -s "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database/${DB_ID}" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" > "$RESULTS/d1.json"
+          curl -s "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/vectorize/v2/indexes/${INDEX}/info" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" > "$RESULTS/vectors.json"
+          VEC=$(python3 -c "import json; print(json.load(open('$RESULTS/vectors.json')).get('result', {}).get('vectorCount', 0))" 2>/dev/null || echo 0)
+          echo "VECTOR_COUNT=$VEC" >> "$GITHUB_ENV"
+
+      - name: Inventory the production data (reads only)
+        id: inventory
+        continue-on-error: true
+        env:
+          SOURCE_URL: ${{ env.PROD_URL }}
+          SOURCE_ADMIN_KEY: ${{ secrets.PROD_ADMIN_KEY }}
+          SOURCE_CONFIRM_KEY: ${{ secrets.PROD_CONFIRM_KEY }}
+        run: |
+          set +e
+          node tools/inventory.mjs > "$RESULTS/inventory.json" 2> "$RESULTS/inventory.log"
+          echo "exit=$?" > "$RESULTS/inventory.exit"
+          cat "$RESULTS/inventory.exit"
+          tail -n 5 "$RESULTS/inventory.log"
+
+      - name: Record what was found
+        if: always()
+        run: |
+          mkdir -p ops
+          python3 - <<'PY'
+          import json, os, datetime
+          r = os.environ["RESULTS"]
+          def read(n):
+              try:
+                  return open(os.path.join(r, n)).read().strip()
+              except Exception:
+                  return None
+          def readjson(n):
+              t = read(n)
+              try:
+                  return json.loads(t) if t else None
+              except Exception:
+                  return t
+          d1 = (readjson("d1.json") or {}).get("result") or {}
+          vec = (readjson("vectors.json") or {}).get("result") or {}
+          out = {
+              "when": datetime.datetime.utcnow().isoformat() + "Z", "run": os.environ.get("GITHUB_RUN_ID"), "commit": os.environ.get("GITHUB_SHA", "")[:7],
+              "read_only": True, "inventory_exit": read("inventory.exit"),
+              "database_as_cloudflare_reports_it": {"file_size_bytes": d1.get("file_size"), "tables": d1.get("num_tables"), "region": d1.get("running_in_region")},
+              "memory_index_as_cloudflare_reports_it": {"vectors": vec.get("vectorCount"), "dimensions": vec.get("dimensions"), "processed_up_to": vec.get("processedUpToDatetime")},
+              "inventory": readjson("inventory.json"),
+          }
+          json.dump(out, open("ops/production-inventory-last.json", "w"), indent=1)
+          PY
+          git config user.name "inventory-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/production-inventory-last.json
+          git commit -m "Production inventory record (counts and sizes only: no names, no addresses, no keys)" || echo "nothing to record"
+          git pull --rebase origin main
+          git push origin HEAD:main
