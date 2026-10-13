@@ -317,6 +317,8 @@ jobs:
           fingerprint() { curl -s "${A[@]}" -H "X-Target-Business: $1" "$BASE/admin/migration/fingerprint" > "$RESULTS/$2"; }
           customers() { curl -s -H "Cookie: $COOKIE" "$BASE/customers" > "$RESULTS/$1"; }
           customers backup-customers-before.json
+          note() { curl -s -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Target-Business: staging-co" "$BASE/debug/customer-notes?customerId=1" > "$RESULTS/$1"; }
+          note backup-note-before.json
           fingerprint staging-co backup-fp-original.json
           fingerprint staging-two backup-fp-other-before.json
           curl -s -X POST "${A[@]}" -H "X-Target-Business: staging-co" "$BASE/admin/backup/run" > "$RESULTS/backup-run.json"
@@ -326,10 +328,13 @@ jobs:
           # Damage the business the way a bad day would: add customers that were never there.
           printf 'name\nDAMAGE ONE\nDAMAGE TWO\nDAMAGE THREE\n' > "$RESULTS/damage.csv"
           curl -s -o "$RESULTS/backup-damage.json" -X POST -H "Cookie: $COOKIE" -F "csv=@$RESULTS/damage.csv;type=text/csv" "$BASE/files/customers-csv-import"
+          curl -s -o /dev/null -X POST "$BASE/debug/kv-set" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Target-Business: staging-co" -H "Content-Type: application/json" -d '{"key":"customer:1","value":{"note":"VANDALISED NOTE"}}'
           customers backup-customers-damaged.json
+          note backup-note-damaged.json
           fingerprint staging-co backup-fp-damaged.json
           curl -s -X POST "${A[@]}" -H "X-Target-Business: staging-co" -H "Content-Type: application/json" -d "{\"snapshot\":\"$SNAPSHOT\",\"confirm\":\"staging-co\"}" "$BASE/admin/backup/restore" > "$RESULTS/backup-restore.json"
           customers backup-customers-restored.json
+          note backup-note-restored.json
           fingerprint staging-co backup-fp-restored.json
           fingerprint staging-two backup-fp-other-after.json
           curl -s "${A[@]}" -H "X-Target-Business: staging-co" "$BASE/admin/backup/list" > "$RESULTS/backup-list.json"
@@ -342,20 +347,32 @@ jobs:
               except Exception:
                   return None
           def names(doc):
-              rows = doc if isinstance(doc, list) else (doc or {}).get("customers") or (doc or {}).get("results") or []
+              rows = doc if isinstance(doc, list) else (doc or {}).get("items") or []
               return sorted(str(x.get("name")) for x in rows if isinstance(x, dict))
           def core(fp):
               return {"tables": (fp or {}).get("tables"), "notes": (fp or {}).get("notes"), "files": (fp or {}).get("files")}
           before, damaged, restored = (read("backup-customers-%s.json" % k) for k in ("before", "damaged", "restored"))
           fo, fd, fr = read("backup-fp-original.json"), read("backup-fp-damaged.json"), read("backup-fp-restored.json")
+          def count(fp, table):
+              try:
+                  return fp["tables"][table]["count"]
+              except Exception:
+                  return None
+          note_before, note_damaged, note_restored = (json.dumps(read("backup-note-%s.json" % k), sort_keys=True) for k in ("before", "damaged", "restored"))
+          damage = read("backup-damage.json")
           rep = read("backup-restore.json") or {}
           run = read("backup-run.json") or {}
           lst = (read("backup-list.json") or {}).get("snapshots") or []
           print(json.dumps({
               "snapshot": run.get("snapshot"), "snapshot_took": {k: run.get(k) for k in ("tables", "rows", "notes", "files", "filesMirroredNow", "ms")},
               "status_after_the_snapshot": {k: (read("backup-status.json") or {}).get(k) for k in ("backupBucketConfigured", "lastAttemptOk", "complete", "newestAgeHours")},
-              "customers": {"before": len(names(before)), "damaged": len(names(damaged)), "restored": len(names(restored))},
-              "the_damage_was_real": names(damaged) != names(before) and core(fd) != core(fo),
+              "customers_as_listed": {"before": len(names(before)), "damaged": len(names(damaged)), "restored": len(names(restored))},
+              "customers_in_the_fingerprints": {"original": count(fo, "customers"), "damaged": count(fd, "customers"), "restored": count(fr, "customers")},
+              "the_import_answered": (json.dumps(damage)[:160] if damage is not None else None),
+              "damage_1_customers_were_added": count(fd, "customers") is not None and count(fd, "customers") == (count(fo, "customers") or 0) + 3 and len(names(damaged)) == len(names(before)) + 3,
+              "damage_2_the_note_was_overwritten": note_damaged != note_before and "VANDALISED NOTE" in note_damaged,
+              "the_damaged_fingerprint_differs_from_the_original": core(fd) != core(fo),
+              "the_note_is_back": note_restored == note_before and "VANDALISED" not in note_restored,
               "restore_report": {k: rep.get(k) for k in ("ok", "tablesRestored", "rowsRestored", "notesRestored", "filesRestoredFromMirror", "filesMissingEverywhere", "differences", "error")},
               "customers_are_back_exactly_as_before": names(restored) == names(before),
               "the_whole_business_fingerprint_equals_the_original": core(fr) == core(fo),
