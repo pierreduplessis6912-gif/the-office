@@ -63,3 +63,15 @@ export async function callBusiness(env: Env, businessId: string, method: string,
   const stub = namespace.get(namespace.idFromName(objectNameFor(businessId)), { locationHint: "weur" });
   return stub.fetch(`https://business${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
 }
+
+// BEFORE a cutover, the Worker still serves from its own database (default mode), but an administrator must be able to reach a business's object to copy data into it and to check it. This answers, for that
+// one case only: an ADMIN route, with the admin key, naming a business, on a deployment that has business objects. Nothing else is ever routed to an object in default mode (a session's business is ignored there).
+export async function adminTargetBusiness(request: Request, env: Env): Promise<string | null> {
+  if (!env.BUSINESS) return null;
+  const target = request.headers.get("X-Target-Business");
+  if (!target || !isBusinessId(target)) return null;
+  const path = new URL(request.url).pathname;
+  if (!isAdminPath(path) || path === "/debug/directory" || path.startsWith("/debug/directory/") || WORKER_ADMIN.has(path)) return null;
+  const key = request.headers.get("X-Admin-Key");
+  return key && env.ADMIN_KEY && (await safeEqual(key, env.ADMIN_KEY)) ? target : null;
+}

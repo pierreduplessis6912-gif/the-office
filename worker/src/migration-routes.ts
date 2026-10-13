@@ -11,6 +11,10 @@ export async function migrationRoute(request: Request, env: Env, url: URL): Prom
   const route = `${request.method} ${path.slice("/admin/migration".length)}`;
   try {
     switch (route) {
+      // What am I? A business's object says which business; the single-business deployment says none. The runner asks BOTH ends before copying a byte, so a source and a target that are really the same
+      // deployment (which would copy a database onto itself) can never be mistaken for two.
+      case "GET /whoami":
+        return Response.json({ businessId: env.BUSINESS_ID ?? null, objectMode: Boolean(env.BUSINESS_ID) });
       case "GET /manifest":
         return Response.json(await manifest(env));
       case "GET /rows":

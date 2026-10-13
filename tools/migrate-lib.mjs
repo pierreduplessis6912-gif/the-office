@@ -69,6 +69,16 @@ export async function migrate({ source, target, include = {}, vectors = null, fo
   // Whatever goes wrong, the caller gets back what was done, how far it got and the error: a failure must never lose the report (the first real rehearsal crashed and printed nothing).
   try {
     // ---- pre-flight ---------------------------------------------------------------------------------------------------------------------------------------------------------
+    // Before a single byte is copied: what are the two ends? If the source and the target are really the SAME deployment (a target that ignores the business it was asked for), the copy would write a
+    // database onto itself. So each end must say what it is, and it must be what the caller expects.
+    const sourceIs = await call(source, 'GET', '/admin/migration/whoami'), targetIs = await call(target, 'GET', '/admin/migration/whoami');
+    const wrongSource = (source.business ?? null) !== sourceIs.businessId, wrongTarget = (target.business ?? null) !== targetIs.businessId;
+    step('who is who', { source: sourceIs.businessId ?? 'the single-business deployment', target: targetIs.businessId ?? 'the single-business deployment' });
+    if (wrongSource || wrongTarget || (sourceIs.businessId === null && targetIs.businessId === null)) {
+      report.mismatches.push(`refusing to copy: the ${wrongSource ? 'source' : 'target'} is not what was asked for (source answered as ${sourceIs.businessId ?? 'the single-business deployment'}, target answered as ${targetIs.businessId ?? 'the single-business deployment'}). Nothing was copied.`);
+      report.durationMs = Date.now() - started;
+      return report;
+    }
     const manifest = await call(source, 'GET', '/admin/migration/manifest');
     step('source manifest', { tables: manifest.tables.length, rows: manifest.tables.reduce((n, t) => n + t.count, 0), counters: manifest.sequences.length });
     const before = await call(target, 'GET', '/admin/migration/fingerprint');

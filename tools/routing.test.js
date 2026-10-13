@@ -46,6 +46,24 @@ module.exports = async function runRoutingTests({ check, srcDir }) {
   check(is(await route('/invoices/3/pdf?sig=' + encodeURIComponent(linkNoB)), 'worker') && is(await route('/invoices/3/pdf?sig=garbage'), 'worker') && is(await route('/invoices/3/pdf'), 'worker'), 'a link with no business, a garbled link and no link are left to the Worker, which refuses them');
 
   // ---- forwarding -------------------------------------------------------------------------------------------------------------------------------------
+  // ---- BEFORE the switch to object mode: only an administrator can reach an object --------------------------------------------------------------------------------------------
+  const pre = { ...base, BUSINESS: {} };   // a deployment that has business objects but still serves from its database
+  const target = (p, headers = {}, env = pre) => routing.adminTargetBusiness(req(p, { headers }), env);
+  check((await target('/admin/migration/manifest', { 'X-Admin-Key': 'k-admin', 'X-Target-Business': 'zulu-co' })) === 'zulu-co' && (await target('/debug/customers', { 'X-Admin-Key': 'k-admin', 'X-Target-Business': 'zulu-co' })) === 'zulu-co', 'before the switch, an admin call with the right key naming a business reaches that business\'s object');
+  const nobody = [
+    ['a wrong admin key', '/admin/migration/manifest', { 'X-Admin-Key': 'wrong', 'X-Target-Business': 'zulu-co' }],
+    ['no admin key', '/admin/migration/manifest', { 'X-Target-Business': 'zulu-co' }],
+    ['no business named', '/admin/migration/manifest', { 'X-Admin-Key': 'k-admin' }],
+    ['an invalid business name', '/admin/migration/manifest', { 'X-Admin-Key': 'k-admin', 'X-Target-Business': 'NOT valid' }],
+    ['a NON-admin route (a session\'s business is ignored before the switch)', '/customers', { 'X-Admin-Key': 'k-admin', 'X-Target-Business': 'zulu-co', cookie: 'office_session=' + alpha }],
+    ['the directory (answered by the Worker)', '/debug/directory/create-business', { 'X-Admin-Key': 'k-admin', 'X-Target-Business': 'zulu-co' }],
+    ['the Worker\'s own measuring routes', '/debug/trial-do', { 'X-Admin-Key': 'k-admin', 'X-Target-Business': 'zulu-co' }],
+  ];
+  for (const [what, p, h] of nobody) check((await target(p, h)) === null, `before the switch, ${what} is NOT sent to an object`);
+  check((await target('/admin/migration/manifest', { 'X-Admin-Key': 'k-admin', 'X-Target-Business': 'zulu-co' }, base)) === null, 'and on a deployment with no business objects nothing is ever routed to one');
+  const idx = fs.readFileSync(path.join(srcDir, 'index.ts'), 'utf8');
+  check(/if \(env\.BUSINESS_MODE !== "object"\) \{\s*const targeted = await adminTargetBusiness\(request, env\);\s*if \(targeted\) return forwardToBusiness\(request, env, targeted\);\s*\}/.test(idx), 'the entry point does this ONLY when the mode is not "object", and only through that one function');
+
   // ---- sign-in in object mode: the directory names the business, that business's object confirms the membership --------------------------------------------------
   const indexSrc = fs.readFileSync(path.join(srcDir, 'index.ts'), 'utf8');
   const callback = indexSrc.slice(indexSrc.indexOf('pathname === "/auth/google/callback"'), indexSrc.indexOf('pathname === "/auth/me"'));

@@ -44,7 +44,8 @@ async function runnerTests({ check, srcDir }) {
     for (let i = 1; i <= 120; i++) S.kv.set(`customer:${i}`, `note ${i}`);
     for (let i = 1; i <= 45; i++) S.mem.vecs.set(`pmf-${i}`, { values: [i, 1, 0], metadata: { customerId: '1', text: `memory ${i}` } });
     for (let i = 1; i <= 105; i++) S.r2.set(`photos/${i}.bin`, { bytes: new Uint8Array([i, 255 - i, i]), type: 'image/png' });
-    return { S, T: makeSide() };
+    const T = makeSide(); T.env.BUSINESS_ID = 'zulu-co';   // the target is a business's object, and says so
+    return { S, T };
   };
   // the runner talks to this instead of the network; every call is recorded
   const wire = ({ S, T }, hooks = {}) => {
@@ -81,6 +82,24 @@ async function runnerTests({ check, srcDir }) {
   check(writesToSource.length === 0 && w.calls.some((c) => c.host === 'source') && w.calls.some((c) => c.host === 'target' && c.method === 'POST'), 'the runner NEVER writes to the source: every call it makes to the source is a read');
   check(w.directory.length === 2 && w.directory.every((d) => d.business_id === 'zulu-co' && d.skip_membership === true) && w.directory.map((d) => d.email).sort().join() === 'crew@x.co,owner@x.co', 'only the ACTIVE members are registered in the directory (the suspended one is not), and without re-creating their memberships');
   check(w.calls.filter((c) => c.host === 'target' && c.method === 'GET' && c.path.endsWith('/fingerprint')).length === 2, 'the target\'s fingerprint is taken before (to check it is empty) and after (to prove the copy)');
+
+  // ---- the runner asks both ends who they are BEFORE copying a byte -----------------------------------------------------------------------------------------------------------
+  const noWrites = (w) => !w.calls.some((c) => c.method === 'POST' && c.path.startsWith('/admin/migration/'));
+  const selfTarget = fresh(); selfTarget.T.env = selfTarget.S.env;   // a target that is really the SAME deployment as the source
+  const wSame = wire(selfTarget);
+  const sameRun = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wSame.fetchImpl });
+  check(!sameRun.ok && /refusing to copy/.test(sameRun.mismatches.join()) && noWrites(wSame) && selfTarget.S.db.prepare('SELECT COUNT(*) AS n FROM customers').get().n === 2, 'if the "target" is really the SAME deployment as the source (it ignores the business it was asked for), the run REFUSES before copying anything: a database is never copied onto itself');
+  const other = fresh(); other.T.env.BUSINESS_ID = 'someone-else-co';
+  const wOther = wire(other);
+  const otherRun = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wOther.fetchImpl });
+  check(!otherRun.ok && /target answered as someone-else-co/.test(otherRun.mismatches.join()) && noWrites(wOther), 'a target that answers as a DIFFERENT business is refused, and nothing is written');
+  const objSource = fresh(); objSource.S.env.BUSINESS_ID = 'a-business';
+  const wObj = wire(objSource);
+  const objRun = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wObj.fetchImpl });
+  check(!objRun.ok && /source answered as a-business/.test(objRun.mismatches.join()) && noWrites(wObj), 'a source that is really a business\'s object, when a single-business deployment was expected, is refused');
+  const okSides = wire(fresh());
+  const okRun = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: okSides.fetchImpl, pageSize: 50 });
+  check(okRun.ok && okRun.steps[0].name === 'who is who' && okRun.steps[0].target === 'zulu-co' && okRun.steps[0].source === 'the single-business deployment', 'and when each end is what was asked for, it is the FIRST thing the run records, then it proceeds');
 
   // ---- the team is checked BEFORE anything is copied -------------------------------------------------------------------------------------------------------------------------
   const team = { asked: [] }, wt = wire(fresh(), team);
@@ -143,7 +162,7 @@ async function runnerTests({ check, srcDir }) {
   const ok503 = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wb.fetchImpl });
   check(ok503.ok === true && boom === 3, 'a 503 glitch is retried and the run still completes (found live: a new deploy takes a moment to reach every location)');
   const denied = fresh(); let tries = 0;
-  const wd = wire(denied, { before: async ({ host, path }) => { if (host === 'source' && path === '/admin/migration/manifest') { tries++; return new Response('{"error":"forbidden"}', { status: 403 }); } return null; } });
+  const wd = wire(denied, { before: async ({ host, path }) => { if (host === 'source' && path === '/admin/migration/whoami') { tries++; return new Response('{"error":"forbidden"}', { status: 403 }); } return null; } });
   const denial = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wd.fetchImpl });
   check(denial.ok === false && /403/.test(denial.error ?? '') && tries === 1 && denial.failedAfter === 'the start', 'a 403 is an ANSWER, not a glitch: it stops at once, is not retried, and is REPORTED (the first real rehearsal crashed and printed nothing)');
   check(Array.isArray(denial.steps) && typeof denial.durationMs === 'number', 'a failed run still returns its steps and its duration, so the command line can always print a report');

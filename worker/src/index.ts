@@ -1,6 +1,6 @@
 export { TrialObject } from "./trial";
 import { readOnlyRefusal } from "./freeze";
-import { callBusiness, forwardToBusiness, routeRequest } from "./routing";
+import { adminTargetBusiness, callBusiness, forwardToBusiness, routeRequest } from "./routing";
 import { lookupBusinessForEmail, normaliseEmail } from "./directory";
 import { makeBusinessObject } from "./business-object";
 import { adminTierOf, hashSource, recordAdminCall } from "./admin-gate";
@@ -3663,6 +3663,12 @@ export const BusinessObject = makeBusinessObject(serveRequest, { consolidate: ru
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    // Before the switch to object mode: an administrator naming a business (with the admin key) reaches that business's object, so data can be copied into it and checked while everyone else is still served
+    // from the database. Without the key, the header, or business objects on this deployment, nothing changes.
+    if (env.BUSINESS_MODE !== "object") {
+      const targeted = await adminTargetBusiness(request, env);
+      if (targeted) return forwardToBusiness(request, env, targeted);
+    }
     if (env.BUSINESS_MODE === "object" && env.BUSINESS) {
       // A preflight needs no data, so it never goes to an object.
       if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeadersFor(request) });
