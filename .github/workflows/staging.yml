@@ -299,6 +299,62 @@ jobs:
           }))
           PY
 
+      - name: Probe the memory index on Cloudflare
+        id: vectors
+        continue-on-error: true
+        run: |
+          BASE="https://${SLUG}.websitehub.co.za"
+          python3 - <<'PY'
+          import json, os
+          r = os.environ["RESULTS"]
+          e1 = [1.0] + [0.0] * 767
+          for name, text in (("first", "FIRST probe"), ("second", "SECOND probe")):
+              json.dump({"vectors": [{"id": "probe-1", "values": e1, "metadata": {"customerId": "1", "text": text}}]}, open(os.path.join(r, "vec-" + name + ".json"), "w"))
+          json.dump({"vector": e1, "topK": 10}, open(os.path.join(r, "vec-query.json"), "w"))
+          json.dump({"ids": ["probe-1"]}, open(os.path.join(r, "vec-ids.json"), "w"))
+          PY
+          post() { curl -s -o "$3" -w '%{http_code}' -X POST "$BASE$1" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY" -H "X-Target-Business: $2" -H "Content-Type: application/json" --data-binary "@$4"; }
+          S1=$(post /admin/migration/vectors staging-co "$RESULTS/up-first.json" "$RESULTS/vec-first.json")
+          S2=$(post /admin/migration/vectors staging-two "$RESULTS/up-second.json" "$RESULTS/vec-second.json")
+          attempt=0
+          for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            post /admin/migration/vectors-query staging-co "$RESULTS/q-first.json" "$RESULTS/vec-query.json" > /dev/null
+            post /admin/migration/vectors-query staging-two "$RESULTS/q-second.json" "$RESULTS/vec-query.json" > /dev/null
+            if grep -q "probe" "$RESULTS/q-first.json" && grep -q "probe" "$RESULTS/q-second.json"; then break; fi
+            sleep 5
+          done
+          post /admin/migration/vectors-by-ids staging-co "$RESULTS/ids-first.json" "$RESULTS/vec-ids.json" > /dev/null
+          post /admin/migration/vectors-by-ids staging-two "$RESULTS/ids-second.json" "$RESULTS/vec-ids.json" > /dev/null
+          curl -s "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/vectorize/v2/indexes/${SLUG}-memory/list?count=100" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" > "$RESULTS/vec-list.json"
+          UPSERT_FIRST="$S1" UPSERT_SECOND="$S2" ATTEMPTS="$attempt" python3 - <<'PY' > "$RESULTS/vectors.json"
+          import os, json
+          r = os.environ["RESULTS"]
+          def load(name):
+              try:
+                  return json.load(open(os.path.join(r, name)))
+              except Exception:
+                  return None
+          def texts(doc):
+              return sorted((m.get("metadata") or {}).get("text") for m in (doc or {}).get("matches", []))
+          def by_id(doc):
+              vs = (doc or {}).get("vectors", [])
+              return [(v.get("metadata") or {}).get("text") for v in vs]
+          listed = load("vec-list.json") or {}
+          ids = sorted(v["id"] for v in (listed.get("result") or {}).get("vectors", []) if "probe-1" in v["id"])
+          qa, qb = texts(load("q-first.json")), texts(load("q-second.json"))
+          print(json.dumps({
+              "upsert_status": {"first_business": os.environ["UPSERT_FIRST"], "second_business": os.environ["UPSERT_SECOND"]},
+              "seconds_until_searchable": int(os.environ["ATTEMPTS"]) * 5,
+              "search_in_first_business_returns": qa,
+              "search_in_second_business_returns": qb,
+              "each_business_searches_only_its_own_memory": qa == ["FIRST probe"] and qb == ["SECOND probe"],
+              "same_id_in_both_businesses_reads_back_its_own": by_id(load("ids-first.json")) == ["FIRST probe"] and by_id(load("ids-second.json")) == ["SECOND probe"],
+              "physical_ids_in_the_shared_index": ids,
+              "ids_are_prefixed_with_the_business": ids == ["staging-co:probe-1", "staging-two:probe-1"],
+              "list_api_total_vectors": (listed.get("result") or {}).get("totalCount"),
+          }))
+          PY
+
       - name: Send a real sentence through the business object
         id: sentence
         continue-on-error: true
@@ -357,6 +413,7 @@ jobs:
           E2E: ${{ steps.e2e.outcome }}
           SENTENCE: ${{ steps.sentence.outcome }}
           BUSINESSES: ${{ steps.businesses.outcome }}
+          VECTORS: ${{ steps.vectors.outcome }}
         run: |
           mkdir -p ops
           python3 - <<'PY'
@@ -378,13 +435,14 @@ jobs:
               "run": os.environ.get("GITHUB_RUN_ID"),
               "commit": os.environ.get("GITHUB_SHA", "")[:7],
               "resources": {"database_id": os.environ.get("D1_ID"), "kv_namespace_id": os.environ.get("KV_ID"), "worker": "office-staging-api", "host": "office-staging.websitehub.co.za"},
-              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E"), "real_sentence": os.environ.get("SENTENCE"), "businesses_created": os.environ.get("BUSINESSES")},
+              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E"), "real_sentence": os.environ.get("SENTENCE"), "businesses_created": os.environ.get("BUSINESSES"), "memory_index_probe": os.environ.get("VECTORS")},
               "init_routes": (read("init.txt") or "").splitlines(),
               "indexes": readjson("indexes.json"),
               "trial_do": readjson("trial-do.json"),
               "trial_d1": readjson("trial-d1.json"),
               "businesses": readjson("businesses.json"),
               "business_object_e2e": readjson("e2e.json"),
+              "memory_index_probe": readjson("vectors.json"),
               "real_sentence": readjson("sentence.json"),
           }
           json.dump(out, open("ops/staging-last-run.json", "w"), indent=1)

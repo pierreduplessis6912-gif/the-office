@@ -66,6 +66,13 @@ export async function migrationRoute(request: Request, env: Env, url: URL): Prom
         const found = await env.MEMORY.getByIds(body.ids);
         return Response.json({ vectors: found.map((v) => ({ id: v.id, values: Array.from(v.values as ArrayLike<number>), metadata: v.metadata ?? null })) });
       }
+      // A diagnostic: search the memory index from THIS business's scoped view, so the isolation between businesses can be observed on the real index.
+      case "POST /vectors-query": {
+        const body = (await request.json()) as { vector?: number[]; topK?: number };
+        if (!Array.isArray(body.vector)) return bad("missing vector");
+        const found = await env.MEMORY.query(body.vector, { topK: Math.max(1, Math.min(20, Math.floor(body.topK ?? 5))), returnMetadata: "all" });
+        return Response.json({ matches: found.matches.map((m) => ({ id: m.id, score: m.score, metadata: m.metadata ?? null })) });
+      }
       default:
         return bad(`no such migration route: ${route}`, 404);
     }

@@ -99,7 +99,7 @@ module.exports = async function runMigrationTests({ check, srcDir }) {
   // ---- the routes ----------------------------------------------------------------------------------------------------------------------------------------------------------
   const tiers = fs.readFileSync(path.join(srcDir, 'admin-routes.ts'), 'utf8');
   const migRoutes = [...tiers.matchAll(/"((?:GET|POST) \/admin\/migration\/[a-z-]+)": "(\w+)"/g)];
-  check(migRoutes.length === 13 && migRoutes.every((r) => r[2] === 'privileged'), 'all 13 migration routes are PRIVILEGED (both admin keys): they read or write a whole business');
+  check(migRoutes.length === 14 && migRoutes.every((r) => r[2] === 'privileged'), 'all 14 migration routes are PRIVILEGED (both admin keys): they read or write a whole business');
   const routesSrc = fs.readFileSync(path.join(srcDir, 'migration-routes.ts'), 'utf8');
   check(migRoutes.every((r) => routesSrc.includes(`case "${r[1].replace('/admin/migration', '')}"`)), 'and every one of them has a handler');
   check(/migrationRoute\(request, env, url\)/.test(fs.readFileSync(path.join(srcDir, 'debug.ts'), 'utf8')), 'the debug handler calls them');
