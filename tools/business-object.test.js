@@ -173,6 +173,8 @@ async function businessObjectTests({ check, srcDir }) {
     const cfg = fs.readFileSync(cfgFile, 'utf8');
     check(/\[\[durable_objects\.bindings\]\]\s*\nname = "BUSINESS"\s*\nclass_name = "BusinessObject"/.test(cfg) && /tag = "business-v1"\s*\nnew_sqlite_classes = \["BusinessObject"\]/.test(cfg) && cfg.indexOf('tag = "trial-v1"') < cfg.indexOf('tag = "business-v1"'), 'production registers the business object with SQLite storage (a class cannot be switched to SQLite later), after the trial\'s migration');
     const live = cfg.replace(/^\s*#.*$/gm, '');
+    check(/\[\[r2_buckets\]\]\s*\nbinding = "BACKUPS"\s*\nbucket_name = "office-backups"/.test(live) && /binding = "OFFICE_VAULT"\s*\nbucket_name = "office-vault"/.test(live), 'production binds a SEPARATE backup bucket (office-backups) beside the files bucket (office-vault)');
+    check(/\[\[r2_buckets\]\]\s*\nbinding = "BACKUPS"\s*\nbucket_name = "office-backups"/.test(live) && /binding = "OFFICE_VAULT"\s*\nbucket_name = "office-vault"/.test(live), 'production binds a SEPARATE backup bucket (office-backups) beside the files bucket (office-vault)');
     check(/^BUSINESS_MODE = "object"$/m.test(live) && /^LEGACY_LINK_BUSINESS = "zululand-flooring-and-blinds"$/m.test(live), 'production is CUT OVER (2026-10-13): it serves the business from its object, and that one business honours the links customers already hold');
   }
 };
