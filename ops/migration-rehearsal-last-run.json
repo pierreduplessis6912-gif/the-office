@@ -1,37 +1,161 @@
 {
- "when": "2026-10-13T05:08:24.760548Z",
- "run": "38349399154",
- "commit": "ab2e94b",
+ "when": "2026-10-13T05:28:53.154826Z",
+ "run": "38350119900",
+ "commit": "d8c3865",
  "source": "office-rehearsal-src (D1 mode)",
- "target_business": "reh-38349399154",
+ "target_business": "reh-38350119900",
  "outcomes": {
-  "migrate": "skipped",
-  "rerun": "skipped",
-  "verify": "skipped"
+  "migrate": "success",
+  "rerun": "success",
+  "verify": "success"
  },
- "source_loaded": "skipped",
+ "source_loaded": "done",
  "migration": {
-  "ok": null,
-  "seconds": 0,
-  "mismatches": null,
-  "steps": null
+  "ok": false,
+  "seconds": 699,
+  "mismatches": [
+   "memories: 45 listed, 45 copied, 45 differ after being read back"
+  ],
+  "steps": [
+   {
+    "name": "source manifest",
+    "tables": 42,
+    "rows": 17,
+    "counters": 9
+   },
+   {
+    "name": "schema",
+    "created": [
+     "d1_migrations",
+     "lazy_things"
+    ],
+    "columnsAdded": [
+     {
+      "table": "tasks",
+      "column": "priority"
+     }
+    ]
+   },
+   {
+    "name": "rows customers",
+    "copied": 4
+   },
+   {
+    "name": "rows d1_migrations",
+    "copied": 1
+   },
+   {
+    "name": "rows expenses",
+    "copied": 1
+   },
+   {
+    "name": "rows invoices",
+    "copied": 2
+   },
+   {
+    "name": "rows lazy_things",
+    "copied": 2
+   },
+   {
+    "name": "rows memberships",
+    "copied": 3
+   },
+   {
+    "name": "rows payments",
+    "copied": 1
+   },
+   {
+    "name": "rows stock_items",
+    "copied": 1
+   },
+   {
+    "name": "rows tasks",
+    "copied": 2
+   },
+   {
+    "name": "id counters",
+    "carried": 9
+   },
+   {
+    "name": "database done",
+    "rows": 17
+   },
+   {
+    "name": "notes",
+    "copied": 250
+   },
+   {
+    "name": "files",
+    "copied": 40,
+    "bytes": 21020
+   },
+   {
+    "name": "memories",
+    "listed": 45,
+    "copied": 45,
+    "differ": 45,
+    "waitedSeconds": 95,
+    "processed": true
+   },
+   {
+    "name": "directory",
+    "registered": 2,
+    "notActive": 1
+   },
+   {
+    "name": "indexes",
+    "created": 0,
+    "failed": 0
+   },
+   {
+    "name": "fingerprints compared",
+    "tables": 42,
+    "notes": 250,
+    "files": 40,
+    "differences": 0
+   }
+  ]
  },
  "second_run_without_force": {
-  "exit": null,
-  "ok": null,
-  "said": null,
+  "exit": "exit=1",
+  "ok": false,
+  "said": [
+   "the target business already holds data; refusing to mix (use force to copy over it)"
+  ],
   "target_unchanged": true
  },
  "forced_run": {
-  "exit": null,
-  "ok": null,
+  "exit": "exit=0",
+  "ok": true,
   "target_unchanged": true
  },
  "target_after": {
-  "tables": 0,
-  "customers": null,
-  "notes": null,
-  "files": null
+  "tables": 42,
+  "customers": 4,
+  "notes": 250,
+  "files": 40
  },
- "verification": null
+ "source_probe": {
+  "http": "200",
+  "customers": 0,
+  "attempts": 1
+ },
+ "verification": {
+  "owner_signs_in": "200",
+  "customers_seen_by_owner": 4,
+  "emoji_and_quote_names_intact": true,
+  "active_crew_member_status": "200",
+  "suspended_member_status": "403",
+  "directory_members_for_this_business": 2,
+  "new_customer_import_status": "200",
+  "new_customer_id": 6,
+  "migrated_note_readable": true,
+  "other_business_sees_the_note": false,
+  "memory_search_in_migrated_business": [
+   "REHEARSAL memory 1",
+   "REHEARSAL memory 7",
+   "REHEARSAL memory 9"
+  ],
+  "memory_search_in_the_other_business_mentions_rehearsal": false
+ }
 }
