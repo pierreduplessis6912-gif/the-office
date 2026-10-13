@@ -1,0 +1,105 @@
+name: Production final copy (with the memories)
+
+# SHIP_CHECKLIST.md item A. The LAST copy before the cutover. Pierre, 2026-10-13: he is the only user, so no freeze window is needed; he just must not use the app while this runs.
+# 1. It records the production database's RECOVERY POINT first (D1 keeps 30 days of history: a time-travel bookmark), and stops if it cannot.
+# 2. It re-runs the copy with --force (every row, note and file is written again, so anything that changed since the first copy is brought across), and copies the MEMORIES (67) through Cloudflare's API.
+# It reads production and writes only into the business's object (`zululand-flooring-and-blinds`), its prefixed notes, files and memories, and the directory: the runner refuses unless the source is the
+# single-business deployment and the target is that business's object. Production keeps serving from the database until the switch. The record holds counts and steps; email addresses are scrubbed.
+# Started by hand only.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: prod-final-copy
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    env:
+      PROD_URL: https://office.websitehub.co.za
+      BUSINESS: zululand-flooring-and-blinds
+      CLOUDFLARE_API_TOKEN: ${{ secrets.PROVISION }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      RESULTS: ${{ github.workspace }}/results
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Record the database's recovery point (stops here if it cannot)
+        run: |
+          mkdir -p "$RESULTS"
+          npm install -g wrangler@4
+          DB_ID=$(grep -A4 'd1_databases' worker/wrangler.toml | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
+          wrangler d1 time-travel info "$DB_ID" > "$RESULTS/recovery-point.txt" 2>&1
+          cat "$RESULTS/recovery-point.txt"
+          grep -qi "bookmark" "$RESULTS/recovery-point.txt"
+
+      - name: Final copy, with the memories
+        id: copy
+        continue-on-error: true
+        env:
+          SOURCE_URL: ${{ env.PROD_URL }}
+          SOURCE_ADMIN_KEY: ${{ secrets.PROD_ADMIN_KEY }}
+          SOURCE_CONFIRM_KEY: ${{ secrets.PROD_CONFIRM_KEY }}
+          TARGET_URL: ${{ env.PROD_URL }}
+          TARGET_ADMIN_KEY: ${{ secrets.PROD_ADMIN_KEY }}
+          TARGET_CONFIRM_KEY: ${{ secrets.PROD_CONFIRM_KEY }}
+          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.PROVISION }}
+          VECTOR_INDEX: office-memory
+          TARGET_VECTOR_INDEX: office-memory
+        run: |
+          set +e
+          node tools/migrate.mjs --force > "$RESULTS/report.json" 2> "$RESULTS/report.log"
+          echo "exit=$?" > "$RESULTS/report.exit"
+          cat "$RESULTS/report.exit"
+          tail -n 14 "$RESULTS/report.log"
+
+      - name: Record what happened
+        if: always()
+        run: |
+          mkdir -p ops
+          python3 - <<'PY'
+          import json, os, re, datetime
+          r = os.environ["RESULTS"]
+          EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+          def scrub(x):
+              if isinstance(x, str):
+                  return EMAIL.sub("<email>", x)
+              if isinstance(x, list):
+                  return [scrub(i) for i in x]
+              if isinstance(x, dict):
+                  return {k: scrub(v) for k, v in x.items()}
+              return x
+          def read(n):
+              try:
+                  return open(os.path.join(r, n)).read().strip()
+              except Exception:
+                  return None
+          def readjson(n):
+              t = read(n)
+              try:
+                  return json.loads(t) if t else None
+              except Exception:
+                  return None
+          report = readjson("report.json") or {}
+          out = {
+              "when": datetime.datetime.utcnow().isoformat() + "Z", "run": os.environ.get("GITHUB_RUN_ID"), "commit": os.environ.get("GITHUB_SHA", "")[:7], "business": os.environ.get("BUSINESS"),
+              "recovery_point": read("recovery-point.txt"),
+              "migration": {"ok": report.get("ok"), "exit": read("report.exit"), "seconds": round((report.get("durationMs") or 0) / 1000), "mismatches": report.get("mismatches"), "error": report.get("error"), "failed_after": report.get("failedAfter"), "steps": report.get("steps"), "log_tail": (read("report.log") or "")[-1200:]},
+          }
+          json.dump(scrub(out), open("ops/production-final-copy-last.json", "w"), indent=1)
+          PY
+          git config user.name "production-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/production-final-copy-last.json
+          git commit -m "Production final copy record (counts, steps and statuses; addresses scrubbed)" || echo "nothing to record"
+          git pull --rebase origin main
+          git push origin HEAD:main
