@@ -1,0 +1,36 @@
+{
+ "when": "2026-10-13T13:20:56.084651Z",
+ "run": "38404194159",
+ "commit": "a28f0ff",
+ "read_only": true,
+ "front_door": {
+  "health": "200",
+  "a_stranger_gets": "401",
+  "refusal_is_json": true,
+  "smoke_test_exit": "0"
+ },
+ "sign_in_points_at_production": true,
+ "the_business_object_says_it_is": {
+  "businessId": "zululand-flooring-and-blinds",
+  "objectMode": true,
+  "vectorPrefix": "0c8aa6d6~"
+ },
+ "the_worker_without_naming_a_business_gets": "400",
+ "directory_members_for_the_business": 4,
+ "counts_before_the_cutover": {
+  "rows": 2002,
+  "tables": 46,
+  "notes": 42,
+  "files": 129,
+  "file_bytes": 32650518
+ },
+ "counts_in_the_object_now": {
+  "rows": 2002,
+  "tables": 46,
+  "notes": 42,
+  "files": 129,
+  "file_bytes": 32650518
+ },
+ "the_object_matches_the_counts_from_before": true,
+ "inventory_exit": "exit=0"
+}
