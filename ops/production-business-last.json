@@ -1,0 +1,38 @@
+{
+ "when": "2026-10-13T10:28:01.071784Z",
+ "run": "38383522889",
+ "commit": "0ace7ca",
+ "business": "zululand-flooring-and-blinds",
+ "create_status": "200",
+ "create_answer": {
+  "business": "zululand-flooring-and-blinds",
+  "created": true,
+  "migrating": true,
+  "objectStatus": 200
+ },
+ "directory": {
+  "businesses": [
+   {
+    "id": "zululand-flooring-and-blinds",
+    "name": "Zululand Flooring and Blinds",
+    "status": "active",
+    "plan": "standard",
+    "members": 0
+   }
+  ]
+ },
+ "the_business_object_says_it_is": {
+  "businessId": "zululand-flooring-and-blinds",
+  "objectMode": true
+ },
+ "the_worker_says_it_is": {
+  "businessId": null,
+  "objectMode": false
+ },
+ "the_object_holds": {
+  "tables_with_rows": [],
+  "notes": 0,
+  "files": 0
+ },
+ "production_health_status": "200"
+}
