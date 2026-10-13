@@ -82,3 +82,20 @@ export async function addDirectoryMember(env: Env, email: string, businessId: st
   await env.OFFICE_DB.prepare("INSERT INTO directory_members (email, business_id) VALUES (?, ?)").bind(address, businessId).run();
   return { added: true };
 }
+
+// Before a migration copies anything: which of these team emails already belong to a DIFFERENT business? (An email is never moved between businesses, so the migration must find out first,
+// not after everything has been copied. Found on the first real rehearsal, which copied everything and then stopped at the directory.)
+export async function findDirectoryConflicts(env: Env, emails: string[], businessId: string): Promise<{ email: string; business_id: string }[]> {
+  const conflicts: { email: string; business_id: string }[] = [];
+  try {
+    for (const raw of emails) {
+      const email = normaliseEmail(raw);
+      const row = await env.OFFICE_DB.prepare("SELECT business_id FROM directory_members WHERE email = ?").bind(email).first<{ business_id: string }>();
+      if (row && row.business_id !== businessId) conflicts.push({ email, business_id: row.business_id });
+    }
+    return conflicts;
+  } catch (error) {
+    if (missingTable(error)) return [];
+    throw error;
+  }
+}

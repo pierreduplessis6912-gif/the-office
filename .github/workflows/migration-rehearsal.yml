@@ -208,6 +208,12 @@ jobs:
           echo "::error::the source memory index did not process the seed in five minutes."
           exit 1
 
+      - name: Give the synthetic team this run's own addresses
+        working-directory: worker
+        run: |
+          # An email belongs to exactly one business and is never moved, and every run migrates into a FRESH business, so each run's team needs its own addresses.
+          wrangler d1 execute OFFICE_DB --remote --config wrangler.source.toml --command "UPDATE memberships SET google_email = CASE id WHEN 1 THEN 'rehearsal-owner-${GITHUB_RUN_ID}@example.com' WHEN 2 THEN 'rehearsal-crew-${GITHUB_RUN_ID}@example.com' WHEN 3 THEN 'rehearsal-old-${GITHUB_RUN_ID}@example.com' ELSE google_email END"
+
       - name: Make a fresh business for this run in staging
         id: business
         run: |
@@ -267,7 +273,7 @@ jobs:
           print("office_session=" + p + "." + b(hmac.new(os.environ["KEY_SESSION"].encode(), p.encode(), hashlib.sha256).digest()))
           PY
           cookie() { EMAIL="$1" BIZ="$2" python3 "$RESULTS/mkcookie.py"; }
-          OWNER=$(cookie rehearsal-owner@example.com "$BUSINESS"); CREW=$(cookie rehearsal-crew@example.com "$BUSINESS"); OLD=$(cookie rehearsal-old@example.com "$BUSINESS")
+          OWNER=$(cookie "rehearsal-owner-${GITHUB_RUN_ID}@example.com" "$BUSINESS"); CREW=$(cookie "rehearsal-crew-${GITHUB_RUN_ID}@example.com" "$BUSINESS"); OLD=$(cookie "rehearsal-old-${GITHUB_RUN_ID}@example.com" "$BUSINESS")
           echo "::add-mask::$OWNER"; echo "::add-mask::$CREW"; echo "::add-mask::$OLD"
           S_OWNER=$(curl -s -o "$RESULTS/v-list.json" -w '%{http_code}' -H "Cookie: $OWNER" "$BASE/customers")
           S_CREW=$(curl -s -o /dev/null -w '%{http_code}' -H "Cookie: $CREW" "$BASE/customers")

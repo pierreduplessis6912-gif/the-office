@@ -131,7 +131,8 @@ export const ADMIN_ROUTE_TIERS: Readonly<Record<string, AdminTier>> = {
   "POST /debug/resolve-entity-test": "write",
   "POST /debug/retry-quotation": "write",
   "POST /debug/split-topics": "write",
-  // ---- privileged (27): Can change who has access, change the banking details on invoices, delete or merge records, or read everything at once. Needs a SECOND secret (ADMIN_CONFIRM_KEY) on top of the admin key, and is switched off while that secret is not set.
+  // ---- privileged (28): Can change who has access, change the banking details on invoices, delete or merge records, or read everything at once. Needs a SECOND secret (ADMIN_CONFIRM_KEY) on top of the admin key, and is switched off while that secret is not set.
+  "POST /debug/directory/check-members": "privileged",
   "POST /admin/migration/vectors-query": "privileged",
   "GET /admin/migration/manifest": "privileged",
   "GET /admin/migration/rows": "privileged",

@@ -61,6 +61,7 @@ async function runnerTests({ check, srcDir }) {
         if (u.pathname.endsWith('/tgt-index/info')) return Response.json({ success: true, result: { processedUpToMutation: T.mem.processNext() } });
         return new Response('not found', { status: 404 });
       }
+      if (u.pathname === '/debug/directory/check-members') { const asked = JSON.parse(body); (hooks.asked ??= []).push(asked); return Response.json({ conflicts: (hooks.conflicts ?? []).filter((c) => asked.emails.includes(c.email)) }); }
       if (u.pathname === '/debug/directory/add-member') { directory.push(JSON.parse(body)); return Response.json({ inDirectory: true }); }
       if (u.pathname === '/debug/init-indexes') return Response.json({ created: [], alreadyThere: [], failed: [] });
       const request = new Request(url, { method, headers: init.headers, body });
@@ -80,6 +81,15 @@ async function runnerTests({ check, srcDir }) {
   check(writesToSource.length === 0 && w.calls.some((c) => c.host === 'source') && w.calls.some((c) => c.host === 'target' && c.method === 'POST'), 'the runner NEVER writes to the source: every call it makes to the source is a read');
   check(w.directory.length === 2 && w.directory.every((d) => d.business_id === 'zulu-co' && d.skip_membership === true) && w.directory.map((d) => d.email).sort().join() === 'crew@x.co,owner@x.co', 'only the ACTIVE members are registered in the directory (the suspended one is not), and without re-creating their memberships');
   check(w.calls.filter((c) => c.host === 'target' && c.method === 'GET' && c.path.endsWith('/fingerprint')).length === 2, 'the target\'s fingerprint is taken before (to check it is empty) and after (to prove the copy)');
+
+  // ---- the team is checked BEFORE anything is copied -------------------------------------------------------------------------------------------------------------------------
+  const team = { asked: [] }, wt = wire(fresh(), team);
+  const checked = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wt.fetchImpl, pageSize: 2 });
+  const firstWrite = wt.calls.findIndex((c) => c.host === 'target' && c.method === 'POST' && c.path.startsWith('/admin/migration/')), checkAt = wt.calls.findIndex((c) => c.path === '/debug/directory/check-members');
+  check(checked.ok && checkAt >= 0 && checkAt < firstWrite && team.asked[0].emails.sort().join() === 'crew@x.co,owner@x.co' && team.asked[0].business_id === 'zulu-co', 'the team is checked in the directory BEFORE the first write to the target, and only the ACTIVE members are asked about');
+  const clash = { conflicts: [{ email: 'crew@x.co', business_id: 'other-co' }] }, wc = wire(fresh(), clash);
+  const clashed = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wc.fetchImpl, pageSize: 2 });
+  check(!clashed.ok && /crew@x\.co \(in other-co\)/.test(clashed.mismatches.join()) && /NOTHING was copied/.test(clashed.mismatches.join()) && !wc.calls.some((c) => c.host === 'target' && c.method === 'POST' && c.path.startsWith('/admin/migration/')), 'if a team member already belongs to another business, the run STOPS before copying anything and names them (nothing at all is written to the target)');
 
   // ---- memories: listed through Cloudflare's API, copied in batches, verified AFTER the target has processed them ----------------------------------------------------------
   const vw = fresh(), wv = wire(vw, { scopedTarget: true });

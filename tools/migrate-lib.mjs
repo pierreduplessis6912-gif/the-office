@@ -79,6 +79,24 @@ export async function migrate({ source, target, include = {}, vectors = null, fo
       report.durationMs = Date.now() - started;
       return report;
     }
+    // The team must be able to sign in afterwards, and an email is never moved between businesses: so find out NOW, before anything is copied, whether any active member already belongs elsewhere.
+    if (want.db && manifest.tables.some((t) => t.name === 'memberships')) {
+      const team = [];
+      for (let after = 0; ;) {
+        const page = await call(source, 'GET', '/admin/migration/rows', { query: { table: 'memberships', after, limit: pageSize } });
+        if (!page.rows.length) break;
+        team.push(...page.rows.filter((m) => m.status === 'active' && m.google_email)); after = page.last;
+      }
+      if (team.length) {
+        const check = await call(target, 'POST', '/debug/directory/check-members', { json: { business_id: target.business, emails: team.map((m) => m.google_email) }, workerLevel: true });
+        step('team check', { activeMembers: team.length, alreadyInAnotherBusiness: check.conflicts.length });
+        if (check.conflicts.length) {
+          report.mismatches.push(`${check.conflicts.length} active team member(s) already belong to another business, so they could not be registered to this one: ${check.conflicts.map((c) => `${c.email} (in ${c.business_id})`).join(', ')}. NOTHING was copied.`);
+          report.durationMs = Date.now() - started;
+          return report;
+        }
+      }
+    }
     const order = copyOrder(manifest.tables);
 
     // ---- the database ---------------------------------------------------------------------------------------------------------------------------------------------------------

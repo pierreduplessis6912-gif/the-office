@@ -16,7 +16,7 @@
 // (like ROLE_CAPABILITIES, to validate a role name) — the actual
 // gating already ran in index.ts before this function is ever called.
 import { migrationRoute } from "./migration-routes";
-import { addDirectoryMember, createBusiness, listDirectory, normaliseEmail } from "./directory";
+import { addDirectoryMember, createBusiness, findDirectoryConflicts, isBusinessId, listDirectory, normaliseEmail } from "./directory";
 import { callBusiness } from "./routing";
 import { applyIndexes } from "./indexes";
 import { trialAi, trialD1, trialDo } from "./trial";
@@ -119,6 +119,12 @@ if (url.pathname === "/debug/directory" && request.method === "GET") {
       } catch (error) {
         return Response.json({ error: String((error as { message?: string }).message ?? error) }, { status: 400 });
       }
+    }
+    // Would these team emails clash with another business? Asked by the migration runner BEFORE it copies anything.
+    if (url.pathname === "/debug/directory/check-members" && request.method === "POST") {
+      const body = (await request.json()) as { business_id?: string; emails?: string[] };
+      if (!isBusinessId(body.business_id) || !Array.isArray(body.emails)) return Response.json({ error: "a valid business_id and a list of emails are required" }, { status: 400 });
+      return Response.json({ conflicts: await findDirectoryConflicts(env, body.emails.map(String), body.business_id) });
     }
     if (url.pathname === "/debug/directory/add-member" && request.method === "POST") {
       const body = (await request.json()) as { email?: string; business_id?: string; role?: string; skip_membership?: boolean };

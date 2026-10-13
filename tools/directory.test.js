@@ -26,6 +26,11 @@ module.exports = async function runDirectoryTests({ check, srcDir }) {
   await d.addDirectoryMember(env, 'sipho@alpha.co', 'alpha-co'); await d.addDirectoryMember(env, 'ben@beta.co', 'beta-co');
   const listing = await d.listDirectory(env);
   check(listing.businesses.length === 2 && listing.businesses.find((b) => b.id === 'alpha-co').members === 2 && listing.businesses.find((b) => b.id === 'beta-co').members === 1 && !JSON.stringify(listing).includes('@'), 'the listing counts members per business and never shows an email address');
+  const clash = await d.findDirectoryConflicts(env, ['Owner@Alpha.co', 'ben@beta.co', 'new@nowhere.co'], 'alpha-co');
+  check(clash.length === 1 && clash[0].email === 'ben@beta.co' && clash[0].business_id === 'beta-co', 'before a migration, the directory reports exactly which team emails already belong to a DIFFERENT business (not the ones already in the target business, not unknown ones)');
+  const emptyDb = new DatabaseSync(':memory:');
+  const emptyEnv = { OFFICE_DB: { prepare: (sql) => { const st = (binds) => ({ bind: (...b) => st(b), first: async () => emptyDb.prepare(sql).get(...binds) ?? null }); return st([]); } } };
+  check((await d.findDirectoryConflicts(emptyEnv, ['a@b.co'], 'alpha-co')).length === 0, 'with no directory yet there are no conflicts, and the check creates nothing');
   check((await d.lookupBusinessForEmail(env, 'ben@beta.co')) === 'beta-co' && (await d.lookupBusinessForEmail(env, 'stranger@nowhere.co')) === null, 'each member finds their own business, and a stranger finds none');
   db.prepare("UPDATE businesses SET status = 'suspended' WHERE id = 'beta-co'").run();
   check((await d.lookupBusinessForEmail(env, 'ben@beta.co')) === null && (await d.lookupBusinessForEmail(env, 'owner@alpha.co')) === 'alpha-co', 'a suspended business cannot be signed in to, and the others are unaffected');
