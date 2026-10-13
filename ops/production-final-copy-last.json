@@ -1,0 +1,269 @@
+{
+ "when": "2026-10-13T12:02:59.515467Z",
+ "run": "38393903774",
+ "commit": "f484fdf",
+ "business": "zululand-flooring-and-blinds",
+ "recovery_point": "\u26c5\ufe0f wrangler 4.150.0\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nResource location: remote \n\n\ud83d\udea7 Time Traveling...\n\u26a0\ufe0f The current bookmark is '00000bc1-00000000-00005103-3360159e855c1f70092a398ab7eacdfc'\n\u26a1\ufe0f To restore to this specific bookmark, run:\n `wrangler d1 time-travel restore d5343bef-3a3a-4791-860d-fbd96c546abb --bookmark=00000bc1-00000000-00005103-3360159e855c1f70092a398ab7eacdfc`",
+ "migration": {
+  "ok": false,
+  "exit": "exit=1",
+  "seconds": 272,
+  "mismatches": [],
+  "error": "POST /admin/migration/vectors -> 400 {\"error\":\"VECTOR_UPSERT_ERROR (code = 40008): id too long; max is 64 bytes, got 65 bytes\"}",
+  "failed_after": "files",
+  "steps": [
+   {
+    "name": "who is who",
+    "source": "the single-business deployment",
+    "target": "zululand-flooring-and-blinds",
+    "ms": 1362
+   },
+   {
+    "name": "source manifest",
+    "tables": 46,
+    "rows": 2002,
+    "counters": 37,
+    "ms": 36752
+   },
+   {
+    "name": "team check",
+    "activeMembers": 4,
+    "alreadyInAnotherBusiness": 0,
+    "ms": 14684
+   },
+   {
+    "name": "schema",
+    "created": [],
+    "columnsAdded": [],
+    "ms": 240
+   },
+   {
+    "name": "rows business_profile",
+    "copied": 1,
+    "ms": 1225
+   },
+   {
+    "name": "rows captures",
+    "copied": 393,
+    "ms": 2166
+   },
+   {
+    "name": "rows character_facts",
+    "copied": 5,
+    "ms": 1248
+   },
+   {
+    "name": "rows characters",
+    "copied": 21,
+    "ms": 1178
+   },
+   {
+    "name": "rows customer_facts",
+    "copied": 1,
+    "ms": 1234
+   },
+   {
+    "name": "rows customers",
+    "copied": 214,
+    "ms": 1944
+   },
+   {
+    "name": "rows expenses",
+    "copied": 7,
+    "ms": 1211
+   },
+   {
+    "name": "rows goods_received_notes",
+    "copied": 9,
+    "ms": 1241
+   },
+   {
+    "name": "rows grn_line_items",
+    "copied": 11,
+    "ms": 1175
+   },
+   {
+    "name": "rows interaction_edges",
+    "copied": 20,
+    "ms": 1181
+   },
+   {
+    "name": "rows invoices",
+    "copied": 306,
+    "ms": 2068
+   },
+   {
+    "name": "rows job_scope_amendments",
+    "copied": 8,
+    "ms": 1177
+   },
+   {
+    "name": "rows job_scopes",
+    "copied": 68,
+    "ms": 1242
+   },
+   {
+    "name": "rows leads",
+    "copied": 5,
+    "ms": 1675
+   },
+   {
+    "name": "rows line_items",
+    "copied": 23,
+    "ms": 1186
+   },
+   {
+    "name": "rows member_selections",
+    "copied": 3,
+    "ms": 1195
+   },
+   {
+    "name": "rows memberships",
+    "copied": 4,
+    "ms": 1272
+   },
+   {
+    "name": "rows payments",
+    "copied": 388,
+    "ms": 2519
+   },
+   {
+    "name": "rows pending_actions",
+    "copied": 124,
+    "ms": 1312
+   },
+   {
+    "name": "rows people",
+    "copied": 224,
+    "ms": 2369
+   },
+   {
+    "name": "rows permission_audit",
+    "copied": 2,
+    "ms": 1178
+   },
+   {
+    "name": "rows po_line_items",
+    "copied": 16,
+    "ms": 1196
+   },
+   {
+    "name": "rows products",
+    "copied": 5,
+    "ms": 1174
+   },
+   {
+    "name": "rows projects",
+    "copied": 4,
+    "ms": 1160
+   },
+   {
+    "name": "rows purchase_order_customers",
+    "copied": 2,
+    "ms": 1670
+   },
+   {
+    "name": "rows purchase_orders",
+    "copied": 14,
+    "ms": 1183
+   },
+   {
+    "name": "rows quotations",
+    "copied": 21,
+    "ms": 1178
+   },
+   {
+    "name": "rows scope_components",
+    "copied": 37,
+    "ms": 1724
+   },
+   {
+    "name": "rows scope_tasks",
+    "copied": 21,
+    "ms": 1210
+   },
+   {
+    "name": "rows selections",
+    "copied": 4,
+    "ms": 1223
+   },
+   {
+    "name": "rows snags",
+    "copied": 3,
+    "ms": 1179
+   },
+   {
+    "name": "rows stock_items",
+    "copied": 2,
+    "ms": 1186
+   },
+   {
+    "name": "rows stock_usage_log",
+    "copied": 1,
+    "ms": 1343
+   },
+   {
+    "name": "rows stocktake_lines",
+    "copied": 1,
+    "ms": 1185
+   },
+   {
+    "name": "rows stocktakes",
+    "copied": 1,
+    "ms": 1194
+   },
+   {
+    "name": "rows supplier_invoice_line_items",
+    "copied": 8,
+    "ms": 1223
+   },
+   {
+    "name": "rows supplier_invoices",
+    "copied": 6,
+    "ms": 1173
+   },
+   {
+    "name": "rows supplier_payments",
+    "copied": 1,
+    "ms": 1152
+   },
+   {
+    "name": "rows tasks",
+    "copied": 15,
+    "ms": 1203
+   },
+   {
+    "name": "rows unit_conversions",
+    "copied": 1,
+    "ms": 1215
+   },
+   {
+    "name": "rows variance_dispositions",
+    "copied": 2,
+    "ms": 1187
+   },
+   {
+    "name": "id counters",
+    "carried": 37,
+    "ms": 201
+   },
+   {
+    "name": "database done",
+    "rows": 2002,
+    "ms": 0
+   },
+   {
+    "name": "notes",
+    "copied": 42,
+    "ms": 9579
+   },
+   {
+    "name": "files",
+    "copied": 129,
+    "bytes": 32650518,
+    "ms": 143139
+   }
+  ],
+  "log_tail": "\"copied\":9}\nrows grn_line_items {\"copied\":11}\nrows interaction_edges {\"copied\":20}\nrows invoices {\"copied\":306}\nrows job_scope_amendments {\"copied\":8}\nrows job_scopes {\"copied\":68}\nrows leads {\"copied\":5}\nrows line_items {\"copied\":23}\nrows member_selections {\"copied\":3}\nrows memberships {\"copied\":4}\nrows payments {\"copied\":388}\nrows pending_actions {\"copied\":124}\nrows people {\"copied\":224}\nrows permission_audit {\"copied\":2}\nrows po_line_items {\"copied\":16}\nrows products {\"copied\":5}\nrows projects {\"copied\":4}\nrows purchase_order_customers {\"copied\":2}\nrows purchase_orders {\"copied\":14}\nrows quotations {\"copied\":21}\nrows scope_components {\"copied\":37}\nrows scope_tasks {\"copied\":21}\nrows selections {\"copied\":4}\nrows snags {\"copied\":3}\nrows stock_items {\"copied\":2}\nrows stock_usage_log {\"copied\":1}\nrows stocktake_lines {\"copied\":1}\nrows stocktakes {\"copied\":1}\nrows supplier_invoice_line_items {\"copied\":8}\nrows supplier_invoices {\"copied\":6}\nrows supplier_payments {\"copied\":1}\nrows tasks {\"copied\":15}\nrows unit_conversions {\"copied\":1}\nrows variance_dispositions {\"copied\":2}\nid counters {\"carried\":37}\ndatabase done {\"rows\":2002}\nnotes {\"copied\":42}\nfiles {\"copied\":129,\"bytes\":32650518}"
+ }
+}
