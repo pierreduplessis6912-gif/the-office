@@ -47,6 +47,12 @@ async function inventoryTests({ check, srcDir }) {
   check(rep.estimate.sequentialSecondsExpected > 0 && rep.estimate.sequentialSecondsLow < rep.estimate.sequentialSecondsExpected && rep.estimate.sequentialSecondsHigh > rep.estimate.sequentialSecondsExpected, 'it gives a time estimate with a low and a high');
   const small = lib.estimate({ rows: 100, tables: 40, notes: 10, files: 10, vectors: 0 }), big = lib.estimate({ rows: 100000, tables: 40, notes: 5000, files: 3000, vectors: 2000 });
   check(big.sequentialSecondsExpected > small.sequentialSecondsExpected * 10 && lib.estimate({ rows: 0, tables: 0, notes: 0, files: 0, vectors: 45 }).sequentialSecondsExpected > lib.estimate({ rows: 0, tables: 0, notes: 0, files: 0, vectors: 0 }).sequentialSecondsExpected, 'the estimate grows with the data, and with the memories (which add Cloudflare\'s processing wait)');
+  calls.length = 0;
+  await lib.inventory({ source: { base: 'http://prod', adminKey: 'k', confirmKey: 'c', business: 'zulu-co' }, pageSize: 50, fetchImpl });
+  check(calls.length > 0 && calls.every((c) => c.headers['X-Target-Business'] === 'zulu-co') && !calls.some((c) => c.method !== 'GET'), 'after the cutover the inventory can NAME the business whose data it counts (every request carries it), and is still only GETs');
+  calls.length = 0;
+  await lib.inventory({ source: { base: 'http://prod', adminKey: 'k', confirmKey: 'c' }, pageSize: 50, fetchImpl });
+  check(calls.every((c) => !('X-Target-Business' in c.headers)), 'and without one it sends none (the single-business deployment)');
   const denied = await lib.inventory({ source: { base: 'http://prod', adminKey: 'k', confirmKey: 'c' }, fetchImpl: async () => new Response('{"error":"forbidden"}', { status: 403 }) });
   check(denied.ok === false && /403/.test(denied.error) && denied.requests === 1 && denied.readOnly === true, 'a refusal (for instance the second key is not set) is REPORTED with its status and is not retried');
   const libSrc = fs.readFileSync(path.join(__dirname, 'inventory-lib.mjs'), 'utf8').replace(/\/\/.*$/gm, '');

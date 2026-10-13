@@ -53,7 +53,7 @@ module.exports = async function runScopedBindingTests({ check, srcDir }) {
   // ---- the memory index -------------------------------------------------------------------------------------------------------------------------------------------
   await A.MEMORY.upsert([{ id: 'pmf-1-2026', values: [1, 0], metadata: { customerId: '1', text: 'ALPHA customer 1 memory' } }]);
   await B.MEMORY.upsert([{ id: 'pmf-1-2026', values: [1, 0], metadata: { customerId: '1', text: 'BETA customer 1 memory' } }]);
-  check(vecStore.length === 2 && vecStore.every((v) => v.namespace && v.id.startsWith(v.namespace + ':')), 'the same vector id in two businesses no longer overwrites: each is stored in its own namespace with a prefixed id');
+  check(vecStore.length === 2 && vecStore.every((v) => v.namespace && v.id.startsWith(sb.vectorPrefix(v.namespace))), 'the same vector id in two businesses no longer overwrites: each is stored in its own namespace with a prefixed id');
   const qa = await A.MEMORY.query([1, 0], { topK: 8, returnMetadata: true, filter: { customerId: '1' } });
   check(qa.matches.length === 1 && qa.matches[0].metadata.text === 'ALPHA customer 1 memory' && qa.matches[0].id === 'pmf-1-2026', 'a memory search for customer 1 returns ONLY that business\'s customer 1 (before: business B\'s memories too), and the ids come back as the application knows them');
   const qb = await B.MEMORY.query([1, 0], { topK: 8, namespace: 'alpha-co' });
@@ -65,6 +65,18 @@ module.exports = async function runScopedBindingTests({ check, srcDir }) {
   check(vecStore.length === 1 && vecStore[0].namespace === 'beta-co' && (await B.MEMORY.getByIds(['pmf-1-2026'])).length === 1, 'deleting a memory by id in one business never deletes the other\'s');
   threw = ''; try { await A.MEMORY.describe(); } catch (e) { threw = String(e.message); }
   check(/not available to a business/.test(threw), 'an unscoped memory-index method is not offered either');
+
+  // ---- a memory's id may be at most 64 bytes, whatever the business is called ------------------------------------------------------------------------------------------
+  const longName = 'a'.repeat(40), L = sb.scopeBindings(env, longName);
+  check(sb.vectorPrefix('alpha-co').length === 9 && /^[0-9a-f]{8}~$/.test(sb.vectorPrefix('alpha-co')) && sb.vectorPrefix(longName).length === 9 && sb.vectorPrefix('alpha-co') === sb.vectorPrefix('alpha-co') && sb.vectorPrefix('alpha-co') !== sb.vectorPrefix('beta-co'), 'the prefix is SHORT and FIXED-SIZE (8 hex characters of a hash, then ~: 9 characters) however long the business\'s name is, deterministic, and different between businesses');
+  const fifty = 'x'.repeat(55);   // 55 + 9 = 64, exactly the limit
+  await L.MEMORY.upsert([{ id: fifty, values: [1, 0], metadata: {} }]);
+  check(vecStore.some((v) => v.id === sb.vectorPrefix(longName) + fifty && Buffer.byteLength(v.id) === 64), 'a 55-byte id in a business with a 40-character name still fits: the stored id is exactly 64 bytes (the first real copy failed here: the business NAME was the prefix and one id came to 65)');
+  let tooLong = ''; try { await L.MEMORY.upsert([{ id: 'y'.repeat(56), values: [1, 0], metadata: {} }]); } catch (e) { tooLong = String(e.message); }
+  check(/at most 64 bytes/.test(tooLong) && /too long/.test(tooLong), 'an id that WOULD exceed 64 bytes is refused with a clear message (not Cloudflare\'s opaque one), naming the limit');
+  check((await L.MEMORY.query([1, 0], { topK: 3 })).matches.every((m) => !m.id.includes('~')), 'and what comes back from a search never carries the prefix');
+  let getLong = ''; try { await L.MEMORY.getByIds(['z'.repeat(60)]); } catch (e) { getLong = String(e.message); }
+  check(/at most 64 bytes/.test(getLong), 'reading and deleting by id are bounded the same way');
 
   // ---- what is left alone ---------------------------------------------------------------------------------------------------------------------------------------
   const bare = sb.scopeBindings({ ADMIN_KEY: 'k' }, 'alpha-co');

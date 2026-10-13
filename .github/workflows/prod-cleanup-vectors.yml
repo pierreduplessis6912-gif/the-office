@@ -1,0 +1,104 @@
+name: Production memory cleanup (the business's old-prefix copies only)
+
+# SHIP_CHECKLIST.md item A. The first real memory copy failed part-way (an id came to 65 bytes, the limit is 64) after earlier batches had been written under the OLD long prefix
+# (`zululand-flooring-and-blinds:`). Those copies sit in the business's own namespace under ids nothing will ever look up, so they would appear as DUPLICATES in its memory search. This deletes exactly those.
+# It lists the production memory index, keeps ONLY ids that start with that exact prefix (the originals start with `pmf-`), refuses to delete if it finds more than 100, and deletes nothing else.
+# The record holds counts. Started by hand only.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: prod-cleanup-vectors
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    env:
+      INDEX: office-memory
+      OLD_PREFIX: "zululand-flooring-and-blinds:"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.PROVISION }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      RESULTS: ${{ github.workspace }}/results
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: List the index and pick only the old-prefix copies
+        run: |
+          mkdir -p "$RESULTS"
+          API="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/vectorize/v2/indexes/${INDEX}"
+          curl -s "$API/info" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" > "$RESULTS/info-before.json"
+          python3 - <<'PY'
+          import json, os, subprocess
+          api = "https://api.cloudflare.com/client/v4/accounts/%s/vectorize/v2/indexes/%s" % (os.environ["CLOUDFLARE_ACCOUNT_ID"], os.environ["INDEX"])
+          ids, cursor = [], None
+          while True:
+              url = api + "/list?count=1000" + ("&cursor=" + cursor if cursor else "")
+              out = subprocess.run(["curl", "-s", url, "-H", "Authorization: Bearer " + os.environ["CLOUDFLARE_API_TOKEN"]], capture_output=True, text=True).stdout
+              d = json.loads(out)
+              if not d.get("success"):
+                  raise SystemExit("could not list the index: " + json.dumps(d.get("errors")))
+              ids += [v["id"] for v in d["result"]["vectors"]]
+              if not d["result"].get("isTruncated"):
+                  break
+              cursor = d["result"]["nextCursor"]
+          prefix = os.environ["OLD_PREFIX"]
+          mine = [i for i in ids if i.startswith(prefix)]
+          json.dump({"listed": len(ids), "to_delete": mine}, open(os.path.join(os.environ["RESULTS"], "plan.json"), "w"))
+          print("listed", len(ids), "ids; old-prefix copies to delete:", len(mine))
+          if len(mine) > 100:
+              raise SystemExit("refusing: more than 100 matches, something is wrong")
+          PY
+
+      - name: Delete exactly those
+        run: |
+          API="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/vectorize/v2/indexes/${INDEX}"
+          python3 - <<'PY'
+          import json, os
+          plan = json.load(open(os.path.join(os.environ["RESULTS"], "plan.json")))
+          for n in range(0, len(plan["to_delete"]), 50):
+              json.dump({"ids": plan["to_delete"][n:n + 50]}, open(os.path.join(os.environ["RESULTS"], "batch-%d.json" % (n // 50)), "w"))
+          print(json.dumps({"batches": (len(plan["to_delete"]) + 49) // 50}))
+          PY
+          for f in "$RESULTS"/batch-*.json; do
+            [ -e "$f" ] || continue
+            curl -s -X POST "$API/delete_by_ids" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H "Content-Type: application/json" --data-binary "@$f" >> "$RESULTS/delete-answers.txt"
+            echo >> "$RESULTS/delete-answers.txt"
+          done
+          curl -s "$API/info" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" > "$RESULTS/info-after.json"
+
+      - name: Record what was found
+        if: always()
+        run: |
+          mkdir -p ops
+          python3 - <<'PY'
+          import json, os, datetime
+          r = os.environ["RESULTS"]
+          def readjson(n):
+              try:
+                  return json.load(open(os.path.join(r, n)))
+              except Exception:
+                  return None
+          plan = readjson("plan.json") or {}
+          before, after = (readjson("info-before.json") or {}).get("result") or {}, (readjson("info-after.json") or {}).get("result") or {}
+          answers = []
+          try:
+              answers = [json.loads(line) for line in open(os.path.join(r, "delete-answers.txt")).read().splitlines() if line.strip()]
+          except Exception:
+              pass
+          out = {
+              "when": datetime.datetime.utcnow().isoformat() + "Z", "run": os.environ.get("GITHUB_RUN_ID"), "commit": os.environ.get("GITHUB_SHA", "")[:7],
+              "index": os.environ.get("INDEX"), "ids_listed": plan.get("listed"), "old_prefix_copies_found_and_deleted": len(plan.get("to_delete") or []),
+              "delete_calls_succeeded": [a.get("success") for a in answers], "index_vectors_before": before.get("vectorCount"), "index_vectors_after_as_reported_now": after.get("vectorCount"),
+          }
+          json.dump(out, open("ops/production-cleanup-vectors-last.json", "w"), indent=1)
+          PY
+          git config user.name "production-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/production-cleanup-vectors-last.json
+          git commit -m "Production memory cleanup record (counts only)" || echo "nothing to record"
+          git pull --rebase origin main
+          git push origin HEAD:main

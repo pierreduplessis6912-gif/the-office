@@ -116,7 +116,7 @@ async function runnerTests({ check, srcDir }) {
   const vrun = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wv.fetchImpl, vectors: vopts, pollMs: 1 });
   const mstep = vrun.steps.find((s) => s.name === 'memories');
   check(vrun.ok === true && mstep.listed === 45 && mstep.copied === 45 && mstep.differ === 0 && mstep.processed === true, 'memories: 45 are listed through Cloudflare\'s API, copied in batches of 20, the runner WAITS until the target index reports it has processed the last write, and every one reads back identical', JSON.stringify(mstep) + ' ' + vrun.mismatches.join('; '));
-  check([...vw.T.mem.vecs.keys()].length === 45 && [...vw.T.mem.vecs.entries()].every(([id, v]) => id.startsWith('zulu-co:') && v.namespace === 'zulu-co'), 'in the target index every memory sits under the business\'s prefix and namespace');
+  check([...vw.T.mem.vecs.keys()].length === 45 && [...vw.T.mem.vecs.entries()].every(([id, v]) => id.startsWith(sb.vectorPrefix('zulu-co')) && v.namespace === 'zulu-co'), 'in the target index every memory sits under the business\'s prefix and namespace');
   check(wv.calls.filter((c) => c.host === 'api.cloudflare.com' && c.path.endsWith('/info')).length >= 2, 'the wait really polled Cloudflare\'s index info (the writes were not visible at first, as on the real index)');
   check(vrun.steps.every((s) => typeof s.ms === 'number' && s.ms >= 0), 'every step of the run is timed, so a slow migration shows where its time went');
   const reordered = fresh();
@@ -128,12 +128,12 @@ async function runnerTests({ check, srcDir }) {
   const lrun = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wire(laggy, { scopedTarget: true }).fetchImpl, vectors: vopts, pollMs: 1 });
   const lstep = lrun.steps.find((s) => s.name === 'memories');
   check(lrun.ok === true && lstep.firstPassDiffered === 45 && lstep.differ === 0 && typeof lstep.readLagSeconds === 'number', 'when reads LAG behind the index\'s processed marker, only the memories that differ are checked again, and the run passes once they settle (it does not call a timing lag a difference)', JSON.stringify(lstep));
-  const broken = fresh(); broken.T.mem.hide('zulu-co:pmf-3');
+  const broken = fresh(); broken.T.mem.hide(`${sb.vectorPrefix('zulu-co')}pmf-3`);
   const brun = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wire(broken, { scopedTarget: true }).fetchImpl, vectors: { ...vopts, verifyMaxMs: 20 }, pollMs: 1 });
   check(!brun.ok && /1 differ after being read back/.test(brun.mismatches.join()) && brun.steps.find((s) => s.name === 'memories').firstPassDiffered === 1, 'but a memory that NEVER reads back correctly is still reported once the time is up: the re-checking only forgives lag, not damage');
   // Production has ONE index: on a re-run the business's own copies (prefixed ids) are in the listing and must not be copied again as if they were originals.
   const shared = fresh();
-  for (let i = 1; i <= 3; i++) shared.S.mem.vecs.set(`zulu-co:pmf-${i}`, { values: [i, 1, 0], metadata: { customerId: '1', text: `copy ${i}` }, namespace: 'zulu-co' });
+  for (let i = 1; i <= 3; i++) shared.S.mem.vecs.set(`${sb.vectorPrefix('zulu-co')}pmf-${i}`, { values: [i, 1, 0], metadata: { customerId: '1', text: `copy ${i}` }, namespace: 'zulu-co' });
   const wsh = wire(shared, { scopedTarget: true });
   const shrun = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wsh.fetchImpl, vectors: { ...vopts, targetIndexName: 'src-index' }, pollMs: 1 });
   const shstep = shrun.steps.find((s) => s.name === 'memories');

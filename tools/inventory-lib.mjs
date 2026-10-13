@@ -21,7 +21,7 @@ export async function inventory({ source, vectorCount = 0, pageSize = 200, fetch
     for (let attempt = 1; attempt <= 4; attempt++) {
       try {
         report.requests++;
-        const res = await fetchImpl(url.toString(), { method: 'GET', headers: { 'X-Admin-Key': source.adminKey, 'X-Admin-Confirm': source.confirmKey } });
+        const res = await fetchImpl(url.toString(), { method: 'GET', headers: { 'X-Admin-Key': source.adminKey, 'X-Admin-Confirm': source.confirmKey, ...(source.business ? { 'X-Target-Business': source.business } : {}) } });
         if (res.status >= 500 && attempt < 4) { last = new Error(`GET ${path} -> ${res.status}`); await sleep(400 * attempt); continue; }
         if (!res.ok) { const e = new Error(`GET ${path} -> ${res.status} ${(await res.text()).slice(0, 200)}`); e.fatal = true; throw e; }
         return await res.json();

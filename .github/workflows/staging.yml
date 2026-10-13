@@ -316,7 +316,12 @@ jobs:
           json.dump({"vector": e1, "topK": 10, "returnMetadata": "all", "namespace": "staging-two"}, open(os.path.join(r, "rest-q-second.json"), "w"))
           json.dump({"vector": e1, "topK": 10, "returnMetadata": "all"}, open(os.path.join(r, "rest-q-all.json"), "w"))
           json.dump({"ids": ["probe-1"]}, open(os.path.join(r, "vec-ids.json"), "w"))
-          json.dump({"ids": ["staging-co:probe-1", "staging-two:probe-1"]}, open(os.path.join(r, "rest-ids.json"), "w"))
+          def prefix(business):
+              h = 0x811c9dc5
+              for b in business.encode():
+                  h = ((h ^ b) * 0x01000193) & 0xFFFFFFFF
+              return format(h, "08x") + "~"
+          json.dump({"ids": [prefix("staging-co") + "probe-1", prefix("staging-two") + "probe-1"]}, open(os.path.join(r, "rest-ids.json"), "w"))
           PY
           post() { curl -s -o "$3" -w '%{http_code}' -X POST "$BASE$1" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY" -H "X-Target-Business: $2" -H "Content-Type: application/json" --data-binary "@$4"; }
           rest() { curl -s -o "$2" -X "$3" "$INDEX_API$1" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H "Content-Type: application/json" ${4:+--data-binary "@$4"}; }
@@ -361,6 +366,11 @@ jobs:
               return sorted((m.get("metadata") or {}).get("text") for m in (doc or {}).get("matches", []))
           def rest_texts(doc):
               return sorted(((m.get("metadata") or {}).get("text")) for m in ((doc or {}).get("result") or {}).get("matches", []))
+          def prefix(business):
+              h = 0x811c9dc5
+              for b in business.encode():
+                  h = ((h ^ b) * 0x01000193) & 0xFFFFFFFF
+              return format(h, "08x") + "~"
           def by_id(doc):
               return [(v.get("metadata") or {}).get("text") for v in (doc or {}).get("vectors", [])]
           listed = load("vec-list.json") or {}
@@ -377,7 +387,7 @@ jobs:
               "each_business_searches_only_its_own_memory": qa == ["FIRST probe"] and qb == ["SECOND probe"],
               "same_id_in_both_businesses_reads_back_its_own": by_id(load("ids-first.json")) == ["FIRST probe"] and by_id(load("ids-second.json")) == ["SECOND probe"],
               "physical_ids_in_the_shared_index": ids,
-              "ids_are_prefixed_with_the_business": ids == ["staging-co:probe-1", "staging-two:probe-1"],
+              "ids_are_prefixed_with_the_business": ids == sorted([prefix("staging-co") + "probe-1", prefix("staging-two") + "probe-1"]),
               "list_api_total_vectors": (listed.get("result") or {}).get("totalCount"),
               "DIRECT_api_query_in_namespace_staging_co": rest_texts(load("rq-first.json")),
               "DIRECT_api_query_in_namespace_staging_two": rest_texts(load("rq-second.json")),

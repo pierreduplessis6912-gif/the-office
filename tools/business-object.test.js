@@ -91,7 +91,7 @@ async function businessObjectTests({ check, srcDir }) {
   check(bo.jitterMs('alpha-co') === bo.jitterMs('alpha-co') && new Set(['a1', 'b2', 'zulu-co', 'alpha-co', 'beta-co', 'x9z'].map(bo.jitterMs)).size >= 4 && ['a1', 'zulu-co'].every((id) => bo.jitterMs(id) >= 0 && bo.jitterMs(id) < 3_000_000), 'the spread is deterministic per business and different between businesses (a thousand businesses do not wake in the same minute)');
   await objJ.alarm();
   check(ran.length === 1 && ran[0].BUSINESS_ID === 'alpha-co' && ran[0].OFFICE_DB.constructor.name !== 'String' && typeof ran[0].OFFICE_DB.prepare === 'function' && ran[0].OFFICE_DB !== workerEnv.OFFICE_DB, 'when the alarm fires the application\'s job runs with THIS business\'s database and its name');
-  check(upserts.length === 1 && upserts[0].id === 'alpha-co:pmf-1' && upserts[0].namespace === 'alpha-co', 'and its memory writes are confined to the business (prefixed id, its own namespace): the job cannot touch another business\'s memories');
+  check(upserts.length === 1 && upserts[0].id === bundle('scoped-bindings.ts').vectorPrefix('alpha-co') + 'pmf-1' && upserts[0].namespace === 'alpha-co', 'and its memory writes are confined to the business (prefixed id, its own namespace): the job cannot touch another business\'s memories');
   check(J.alarmSets() === 2 && J.alarm() >= Date.now() + 3_599_000, 'afterwards the next hourly alarm is armed');
   const failing = bo.makeBusinessObject(serve, { consolidate: async () => { throw new Error('embedding failed'); } });
   const dbF = new DatabaseSync(':memory:'); const F = makeState(dbF); const objF = new failing(F.state, jobEnv);

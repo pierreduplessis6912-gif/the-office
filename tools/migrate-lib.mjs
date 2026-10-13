@@ -177,7 +177,7 @@ export async function migrate({ source, target, include = {}, vectors = null, fo
       // Vectorize applies a write ASYNCHRONOUSLY (found on the real index: about 100 seconds for two vectors), so reading back straight after writing would report false differences. Every write
       // returns a mutation id; Cloudflare's index info says how far it has processed (processedUpToMutation). Wait for the LAST write, then read everything back and compare.
       // Production has ONE memory index: the originals and the business's copies (ids prefixed with its name) live together, so on a re-run the listing would include the copies. They are not originals.
-      const own = target.business ? `${target.business}:` : null;
+      const own = targetIs.vectorPrefix ?? null;   // the business's own prefix, as the OBJECT says it (one source of truth)
       const alreadyCopies = own && vectors.indexName === vectors.targetIndexName ? ids.filter((id) => id.startsWith(own)) : [];
       if (alreadyCopies.length) ids.splice(0, ids.length, ...ids.filter((id) => !id.startsWith(own)));
       let copied = 0, differ = 0, lastMutation = null;

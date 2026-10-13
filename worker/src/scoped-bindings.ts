@@ -33,7 +33,16 @@ export const SCOPED_VECTOR_METHODS = ["upsert", "insert", "query", "getByIds", "
 
 export const kvPrefix = (businessId: string): string => `b:${businessId}:`;
 export const r2Prefix = (businessId: string): string => `b/${businessId}/`;
-export const vectorPrefix = (businessId: string): string => `${businessId}:`;
+// A memory's id may be at most 64 bytes (Cloudflare's limit). Found on the first REAL production copy: prefixing every id with the business NAME (29 characters here, up to 40) pushed one legacy id to 65 bytes
+// and the copy failed (it would also have broken ongoing memory writes). The NAMESPACE is what isolates a business; the prefix only keeps ids from colliding between businesses and is removed when ids are
+// returned, so it is SHORT and FIXED-SIZE: 8 hex characters of a hash of the business id, then "~" (9 characters, whatever the business is called).
+export const MAX_VECTOR_ID_BYTES = 64;
+const fnv1a8 = (text: string): string => {
+  let h = 0x811c9dc5;
+  for (const b of new TextEncoder().encode(text)) h = Math.imul(h ^ b, 0x01000193) >>> 0;
+  return h.toString(16).padStart(8, "0");
+};
+export const vectorPrefix = (businessId: string): string => `${fnv1a8(businessId)}~`;
 
 export function scopeKv(kv: KVNamespace, businessId: string): KVNamespace {
   const p = kvPrefix(businessId);
@@ -70,7 +79,12 @@ export function scopeR2(bucket: R2Bucket, businessId: string): R2Bucket {
 export function scopeVectors(index: VectorizeIndex, businessId: string): VectorizeIndex {
   const p = vectorPrefix(businessId);
   const raw = index as unknown as Record<string, Fn>;
-  const scoped = (vectors: unknown) => (vectors as { id: string }[]).map((v) => ({ ...v, id: p + v.id, namespace: businessId }));
+  const scopedId = (id: string): string => {
+    const full = p + id;
+    if (new TextEncoder().encode(full).length > MAX_VECTOR_ID_BYTES) throw new Error(`a memory id may be at most ${MAX_VECTOR_ID_BYTES} bytes including the ${p.length}-character business prefix: "${id}" is too long`);
+    return full;
+  };
+  const scoped = (vectors: unknown) => (vectors as { id: string }[]).map((v) => ({ ...v, id: scopedId(v.id), namespace: businessId }));
   return offer(index, "MEMORY", {
     upsert: (vectors) => raw.upsert.call(index, scoped(vectors)),
     insert: (vectors) => raw.insert.call(index, scoped(vectors)),
@@ -81,10 +95,10 @@ export function scopeVectors(index: VectorizeIndex, businessId: string): Vectori
     },
     // Found on the real index (2026-10-13): the vectors come back with their STORED, prefixed ids, so the prefix is removed, as it is for a search.
     getByIds: async (ids) => {
-      const found = (await raw.getByIds.call(index, (ids as string[]).map((i) => p + i))) as { id: string }[];
+      const found = (await raw.getByIds.call(index, (ids as string[]).map(scopedId))) as { id: string }[];
       return found.map((v) => ({ ...v, id: v.id.startsWith(p) ? v.id.slice(p.length) : v.id }));
     },
-    deleteByIds: (ids) => raw.deleteByIds.call(index, (ids as string[]).map((i) => p + i)),
+    deleteByIds: (ids) => raw.deleteByIds.call(index, (ids as string[]).map(scopedId)),
   });
 }
 

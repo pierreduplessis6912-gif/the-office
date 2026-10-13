@@ -1,5 +1,6 @@
 // The HTTP face of migration.ts: privileged admin routes (both admin keys) that export a business's data and import it into another. The same routes serve both directions: a deployment is the
 // SOURCE when they are read from it, and the TARGET when they are written to it. Called from debug.ts; returns null for any other path.
+import { vectorPrefix } from "./scoped-bindings";
 import { fingerprint, listFiles, manifest, readNotes, readRows, ensureSchema, writeNotes, writeRows, writeSequences, type ColumnInfo } from "./migration";
 import type { Env } from "./types";
 
@@ -14,7 +15,7 @@ export async function migrationRoute(request: Request, env: Env, url: URL): Prom
       // What am I? A business's object says which business; the single-business deployment says none. The runner asks BOTH ends before copying a byte, so a source and a target that are really the same
       // deployment (which would copy a database onto itself) can never be mistaken for two.
       case "GET /whoami":
-        return Response.json({ businessId: env.BUSINESS_ID ?? null, objectMode: Boolean(env.BUSINESS_ID) });
+        return Response.json({ businessId: env.BUSINESS_ID ?? null, objectMode: Boolean(env.BUSINESS_ID), vectorPrefix: env.BUSINESS_ID ? vectorPrefix(env.BUSINESS_ID) : null });
       case "GET /manifest":
         return Response.json(await manifest(env));
       case "GET /rows":
