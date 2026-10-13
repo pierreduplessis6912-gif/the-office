@@ -1,0 +1,113 @@
+// The migration RUNNER (tools/migrate-lib.mjs) driven in-process against the real route handlers (worker/src/migration-routes.ts) over stand-in stores. The same runner is rehearsed on the real
+// Cloudflare runtime by tools/do-trial/migration-rehearsal.mjs; this covers its LOGIC in every build: it refuses to mix, it never writes to the source, it retries a glitch but not an answer, it
+// registers only active members, it reports a copy that silently lost something, and its comparison agrees with the Worker's.
+const path = require('path'), fs = require('fs'), os = require('os'), esbuild = require('esbuild');
+const { pathToFileURL } = require('url');
+const { DatabaseSync } = require('node:sqlite');
+
+module.exports = async function runMigrateRunnerTests(context) {
+  const standIn = global.Response;
+  if (global.__RealResponse) global.Response = global.__RealResponse;
+  try { await runnerTests(context); } finally { global.Response = standIn; }
+};
+
+async function runnerTests({ check, srcDir }) {
+  const bundle = (entry) => { const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'mr-')), 'm.js'); esbuild.buildSync({ entryPoints: [path.join(srcDir, entry)], bundle: true, platform: 'node', format: 'cjs', outfile: out, logLevel: 'silent' }); return require(out); };
+  const routes = bundle('migration-routes.ts'), mg = bundle('migration.ts'), { DoD1Database } = bundle('storage/do-d1.ts');
+  const lib = await import(pathToFileURL(path.join(__dirname, 'migrate-lib.mjs')).href);
+  const baseline = fs.readFileSync(path.join(srcDir, '..', 'migrations', '0001_baseline.sql'), 'utf8');
+  const plain = (r) => (r ? { ...r } : r);
+  const makeSide = (setup) => {
+    const db = new DatabaseSync(':memory:'); db.exec(baseline); if (setup) setup(db);
+    const sql = { exec(query, ...binds) { const s = db.prepare(query); if (/^\s*(select|with|pragma|values)\b/i.test(query) || /\breturning\b/i.test(query)) { const rows = s.all(...binds).map(plain); return { toArray: () => rows, rowsRead: rows.length, rowsWritten: 0 }; } const r = s.run(...binds); return { toArray: () => [], rowsRead: 0, rowsWritten: Number(r.changes) }; } };
+    const storage = { transactionSync(fn) { db.exec('BEGIN'); try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; } } };
+    const kv = new Map(), r2 = new Map();
+    const page = (all, limit, cursor) => { const start = cursor ? Number(cursor) : 0; return { slice: all.slice(start, start + limit), more: start + limit < all.length, cursor: start + limit < all.length ? String(start + limit) : undefined }; };
+    const env = {
+      OFFICE_DB: new DoD1Database(sql, storage),
+      CUSTOMER_NOTES: { get: async (k) => kv.get(k) ?? null, put: async (k, v) => { kv.set(k, v); }, list: async ({ limit = 1000, cursor } = {}) => { const p = page([...kv.keys()].sort(), limit, cursor); return { keys: p.slice.map((name) => ({ name })), list_complete: !p.more, cursor: p.cursor }; } },
+      OFFICE_VAULT: { get: async (k) => (r2.has(k) ? { body: r2.get(k).bytes, httpMetadata: { contentType: r2.get(k).type }, arrayBuffer: async () => r2.get(k).bytes.buffer.slice(r2.get(k).bytes.byteOffset, r2.get(k).bytes.byteOffset + r2.get(k).bytes.byteLength) } : null), put: async (k, body, o) => { r2.set(k, { bytes: new Uint8Array(body), type: o?.httpMetadata?.contentType }); }, list: async ({ limit = 1000, cursor } = {}) => { const p = page([...r2.keys()].sort(), limit, cursor); return { objects: p.slice.map((key) => ({ key, size: r2.get(key).bytes.length })), truncated: p.more, cursor: p.cursor }; } },
+    };
+    return { db, env, kv, r2 };
+  };
+  const fresh = () => {
+    const S = makeSide((db) => {
+      db.exec("CREATE TABLE lazy_things (id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT)");
+      db.prepare('INSERT INTO customers (name, address) VALUES (?, ?)').run('Ann "A" O\'Neil', 'x'); db.prepare('INSERT INTO customers (name) VALUES (?)').run('Bo 🙂'); db.prepare('INSERT INTO customers (name) VALUES (?)').run('Gone'); db.exec("DELETE FROM customers WHERE name = 'Gone'");
+      db.prepare('INSERT INTO payments (customer_id, amount, source_transcript) VALUES (?, ?, ?)').run(1, 10.5, 'paid'); db.exec("INSERT INTO lazy_things (label) VALUES ('a'), ('b')");
+      db.prepare('INSERT INTO memberships (google_email, role, status) VALUES (?, ?, ?)').run('owner@x.co', 'owner', 'active'); db.prepare('INSERT INTO memberships (google_email, role, status) VALUES (?, ?, ?)').run('crew@x.co', 'installer', 'active'); db.prepare('INSERT INTO memberships (google_email, role, status) VALUES (?, ?, ?)').run('gone@x.co', 'installer', 'suspended');
+    });
+    for (let i = 1; i <= 120; i++) S.kv.set(`customer:${i}`, `note ${i}`);
+    for (let i = 1; i <= 105; i++) S.r2.set(`photos/${i}.bin`, { bytes: new Uint8Array([i, 255 - i, i]), type: 'image/png' });
+    return { S, T: makeSide() };
+  };
+  // the runner talks to this instead of the network; every call is recorded
+  const wire = ({ S, T }, hooks = {}) => {
+    const calls = [], directory = [];
+    const fetchImpl = async (url, init = {}) => {
+      const u = new URL(url), host = u.host, method = init.method ?? 'GET';
+      calls.push({ host, method, path: u.pathname });
+      if (hooks.before) { const early = await hooks.before({ host, method, path: u.pathname, init, calls }); if (early) return early; }
+      let body = init.body;
+      if (hooks.rewriteBody) body = hooks.rewriteBody({ host, method, path: u.pathname, body }) ?? body;
+      if (u.pathname === '/debug/directory/add-member') { directory.push(JSON.parse(body)); return Response.json({ inDirectory: true }); }
+      if (u.pathname === '/debug/init-indexes') return Response.json({ created: [], alreadyThere: [], failed: [] });
+      const request = new Request(url, { method, headers: init.headers, body });
+      return (await routes.migrationRoute(request, host === 'source' ? S.env : T.env, u)) ?? new Response('not found', { status: 404 });
+    };
+    return { fetchImpl, calls, directory };
+  };
+  const side = (host, extra = {}) => ({ base: `http://${host}`, adminKey: 'k', confirmKey: 'c', ...extra });
+
+  // ---- a clean run ------------------------------------------------------------------------------------------------------------------------------------------------------------
+  const world = fresh(), w = wire(world);
+  const report = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: w.fetchImpl, pageSize: 2 });
+  check(report.ok === true && report.mismatches.length === 0, 'a clean run completes with every fingerprint matching', report.mismatches.join('; '));
+  const fa = await mg.fingerprint(world.S.env), fb = await mg.fingerprint(world.T.env);
+  check(mg.compareFingerprints(fa, fb).length === 0 && fb.notes.count === 120 && fb.files.count === 105 && fb.tables.customers.count === 2 && fb.sequences.customers === 3, 'and the target really is identical: 120 notes and 105 files copied across several pages, the table created on first use, and the id counter at 3 although the highest id is 2');
+  const writesToSource = w.calls.filter((c) => c.host === 'source' && c.method !== 'GET' && c.path !== '/admin/migration/vectors-by-ids');
+  check(writesToSource.length === 0 && w.calls.some((c) => c.host === 'source') && w.calls.some((c) => c.host === 'target' && c.method === 'POST'), 'the runner NEVER writes to the source: every call it makes to the source is a read');
+  check(w.directory.length === 2 && w.directory.every((d) => d.business_id === 'zulu-co' && d.skip_membership === true) && w.directory.map((d) => d.email).sort().join() === 'crew@x.co,owner@x.co', 'only the ACTIVE members are registered in the directory (the suspended one is not), and without re-creating their memberships');
+  check(w.calls.filter((c) => c.host === 'target' && c.method === 'GET' && c.path.endsWith('/fingerprint')).length === 2, 'the target\'s fingerprint is taken before (to check it is empty) and after (to prove the copy)');
+
+  // ---- it will not mix, and a second run is safe ---------------------------------------------------------------------------------------------------------------------
+  const w2 = wire(world);
+  const refused = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: w2.fetchImpl });
+  check(!refused.ok && /refusing to mix/.test(refused.mismatches.join()) && !w2.calls.some((c) => c.host === 'target' && c.method === 'POST'), 'a target that already holds data is refused, and NOTHING is written to it');
+  const forced = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wire(world).fetchImpl, force: true });
+  check(forced.ok === true && mg.compareFingerprints(fa, await mg.fingerprint(world.T.env)).length === 0, 'with force a second run succeeds and changes nothing');
+
+  // ---- it reports a copy that silently lost something ------------------------------------------------------------------------------------------------------------------
+  const dropFrom = (table) => ({ rewriteBody: ({ host, method, path, body }) => { if (host === 'target' && method === 'POST' && path === '/admin/migration/rows') { const j = JSON.parse(body); if (j.table === table && j.rows.length) { j.rows = j.rows.slice(0, -1); return JSON.stringify(j); } } return undefined; } });
+  const lossy = fresh();
+  const lost = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wire(lossy, dropFrom('lazy_things')).fetchImpl, pageSize: 1 });
+  check(!lost.ok && lost.mismatches.some((m) => /table lazy_things: 2 rows in the source, 0 in the target/.test(m)), 'if the target silently drops rows, the run is NOT ok and says which table', lost.mismatches.join('; '));
+  const orphaned = fresh(); let orphanError = '';
+  try { await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wire(orphaned, dropFrom('customers')).fetchImpl, pageSize: 1 }); } catch (e) { orphanError = String(e.message); }
+  check(/FOREIGN KEY constraint failed/.test(orphanError) && orphaned.T.db.prepare('SELECT COUNT(*) AS n FROM payments').get().n === 0, 'and if a parent row goes missing, the database REFUSES the payment that references it (no orphan is ever created) and the run stops loudly');
+  const garbled = fresh();
+  const wg = wire(garbled, { before: async ({ host, method, path, init }) => { if (host === 'target' && method === 'POST' && path === '/admin/migration/file') { const bytes = new Uint8Array(init.body); bytes[0] ^= 1; init.body = bytes; } return null; } });
+  const garble = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wg.fetchImpl });
+  check(!garble.ok && garble.mismatches.some((m) => /files: same count/.test(m)), 'if a file arrives with one byte changed, the run is NOT ok');
+
+  // ---- glitches and answers ----------------------------------------------------------------------------------------------------------------------------------------------------
+  const glitchy = fresh(); let boom = 0;
+  const wb = wire(glitchy, { before: async ({ host, path }) => { if (host === 'source' && path === '/admin/migration/manifest' && boom++ < 2) return new Response('upstream glitch', { status: 503 }); return null; } });
+  const ok503 = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wb.fetchImpl });
+  check(ok503.ok === true && boom === 3, 'a 503 glitch is retried and the run still completes (found live: a new deploy takes a moment to reach every location)');
+  const denied = fresh(); let tries = 0;
+  const wd = wire(denied, { before: async ({ host, path }) => { if (host === 'source' && path === '/admin/migration/manifest') { tries++; return new Response('{"error":"forbidden"}', { status: 403 }); } return null; } });
+  let failure = ''; try { await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wd.fetchImpl }); } catch (e) { failure = String(e.message); }
+  check(/403/.test(failure) && tries === 1, 'a 403 is an ANSWER, not a glitch: it stops at once and is not retried');
+
+  // ---- pieces ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  const m = await mg.manifest(world.S.env), order = lib.copyOrder(m.tables);
+  check(order.indexOf('customers') < order.indexOf('payments') && order.length === m.tables.length && new Set(order).size === order.length, 'tables are copied parents first (customers before the payments that reference them), each exactly once');
+  const same = { tables: { a: { count: 1, hash: 'x' } }, sequences: { a: 3 }, notes: { count: 1, hash: 'n' }, files: { count: 1, hash: 'f' } };
+  const variants = [same, { ...same, tables: { a: { count: 2, hash: 'x' } } }, { ...same, tables: { a: { count: 1, hash: 'y' } } }, { ...same, sequences: { a: 2 } }, { ...same, notes: { count: 2, hash: 'n' } }, { ...same, notes: { count: 1, hash: 'z' } }, { ...same, files: { count: 0, hash: 'f' } }, { ...same, files: { count: 1, hash: 'g' } }, { ...same, tables: {} }];
+  check(variants.every((v) => JSON.stringify(lib.compareFingerprints(same, v)) === JSON.stringify(mg.compareFingerprints(same, v))), 'the runner\'s comparison agrees with the Worker\'s on every kind of difference');
+  const libSrc = fs.readFileSync(path.join(__dirname, 'migrate-lib.mjs'), 'utf8');
+  check(/if \(\(occupied\.length \|\| before\.notes\.count \|\| before\.files\.count\) && !force\)/.test(libSrc) && /report\.ok = report\.mismatches\.length === 0;/.test(libSrc), 'the refusal to mix and the final verdict are what the tests above exercise');
+  const cli = fs.readFileSync(path.join(__dirname, 'migrate.mjs'), 'utf8');
+  check(/process\.env/.test(cli) && !/--(source|target)-?key/.test(cli) && /process\.exit\(report\.ok \? 0 : 1\)/.test(cli), 'the command line takes its keys from the environment (never the command line, which lands in shell history) and exits non-zero unless the proof passed');
+};

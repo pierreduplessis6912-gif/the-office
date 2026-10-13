@@ -15,6 +15,7 @@
 // are NOT imported here beyond what a route genuinely reads directly
 // (like ROLE_CAPABILITIES, to validate a role name) — the actual
 // gating already ran in index.ts before this function is ever called.
+import { migrationRoute } from "./migration-routes";
 import { addDirectoryMember, createBusiness, listDirectory, normaliseEmail } from "./directory";
 import { callBusiness } from "./routing";
 import { applyIndexes } from "./indexes";
@@ -92,15 +93,25 @@ if (url.pathname === "/debug/timings" && request.method === "GET") {
       return Response.json(await timingsSummary(env));
     }
 
+// Moving a business's data in or out (migration.ts): privileged, both directions.
+    const migrationReply = await migrationRoute(request, env, url);
+    if (migrationReply) return migrationReply;
+
 // The shared directory (directory.ts): which email belongs to which business. Worker-level admin routes (the shared layer is the Worker's own D1); the two that write are privileged.
 if (url.pathname === "/debug/directory" && request.method === "GET") {
       return Response.json(await listDirectory(env));
     }
     if (url.pathname === "/debug/directory/create-business" && request.method === "POST") {
-      const body = (await request.json()) as { id?: string; name?: string; owner_email?: string; plan?: string };
+      const body = (await request.json()) as { id?: string; name?: string; owner_email?: string; plan?: string; migrating?: boolean };
       try {
-        const owner = normaliseEmail(String(body.owner_email ?? ""));
         const created = await createBusiness(env, String(body.id ?? ""), String(body.name ?? ""), body.plan ?? "standard");
+        if (body.migrating) {
+          // A business that is about to RECEIVE a migration starts completely empty: no invented owner (the team arrives with the data and is registered afterwards). Waking its object here
+          // creates it, so the one-off cost is paid now.
+          const woken = await callBusiness(env, String(body.id), "GET", "/health");
+          return Response.json({ business: body.id, created: created.created, migrating: true, objectStatus: woken.status });
+        }
+        const owner = normaliseEmail(String(body.owner_email ?? ""));
         const added = await addDirectoryMember(env, owner, String(body.id));
         // Creating the owner inside the business's object also CREATES the object, so the one-off cost of making it is paid here, at sign-up, not at the owner's first request.
         const membership = await callBusiness(env, String(body.id), "POST", "/debug/create-membership", { google_email: owner, role: "owner" });
@@ -110,10 +121,12 @@ if (url.pathname === "/debug/directory" && request.method === "GET") {
       }
     }
     if (url.pathname === "/debug/directory/add-member" && request.method === "POST") {
-      const body = (await request.json()) as { email?: string; business_id?: string; role?: string };
+      const body = (await request.json()) as { email?: string; business_id?: string; role?: string; skip_membership?: boolean };
       try {
         const member = normaliseEmail(String(body.email ?? ""));
         const added = await addDirectoryMember(env, member, String(body.business_id ?? ""));
+        // After a migration the membership already arrived with the business's data; only the directory entry (which lets the member sign in) is missing.
+        if (body.skip_membership) return Response.json({ business: body.business_id, inDirectory: added.added, membershipStatus: "already migrated" });
         const membership = await callBusiness(env, String(body.business_id), "POST", "/debug/create-membership", { google_email: member, role: body.role ?? "installer" });
         return Response.json({ business: body.business_id, inDirectory: added.added, membershipStatus: membership.status });
       } catch (error) {

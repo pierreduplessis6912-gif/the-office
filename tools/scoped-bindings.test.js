@@ -77,7 +77,11 @@ module.exports = async function runScopedBindingTests({ check, srcDir }) {
     if (skip.has(path.basename(f))) continue;
     const text = fs.readFileSync(f, 'utf8').replace(/^\s*\/\/.*$/gm, '');
     for (const name of Object.keys(used)) {
-      for (const m of text.matchAll(new RegExp(`env\\.${name}\\b(\\??\\.(\\w+)\\()?`, 'g'))) { if (m[2]) used[name].add(m[2]); else bareUses.push(`${path.basename(f)}: env.${name} used without a method call`); }
+      // `if (env.X)` only asks whether a store is bound (it touches nothing), so it is not a use; any other use without a call is.
+      const presenceChecks = (text.match(new RegExp(`if \\(env\\.${name}\\)`, 'g')) || []).length;
+      let bare = 0;
+      for (const m of text.matchAll(new RegExp(`env\\.${name}\\b(\\??\\.(\\w+)\\()?`, 'g'))) { if (m[2]) used[name].add(m[2]); else bare++; }
+      if (bare > presenceChecks) bareUses.push(`${path.basename(f)}: env.${name} used without a method call`);
     }
   }
   // `describe` reports on the WHOLE shared index, so it is deliberately NOT offered to a business: it is used only by two platform health routes, which the Worker (not an object) answers.
