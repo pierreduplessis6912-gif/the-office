@@ -1,0 +1,31 @@
+{
+ "when": "2026-10-13T11:25:35.162337Z",
+ "run": "38389957557",
+ "commit": "990c614",
+ "business": "zululand-flooring-and-blinds",
+ "wrote_anything": false,
+ "verification": {
+  "ok": true,
+  "exit": "exit=0",
+  "seconds": 78,
+  "mismatches": [],
+  "error": null,
+  "steps": [
+   {
+    "name": "who is who",
+    "source": "the single-business deployment",
+    "target": "zululand-flooring-and-blinds",
+    "ms": 1561
+   },
+   {
+    "name": "fingerprints compared",
+    "tables": 46,
+    "notes": 42,
+    "files": 129,
+    "differences": 0,
+    "ms": 76451
+   }
+  ],
+  "log_tail": "who is who {\"source\":\"the single-business deployment\",\"target\":\"zululand-flooring-and-blinds\"}\nfingerprints compared {\"tables\":46,\"notes\":42,\"files\":129,\"differences\":0}"
+ }
+}
