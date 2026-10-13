@@ -1,0 +1,22 @@
+{
+ "when": "2026-10-13T16:37:10.252428Z",
+ "run": "38431963376",
+ "business": "zululand-flooring-and-blinds",
+ "took_a_snapshot_now": {
+  "error": "no backup bucket is configured (BACKUPS)"
+ },
+ "verdict": {
+  "healthy": false,
+  "problems": [
+   "no backup bucket is configured",
+   "the last backup attempt FAILED: no backup bucket is configured (BACKUPS)",
+   "there is no complete snapshot",
+   "the newest snapshot has no age"
+  ],
+  "snapshots_complete": 0,
+  "newest_age_hours": null,
+  "keep": 14,
+  "last_attempt_ok": false
+ },
+ "snapshots": []
+}
