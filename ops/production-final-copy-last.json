@@ -1,251 +1,251 @@
 {
- "when": "2026-10-13T12:02:59.515467Z",
- "run": "38393903774",
- "commit": "f484fdf",
+ "when": "2026-10-13T12:25:24.875723Z",
+ "run": "38396189108",
+ "commit": "b8284d7",
  "business": "zululand-flooring-and-blinds",
- "recovery_point": "\u26c5\ufe0f wrangler 4.150.0\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nResource location: remote \n\n\ud83d\udea7 Time Traveling...\n\u26a0\ufe0f The current bookmark is '00000bc1-00000000-00005103-3360159e855c1f70092a398ab7eacdfc'\n\u26a1\ufe0f To restore to this specific bookmark, run:\n `wrangler d1 time-travel restore d5343bef-3a3a-4791-860d-fbd96c546abb --bookmark=00000bc1-00000000-00005103-3360159e855c1f70092a398ab7eacdfc`",
+ "recovery_point": "\u26c5\ufe0f wrangler 4.150.0\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nResource location: remote \n\n\ud83d\udea7 Time Traveling...\n\u26a0\ufe0f The current bookmark is '00000bc2-00000004-00005103-d47a9bbf914a64e77654feab48bb7af7'\n\u26a1\ufe0f To restore to this specific bookmark, run:\n `wrangler d1 time-travel restore d5343bef-3a3a-4791-860d-fbd96c546abb --bookmark=00000bc2-00000004-00005103-d47a9bbf914a64e77654feab48bb7af7`",
  "migration": {
-  "ok": false,
-  "exit": "exit=1",
-  "seconds": 272,
+  "ok": true,
+  "exit": "exit=0",
+  "seconds": 471,
   "mismatches": [],
-  "error": "POST /admin/migration/vectors -> 400 {\"error\":\"VECTOR_UPSERT_ERROR (code = 40008): id too long; max is 64 bytes, got 65 bytes\"}",
-  "failed_after": "files",
+  "error": null,
+  "failed_after": null,
   "steps": [
    {
     "name": "who is who",
     "source": "the single-business deployment",
     "target": "zululand-flooring-and-blinds",
-    "ms": 1362
+    "ms": 1300
    },
    {
     "name": "source manifest",
     "tables": 46,
     "rows": 2002,
     "counters": 37,
-    "ms": 36752
+    "ms": 34570
    },
    {
     "name": "team check",
     "activeMembers": 4,
     "alreadyInAnotherBusiness": 0,
-    "ms": 14684
+    "ms": 23314
    },
    {
     "name": "schema",
     "created": [],
     "columnsAdded": [],
-    "ms": 240
+    "ms": 220
    },
    {
     "name": "rows business_profile",
     "copied": 1,
-    "ms": 1225
+    "ms": 1240
    },
    {
     "name": "rows captures",
     "copied": 393,
-    "ms": 2166
+    "ms": 2140
    },
    {
     "name": "rows character_facts",
     "copied": 5,
-    "ms": 1248
+    "ms": 1192
    },
    {
     "name": "rows characters",
     "copied": 21,
-    "ms": 1178
+    "ms": 1145
    },
    {
     "name": "rows customer_facts",
     "copied": 1,
-    "ms": 1234
+    "ms": 1159
    },
    {
     "name": "rows customers",
     "copied": 214,
-    "ms": 1944
+    "ms": 1876
    },
    {
     "name": "rows expenses",
     "copied": 7,
-    "ms": 1211
+    "ms": 1142
    },
    {
     "name": "rows goods_received_notes",
     "copied": 9,
-    "ms": 1241
+    "ms": 1178
    },
    {
     "name": "rows grn_line_items",
     "copied": 11,
-    "ms": 1175
+    "ms": 1153
    },
    {
     "name": "rows interaction_edges",
     "copied": 20,
-    "ms": 1181
+    "ms": 1159
    },
    {
     "name": "rows invoices",
     "copied": 306,
-    "ms": 2068
+    "ms": 2236
    },
    {
     "name": "rows job_scope_amendments",
     "copied": 8,
-    "ms": 1177
+    "ms": 1176
    },
    {
     "name": "rows job_scopes",
     "copied": 68,
-    "ms": 1242
+    "ms": 1182
    },
    {
     "name": "rows leads",
     "copied": 5,
-    "ms": 1675
+    "ms": 1672
    },
    {
     "name": "rows line_items",
     "copied": 23,
-    "ms": 1186
+    "ms": 1126
    },
    {
     "name": "rows member_selections",
     "copied": 3,
-    "ms": 1195
+    "ms": 1128
    },
    {
     "name": "rows memberships",
     "copied": 4,
-    "ms": 1272
+    "ms": 1154
    },
    {
     "name": "rows payments",
     "copied": 388,
-    "ms": 2519
+    "ms": 2436
    },
    {
     "name": "rows pending_actions",
     "copied": 124,
-    "ms": 1312
+    "ms": 1273
    },
    {
     "name": "rows people",
     "copied": 224,
-    "ms": 2369
+    "ms": 2358
    },
    {
     "name": "rows permission_audit",
     "copied": 2,
-    "ms": 1178
+    "ms": 1127
    },
    {
     "name": "rows po_line_items",
     "copied": 16,
-    "ms": 1196
+    "ms": 1133
    },
    {
     "name": "rows products",
     "copied": 5,
-    "ms": 1174
+    "ms": 1152
    },
    {
     "name": "rows projects",
     "copied": 4,
-    "ms": 1160
+    "ms": 1164
    },
    {
     "name": "rows purchase_order_customers",
     "copied": 2,
-    "ms": 1670
+    "ms": 1628
    },
    {
     "name": "rows purchase_orders",
     "copied": 14,
-    "ms": 1183
+    "ms": 1153
    },
    {
     "name": "rows quotations",
     "copied": 21,
-    "ms": 1178
+    "ms": 1117
    },
    {
     "name": "rows scope_components",
     "copied": 37,
-    "ms": 1724
+    "ms": 1715
    },
    {
     "name": "rows scope_tasks",
     "copied": 21,
-    "ms": 1210
+    "ms": 1174
    },
    {
     "name": "rows selections",
     "copied": 4,
-    "ms": 1223
+    "ms": 1156
    },
    {
     "name": "rows snags",
     "copied": 3,
-    "ms": 1179
+    "ms": 1100
    },
    {
     "name": "rows stock_items",
     "copied": 2,
-    "ms": 1186
+    "ms": 1126
    },
    {
     "name": "rows stock_usage_log",
     "copied": 1,
-    "ms": 1343
+    "ms": 1127
    },
    {
     "name": "rows stocktake_lines",
     "copied": 1,
-    "ms": 1185
+    "ms": 1154
    },
    {
     "name": "rows stocktakes",
     "copied": 1,
-    "ms": 1194
+    "ms": 1126
    },
    {
     "name": "rows supplier_invoice_line_items",
     "copied": 8,
-    "ms": 1223
+    "ms": 1184
    },
    {
     "name": "rows supplier_invoices",
     "copied": 6,
-    "ms": 1173
+    "ms": 1127
    },
    {
     "name": "rows supplier_payments",
     "copied": 1,
-    "ms": 1152
+    "ms": 1141
    },
    {
     "name": "rows tasks",
     "copied": 15,
-    "ms": 1203
+    "ms": 1132
    },
    {
     "name": "rows unit_conversions",
     "copied": 1,
-    "ms": 1215
+    "ms": 1192
    },
    {
     "name": "rows variance_dispositions",
     "copied": 2,
-    "ms": 1187
+    "ms": 1119
    },
    {
     "name": "id counters",
     "carried": 37,
-    "ms": 201
+    "ms": 248
    },
    {
     "name": "database done",
@@ -255,15 +255,47 @@
    {
     "name": "notes",
     "copied": 42,
-    "ms": 9579
+    "ms": 8307
    },
    {
     "name": "files",
     "copied": 129,
     "bytes": 32650518,
-    "ms": 143139
+    "ms": 131945
+   },
+   {
+    "name": "memories",
+    "listed": 67,
+    "skippedCopiesAlreadyInTheIndex": 0,
+    "copied": 67,
+    "differ": 0,
+    "firstPassDiffered": 67,
+    "readLagSeconds": 15,
+    "waitedSeconds": 95,
+    "processed": true,
+    "ms": 134335
+   },
+   {
+    "name": "directory",
+    "registered": 4,
+    "notActive": 0,
+    "ms": 3913
+   },
+   {
+    "name": "indexes",
+    "created": 0,
+    "failed": 0,
+    "ms": 185
+   },
+   {
+    "name": "fingerprints compared",
+    "tables": 46,
+    "notes": 42,
+    "files": 129,
+    "differences": 0,
+    "ms": 78673
    }
   ],
-  "log_tail": "\"copied\":9}\nrows grn_line_items {\"copied\":11}\nrows interaction_edges {\"copied\":20}\nrows invoices {\"copied\":306}\nrows job_scope_amendments {\"copied\":8}\nrows job_scopes {\"copied\":68}\nrows leads {\"copied\":5}\nrows line_items {\"copied\":23}\nrows member_selections {\"copied\":3}\nrows memberships {\"copied\":4}\nrows payments {\"copied\":388}\nrows pending_actions {\"copied\":124}\nrows people {\"copied\":224}\nrows permission_audit {\"copied\":2}\nrows po_line_items {\"copied\":16}\nrows products {\"copied\":5}\nrows projects {\"copied\":4}\nrows purchase_order_customers {\"copied\":2}\nrows purchase_orders {\"copied\":14}\nrows quotations {\"copied\":21}\nrows scope_components {\"copied\":37}\nrows scope_tasks {\"copied\":21}\nrows selections {\"copied\":4}\nrows snags {\"copied\":3}\nrows stock_items {\"copied\":2}\nrows stock_usage_log {\"copied\":1}\nrows stocktake_lines {\"copied\":1}\nrows stocktakes {\"copied\":1}\nrows supplier_invoice_line_items {\"copied\":8}\nrows supplier_invoices {\"copied\":6}\nrows supplier_payments {\"copied\":1}\nrows tasks {\"copied\":15}\nrows unit_conversions {\"copied\":1}\nrows variance_dispositions {\"copied\":2}\nid counters {\"carried\":37}\ndatabase done {\"rows\":2002}\nnotes {\"copied\":42}\nfiles {\"copied\":129,\"bytes\":32650518}"
+  "log_tail": "ments {\"copied\":388}\nrows pending_actions {\"copied\":124}\nrows people {\"copied\":224}\nrows permission_audit {\"copied\":2}\nrows po_line_items {\"copied\":16}\nrows products {\"copied\":5}\nrows projects {\"copied\":4}\nrows purchase_order_customers {\"copied\":2}\nrows purchase_orders {\"copied\":14}\nrows quotations {\"copied\":21}\nrows scope_components {\"copied\":37}\nrows scope_tasks {\"copied\":21}\nrows selections {\"copied\":4}\nrows snags {\"copied\":3}\nrows stock_items {\"copied\":2}\nrows stock_usage_log {\"copied\":1}\nrows stocktake_lines {\"copied\":1}\nrows stocktakes {\"copied\":1}\nrows supplier_invoice_line_items {\"copied\":8}\nrows supplier_invoices {\"copied\":6}\nrows supplier_payments {\"copied\":1}\nrows tasks {\"copied\":15}\nrows unit_conversions {\"copied\":1}\nrows variance_dispositions {\"copied\":2}\nid counters {\"carried\":37}\ndatabase done {\"rows\":2002}\nnotes {\"copied\":42}\nfiles {\"copied\":129,\"bytes\":32650518}\nmemories {\"listed\":67,\"skippedCopiesAlreadyInTheIndex\":0,\"copied\":67,\"differ\":0,\"firstPassDiffered\":67,\"readLagSeconds\":15,\"waitedSeconds\":95,\"processed\":true}\ndirectory {\"registered\":4,\"notActive\":0}\nindexes {\"created\":0,\"failed\":0}\nfingerprints compared {\"tables\":46,\"notes\":42,\"files\":129,\"differences\":0}"
  }
 }
