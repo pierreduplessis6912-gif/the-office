@@ -7177,3 +7177,12 @@ Pierre pasted a review of the trial results that said yes to staging but asked f
 **Not verified, stated plainly.** **A real person using it:** nothing here proves the app works on the object for Pierre (a sign-in, a voice message, a confirmation, a PDF), only that the front door, the routing, the data and the counts are right. **The business's hourly alarm** arms on first use and has not fired yet. **Customers' existing links** are supported (tested) but no real one has been opened. The model path through the object has run in staging, not yet on production data. **Items 6 to 10 and 13 remain unbuilt** (cost caps, observability, migrations, partial writes, backups, load), now to be built on this base, and the memory health route probably still reports "stuck" permanently (to fix).
 
 **Mistakes of mine this stretch.** The memory-id prefix (a design flaw the real data exposed); a script that emptied a test file; guards matching comments; an earlier "shared stores" blind spot (the same trap as the memory index, which I should have anticipated).
+
+
+---
+
+## After the cutover: Pierre has used it (2026-10-13)
+
+**Pierre's report: "Everything seems to be functional."** That is one person's observation of the live app after signing in again, not a test I ran, and it does not say which actions he tried. It is the first evidence that a real person can use the business on its object. **Still unconfirmed:** the business's hourly alarm (armed on first use, not yet observed firing), a customer's existing link being opened, and the model path on production data beyond whatever he exercised.
+
+**What the live business now depends on, which matters more than anything unbuilt: the real data lives in ONE place, the business's object.** The old database was left untouched at the moment of the switch and is now stale. The object's only protection today is Cloudflare's 30-day point-in-time recovery, which is documented but **has never been exercised**, and there is **no export to anywhere else**. So **backup and restore (checklist item 10) is the top priority**, then observability and alerting (7) and cost caps (6). Also outstanding: a GitHub token appeared in plain text in this conversation's commands and should be rotated at a natural stopping point (rotating it cuts my ability to push until a new one is provided).
