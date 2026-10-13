@@ -18,23 +18,36 @@ const clamp = (value: unknown, low: number, high: number, fallback: number): num
 
 // The same tiny question put to the main model n times in a row, each call timed. Written exactly like the application's own calls (Kimi, thinking off) but with a five-token
 // answer, so it costs a fraction of a cent. Called with a cast because the binding's own types do not know every option the model accepts (the application's calls are the same).
-async function askModel(env: Env, n: number): Promise<number[]> {
-  const ai = env.AI as unknown as { run: (model: string, input: unknown) => Promise<unknown> };
+interface ModelProbe {
+  chars?: number;      // pad the instructions with this many characters of filler, to see how latency grows with the size of the prompt
+  affinity?: string;   // send this as the x-session-affinity header (Cloudflare's prompt caching routes by it)
+  salt?: string;       // put this at the very START of the padding, so a measurement begins from a prefix no earlier call has warmed
+}
+async function askModel(env: Env, n: number, probe: ModelProbe = {}): Promise<{ callsMs: number[]; usage: unknown[] }> {
+  const ai = env.AI as unknown as { run: (model: string, input: unknown, options?: unknown) => Promise<{ usage?: unknown }> };
+  // The padding comes FIRST and is identical on every call: prompt caching matches the exact token sequence from the start of the prompt.
+  const filler = probe.chars ? `${probe.salt ? `[${probe.salt}] ` : ""}${"The Office keeps business records for tradespeople. ".repeat(Math.ceil(probe.chars / 51))}`.slice(0, probe.chars) : "";
   const times: number[] = [];
+  const usage: unknown[] = [];
   for (let i = 0; i < n; i++) {
     const started = Date.now();
-    await ai.run("@cf/moonshotai/kimi-k2.6", {
-      temperature: 0,
-      max_tokens: 5,
-      chat_template_kwargs: { thinking: false },
-      messages: [
-        { role: "system", content: "Answer with one word." },
-        { role: "user", content: "Say ok." },
-      ],
-    });
+    const answer = await ai.run(
+      "@cf/moonshotai/kimi-k2.6",
+      {
+        temperature: 0,
+        max_tokens: 5,
+        chat_template_kwargs: { thinking: false },
+        messages: [
+          { role: "system", content: `${filler}\nAnswer with one word.` },
+          { role: "user", content: "Say ok." },
+        ],
+      },
+      probe.affinity ? { extraHeaders: { "x-session-affinity": probe.affinity } } : undefined
+    );
     times.push(Date.now() - started);
+    usage.push(answer?.usage ?? null);
   }
-  return times;
+  return { callsMs: times, usage };
 }
 
 export class TrialObject {
@@ -46,8 +59,7 @@ export class TrialObject {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/ai") {
-      const times = await askModel(this.env, clamp(url.searchParams.get("n"), 1, 10, 3));
-      return Response.json({ callsMs: times });
+      return Response.json(await askModel(this.env, clamp(url.searchParams.get("n"), 1, 10, 3), { chars: clamp(url.searchParams.get("chars"), 0, 60000, 0), affinity: url.searchParams.get("affinity") || undefined, salt: (url.searchParams.get("salt") ?? "").replace(/[^\w-]/g, "").slice(0, 40) || undefined }));
     }
     const n = clamp(url.searchParams.get("n"), 1, 200, 20);
     const shared = clamp(url.searchParams.get("shared"), 0, 10, 0);
@@ -126,17 +138,21 @@ export async function trialD1(env: Env, url: URL): Promise<Response> {
 // `where=object` asks it from INSIDE the Durable Object (placed with `hint`, London by default), which is where the business's logic would run.
 export async function trialAi(env: Env, url: URL): Promise<Response> {
   const n = clamp(url.searchParams.get("n"), 1, 10, 3);
+  const chars = clamp(url.searchParams.get("chars"), 0, 60000, 0);
+  const affinity = (url.searchParams.get("affinity") ?? "").replace(/[^\w-]/g, "").slice(0, 64) || undefined;
+  const salt = (url.searchParams.get("salt") ?? "").replace(/[^\w-]/g, "").slice(0, 40) || undefined;
   const where = url.searchParams.get("where") === "object" ? "object" : "worker";
-  let times: number[];
+  let result: { callsMs: number[]; usage: unknown[] };
   if (where === "worker") {
-    times = await askModel(env, n);
+    result = await askModel(env, n, { chars, affinity, salt });
   } else {
     const hintParam = url.searchParams.get("hint") ?? "weur";
     if (hintParam !== "auto" && !(HINTS as readonly string[]).includes(hintParam)) return Response.json({ error: `hint must be auto or one of ${HINTS.join(", ")}` }, { status: 400 });
     const id = env.TRIAL.idFromName("ai-trial");
     const stub = hintParam === "auto" ? env.TRIAL.get(id) : env.TRIAL.get(id, { locationHint: hintParam as Hint });
-    times = ((await (await stub.fetch(`https://trial/ai?n=${n}`)).json()) as { callsMs: number[] }).callsMs;
+    const query = new URLSearchParams({ n: String(n), chars: String(chars), ...(affinity ? { affinity } : {}), ...(salt ? { salt } : {}) });
+    result = (await (await stub.fetch(`https://trial/ai?${query}`)).json()) as { callsMs: number[]; usage: unknown[] };
   }
-  const sorted = [...times].sort((a, b) => a - b);
-  return Response.json({ where, calls: n, callsMs: times, medianMs: sorted[Math.floor(sorted.length / 2)], note: "a five-token answer from the main model: this is mostly the cost of reaching and starting the model, not of generating text" });
+  const sorted = [...result.callsMs].sort((a, b) => a - b);
+  return Response.json({ where, calls: n, promptPaddingChars: chars, affinity: affinity ?? null, salt: salt ?? null, callsMs: result.callsMs, medianMs: sorted[Math.floor(sorted.length / 2)], usage: result.usage, note: "a five-token answer from the main model: with no padding this is mostly the cost of reaching and starting the model; with padding it shows what a bigger prompt costs, and what the affinity header does for repeats" });
 }

@@ -391,6 +391,34 @@ jobs:
           }))
           PY
 
+      - name: Measure the model, prompt size and prompt caching
+        id: model
+        continue-on-error: true
+        run: |
+          BASE="https://${SLUG}.websitehub.co.za"
+          probe() { curl -s -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/trial-ai?where=object&n=$2&chars=$3&salt=$1-${GITHUB_RUN_ID}${4:+&affinity=$4}" > "$RESULTS/model-$1.json"; }
+          # Every case has its own salt, so each starts from a prefix no earlier call has warmed. Same instance every time: the London object.
+          probe small 3 500
+          probe medium 3 8000
+          probe large 3 40000
+          probe large-with-affinity 5 40000 "probe-${GITHUB_RUN_ID}"
+          probe large-no-affinity 5 40000
+          python3 - <<'PY' > "$RESULTS/model.json"
+          import json, os
+          r = os.environ["RESULTS"]
+          out = {}
+          for case in ("small", "medium", "large", "large-with-affinity", "large-no-affinity"):
+              try:
+                  d = json.load(open(os.path.join(r, "model-" + case + ".json")))
+              except Exception:
+                  out[case] = None
+                  continue
+              calls = d.get("callsMs") or []
+              out[case] = {"padding_chars": d.get("promptPaddingChars"), "affinity_sent": bool(d.get("affinity")), "calls_ms": calls, "first_ms": calls[0] if calls else None,
+                           "later_calls_median_ms": sorted(calls[1:])[len(calls[1:]) // 2] if len(calls) > 1 else None, "first_usage": (d.get("usage") or [None])[0], "last_usage": (d.get("usage") or [None])[-1]}
+          print(json.dumps(out))
+          PY
+
       - name: Send a real sentence through the business object
         id: sentence
         continue-on-error: true
@@ -450,6 +478,7 @@ jobs:
           SENTENCE: ${{ steps.sentence.outcome }}
           BUSINESSES: ${{ steps.businesses.outcome }}
           VECTORS: ${{ steps.vectors.outcome }}
+          MODEL: ${{ steps.model.outcome }}
         run: |
           mkdir -p ops
           python3 - <<'PY'
@@ -471,7 +500,7 @@ jobs:
               "run": os.environ.get("GITHUB_RUN_ID"),
               "commit": os.environ.get("GITHUB_SHA", "")[:7],
               "resources": {"database_id": os.environ.get("D1_ID"), "kv_namespace_id": os.environ.get("KV_ID"), "worker": "office-staging-api", "host": "office-staging.websitehub.co.za"},
-              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E"), "real_sentence": os.environ.get("SENTENCE"), "businesses_created": os.environ.get("BUSINESSES"), "memory_index_probe": os.environ.get("VECTORS")},
+              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E"), "real_sentence": os.environ.get("SENTENCE"), "businesses_created": os.environ.get("BUSINESSES"), "memory_index_probe": os.environ.get("VECTORS"), "model_probe": os.environ.get("MODEL")},
               "init_routes": (read("init.txt") or "").splitlines(),
               "indexes": readjson("indexes.json"),
               "trial_do": readjson("trial-do.json"),
@@ -479,6 +508,7 @@ jobs:
               "businesses": readjson("businesses.json"),
               "business_object_e2e": readjson("e2e.json"),
               "memory_index_probe": readjson("vectors.json"),
+              "model_probe": readjson("model.json"),
               "real_sentence": readjson("sentence.json"),
           }
           json.dump(out, open("ops/staging-last-run.json", "w"), indent=1)

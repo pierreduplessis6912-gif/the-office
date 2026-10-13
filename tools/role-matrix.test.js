@@ -832,6 +832,8 @@ async function expect(role, method, path, want) {
   await require('./migrate-runner.test.js')({ check, srcDir });
   // The synthetic business a rehearsal migrates.
   await require('./seed-synthetic.test.js')({ check, srcDir });
+  // The model probe that measures what prompt size and prompt caching do to latency.
+  await require('./trial.test.js')({ check, srcDir });
   // The rehearsal workflow creates real resources, so its safety must not be removable by accident.
   await require('./rehearsal.test.js')({ check, path, fs });
 
