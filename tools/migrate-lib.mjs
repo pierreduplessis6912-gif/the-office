@@ -176,13 +176,25 @@ export async function migrate({ source, target, include = {}, vectors = null, fo
         }
       }
       if (!processed) report.mismatches.push(`memories: the target index had not processed the writes after ${Math.round(waitedMs / 1000)} s, so they could not be verified`);
-      for (let i = 0; i < copiedVectors.length; i += 20) {
-        const chunk = copiedVectors.slice(i, i + 20);
-        const back = await call(target, 'POST', '/admin/migration/vectors-by-ids', { json: { ids: chunk.map((v) => v.id) } });
-        const byId = new Map(back.vectors.map((v) => [v.id, v]));
-        for (const v of chunk) { const b = byId.get(v.id); if (!b || canonicalJson(b.metadata) !== canonicalJson(v.metadata) || b.values.length !== v.values.length || b.values.some((x, j) => Math.abs(x - v.values[j]) > 1e-6)) differ++; }
-      }
-      step('memories', { listed: ids.length, copied, differ, waitedSeconds: Math.round(waitedMs / 1000), processed });
+      // Reading back right after Cloudflare says a write is processed can still show OLD state (found on the real index: after a 120 s wait 25 of 45 read back differently, after a 160 s wait none did).
+      // So only the memories that differ are checked AGAIN, repeatedly, for a bounded time; a difference that persists to the end is a real one.
+      const differing = async (vs) => {
+        const bad = [];
+        for (let i = 0; i < vs.length; i += 20) {
+          const chunk = vs.slice(i, i + 20);
+          const back = await call(target, 'POST', '/admin/migration/vectors-by-ids', { json: { ids: chunk.map((v) => v.id) } });
+          const byId = new Map(back.vectors.map((v) => [v.id, v]));
+          for (const v of chunk) { const b = byId.get(v.id); if (!b || canonicalJson(b.metadata) !== canonicalJson(v.metadata) || b.values.length !== v.values.length || b.values.some((x, j) => Math.abs(x - v.values[j]) > 1e-6)) bad.push(v); }
+        }
+        return bad;
+      };
+      let pending = await differing(copiedVectors), verifyWaitedMs = 0;
+      const firstPassDiffered = pending.length;
+      const verifyLimit = vectors.verifyMaxMs ?? 240000;
+      // (If the target never processed the writes there is nothing to wait for: that is already reported above, and re-checking would only burn the whole time limit.)
+      while (processed && pending.length && verifyWaitedMs < verifyLimit) { await sleep(pollMs); verifyWaitedMs += pollMs; pending = await differing(pending); }
+      differ = pending.length;
+      step('memories', { listed: ids.length, copied, differ, firstPassDiffered, readLagSeconds: Math.round(verifyWaitedMs / 1000), waitedSeconds: Math.round(waitedMs / 1000), processed });
       if (differ || copied !== ids.length) report.mismatches.push(`memories: ${ids.length} listed, ${copied} copied, ${differ} differ after being read back`);
     }
 

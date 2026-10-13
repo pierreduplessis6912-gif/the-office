@@ -23,13 +23,13 @@ async function runnerTests({ check, srcDir }) {
     const storage = { transactionSync(fn) { db.exec('BEGIN'); try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; } } };
     const kv = new Map(), r2 = new Map();
     // A memory index that applies a write LATE (found on the real index: about 100 seconds): upsert only queues, and processNext() applies one queued write, as Cloudflare's index info would report.
-    const vecs = new Map(), queue = []; let mutation = 0, processed = null, stall = false;
-    const mem = { vecs, processNext: () => { if (!stall && queue.length) { const q = queue.shift(); for (const v of q.vs) vecs.set(v.id, { values: Array.from(v.values), metadata: v.metadata, namespace: v.namespace }); processed = q.id; } return processed; }, stall: (on) => { stall = on; } };
+    const vecs = new Map(), queue = []; let mutation = 0, processed = null, stall = false, lagReads = 0, hidden = null;
+    const mem = { vecs, processNext: () => { if (!stall && queue.length) { const q = queue.shift(); for (const v of q.vs) vecs.set(v.id, { values: Array.from(v.values), metadata: v.metadata, namespace: v.namespace }); processed = q.id; } return processed; }, stall: (on) => { stall = on; }, lagReads: (n) => { lagReads = n; }, hide: (id) => { hidden = id; } };
     const page = (all, limit, cursor) => { const start = cursor ? Number(cursor) : 0; return { slice: all.slice(start, start + limit), more: start + limit < all.length, cursor: start + limit < all.length ? String(start + limit) : undefined }; };
     const env = {
       OFFICE_DB: new DoD1Database(sql, storage),
       CUSTOMER_NOTES: { get: async (k) => kv.get(k) ?? null, put: async (k, v) => { kv.set(k, v); }, list: async ({ limit = 1000, cursor } = {}) => { const p = page([...kv.keys()].sort(), limit, cursor); return { keys: p.slice.map((name) => ({ name })), list_complete: !p.more, cursor: p.cursor }; } },
-      MEMORY: { upsert: async (vs) => { const id = `mutation-${++mutation}`; queue.push({ id, vs }); return { mutationId: id }; }, getByIds: async (ids) => ids.filter((i) => vecs.has(i)).map((i) => ({ id: i, ...vecs.get(i) })) },
+      MEMORY: { upsert: async (vs) => { const id = `mutation-${++mutation}`; queue.push({ id, vs }); return { mutationId: id }; }, getByIds: async (ids) => { if (lagReads > 0) { lagReads--; return []; } return ids.filter((i) => vecs.has(i) && i !== hidden).map((i) => ({ id: i, ...vecs.get(i) })); } },
       OFFICE_VAULT: { get: async (k) => (r2.has(k) ? { body: r2.get(k).bytes, httpMetadata: { contentType: r2.get(k).type }, arrayBuffer: async () => r2.get(k).bytes.buffer.slice(r2.get(k).bytes.byteOffset, r2.get(k).bytes.byteOffset + r2.get(k).bytes.byteLength) } : null), put: async (k, body, o) => { r2.set(k, { bytes: new Uint8Array(body), type: o?.httpMetadata?.contentType }); }, list: async ({ limit = 1000, cursor } = {}) => { const p = page([...r2.keys()].sort(), limit, cursor); return { objects: p.slice.map((key) => ({ key, size: r2.get(key).bytes.length })), truncated: p.more, cursor: p.cursor }; } },
     };
     return { db, env, kv, r2, mem };
@@ -104,8 +104,17 @@ async function runnerTests({ check, srcDir }) {
   for (const [id, v] of reordered.S.mem.vecs) reordered.S.mem.vecs.set(id, { ...v, metadata: { text: v.metadata.text, customerId: v.metadata.customerId } });   // the same metadata, keys in the other order
   const rrun = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wire(reordered, { scopedTarget: true }).fetchImpl, vectors: vopts, pollMs: 1 });
   check(rrun.ok === true && rrun.steps.find((s) => s.name === 'memories').differ === 0, 'memories whose metadata comes back with its keys in a different order are still the same memories');
+  // Found on the real index: Cloudflare said the writes were processed, yet reads straight afterwards still showed old state (25 of 45 differed after 120 s; none did after 160 s).
+  const laggy = fresh(); laggy.T.mem.lagReads(3);
+  const lrun = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wire(laggy, { scopedTarget: true }).fetchImpl, vectors: vopts, pollMs: 1 });
+  const lstep = lrun.steps.find((s) => s.name === 'memories');
+  check(lrun.ok === true && lstep.firstPassDiffered === 45 && lstep.differ === 0 && typeof lstep.readLagSeconds === 'number', 'when reads LAG behind the index\'s processed marker, only the memories that differ are checked again, and the run passes once they settle (it does not call a timing lag a difference)', JSON.stringify(lstep));
+  const broken = fresh(); broken.T.mem.hide('zulu-co:pmf-3');
+  const brun = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wire(broken, { scopedTarget: true }).fetchImpl, vectors: { ...vopts, verifyMaxMs: 20 }, pollMs: 1 });
+  check(!brun.ok && /1 differ after being read back/.test(brun.mismatches.join()) && brun.steps.find((s) => s.name === 'memories').firstPassDiffered === 1, 'but a memory that NEVER reads back correctly is still reported once the time is up: the re-checking only forgives lag, not damage');
   const stalled = fresh(); stalled.T.mem.stall(true);
   const srun = await lib.migrate({ source: side('source'), target: side('target', { business: 'zulu-co' }), fetchImpl: wire(stalled, { scopedTarget: true }).fetchImpl, vectors: { ...vopts, maxWaitMs: 20 }, pollMs: 1 });
+  check(srun.steps.find((s) => s.name === 'memories').readLagSeconds === 0, 'and it does not then burn its whole re-checking time on writes that were never processed');
   check(!srun.ok && srun.mismatches.some((m) => /had not processed the writes/.test(m)), 'if the target index never catches up, the run is NOT ok and says it could not verify the memories (it does not report them as copied)');
 
   // ---- it will not mix, and a second run is safe ---------------------------------------------------------------------------------------------------------------------
