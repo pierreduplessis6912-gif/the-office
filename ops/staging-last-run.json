@@ -1,7 +1,7 @@
 {
- "when": "2026-10-13T06:45:12.663270Z",
- "run": "38358176587",
- "commit": "77db198",
+ "when": "2026-10-13T07:43:28.502345Z",
+ "run": "38364011383",
+ "commit": "dd63c32",
  "resources": {
   "database_id": "527785b0-2ca7-4d18-a3b0-0a1d6d0d671a",
   "kv_namespace_id": "5cb9a972eeef4e6b95fea4f6ed95e28a",
@@ -15,7 +15,8 @@
   "business_object_e2e": "success",
   "real_sentence": "success",
   "businesses_created": "success",
-  "memory_index_probe": "success"
+  "memory_index_probe": "success",
+  "model_probe": "success"
  },
  "init_routes": [
   "/debug/init-capture-id-column 200",
@@ -107,23 +108,23 @@
   "sharedTrips": 0,
   "sharedMs": null,
   "objectColo": null,
-  "rowsInThisObjectsOwnTable": 280,
+  "rowsInThisObjectsOwnTable": 308,
   "object": "staging-a",
   "hint": "weur",
   "callsMs": [
-   161,
+   181,
    21,
-   21,
-   23
+   23,
+   27
   ],
-  "firstCallMs": 161,
-  "warmCallsMedianMs": 21,
-  "workerToObjectAndBackMs": 23
+  "firstCallMs": 181,
+  "warmCallsMedianMs": 23,
+  "workerToObjectAndBackMs": 27
  },
  "trial_d1": {
   "statements": 10,
-  "totalMs": 804,
-  "perStatementMs": 80.4,
+  "totalMs": 343,
+  "perStatementMs": 34.3,
   "note": "SELECT 1 against the production database: reads no data"
  },
  "businesses": {
@@ -150,11 +151,11 @@
    "admin_call_naming_no_business": "400"
   },
   "five_list_calls_seconds_from_a_US_runner": [
-   0.457949,
-   0.307622,
-   0.494303,
-   0.667908,
-   0.465551
+   0.508663,
+   0.46824,
+   0.470068,
+   0.497754,
+   0.474184
   ]
  },
  "memory_index_probe": {
@@ -162,18 +163,18 @@
    "first_business": "200",
    "second_business": "200"
   },
-  "seconds_waited_for_cloudflare_to_process_the_writes": 95,
+  "seconds_waited_for_cloudflare_to_process_the_writes": 115,
   "index_info_before_waiting": {
    "dimensions": 768,
-   "vectorCount": 137,
-   "processedUpToDatetime": "2026-10-13T06:17:11.685Z",
-   "processedUpToMutation": "0ebc44cd-8955-4a3f-824a-8e8e0fa12a29"
+   "vectorCount": 227,
+   "processedUpToDatetime": "2026-10-13T07:17:46.187Z",
+   "processedUpToMutation": "66238d4f-6c28-455f-b4fb-e73506c50370"
   },
   "index_info_after_waiting": {
    "dimensions": 768,
-   "vectorCount": 137,
-   "processedUpToDatetime": "2026-10-13T06:43:07.176Z",
-   "processedUpToMutation": "c067c0dc-0628-4f3e-a1c7-17d3ec1476b9"
+   "vectorCount": 227,
+   "processedUpToDatetime": "2026-10-13T07:40:27.042Z",
+   "processedUpToMutation": "dc7a9239-c52e-4e10-a904-cba98fdeb0cc"
   },
   "search_in_first_business_returns": [
    "FIRST probe"
@@ -187,7 +188,7 @@
    "staging-co:probe-1"
   ],
   "ids_are_prefixed_with_the_business": false,
-  "list_api_total_vectors": 137,
+  "list_api_total_vectors": 227,
   "DIRECT_api_query_in_namespace_staging_co": [
    "FIRST probe"
   ],
@@ -196,14 +197,14 @@
   ],
   "DIRECT_api_query_with_no_namespace": [
    "FIRST probe",
-   "REHEARSAL memory 41",
-   "REHEARSAL memory 42",
-   "REHEARSAL memory 43",
+   "REHEARSAL memory 18",
+   "REHEARSAL memory 30",
+   "REHEARSAL memory 34",
+   "REHEARSAL memory 39",
+   "REHEARSAL memory 44",
    "REHEARSAL memory 45",
    "REHEARSAL memory 5",
-   "REHEARSAL memory 6",
    "REHEARSAL memory 7",
-   "REHEARSAL memory 9",
    "SECOND probe"
   ],
   "DIRECT_api_get_by_prefixed_ids": [
@@ -212,33 +213,184 @@
   ],
   "raw_first_search_answer": "{\"matches\":[{\"id\":\"probe-1\",\"score\":1,\"metadata\":{\"customerId\":\"1\",\"text\":\"FIRST probe\"}}]}",
   "raw_first_by_id_answer": "{\"vectors\":[{\"id\":\"probe-1\",\"values\":[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,",
-  "raw_first_upsert_answer": "{\"written\":1,\"mutationId\":\"9d835b54-8978-4f81-a970-c4234a5bdb75\"}",
-  "raw_second_upsert_answer": "{\"written\":1,\"mutationId\":\"c067c0dc-0628-4f3e-a1c7-17d3ec1476b9\"}",
+  "raw_first_upsert_answer": "{\"written\":1,\"mutationId\":\"4ed05010-07d5-4c01-a89e-feed6670cb40\"}",
+  "raw_second_upsert_answer": "{\"written\":1,\"mutationId\":\"dc7a9239-c52e-4e10-a904-cba98fdeb0cc\"}",
   "raw_direct_query_staging_two": "{\"result\":{\"count\":1,\"matches\":[{\"id\":\"staging-two:probe-1\",\"score\":1.0,\"namespace\":\"staging-two\",\"metadata\":{\"customerId\":\"1\",\"text\":\"SECOND probe\"}}]},\"result_info\":null,\"success\":true,\"errors\":[],\"messages\":[]}"
+ },
+ "model_probe": {
+  "small": {
+   "padding_chars": 500,
+   "affinity_sent": false,
+   "calls_ms": [
+    5484,
+    8268,
+    3071
+   ],
+   "first_ms": 5484,
+   "later_calls_median_ms": 8268,
+   "first_usage": {
+    "prompt_tokens": 114,
+    "completion_tokens": 2,
+    "total_tokens": 116,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    },
+    "neurons": 10.57272720336914
+   },
+   "last_usage": {
+    "prompt_tokens": 114,
+    "completion_tokens": 2,
+    "total_tokens": 116,
+    "prompt_tokens_details": {
+     "cached_tokens": 64
+    },
+    "neurons": 5.9763641357421875
+   }
+  },
+  "medium": {
+   "padding_chars": 8000,
+   "affinity_sent": false,
+   "calls_ms": [
+    306,
+    834,
+    282
+   ],
+   "first_ms": 306,
+   "later_calls_median_ms": 834,
+   "first_usage": {
+    "prompt_tokens": 1412,
+    "completion_tokens": 2,
+    "total_tokens": 1414,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    },
+    "neurons": 122.6727294921875
+   },
+   "last_usage": {
+    "prompt_tokens": 1412,
+    "completion_tokens": 2,
+    "total_tokens": 1414,
+    "prompt_tokens_details": {
+     "cached_tokens": 1408
+    },
+    "neurons": 21.55272674560547
+   }
+  },
+  "large": {
+   "padding_chars": 40000,
+   "affinity_sent": false,
+   "calls_ms": [
+    719,
+    321,
+    873
+   ],
+   "first_ms": 719,
+   "later_calls_median_ms": 873,
+   "first_usage": {
+    "prompt_tokens": 6949,
+    "completion_tokens": 2,
+    "total_tokens": 6951,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    },
+    "neurons": 600.8682250976562
+   },
+   "last_usage": {
+    "prompt_tokens": 6949,
+    "completion_tokens": 2,
+    "total_tokens": 6951,
+    "prompt_tokens_details": {
+     "cached_tokens": 6912
+    },
+    "neurons": 104.4609146118164
+   }
+  },
+  "large-with-affinity": {
+   "padding_chars": 40000,
+   "affinity_sent": true,
+   "calls_ms": [
+    1126,
+    5576,
+    613,
+    642,
+    298
+   ],
+   "first_ms": 1126,
+   "later_calls_median_ms": 642,
+   "first_usage": {
+    "prompt_tokens": 6950,
+    "completion_tokens": 2,
+    "total_tokens": 6952,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    },
+    "neurons": 600.95458984375
+   },
+   "last_usage": {
+    "prompt_tokens": 6950,
+    "completion_tokens": 2,
+    "total_tokens": 6952,
+    "prompt_tokens_details": {
+     "cached_tokens": 6912
+    },
+    "neurons": 104.54727935791016
+   }
+  },
+  "large-no-affinity": {
+   "padding_chars": 40000,
+   "affinity_sent": false,
+   "calls_ms": [
+    5052,
+    289,
+    1947,
+    614,
+    649
+   ],
+   "first_ms": 5052,
+   "later_calls_median_ms": 649,
+   "first_usage": {
+    "prompt_tokens": 6950,
+    "completion_tokens": 2,
+    "total_tokens": 6952,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    },
+    "neurons": 600.95458984375
+   },
+   "last_usage": {
+    "prompt_tokens": 6950,
+    "completion_tokens": 2,
+    "total_tokens": 6952,
+    "prompt_tokens_details": {
+     "cached_tokens": 6912
+    },
+    "neurons": 104.54727935791016
+   }
+  }
  },
  "real_sentence": {
   "sentence": "Invoice Staging Customer One R1500 for repairing the bathroom floor",
-  "message_status_and_seconds_from_a_US_runner": "200 5.326988",
-  "reply": "Invoice noted for Staging Customer One of R1500 \u2014 needs your confirmation (action #6) before it's recorded. Job scope #6 also recorded \u2014 1 component measured, 1 task noted.",
+  "message_status_and_seconds_from_a_US_runner": "200 9.777587",
+  "reply": "Invoice noted for Staging Customer One of R1500 \u2014 needs your confirmation (action #7) before it's recorded. Job scope #7 also recorded \u2014 1 component measured, 1 task noted.",
   "held_action": {
-   "id": 6,
+   "id": 7,
    "type": "invoice"
   },
   "customer_matched": "Staging Customer One",
-  "confirm_status_and_seconds": "200 0.301656",
+  "confirm_status_and_seconds": "200 0.470718",
   "confirm_reply": "confirmed",
   "inside_the_object_model_versus_database": {
    "POST /messages/text": {
-    "n": 6,
-    "p50Ms": 7176,
+    "n": 7,
+    "p50Ms": 7519,
     "p95Ms": 10602,
-    "meanAiMs": 7130.3,
+    "meanAiMs": 7439.1,
     "meanAiCalls": 3,
     "meanDbMs": 0,
     "meanDbCalls": 26
    },
    "POST /admin/migration/vectors": {
-    "n": 4,
+    "n": 5,
     "p50Ms": 1903,
     "p95Ms": 3158,
     "meanAiMs": 0,
@@ -246,27 +398,27 @@
     "meanDbMs": 0,
     "meanDbCalls": 1
    },
-   "POST /admin/migration/vectors-query": {
-    "n": 18,
-    "p50Ms": 151,
-    "p95Ms": 994,
-    "meanAiMs": 0,
-    "meanAiCalls": 0,
-    "meanDbMs": 0,
-    "meanDbCalls": 1
-   },
    "POST /admin/migration/vectors-by-ids": {
-    "n": 4,
-    "p50Ms": 404,
+    "n": 5,
+    "p50Ms": 434,
     "p95Ms": 786,
     "meanAiMs": 0,
     "meanAiCalls": 0,
     "meanDbMs": 0,
     "meanDbCalls": 1
    },
+   "POST /admin/migration/vectors-query": {
+    "n": 21,
+    "p50Ms": 152,
+    "p95Ms": 730,
+    "meanAiMs": 0,
+    "meanAiCalls": 0,
+    "meanDbMs": 0,
+    "meanDbCalls": 1
+   },
    "POST /debug/kv-set": {
-    "n": 5,
-    "p50Ms": 53,
+    "n": 6,
+    "p50Ms": 49,
     "p95Ms": 95,
     "meanAiMs": 0,
     "meanAiCalls": 0,
@@ -274,7 +426,7 @@
     "meanDbCalls": 1
    },
    "POST /actions/:id/confirm": {
-    "n": 6,
+    "n": 7,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -283,7 +435,7 @@
     "meanDbCalls": 10
    },
    "POST /files/customers-csv-import": {
-    "n": 6,
+    "n": 7,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -292,7 +444,7 @@
     "meanDbCalls": 9.3
    },
    "POST /debug/init-indexes": {
-    "n": 6,
+    "n": 7,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -301,7 +453,7 @@
     "meanDbCalls": 3
    },
    "POST /debug/init-vat-exempt-column": {
-    "n": 6,
+    "n": 7,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
