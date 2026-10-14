@@ -68,7 +68,8 @@ function newDatabase(workerDir) {
   // A real Durable Object ENFORCES foreign keys, and so does Node's built-in SQLite BY DEFAULT (checked 2026-10-14: PRAGMA foreign_keys is 1 on a new database), so this world always did. Set explicitly anyway, so the test database
   // never depends on a default. (The 2026-10-14 production restore failure got through because the test DATA had no row pointing at a customer, not because enforcement was off.)
   db.exec('PRAGMA foreign_keys = ON');
-  db.exec(fs.readFileSync(path.join(workerDir, 'migrations', '0001_baseline.sql'), 'utf8'));
+  // EVERY migration, in order: the schema an object really has (the baseline, then each later step), not just the first.
+  for (const file of fs.readdirSync(path.join(workerDir, 'migrations')).filter((f) => f.endsWith('.sql')).sort()) db.exec(fs.readFileSync(path.join(workerDir, 'migrations', file), 'utf8'));
   applyIndexesSync(db);
   return db;
 }

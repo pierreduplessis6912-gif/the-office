@@ -290,6 +290,16 @@
   "class": "owner only"
  },
  {
+  "route": "GET /onboarding",
+  "pattern": "/onboarding",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
+ },
+ {
   "route": "GET /projects",
   "pattern": "/projects",
   "how": "exact path",
@@ -628,6 +638,16 @@
   "accountant": "A",
   "installer": "A",
   "class": "any member"
+ },
+ {
+  "route": "POST /onboarding/step",
+  "pattern": "/onboarding/step",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
  },
  {
   "route": "POST /settings/permissions/reset",

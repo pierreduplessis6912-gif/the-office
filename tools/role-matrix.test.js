@@ -862,6 +862,8 @@ async function expect(role, method, path, want) {
   await require('./location.test.js')({ check, srcDir });
   // The production restore: its guard (what may be restored, and every way it must refuse) and its workflow.
   await require('./restore-guard.test.js')({ check, path, fs });
+  // The owner's first-run journey: progress derived from data, owner-only, resumable, safe to retry.
+  await require('./onboarding.test.js')({ check, srcDir });
   // The load test: its judge, its safety, its mechanics against a fake server, and its workflow.
   await require('./load.test.js')({ check, path, fs });
   // The production health alert: its judging script is run against every unhealthy case.

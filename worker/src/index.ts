@@ -1,4 +1,5 @@
 export { TrialObject } from "./trial";
+import { onboardingRoute } from "./onboarding";
 import { atomically } from "./atomic";
 import { capAfter, capBefore, isCountable } from "./limits";
 import { recordModelUsage } from "./usage";
@@ -1358,6 +1359,17 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
     // exclusion already proven in reconcileCustomer and
     // checkCrossRoleCollision — a merged, defunct duplicate should
     // never appear in a real list either, for the same real reason.
+    // The owner's first-run journey (onboarding.ts). Owner-only: the gate denies by default and nothing lists these routes for another role.
+    if (url.pathname === "/onboarding" && request.method === "GET") {
+      const onboardingReply = await onboardingRoute(request, env, url, null);
+      if (onboardingReply) return onboardingReply;
+    }
+    if (url.pathname === "/onboarding/step" && request.method === "POST") {
+      const { email } = await resolveCapabilities(request, env);
+      const onboardingReply = await onboardingRoute(request, env, url, email);
+      if (onboardingReply) return onboardingReply;
+    }
+
     if (url.pathname === "/customers" && request.method === "GET") {
       const search = url.searchParams.get("search")?.trim() || null;
       const limit = Math.min(Number(url.searchParams.get("limit")) || 50, 200);
