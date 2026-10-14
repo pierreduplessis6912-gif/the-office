@@ -1,0 +1,26 @@
+{
+ "when": "2026-10-14T17:22:59.001452Z",
+ "run": "38606157874",
+ "business": "zululand-flooring-and-blinds",
+ "requested_snapshot": null,
+ "decision": {
+  "action": "list",
+  "business": "zululand-flooring-and-blinds",
+  "snapshot": null,
+  "newestComplete": "20261013T163948Z",
+  "available": [
+   {
+    "name": "20261013T163948Z",
+    "complete": true,
+    "finishedAt": "2026-10-13T16:42:05.640Z",
+    "rows": 2004,
+    "files": 129
+   }
+  ],
+  "warnings": [],
+  "reasons": []
+ },
+ "restore_status": null,
+ "restore_report": null,
+ "health_status": null
+}
