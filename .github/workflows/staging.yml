@@ -17,13 +17,18 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "rehearsal = everything; gate = what a migration must pass (as the pipeline runs it); gate-drill = prove the gate stops a deliberately broken step, then recover"
+        description: "rehearsal = everything; gate = what a migration must pass (as the pipeline runs it); gate-drill = prove the gate stops a deliberately broken step, then recover; load = load test the business objects (staging only)"
         type: choice
         options:
           - rehearsal
           - gate
           - gate-drill
+          - load
         default: rehearsal
+      load_sentences:
+        description: "Load mode only: how many real sentences wait on the model while reads are timed (each costs a little; never more than 8)"
+        required: false
+        default: "5"
       owner_email:
         description: "Optional: a Google account to make an owner of staging (needs the redirect URI added to the Google OAuth client first)"
         required: false
@@ -276,7 +281,7 @@ jobs:
 
       - name: Gate - check that every business object applied the real schema steps
         id: gate
-        if: env.MODE != 'rehearsal'
+        if: env.MODE == 'gate' || env.MODE == 'gate-drill'
         continue-on-error: true
         run: |
           BASE="https://${SLUG}.websitehub.co.za"
@@ -829,6 +834,62 @@ jobs:
               "plan_restored": bool(plans_after) and plans_after[0].get("messagesPerMemberPerDay") == 100 and plans_after[0].get("mode") == "warn",
           }))
           PY
+
+      - name: Load test the business objects on Cloudflare (staging only)
+        if: env.MODE == 'load'
+        id: load
+        continue-on-error: true
+        env:
+          LOAD_SENTENCES: ${{ github.event.inputs.load_sentences || '5' }}
+        run: |
+          mkdir -p "$RESULTS"
+          cat > "$RESULTS/mkcookie.py" <<'PY'
+          import os, json, hmac, hashlib, base64, time
+          b = lambda x: base64.urlsafe_b64encode(x).rstrip(b"=").decode()
+          body = {"email": os.environ["EMAIL"], "exp": int(time.time() * 1000) + 3600000, "b": os.environ["BIZ"]}
+          p = b(json.dumps(body, separators=(",", ":")).encode())
+          s = b(hmac.new(os.environ["STAGING_SESSION_SECRET"].encode(), p.encode(), hashlib.sha256).digest())
+          print("office_session=" + p + "." + s)
+          PY
+          COOKIE_A=$(EMAIL="staging-owner@example.com" BIZ="staging-co" python3 "$RESULTS/mkcookie.py")
+          COOKIE_B=$(EMAIL="staging-two-owner@example.com" BIZ="staging-two" python3 "$RESULTS/mkcookie.py")
+          echo "::add-mask::$COOKIE_A"; echo "::add-mask::$COOKIE_B"
+          # The script itself refuses any host that is not staging (office-staging.*): production cannot be reached from here.
+          LOAD_HOST="${SLUG}.websitehub.co.za" COOKIE_A="$COOKIE_A" COOKIE_B="$COOKIE_B" ADMIN_KEY="$STAGING_ADMIN_KEY" python3 tools/load-test.py > "$RESULTS/load.json" 2> "$RESULTS/load.err"
+          echo "load test exit $?"; tail -n 5 "$RESULTS/load.err" || true
+
+      - name: Load test verdict
+        if: always() && env.MODE == 'load'
+        run: |
+          set +e
+          python3 tools/load-judge.py "$RESULTS/load.json" > "$RESULTS/load-verdict.json"
+          JUDGED=$?
+          python3 tools/load-judge.py "$RESULTS/load.json" --markdown >> "$GITHUB_STEP_SUMMARY"
+          cat "$RESULTS/load-verdict.json"
+          exit $JUDGED
+
+      - name: Record the load test
+        if: always() && env.MODE == 'load'
+        run: |
+          mkdir -p ops
+          python3 - <<'PY'
+          import json, os, datetime
+          r = os.environ["RESULTS"]
+          def read(name):
+              try:
+                  return json.load(open(os.path.join(r, name)))
+              except Exception:
+                  return None
+          out = {"when": datetime.datetime.utcnow().isoformat() + "Z", "run": os.environ.get("GITHUB_RUN_ID"), "commit": os.environ.get("GITHUB_SHA", "")[:7], "mode": "load",
+                 "verdict": read("load-verdict.json"), "measurements": read("load.json")}
+          json.dump(out, open("ops/load-test-last.json", "w"), indent=1)
+          PY
+          git config user.name "staging-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/load-test-last.json
+          git commit -m "Load test record (numbers only, no secrets)" || echo "nothing to record"
+          git pull --rebase origin main
+          git push origin HEAD:main
 
       - name: Make the owner of staging
         if: env.MODE == 'rehearsal' && github.event.inputs.owner_email != ''
