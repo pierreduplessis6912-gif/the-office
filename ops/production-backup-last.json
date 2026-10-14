@@ -1,20 +1,20 @@
 {
- "when": "2026-10-14T18:52:32.586425Z",
- "run": "38618706855",
+ "when": "2026-10-14T18:56:28.298722Z",
+ "run": "38619270449",
  "business": "zululand-flooring-and-blinds",
  "took_a_snapshot_now": {
-  "snapshot": "20261014T185130Z",
+  "snapshot": "20261014T185527Z",
   "tables": 47,
-  "rows": 2006,
+  "rows": 1583,
   "notes": 42,
   "files": 129,
   "filesMirroredNow": 0,
-  "ms": 59316
+  "ms": 57737
  },
  "verdict": {
   "healthy": true,
   "problems": [],
-  "snapshots_complete": 3,
+  "snapshots_complete": 5,
   "newest_age_hours": 0,
   "keep": 14,
   "last_attempt_ok": true
@@ -44,6 +44,24 @@
    "finishedAt": "2026-10-14T18:52:29.325Z",
    "tables": 47,
    "rows": 2006,
+   "notes": 42,
+   "files": 129
+  },
+  {
+   "name": "20261014T185331Z-pre-restore",
+   "complete": true,
+   "finishedAt": "2026-10-14T18:54:26.418Z",
+   "tables": 47,
+   "rows": 2006,
+   "notes": 42,
+   "files": 129
+  },
+  {
+   "name": "20261014T185527Z",
+   "complete": true,
+   "finishedAt": "2026-10-14T18:56:24.281Z",
+   "tables": 47,
+   "rows": 1583,
    "notes": 42,
    "files": 129
   }
