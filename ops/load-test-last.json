@@ -1,29 +1,30 @@
 {
- "when": "2026-10-14T11:44:38.432421Z",
- "run": "38558060908",
- "commit": "048fe23",
+ "when": "2026-10-14T11:53:55.822699Z",
+ "run": "38559173648",
+ "commit": "f110781",
  "mode": "load",
  "verdict": {
   "ok": false,
   "problems": [
-   "invoices_import at 10 at once: 1 of 1088 requests failed ({'200': 1087, '502': 1})"
+   "a business could not be given its starting customers, so what was measured is not a realistic business",
+   "customers_import at 1 at once: 2 of 90 requests failed ({'200': 88, '502': 2})"
   ],
   "warnings": [],
   "findings": [
-   "reads at 10 at once: p50 0.105s, p95 0.136s, 88.47 requests/s",
-   "customers_import at 10 at once: p50 0.176s, p95 0.258s, 54.95 requests/s",
-   "invoices_import at 10 at once: p50 0.133s, p95 0.185s, 71.97 requests/s",
-   "isolation: the other business's reads p95 0.11s alone, 0.114s while the first was written to as hard as allowed (allowed 0.61s)",
-   "model in flight: reads p95 0.131s quiet, 0.157s while 5 sentences waited (allowed 1.131s); sentences p50 5.494s, max 7.453s",
-   "reads: bends at no level tested at once; most it served without a failure: 230.92 requests/s (at 50 at once)",
-   "customers_import: bends at no level tested at once; most it served without a failure: 70.77 requests/s (at 25 at once)",
-   "invoices_import: bends at 10 at once; most it served without a failure: 40.94 requests/s (at 5 at once)",
-   "mixed: bends at no level tested at once; most it served without a failure: 102.06 requests/s (at 25 at once)"
+   "reads at 10 at once: p50 0.149s, p95 0.171s, 64.45 requests/s",
+   "customers_import at 10 at once: p50 0.296s, p95 0.384s, 33.09 requests/s",
+   "invoices_import at 10 at once: p50 0.181s, p95 0.221s, 53.15 requests/s",
+   "isolation: the other business's reads p95 0.155s alone, 0.16s while the first was written to as hard as allowed (allowed 0.655s)",
+   "model in flight: reads p95 0.173s quiet, 0.198s while 5 sentences waited (allowed 1.173s); sentences p50 5.093s, max 5.639s",
+   "reads: bends at 50 at once; most it served without a failure: 95.71 requests/s (at 25 at once)",
+   "customers_import: bends at 1 at once; most it served without a failure: 41.48 requests/s (at 25 at once)",
+   "invoices_import: bends at no level tested at once; most it served without a failure: 53.15 requests/s (at 10 at once)",
+   "mixed: bends at no level tested at once; most it served without a failure: 63.15 requests/s (at 25 at once)"
   ],
   "knees": {
-   "reads": null,
-   "customers_import": null,
-   "invoices_import": 10,
+   "reads": 50,
+   "customers_import": 1,
+   "invoices_import": null,
    "mixed": null
   },
   "targets": {
@@ -38,7 +39,7 @@
   }
  },
  "measurements": {
-  "when": "2026-10-14T11:39:58Z",
+  "when": "2026-10-14T11:49:14Z",
   "host": "office-staging.websitehub.co.za",
   "seconds_per_phase": 15.0,
   "steps": [
@@ -52,349 +53,380 @@
    {
     "name": "reads",
     "concurrency": 1,
-    "seconds": 15.04,
-    "requests": 125,
-    "rps": 8.31,
+    "seconds": 15.1,
+    "requests": 95,
+    "rps": 6.29,
     "statuses": {
-     "200": 125
+     "200": 95
     },
     "errors": 0,
-    "p50": 0.103,
-    "p95": 0.291,
-    "p99": 0.381,
-    "max": 0.385,
-    "ok_p95": 0.291
+    "p50": 0.15,
+    "p95": 0.176,
+    "p99": 0.458,
+    "max": 0.458,
+    "ok_p95": 0.176,
+    "error_samples": []
    },
    {
     "name": "reads",
     "concurrency": 5,
-    "seconds": 15.1,
-    "requests": 622,
-    "rps": 41.2,
+    "seconds": 15.13,
+    "requests": 481,
+    "rps": 31.8,
     "statuses": {
-     "200": 622
+     "200": 481
     },
     "errors": 0,
-    "p50": 0.106,
-    "p95": 0.197,
-    "p99": 0.434,
-    "max": 0.523,
-    "ok_p95": 0.197
+    "p50": 0.151,
+    "p95": 0.179,
+    "p99": 0.276,
+    "max": 0.64,
+    "ok_p95": 0.179,
+    "error_samples": []
    },
    {
     "name": "reads",
     "concurrency": 10,
-    "seconds": 15.1,
-    "requests": 1336,
-    "rps": 88.47,
+    "seconds": 15.14,
+    "requests": 976,
+    "rps": 64.45,
     "statuses": {
-     "200": 1336
+     "200": 976
     },
     "errors": 0,
-    "p50": 0.105,
-    "p95": 0.136,
-    "p99": 0.299,
-    "max": 0.517,
-    "ok_p95": 0.136
+    "p50": 0.149,
+    "p95": 0.171,
+    "p99": 0.284,
+    "max": 0.455,
+    "ok_p95": 0.171,
+    "error_samples": []
    },
    {
     "name": "reads",
     "concurrency": 25,
-    "seconds": 15.37,
-    "requests": 2640,
-    "rps": 171.82,
+    "seconds": 15.24,
+    "requests": 1459,
+    "rps": 95.71,
     "statuses": {
-     "200": 2640
+     "200": 1459
     },
     "errors": 0,
-    "p50": 0.129,
-    "p95": 0.279,
-    "p99": 0.432,
-    "max": 0.715,
-    "ok_p95": 0.279
+    "p50": 0.246,
+    "p95": 0.406,
+    "p99": 0.602,
+    "max": 0.729,
+    "ok_p95": 0.406,
+    "error_samples": []
    },
    {
     "name": "reads",
     "concurrency": 50,
-    "seconds": 15.3,
-    "requests": 3533,
-    "rps": 230.92,
+    "seconds": 15.22,
+    "requests": 1431,
+    "rps": 94.03,
     "statuses": {
-     "200": 3533
+     "200": 1431
     },
     "errors": 0,
-    "p50": 0.192,
-    "p95": 0.37,
-    "p99": 0.658,
-    "max": 1.089,
-    "ok_p95": 0.37
+    "p50": 0.509,
+    "p95": 0.731,
+    "p99": 0.974,
+    "max": 1.007,
+    "ok_p95": 0.731,
+    "error_samples": []
    },
    {
     "name": "customers_import",
     "concurrency": 1,
-    "seconds": 15.04,
-    "requests": 127,
-    "rps": 8.45,
+    "seconds": 15.12,
+    "requests": 90,
+    "rps": 5.95,
     "statuses": {
-     "200": 127
+     "200": 88,
+     "502": 2
     },
-    "errors": 0,
-    "p50": 0.114,
-    "p95": 0.13,
-    "p99": 0.171,
-    "max": 0.419,
-    "ok_p95": 0.13
+    "errors": 2,
+    "p50": 0.168,
+    "p95": 0.195,
+    "p99": 0.215,
+    "max": 0.215,
+    "ok_p95": 0.195,
+    "error_samples": [
+     {
+      "status": 502,
+      "seconds": 0.013,
+      "detail": "cf-ray=a4a65e123e7672fe-DFW; server=cloudflare; <html>\r\n<head><title>502 Bad Gateway</title></head>\r\n<body>\r\n<center><h1>502 Bad Gateway</h1></center>\r\n<hr><center>cloudflare</center>\r\n</body>\r\n</html>\r\n"
+     },
+     {
+      "status": 502,
+      "seconds": 0.013,
+      "detail": "cf-ray=a4a65e360a6f72fe-DFW; server=cloudflare; <html>\r\n<head><title>502 Bad Gateway</title></head>\r\n<body>\r\n<center><h1>502 Bad Gateway</h1></center>\r\n<hr><center>cloudflare</center>\r\n</body>\r\n</html>\r\n"
+     }
+    ]
    },
    {
     "name": "customers_import",
     "concurrency": 5,
-    "seconds": 15.12,
-    "requests": 605,
-    "rps": 40.01,
+    "seconds": 15.19,
+    "requests": 350,
+    "rps": 23.05,
     "statuses": {
-     "200": 605
+     "200": 350
     },
     "errors": 0,
-    "p50": 0.12,
-    "p95": 0.142,
-    "p99": 0.222,
-    "max": 0.361,
-    "ok_p95": 0.142
+    "p50": 0.214,
+    "p95": 0.253,
+    "p99": 0.308,
+    "max": 0.327,
+    "ok_p95": 0.253,
+    "error_samples": []
    },
    {
     "name": "customers_import",
     "concurrency": 10,
-    "seconds": 15.2,
-    "requests": 835,
-    "rps": 54.95,
+    "seconds": 15.08,
+    "requests": 499,
+    "rps": 33.09,
     "statuses": {
-     "200": 835
+     "200": 499
     },
     "errors": 0,
-    "p50": 0.176,
-    "p95": 0.258,
-    "p99": 0.313,
-    "max": 0.431,
-    "ok_p95": 0.258
+    "p50": 0.296,
+    "p95": 0.384,
+    "p99": 0.449,
+    "max": 0.571,
+    "ok_p95": 0.384,
+    "error_samples": []
    },
    {
     "name": "customers_import",
     "concurrency": 25,
-    "seconds": 15.03,
-    "requests": 1064,
-    "rps": 70.77,
+    "seconds": 15.69,
+    "requests": 651,
+    "rps": 41.48,
     "statuses": {
-     "200": 1064
+     "200": 651
     },
     "errors": 0,
-    "p50": 0.335,
-    "p95": 0.449,
-    "p99": 0.595,
-    "max": 1.052,
-    "ok_p95": 0.449
+    "p50": 0.583,
+    "p95": 0.757,
+    "p99": 0.833,
+    "max": 0.844,
+    "ok_p95": 0.757,
+    "error_samples": []
    },
    {
     "name": "invoices_import",
     "concurrency": 1,
-    "seconds": 15.07,
-    "requests": 124,
-    "rps": 8.23,
+    "seconds": 15.1,
+    "requests": 95,
+    "rps": 6.29,
     "statuses": {
-     "200": 124
+     "200": 95
     },
     "errors": 0,
-    "p50": 0.12,
-    "p95": 0.132,
-    "p99": 0.152,
-    "max": 0.268,
-    "ok_p95": 0.132
+    "p50": 0.157,
+    "p95": 0.168,
+    "p99": 0.289,
+    "max": 0.289,
+    "ok_p95": 0.168,
+    "error_samples": []
    },
    {
     "name": "invoices_import",
     "concurrency": 5,
-    "seconds": 15.12,
-    "requests": 619,
-    "rps": 40.94,
+    "seconds": 15.14,
+    "requests": 460,
+    "rps": 30.39,
     "statuses": {
-     "200": 619
+     "200": 460
     },
     "errors": 0,
-    "p50": 0.118,
-    "p95": 0.145,
-    "p99": 0.198,
-    "max": 0.407,
-    "ok_p95": 0.145
+    "p50": 0.161,
+    "p95": 0.179,
+    "p99": 0.242,
+    "max": 0.249,
+    "ok_p95": 0.179,
+    "error_samples": []
    },
    {
     "name": "invoices_import",
     "concurrency": 10,
-    "seconds": 15.12,
-    "requests": 1088,
-    "rps": 71.97,
+    "seconds": 15.09,
+    "requests": 802,
+    "rps": 53.15,
     "statuses": {
-     "200": 1087,
-     "502": 1
+     "200": 802
     },
-    "errors": 1,
-    "p50": 0.133,
-    "p95": 0.185,
-    "p99": 0.267,
-    "max": 0.514,
-    "ok_p95": 0.185
+    "errors": 0,
+    "p50": 0.181,
+    "p95": 0.221,
+    "p99": 0.304,
+    "max": 0.477,
+    "ok_p95": 0.221,
+    "error_samples": []
    },
    {
     "name": "mixed",
     "concurrency": 10,
-    "seconds": 15.12,
-    "requests": 1126,
-    "rps": 74.45,
+    "seconds": 15.22,
+    "requests": 665,
+    "rps": 43.68,
     "statuses": {
-     "200": 1126
+     "200": 665
     },
     "errors": 0,
-    "p50": 0.126,
-    "p95": 0.185,
-    "p99": 0.246,
-    "max": 0.394,
-    "ok_p95": 0.185
+    "p50": 0.223,
+    "p95": 0.33,
+    "p99": 0.419,
+    "max": 0.542,
+    "ok_p95": 0.33,
+    "error_samples": []
    },
    {
     "name": "mixed",
     "concurrency": 25,
-    "seconds": 15.23,
-    "requests": 1554,
-    "rps": 102.06,
+    "seconds": 15.36,
+    "requests": 970,
+    "rps": 63.15,
     "statuses": {
-     "200": 1554
+     "200": 970
     },
     "errors": 0,
-    "p50": 0.242,
-    "p95": 0.359,
-    "p99": 0.501,
-    "max": 0.813,
-    "ok_p95": 0.359
+    "p50": 0.382,
+    "p95": 0.566,
+    "p99": 0.598,
+    "max": 0.715,
+    "ok_p95": 0.566,
+    "error_samples": []
    }
   ],
   "seeded": {
    "a": true,
-   "b": true
+   "b": false
   },
   "customers_before_reads": 50,
   "isolation": {
    "b_alone": {
     "name": "isolation_b_alone",
     "concurrency": 5,
-    "seconds": 15.09,
-    "requests": 734,
-    "rps": 48.65,
+    "seconds": 15.14,
+    "requests": 509,
+    "rps": 33.62,
     "statuses": {
-     "200": 734
+     "200": 509
     },
     "errors": 0,
-    "p50": 0.099,
-    "p95": 0.11,
-    "p99": 0.164,
-    "max": 0.414,
-    "ok_p95": 0.11
+    "p50": 0.144,
+    "p95": 0.155,
+    "p99": 0.309,
+    "max": 0.533,
+    "ok_p95": 0.155,
+    "error_samples": []
    },
    "b_while_a_is_written_to": {
     "name": "b_reads",
     "concurrency": 5,
-    "seconds": 15.29,
-    "requests": 717,
-    "rps": 46.89,
+    "seconds": 15.45,
+    "requests": 513,
+    "rps": 33.21,
     "statuses": {
-     "200": 717
+     "200": 513
     },
     "errors": 0,
-    "p50": 0.099,
-    "p95": 0.114,
-    "p99": 0.274,
-    "max": 0.462,
-    "ok_p95": 0.114
+    "p50": 0.141,
+    "p95": 0.16,
+    "p99": 0.292,
+    "max": 0.434,
+    "ok_p95": 0.16,
+    "error_samples": []
    },
    "a_writes": {
     "name": "a_writes",
     "concurrency": 25,
-    "seconds": 15.29,
-    "requests": 872,
-    "rps": 57.03,
+    "seconds": 15.45,
+    "requests": 575,
+    "rps": 37.23,
     "statuses": {
-     "200": 872
+     "200": 575
     },
     "errors": 0,
-    "p50": 0.43,
-    "p95": 0.555,
-    "p99": 0.82,
-    "max": 0.837,
-    "ok_p95": 0.555
+    "p50": 0.652,
+    "p95": 0.763,
+    "p99": 1.201,
+    "max": 1.213,
+    "ok_p95": 0.763,
+    "error_samples": []
    }
   },
   "model_in_flight": {
    "baseline_reads": {
     "name": "model_baseline_reads",
     "concurrency": 5,
-    "seconds": 15.11,
-    "requests": 667,
-    "rps": 44.14,
+    "seconds": 15.12,
+    "requests": 480,
+    "rps": 31.75,
     "statuses": {
-     "200": 667
+     "200": 480
     },
     "errors": 0,
-    "p50": 0.109,
-    "p95": 0.131,
-    "p99": 0.192,
-    "max": 0.252,
-    "ok_p95": 0.131
+    "p50": 0.153,
+    "p95": 0.173,
+    "p99": 0.249,
+    "max": 0.387,
+    "ok_p95": 0.173,
+    "error_samples": []
    },
    "reads_while_sentences_wait": {
     "name": "reads_in_flight",
     "concurrency": 5,
-    "seconds": 7.45,
-    "requests": 318,
-    "rps": 42.66,
+    "seconds": 5.64,
+    "requests": 175,
+    "rps": 31.03,
     "statuses": {
-     "200": 318
+     "200": 175
     },
     "errors": 0,
-    "p50": 0.109,
-    "p95": 0.157,
-    "p99": 0.262,
-    "max": 0.44,
-    "ok_p95": 0.157,
-    "window_seconds": 7.45
+    "p50": 0.156,
+    "p95": 0.198,
+    "p99": 0.295,
+    "max": 0.297,
+    "ok_p95": 0.198,
+    "error_samples": [],
+    "window_seconds": 5.64
    },
    "sentences": {
     "name": "sentences",
     "concurrency": 5,
-    "seconds": 20.06,
+    "seconds": 20.11,
     "requests": 5,
     "rps": 0.25,
     "statuses": {
      "200": 5
     },
     "errors": 0,
-    "p50": 5.494,
-    "p95": 7.453,
-    "p99": 7.453,
-    "max": 7.453,
-    "ok_p95": 7.453
+    "p50": 5.093,
+    "p95": 5.639,
+    "p99": 5.639,
+    "max": 5.639,
+    "ok_p95": 5.639,
+    "error_samples": []
    }
   },
   "server_side": {
    "timings": {
     "enabled": true,
     "requests": 300,
-    "from": "2026-10-14 11:43:55",
-    "to": "2026-10-14 11:44:24",
+    "from": "2026-10-14 11:53:10",
+    "to": "2026-10-14 11:53:40",
     "note": "Times are in milliseconds and SUMMED across calls, so calls that overlap can add up to more than the request took. 'other' is notes store, memory search and file storage.",
     "byPath": [
      {
       "route": "POST /messages/text",
       "n": 5,
-      "p50Ms": 5166,
-      "p95Ms": 7109,
-      "meanAiMs": 5528.6,
+      "p50Ms": 4656,
+      "p95Ms": 5203,
+      "meanAiMs": 4616.4,
       "meanAiCalls": 3,
       "meanDbMs": 0,
       "meanDbCalls": 18,
@@ -414,57 +446,57 @@
     ],
     "slowest": [
      {
-      "at": "2026-10-14 11:44:24",
+      "at": "2026-10-14 11:53:40",
       "route": "POST /messages/text",
       "status": 200,
-      "totalMs": 7109,
-      "aiMs": 7075,
+      "totalMs": 5203,
+      "aiMs": 5178,
       "aiCalls": 3,
       "dbMs": 0,
       "dbCalls": 18
      },
      {
-      "at": "2026-10-14 11:44:22",
+      "at": "2026-10-14 11:53:40",
       "route": "POST /messages/text",
       "status": 200,
-      "totalMs": 5272,
-      "aiMs": 5238,
+      "totalMs": 5198,
+      "aiMs": 5168,
       "aiCalls": 3,
       "dbMs": 0,
       "dbCalls": 18
      },
      {
-      "at": "2026-10-14 11:44:22",
+      "at": "2026-10-14 11:53:39",
       "route": "POST /messages/text",
       "status": 200,
-      "totalMs": 5166,
-      "aiMs": 5132,
+      "totalMs": 4656,
+      "aiMs": 4613,
       "aiCalls": 3,
       "dbMs": 0,
       "dbCalls": 18
      },
      {
-      "at": "2026-10-14 11:44:22",
+      "at": "2026-10-14 11:53:39",
       "route": "POST /messages/text",
       "status": 200,
-      "totalMs": 5145,
-      "aiMs": 5104,
+      "totalMs": 4245,
+      "aiMs": 4215,
       "aiCalls": 3,
       "dbMs": 0,
       "dbCalls": 18
      },
      {
-      "at": "2026-10-14 11:44:22",
+      "at": "2026-10-14 11:53:38",
       "route": "POST /messages/text",
       "status": 200,
-      "totalMs": 5125,
-      "aiMs": 5094,
+      "totalMs": 3936,
+      "aiMs": 3908,
       "aiCalls": 3,
       "dbMs": 0,
       "dbCalls": 18
      },
      {
-      "at": "2026-10-14 11:44:01",
+      "at": "2026-10-14 11:53:19",
       "route": "POST /files/customers-csv-import",
       "status": 200,
       "totalMs": 0,
@@ -474,7 +506,7 @@
       "dbCalls": 17
      },
      {
-      "at": "2026-10-14 11:44:01",
+      "at": "2026-10-14 11:53:19",
       "route": "POST /files/customers-csv-import",
       "status": 200,
       "totalMs": 0,
@@ -484,7 +516,7 @@
       "dbCalls": 17
      },
      {
-      "at": "2026-10-14 11:44:01",
+      "at": "2026-10-14 11:53:19",
       "route": "POST /files/customers-csv-import",
       "status": 200,
       "totalMs": 0,
@@ -494,7 +526,7 @@
       "dbCalls": 17
      },
      {
-      "at": "2026-10-14 11:44:01",
+      "at": "2026-10-14 11:53:19",
       "route": "POST /files/customers-csv-import",
       "status": 200,
       "totalMs": 0,
@@ -504,7 +536,7 @@
       "dbCalls": 17
      },
      {
-      "at": "2026-10-14 11:44:01",
+      "at": "2026-10-14 11:53:19",
       "route": "POST /files/customers-csv-import",
       "status": 200,
       "totalMs": 0,
@@ -517,10 +549,10 @@
    },
    "health": {
     "business": "staging-co",
-    "generatedAt": "2026-10-14T11:44:38.037Z",
+    "generatedAt": "2026-10-14T11:53:55.471Z",
     "hourlyJob": {
      "lastRunAt": "2026-10-14T11:39:50.693Z",
-     "minutesSinceLastRun": 5,
+     "minutesSinceLastRun": 14,
      "lastOk": true,
      "lastError": null,
      "lastMs": null,
@@ -530,7 +562,7 @@
      "lastSuccessAt": "2026-10-14T11:15:25.678Z",
      "lastAttemptOk": true,
      "lastError": null,
-     "newestAgeHours": 0.5
+     "newestAgeHours": 0.6
     },
     "memoryQueue": {
      "pending": 0,
@@ -545,26 +577,26 @@
     "model": {
      "today": {
       "day": "2026-10-14",
-      "requests": 19,
-      "modelCalls": 64,
+      "requests": 24,
+      "modelCalls": 79,
       "failures": 0,
-      "promptTokens": 218162,
-      "completionTokens": 2189,
-      "cachedTokens": 193088,
-      "neurons": 5770,
-      "estimatedUsd": 0.0635
+      "promptTokens": 276833,
+      "completionTokens": 2753,
+      "cachedTokens": 251008,
+      "neurons": 6882.5,
+      "estimatedUsd": 0.0757
      },
      "recent": [
       {
        "day": "2026-10-14",
-       "requests": 19,
-       "modelCalls": 64,
+       "requests": 24,
+       "modelCalls": 79,
        "failures": 0,
-       "promptTokens": 218162,
-       "completionTokens": 2189,
-       "cachedTokens": 193088,
-       "neurons": 5770,
-       "estimatedUsd": 0.0635
+       "promptTokens": 276833,
+       "completionTokens": 2753,
+       "cachedTokens": 251008,
+       "neurons": 6882.5,
+       "estimatedUsd": 0.0757
       },
       {
        "day": "2026-10-13",
@@ -578,8 +610,8 @@
        "estimatedUsd": 0.0103
       }
      ],
-     "totalNeurons": 6709.1,
-     "totalEstimatedUsd": 0.0738
+     "totalNeurons": 7821.6,
+     "totalEstimatedUsd": 0.086
     },
     "limits": {
      "plan": {
@@ -589,8 +621,8 @@
       "mode": "warn"
      },
      "activeMembers": 1,
-     "messages": 19,
-     "topMemberMessages": 19,
+     "messages": 24,
+     "topMemberMessages": 24,
      "membersAtOrOverLimit": 0
     },
     "schema": {
