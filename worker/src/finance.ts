@@ -1772,8 +1772,27 @@ export async function recordVarianceDisposition(
   reason: string | null,
   resolution: string | null,
   creditAmount: number | null,
-  recordedByEmail: string | null = null
+  recordedByEmail: string | null = null,
+  // What kind of cost a credit is, asked of the model BEFORE the transaction opens (given only on the inner call).
+  knownCategory?: Awaited<ReturnType<typeof classifyExpenseCategory>>
 ): Promise<{ dispositionId: number; expenseId: number | null }> {
+  // One transaction (atomic.ts): the disposition and the credit it creates happen together or not at all. The model is asked what kind of cost the credit is FIRST, outside the transaction: nothing but the
+  // database may be touched inside one (this function used to ask it between the two writes).
+  if (!env.__atomic) {
+    let category: Awaited<ReturnType<typeof classifyExpenseCategory>> | undefined;
+    if (resolution === "credit" && creditAmount != null && creditAmount > 0) {
+      const line = await env.OFFICE_DB.prepare(
+        `SELECT gli.description, grn.supplier_id
+         FROM grn_line_items gli
+         JOIN goods_received_notes grn ON grn.id = gli.grn_id
+         WHERE gli.id = ?`
+      )
+        .bind(grnLineItemId)
+        .first<{ description: string; supplier_id: number | null }>();
+      if (line?.supplier_id != null) category = await classifyExpenseCategory(env, `Credit for ${line.description} (${reason ?? "discrepancy"})`);
+    }
+    return atomically(env, (tx) => recordVarianceDisposition(tx, grnLineItemId, reason, resolution, creditAmount, recordedByEmail, category));
+  }
   const inserted = await env.OFFICE_DB.prepare(
     "INSERT INTO variance_dispositions (grn_line_item_id, reason, resolution, credit_amount, recorded_by) VALUES (?, ?, ?, ?, ?) RETURNING id"
   )
@@ -1805,7 +1824,8 @@ export async function recordVarianceDisposition(
         -creditAmount,
         `Credit for ${chain.description} (${reason ?? "discrepancy"})`,
         `variance disposition #${dispositionId}`,
-        await getCustomerForPurchaseOrders(env, [chain.purchase_order_id])
+        await getCustomerForPurchaseOrders(env, [chain.purchase_order_id]),
+        knownCategory
       );
       expenseId = expense.id;
     }

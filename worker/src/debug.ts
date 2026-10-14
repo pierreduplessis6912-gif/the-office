@@ -15,6 +15,7 @@
 // are NOT imported here beyond what a route genuinely reads directly
 // (like ROLE_CAPABILITIES, to validate a role name) — the actual
 // gating already ran in index.ts before this function is ever called.
+import { atomically } from "./atomic";
 import { assignPlan, listPlans, setPlan } from "./limits";
 import { healthReport } from "./health";
 import { backupRoute } from "./backup-routes";
@@ -282,8 +283,10 @@ if (url.pathname === "/debug/resolve-entity-test" && request.method === "POST") 
 if (url.pathname === "/debug/delete-customer" && request.method === "POST") {
       const id = url.searchParams.get("id");
       if (!id) return Response.json({ error: "missing ?id=" }, { status: 400 });
-      await env.OFFICE_DB.prepare("DELETE FROM customers WHERE id = ?").bind(id).run();
+      await atomically(env, async (env) => {
+await env.OFFICE_DB.prepare("DELETE FROM customers WHERE id = ?").bind(id).run();
       await env.OFFICE_DB.prepare("DELETE FROM pending_memory_flush WHERE customer_id = ?").bind(id).run();
+});
       await env.CUSTOMER_NOTES.delete(`customer:${id}`);
       return Response.json({ status: "deleted", id });
     }
@@ -798,7 +801,8 @@ if (url.pathname === "/debug/merge-stock-items" && request.method === "POST") {
         (skipped.length > 0 ? ` ${skipped.length} set${skipped.length === 1 ? " was" : "s were"} left alone because the units differ (see "skipped").` : ""),
     });
   }
-  if (groups.length > 0) {
+  return atomically(env, async (env) => {
+if (groups.length > 0) {
     await env.OFFICE_DB.prepare(
       "CREATE TABLE IF NOT EXISTS stock_item_merges (id INTEGER PRIMARY KEY AUTOINCREMENT, kept_id INTEGER NOT NULL, merged_id INTEGER NOT NULL, merged_name TEXT, merged_quantity REAL, created_at TEXT NOT NULL DEFAULT (datetime('now')))"
     ).run();
@@ -824,6 +828,7 @@ if (url.pathname === "/debug/merge-stock-items" && request.method === "POST") {
       (groups.length > 0 ? `Merged ${groups.length} set${groups.length === 1 ? "" : "s"} of duplicate stock items.` : "No duplicate stock items to merge.") +
       (skipped.length > 0 ? ` ${skipped.length} set${skipped.length === 1 ? " was" : "s were"} left alone because the units differ (see "skipped").` : ""),
   });
+});
 }
 
 if (url.pathname === "/debug/stocktakes" && request.method === "GET") {
@@ -1579,7 +1584,8 @@ if (url.pathname === "/debug/merge-customers" && request.method === "POST") {
         return Response.json({ error: "fromId and intoId must be different" }, { status: 400 });
       }
 
-      const tablesToRepoint = [
+      return atomically(env, async (env) => {
+const tablesToRepoint = [
         "payments",
         "expenses",
         "invoices",
@@ -1657,6 +1663,7 @@ if (url.pathname === "/debug/merge-customers" && request.method === "POST") {
       }
 
       return Response.json({ status: "merged", fromId: body.fromId, intoId: body.intoId, repointed, peopleMerged });
+});
     }
 
 if (url.pathname === "/debug/init-character-merge" && request.method === "POST") {
@@ -1673,7 +1680,8 @@ if (url.pathname === "/debug/merge-characters" && request.method === "POST") {
         return Response.json({ error: "fromId and intoId must be different" }, { status: 400 });
       }
 
-      const tablesToRepoint: Array<{ table: string; column: string }> = [
+      return atomically(env, async (env) => {
+const tablesToRepoint: Array<{ table: string; column: string }> = [
         { table: "character_facts", column: "character_id" },
         { table: "expenses", column: "character_id" },
         { table: "supplier_payments", column: "character_id" },
@@ -1731,6 +1739,7 @@ if (url.pathname === "/debug/merge-characters" && request.method === "POST") {
       }
 
       return Response.json({ status: "merged", fromId: body.fromId, intoId: body.intoId, repointed, peopleMerged });
+});
     }
 
 if (url.pathname === "/debug/characters" && request.method === "GET") {
