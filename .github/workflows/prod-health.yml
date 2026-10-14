@@ -30,6 +30,8 @@ jobs:
       BACKUP_STALE_HOURS: "30"
       SPEND_WARN_USD: "2"
       CAP_WARN_FRACTION: "0.8"
+      # Where the business's members are. The object's own location (health report: location) is compared with it; a mismatch is a WARNING, never a failure (it costs every request a long hop, it does not break anything).
+      EXPECTED_OBJECT_COUNTRY: "ZA"
       RESULTS: ${{ github.workspace }}/results
     steps:
       - uses: actions/checkout@v4
@@ -40,7 +42,7 @@ jobs:
         run: |
           mkdir -p "$RESULTS"
           curl -s "$PROD_URL/admin/health" -H "X-Admin-Key: $ADMIN" -H "X-Target-Business: $BUSINESS" > "$RESULTS/health.json"
-          python3 -c "import json; d=json.load(open('$RESULTS/health.json')); print(json.dumps({**{k: d.get(k) for k in ('business', 'hourlyJob', 'memoryQueue', 'requests', 'backup', 'limits')}, 'modelToday': (d.get('model') or {}).get('today')}, indent=1))" || cat "$RESULTS/health.json"
+          python3 -c "import json; d=json.load(open('$RESULTS/health.json')); print(json.dumps({**{k: d.get(k) for k in ('business', 'hourlyJob', 'memoryQueue', 'requests', 'backup', 'limits', 'location')}, 'modelToday': (d.get('model') or {}).get('today')}, indent=1))" || cat "$RESULTS/health.json"
 
       - name: Judge the health report
         id: judge
@@ -104,11 +106,15 @@ jobs:
           lim = h.get("limits") or {}
           if (lim.get("membersAtOrOverLimit") or 0) > 0:
               warnings.append("%s member(s) reached the daily message limit today (the plan allows %s each)" % (lim.get("membersAtOrOverLimit"), (lim.get("plan") or {}).get("messagesPerMemberPerDay")))
+          loc = h.get("location") or {}
+          expected = env.get("EXPECTED_OBJECT_COUNTRY")
+          if expected and loc.get("country") and loc.get("country") != expected:
+              warnings.append("the business's object runs in %s (%s), not in %s: every request its members make pays that distance (SHIP_CHECKLIST.md item 13)" % (loc.get("colo"), loc.get("country"), expected))
           cap = (lim.get("plan") or {}).get("neuronsPerBusinessPerDay") or 0
           used = ((h.get("model") or {}).get("today") or {}).get("neurons") or 0
           if cap and used >= cap * float(env["CAP_WARN_FRACTION"]):
               warnings.append("the model has used %d%% of the day's spend ceiling (%s of %s neurons)" % (round(100 * used / cap), used, cap))
-          verdict = {"healthy": not problems, "problems": problems, "warnings": warnings, "model_today_usd": spend, "queue_pending": q.get("pending"), "job_minutes_since_last_run": minutes, "model_today_neurons": ((h.get("model") or {}).get("today") or {}).get("neurons"), "model_requests_today": ((h.get("model") or {}).get("today") or {}).get("requests"), "plan_mode": (lim.get("plan") or {}).get("mode"), "members_active_today": lim.get("activeMembers"), "members_at_or_over_limit": lim.get("membersAtOrOverLimit"), "schema_pending": len(sch.get("pending") or []), "schema_steps_applied": sch.get("appliedSteps")}
+          verdict = {"object_location": {"colo": loc.get("colo"), "country": loc.get("country"), "checked_at": loc.get("checkedAt"), "error": loc.get("error")}, "healthy": not problems, "problems": problems, "warnings": warnings, "model_today_usd": spend, "queue_pending": q.get("pending"), "job_minutes_since_last_run": minutes, "model_today_neurons": ((h.get("model") or {}).get("today") or {}).get("neurons"), "model_requests_today": ((h.get("model") or {}).get("today") or {}).get("requests"), "plan_mode": (lim.get("plan") or {}).get("mode"), "members_active_today": lim.get("activeMembers"), "members_at_or_over_limit": lim.get("membersAtOrOverLimit"), "schema_pending": len(sch.get("pending") or []), "schema_steps_applied": sch.get("appliedSteps")}
           json.dump(verdict, open(os.path.join(r, "verdict.json"), "w"))
           print(json.dumps(verdict, indent=1))
           open(os.environ["GITHUB_OUTPUT"], "a").write("healthy=%s\n" % ("true" if not problems else "false"))
