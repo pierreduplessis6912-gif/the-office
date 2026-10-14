@@ -1,29 +1,26 @@
 {
- "when": "2026-10-14T11:53:55.822699Z",
- "run": "38559173648",
- "commit": "f110781",
+ "when": "2026-10-14T15:03:03.715323Z",
+ "run": "38585120797",
+ "commit": "fdfaafa",
  "mode": "load",
  "verdict": {
-  "ok": false,
-  "problems": [
-   "a business could not be given its starting customers, so what was measured is not a realistic business",
-   "customers_import at 1 at once: 2 of 90 requests failed ({'200': 88, '502': 2})"
-  ],
+  "ok": true,
+  "problems": [],
   "warnings": [],
   "findings": [
-   "reads at 10 at once: p50 0.149s, p95 0.171s, 64.45 requests/s",
-   "customers_import at 10 at once: p50 0.296s, p95 0.384s, 33.09 requests/s",
-   "invoices_import at 10 at once: p50 0.181s, p95 0.221s, 53.15 requests/s",
-   "isolation: the other business's reads p95 0.155s alone, 0.16s while the first was written to as hard as allowed (allowed 0.655s)",
-   "model in flight: reads p95 0.173s quiet, 0.198s while 5 sentences waited (allowed 1.173s); sentences p50 5.093s, max 5.639s",
-   "reads: bends at 50 at once; most it served without a failure: 95.71 requests/s (at 25 at once)",
-   "customers_import: bends at 1 at once; most it served without a failure: 41.48 requests/s (at 25 at once)",
-   "invoices_import: bends at no level tested at once; most it served without a failure: 53.15 requests/s (at 10 at once)",
-   "mixed: bends at no level tested at once; most it served without a failure: 63.15 requests/s (at 25 at once)"
+   "reads at 10 at once: p50 0.16s, p95 0.217s, 61.13 requests/s",
+   "customers_import at 10 at once: p50 0.339s, p95 0.431s, 28.6 requests/s",
+   "invoices_import at 10 at once: p50 0.169s, p95 0.297s, 55.26 requests/s",
+   "isolation: the other business's reads p95 0.145s alone, 0.141s while the first was written to as hard as allowed (allowed 0.645s)",
+   "model in flight: reads p95 0.22s quiet, 0.192s while 5 sentences waited (allowed 1.22s); sentences p50 7.204s, max 11.6s",
+   "reads: bends at no level tested at once; most it served without a failure: 107.13 requests/s (at 50 at once)",
+   "customers_import: bends at 25 at once; most it served without a failure: 29.78 requests/s (at 25 at once)",
+   "invoices_import: bends at no level tested at once; most it served without a failure: 55.26 requests/s (at 10 at once)",
+   "mixed: bends at no level tested at once; most it served without a failure: 54.07 requests/s (at 25 at once)"
   ],
   "knees": {
-   "reads": 50,
-   "customers_import": 1,
+   "reads": null,
+   "customers_import": 25,
    "invoices_import": null,
    "mixed": null
   },
@@ -39,7 +36,7 @@
   }
  },
  "measurements": {
-  "when": "2026-10-14T11:49:14Z",
+  "when": "2026-10-14T14:58:23Z",
   "host": "office-staging.websitehub.co.za",
   "seconds_per_phase": 15.0,
   "steps": [
@@ -53,309 +50,297 @@
    {
     "name": "reads",
     "concurrency": 1,
-    "seconds": 15.1,
-    "requests": 95,
-    "rps": 6.29,
+    "seconds": 15.02,
+    "requests": 112,
+    "rps": 7.46,
     "statuses": {
-     "200": 95
+     "200": 112
     },
     "errors": 0,
-    "p50": 0.15,
-    "p95": 0.176,
-    "p99": 0.458,
-    "max": 0.458,
-    "ok_p95": 0.176,
-    "error_samples": []
-   },
-   {
-    "name": "reads",
-    "concurrency": 5,
-    "seconds": 15.13,
-    "requests": 481,
-    "rps": 31.8,
-    "statuses": {
-     "200": 481
-    },
-    "errors": 0,
-    "p50": 0.151,
+    "p50": 0.128,
     "p95": 0.179,
-    "p99": 0.276,
-    "max": 0.64,
+    "p99": 0.21,
+    "max": 0.258,
     "ok_p95": 0.179,
     "error_samples": []
    },
    {
     "name": "reads",
-    "concurrency": 10,
-    "seconds": 15.14,
-    "requests": 976,
-    "rps": 64.45,
+    "concurrency": 5,
+    "seconds": 15.12,
+    "requests": 588,
+    "rps": 38.9,
     "statuses": {
-     "200": 976
+     "200": 588
     },
     "errors": 0,
-    "p50": 0.149,
-    "p95": 0.171,
-    "p99": 0.284,
-    "max": 0.455,
-    "ok_p95": 0.171,
+    "p50": 0.122,
+    "p95": 0.158,
+    "p99": 0.225,
+    "max": 0.439,
+    "ok_p95": 0.158,
+    "error_samples": []
+   },
+   {
+    "name": "reads",
+    "concurrency": 10,
+    "seconds": 15.25,
+    "requests": 932,
+    "rps": 61.13,
+    "statuses": {
+     "200": 932
+    },
+    "errors": 0,
+    "p50": 0.16,
+    "p95": 0.217,
+    "p99": 0.333,
+    "max": 0.454,
+    "ok_p95": 0.217,
     "error_samples": []
    },
    {
     "name": "reads",
     "concurrency": 25,
-    "seconds": 15.24,
-    "requests": 1459,
-    "rps": 95.71,
+    "seconds": 15.13,
+    "requests": 1290,
+    "rps": 85.25,
     "statuses": {
-     "200": 1459
+     "200": 1290
     },
     "errors": 0,
-    "p50": 0.246,
-    "p95": 0.406,
-    "p99": 0.602,
-    "max": 0.729,
-    "ok_p95": 0.406,
+    "p50": 0.291,
+    "p95": 0.385,
+    "p99": 0.575,
+    "max": 0.73,
+    "ok_p95": 0.385,
     "error_samples": []
    },
    {
     "name": "reads",
     "concurrency": 50,
-    "seconds": 15.22,
-    "requests": 1431,
-    "rps": 94.03,
+    "seconds": 15.16,
+    "requests": 1624,
+    "rps": 107.13,
     "statuses": {
-     "200": 1431
+     "200": 1624
     },
     "errors": 0,
-    "p50": 0.509,
-    "p95": 0.731,
-    "p99": 0.974,
-    "max": 1.007,
-    "ok_p95": 0.731,
+    "p50": 0.452,
+    "p95": 0.573,
+    "p99": 1.111,
+    "max": 1.157,
+    "ok_p95": 0.573,
     "error_samples": []
    },
    {
     "name": "customers_import",
     "concurrency": 1,
-    "seconds": 15.12,
-    "requests": 90,
-    "rps": 5.95,
+    "seconds": 15.04,
+    "requests": 107,
+    "rps": 7.11,
     "statuses": {
-     "200": 88,
-     "502": 2
+     "200": 107
     },
-    "errors": 2,
-    "p50": 0.168,
-    "p95": 0.195,
-    "p99": 0.215,
-    "max": 0.215,
-    "ok_p95": 0.195,
-    "error_samples": [
-     {
-      "status": 502,
-      "seconds": 0.013,
-      "detail": "cf-ray=a4a65e123e7672fe-DFW; server=cloudflare; <html>\r\n<head><title>502 Bad Gateway</title></head>\r\n<body>\r\n<center><h1>502 Bad Gateway</h1></center>\r\n<hr><center>cloudflare</center>\r\n</body>\r\n</html>\r\n"
-     },
-     {
-      "status": 502,
-      "seconds": 0.013,
-      "detail": "cf-ray=a4a65e360a6f72fe-DFW; server=cloudflare; <html>\r\n<head><title>502 Bad Gateway</title></head>\r\n<body>\r\n<center><h1>502 Bad Gateway</h1></center>\r\n<hr><center>cloudflare</center>\r\n</body>\r\n</html>\r\n"
-     }
-    ]
+    "errors": 0,
+    "p50": 0.139,
+    "p95": 0.161,
+    "p99": 0.175,
+    "max": 0.183,
+    "ok_p95": 0.161,
+    "error_samples": []
    },
    {
     "name": "customers_import",
     "concurrency": 5,
-    "seconds": 15.19,
-    "requests": 350,
-    "rps": 23.05,
+    "seconds": 15.05,
+    "requests": 335,
+    "rps": 22.26,
     "statuses": {
-     "200": 350
+     "200": 335
     },
     "errors": 0,
-    "p50": 0.214,
-    "p95": 0.253,
-    "p99": 0.308,
-    "max": 0.327,
-    "ok_p95": 0.253,
+    "p50": 0.22,
+    "p95": 0.274,
+    "p99": 0.295,
+    "max": 0.302,
+    "ok_p95": 0.274,
     "error_samples": []
    },
    {
     "name": "customers_import",
     "concurrency": 10,
-    "seconds": 15.08,
-    "requests": 499,
-    "rps": 33.09,
+    "seconds": 15.31,
+    "requests": 438,
+    "rps": 28.6,
     "statuses": {
-     "200": 499
+     "200": 438
     },
     "errors": 0,
-    "p50": 0.296,
-    "p95": 0.384,
-    "p99": 0.449,
-    "max": 0.571,
-    "ok_p95": 0.384,
+    "p50": 0.339,
+    "p95": 0.431,
+    "p99": 0.593,
+    "max": 0.723,
+    "ok_p95": 0.431,
     "error_samples": []
    },
    {
     "name": "customers_import",
     "concurrency": 25,
-    "seconds": 15.69,
-    "requests": 651,
-    "rps": 41.48,
-    "statuses": {
-     "200": 651
-    },
-    "errors": 0,
-    "p50": 0.583,
-    "p95": 0.757,
-    "p99": 0.833,
-    "max": 0.844,
-    "ok_p95": 0.757,
-    "error_samples": []
-   },
-   {
-    "name": "invoices_import",
-    "concurrency": 1,
-    "seconds": 15.1,
-    "requests": 95,
-    "rps": 6.29,
-    "statuses": {
-     "200": 95
-    },
-    "errors": 0,
-    "p50": 0.157,
-    "p95": 0.168,
-    "p99": 0.289,
-    "max": 0.289,
-    "ok_p95": 0.168,
-    "error_samples": []
-   },
-   {
-    "name": "invoices_import",
-    "concurrency": 5,
     "seconds": 15.14,
-    "requests": 460,
-    "rps": 30.39,
+    "requests": 451,
+    "rps": 29.78,
     "statuses": {
-     "200": 460
+     "200": 451
     },
     "errors": 0,
-    "p50": 0.161,
-    "p95": 0.179,
-    "p99": 0.242,
-    "max": 0.249,
-    "ok_p95": 0.179,
+    "p50": 0.833,
+    "p95": 1.089,
+    "p99": 1.099,
+    "max": 1.138,
+    "ok_p95": 1.089,
+    "error_samples": []
+   },
+   {
+    "name": "invoices_import",
+    "concurrency": 1,
+    "seconds": 15.04,
+    "requests": 113,
+    "rps": 7.51,
+    "statuses": {
+     "200": 113
+    },
+    "errors": 0,
+    "p50": 0.13,
+    "p95": 0.153,
+    "p99": 0.177,
+    "max": 0.188,
+    "ok_p95": 0.153,
+    "error_samples": []
+   },
+   {
+    "name": "invoices_import",
+    "concurrency": 5,
+    "seconds": 15.13,
+    "requests": 517,
+    "rps": 34.17,
+    "statuses": {
+     "200": 517
+    },
+    "errors": 0,
+    "p50": 0.14,
+    "p95": 0.19,
+    "p99": 0.271,
+    "max": 0.429,
+    "ok_p95": 0.19,
     "error_samples": []
    },
    {
     "name": "invoices_import",
     "concurrency": 10,
-    "seconds": 15.09,
-    "requests": 802,
-    "rps": 53.15,
+    "seconds": 15.15,
+    "requests": 837,
+    "rps": 55.26,
     "statuses": {
-     "200": 802
+     "200": 837
     },
     "errors": 0,
-    "p50": 0.181,
-    "p95": 0.221,
-    "p99": 0.304,
-    "max": 0.477,
-    "ok_p95": 0.221,
+    "p50": 0.169,
+    "p95": 0.297,
+    "p99": 0.394,
+    "max": 0.565,
+    "ok_p95": 0.297,
     "error_samples": []
    },
    {
     "name": "mixed",
     "concurrency": 10,
-    "seconds": 15.22,
-    "requests": 665,
-    "rps": 43.68,
+    "seconds": 15.16,
+    "requests": 653,
+    "rps": 43.08,
     "statuses": {
-     "200": 665
+     "200": 653
     },
     "errors": 0,
-    "p50": 0.223,
-    "p95": 0.33,
-    "p99": 0.419,
-    "max": 0.542,
-    "ok_p95": 0.33,
+    "p50": 0.232,
+    "p95": 0.332,
+    "p99": 0.436,
+    "max": 0.556,
+    "ok_p95": 0.332,
     "error_samples": []
    },
    {
     "name": "mixed",
     "concurrency": 25,
-    "seconds": 15.36,
-    "requests": 970,
-    "rps": 63.15,
+    "seconds": 15.26,
+    "requests": 825,
+    "rps": 54.07,
     "statuses": {
-     "200": 970
+     "200": 825
     },
     "errors": 0,
-    "p50": 0.382,
-    "p95": 0.566,
-    "p99": 0.598,
-    "max": 0.715,
-    "ok_p95": 0.566,
+    "p50": 0.459,
+    "p95": 0.629,
+    "p99": 0.742,
+    "max": 1.093,
+    "ok_p95": 0.629,
     "error_samples": []
    }
   ],
   "seeded": {
    "a": true,
-   "b": false
+   "b": true
   },
   "customers_before_reads": 50,
   "isolation": {
    "b_alone": {
     "name": "isolation_b_alone",
     "concurrency": 5,
-    "seconds": 15.14,
-    "requests": 509,
-    "rps": 33.62,
+    "seconds": 15.12,
+    "requests": 585,
+    "rps": 38.69,
     "statuses": {
-     "200": 509
+     "200": 585
     },
     "errors": 0,
-    "p50": 0.144,
-    "p95": 0.155,
-    "p99": 0.309,
-    "max": 0.533,
-    "ok_p95": 0.155,
+    "p50": 0.117,
+    "p95": 0.145,
+    "p99": 0.379,
+    "max": 3.748,
+    "ok_p95": 0.145,
     "error_samples": []
    },
    "b_while_a_is_written_to": {
     "name": "b_reads",
     "concurrency": 5,
-    "seconds": 15.45,
-    "requests": 513,
-    "rps": 33.21,
+    "seconds": 15.55,
+    "requests": 621,
+    "rps": 39.94,
     "statuses": {
-     "200": 513
+     "200": 621
     },
     "errors": 0,
-    "p50": 0.141,
-    "p95": 0.16,
-    "p99": 0.292,
-    "max": 0.434,
-    "ok_p95": 0.16,
+    "p50": 0.113,
+    "p95": 0.141,
+    "p99": 0.357,
+    "max": 0.647,
+    "ok_p95": 0.141,
     "error_samples": []
    },
    "a_writes": {
     "name": "a_writes",
     "concurrency": 25,
-    "seconds": 15.45,
-    "requests": 575,
-    "rps": 37.23,
+    "seconds": 15.55,
+    "requests": 450,
+    "rps": 28.94,
     "statuses": {
-     "200": 575
+     "200": 450
     },
     "errors": 0,
-    "p50": 0.652,
-    "p95": 0.763,
-    "p99": 1.201,
-    "max": 1.213,
-    "ok_p95": 0.763,
+    "p50": 0.834,
+    "p95": 1.235,
+    "p99": 1.308,
+    "max": 1.318,
+    "ok_p95": 1.235,
     "error_samples": []
    }
   },
@@ -363,53 +348,53 @@
    "baseline_reads": {
     "name": "model_baseline_reads",
     "concurrency": 5,
-    "seconds": 15.12,
-    "requests": 480,
-    "rps": 31.75,
+    "seconds": 15.09,
+    "requests": 534,
+    "rps": 35.39,
     "statuses": {
-     "200": 480
+     "200": 534
     },
     "errors": 0,
-    "p50": 0.153,
-    "p95": 0.173,
-    "p99": 0.249,
-    "max": 0.387,
-    "ok_p95": 0.173,
+    "p50": 0.131,
+    "p95": 0.22,
+    "p99": 0.257,
+    "max": 0.282,
+    "ok_p95": 0.22,
     "error_samples": []
    },
    "reads_while_sentences_wait": {
     "name": "reads_in_flight",
     "concurrency": 5,
-    "seconds": 5.64,
-    "requests": 175,
-    "rps": 31.03,
+    "seconds": 11.6,
+    "requests": 416,
+    "rps": 35.86,
     "statuses": {
-     "200": 175
+     "200": 416
     },
     "errors": 0,
-    "p50": 0.156,
-    "p95": 0.198,
-    "p99": 0.295,
-    "max": 0.297,
-    "ok_p95": 0.198,
+    "p50": 0.132,
+    "p95": 0.192,
+    "p99": 0.281,
+    "max": 0.329,
+    "ok_p95": 0.192,
     "error_samples": [],
-    "window_seconds": 5.64
+    "window_seconds": 11.6
    },
    "sentences": {
     "name": "sentences",
     "concurrency": 5,
-    "seconds": 20.11,
+    "seconds": 20.13,
     "requests": 5,
     "rps": 0.25,
     "statuses": {
      "200": 5
     },
     "errors": 0,
-    "p50": 5.093,
-    "p95": 5.639,
-    "p99": 5.639,
-    "max": 5.639,
-    "ok_p95": 5.639,
+    "p50": 7.204,
+    "p95": 11.6,
+    "p99": 11.6,
+    "max": 11.6,
+    "ok_p95": 11.6,
     "error_samples": []
    }
   },
@@ -417,16 +402,16 @@
    "timings": {
     "enabled": true,
     "requests": 300,
-    "from": "2026-10-14 11:53:10",
-    "to": "2026-10-14 11:53:40",
+    "from": "2026-10-14 15:02:16",
+    "to": "2026-10-14 15:02:53",
     "note": "Times are in milliseconds and SUMMED across calls, so calls that overlap can add up to more than the request took. 'other' is notes store, memory search and file storage.",
     "byPath": [
      {
       "route": "POST /messages/text",
       "n": 5,
-      "p50Ms": 4656,
-      "p95Ms": 5203,
-      "meanAiMs": 4616.4,
+      "p50Ms": 6673,
+      "p95Ms": 11121,
+      "meanAiMs": 7960.6,
       "meanAiCalls": 3,
       "meanDbMs": 0,
       "meanDbCalls": 18,
@@ -446,57 +431,57 @@
     ],
     "slowest": [
      {
-      "at": "2026-10-14 11:53:40",
+      "at": "2026-10-14 15:02:53",
       "route": "POST /messages/text",
       "status": 200,
-      "totalMs": 5203,
-      "aiMs": 5178,
+      "totalMs": 11121,
+      "aiMs": 11084,
       "aiCalls": 3,
       "dbMs": 0,
       "dbCalls": 18
      },
      {
-      "at": "2026-10-14 11:53:40",
+      "at": "2026-10-14 15:02:53",
       "route": "POST /messages/text",
       "status": 200,
-      "totalMs": 5198,
-      "aiMs": 5168,
+      "totalMs": 11107,
+      "aiMs": 10942,
       "aiCalls": 3,
       "dbMs": 0,
       "dbCalls": 18
      },
      {
-      "at": "2026-10-14 11:53:39",
+      "at": "2026-10-14 15:02:49",
       "route": "POST /messages/text",
       "status": 200,
-      "totalMs": 4656,
-      "aiMs": 4613,
+      "totalMs": 6673,
+      "aiMs": 6649,
       "aiCalls": 3,
       "dbMs": 0,
       "dbCalls": 18
      },
      {
-      "at": "2026-10-14 11:53:39",
+      "at": "2026-10-14 15:02:48",
       "route": "POST /messages/text",
       "status": 200,
-      "totalMs": 4245,
-      "aiMs": 4215,
+      "totalMs": 6062,
+      "aiMs": 6014,
       "aiCalls": 3,
       "dbMs": 0,
       "dbCalls": 18
      },
      {
-      "at": "2026-10-14 11:53:38",
+      "at": "2026-10-14 15:02:47",
       "route": "POST /messages/text",
       "status": 200,
-      "totalMs": 3936,
-      "aiMs": 3908,
+      "totalMs": 5149,
+      "aiMs": 5114,
       "aiCalls": 3,
       "dbMs": 0,
       "dbCalls": 18
      },
      {
-      "at": "2026-10-14 11:53:19",
+      "at": "2026-10-14 15:02:27",
       "route": "POST /files/customers-csv-import",
       "status": 200,
       "totalMs": 0,
@@ -506,7 +491,7 @@
       "dbCalls": 17
      },
      {
-      "at": "2026-10-14 11:53:19",
+      "at": "2026-10-14 15:02:27",
       "route": "POST /files/customers-csv-import",
       "status": 200,
       "totalMs": 0,
@@ -516,7 +501,7 @@
       "dbCalls": 17
      },
      {
-      "at": "2026-10-14 11:53:19",
+      "at": "2026-10-14 15:02:27",
       "route": "POST /files/customers-csv-import",
       "status": 200,
       "totalMs": 0,
@@ -526,7 +511,7 @@
       "dbCalls": 17
      },
      {
-      "at": "2026-10-14 11:53:19",
+      "at": "2026-10-14 15:02:27",
       "route": "POST /files/customers-csv-import",
       "status": 200,
       "totalMs": 0,
@@ -536,7 +521,7 @@
       "dbCalls": 17
      },
      {
-      "at": "2026-10-14 11:53:19",
+      "at": "2026-10-14 15:02:27",
       "route": "POST /files/customers-csv-import",
       "status": 200,
       "totalMs": 0,
@@ -549,20 +534,20 @@
    },
    "health": {
     "business": "staging-co",
-    "generatedAt": "2026-10-14T11:53:55.471Z",
+    "generatedAt": "2026-10-14T15:03:03.067Z",
     "hourlyJob": {
-     "lastRunAt": "2026-10-14T11:39:50.693Z",
-     "minutesSinceLastRun": 14,
+     "lastRunAt": "2026-10-14T14:39:51.675Z",
+     "minutesSinceLastRun": 23,
      "lastOk": true,
      "lastError": null,
      "lastMs": null,
-     "nextAlarmAt": "2026-10-14T12:39:50.693Z"
+     "nextAlarmAt": "2026-10-14T15:39:51.675Z"
     },
     "backup": {
      "lastSuccessAt": "2026-10-14T11:15:25.678Z",
      "lastAttemptOk": true,
      "lastError": null,
-     "newestAgeHours": 0.6
+     "newestAgeHours": 3.8
     },
     "memoryQueue": {
      "pending": 0,
@@ -577,26 +562,26 @@
     "model": {
      "today": {
       "day": "2026-10-14",
-      "requests": 24,
-      "modelCalls": 79,
+      "requests": 29,
+      "modelCalls": 94,
       "failures": 0,
-      "promptTokens": 276833,
-      "completionTokens": 2753,
-      "cachedTokens": 251008,
-      "neurons": 6882.5,
-      "estimatedUsd": 0.0757
+      "promptTokens": 335489,
+      "completionTokens": 3327,
+      "cachedTokens": 285312,
+      "neurons": 9693.3,
+      "estimatedUsd": 0.1066
      },
      "recent": [
       {
        "day": "2026-10-14",
-       "requests": 24,
-       "modelCalls": 79,
+       "requests": 29,
+       "modelCalls": 94,
        "failures": 0,
-       "promptTokens": 276833,
-       "completionTokens": 2753,
-       "cachedTokens": 251008,
-       "neurons": 6882.5,
-       "estimatedUsd": 0.0757
+       "promptTokens": 335489,
+       "completionTokens": 3327,
+       "cachedTokens": 285312,
+       "neurons": 9693.3,
+       "estimatedUsd": 0.1066
       },
       {
        "day": "2026-10-13",
@@ -610,8 +595,8 @@
        "estimatedUsd": 0.0103
       }
      ],
-     "totalNeurons": 7821.6,
-     "totalEstimatedUsd": 0.086
+     "totalNeurons": 10632.4,
+     "totalEstimatedUsd": 0.117
     },
     "limits": {
      "plan": {
@@ -621,8 +606,8 @@
       "mode": "warn"
      },
      "activeMembers": 1,
-     "messages": 24,
-     "topMemberMessages": 24,
+     "messages": 29,
+     "topMemberMessages": 29,
      "membersAtOrOverLimit": 0
     },
     "schema": {
