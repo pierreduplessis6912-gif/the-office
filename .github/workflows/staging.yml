@@ -497,6 +497,86 @@ jobs:
           print(json.dumps(out))
           PY
 
+      - name: Onboarding and imports on Cloudflare (a real owner session, a real Durable Object)
+        if: env.MODE == 'rehearsal'
+        id: onboarding
+        continue-on-error: true
+        run: |
+          BASE="https://${SLUG}.websitehub.co.za"
+          COOKIE=$(cat "$RESULTS/cookie.txt")
+          TAG="r${GITHUB_RUN_ID}"
+          J=(-H "Cookie: $COOKIE")
+          get() { curl -s -o "$RESULTS/$2" -w '%{http_code}' "${J[@]}" "$BASE$1" > "$RESULTS/$2.status"; }
+          post_step() { curl -s -o "$RESULTS/$3" -w '%{http_code}' -X POST "${J[@]}" -H "Content-Type: application/json" -d "{\"step\":\"$1\",\"status\":\"$2\"}" "$BASE/onboarding/step" > "$RESULTS/$3.status"; }
+          upload() { curl -s -o "$RESULTS/$3" -w '%{http_code}' -X POST "${J[@]}" -F "csv=@$RESULTS/$2;type=text/csv" "$BASE$1" > "$RESULTS/$3.status"; }
+          BOM=$(printf '\xef\xbb\xbf')
+          get /onboarding ob-state.json
+          curl -s -o /dev/null -w '%{http_code}' "$BASE/onboarding" > "$RESULTS/ob-anon.status"
+          post_step profile skipped ob-skip1.json
+          post_step profile skipped ob-skip2.json
+          get /onboarding ob-after-skip.json
+          post_step profile pending ob-reset.json
+          post_step nonsense done ob-bad.json
+          printf '%sName;Role\nInstaller %s A;Installer\nDriver %s B;Driver\n' "$BOM" "$TAG" "$TAG" > "$RESULTS/team.csv"
+          printf 'Supplier\nSupplier %s One\nSupplier %s Two\n' "$TAG" "$TAG" > "$RESULTS/suppliers.csv"
+          printf 'Material,Category\nVinyl %s,Flooring\nScreed %s,\n' "$TAG" "$TAG" > "$RESULTS/products.csv"
+          printf '%sInvoice No.;Customer Name;Amount (incl. VAT);Balance;Invoice Date\n%s-1;Import Client %s;R1 500,00;R0,00;2026-10-01\n%s-2;Import Client %s;R2 300,50;R2 300,50;2026-10-02\n' "$BOM" "$TAG" "$TAG" "$TAG" "$TAG" > "$RESULTS/invoices.csv"
+          printf 'Customer,Total\nNobody,100\n' > "$RESULTS/unknown-paid.csv"
+          upload /files/team-csv-import team.csv imp-team-1.json;           upload /files/team-csv-import team.csv imp-team-2.json
+          upload /files/suppliers-csv-import suppliers.csv imp-sup-1.json;   upload /files/suppliers-csv-import suppliers.csv imp-sup-2.json
+          upload /files/products-csv-import products.csv imp-pro-1.json;     upload /files/products-csv-import products.csv imp-pro-2.json
+          upload /files/invoices-csv-import invoices.csv imp-inv-1.json;     upload /files/invoices-csv-import invoices.csv imp-inv-2.json
+          upload /files/invoices-csv-import unknown-paid.csv imp-inv-refused.json
+          get /onboarding ob-final.json
+          python3 - <<'PY' > "$RESULTS/onboarding.json"
+          import json, os
+          r = os.environ["RESULTS"]
+          def read(n):
+              try:
+                  return json.load(open(os.path.join(r, n)))
+              except Exception:
+                  return None
+          def status(n):
+              try:
+                  return open(os.path.join(r, n + ".status")).read().strip()
+              except Exception:
+                  return None
+          st, after, final = read("ob-state.json") or {}, read("ob-after-skip.json") or {}, read("ob-final.json") or {}
+          step = lambda doc, i: next((x for x in (doc.get("steps") or []) if x.get("id") == i), {})
+          ids = ["profile", "customers", "invoices", "team", "suppliers", "products", "try_it"]
+          s1, s2, rs = read("ob-skip1.json"), read("ob-skip2.json"), read("ob-reset.json") or {}
+          i1, i2, ir = read("imp-inv-1.json") or {}, read("imp-inv-2.json") or {}, read("imp-inv-refused.json") or {}
+          pair = lambda a, b: (read("imp-%s-1.json" % a) or {}, read("imp-%s-2.json" % a) or {})
+          t1, t2 = pair("team", 0); u1, u2 = pair("sup", 0); p1, p2 = pair("pro", 0)
+          prof = step(after, "profile")
+          out = {
+              "onboarding_read_ok": status("ob-state.json") == "200" and [x.get("id") for x in st.get("steps", [])] == ids,
+              "steps_name_their_upload_route": [x.get("upload") for x in st.get("steps", [])] == [None, "/files/customers-csv-import", "/files/invoices-csv-import", "/files/team-csv-import", "/files/suppliers-csv-import", "/files/products-csv-import", None],
+              "signed_out_is_refused": status("ob-anon") == "401",
+              "marking_a_step_works_and_persists": status("ob-skip1.json") == "200" and (prof.get("status") == "skipped" or (prof.get("status") == "done" and prof.get("source") == "data")),
+              "marking_twice_is_the_same_as_once": s1 is not None and s1 == s2,
+              "resetting_a_step_works": status("ob-reset.json") == "200" and step(rs, "profile").get("status") in ("pending", "done"),
+              "a_bad_step_is_refused": status("ob-bad.json") == "400",
+              "team_import_created_then_matched": status("imp-team-1.json") == "200" and t1.get("created") == 2 and t1.get("matched") == 0 and t2.get("created") == 0 and t2.get("matched") == 2,
+              "team_roles_were_read": (t1.get("columns") or {}).get("found", {}).get("role") == "Role",
+              "suppliers_import_created_then_matched": u1.get("created") == 2 and u2.get("created") == 0 and u2.get("matched") == 2,
+              "products_import_created_then_matched": p1.get("created") == 2 and p2.get("created") == 0 and p2.get("matched") == 2,
+              "other_tools_invoice_export_imported_and_held": status("imp-inv-1.json") == "200" and i1.get("imported") == 1 and i1.get("heldForConfirmation") == 1 and (i1.get("columns") or {}).get("found", {}).get("total") == "Amount (incl. VAT)",
+              "importing_the_invoice_file_again_adds_nothing": i2.get("imported") == 0 and i2.get("heldForConfirmation") == 0 and i2.get("alreadyImported") == 2,
+              "a_file_that_cannot_say_what_is_paid_is_refused": status("imp-inv-refused.json") == "400" and "can't tell which invoices are already paid" in (ir.get("error") or ""),
+              "steps_are_done_because_of_the_data_after_the_imports": all(step(final, i).get("status") == "done" for i in ("invoices", "team", "suppliers", "products")),
+          }
+          out["answers"] = {"team": [t1, t2], "invoices": [i1, i2], "state_after": [{"id": x.get("id"), "status": x.get("status"), "source": x.get("source")} for x in final.get("steps", [])]}
+          print(json.dumps(out))
+          PY
+          python3 - <<'PY'
+          import json, os, sys
+          d = json.load(open(os.path.join(os.environ["RESULTS"], "onboarding.json")))
+          failed = [k for k, v in d.items() if k != "answers" and v is not True]
+          print("onboarding and import checks that did not hold:", failed)
+          sys.exit(1 if failed else 0)
+          PY
+
       - name: Back up, damage and restore a business on Cloudflare
         if: env.MODE == 'rehearsal'
         id: backup
@@ -928,6 +1008,7 @@ jobs:
           VECTORS: ${{ steps.vectors.outcome }}
           MODEL: ${{ steps.model.outcome }}
           BACKUP: ${{ steps.backup.outcome }}
+          ONBOARDING: ${{ steps.onboarding.outcome }}
           HEALTH: ${{ steps.health.outcome }}
           CAPS: ${{ steps.caps.outcome }}
           SCHEMA: ${{ steps.schema.outcome }}
@@ -953,7 +1034,7 @@ jobs:
               "run": os.environ.get("GITHUB_RUN_ID"),
               "commit": os.environ.get("GITHUB_SHA", "")[:7],
               "resources": {"database_id": os.environ.get("D1_ID"), "kv_namespace_id": os.environ.get("KV_ID"), "worker": "office-staging-api", "host": "office-staging.websitehub.co.za"},
-              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E"), "real_sentence": os.environ.get("SENTENCE"), "businesses_created": os.environ.get("BUSINESSES"), "memory_index_probe": os.environ.get("VECTORS"), "model_probe": os.environ.get("MODEL"), "backup_restore": os.environ.get("BACKUP"), "health_report": os.environ.get("HEALTH"), "cost_caps": os.environ.get("CAPS"), "schema_migration": os.environ.get("SCHEMA"), "transaction_experiment": os.environ.get("TX")},
+              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E"), "real_sentence": os.environ.get("SENTENCE"), "businesses_created": os.environ.get("BUSINESSES"), "memory_index_probe": os.environ.get("VECTORS"), "model_probe": os.environ.get("MODEL"), "backup_restore": os.environ.get("BACKUP"), "onboarding_imports": os.environ.get("ONBOARDING"), "health_report": os.environ.get("HEALTH"), "cost_caps": os.environ.get("CAPS"), "schema_migration": os.environ.get("SCHEMA"), "transaction_experiment": os.environ.get("TX")},
               "init_routes": (read("init.txt") or "").splitlines(),
               "indexes": readjson("indexes.json"),
               "trial_do": readjson("trial-do.json"),
@@ -963,6 +1044,7 @@ jobs:
               "memory_index_probe": readjson("vectors.json"),
               "model_probe": readjson("model.json"),
               "backup_restore": readjson("backup.json"),
+              "onboarding_imports": readjson("onboarding.json"),
               "health_report": readjson("health.json"),
               "cost_caps": readjson("caps.json"),
               "schema_migration": readjson("schema.json"),
