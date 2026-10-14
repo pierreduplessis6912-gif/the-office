@@ -3282,7 +3282,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         return Response.json({ error: "This doesn't look like an Invoice Simple export - missing Invoice, Client, or Total column" }, { status: 400 });
       }
 
-      let imported = 0;
+      return await atomically(env, async (env) => {
+let imported = 0;
       let heldForConfirmation = 0;
       let skipped = 0;
       const skippedRows: number[] = [];
@@ -3342,6 +3343,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       }
 
       return Response.json({ status: "ok", totalRows: rows.length - 1, imported, heldForConfirmation, skipped, skippedRows });
+});
     }
 
     if (url.pathname === "/files/customers-csv-import" && request.method === "POST") {
@@ -3368,7 +3370,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         return Response.json({ error: "No recognizable name column found in the CSV header" }, { status: 400 });
       }
 
-      let created = 0;
+      return await atomically(env, async (env) => {
+let created = 0;
       let matched = 0;
       let skipped = 0;
       const skippedRows: number[] = [];
@@ -3404,6 +3407,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       }
 
       return Response.json({ status: "ok", totalRows: rows.length - 1, created, matched, skipped, skippedRows });
+});
     }
 
     if (url.pathname === "/files/document" && request.method === "POST") {

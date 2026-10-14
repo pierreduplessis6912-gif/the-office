@@ -142,6 +142,41 @@ async function atomicTests({ check, srcDir }) {
   for (const v of routeVerdicts) check(v.ok === true, `route: ${v.label}: ${v.ok ? `failing the real request at each of its ${v.total} writes gives a clean 500 and leaves the database IDENTICAL to before (the same faults without a transaction left rows behind ${v.damaged} time${v.damaged === 1 ? '' : 's'}: a retry would have recorded them twice)` : `ROUTE FAULT INJECTION FAILED: ${v.why ?? `leaks ${v.leaks}, not a clean 500 ${v.notAClean500}, control damage ${v.damaged}`}`}`);
   check((routeVerdicts.positions || 0) >= 16, `${routeVerdicts.positions || 0} fault positions were tried through the real confirm route across ${routeCases.length} action types`);
 
+  // ---- the CSV imports: all or nothing ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  // An import used to commit row by row: a failure part-way aborted the request with the earlier rows already in, and re-running it imported them AGAIN (the invoice import has no duplicate check). It is now ONE
+  // transaction: a failure means NOTHING was imported, so it is safe to fix and retry. Rows with bad data are still SKIPPED and reported, exactly as before (those are not failures).
+  const csvCustomers = 'Name,Address\nAlice Test,1 Main Rd\nBob Test,2 Side St\n,no name here\n';
+  const csvInvoices = 'Invoice,Date,Client,Total,Paid,Balance due,Payment details\nINV-1,2026-01-05,Alice Test,500,500,0,200; 2026-01-06; EFT|300; 2026-01-09; Cash\nINV-2,2026-01-07,Bob Test,300,0,300,\nINV-3,2026-01-08,Carol Test,,0,0,\n';
+  const importCases = [
+    ['import customers', '/files/customers-csv-import', csvCustomers, (b) => b.status === 'ok' && b.totalRows === 3 && b.created === 2 && b.matched === 0 && b.skipped === 1 && JSON.stringify(b.skippedRows) === '[4]', ['Alice Test', '1 Main Rd', 'Bob Test', '2 Side St']],
+    ['import invoices', '/files/invoices-csv-import', csvInvoices, (b) => b.status === 'ok' && b.totalRows === 3 && b.imported === 1 && b.heldForConfirmation === 1 && b.skipped === 1 && JSON.stringify(b.skippedRows) === '[4]', ['CSV import: INV-1, Alice Test', 'EFT', 'Cash', 'imported_invoice', 'Bob Test']],
+  ];
+  const importVerdicts = [];
+  for (const [label, route, csv, answerOk, mustWrite] of importCases) {
+    const spec = (failAtWrite, name) => ({ name, kind: 'route', path: route, method: 'POST', form: { csv: { name: 'import.csv', type: 'text/csv', text: csv } }, failAtWrite });
+    const normal = await withBackend('do', () => harness.runRouteCase(fns, workerDir, spec(0, label + ' (normal)')));
+    const wrote = JSON.stringify(normal.writes);
+    const total = normal.writeCount;
+    const characterized = !normal.threw && normal.result.status === 200 && answerOk(normal.result.body) && mustWrite.every((x) => wrote.includes(x));
+    check(characterized, `${label}: a normal import answers exactly as before (counts, the skipped row reported) and writes every row${characterized ? '' : ` (status ${normal.result && normal.result.status}, body ${JSON.stringify(normal.result && normal.result.body).slice(0, 160)}, threw ${normal.threw})`}`);
+    let leaks = 0, notAFailure = 0;
+    for (let k = 1; k <= total; k++) {
+      const r = await withBackend('do', () => harness.runRouteCase(fns, workerDir, spec(k, `${label} (fail at write ${k})`)));
+      importVerdicts.positions = (importVerdicts.positions || 0) + 1;
+      if (!((r.threw && new RegExp(`injected failure at write ${k}`).test(r.threw)) || (r.result && r.result.status === 500))) notAFailure++;
+      if (!nothingChanged(r.writes)) leaks++;
+    }
+    let damaged = 0;
+    for (let k = 2; k <= total; k++) { const r = await withBackend(null, () => harness.runRouteCase(fns, workerDir, spec(k, `${label} (no transaction, fail at write ${k})`))); if (!nothingChanged(r.writes)) damaged++; }
+    check(characterized && leaks === 0 && notAFailure === 0 && damaged >= 1, `${label}: failing the real import at each of its ${total} writes leaves NOTHING imported (the same faults without a transaction left rows behind ${damaged} time${damaged === 1 ? '' : 's'}${leaks ? `; WITH the transaction ${leaks} position(s) still left rows behind` : ''})`);
+  }
+  check((importVerdicts.positions || 0) >= 10, `${importVerdicts.positions || 0} fault positions were tried through the two real imports`);
+
+  const idxSrc = fs.readFileSync(path.join(srcDir, 'index.ts'), 'utf8');
+  const importRoute = (name) => { const i = idxSrc.indexOf(`if (url.pathname === "${name}"`); let depth = 0, k = idxSrc.indexOf('{', i); for (; k < idxSrc.length; k++) { if (idxSrc[k] === '{') depth++; else if (idxSrc[k] === '}' && --depth === 0) break; } return idxSrc.slice(i, k + 1); };
+  const cust = importRoute('/files/customers-csv-import'), inv = importRoute('/files/invoices-csv-import');
+  check(/return await atomically\(env, async \(env\) => \{\s*\n\s*let created = 0;/.test(cust) && /return await atomically\(env, async \(env\) => \{\s*\n\s*let imported = 0;/.test(inv), 'both imports run their whole loop in ONE transaction, after the file is read and its header checked (so a bad file writes nothing and is refused as before)');
+
   // ---- the action routes, by structure (the compiler reads the code) ----------------------------------------------------------------------------------------------------------------------------------------------------
   const ts = require('typescript');
   const idx = fs.readFileSync(path.join(srcDir, 'index.ts'), 'utf8'), isf = ts.createSourceFile('index.ts', idx, ts.ScriptTarget.ES2022, true);
