@@ -1,67 +1,75 @@
 {
- "when": "2026-10-14T19:53:36.135785Z",
- "run": "38627238915",
+ "when": "2026-10-14T20:13:57.914342Z",
+ "run": "38630274764",
  "business": "zululand-flooring-and-blinds",
- "requested_snapshot": "20261014T185130Z",
+ "requested_snapshot": null,
  "decision": {
-  "action": "restore",
+  "action": "list",
   "business": "zululand-flooring-and-blinds",
-  "snapshot": "20261014T185130Z",
-  "newestComplete": "20261014T185527Z",
+  "snapshot": null,
+  "newestComplete": "20261014T195414Z",
   "available": [
    {
     "name": "20261013T163948Z",
     "complete": true,
     "finishedAt": "2026-10-13T16:42:05.640Z",
     "rows": 2004,
-    "files": 129
+    "files": 129,
+    "denied": null
    },
    {
     "name": "20261014T183344Z",
     "complete": true,
     "finishedAt": "2026-10-14T18:34:43.330Z",
     "rows": 2006,
-    "files": 129
+    "files": 129,
+    "denied": null
    },
    {
     "name": "20261014T185130Z",
     "complete": true,
     "finishedAt": "2026-10-14T18:52:29.325Z",
     "rows": 2006,
-    "files": 129
+    "files": 129,
+    "denied": null
    },
    {
     "name": "20261014T185331Z-pre-restore",
     "complete": true,
     "finishedAt": "2026-10-14T18:54:26.418Z",
     "rows": 2006,
-    "files": 129
+    "files": 129,
+    "denied": null
    },
    {
     "name": "20261014T185527Z",
     "complete": true,
     "finishedAt": "2026-10-14T18:56:24.281Z",
     "rows": 1583,
-    "files": 129
+    "files": 129,
+    "denied": "Taken of the DAMAGED state after the failed restore of 2026-10-14 (1,583 rows; the business had 2,006). Never restore it."
+   },
+   {
+    "name": "20261014T195218Z-pre-restore",
+    "complete": true,
+    "finishedAt": "2026-10-14T19:53:12.562Z",
+    "rows": 1583,
+    "files": 129,
+    "denied": "The restore's own safety snapshot of that same damaged state (1,583 rows). Restoring it would bring the damage back."
+   },
+   {
+    "name": "20261014T195414Z",
+    "complete": true,
+    "finishedAt": "2026-10-14T19:55:12.819Z",
+    "rows": 2006,
+    "files": 129,
+    "denied": null
    }
   ],
-  "warnings": [
-   "20261014T185130Z is NOT the newest complete snapshot (20261014T185527Z): everything written after 2026-10-14T18:52:29.325Z will be lost",
-   "everything written since this snapshot was taken is replaced; a safety snapshot of the current state is taken first, and the business is unavailable to members for a minute or so"
-  ],
+  "warnings": [],
   "reasons": []
  },
- "restore_status": "200",
- "restore_report": {
-  "ok": true,
-  "snapshot": "20261014T185130Z",
-  "safetySnapshot": "20261014T195218Z-pre-restore",
-  "tablesRestored": 47,
-  "rowsRestored": 2006,
-  "notesRestored": 42,
-  "filesRestoredFromMirror": 0,
-  "filesMissingEverywhere": [],
-  "differences": []
- },
- "health_status": "200"
+ "restore_status": null,
+ "restore_report": null,
+ "health_status": null
 }
