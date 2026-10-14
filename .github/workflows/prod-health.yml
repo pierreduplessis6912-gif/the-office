@@ -40,7 +40,7 @@ jobs:
         run: |
           mkdir -p "$RESULTS"
           curl -s "$PROD_URL/admin/health" -H "X-Admin-Key: $ADMIN" -H "X-Target-Business: $BUSINESS" > "$RESULTS/health.json"
-          python3 -c "import json; d=json.load(open('$RESULTS/health.json')); print(json.dumps({k: d.get(k) for k in ('business', 'hourlyJob', 'memoryQueue', 'requests', 'backup')}, indent=1))" || cat "$RESULTS/health.json"
+          python3 -c "import json; d=json.load(open('$RESULTS/health.json')); print(json.dumps({**{k: d.get(k) for k in ('business', 'hourlyJob', 'memoryQueue', 'requests', 'backup', 'limits')}, 'modelToday': (d.get('model') or {}).get('today')}, indent=1))" || cat "$RESULTS/health.json"
 
       - name: Judge the health report
         id: judge
@@ -101,7 +101,7 @@ jobs:
           used = ((h.get("model") or {}).get("today") or {}).get("neurons") or 0
           if cap and used >= cap * float(env["CAP_WARN_FRACTION"]):
               warnings.append("the model has used %d%% of the day's spend ceiling (%s of %s neurons)" % (round(100 * used / cap), used, cap))
-          verdict = {"healthy": not problems, "problems": problems, "warnings": warnings, "model_today_usd": spend, "queue_pending": q.get("pending"), "job_minutes_since_last_run": minutes}
+          verdict = {"healthy": not problems, "problems": problems, "warnings": warnings, "model_today_usd": spend, "queue_pending": q.get("pending"), "job_minutes_since_last_run": minutes, "model_today_neurons": ((h.get("model") or {}).get("today") or {}).get("neurons"), "model_requests_today": ((h.get("model") or {}).get("today") or {}).get("requests"), "plan_mode": (lim.get("plan") or {}).get("mode"), "members_active_today": lim.get("activeMembers"), "members_at_or_over_limit": lim.get("membersAtOrOverLimit")}
           json.dump(verdict, open(os.path.join(r, "verdict.json"), "w"))
           print(json.dumps(verdict, indent=1))
           open(os.environ["GITHUB_OUTPUT"], "a").write("healthy=%s\n" % ("true" if not problems else "false"))
