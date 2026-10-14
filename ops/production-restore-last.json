@@ -1,12 +1,12 @@
 {
- "when": "2026-10-14T20:13:57.914342Z",
- "run": "38630274764",
+ "when": "2026-10-14T20:14:53.182032Z",
+ "run": "38630407013",
  "business": "zululand-flooring-and-blinds",
- "requested_snapshot": null,
+ "requested_snapshot": "20261014T185527Z",
  "decision": {
-  "action": "list",
+  "action": "refuse",
   "business": "zululand-flooring-and-blinds",
-  "snapshot": null,
+  "snapshot": "20261014T185527Z",
   "newestComplete": "20261014T195414Z",
   "available": [
    {
@@ -67,7 +67,9 @@
    }
   ],
   "warnings": [],
-  "reasons": []
+  "reasons": [
+   "snapshot 20261014T185527Z is on the deny list and will never be restored: Taken of the DAMAGED state after the failed restore of 2026-10-14 (1,583 rows; the business had 2,006). Never restore it."
+  ]
  },
  "restore_status": null,
  "restore_report": null,
