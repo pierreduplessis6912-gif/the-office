@@ -40,6 +40,7 @@ export CONFIRM='<ADMIN_CONFIRM_KEY>'
 | the oldest memory has waited N minutes / N memories are waiting | The memory queue is backing up (the job or Vectorize is failing) | Fix the hourly job first. To push the queue by hand: `curl -s -X POST $OFFICE/admin/flush-memory -H "X-Admin-Key: $ADMIN" -H "X-Target-Business: $BIZ"` |
 | server errors are X of the last N requests | Real failures are reaching members | Look at what changed: if a deploy just went out, go back (section 4). Otherwise read `GET /debug/timings` and Cloudflare's logs |
 | the last backup attempt FAILED / the newest backup is N hours old / there is no backup | Backups are not happening | Run the "Production backup" workflow ("take one now") and read why it failed (the backup bucket `office-backups`, Cloudflare R2). **Do not ignore this one** |
+| the daily backup was SKIPPED at (time): (reason) | The object could not even try its daily backup (no backup bucket bound, or it did not know its business's name). Found 2026-10-14: this happened after every restart until the bug was fixed | Read the reason. "No backup bucket" means the Worker's configuration lost the `BACKUPS` binding: restore it and deploy. Then run "Production backup" with `run` to take one now |
 | a schema step FAILED / N schema steps are not applied | A database change did not apply. **Members get "This business is being updated" (503) until it is fixed** | Push a corrected migration, or revert the commit (section 4). After the fix: `curl -s -X POST $OFFICE/admin/schema/retry -H "X-Admin-Key: $ADMIN" -H "X-Target-Business: $BIZ"` (or wait: it retries hourly) |
 
 ## 3. WARNINGS (the check stays green)
@@ -64,14 +65,16 @@ export CONFIRM='<ADMIN_CONFIRM_KEY>'
 
 ## 5. Restore from a backup
 
-A snapshot of every table, the notes and an inventory of the files is taken daily into a **separate** bucket (`office-backups`); the newest 14 are kept. Files are mirrored incrementally.
+A snapshot of every table, the notes and an inventory of the files is taken automatically about once a day (when the newest is 20 hours old) into a **separate** bucket (`office-backups`); the newest 14 are kept. Files are mirrored incrementally.
 
-1. **List:** `curl -s $OFFICE/admin/backup/list -H "X-Admin-Key: $ADMIN" -H "X-Target-Business: $BIZ"` (and `/admin/backup/status` for the summary). Take the newest snapshot whose `complete` is true.
-2. **Restore (privileged):**
-   `curl -s -X POST $OFFICE/admin/backup/restore -H "X-Admin-Key: $ADMIN" -H "X-Admin-Confirm: $CONFIRM" -H "X-Target-Business: $BIZ" -H "Content-Type: application/json" -d '{"snapshot":"<name>","confirm":"zululand-flooring-and-blinds"}'`
-   It first **checks every checksum before changing anything**; takes a **safety snapshot of the current state** (so the restore itself can be undone); **locks the business** (members get "This business is being restored", retry in 60 seconds); rebuilds; and checks a fingerprint.
-3. **If the business stays locked** after a failed restore: read `/admin/backup/status`, then `POST /admin/backup/unlock` (privileged, same headers) only once you know why.
-4. **Afterwards:** run "Production health" and check the numbers look right.
+**The easy way: the "Production restore" workflow** (GitHub, Actions, Run workflow). It needs no keys on your phone.
+1. **List first.** Run it with both boxes **empty**: it only lists the snapshots (name, complete or not, rows, files, when) and writes nothing. This is the default, so a mis-tap restores nothing.
+2. **Restore.** Run it again with the snapshot name in `snapshot` **and** the business id typed exactly in `confirm` (`zululand-flooring-and-blinds`). A small script decides first, and **refuses** (the run goes red, nothing is written) if the snapshot does not exist, never finished, the name has odd characters, or the id is not typed exactly. Restoring an older snapshot than the newest is allowed and is warned about.
+3. **What the restore does:** checks every checksum before changing anything; takes a **safety snapshot of the current state**; locks the business (members get "This business is being restored", retry in 60 seconds); rebuilds; checks a fingerprint. It is a **single attempt**: the workflow never retries a restore.
+4. **To UNDO a restore**, run the workflow again with the **safety snapshot's name** (printed at the end of the run) and the id typed in `confirm`.
+5. **Afterwards:** the run checks `/health`; then run "Production health" and check the numbers look right. The record is `ops/production-restore-last.json` (names, counts and statuses only).
+
+**The manual way** (if GitHub is unavailable): `curl -s $OFFICE/admin/backup/list -H "X-Admin-Key: $ADMIN" -H "X-Target-Business: $BIZ"`, then `curl -s -X POST $OFFICE/admin/backup/restore -H "X-Admin-Key: $ADMIN" -H "X-Admin-Confirm: $CONFIRM" -H "X-Target-Business: $BIZ" -H "Content-Type: application/json" -d '{"snapshot":"<name>","confirm":"zululand-flooring-and-blinds"}'`. If the business stays locked after a failed restore: read `/admin/backup/status`, then `POST /admin/backup/unlock` (privileged) only once you know why.
 
 **What a restore does not bring back:** the memory index (Vectorize), and there is no copy outside Cloudflare. **Point-in-time recovery** exists at Cloudflare (30 days for SQLite-backed objects) but **nothing in the Worker lets you trigger it**, so it is not available to you today.
 
@@ -125,7 +128,8 @@ A message costs about 940 neurons (about $0.01). Free allowance: 10,000 neurons 
 | Hotfix / revert | **Yes** | The revert `dca615c` went through the pipeline the same day | |
 | Rollback (automatic) | **Yes** | The drill, run 38213798571: deployed, forced the smoke test to fail, rolled back, smoke-tested again and passed | |
 | Rollback to the old database | **No, and it is not safe now** | | By design: see section 4 |
-| Restore | **On staging, on real Cloudflare** | The staging rehearsal backs up, damages and restores a business and checks it; every step passed in run 38552607463 (2026-10-14) | **Production restore: never run** (it would overwrite live data), **and there is no production workflow for it**, so it needs the keys in Termux. Point-in-time recovery: not available |
+| Restore | **On staging, on real Cloudflare; and its safe paths in production** | The staging rehearsal backs up, damages and restores a business and checks it (every step passed in run 38552607463). The production workflow ran in **list mode** (it found the snapshots) and a **deliberate refusal** (a real snapshot with a wrong confirmation: the run went red, the restore step was skipped, nothing was written) on 2026-10-14 | **A real restore on production has never been run** (it would overwrite live data). Point-in-time recovery: not available |
+| Automatic daily backup | **Found broken, fixed 2026-10-14; the proof is pending** | Production had ONE snapshot (taken by hand), 24.7 hours old, with no attempt since: after every restart the backup was skipped. Fixed (commit 9083b61) with a test that failed before and passes after | **The first automatic snapshot after the fix has not yet been seen** |
 | Model outage | **Partly** | Recorded test cases where model calls fail (the invoice is noted and held) | A real provider outage, end to end |
 | Cost spike | **Yes** | The plan workflow ran in production on 2026-10-14: warn to enforce (run `acec10d`), then again with the new number inputs (run `b5184c7`: set 200, read back as 100 / 400,000 / enforce, health 200). On staging, enforce at a limit of 1 gave a 429 with the model spend unchanged | A real refusal on production; a real spike |
 | Health alerts | **Yes** | The judging script is run by the tests against every way a business can be unhealthy; the check ran in production several times on 2026-10-14 | A real red alert reaching you |
@@ -133,7 +137,7 @@ A message costs about 940 neurons (about $0.01). Free allowance: 10,000 neurons 
 
 ## 11. Gaps this runbook cannot close yet
 
-1. **No production restore workflow.** Recommended next: a manual workflow with a typed confirmation, a snapshot list, and the safety snapshot, so a restore needs no keys on the phone.
+1. **A real restore on production has never been run.** The workflow and its guard are tested (every way it must refuse, 11 breakages caught) and its list and refusal paths have run in production, but the restore step itself has not. A safe way to run it once: take a fresh snapshot, then restore exactly that one.
 2. **No way to trigger point-in-time recovery.**
 3. **A real model outage has never been seen.**
 4. **The intermittent edge 502s on uploads** are unexplained (checklist item 13).
