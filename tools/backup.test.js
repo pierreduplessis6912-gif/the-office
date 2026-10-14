@@ -48,7 +48,7 @@ async function backupTests({ check, srcDir }) {
     };
     for (let i = 1; i <= 6; i++) db.prepare('INSERT INTO customers (name, address) VALUES (?, ?)').run(`Customer ${i} "quoted" ✓`, `${i} Test Street`);
     for (let i = 1; i <= 4; i++) db.prepare('INSERT INTO invoices (customer_id, description, amount) VALUES (?, ?, ?)').run(i, `Invoice ${i}`, i * 100);
-    // Realistic LINKED data. A real Durable Object ENFORCES foreign keys (SQLite's default, which this test world used to leave OFF), and the schema has one: payments.customer_id -> customers. The first real restore on
+    // Realistic LINKED data. A real Durable Object ENFORCES foreign keys (so does Node's SQLite by default; this world's DATA just never had a row that needed it), and the schema has one: payments.customer_id -> customers. The first real restore on
     // production (2026-10-14) failed on it: it deleted tables alphabetically, reached `customers` while `payments` still pointed at it, and by then five earlier tables (business_profile, captures, character_facts,
     // characters, customer_facts: 423 rows) were already gone, with no transaction to undo it. Rows in `characters` (sorts BEFORE customers) and in `payments` (the child) put that exact shape in every restore test.
     for (let i = 1; i <= 3; i++) db.prepare("INSERT INTO characters (name, relationship) VALUES (?, 'installer')").run(`Installer ${i}`);

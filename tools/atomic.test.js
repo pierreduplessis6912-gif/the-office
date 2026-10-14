@@ -178,7 +178,7 @@ async function atomicTests({ check, srcDir }) {
   check(/return await atomically\(env, async \(env\) => \{\s*\n\s*let created = 0;/.test(cust) && /return await atomically\(env, async \(env\) => \{\s*\n\s*let imported = 0;/.test(inv), 'both imports run their whole loop in ONE transaction, after the file is read and its header checked (so a bad file writes nothing and is refused as before)');
 
   // ---- the test world enforces foreign keys, as a real Durable Object does ------------------------------------------------------------------------------------------------------------------------------------
-  // SQLite's default is OFF, and this world used to leave it off: that is how a restore that met payments -> customers reached production (2026-10-14). The shared harness now turns it ON; this pins it.
+  // Node's built-in SQLite enforces foreign keys by default and the harness sets it explicitly, so the test world is as strict as a real Durable Object. (The 2026-10-14 production restore failure got through because the test DATA had no row pointing at a customer.) This pins it.
   const fkDb = harness.newDatabase(workerDir);
   let fkBlocked = false; try { fkDb.exec("INSERT INTO payments (customer_id, amount, source_transcript) VALUES (99999, 1, 'orphan')"); } catch (e) { fkBlocked = /FOREIGN KEY/i.test(String(e.message)); }
   check(fkDb.prepare('PRAGMA foreign_keys').get().foreign_keys === 1 && fkBlocked, 'the shared test database ENFORCES foreign keys: a payment for a customer that does not exist is refused, as on a real Durable Object');
