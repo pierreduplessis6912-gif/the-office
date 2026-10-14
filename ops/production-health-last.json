@@ -1,14 +1,22 @@
 {
- "when": "2026-10-14T10:12:23.387110Z",
- "run": "38547908647",
+ "when": "2026-10-14T16:22:03.736933Z",
+ "run": "38597450537",
  "business": "zululand-flooring-and-blinds",
  "verdict": {
+  "object_location": {
+   "colo": "CDG",
+   "country": "US",
+   "checked_at": "2026-10-14T16:22:03.476Z",
+   "error": null
+  },
   "healthy": true,
   "problems": [],
-  "warnings": [],
+  "warnings": [
+   "the business's object runs in CDG (US), not in ZA: every request its members make pays that distance (SHIP_CHECKLIST.md item 13)"
+  ],
   "model_today_usd": 0,
   "queue_pending": 0,
-  "job_minutes_since_last_run": 39,
+  "job_minutes_since_last_run": 48,
   "model_today_neurons": 0,
   "model_requests_today": 0,
   "plan_mode": "warn",
