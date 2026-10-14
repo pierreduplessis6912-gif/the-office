@@ -756,6 +756,10 @@ jobs:
           }
           json.dump(out, open("ops/staging-last-run.json", "w"), indent=1)
           PY
+          # The temporary schema step regenerated a TRACKED file in this workspace (worker/src/schema-steps.ts) and added a migration file that must never be committed. Put both back FIRST: git refuses to
+          # rebase over unstaged changes, which is what failed the first run of the schema rehearsal and lost its results.
+          git checkout -- worker/src/schema-steps.ts worker/src/baseline-sql.ts
+          rm -f worker/migrations/*_staging_probe.sql
           git config user.name "staging-workflow"
           git config user.email "noreply@github.com"
           git add ops/staging-last-run.json
