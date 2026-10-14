@@ -1,7 +1,7 @@
 name: Production plan mode (warn or enforce the cost caps)
 
 # SHIP_CHECKLIST.md item 6. Sets the mode of the `standard` plan in production: WARN records usage and never blocks; ENFORCE refuses a message over the limit with a plain-language 429 (the app shows the server's own words).
-# The numbers are fixed here (100 messages per member per day, 400,000 neurons per business per day: decided with Pierre, 2026-10-14); only the mode changes. ONE write (the plan), then reads. It takes effect within five minutes
+# The numbers default to what was decided with Pierre on 2026-10-14 (100 messages per member per day, 400,000 neurons per business per day) and can be lowered in a cost spike: whole numbers only, checked here and again by the server. ONE write (the plan), then reads. It takes effect within five minutes
 # (the plan is cached that long). To go back: run it again with warn. The record holds the plan and statuses only. Started by hand only.
 on:
   workflow_dispatch:
@@ -13,6 +13,14 @@ on:
           - enforce
           - warn
         default: enforce
+      messages_per_member_per_day:
+        description: "Messages one member may send per day (whole number, 1 or more)"
+        type: string
+        default: "100"
+      neurons_per_business_per_day:
+        description: "Model spend one business may use per day, in neurons (about 940 per message; 400000 is about $4.40 a day)"
+        type: string
+        default: "400000"
 
 concurrency:
   group: prod-plan
@@ -28,6 +36,8 @@ jobs:
       PROD_URL: https://office.websitehub.co.za
       RESULTS: ${{ github.workspace }}/results
       MODE: ${{ github.event.inputs.mode }}
+      MESSAGES: ${{ github.event.inputs.messages_per_member_per_day }}
+      NEURONS: ${{ github.event.inputs.neurons_per_business_per_day }}
     steps:
       - uses: actions/checkout@v4
 
@@ -38,9 +48,12 @@ jobs:
         run: |
           mkdir -p "$RESULTS"
           case "$MODE" in enforce|warn) ;; *) echo "mode must be enforce or warn"; exit 1 ;; esac
+          case "$MESSAGES" in ''|*[!0-9]*) echo "messages per member must be a whole number"; exit 1 ;; esac
+          case "$NEURONS" in ''|*[!0-9]*) echo "neurons per business must be a whole number"; exit 1 ;; esac
+          test "$MESSAGES" -ge 1 && test "$NEURONS" -ge 1 || { echo "both limits must be at least 1"; exit 1; }
           CODE=000
           for attempt in 1 2 3; do
-            CODE=$(curl -s -o "$RESULTS/set.json" -w '%{http_code}' -X POST "$PROD_URL/debug/directory/plans/set" -H "X-Admin-Key: $ADMIN" -H "X-Admin-Confirm: $CONFIRM" -H "Content-Type: application/json" -d "{\"name\":\"standard\",\"messagesPerMemberPerDay\":100,\"neuronsPerBusinessPerDay\":400000,\"mode\":\"$MODE\"}")
+            CODE=$(curl -s -o "$RESULTS/set.json" -w '%{http_code}' -X POST "$PROD_URL/debug/directory/plans/set" -H "X-Admin-Key: $ADMIN" -H "X-Admin-Confirm: $CONFIRM" -H "Content-Type: application/json" -d "{\"name\":\"standard\",\"messagesPerMemberPerDay\":$MESSAGES,\"neuronsPerBusinessPerDay\":$NEURONS,\"mode\":\"$MODE\"}")
             if [ "$CODE" = "200" ]; then break; fi
             sleep 8
           done
@@ -62,7 +75,7 @@ jobs:
           std = next((p for p in items if p.get("name") == "standard"), None)
           print(json.dumps(std))
           assert std and std.get("mode") == os.environ["MODE"], "the plan did not read back in the requested mode"
-          assert std.get("messagesPerMemberPerDay") == 100 and std.get("neuronsPerBusinessPerDay") == 400000, "the limits are not what was decided"
+          assert std.get("messagesPerMemberPerDay") == int(os.environ["MESSAGES"]) and std.get("neuronsPerBusinessPerDay") == int(os.environ["NEURONS"]), "the limits did not read back as requested"
           assert open(os.path.join(r, "health.status")).read().strip() == "200", "the Worker's /health did not answer 200"
           PY
 
@@ -79,7 +92,7 @@ jobs:
                   return json.loads(t) if as_json else t.strip()
               except Exception:
                   return None
-          out = {"when": datetime.datetime.utcnow().isoformat() + "Z", "run": os.environ.get("GITHUB_RUN_ID"), "requested_mode": os.environ.get("MODE"), "set_status": read("set.status", False), "set_response": read("set.json"), "plans": read("plans.json"), "health_status": read("health.status", False)}
+          out = {"when": datetime.datetime.utcnow().isoformat() + "Z", "run": os.environ.get("GITHUB_RUN_ID"), "requested_mode": os.environ.get("MODE"), "requested_messages": os.environ.get("MESSAGES"), "requested_neurons": os.environ.get("NEURONS"), "set_status": read("set.status", False), "set_response": read("set.json"), "plans": read("plans.json"), "health_status": read("health.status", False)}
           json.dump(out, open("ops/production-plan-last.json", "w"), indent=1)
           PY
           git config user.name "production-workflow"
