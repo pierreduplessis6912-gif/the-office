@@ -860,6 +860,8 @@ async function expect(role, method, path, want) {
   await require('./atomic.test.js')({ check, srcDir });
   // Where a business's object runs: asked daily, kept in its metadata, shown in the health report.
   await require('./location.test.js')({ check, srcDir });
+  // The production restore: its guard (what may be restored, and every way it must refuse) and its workflow.
+  await require('./restore-guard.test.js')({ check, path, fs });
   // The load test: its judge, its safety, its mechanics against a fake server, and its workflow.
   await require('./load.test.js')({ check, path, fs });
   // The production health alert: its judging script is run against every unhealthy case.

@@ -1,0 +1,128 @@
+name: Production restore (list the snapshots, or restore one)
+
+# SHIP_CHECKLIST.md items 10 and 14 (RUNBOOK.md section 5). Started by hand only.
+#
+#   * Leave "snapshot" EMPTY (the default) and it only LISTS the snapshots and writes nothing.
+#   * To restore: put a snapshot name from that list in "snapshot" AND type the business id exactly in "confirm". tools/restore-guard.py decides; anything else is refused before any write.
+#
+# A restore checks every checksum before it changes anything, takes a SAFETY snapshot of the current state first, locks the business (members wait a minute), rebuilds it and checks a fingerprint. The restore is a single
+# attempt and is never retried by this workflow: if it fails, read the report and RUNBOOK.md section 5. To UNDO a restore, run this again with the safety snapshot's name (printed at the end).
+# The ONLY write is one POST to /admin/backup/restore. The record holds names, counts and statuses only.
+on:
+  workflow_dispatch:
+    inputs:
+      snapshot:
+        description: "Snapshot name to restore (from the list). EMPTY = just list them, change nothing"
+        type: string
+        required: false
+        default: ""
+      confirm:
+        description: "Only to restore: type the business id exactly (zululand-flooring-and-blinds)"
+        type: string
+        required: false
+        default: ""
+
+concurrency:
+  group: prod-restore
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    env:
+      PROD_URL: https://office.websitehub.co.za
+      BUSINESS: zululand-flooring-and-blinds
+      RESULTS: ${{ github.workspace }}/results
+      SNAPSHOT: ${{ github.event.inputs.snapshot }}
+      CONFIRM: ${{ github.event.inputs.confirm }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: List the snapshots (reads only)
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+        run: |
+          mkdir -p "$RESULTS"
+          curl -s "$PROD_URL/admin/backup/list" -H "X-Admin-Key: $ADMIN" -H "X-Target-Business: $BUSINESS" > "$RESULTS/list.json"
+          curl -s "$PROD_URL/admin/backup/status" -H "X-Admin-Key: $ADMIN" -H "X-Target-Business: $BUSINESS" > "$RESULTS/status-before.json"
+
+      - name: Decide what may happen (writes nothing)
+        id: guard
+        run: |
+          set +e
+          python3 tools/restore-guard.py "$RESULTS/list.json" > "$RESULTS/decision.json"
+          GUARD=$?
+          cat "$RESULTS/decision.json"
+          echo "action=$(python3 -c "import json; print(json.load(open('$RESULTS/decision.json'))['action'])")" >> "$GITHUB_OUTPUT"
+          python3 - >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json, os
+          d = json.load(open(os.path.join(os.environ["RESULTS"], "decision.json")))
+          print("### Production restore: " + d["action"].upper())
+          for s in d["available"]:
+              print("- `%s` %s, %s rows, %s files, finished %s" % (s["name"], "complete" if s["complete"] else "NOT FINISHED", s["rows"], s["files"], s["finishedAt"]))
+          for w in d["warnings"]:
+              print("\n**Warning:** " + w)
+          for r in d["reasons"]:
+              print("\n**Refused:** " + r)
+          PY
+          exit $GUARD
+
+      - name: Restore (the only write; a single attempt)
+        if: steps.guard.outputs.action == 'restore'
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+          ADMIN_CONFIRM: ${{ secrets.PROD_CONFIRM_KEY }}
+        run: |
+          set +e
+          python3 -c "import json, os; print(json.dumps({'snapshot': os.environ['SNAPSHOT'].strip(), 'confirm': os.environ['CONFIRM']}))" > "$RESULTS/restore-request.json"
+          CODE=$(curl -s -o "$RESULTS/restore.json" -w '%{http_code}' -X POST "$PROD_URL/admin/backup/restore" -H "X-Admin-Key: $ADMIN" -H "X-Admin-Confirm: $ADMIN_CONFIRM" -H "X-Target-Business: $BUSINESS" -H "Content-Type: application/json" -d @"$RESULTS/restore-request.json")
+          echo "$CODE" > "$RESULTS/restore.status"
+          echo "restore answered $CODE"
+          cat "$RESULTS/restore.json"; echo
+          test "$CODE" = "200" && python3 -c "import json,sys; sys.exit(0 if json.load(open('$RESULTS/restore.json')).get('ok') is True else 1)"
+
+      - name: Check afterwards (reads only)
+        if: always() && steps.guard.outputs.action == 'restore'
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+        run: |
+          curl -s -o /dev/null -w '%{http_code}' "$PROD_URL/health" > "$RESULTS/health.status"
+          curl -s "$PROD_URL/admin/backup/status" -H "X-Admin-Key: $ADMIN" -H "X-Target-Business: $BUSINESS" > "$RESULTS/status-after.json"
+          python3 - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import json, os
+          r = os.environ["RESULTS"]
+          rep = json.load(open(os.path.join(r, "restore.json")))
+          print("### Restore report")
+          print("- ok: **%s**, restored from `%s`" % (rep.get("ok"), rep.get("snapshot")))
+          print("- tables %s, rows %s, notes %s, files restored from the mirror %s" % (rep.get("tablesRestored"), rep.get("rowsRestored"), rep.get("notesRestored"), rep.get("filesRestoredFromMirror")))
+          print("- files missing everywhere: %s; differences found afterwards: %s" % (len(rep.get("filesMissingEverywhere") or []), len(rep.get("differences") or [])))
+          print("- **To UNDO this restore, run this workflow again with snapshot = `%s` and the business id typed in confirm.**" % rep.get("safetySnapshot"))
+          print("- /health answered %s" % open(os.path.join(r, "health.status")).read().strip())
+          PY
+
+      - name: Record what happened
+        if: always()
+        run: |
+          mkdir -p ops
+          python3 - <<'PY'
+          import json, os, datetime
+          r = os.environ["RESULTS"]
+          def read(n, as_json=True):
+              try:
+                  t = open(os.path.join(r, n)).read()
+                  return json.loads(t) if as_json else t.strip()
+              except Exception:
+                  return None
+          out = {"when": datetime.datetime.utcnow().isoformat() + "Z", "run": os.environ.get("GITHUB_RUN_ID"), "business": os.environ.get("BUSINESS"), "requested_snapshot": os.environ.get("SNAPSHOT") or None,
+                 "decision": read("decision.json"), "restore_status": read("restore.status", False), "restore_report": read("restore.json"), "health_status": read("health.status", False)}
+          json.dump(out, open("ops/production-restore-last.json", "w"), indent=1)
+          PY
+          git config user.name "production-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/production-restore-last.json
+          git commit -m "Production restore record (names, counts and statuses only)" || echo "nothing to record"
+          git pull --rebase origin main
+          git push origin HEAD:main
