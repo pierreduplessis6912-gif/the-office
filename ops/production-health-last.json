@@ -1,6 +1,6 @@
 {
- "when": "2026-10-14T16:31:03.412291Z",
- "run": "38598722253",
+ "when": "2026-10-14T17:04:07.571989Z",
+ "run": "38603445765",
  "business": "zululand-flooring-and-blinds",
  "verdict": {
   "object_location": {
@@ -14,13 +14,13 @@
   "warnings": [
    "the business's object runs in the CDG data centre, which is not one of the South African ones (JNB, CPT, DUR): every request its members make pays that distance (SHIP_CHECKLIST.md item 13)"
   ],
-  "model_today_usd": 0,
+  "model_today_usd": 0.0084,
   "queue_pending": 0,
-  "job_minutes_since_last_run": 57,
-  "model_today_neurons": 0,
-  "model_requests_today": 0,
-  "plan_mode": "warn",
-  "members_active_today": 0,
+  "job_minutes_since_last_run": 30,
+  "model_today_neurons": 765.1,
+  "model_requests_today": 1,
+  "plan_mode": "enforce",
+  "members_active_today": 1,
   "members_at_or_over_limit": 0,
   "schema_pending": 0,
   "schema_steps_applied": 1
