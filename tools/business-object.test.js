@@ -121,6 +121,27 @@ async function businessObjectTests({ check, srcDir }) {
   dbBBk.prepare("UPDATE object_meta SET value = ? WHERE key = 'last_backup_success_at'").run(new Date(Date.now() - 21 * 3_600_000).toISOString());
   await objBBk.alarm();
   check(orderBk.join() === 'consolidate,backup,consolidate,consolidate,backup', 'and once 21 hours have passed it is due again');
+  // THE RESTART. A deploy restarts every object, and the hourly alarm can fire before any member has made a request. The job always found the business's name from the object's OWN record; the backup used only the name held in
+  // memory, so it was SKIPPED after every restart until someone happened to use the app (found 2026-10-14: production had ONE snapshot, 24.7 hours old, and no attempt since; every test named the business with a request first).
+  const orderRs = [];
+  const BusinessRs = bo.makeBusinessObject(serve, { consolidate: async () => { orderRs.push('consolidate'); }, backup: async (e) => { orderRs.push('backup:' + e.BUSINESS_ID); } });
+  const dbRs = new DatabaseSync(':memory:'); const Rs = makeState(dbRs);
+  const objRs1 = new BusinessRs(Rs.state, bucketEnvBk);
+  await objRs1.fetch(named('alpha-co'));                 // the business is named once, and the object records that about itself
+  const objRs2 = new BusinessRs(Rs.state, bucketEnvBk);  // the object RESTARTS: a new instance over the same storage, nothing in memory
+  await objRs2.alarm();                                  // and the hourly alarm fires before anyone has made a request
+  check(orderRs.join() === 'consolidate,backup:alpha-co', `an object that has just restarted still takes its daily backup when the alarm fires first (it ran: ${orderRs.join() || 'nothing'})`);
+  check((dbRs.prepare("SELECT value FROM object_meta WHERE key = 'last_backup_ok'").get()?.value) === '1' && (dbRs.prepare("SELECT value FROM object_meta WHERE key = 'backup_skipped'").get()?.value ?? '') === '', 'and records it as done, with nothing marked as skipped');
+  // a backup that CANNOT run is never silent: the reason is recorded where the health report can show it
+  const orderNb = [];
+  const BusinessNb = bo.makeBusinessObject(serve, { consolidate: async () => {}, backup: async () => { orderNb.push('backup'); } });
+  const dbNb = new DatabaseSync(':memory:'); const Nb = makeState(dbNb); const objNb = new BusinessNb(Nb.state, jobEnv);
+  await objNb.fetch(named('alpha-co')); await objNb.alarm();
+  const skippedNb = JSON.parse(dbNb.prepare("SELECT value FROM object_meta WHERE key = 'backup_skipped'").get()?.value || 'null');
+  check(orderNb.length === 0 && skippedNb && /no backup bucket is bound/.test(skippedNb.reason) && Number.isFinite(Date.parse(skippedNb.at)), 'a backup that cannot run (no backup bucket bound) is RECORDED as skipped with the reason and the time, never silent');
+  const objNb2 = new BusinessNb(Nb.state, bucketEnvBk);   // the same object, now given its bucket: it backs up and the mark clears
+  await objNb2.alarm();
+  check(orderNb.join() === 'backup' && (dbNb.prepare("SELECT value FROM object_meta WHERE key = 'backup_skipped'").get()?.value ?? '') === '', 'once the bucket is there the backup runs and the "skipped" mark is cleared');
   // a failing backup
   const failOrderBk = [];
   const BusinessCBk = bo.makeBusinessObject(serve, { consolidate: async () => { failOrderBk.push('consolidate'); }, backup: async () => { failOrderBk.push('backup'); throw new Error('the backup bucket is unreachable'); } });

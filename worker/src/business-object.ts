@@ -111,7 +111,7 @@ export function makeBusinessObject(serve: Serve, jobs?: BusinessJobs, options: {
       let jobRan = false;
       let jobError: string | null = null;
       try {
-        const named = this.businessId ?? (await this.db.prepare("SELECT value FROM object_meta WHERE key = 'business_id'").first<{ value: string }>())?.value ?? null;
+        const named = await this.resolveBusinessId();
         if (jobs && isBusinessId(named)) {
           jobRan = true;
           await jobs.consolidate(scopeBindings({ ...this.env, OFFICE_DB: this.db as unknown as D1Database, BUSINESS_ID: named } as Env, named));
@@ -139,8 +139,13 @@ export function makeBusinessObject(serve: Serve, jobs?: BusinessJobs, options: {
       }
       // The daily backup is separate from the hourly job: neither can stop the other, and a failed backup is RECORDED (so an alert can see it) and tried again next hour.
       try {
-        const named = this.businessId;
+        const named = await this.resolveBusinessId();
+        // A backup that CANNOT run is never silent: the reason and the time are recorded where the health report (and so the alert) can show them, and cleared again the next time one runs.
+        if (jobs?.backup && (!this.env.BACKUPS || !isBusinessId(named))) {
+          await this.setMeta("backup_skipped", JSON.stringify({ at: new Date().toISOString(), reason: !this.env.BACKUPS ? "no backup bucket is bound to this object" : "the object does not know its business's name" })).catch(() => undefined);
+        }
         if (jobs?.backup && this.env.BACKUPS && isBusinessId(named)) {
+          await this.setMeta("backup_skipped", "").catch(() => undefined);
           const last = Date.parse((await readBackupMeta({ ...this.env, OFFICE_DB: this.db as unknown as D1Database } as Env)).lastSuccessAt ?? "");
           if (!Number.isFinite(last) || Date.now() - last >= BACKUP_EVERY_MS) {
             const env = scopeBindings({ ...this.env, OFFICE_DB: this.db as unknown as D1Database, BUSINESS_ID: named } as Env, named);
@@ -161,6 +166,13 @@ export function makeBusinessObject(serve: Serve, jobs?: BusinessJobs, options: {
       const report = await ensureObjectSchema(this.db, this.env, steps);
       this.schemaError = report.error;
       return report;
+    }
+
+    // The business's name, as the alarm needs it. This instance may have JUST RESTARTED (every deploy restarts the objects) and not yet been asked anything, so the name held in memory is empty: fall back to what the object
+    // recorded about itself. The hourly job always did this; the backup did not, so it was SKIPPED after every restart until a member happened to use the app (found 2026-10-14: production had one snapshot, 24.7 hours old,
+    // and no attempt since). Both now use this one function.
+    private async resolveBusinessId(): Promise<string | null> {
+      return this.businessId ?? (await this.db.prepare("SELECT value FROM object_meta WHERE key = 'business_id'").first<{ value: string }>())?.value ?? null;
     }
 
     private async setMeta(key: string, value: string): Promise<void> {

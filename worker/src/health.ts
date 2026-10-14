@@ -45,6 +45,18 @@ async function schemaHealth(env: Env): Promise<Record<string, unknown>> {
   };
 }
 
+// Why the daily backup could not run, if it could not (business-object.ts records it); null when nothing was skipped.
+async function readSkipped(env: Env): Promise<{ at: string; reason: string } | null> {
+  const raw = await meta(env, "backup_skipped");
+  if (!raw) return null;
+  try {
+    const p = JSON.parse(raw) as { at?: unknown; reason?: unknown };
+    return typeof p.at === "string" && typeof p.reason === "string" ? { at: p.at, reason: p.reason } : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function healthReport(env: Env, now: Date = new Date()): Promise<Record<string, unknown>> {
   const nowMs = now.getTime();
   const lastJobAt = await meta(env, "last_job_at");
@@ -68,7 +80,7 @@ export async function healthReport(env: Env, now: Date = new Date()): Promise<Re
     business: env.BUSINESS_ID ?? null,
     generatedAt: now.toISOString(),
     hourlyJob: { lastRunAt: lastJobAt, minutesSinceLastRun: minutesSince(lastJobAt, nowMs), lastOk: (await meta(env, "last_job_ok")) === null ? null : (await meta(env, "last_job_ok")) === "1", lastError: (await meta(env, "last_job_error")) || null, lastMs: Number((await meta(env, "last_job_ms")) ?? "") || null, nextAlarmAt: await meta(env, "next_alarm_at") },
-    backup: { ...backup, newestAgeHours: backup.lastSuccessAt ? Math.round(((nowMs - Date.parse(backup.lastSuccessAt)) / 3_600_000) * 10) / 10 : null },
+    backup: { ...backup, newestAgeHours: backup.lastSuccessAt ? Math.round(((nowMs - Date.parse(backup.lastSuccessAt)) / 3_600_000) * 10) / 10 : null, skipped: await readSkipped(env) },
     memoryQueue: { pending: backlog.count, oldestPendingMinutes: backlog.oldestMinutes },
     requests: { ...requests, errorRate: requests.recent ? Math.round((requests.serverErrors / requests.recent) * 1000) / 1000 : 0, note: "the last 200 requests that changed something (timings must be on)" },
     model: usage,

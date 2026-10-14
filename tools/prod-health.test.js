@@ -31,6 +31,7 @@ module.exports = async function runProdHealthTests({ check, path, fs }) {
     ['the last backup failed', mod({ backup: { lastAttemptOk: false, lastError: 'the backup bucket is full' } }), /backup attempt FAILED: the backup bucket is full/],
     ['the newest backup is too old', mod({ backup: { newestAgeHours: 31 } }), /backup is 31 hours old/],
     ['there is no backup', mod({ backup: { newestAgeHours: null } }), /there is no backup/],
+    ['the daily backup was skipped', mod({ backup: { skipped: { at: '2026-10-14T12:50:00.000Z', reason: 'no backup bucket is bound to this object' } } }), /daily backup was SKIPPED at 2026-10-14T12:50:00\.000Z: no backup bucket is bound to this object/],
     ['a schema step failed', mod({ schema: { error: { name: '0002_add_x', message: 'no such table: y' }, pending: ['0002_add_x'] } }), /schema step FAILED: 0002_add_x: no such table: y/],
     ['a schema step is pending', mod({ schema: { pending: ['0002_add_x', '0003_add_y'], error: null } }), /2 schema step\(s\) are not applied: 0002_add_x, 0003_add_y/],
   ];

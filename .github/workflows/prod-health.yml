@@ -90,6 +90,9 @@ jobs:
           b = h.get("backup") or {}
           if b.get("lastAttemptOk") is False:
               problems.append("the last backup attempt FAILED: %s" % b.get("lastError"))
+          sk = b.get("skipped")
+          if sk:
+              problems.append("the daily backup was SKIPPED at %s: %s" % (sk.get("at"), sk.get("reason")))
           if b.get("newestAgeHours") is None:
               problems.append("there is no backup")
           elif b.get("newestAgeHours") > float(env["BACKUP_STALE_HOURS"]):
