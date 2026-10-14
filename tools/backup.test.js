@@ -35,10 +35,11 @@ async function backupTests({ check, srcDir }) {
     };
   };
   const makeBusiness = (business = 'zulu-co') => {
-    const db = new DatabaseSync(':memory:'); db.exec(baseline); db.exec('CREATE TABLE object_meta (key TEXT PRIMARY KEY, value TEXT)');
+    const db = new DatabaseSync(':memory:'); db.exec('PRAGMA foreign_keys = ON'); db.exec(baseline); db.exec('CREATE TABLE object_meta (key TEXT PRIMARY KEY, value TEXT)');
     db.exec('CREATE TABLE lazy_things (id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT)');
     const sql = { exec(query, ...binds) { const s = db.prepare(query); if (/^\s*(select|with|pragma|values)\b/i.test(query) || /\breturning\b/i.test(query)) { const rows = s.all(...binds).map(plain); return { toArray: () => rows, rowsRead: rows.length, rowsWritten: 0 }; } const r = s.run(...binds); return { toArray: () => [], rowsRead: 0, rowsWritten: Number(r.changes) }; } };
-    const storage = { transactionSync(fn) { db.exec('BEGIN'); try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; } } };
+    // transactionSync AND the async transaction(), as a real Durable Object offers them (nesting is not needed here: the restore opens ONE transaction)
+    const storage = { transactionSync(fn) { db.exec('BEGIN'); try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; } }, async transaction(fn) { db.exec('BEGIN'); try { const r = await fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; } } };
     const kv = new Map(), vault = fakeBucket(), backups = fakeBucket();
     const env = {
       BUSINESS_ID: business, OFFICE_DB: new DoD1Database(sql, storage), BACKUPS: backups,
@@ -47,6 +48,11 @@ async function backupTests({ check, srcDir }) {
     };
     for (let i = 1; i <= 6; i++) db.prepare('INSERT INTO customers (name, address) VALUES (?, ?)').run(`Customer ${i} "quoted" ✓`, `${i} Test Street`);
     for (let i = 1; i <= 4; i++) db.prepare('INSERT INTO invoices (customer_id, description, amount) VALUES (?, ?, ?)').run(i, `Invoice ${i}`, i * 100);
+    // Realistic LINKED data. A real Durable Object ENFORCES foreign keys (SQLite's default, which this test world used to leave OFF), and the schema has one: payments.customer_id -> customers. The first real restore on
+    // production (2026-10-14) failed on it: it deleted tables alphabetically, reached `customers` while `payments` still pointed at it, and by then five earlier tables (business_profile, captures, character_facts,
+    // characters, customer_facts: 423 rows) were already gone, with no transaction to undo it. Rows in `characters` (sorts BEFORE customers) and in `payments` (the child) put that exact shape in every restore test.
+    for (let i = 1; i <= 3; i++) db.prepare("INSERT INTO characters (name, relationship) VALUES (?, 'installer')").run(`Installer ${i}`);
+    for (let i = 1; i <= 3; i++) db.prepare('INSERT INTO payments (customer_id, amount, source_transcript) VALUES (?, ?, ?)').run(i, i * 50, 'paid');
     db.exec("INSERT INTO lazy_things (label) VALUES ('a'), ('b'), ('c')");
     db.exec('DELETE FROM lazy_things WHERE id = 3');   // the id counter is ahead of the highest row
     for (let i = 1; i <= 12; i++) kv.set(`customer:${i}`, `note ${i} ✓`);
@@ -112,6 +118,53 @@ async function backupTests({ check, srcDir }) {
   check(/-pre-restore$/.test(report.safetySnapshot) && (await bk.readManifest(D.env, report.safetySnapshot)) !== null, 'a safety snapshot of the damaged state was taken first');
   const undone = await bk.restoreSnapshot(D.env, report.safetySnapshot, 'zulu-co');
   check(undone.ok && JSON.stringify(withoutFiles(await fp(D.env))) === JSON.stringify(withoutFiles(damagedFp)), 'so a restore is itself REVERSIBLE: restoring the safety snapshot brings the damaged state back exactly');
+
+  // ---- a restore that FAILS part way changes NOTHING ----------------------------------------------------------------------------------------------------------------------------------------------
+  // The business's own data is replaced inside ONE transaction: if anything goes wrong the database is exactly as it was (the old code deleted table after table with no way back).
+  const RB = makeBusiness();
+  const rbSnap = await bk.takeSnapshot(RB.env, new Date('2026-10-14T03:00:00Z'));
+  RB.db.exec("UPDATE customers SET name = 'CHANGED AFTER THE SNAPSHOT' WHERE id = 1");   // the live state differs from the snapshot, so a half-done restore would show
+  const rbBefore = await fp(RB.env);
+  const rbNotes = JSON.stringify([...RB.kv.entries()]);
+  // how many row inserts a restore of this business makes (counted on a twin), so the failures land on the FIRST, the MIDDLE and the LAST of them
+  const twin = makeBusiness(); const twinSnap = await bk.takeSnapshot(twin.env, new Date('2026-10-14T03:00:00Z'));
+  let totalInserts = 0; const twinPrepare = twin.env.OFFICE_DB.prepare.bind(twin.env.OFFICE_DB);
+  twin.env.OFFICE_DB.prepare = (q) => { if (/^\s*INSERT/i.test(q) && !/object_meta|sqlite_sequence/i.test(q)) totalInserts++; return twinPrepare(q); };
+  await bk.restoreSnapshot(twin.env, twinSnap.name, 'zulu-co');
+  check(totalInserts >= 15, `a restore of this business makes ${totalInserts} row inserts (enough for the failures below to land inside it)`);
+  for (const failAt of [1, Math.ceil(totalInserts / 3), Math.ceil(totalInserts / 2), totalInserts - 1, totalInserts]) {
+    let inserts = 0; const realPrepare = RB.env.OFFICE_DB.prepare.bind(RB.env.OFFICE_DB);
+    RB.env.OFFICE_DB.prepare = (q) => { if (/^\s*INSERT/i.test(q) && !/object_meta|sqlite_sequence/i.test(q)) { inserts++; if (inserts === failAt) throw new Error('injected failure at insert ' + inserts); } return realPrepare(q); };
+    let err = null; try { await bk.restoreSnapshot(RB.env, rbSnap.name, 'zulu-co'); } catch (e) { err = e; }
+    RB.env.OFFICE_DB.prepare = realPrepare;
+    check(err !== null && /injected failure at insert/.test(err.message) && JSON.stringify(withoutFiles(await fp(RB.env))) === JSON.stringify(withoutFiles(rbBefore)) && meta(RB.db, 'restoring') === '0' && JSON.stringify([...RB.kv.entries()]) === rbNotes, `a restore that fails at insert ${failAt} changes NOTHING: every table, every row, the id counters and the notes are exactly as they were, and the business is unlocked${err && !/injected/.test(err.message) ? ' (it failed differently: ' + err.message.slice(0, 80) + ')' : ''}`);
+  }
+  // ... and with the faults gone, the very same restore succeeds on the very same business
+  const rbOk = await bk.restoreSnapshot(RB.env, rbSnap.name, 'zulu-co');
+  check(rbOk.ok === true && RB.db.prepare('SELECT name FROM customers WHERE id = 1').get().name !== 'CHANGED AFTER THE SNAPSHOT', 'and with no fault the same restore succeeds on the same business (nothing was left half done)');
+  // The restore relies on the schema's foreign keys having an order: no table may reference itself or form a cycle. A future schema step that does would need the restore taught about it, so it is checked here.
+  const fkGraph = {}; for (const tb of await mg.listTables(RB.env)) fkGraph[tb] = new Set(RB.db.prepare(`PRAGMA foreign_key_list("${tb}")`).all().map((r) => r.table));
+  const hasCycle = (() => { const state = {}; const visit = (n) => { if (state[n] === 1) return true; if (state[n] === 2) return false; state[n] = 1; for (const m of fkGraph[n] || []) if (visit(m)) return true; state[n] = 2; return false; }; return Object.keys(fkGraph).some(visit); })();
+  check(!hasCycle && Object.values(fkGraph).some((s) => s.has('customers')) && Object.entries(fkGraph).every(([tb, s]) => !s.has(tb)), 'the schema\'s foreign keys (payments -> customers) have an order: no table references itself and none form a cycle');
+
+  // ORDER from the foreign keys, not from the alphabet. In today's schema the parent (customers) happens to sort before its child (payments), so the alphabet works by luck; here a child (a_child) sorts BEFORE its
+  // parent (z_parent), which only a real foreign-key order survives: children are emptied first and parents are filled first.
+  const OR = makeBusiness();
+  OR.db.exec('CREATE TABLE z_parent (id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT); CREATE TABLE a_child (id INTEGER PRIMARY KEY AUTOINCREMENT, z_id INTEGER NOT NULL REFERENCES z_parent(id))');
+  OR.db.exec("INSERT INTO z_parent (label) VALUES ('p1'), ('p2'); INSERT INTO a_child (z_id) VALUES (1), (2), (2)");
+  const orSnap = await bk.takeSnapshot(OR.env, new Date('2026-10-14T03:00:00Z'));
+  const orGood = await fp(OR.env);
+  OR.db.exec("DELETE FROM a_child WHERE id = 1; UPDATE z_parent SET label = 'CHANGED' WHERE id = 1; INSERT INTO z_parent (label) VALUES ('later')");
+  const orReport = await bk.restoreSnapshot(OR.env, orSnap.name, 'zulu-co');
+  check(orReport.ok === true && JSON.stringify(withoutFiles(await fp(OR.env))) === JSON.stringify(withoutFiles(orGood)) && OR.db.prepare('SELECT COUNT(*) AS n FROM a_child').get().n === 3 && OR.db.prepare('SELECT COUNT(*) AS n FROM z_parent').get().n === 2, 'a child table that sorts BEFORE its parent (a_child -> z_parent) is restored correctly: tables are emptied children first and filled parents first, by the foreign keys and not the alphabet');
+  // tables that point at each other have NO order: the restore refuses BEFORE it changes anything
+  const CY = makeBusiness();
+  CY.db.exec('CREATE TABLE cyc_a (id INTEGER PRIMARY KEY, b_id INTEGER REFERENCES cyc_b(id)); CREATE TABLE cyc_b (id INTEGER PRIMARY KEY, a_id INTEGER REFERENCES cyc_a(id))');
+  const cySnap = await bk.takeSnapshot(CY.env, new Date('2026-10-14T03:00:00Z'));
+  CY.db.exec("UPDATE customers SET name = 'CHANGED AFTER' WHERE id = 1");
+  const cyBefore = await fp(CY.env);
+  let cyErr = null; try { await bk.restoreSnapshot(CY.env, cySnap.name, 'zulu-co'); } catch (e) { cyErr = e; }
+  check(cyErr !== null && /point at each other in a circle \(cyc_[ab] -> cyc_[ab] -> cyc_[ab]\)/.test(cyErr.message) && JSON.stringify(withoutFiles(await fp(CY.env))) === JSON.stringify(withoutFiles(cyBefore)) && meta(CY.db, 'restoring') === '0', 'tables that point at each other in a circle make the restore REFUSE with a clear reason, before anything is changed (and the business is not left locked)');
 
   // ---- it refuses, and changes nothing, when it should ----------------------------------------------------------------------------------------------------------------------------------------
   const F = makeBusiness();

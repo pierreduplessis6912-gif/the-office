@@ -120,14 +120,38 @@ export async function ensureSchema(env: Env, tables: { name: string; sql: string
   return { created, columnsAdded };
 }
 
-export async function writeRows(env: Env, name: string, rows: Record<string, unknown>[]): Promise<number> {
+// The order tables must be FILLED in (a parent before every table that points at it); EMPTY them in the reverse. Worked out from the schema's own foreign keys. A table that points at itself, or tables that point at each
+// other in a circle, have no such order: that is an error here (raised before anything is changed), never a failure half way through. The schema has one foreign key today (payments -> customers).
+export async function tablesParentsFirst(env: Env, tables: string[]): Promise<string[]> {
+  const wanted = new Set(tables);
+  const parents = new Map<string, string[]>();
+  for (const t of tables) {
+    const { results } = await env.OFFICE_DB.prepare(`PRAGMA foreign_key_list("${t}")`).all<{ table: string }>();
+    parents.set(t, [...new Set((results ?? []).map((r) => r.table).filter((p) => wanted.has(p)))]);
+  }
+  const done = new Set<string>(), visiting = new Set<string>(), order: string[] = [];
+  const visit = (t: string, path: string[]): void => {
+    if (done.has(t)) return;
+    if (visiting.has(t)) throw new Error(`tables point at each other in a circle (${[...path, t].join(" -> ")}): there is no order to restore them in`);
+    visiting.add(t);
+    for (const p of parents.get(t) ?? []) visit(p, [...path, t]);
+    visiting.delete(t);
+    done.add(t);
+    order.push(t);
+  };
+  for (const t of tables) visit(t, []);
+  return order;
+}
+
+// The statements that write these rows (INSERT OR REPLACE, one per row), not yet run: writeRows runs them as one batch; a restore runs them one by one inside its own transaction.
+export async function rowStatements(env: Env, name: string, rows: Record<string, unknown>[]): Promise<D1PreparedStatement[]> {
   const table = await knownTable(env, name);
-  if (!rows.length) return 0;
+  if (!rows.length) return [];
   const cols = await columnsOf(env, table);
   const allowed = new Set(cols.map((c) => c.name));
   const pks = cols.filter((c) => c.pk > 0);
   const rowidAlias = pks.length === 1 && /^INTEGER$/i.test(pks[0].type);
-  const statements = [env.OFFICE_DB.prepare("PRAGMA defer_foreign_keys = ON")];
+  const statements: D1PreparedStatement[] = [];
   for (const row of rows) {
     const names = Object.keys(row).filter((k) => k !== "__rowid");
     for (const k of names) if (!allowed.has(k)) throw new Error(`${table} has no column ${k}`);
@@ -135,7 +159,13 @@ export async function writeRows(env: Env, name: string, rows: Record<string, unk
     const values = rowidAlias ? names.map((k) => row[k]) : [row.__rowid, ...names.map((k) => row[k])];
     statements.push(env.OFFICE_DB.prepare(`INSERT OR REPLACE INTO "${table}" (${columns.map((c) => `"${c}"`).join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`).bind(...values));
   }
-  await env.OFFICE_DB.batch(statements);   // one transaction per page: a page is all in or all out
+  return statements;
+}
+
+export async function writeRows(env: Env, name: string, rows: Record<string, unknown>[]): Promise<number> {
+  const statements = await rowStatements(env, name, rows);
+  if (!statements.length) return 0;
+  await env.OFFICE_DB.batch([env.OFFICE_DB.prepare("PRAGMA defer_foreign_keys = ON"), ...statements]);   // one transaction per page: a page is all in or all out
   return rows.length;
 }
 

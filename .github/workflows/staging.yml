@@ -507,6 +507,10 @@ jobs:
           COOKIE=$(cat "$RESULTS/cookie.txt")
           fingerprint() { curl -s "${A[@]}" -H "X-Target-Business: $1" "$BASE/admin/migration/fingerprint" > "$RESULTS/$2"; }
           customers() { curl -s -H "Cookie: $COOKIE" "$BASE/customers" > "$RESULTS/$1"; }
+          # LINKED data first. Two PAID invoices with payment details make the real import write invoices AND payments that point at their customers (payments.customer_id -> customers: the schema's one foreign key). The first real
+          # restore on production (2026-10-14) failed on exactly that shape, and this rehearsal used to restore a business with no payments at all.
+          printf 'Invoice,Date,Client,Total,Paid,Balance due,Payment details\nLINK-1,2026-10-14,Staging Customer One,100.00,100.00,0.00,100.00;2026-10-14;EFT\nLINK-2,2026-10-14,Staging Link Two,250.00,250.00,0.00,150.00;2026-10-14;EFT|100.00;2026-10-14;Cash\n' > "$RESULTS/linked.csv"
+          curl -s -o "$RESULTS/backup-linked-import.json" -X POST -H "Cookie: $COOKIE" -F "csv=@$RESULTS/linked.csv;type=text/csv" "$BASE/files/invoices-csv-import"
           customers backup-customers-before.json
           note() { curl -s -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Target-Business: staging-co" "$BASE/debug/customer-notes?customerId=1" > "$RESULTS/$1"; }
           note backup-note-before.json
@@ -568,9 +572,23 @@ jobs:
               "customers_are_back_exactly_as_before": names(restored) == names(before),
               "the_whole_business_fingerprint_equals_the_original": core(fr) == core(fo),
               "no_damage_left": not any(n.startswith("DAMAGE") for n in names(restored)),
+              "linked_import_answered": (json.dumps(read("backup-linked-import.json"))[:160] if read("backup-linked-import.json") is not None else None),
+              "payments_before_and_after": {"original": count(fo, "payments"), "restored": count(fr, "payments")},
+              "linked_rows_exist_before": (count(fo, "payments") or 0) >= 3 and (count(fo, "invoices") or 0) >= 2,
+              "the_linked_rows_are_back": count(fr, "payments") == count(fo, "payments") and count(fr, "invoices") == count(fo, "invoices") and count(fr, "customers") == count(fo, "customers"),
+              "restore_ok": rep.get("ok") is True and not rep.get("error"),
               "a_safety_snapshot_was_taken": any(str(s.get("name", "")).endswith("-pre-restore") for s in lst),
               "the_other_business_is_untouched": core(read("backup-fp-other-before.json")) == core(read("backup-fp-other-after.json")),
           }))
+          PY
+          # A false check FAILS the step: until 2026-10-14 the results were only recorded, so a restore that failed would have looked like a step that passed.
+          python3 - <<'PY'
+          import json, os, sys
+          d = json.load(open(os.path.join(os.environ["RESULTS"], "backup.json")))
+          required = ["damage_1_customers_were_added", "damage_2_the_note_was_overwritten", "the_damaged_fingerprint_differs_from_the_original", "the_note_is_back", "restore_ok", "customers_are_back_exactly_as_before", "the_whole_business_fingerprint_equals_the_original", "no_damage_left", "a_safety_snapshot_was_taken", "the_other_business_is_untouched", "linked_rows_exist_before", "the_linked_rows_are_back"]
+          failed = [k for k in required if d.get(k) is not True]
+          print("restore checks that did not hold:", failed)
+          sys.exit(1 if failed else 0)
           PY
 
       - name: Probe the memory index on Cloudflare

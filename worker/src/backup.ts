@@ -5,7 +5,8 @@
 // snapshot that did not finish has no manifest and is never mistaken for a good one. Files are mirrored INCREMENTALLY (they never change once written), so deleting one by accident is not permanent.
 // RESTORE verifies the snapshot's checksums BEFORE it touches anything, first takes a safety snapshot of the current state (so the restore is itself reversible), locks the business to admins while it runs,
 // rebuilds from the snapshot, and then compares the result with the fingerprint recorded at snapshot time. The memory index (derived data held by Cloudflare) is not covered.
-import { compareFingerprints, fingerprint, listFiles, listTables, readNotes, readRows, sequences, tableInfo, writeNotes, writeRows, ensureSchema, type ColumnInfo, type Fingerprint } from "./migration";
+import { atomically } from "./atomic";
+import { compareFingerprints, fingerprint, listFiles, listTables, readNotes, readRows, sequences, tableInfo, writeNotes, ensureSchema, rowStatements, tablesParentsFirst, type ColumnInfo, type Fingerprint } from "./migration";
 import type { Env } from "./types";
 
 export const KEEP_SNAPSHOTS = 14;
@@ -198,16 +199,31 @@ export async function restoreSnapshot(env: Env, name: string, confirm: string): 
   await setMeta(env, "restoring", "1");
   try {
     await ensureSchema(env, manifest.tables.map((t) => ({ name: t.name, sql: t.sql, columns: t.columns })));
-    for (const table of await listTables(env)) await env.OFFICE_DB.prepare(`DELETE FROM "${table}"`).run();
-    let rows = 0;
-    for (const t of manifest.tables) {
-      const parsed = (tableText.get(t.name) ?? "").split("\n").filter(Boolean).map((l) => JSON.parse(l) as Record<string, unknown>);
-      for (let i = 0; i < parsed.length; i += 200) rows += await writeRows(env, t.name, parsed.slice(i, i + 200));
-    }
-    for (const s of manifest.sequences) {
-      const done = await env.OFFICE_DB.prepare("UPDATE sqlite_sequence SET seq = ? WHERE name = ?").bind(s.seq, s.name).run();   // EXACT, not the highest of the two: the old counters may be ahead of the snapshot's
-      if (!done.meta.changes) await env.OFFICE_DB.prepare("INSERT INTO sqlite_sequence (name, seq) VALUES (?, ?)").bind(s.name, s.seq).run();
-    }
+    // The order tables can be emptied and filled in follows the schema's foreign keys (children first to empty, parents first to fill). It is worked out BEFORE anything changes: tables that point at each other in a circle
+    // refuse the restore here, not half way through.
+    const parentsFirst = await tablesParentsFirst(env, await listTables(env));
+    const fillOrder = parentsFirst.filter((n) => manifest.tables.some((t) => t.name === n));
+    // The business's data is replaced inside ONE transaction: if anything fails the database is exactly as it was. (The first real restore on production, 2026-10-14, emptied tables one statement at a time in alphabetical order
+    // with no transaction, failed on a foreign key when it reached `customers` while `payments` still pointed at it, and left five tables, 423 rows, deleted.) Only the database is touched inside it; the notes and the files
+    // live elsewhere and are handled after it commits.
+    const rows = await atomically(env, async (tx) => {
+      for (const table of [...parentsFirst].reverse()) await tx.OFFICE_DB.prepare(`DELETE FROM "${table}"`).run();
+      let inserted = 0;
+      for (const name of fillOrder) {
+        const t = manifest.tables.find((x) => x.name === name)!;
+        const parsed = (tableText.get(t.name) ?? "").split("\n").filter(Boolean).map((l) => JSON.parse(l) as Record<string, unknown>);
+        for (let i = 0; i < parsed.length; i += 200) {
+          const page = parsed.slice(i, i + 200);
+          for (const statement of await rowStatements(tx, t.name, page)) await statement.run();
+          inserted += page.length;
+        }
+      }
+      for (const s of manifest.sequences) {
+        const done = await tx.OFFICE_DB.prepare("UPDATE sqlite_sequence SET seq = ? WHERE name = ?").bind(s.seq, s.name).run();   // EXACT, not the highest of the two: the old counters may be ahead of the snapshot's
+        if (!done.meta.changes) await tx.OFFICE_DB.prepare("INSERT INTO sqlite_sequence (name, seq) VALUES (?, ?)").bind(s.name, s.seq).run();
+      }
+      return inserted;
+    });
     // notes: the business's notes are replaced by the snapshot's
     for (let cursor: string | null = null; ;) {
       const page = await readNotes(env, cursor);
