@@ -22,10 +22,13 @@ here: `0002_whatever_it_is.sql`, `0003_...`, and so on. Each one:
   same real `runIdempotentMigration` pattern already used in
   `index.ts` — checking for the real "duplicate column" error rather
   than swallowing anything).
-- Gets applied by hand for now (there's no automated runner yet), the
-  same way a `/debug/init-*` route already was — the real difference
-  is the change lives in a real, committed, versioned file instead of
-  a route that has to be found and remembered later.
+- Is applied AUTOMATICALLY, once, to every business's object, in order, whenever the object next wakes (worker/src/schema.ts; the hourly alarm wakes every active business, so a new
+  step reaches them all within the hour). The single-business deployment applies the same files with `wrangler d1 migrations apply`. After adding a file run `node tools/gen-baseline.js`
+  (a test fails if the generated steps differ from this folder).
+- Must be ADDITIVE: only `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, `ALTER TABLE ... ADD COLUMN`, `INSERT OR IGNORE` and backfill `UPDATE`s. A test refuses `DROP`, `DELETE`,
+  `TRUNCATE` and `RENAME`: that is what makes it safe to roll the code back while objects are already on newer steps.
+- Is ATOMIC per object: a step and the record that it was applied go in one transaction. If a step fails the business is refused (a clear 503 to everyone but administrators), the failure is
+  recorded and shown in the health report, the step is retried every hour and on demand (`POST /admin/schema/retry`), and the business is served again as soon as none fails.
 - Never edits `0001_baseline.sql` or any earlier file. History stays
   history.
 

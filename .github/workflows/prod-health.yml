@@ -91,6 +91,13 @@ jobs:
               problems.append("there is no backup")
           elif b.get("newestAgeHours") > float(env["BACKUP_STALE_HOURS"]):
               problems.append("the newest backup is %s hours old (limit %s)" % (b.get("newestAgeHours"), env["BACKUP_STALE_HOURS"]))
+          sch = h.get("schema") or {}
+          if sch.get("error"):
+              problems.append("a schema step FAILED: %s: %s (the business is refused until it is fixed)" % ((sch.get("error") or {}).get("name"), (sch.get("error") or {}).get("message")))
+          elif sch.get("pending"):
+              problems.append("%d schema step(s) are not applied: %s" % (len(sch.get("pending")), ", ".join(sch.get("pending"))))
+          if (sch.get("unknownApplied") or 0) > 0:
+              warnings.append("this business has applied %s schema step(s) this code does not know (the code may have been rolled back)" % sch.get("unknownApplied"))
           spend = ((h.get("model") or {}).get("today") or {}).get("estimatedUsd") or 0
           if spend > float(env["SPEND_WARN_USD"]):
               warnings.append("the model has cost about $%s today (warning above $%s)" % (spend, env["SPEND_WARN_USD"]))
@@ -101,7 +108,7 @@ jobs:
           used = ((h.get("model") or {}).get("today") or {}).get("neurons") or 0
           if cap and used >= cap * float(env["CAP_WARN_FRACTION"]):
               warnings.append("the model has used %d%% of the day's spend ceiling (%s of %s neurons)" % (round(100 * used / cap), used, cap))
-          verdict = {"healthy": not problems, "problems": problems, "warnings": warnings, "model_today_usd": spend, "queue_pending": q.get("pending"), "job_minutes_since_last_run": minutes, "model_today_neurons": ((h.get("model") or {}).get("today") or {}).get("neurons"), "model_requests_today": ((h.get("model") or {}).get("today") or {}).get("requests"), "plan_mode": (lim.get("plan") or {}).get("mode"), "members_active_today": lim.get("activeMembers"), "members_at_or_over_limit": lim.get("membersAtOrOverLimit")}
+          verdict = {"healthy": not problems, "problems": problems, "warnings": warnings, "model_today_usd": spend, "queue_pending": q.get("pending"), "job_minutes_since_last_run": minutes, "model_today_neurons": ((h.get("model") or {}).get("today") or {}).get("neurons"), "model_requests_today": ((h.get("model") or {}).get("today") or {}).get("requests"), "plan_mode": (lim.get("plan") or {}).get("mode"), "members_active_today": lim.get("activeMembers"), "members_at_or_over_limit": lim.get("membersAtOrOverLimit"), "schema_pending": len(sch.get("pending") or []), "schema_steps_applied": sch.get("appliedSteps")}
           json.dump(verdict, open(os.path.join(r, "verdict.json"), "w"))
           print(json.dumps(verdict, indent=1))
           open(os.environ["GITHUB_OUTPUT"], "a").write("healthy=%s\n" % ("true" if not problems else "false"))

@@ -174,6 +174,24 @@ jobs:
         working-directory: worker
         run: wrangler d1 migrations apply OFFICE_DB --remote --config wrangler.staging.toml
 
+      - name: Record the business objects as they are BEFORE the schema step (the previous code is still deployed)
+        continue-on-error: true
+        run: |
+          BASE="https://${SLUG}.websitehub.co.za"
+          mkdir -p "$RESULTS"
+          for b in staging-co staging-two; do
+            curl -s "$BASE/admin/migration/manifest" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY" -H "X-Target-Business: $b" > "$RESULTS/schema-before-$b.json"
+          done
+
+      - name: Add a temporary schema step (staging only, NEVER committed)
+        run: |
+          # A new migration file that exists only in this run's workspace: it adds a column to a table that already holds data. Its number is per run, so every run migrates the objects once more.
+          V=$((1000 + GITHUB_RUN_NUMBER % 8000)); P=$(printf '%04d' "$V")
+          printf -- "-- staging rehearsal only: never committed\nALTER TABLE customers ADD COLUMN probe_%s TEXT DEFAULT 'run%s';\n" "$GITHUB_RUN_NUMBER" "$GITHUB_RUN_NUMBER" > "worker/migrations/${P}_staging_probe.sql"
+          node tools/gen-baseline.js
+          echo "SCHEMA_PROBE=${P}_staging_probe" >> "$GITHUB_ENV"
+          echo "SCHEMA_PROBE_COLUMN=probe_${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+
       - name: Deploy staging's Worker
         working-directory: worker
         run: |
@@ -306,6 +324,44 @@ jobs:
               "refused": {"owner_session_placed_in_the_other_business": os.environ["S_WRONG"], "session_with_no_business": os.environ["S_NOB"], "stranger": os.environ["S_STRANGER"], "admin_call_naming_no_business": os.environ["S_NAMELESS"]},
               "five_list_calls_seconds_from_a_US_runner": times,
           }))
+          PY
+
+      - name: Verify the business objects migrated their schema on Cloudflare
+        id: schema
+        continue-on-error: true
+        run: |
+          BASE="https://${SLUG}.websitehub.co.za"
+          for b in staging-co staging-two; do
+            curl -s "$BASE/admin/health" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Target-Business: $b" > "$RESULTS/schema-health-$b.json"
+            curl -s "$BASE/admin/migration/manifest" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY" -H "X-Target-Business: $b" > "$RESULTS/schema-after-$b.json"
+          done
+          python3 - <<'PY' > "$RESULTS/schema.json"
+          import json, os
+          r = os.environ["RESULTS"]
+          probe, column = os.environ.get("SCHEMA_PROBE"), os.environ.get("SCHEMA_PROBE_COLUMN")
+          def load(n):
+              try:
+                  return json.load(open(os.path.join(r, n)))
+              except Exception:
+                  return {}
+          def table(m, name):
+              return next((t for t in (m.get("tables") or []) if t.get("name") == name), {})
+          out = {"step_added_to_the_build_only": probe, "column": column, "businesses": {}}
+          for b in ("staging-co", "staging-two"):
+              h = (load("schema-health-%s.json" % b)).get("schema") or {}
+              before, after = table(load("schema-before-%s.json" % b), "customers"), table(load("schema-after-%s.json" % b), "customers")
+              applied = ((h.get("lastMigration") or {}).get("applied")) or []
+              out["businesses"][b] = {
+                  "migrated_by_this_deploy": probe in applied, "last_migration_applied": applied,
+                  "nothing_pending": h.get("pending") == [], "no_error": h.get("error") is None,
+                  "steps_applied": h.get("appliedSteps"), "steps_this_code_knows": h.get("latestKnownStep"), "steps_from_earlier_runs_this_code_does_not_know": h.get("unknownApplied"),
+                  "column_is_there": column in [c.get("name") for c in (after.get("columns") or [])],
+                  "column_was_not_there_before": column not in [c.get("name") for c in (before.get("columns") or [])],
+                  "customers_before": before.get("count"), "customers_after": after.get("count"),
+                  "data_kept": before.get("count") is not None and after.get("count") is not None and after.get("count") >= before.get("count"),
+              }
+          out["all_migrated_and_data_kept"] = all(v["migrated_by_this_deploy"] and v["nothing_pending"] and v["no_error"] and v["column_is_there"] and v["data_kept"] for v in out["businesses"].values())
+          print(json.dumps(out))
           PY
 
       - name: Back up, damage and restore a business on Cloudflare
@@ -661,6 +717,7 @@ jobs:
           BACKUP: ${{ steps.backup.outcome }}
           HEALTH: ${{ steps.health.outcome }}
           CAPS: ${{ steps.caps.outcome }}
+          SCHEMA: ${{ steps.schema.outcome }}
         run: |
           mkdir -p ops
           python3 - <<'PY'
@@ -682,7 +739,7 @@ jobs:
               "run": os.environ.get("GITHUB_RUN_ID"),
               "commit": os.environ.get("GITHUB_SHA", "")[:7],
               "resources": {"database_id": os.environ.get("D1_ID"), "kv_namespace_id": os.environ.get("KV_ID"), "worker": "office-staging-api", "host": "office-staging.websitehub.co.za"},
-              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E"), "real_sentence": os.environ.get("SENTENCE"), "businesses_created": os.environ.get("BUSINESSES"), "memory_index_probe": os.environ.get("VECTORS"), "model_probe": os.environ.get("MODEL"), "backup_restore": os.environ.get("BACKUP"), "health_report": os.environ.get("HEALTH"), "cost_caps": os.environ.get("CAPS")},
+              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E"), "real_sentence": os.environ.get("SENTENCE"), "businesses_created": os.environ.get("BUSINESSES"), "memory_index_probe": os.environ.get("VECTORS"), "model_probe": os.environ.get("MODEL"), "backup_restore": os.environ.get("BACKUP"), "health_report": os.environ.get("HEALTH"), "cost_caps": os.environ.get("CAPS"), "schema_migration": os.environ.get("SCHEMA")},
               "init_routes": (read("init.txt") or "").splitlines(),
               "indexes": readjson("indexes.json"),
               "trial_do": readjson("trial-do.json"),
@@ -694,6 +751,7 @@ jobs:
               "backup_restore": readjson("backup.json"),
               "health_report": readjson("health.json"),
               "cost_caps": readjson("caps.json"),
+              "schema_migration": readjson("schema.json"),
               "real_sentence": readjson("sentence.json"),
           }
           json.dump(out, open("ops/staging-last-run.json", "w"), indent=1)

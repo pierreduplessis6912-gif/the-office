@@ -46,6 +46,8 @@ export interface Env {
   BACKUPS?: R2Bucket;
   // The SHARED database (the directory and the plans), handed to a business's object, whose own OFFICE_DB is its private data. Absent on the single-business deployment, where OFFICE_DB holds both.
   SHARED_DB?: D1Database;
+  // Handed to the pipeline inside a business's object: runs its schema steps again and says what happened (the admin retry route). Absent outside an object.
+  RETRY_SCHEMA?: () => Promise<{ applied: string[]; pending: string[]; error: { name: string; message: string } | null }>;
   // How long a business's plan is remembered, in seconds (limits.ts). 300 by default; "0" reads it every time (staging, so a rehearsal sees a change at once).
   PLAN_CACHE_SECONDS?: string;
   // "0" switches off the per-business model usage metering (usage.ts). On by default.

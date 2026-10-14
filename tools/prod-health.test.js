@@ -14,7 +14,7 @@ module.exports = async function runProdHealthTests({ check, path, fs }) {
     return { ...JSON.parse(fs.readFileSync(path.join(dir, 'verdict.json'), 'utf8')), output: fs.readFileSync(out, 'utf8').trim() };
   };
   const now = '2026-10-14T12:00:00.000Z';
-  const good = { business: 'zulu-co', generatedAt: now, hourlyJob: { lastRunAt: '2026-10-14T11:30:00.000Z', minutesSinceLastRun: 30, lastOk: true, lastError: null, nextAlarmAt: '2026-10-14T12:30:00.000Z' }, memoryQueue: { pending: 2, oldestPendingMinutes: 5 }, requests: { recent: 100, serverErrors: 1, errorRate: 0.01 }, backup: { lastAttemptOk: true, newestAgeHours: 6 }, model: { today: { estimatedUsd: 0.4, neurons: 36000 } }, limits: { plan: { messagesPerMemberPerDay: 100, neuronsPerBusinessPerDay: 400000, mode: 'warn' }, membersAtOrOverLimit: 0 } };
+  const good = { business: 'zulu-co', generatedAt: now, hourlyJob: { lastRunAt: '2026-10-14T11:30:00.000Z', minutesSinceLastRun: 30, lastOk: true, lastError: null, nextAlarmAt: '2026-10-14T12:30:00.000Z' }, memoryQueue: { pending: 2, oldestPendingMinutes: 5 }, requests: { recent: 100, serverErrors: 1, errorRate: 0.01 }, backup: { lastAttemptOk: true, newestAgeHours: 6 }, model: { today: { estimatedUsd: 0.4, neurons: 36000 } }, limits: { plan: { messagesPerMemberPerDay: 100, neuronsPerBusinessPerDay: 400000, mode: 'warn' }, membersAtOrOverLimit: 0 }, schema: { appliedSteps: 1, latestKnownStep: 1, pending: [], unknownApplied: 0, error: null } };
   const mod = (patch) => JSON.parse(JSON.stringify({ ...good, ...Object.fromEntries(Object.entries(patch).map(([k, v]) => [k, typeof v === 'object' && v !== null && !Array.isArray(v) ? { ...good[k], ...v } : v])) }));
 
   check(Object.keys(thresholds).length === 9 && thresholds.JOB_STALE_MINUTES === '150' && thresholds.BACKUP_STALE_HOURS === '30' && thresholds.ERROR_RATE_LIMIT === '0.2', 'the thresholds are in the workflow where they can be read and changed (nine of them)');
@@ -31,6 +31,8 @@ module.exports = async function runProdHealthTests({ check, path, fs }) {
     ['the last backup failed', mod({ backup: { lastAttemptOk: false, lastError: 'the backup bucket is full' } }), /backup attempt FAILED: the backup bucket is full/],
     ['the newest backup is too old', mod({ backup: { newestAgeHours: 31 } }), /backup is 31 hours old/],
     ['there is no backup', mod({ backup: { newestAgeHours: null } }), /there is no backup/],
+    ['a schema step failed', mod({ schema: { error: { name: '0002_add_x', message: 'no such table: y' }, pending: ['0002_add_x'] } }), /schema step FAILED: 0002_add_x: no such table: y/],
+    ['a schema step is pending', mod({ schema: { pending: ['0002_add_x', '0003_add_y'], error: null } }), /2 schema step\(s\) are not applied: 0002_add_x, 0003_add_y/],
   ];
   check(cases.every(([, r, re]) => { const v = judge(r); return v.healthy === false && v.output === 'healthy=false' && v.problems.some((p) => re.test(p)); }), `it calls UNHEALTHY, with the reason, each of the ways a business can be: ${cases.map((c) => c[0]).join('; ')}`);
   const calm = [
@@ -41,6 +43,8 @@ module.exports = async function runProdHealthTests({ check, path, fs }) {
     ['a small, normal queue', mod({ memoryQueue: { pending: 40, oldestPendingMinutes: 100 } })],
   ];
   check(calm.every(([, r]) => judge(r).healthy === true), `it does NOT cry wolf: ${calm.map((c) => c[0]).join('; ')}`);
+  const ahead = judge(mod({ schema: { unknownApplied: 2 } }));
+  check(ahead.healthy === true && ahead.warnings.some((w) => /2 schema step\(s\) this code does not know/.test(w)), 'a business that has applied steps this code does not know (the code was rolled back) is a WARNING, not a failure');
   const pricey = judge(mod({ model: { today: { estimatedUsd: 3.5 } } }));
   check(pricey.healthy === true && pricey.warnings.length === 1 && /cost about \$3\.5 today/.test(pricey.warnings[0]), 'a high model bill is a WARNING, not a failure (a spending cap is a separate decision)');
   const atLimit = judge(mod({ limits: { membersAtOrOverLimit: 2 } })), nearCap = judge(mod({ model: { today: { estimatedUsd: 3, neurons: 340000 } } })), farFromCap = judge(mod({ model: { today: { estimatedUsd: 3, neurons: 319999 } } }));

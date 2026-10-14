@@ -10,42 +10,42 @@ import { isAdminPath } from "./auth";
 import { readBackupMeta, recordBackupResult } from "./backup";
 import { scopeBindings } from "./scoped-bindings";
 import { isBusinessId } from "./directory";
-import { BASELINE_SQL } from "./baseline-sql";
+import { migrateSchema, splitStatements, type SchemaOutcome, type SchemaStep } from "./schema";
+import { SCHEMA_STEPS } from "./schema-steps";
 import { applyIndexes, type IndexReport } from "./indexes";
 import { DoD1Database, type SqlStorageLike, type StorageLike } from "./storage/do-d1";
 import type { Env } from "./types";
 
-// Bump when the baseline (or a later schema step added here) changes, so existing objects pick it up on their next wake.
-export const SCHEMA_VERSION = 1;
-
-// The baseline is a list of CREATE TABLE IF NOT EXISTS statements with no triggers and no semicolons inside strings, so splitting on ";" is safe (a test pins that).
-export function splitStatements(sql: string): string[] {
-  const withoutComments = sql
-    .split("\n")
-    .filter((line) => !line.trim().startsWith("--"))
-    .join("\n");
-  return withoutComments
-    .split(";")
-    .map((statement) => statement.trim())
-    .filter(Boolean);
-}
+// The newest schema step this code knows. (Objects apply every step they have not yet applied, in order: see schema.ts; the old single "schema version" re-applied the baseline and could never add a column.)
+export const SCHEMA_VERSION = SCHEMA_STEPS[SCHEMA_STEPS.length - 1].version;
+export { splitStatements };
 
 export interface SchemaReport {
   appliedBaseline: boolean;
-  indexes: IndexReport;
+  applied: string[];
+  pending: string[];
+  legacySeeded: boolean;
+  error: SchemaOutcome["error"];
+  indexes: IndexReport | null;
 }
 
-export async function ensureObjectSchema(db: DoD1Database, env: Env): Promise<SchemaReport> {
-  await db.exec("CREATE TABLE IF NOT EXISTS object_meta (key TEXT PRIMARY KEY, value TEXT)");
-  const row = await db.prepare("SELECT value FROM object_meta WHERE key = 'schema_version'").first<{ value: string }>();
-  let appliedBaseline = false;
-  if (Number(row?.value ?? 0) < SCHEMA_VERSION) {
-    for (const statement of splitStatements(BASELINE_SQL)) await db.prepare(statement).run();   // each is CREATE TABLE IF NOT EXISTS, so safe to repeat
-    await db.prepare("INSERT INTO object_meta (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(String(SCHEMA_VERSION)).run();
-    appliedBaseline = true;
+export async function ensureObjectSchema(db: DoD1Database, env: Env, steps: SchemaStep[] = SCHEMA_STEPS, now: Date = new Date()): Promise<SchemaReport> {
+  const outcome = await migrateSchema(db, steps, now);
+  const setMeta = async (key: string, value: string): Promise<void> => {
+    await db.prepare("INSERT INTO object_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(key, value).run();
+  };
+  try {
+    // What the health report and an alert read: the failure (with its step and message), the last migration, and the highest step applied (the old `schema_version`, kept for anything that still reads it).
+    await setMeta("schema_error", outcome.error ? JSON.stringify({ ...outcome.error, at: now.toISOString(), pending: outcome.pending }) : "");
+    if (outcome.applied.length) await setMeta("last_schema_migration", JSON.stringify({ at: now.toISOString(), applied: outcome.applied }));
+    const top = await db.prepare("SELECT MAX(version) AS v FROM schema_steps").first<{ v: number | null }>();
+    if (top?.v) await setMeta("schema_version", String(top.v));
+  } catch {
+    // recording must never turn a successful migration into a failure
   }
-  const indexes = await applyIndexes({ ...env, OFFICE_DB: db as unknown as D1Database } as Env);
-  return { appliedBaseline, indexes };
+  // Indexes only once the tables are right: an index on a column a failed step should have added would fail too.
+  const indexes = outcome.error ? null : await applyIndexes({ ...env, OFFICE_DB: db as unknown as D1Database } as Env);
+  return { appliedBaseline: outcome.applied.includes("0001_baseline"), applied: outcome.applied, pending: outcome.pending, legacySeeded: outcome.legacySeeded, error: outcome.error, indexes };
 }
 
 type Serve = (request: Request, env: Env, ctx: ExecutionContext) => Promise<Response>;
@@ -67,7 +67,8 @@ export const jitterMs = (businessId: string): number => {
 };
 
 // Takes the application's request pipeline so this file never imports the (huge) entry module: the entry module hands its own pipeline in.
-export function makeBusinessObject(serve: Serve, jobs?: BusinessJobs) {
+export function makeBusinessObject(serve: Serve, jobs?: BusinessJobs, options: { steps?: SchemaStep[] } = {}) {
+  const steps = options.steps ?? SCHEMA_STEPS;
   return class BusinessObject {
     db: DoD1Database;
     env: Env;
@@ -75,6 +76,8 @@ export function makeBusinessObject(serve: Serve, jobs?: BusinessJobs) {
     ready: Promise<void>;
     businessId: string | null = null;
     alarmChecked = false;
+    // Set when a schema step failed: until it is fixed the business is refused (admin calls excepted) rather than served from a half-migrated database.
+    schemaError: { name: string; message: string } | null = null;
 
     constructor(state: DurableObjectState, env: Env) {
       this.state = state;
@@ -82,7 +85,9 @@ export function makeBusinessObject(serve: Serve, jobs?: BusinessJobs) {
       this.db = new DoD1Database(state.storage.sql as unknown as SqlStorageLike, state.storage as unknown as StorageLike);
       // Nothing is served until the tables exist: blockConcurrencyWhile holds every incoming request until this finishes.
       this.ready = state.blockConcurrencyWhile(async () => {
-        await ensureObjectSchema(this.db, env);
+        const report = await ensureObjectSchema(this.db, env, steps);
+        this.schemaError = report.error;
+        if (report.error) console.error(JSON.stringify({ level: "error", message: "a business's schema step failed: the business is refused until it is fixed", step: report.error.name, error: report.error.message }));
       });
     }
 
@@ -90,6 +95,16 @@ export function makeBusinessObject(serve: Serve, jobs?: BusinessJobs) {
     // failure cannot stop a business's memories for good (and a failing job cannot retry in a tight loop).
     async alarm(): Promise<void> {
       await this.ready;
+      // A failed schema step is retried every hour (a transient failure heals by itself); while it still fails no job runs against a half-migrated database.
+      if (this.schemaError) {
+        const retried = await this.retrySchema().catch(() => null);
+        if (!retried || retried.error) {
+          const next = Date.now() + HOUR_MS;
+          await this.state.storage.setAlarm(next);
+          await this.setMeta("next_alarm_at", new Date(next).toISOString()).catch(() => undefined);
+          return;
+        }
+      }
       // The hourly job's outcome is RECORDED in the object (health.ts reads it), so a job that fails or stops is visible, not silent.
       const jobStarted = Date.now();
       let jobRan = false;
@@ -133,6 +148,13 @@ export function makeBusinessObject(serve: Serve, jobs?: BusinessJobs) {
       }
     }
 
+    // Runs the schema steps again (an admin call, or the hourly alarm): a step that failed is retried, and the business is served again as soon as none fails.
+    async retrySchema(): Promise<SchemaReport> {
+      const report = await ensureObjectSchema(this.db, this.env, steps);
+      this.schemaError = report.error;
+      return report;
+    }
+
     private async setMeta(key: string, value: string): Promise<void> {
       await this.db.prepare("INSERT INTO object_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(key, value).run();
     }
@@ -149,6 +171,10 @@ export function makeBusinessObject(serve: Serve, jobs?: BusinessJobs) {
         this.businessId = known ?? claimed;
       }
       if (this.businessId !== claimed) return Response.json({ error: "this object belongs to another business" }, { status: 403 });
+      // A failed schema step: everyone but an administrator is turned away with a clear 503 (the admin routes stay open so the failure can be seen and retried).
+      if (this.schemaError && !isAdminPath(new URL(request.url).pathname)) {
+        return Response.json({ error: "This business is being updated and is unavailable for a few minutes. Please try again shortly.", updating: true, retryAfterSeconds: 60 }, { status: 503, headers: { "Retry-After": "60" } });
+      }
       // While a restore is running, everyone but an administrator is turned away: a half-replaced business must not be read or written.
       if (!isAdminPath(new URL(request.url).pathname) && (await this.db.prepare("SELECT value FROM object_meta WHERE key = 'restoring'").first<{ value: string }>())?.value === "1") {
         return Response.json({ error: "This business is being restored from a backup and is unavailable for a few minutes. Please try again shortly.", restoring: true, retryAfterSeconds: 60 }, { status: 503, headers: { "Retry-After": "60" } });
@@ -167,7 +193,7 @@ export function makeBusinessObject(serve: Serve, jobs?: BusinessJobs) {
         this.alarmChecked = true;
       }
       // The notes store, the file storage and the memory index are shared by every business, so each is confined to this business (scoped-bindings.ts).
-      const objectEnv = scopeBindings({ ...this.env, OFFICE_DB: this.db as unknown as D1Database, SHARED_DB: this.env.OFFICE_DB, BUSINESS_ID: claimed } as Env, claimed);
+      const objectEnv = scopeBindings({ ...this.env, OFFICE_DB: this.db as unknown as D1Database, SHARED_DB: this.env.OFFICE_DB, BUSINESS_ID: claimed, RETRY_SCHEMA: () => this.retrySchema() } as Env, claimed);
       const ctx = { waitUntil: (p: Promise<unknown>) => this.state.waitUntil(p), passThroughOnException: () => undefined } as unknown as ExecutionContext;
       return serve(request, objectEnv, ctx);
     }

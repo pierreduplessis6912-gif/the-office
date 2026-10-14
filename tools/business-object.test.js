@@ -15,6 +15,8 @@ async function businessObjectTests({ check, srcDir }) {
   const bundle = (entry) => { const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'bo-')), 'm.js'); esbuild.buildSync({ entryPoints: [path.join(srcDir, entry)], bundle: true, platform: 'node', format: 'cjs', outfile: out, logLevel: 'silent' }); return require(out); };
   const bo = bundle('business-object.ts');
   const baseline = bundle('baseline-sql.ts');
+  const stepsGen = bundle('schema-steps.ts');
+  const baselineTables = [...baseline.BASELINE_SQL.matchAll(/CREATE TABLE IF NOT EXISTS (\w+)/g)].map((m) => m[1]);
   const { INDEXES } = bundle('indexes.ts');
   const plain = (r) => (r ? { ...r } : r);
 
@@ -39,7 +41,7 @@ async function businessObjectTests({ check, srcDir }) {
   const reply = await objA.fetch(named('alpha-co'));
   check(reply.status === 200 && seen.length === 1, 'the object serves a request through the application\'s pipeline function');
   check(seen[0].tablesAtServeTime >= 42, `the tables already exist when the first request is served (tables: ${seen[0].tablesAtServeTime})`);
-  check(tableNames(dbA).filter((t) => !t.startsWith('sqlite_')).length === 42 && dbA.prepare("SELECT value FROM object_meta WHERE key = 'schema_version'").get().value === '1', 'a new object creates the 41 baseline tables (and its own small meta table) and records its schema version');
+  check(tableNames(dbA).filter((t) => !t.startsWith('sqlite_')).length >= 43 && baselineTables.every((n) => tableNames(dbA).includes(n)) && dbA.prepare("SELECT value FROM object_meta WHERE key = 'schema_version'").get().value === String(stepsGen.SCHEMA_STEPS[stepsGen.SCHEMA_STEPS.length - 1].version) && dbA.prepare('SELECT name FROM schema_steps ORDER BY version').all().map((r) => r.name).join() === stepsGen.SCHEMA_STEPS.map((s) => s.name).join(), 'a new object creates the 41 baseline tables (and its own two small bookkeeping tables, and whatever later steps add) and records every step it applied, in order');
   const idx = indexNames(dbA);
   check(idx.has('idx_customers_name') && idx.has('idx_job_scopes_customer') && idx.has('idx_tasks_open') && !idx.has('idx_po_customers_customer'), 'and the indexes for the tables that exist (an index for a table created later waits for it)');
 
@@ -172,6 +174,47 @@ async function businessObjectTests({ check, srcDir }) {
   const dbHu = new DatabaseSync(':memory:'); const Hus = makeState(dbHu); const objHu = new BusinessHl(Hus.state, jobEnv);
   await objHu.alarm();
   check(dbHu.prepare("SELECT value FROM object_meta WHERE key = 'last_job_at'").get() === undefined, 'an object that was never named records no job (nothing ran)');
+
+  // ---- a failed schema step: refuse everyone but admins, retry on demand, heal by itself --------------------------------------------------------------------------------------------------
+  const envsSc = [], consolidatedSc = [];
+  const serveSc = async (req, env) => { envsSc.push(env); return Response.json({ ok: true }); };
+  const goodSc = [{ version: 1, name: '0001_a', sql: 'CREATE TABLE IF NOT EXISTS things (id INTEGER PRIMARY KEY, label TEXT);' }, { version: 2, name: '0002_b', sql: 'ALTER TABLE things ADD COLUMN extra TEXT;' }];
+  const stepsSc = JSON.parse(JSON.stringify(goodSc)); stepsSc[1].sql = 'THIS IS NOT SQL;';
+  const BusinessSc = bo.makeBusinessObject(serveSc, { consolidate: async () => { consolidatedSc.push(1); } }, { steps: stepsSc });
+  const dbSc = new DatabaseSync(':memory:'); const Scs = makeState(dbSc);
+  const quietSc = console.error; const loggedSc = []; console.error = (m) => loggedSc.push(m);
+  let objSc; try { objSc = new BusinessSc(Scs.state, jobEnv); await objSc.ready; } finally { console.error = quietSc; }
+  const metaSc = (k) => dbSc.prepare('SELECT value FROM object_meta WHERE key = ?').get(k)?.value ?? null;
+  const adminSc = { url: 'https://x/admin/health', method: 'GET', headers: new Headers({ 'X-Business-Id': 'alpha-co' }) };
+  check(loggedSc.length === 1 && /schema step failed/.test(loggedSc[0]) && /0002_b/.test(loggedSc[0]), 'a failed schema step is logged with its name when the object wakes');
+  const refusedSc = await objSc.fetch(named('alpha-co')), refusedBodySc = await refusedSc.json();
+  check(refusedSc.status === 503 && refusedSc.headers.get('Retry-After') === '60' && refusedBodySc.updating === true && /being updated/.test(refusedBodySc.error) && envsSc.length === 0, 'FAIL-CLOSED: while a step is failing everyone gets a clear 503 (being updated, try shortly) and the request never reaches the application: no half-migrated database is served');
+  const adminReplySc = await objSc.fetch(adminSc);
+  check(adminReplySc.status === 200 && envsSc.length === 1 && typeof envsSc[0].RETRY_SCHEMA === 'function', 'an ADMIN call is not refused (so the failure can be seen and retried) and its pipeline is handed the means to retry');
+  const recorded = JSON.parse(metaSc('schema_error'));
+  check(recorded.name === '0002_b' && /syntax error/i.test(recorded.message) && recorded.pending.join() === '0002_b' && Number.isFinite(Date.parse(recorded.at)), 'the failure is recorded in the object (the step, the database\'s message, what is pending, when) for the health report');
+  const alarmsBeforeSc = Scs.alarmSets();
+  await objSc.alarm();
+  check(consolidatedSc.length === 0 && Scs.alarmSets() === alarmsBeforeSc + 1, 'while the step still fails the hourly alarm runs NO job against the half-migrated database, retries the step, and arms the next alarm');
+  stepsSc[1].sql = goodSc[1].sql;   // the step is fixed (a new deploy)
+  const retriedSc = await envsSc[0].RETRY_SCHEMA();
+  check(retriedSc.error === null && retriedSc.applied.join() === '0002_b' && metaSc('schema_error') === '' && (await objSc.fetch(named('alpha-co'))).status === 200 && envsSc.length === 2, 'an admin retry after the fix applies the step, clears the failure, and the business is served again at once');
+  // healing with nobody's help
+  const stepsSh = JSON.parse(JSON.stringify(goodSc)); stepsSh[1].sql = 'THIS IS NOT SQL;';
+  const doneSh = [];
+  const BusinessSh = bo.makeBusinessObject(serveSc, { consolidate: async () => { doneSh.push(1); } }, { steps: stepsSh });
+  const dbSh = new DatabaseSync(':memory:'); const Shs = makeState(dbSh);
+  console.error = () => {};
+  let objSh; try { objSh = new BusinessSh(Shs.state, jobEnv); await objSh.ready; await objSh.fetch(named('beta-co')); } finally { console.error = quietSc; }
+  stepsSh[1].sql = goodSc[1].sql;
+  await objSh.alarm();
+  check(objSh.schemaError === null && doneSh.length === 1 && (await objSh.fetch(named('beta-co'))).status === 200, 'SELF-HEALING: once the step is fixed the next hourly alarm applies it by itself, and in that same alarm the hourly job runs and the business is served again');
+  // an object from before the runner
+  const dbLg = new DatabaseSync(':memory:'); const Lgs = makeState(dbLg);
+  dbLg.exec("CREATE TABLE object_meta (key TEXT PRIMARY KEY, value TEXT); INSERT INTO object_meta VALUES ('schema_version', '1'); CREATE TABLE things (id INTEGER PRIMARY KEY, label TEXT); INSERT INTO things (label) VALUES ('kept')");
+  const BusinessLg = bo.makeBusinessObject(serveSc, undefined, { steps: [{ version: 1, name: '0001_a', sql: 'CREATE TABLE things (id INTEGER PRIMARY KEY);' }, goodSc[1]] });
+  const objLg = new BusinessLg(Lgs.state, jobEnv); await objLg.ready;
+  check(objLg.schemaError === null && dbLg.prepare('SELECT name FROM schema_steps ORDER BY version').all().map((r) => r.name).join() === '0001_a,0002_b' && dbLg.prepare('SELECT label FROM things').get().label === 'kept' && (await objLg.fetch(named('gamma-co'))).status === 200, 'an object that already existed BEFORE the runner wakes on the new code, is recognised as having the baseline, gets only the new step, keeps its data, and is served');
 
   // an alarm that was armed BEFORE the next run time was recorded (an object that was already running when this was deployed)
   const BusinessPre = bo.makeBusinessObject(serve, { consolidate: async () => {} });

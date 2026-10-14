@@ -852,6 +852,8 @@ async function expect(role, method, path, want) {
   await require('./limits.test.js')({ check, srcDir });
   // The app shows the server's own explanation of a usage-limit refusal.
   await require('./app-limits.test.js')({ check, path, fs, srcDir });
+  // Schema steps: ordered, once each, atomic, additive.
+  await require('./schema.test.js')({ check, srcDir });
   // The production health alert: its judging script is run against every unhealthy case.
   await require('./prod-health.test.js')({ check, path, fs });
   // The rehearsal workflow creates real resources, so its safety must not be removable by accident.

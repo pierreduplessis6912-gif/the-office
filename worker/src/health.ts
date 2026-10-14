@@ -1,5 +1,6 @@
 // One read-only health report for a business: is the work that must happen on its own (the hourly memory job, the daily backup) happening, is anything piling up, what is the model costing, and are requests
 // failing. Added 2026-10-14 (SHIP_CHECKLIST.md item 7). A scheduled GitHub check judges it and goes red when something is wrong, so a failing job tells Pierre instead of staying silent.
+import { SCHEMA_STEPS } from "./schema-steps";
 import { memberUsageToday } from "./limits";
 import { readBackupMeta } from "./backup";
 import type { Env } from "./types";
@@ -16,6 +17,32 @@ const minutesSince = (iso: string | null, now: number): number | null => {
   const t = iso ? Date.parse(iso.includes("T") ? iso : iso.replace(" ", "T") + "Z") : NaN;
   return Number.isFinite(t) ? Math.max(0, Math.round((now - t) / 60_000)) : null;
 };
+
+// Which schema steps this business has applied, which are still pending, and the last failure (schema.ts). A pending step or a failure means the business is being refused until it is fixed.
+async function schemaHealth(env: Env): Promise<Record<string, unknown>> {
+  const latest = SCHEMA_STEPS[SCHEMA_STEPS.length - 1].version;
+  let appliedVersions: number[] = [];
+  try {
+    appliedVersions = ((await env.OFFICE_DB.prepare("SELECT version FROM schema_steps").all<{ version: number }>()).results ?? []).map((r) => Number(r.version));
+  } catch {
+    // no steps table: not a business's object
+  }
+  const parse = (text: string | null): unknown => {
+    try {
+      return text ? JSON.parse(text) : null;
+    } catch {
+      return null;
+    }
+  };
+  return {
+    latestKnownStep: latest,
+    appliedSteps: appliedVersions.length,
+    pending: SCHEMA_STEPS.filter((st) => !appliedVersions.includes(st.version)).map((st) => st.name),
+    unknownApplied: appliedVersions.filter((v) => !SCHEMA_STEPS.some((st) => st.version === v)).length,
+    error: parse(await meta(env, "schema_error")),
+    lastMigration: parse(await meta(env, "last_schema_migration")),
+  };
+}
 
 export async function healthReport(env: Env, now: Date = new Date()): Promise<Record<string, unknown>> {
   const nowMs = now.getTime();
@@ -45,5 +72,6 @@ export async function healthReport(env: Env, now: Date = new Date()): Promise<Re
     requests: { ...requests, errorRate: requests.recent ? Math.round((requests.serverErrors / requests.recent) * 1000) / 1000 : 0, note: "the last 200 requests that changed something (timings must be on)" },
     model: usage,
     limits: await memberUsageToday(env, now),
+    schema: await schemaHealth(env),
   };
 }

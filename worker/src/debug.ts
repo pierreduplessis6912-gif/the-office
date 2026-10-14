@@ -110,6 +110,13 @@ if (url.pathname === "/debug/timings" && request.method === "GET") {
       return result.ok ? Response.json(result) : Response.json({ error: result.error }, { status: result.status });
     }
 
+    // Run a business's schema steps again, now (schema.ts): for a step that failed. Inside a business's object only.
+    if (url.pathname === "/admin/schema/retry" && request.method === "POST") {
+      if (!env.RETRY_SCHEMA) return Response.json({ error: "schema steps are per business: name one with X-Target-Business" }, { status: 400 });
+      const report = await env.RETRY_SCHEMA();
+      return Response.json({ applied: report.applied, pending: report.pending, error: report.error, ok: report.error === null });
+    }
+
     // One read-only health report for a business (health.ts): its hourly job, backup, memory queue, request errors and what the model is costing.
     if (url.pathname === "/admin/health" && request.method === "GET") {
       return Response.json(await healthReport(env));
