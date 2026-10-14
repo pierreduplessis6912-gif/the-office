@@ -59,6 +59,8 @@ class Client:
             self.conn.request(method, path, body=body, headers=headers or {})
             r = self.conn.getresponse()
             data = r.read()
+            if r.status != 200:   # keep what came back: the ray id finds the request in Cloudflare's logs
+                data = f"cf-ray={r.getheader('cf-ray')}; server={r.getheader('server')}; ".encode() + data[:200]
             return r.status, time.perf_counter() - t, data
         except Exception as e:  # noqa: BLE001 - any failure is a data point, not a crash
             try:
@@ -88,6 +90,7 @@ def summarize(name, workers, elapsed, rows, **extra):
         "errors": sum(1 for r in rows if r[1] != 200),
         "p50": percentile(lat, 0.50), "p95": percentile(lat, 0.95), "p99": percentile(lat, 0.99), "max": lat[-1] if lat else None,
         "ok_p95": percentile(ok, 0.95),
+        "error_samples": [{"status": r[1], "seconds": round(r[2], 3), "detail": (r[3] or b"").decode("utf-8", "replace")[:240]} for r in rows if r[1] != 200][:3],
     }
     out.update(extra)
     for k in ("p50", "p95", "p99", "max", "ok_p95"):
@@ -110,8 +113,8 @@ def run_groups(groups, seconds):
             t0 = time.perf_counter()
             if not once and t0 >= stop:
                 break
-            status, secs, _ = make_op(i, n)(c)
-            rows[name].append((t0, status, secs))
+            status, secs, data = make_op(i, n)(c)
+            rows[name].append((t0, status, secs, data if status != 200 else None))
             n += 1
             if once:
                 break

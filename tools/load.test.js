@@ -97,6 +97,24 @@ module.exports = async function runLoadTests({ check, path, fs }) {
     check(j.status === 0 && j.v.ok === true, `script + judge: what the script prints, the judge reads and passes (${j.v ? j.v.problems.join('; ') : 'unreadable'})`);
   }
 
+  // A failing request must leave evidence: the status, the Cloudflare ray id (to find it in their logs) and the start of the body. The fake server fails the first three reads with a 502 (the script's own customer count uses the first; the first phase then sees two).
+  let failed = 0;
+  const server2 = http.createServer((req, res) => { req.resume(); req.on('end', () => {
+    if (req.url === '/customers' && failed < 3) { failed++; res.writeHead(502, { 'content-type': 'text/plain', 'cf-ray': 'abc123-JNB', server: 'cloudflare' }); return res.end('error code: 502'); }
+    res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(req.url.startsWith('/admin/health') ? { requests: { serverErrors: 0 } } : { items: [{ id: 1 }] }));
+  }); });
+  await new Promise((r) => server2.listen(0, '127.0.0.1', r));
+  const run2 = await new Promise((resolve) => {
+    const child = spawn('python3', [scriptFile], { env: { PATH: process.env.PATH, LOAD_HOST: '127.0.0.1', LOAD_LOCAL_PORT: String(server2.address().port), COOKIE_A: 'office_session=AAAA', COOKIE_B: 'office_session=BBBB', ADMIN_KEY: 'k', LOAD_SECONDS: '0.3', LOAD_STEPS: '1', LOAD_SENTENCES: '0' } });
+    let out = ''; child.stdout.on('data', (c) => { out += c; }); child.on('close', () => resolve(out));
+  });
+  server2.close();
+  let m2 = null; try { m2 = JSON.parse(run2); } catch { /* reported below */ }
+  const bad = m2 && m2.phases.find((p) => p.errors > 0);
+  check(bad && bad.error_samples.length === 2 && bad.error_samples[0].status === 502 && /cf-ray=abc123-JNB; server=cloudflare; error code: 502/.test(bad.error_samples[0].detail) && bad.statuses['502'] === 2, 'script: a failing request leaves evidence (its status, the Cloudflare ray id, the server and the start of the body), so a 502 on a real run can be traced instead of guessed at');
+  const j2 = m2 ? judge(m2) : { status: 0, v: null };
+  check(j2.status === 1 && j2.v && j2.v.problems.some((p) => /requests failed/.test(p)), 'script + judge: those failures reach the judge and fail the run (a failure is never averaged away)');
+
   // ---- the workflow --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   const wf = fs.readFileSync(path.join(repo, '.github', 'workflows', 'staging.yml'), 'utf8');
   check(/options:\n\s+- rehearsal\n\s+- gate\n\s+- gate-drill\n\s+- load\n/.test(wf) && /load_sentences:\n[\s\S]*?default: "5"/.test(wf), 'workflow: `load` is a mode a person can start, with a setting for how many real sentences (default 5)');
