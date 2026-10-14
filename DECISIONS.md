@@ -7244,3 +7244,15 @@ Pierre pasted a review of the trial results that said yes to staging but asked f
 **Not verified, and to settle BEFORE enforce is switched on anywhere real.** **How the app displays a 429**: not checked, and it may show a generic error instead of the message. The real limits. Whether the daily reset should be at midnight UTC (2 a.m. in South Africa) or local midnight. **Not built:** an in-app usage display; limits on anything but the two model routes; per-member limits that differ within a business.
 
 **The old GitHub token.** Re-tested twice: **still valid** (it has `repo` and `workflow` scopes); Pierre has not yet deleted it.
+
+---
+
+## The app shows the server's own explanation of a usage-limit refusal (SHIP_CHECKLIST.md item 6), 2026-10-14
+
+**The problem, confirmed in the code.** In ENFORCE mode a member over the daily limit gets a 429 with a plain-language `error`, but the app showed **"Something went wrong (429)."** for a text message and **"Upload failed (429)."** for a voice or file upload, which would have looked like a bug. (Enforce is not switched on anywhere real, so nobody has seen this.)
+
+**The fix.** One small helper in `app/lib/main.dart`, `_serverReason`, used at the three places the app sends something that uses the model (both text sends, which are identical blocks, and the upload helper that serves every file upload). It acts **only on a 429**, reads the server's explanation from the `error` key, uses it only when it is a non-empty string, and otherwise says "Too many requests right now. Please try again later." Every other failure keeps exactly the wording it had. A refusal comes BEFORE the idempotency record is created, so the app's own retry is not left stuck.
+
+**What is and is not verified.** **The Dart cannot be compiled or analysed here (no Dart or Flutter in this environment; the build is Codemagic).** What I could do: parse the whole 8,030-line file with a Dart grammar **before and after: zero parse errors both times (8,046 lines after)**, parse the new helper alone (zero errors), and confirm the helper's name is unique. **That is evidence of correct syntax, not a type-check or a build.** A guard in the suite pins the CONTRACT between the two sides (the server's 429 body carries the explanation under `error`; the app reads that key, acts only on 429, and is used at all three sends, with no bare "(429)" wording left) and **two breakages were caught** (the helper acting on every failure status; an upload left showing a bare 429). **The change reaches Pierre only when he rebuilds the app in Codemagic and installs it**; if the build fails nothing is harmed (the installed app is unchanged) and the build log says why. **Not done:** showing the `X-Usage-Warning` header (warn mode is for the operator, not the member), and an in-app usage display.
+
+**Still open: the old GitHub token** is still valid (re-tested again after this push; HTTP 200).
