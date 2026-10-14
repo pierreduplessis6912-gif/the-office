@@ -850,6 +850,8 @@ async function expect(role, method, path, want) {
   await require('./usage.test.js')({ check, srcDir });
   // Cost caps: plans as data, checked before the model, warn or enforce, never blocking because it is broken.
   await require('./limits.test.js')({ check, srcDir });
+  // The app shows the server's own explanation of a usage-limit refusal.
+  await require('./app-limits.test.js')({ check, path, fs, srcDir });
   // The production health alert: its judging script is run against every unhealthy case.
   await require('./prod-health.test.js')({ check, path, fs });
   // The rehearsal workflow creates real resources, so its safety must not be removable by accident.

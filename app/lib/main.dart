@@ -27,6 +27,22 @@ import 'runtime/word_field.dart';
 /// Changing this one line is the entire cost of a future domain swap.
 const officeApiBase = 'https://office.websitehub.co.za';
 
+// A refusal the server has explained in its own words. A daily usage limit answers 429 with a plain-language "error" (and "capped": true), so the app shows THAT instead of "Something went wrong (429)".
+// Returns null for every other status, so every other failure keeps exactly the wording it had.
+String? _serverReason(http.Response response) {
+  if (response.statusCode != 429) return null;
+  try {
+    final data = jsonDecode(response.body);
+    if (data is Map<String, dynamic>) {
+      final error = data['error'];
+      if (error is String && error.trim().isNotEmpty) return error.trim();
+    }
+  } catch (_) {
+    // not JSON: fall through to the plain wording below
+  }
+  return 'Too many requests right now. Please try again later.';
+}
+
 // Real, new, per direct instruction — stage 2. Every PDF link now
 // requires a signature the server checks against its own exact path;
 // launchUrl opens an external browser tab that carries no session at
@@ -919,7 +935,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         );
         _loadEmberCounts();
       } else {
-        _updateMessage(statusId, role: MessageRole.office, text: 'Something went wrong (${response.statusCode}).');
+        _updateMessage(statusId, role: MessageRole.office, text: _serverReason(response) ?? 'Something went wrong (${response.statusCode}).');
       }
     } catch (_) {
       _stopThinking();
@@ -1083,7 +1099,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         );
         _loadEmberCounts();
       } else {
-        _updateMessage(statusId, role: MessageRole.office, text: 'Something went wrong (${response.statusCode}).');
+        _updateMessage(statusId, role: MessageRole.office, text: _serverReason(response) ?? 'Something went wrong (${response.statusCode}).');
       }
     } catch (_) {
       _stopThinking();
@@ -1196,7 +1212,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         _updateMessage(statusId, role: MessageRole.office, text: message, pendingItems: pendingItems);
         _loadEmberCounts();
       } else {
-        _updateMessage(statusId, role: MessageRole.office, text: 'Upload failed (${response.statusCode}).');
+        _updateMessage(statusId, role: MessageRole.office, text: _serverReason(response) ?? 'Upload failed (${response.statusCode}).');
       }
     } catch (_) {
       _stopThinking();
