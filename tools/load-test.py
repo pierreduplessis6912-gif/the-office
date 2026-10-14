@@ -71,13 +71,6 @@ class Client:
             return 0, time.perf_counter() - t, str(e).encode()[:200]
 
 
-def is_edge(status, detail):
-    """Cloudflare's OWN error page (an HTML 502/503/504 from `server: cloudflare`), as opposed to anything the application returned. Seen on the real run of 2026-10-14: instant (13 ms), at ONE request at a
-    time, so not caused by load. The application never produces these."""
-    d = (detail or b"").decode("utf-8", "replace").lower()
-    return status in (502, 503, 504) and "server=cloudflare" in d and "<html" in d
-
-
 def percentile(sorted_values, p):
     if not sorted_values:
         return None
@@ -95,7 +88,6 @@ def summarize(name, workers, elapsed, rows, **extra):
         "name": name, "concurrency": workers, "seconds": round(elapsed, 2), "requests": len(rows),
         "rps": round(len(rows) / elapsed, 2) if elapsed > 0 else 0, "statuses": statuses,
         "errors": sum(1 for r in rows if r[1] != 200),
-        "edge_errors": sum(1 for r in rows if r[1] != 200 and is_edge(r[1], r[3] if len(r) > 3 else None)),
         "p50": percentile(lat, 0.50), "p95": percentile(lat, 0.95), "p99": percentile(lat, 0.99), "max": lat[-1] if lat else None,
         "ok_p95": percentile(ok, 0.95),
         "error_samples": [{"status": r[1], "seconds": round(r[2], 3), "detail": (r[3] or b"").decode("utf-8", "replace")[:240]} for r in rows if r[1] != 200][:3],
@@ -196,9 +188,6 @@ def customer_count(cookie):
         return None
 
 
-SEED_RETRIES = [0]
-
-
 def seed(cookie, total, label):
     """Give a business a realistic number of customers first (a flooring business has hundreds), 50 to a file."""
     c = Client()
@@ -206,12 +195,8 @@ def seed(cookie, total, label):
     while done < total:
         names = "\n".join(f"{label} {done + k:04d}" for k in range(min(50, total - done)))
         body, h = multipart("csv", "seed.csv", "name\n" + names + "\n")
-        for attempt in range(3):   # a rare edge 502 must not make the whole run meaningless; a re-sent chunk is harmless (the import is all or nothing, and an existing customer is matched, not duplicated)
-            status, _, _ = c.request("POST", "/files/customers-csv-import", {"Cookie": cookie, **h}, body)
-            if status == 200:
-                break
-            SEED_RETRIES[0] += 1
-        else:
+        status, _, _ = c.request("POST", "/files/customers-csv-import", {"Cookie": cookie, **h}, body)
+        if status != 200:
             return False
         done += 50
     return True
@@ -230,7 +215,6 @@ def admin_get(path, business):
 def main():
     out = {"when": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "host": HOST, "seconds_per_phase": SECONDS, "steps": STEPS, "phases": []}
     out["seeded"] = {"a": seed(COOKIE_A, 300, "Seed A"), "b": seed(COOKIE_B, 100, "Seed B")}
-    out["seed_retries"] = SEED_RETRIES[0]
     out["customers_before_reads"] = customer_count(COOKIE_A)
     for w in STEPS:
         out["phases"].append(phase("reads", w, read_op(COOKIE_A)))
