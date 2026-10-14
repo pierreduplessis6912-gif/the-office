@@ -113,7 +113,15 @@ function doBackend(db) {
       return { toArray: () => [], rowsRead: 0, rowsWritten: Number(r.changes) };
     },
   };
-  const storage = { transactionSync(fn) { db.exec('BEGIN'); try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; } } };
+  // transactionSync AND the async transaction(), as a real SQLite-backed Durable Object offers them (measured 2026-10-14): a nested one is a SAVEPOINT, so an inner failure undoes only the inner part.
+  let txDepth = 0, savepoints = 0;
+  const open = () => { if (txDepth === 0) { db.exec('BEGIN'); return null; } const sp = 'sp' + (++savepoints); db.exec('SAVEPOINT ' + sp); return sp; };
+  const close = (sp) => { if (sp === null) db.exec('COMMIT'); else db.exec('RELEASE ' + sp); };
+  const undo = (sp) => { if (sp === null) db.exec('ROLLBACK'); else { db.exec('ROLLBACK TO ' + sp); db.exec('RELEASE ' + sp); } };
+  const storage = {
+    transactionSync(fn) { const sp = open(); txDepth++; try { const r = fn(); txDepth--; close(sp); return r; } catch (e) { txDepth--; undo(sp); throw e; } },
+    async transaction(fn) { const sp = open(); txDepth++; try { const r = await fn(); txDepth--; close(sp); return r; } catch (e) { txDepth--; undo(sp); throw e; } },
+  };
   return new doAdapter.DoD1Database(sql, storage);
 }
 function d1Shim(db) {

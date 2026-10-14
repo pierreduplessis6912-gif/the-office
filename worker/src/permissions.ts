@@ -1,5 +1,6 @@
 // The permission grid's handlers (2026-10-04). The catalog, the guard rails and the loader live in auth.ts, next to the
 // table they override; this file is the owner-only read and write side. See the long comment above CAPABILITY_CATALOG.
+import { atomically } from "./atomic";
 import { CAPABILITY_CATALOG, EDITABLE_ROLES, INHERITED_FROM, ROLE_CAPABILITIES, getRoleCapabilities, isEditableCapability, readOverrides, CAPABILITY_BY_KEY } from "./auth";
 import type { Env } from "./types";
 
@@ -54,6 +55,9 @@ export type PermissionChange = { ok: true; changed: boolean; role: RolePermissio
 const now = (): string => new Date().toISOString();
 
 export async function setPermission(env: Env, role: unknown, capability: unknown, granted: unknown, changedBy: string | null): Promise<PermissionChange> {
+  // One transaction (atomic.ts): all of it happens or none of it does. This call outside a transaction calls itself again inside one.
+  if (!env.__atomic) return atomically(env, (tx) => setPermission.apply(undefined, [tx, ...Array.prototype.slice.call(arguments, 1)] as unknown as Parameters<typeof setPermission>));
+
   if (role === "owner") return { ok: false, status: 400, error: "The owner's permissions cannot be changed." };
   if (typeof role !== "string" || !EDITABLE_ROLES.includes(role)) return { ok: false, status: 400, error: `Unknown role. The roles that can be changed are: ${EDITABLE_ROLES.join(", ")}.` };
   if (typeof capability !== "string" || !CAPABILITY_BY_KEY[capability]) return { ok: false, status: 400, error: "Unknown permission." };
@@ -90,6 +94,9 @@ export async function setPermission(env: Env, role: unknown, capability: unknown
 }
 
 export async function resetRole(env: Env, role: unknown, changedBy: string | null): Promise<PermissionChange & { reverted?: number }> {
+  // One transaction (atomic.ts): all of it happens or none of it does. This call outside a transaction calls itself again inside one.
+  if (!env.__atomic) return atomically(env, (tx) => resetRole.apply(undefined, [tx, ...Array.prototype.slice.call(arguments, 1)] as unknown as Parameters<typeof resetRole>));
+
   if (role === "owner") return { ok: false, status: 400, error: "The owner's permissions cannot be changed." };
   if (typeof role !== "string" || !EDITABLE_ROLES.includes(role)) return { ok: false, status: 400, error: `Unknown role. The roles that can be changed are: ${EDITABLE_ROLES.join(", ")}.` };
   const before = new Set(await getRoleCapabilities(env, role));

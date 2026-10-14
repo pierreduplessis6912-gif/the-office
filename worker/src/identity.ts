@@ -3,6 +3,7 @@
 // execution register (the "current selection," Principle 16). If
 // something resolves to a person or an entity, it belongs here.
 
+import { atomically } from "./atomic";
 import type { Env } from "./types";
 
 // Real, shared helper, per direct instruction after a real, confirmed
@@ -332,6 +333,9 @@ export function withArticle(label: string): string {
 }
 
 export async function reconcileCustomer(env: Env, spokenName: string): Promise<{ id: number; name: string; matched: boolean } | null> {
+  // One transaction (atomic.ts): all of it happens or none of it does. This call outside a transaction calls itself again inside one.
+  if (!env.__atomic) return atomically(env, (tx) => reconcileCustomer.apply(undefined, [tx, ...Array.prototype.slice.call(arguments, 1)] as unknown as Parameters<typeof reconcileCustomer>));
+
   if (!looksLikeAName(spokenName)) {
     return null;
   }
@@ -416,6 +420,9 @@ export async function reconcileCharacter(
   spokenName: string,
   relationship: string | null
 ): Promise<{ id: number; name: string; matched: boolean } | null> {
+  // One transaction (atomic.ts): all of it happens or none of it does. This call outside a transaction calls itself again inside one.
+  if (!env.__atomic) return atomically(env, (tx) => reconcileCharacter.apply(undefined, [tx, ...Array.prototype.slice.call(arguments, 1)] as unknown as Parameters<typeof reconcileCharacter>));
+
   if (!looksLikeAName(spokenName)) {
     return null;
   }

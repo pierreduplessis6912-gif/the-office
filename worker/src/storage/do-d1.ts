@@ -14,6 +14,9 @@ export interface SqlStorageLike {
 }
 export interface StorageLike {
   transactionSync<T>(closure: () => T): T;
+  // The ASYNC transaction. Measured on a real SQLite-backed Durable Object (2026-10-14, SHIP_CHECKLIST.md item 9): it exists, it commits an async body that succeeds, and it rolls back an async body
+  // that throws after an await. (A plain BEGIN or SAVEPOINT is refused by the storage: this API is the only way.) Optional so a stand-in without it simply runs the body inline.
+  transaction?<T>(closure: () => Promise<T>): Promise<T>;
 }
 
 export interface DoMeta {
@@ -87,6 +90,20 @@ export class DoD1Database {
     readonly sql: SqlStorageLike,
     private readonly storage: StorageLike
   ) {}
+
+  // Runs an async body as ONE transaction: if it throws, every write it made is undone. The body must touch the database only (an open transaction is no place to wait on the model or the network):
+  // atomic.ts enforces that. A body that starts while one is already open JOINS it (no second transaction: an exception that escapes it rolls back the whole thing). A storage that cannot do
+  // transactions runs the body as it always did.
+  private txDepth = 0;
+  async transaction<T>(body: () => Promise<T>): Promise<T> {
+    if (this.txDepth > 0 || typeof this.storage.transaction !== "function") return body();
+    this.txDepth++;
+    try {
+      return await this.storage.transaction(async () => body());
+    } finally {
+      this.txDepth--;
+    }
+  }
 
   prepare(query: string): DoStatement {
     return new DoStatement(this, query);

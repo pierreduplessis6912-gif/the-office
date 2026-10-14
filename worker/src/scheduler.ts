@@ -5,6 +5,7 @@
 // job's lifecycle (measured -> scheduled -> priced) is genuinely scheduling
 // territory.
 
+import { atomically } from "./atomic";
 import type { Env, WorkObservationExtraction, Extraction } from "./types";
 import { reconcileCustomer } from "./identity";
 import { getOpenProjectsForCustomer, normalizeUnit } from "./finance";
@@ -221,6 +222,9 @@ export async function recordWorkObservation(
   installerConflict: { description: string; customerName: string | null } | null;
   scheduledDate: string | null;
 }> {
+  // One transaction (atomic.ts): all of it happens or none of it does. This call outside a transaction calls itself again inside one.
+  if (!env.__atomic) return atomically(env, (tx) => recordWorkObservation.apply(undefined, [tx, ...Array.prototype.slice.call(arguments, 1)] as unknown as Parameters<typeof recordWorkObservation>));
+
   const scheduledDate = resolveScheduledDate(observation.scheduled_date_raw, nowInBusinessTimezone());
 
   // Real feature 2026-08-08 — installer double-booking check, using
@@ -481,6 +485,9 @@ export async function attachToSiblingJobScope(
   scheduledDate: string | null,
   scheduledDateRaw: string | null
 ): Promise<{ jobScopeId: number; customerName: string | null } | null> {
+  // One transaction (atomic.ts): all of it happens or none of it does. This call outside a transaction calls itself again inside one.
+  if (!env.__atomic) return atomically(env, (tx) => attachToSiblingJobScope.apply(undefined, [tx, ...Array.prototype.slice.call(arguments, 1)] as unknown as Parameters<typeof attachToSiblingJobScope>));
+
   if (captureId === null) return null;
   if (installerId === null && scheduledDate === null) return null;
 

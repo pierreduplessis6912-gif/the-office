@@ -4,6 +4,7 @@
 // generation (real PDFs, real share messages) lives here too, since it's
 // downstream of the same records.
 
+import { atomically } from "./atomic";
 import { PDFDocument, PDFPage, StandardFonts, rgb, PDFString } from "pdf-lib";
 import type { Env, LineItemExtraction, LineItemWithTotal, PurchaseOrderLineItem } from "./types";
 import { reconcileProduct, setSelection } from "./identity";
@@ -86,9 +87,11 @@ export async function recordExpense(
   amount: number | null,
   description: string,
   sourceTranscript: string,
-  customerId: number | null = null
+  customerId: number | null = null,
+  // Worked out BEFORE a transaction opened (the model must not be waited on inside one): when given, the model is not asked again.
+  knownCategory?: Awaited<ReturnType<typeof classifyExpenseCategory>>
 ): Promise<{ id: number; characterId: number | null; customerId: number | null; amount: number | null; category: string }> {
-  const category = await classifyExpenseCategory(env, description);
+  const category = knownCategory ?? (await classifyExpenseCategory(env, description));
   const inserted = await env.OFFICE_DB.prepare(
     "INSERT INTO expenses (character_id, customer_id, amount, description, category, source_transcript) VALUES (?, ?, ?, ?, ?, ?) RETURNING id"
   )
@@ -116,6 +119,9 @@ export async function recordInvoice(
   lineItems: LineItemWithTotal[] = [],
   jobScopeId: number | null = null
 ): Promise<{ id: number; customerId: number; amount: number; retentionAmount: number }> {
+  // One transaction (atomic.ts): all of it happens or none of it does. This call outside a transaction calls itself again inside one.
+  if (!env.__atomic) return atomically(env, (tx) => recordInvoice.apply(undefined, [tx, ...Array.prototype.slice.call(arguments, 1)] as unknown as Parameters<typeof recordInvoice>));
+
   // Real feature 2026-07-21 — a real, urgent need: an active
   // two-year contract in its final stage, needing historical
   // reconciliation soon. Retention is modeled as a real, standing
@@ -189,6 +195,9 @@ export async function recordQuotation(
   lineItems: LineItemWithTotal[] = [],
   jobScopeId: number | null = null
 ): Promise<{ id: number; customerId: number; amount: number }> {
+  // One transaction (atomic.ts): all of it happens or none of it does. This call outside a transaction calls itself again inside one.
+  if (!env.__atomic) return atomically(env, (tx) => recordQuotation.apply(undefined, [tx, ...Array.prototype.slice.call(arguments, 1)] as unknown as Parameters<typeof recordQuotation>));
+
   // Real feature 2026-07-22 — Layer 2 (Project): the real, missing
   // link back to the job scope this quotation was actually priced
   // from, per the design pinned in DECISIONS.md.
@@ -238,6 +247,9 @@ export async function recordPurchaseOrder(
   sourceTranscript: string,
   lineItems: PurchaseOrderLineItem[]
 ): Promise<{ purchaseOrderId: number }> {
+  // One transaction (atomic.ts): all of it happens or none of it does. This call outside a transaction calls itself again inside one.
+  if (!env.__atomic) return atomically(env, (tx) => recordPurchaseOrder.apply(undefined, [tx, ...Array.prototype.slice.call(arguments, 1)] as unknown as Parameters<typeof recordPurchaseOrder>));
+
   const inserted = await env.OFFICE_DB.prepare(
     "INSERT INTO purchase_orders (supplier_id, description, source_transcript) VALUES (?, ?, ?) RETURNING id"
   )
@@ -364,6 +376,9 @@ export async function recordGoodsReceived(
   variances: Array<{ description: string; ordered: number; received: number; variance: number }>;
   exceptions: Array<{ grnLineItemId: number; description: string; quantity: number }>;
 }> {
+  // One transaction (atomic.ts): all of it happens or none of it does. This call outside a transaction calls itself again inside one.
+  if (!env.__atomic) return atomically(env, (tx) => recordGoodsReceived.apply(undefined, [tx, ...Array.prototype.slice.call(arguments, 1)] as unknown as Parameters<typeof recordGoodsReceived>));
+
   const poLineItems = await getPurchaseOrderLineItems(env, purchaseOrderId);
 
   // Real design decision 2026-07-21 — GRN capture stays open to
@@ -680,6 +695,9 @@ export async function linkPurchaseOrderAndMoveCosts(
   purchaseOrderId: number,
   customerId: number
 ): Promise<{ previousCustomerId: number | null; moved: number; movedAmount: number; unmatched: number }> {
+  // One transaction (atomic.ts): all of it happens or none of it does. This call outside a transaction calls itself again inside one.
+  if (!env.__atomic) return atomically(env, (tx) => linkPurchaseOrderAndMoveCosts.apply(undefined, [tx, ...Array.prototype.slice.call(arguments, 1)] as unknown as Parameters<typeof linkPurchaseOrderAndMoveCosts>));
+
   await ensurePurchaseOrderLinkTable(env);
   const previous = await env.OFFICE_DB.prepare("SELECT customer_id FROM purchase_order_customers WHERE purchase_order_id = ?")
     .bind(purchaseOrderId)
@@ -775,6 +793,9 @@ export async function cancelPurchaseOrder(
   purchaseOrderId: number,
   cancelledBy: string | null
 ): Promise<{ alreadyCancelled: boolean; closedShortages: number }> {
+  // One transaction (atomic.ts): all of it happens or none of it does. This call outside a transaction calls itself again inside one.
+  if (!env.__atomic) return atomically(env, (tx) => cancelPurchaseOrder.apply(undefined, [tx, ...Array.prototype.slice.call(arguments, 1)] as unknown as Parameters<typeof cancelPurchaseOrder>));
+
   await ensureCancellationTable(env);
   const already = await env.OFFICE_DB.prepare("SELECT purchase_order_id FROM purchase_order_cancellations WHERE purchase_order_id = ?")
     .bind(purchaseOrderId)
@@ -877,6 +898,9 @@ export async function setUnitConversion(
   factor: number,
   setBy: string | null
 ): Promise<{ item: string; from: string; to: string; factor: number; replaced: number | null }> {
+  // One transaction (atomic.ts): all of it happens or none of it does. This call outside a transaction calls itself again inside one.
+  if (!env.__atomic) return atomically(env, (tx) => setUnitConversion.apply(undefined, [tx, ...Array.prototype.slice.call(arguments, 1)] as unknown as Parameters<typeof setUnitConversion>));
+
   await ensureUnitConversionTable(env);
   const from = normalizeUnit(fromUnit)!;
   const to = normalizeUnit(toUnit)!;
@@ -948,6 +972,9 @@ export async function listUnitConversions(env: Env, item?: string | null): Promi
 // Forgets the conversion(s) saved for EXACTLY this item (never a looser match: a wrong guess would delete the wrong one). When there
 // is none, what is saved for similar names is returned so the person can be shown it.
 export async function forgetUnitConversions(env: Env, itemName: string): Promise<{ forgotten: SavedConversion[]; similar: SavedConversion[] }> {
+  // One transaction (atomic.ts): all of it happens or none of it does. This call outside a transaction calls itself again inside one.
+  if (!env.__atomic) return atomically(env, (tx) => forgetUnitConversions.apply(undefined, [tx, ...Array.prototype.slice.call(arguments, 1)] as unknown as Parameters<typeof forgetUnitConversions>));
+
   await ensureUnitConversionTable(env);
   const key = unitItemKey(itemName);
   const { results } = await env.OFFICE_DB.prepare("SELECT item_key, from_unit, to_unit, factor FROM unit_conversions WHERE item_key = ? ORDER BY from_unit, to_unit")
@@ -1199,6 +1226,9 @@ export function describeCancelledOrder(order: CancelledOrder): string {
 // Brings the order back: it counts as outstanding again, and the shortages the CANCELLATION closed are open again. Only those: a shortage closed
 // for another reason (a credit, an acceptance, a reason given) was resolved on its own account and stays resolved.
 export async function reopenPurchaseOrder(env: Env, purchaseOrderId: number): Promise<{ alreadyOpen: boolean; reopenedShortages: number }> {
+  // One transaction (atomic.ts): all of it happens or none of it does. This call outside a transaction calls itself again inside one.
+  if (!env.__atomic) return atomically(env, (tx) => reopenPurchaseOrder.apply(undefined, [tx, ...Array.prototype.slice.call(arguments, 1)] as unknown as Parameters<typeof reopenPurchaseOrder>));
+
   await ensureCancellationTable(env);
   const cancelled = await env.OFFICE_DB.prepare("SELECT purchase_order_id FROM purchase_order_cancellations WHERE purchase_order_id = ?")
     .bind(purchaseOrderId)
@@ -1361,6 +1391,9 @@ export async function recordDelivery(
   // asks whether to add them (decided 2026-10-03, Pierre: ask on delivery).
   notInStock: Array<{ name: string; unit: string | null; quantity: number }>;
 }> {
+  // One transaction (atomic.ts): all of it happens or none of it does. This call outside a transaction calls itself again inside one.
+  if (!env.__atomic) return atomically(env, (tx) => recordDelivery.apply(undefined, [tx, ...Array.prototype.slice.call(arguments, 1)] as unknown as Parameters<typeof recordDelivery>));
+
   const outstanding = await getOutstandingOrderLines(env, supplierId);
   // Lines held before a conversion was known are converted here, at the moment they are recorded. A line whose units differ with
   // no conversion known is recorded as it always was (number against number): the question is asked when the delivery is first
@@ -1490,6 +1523,9 @@ export async function addDeliveredItemsToStock(
   env: Env,
   items: Array<{ name: string; unit: string | null; quantity: number }>
 ): Promise<Array<{ name: string; unit: string | null; quantity: number }>> {
+  // One transaction (atomic.ts): all of it happens or none of it does. This call outside a transaction calls itself again inside one.
+  if (!env.__atomic) return atomically(env, (tx) => addDeliveredItemsToStock.apply(undefined, [tx, ...Array.prototype.slice.call(arguments, 1)] as unknown as Parameters<typeof addDeliveredItemsToStock>));
+
   const added: Array<{ name: string; unit: string | null; quantity: number }> = [];
   for (const item of items) {
     const name = typeof item.name === "string" ? item.name.trim() : "";
@@ -1637,6 +1673,9 @@ export async function recordStockUsage(
   customerId: number | null,
   sourceTranscript: string
 ): Promise<{ newQuantityOnHand: number }> {
+  // One transaction (atomic.ts): all of it happens or none of it does. This call outside a transaction calls itself again inside one.
+  if (!env.__atomic) return atomically(env, (tx) => recordStockUsage.apply(undefined, [tx, ...Array.prototype.slice.call(arguments, 1)] as unknown as Parameters<typeof recordStockUsage>));
+
   await env.OFFICE_DB.prepare("UPDATE stock_items SET quantity_on_hand = quantity_on_hand - ? WHERE id = ?")
     .bind(quantityUsed, stockItemId)
     .run();
@@ -1663,6 +1702,9 @@ export async function recordStocktake(
   quantityCounted: number,
   sourceTranscript: string
 ): Promise<{ stocktakeId: number; quantityExpected: number; variance: number }> {
+  // One transaction (atomic.ts): all of it happens or none of it does. This call outside a transaction calls itself again inside one.
+  if (!env.__atomic) return atomically(env, (tx) => recordStocktake.apply(undefined, [tx, ...Array.prototype.slice.call(arguments, 1)] as unknown as Parameters<typeof recordStocktake>));
+
   const before = await env.OFFICE_DB.prepare("SELECT quantity_on_hand FROM stock_items WHERE id = ?")
     .bind(stockItemId)
     .first<{ quantity_on_hand: number }>();
@@ -1947,7 +1989,9 @@ export async function recordSupplierInvoice(
   supplierId: number | null,
   supplierReference: string | null,
   sourceTranscript: string,
-  lineItems: Array<{ matched_description: string | null; quantity_billed: number; unit_price_billed: number | null; po_line_item_id?: number | null }>
+  lineItems: Array<{ matched_description: string | null; quantity_billed: number; unit_price_billed: number | null; po_line_item_id?: number | null }>,
+  // What kind of cost this is, asked of the model BEFORE the transaction opens (see below); given only on the inner call.
+  knownCategory?: Awaited<ReturnType<typeof classifyExpenseCategory>>
 ): Promise<{
   supplierInvoiceId: number;
   totalAmount: number;
@@ -1959,6 +2003,13 @@ export async function recordSupplierInvoice(
     priceVariance: number | null;
   }>;
 }> {
+  // One transaction (atomic.ts): all of it happens or none of it does. This call outside a transaction calls itself again inside one.
+  // The model is asked what kind of cost this is FIRST, outside the transaction: nothing but the database may be touched inside one (a transaction held open across the model would block the whole business).
+  if (!env.__atomic) {
+    const category = await classifyExpenseCategory(env, supplierReference ? `Supplier invoice ${supplierReference}` : "Supplier invoice");
+    return atomically(env, (tx) => recordSupplierInvoice(tx, purchaseOrderId, supplierId, supplierReference, sourceTranscript, lineItems, category));
+  }
+
   const poLineItems = purchaseOrderId ? await getPurchaseOrderLineItems(env, purchaseOrderId) : [];
 
   let totalAmount = 0;
@@ -2092,7 +2143,8 @@ export async function recordSupplierInvoice(
     totalAmount,
     supplierReference ? `Supplier invoice ${supplierReference}` : "Supplier invoice",
     sourceTranscript,
-    costFor
+    costFor,
+    knownCategory
   );
 
   return {
@@ -2479,6 +2531,9 @@ export async function convertQuoteToInvoice(
   remainingBalance: number,
   sourceTranscript: string
 ): Promise<{ invoiceId: number }> {
+  // One transaction (atomic.ts): all of it happens or none of it does. This call outside a transaction calls itself again inside one.
+  if (!env.__atomic) return atomically(env, (tx) => convertQuoteToInvoice.apply(undefined, [tx, ...Array.prototype.slice.call(arguments, 1)] as unknown as Parameters<typeof convertQuoteToInvoice>));
+
   // Same real, deterministic retention lookup as recordInvoice - a
   // real invoice created via conversion deserves the same treatment
   // as one created directly, for the same customer's standing rate.
@@ -3168,6 +3223,9 @@ export async function resolveCrossCaptureAttachment(
   jobScopeId: number,
   customerId: number
 ): Promise<{ pendingProjectChoice: { pendingActionId: number; candidates: string[] } | null }> {
+  // One transaction (atomic.ts): all of it happens or none of it does. This call outside a transaction calls itself again inside one.
+  if (!env.__atomic) return atomically(env, (tx) => resolveCrossCaptureAttachment.apply(undefined, [tx, ...Array.prototype.slice.call(arguments, 1)] as unknown as Parameters<typeof resolveCrossCaptureAttachment>));
+
   const openProjects = await getOpenProjectsForCustomer(env, customerId);
   if (openProjects.length === 1) {
     await env.OFFICE_DB.prepare("UPDATE job_scopes SET project_id = ? WHERE id = ?")
