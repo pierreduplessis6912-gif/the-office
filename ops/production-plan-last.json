@@ -1,0 +1,26 @@
+{
+ "when": "2026-10-14T16:59:06.004895Z",
+ "run": "38602711228",
+ "requested_mode": "enforce",
+ "set_status": "200",
+ "set_response": {
+  "ok": true,
+  "plan": {
+   "name": "standard",
+   "messagesPerMemberPerDay": 100,
+   "neuronsPerBusinessPerDay": 400000,
+   "mode": "enforce"
+  }
+ },
+ "plans": {
+  "plans": [
+   {
+    "name": "standard",
+    "messagesPerMemberPerDay": 100,
+    "neuronsPerBusinessPerDay": 400000,
+    "mode": "enforce"
+   }
+  ]
+ },
+ "health_status": "200"
+}
