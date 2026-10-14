@@ -8,8 +8,22 @@ name: Staging environment
 # compute the same keys without anyone copying a random value around; the keys never appear in a log (masked). It writes what it did to ops/staging-last-run.json so the result can be
 # read from the repository. Started by hand only.
 on:
+  # Called by the production pipeline as its STAGING GATE (deploy.yml): the light "gate" mode. Nothing else can start it but a person.
+  workflow_call:
+    inputs:
+      mode:
+        type: string
+        default: gate
   workflow_dispatch:
     inputs:
+      mode:
+        description: "rehearsal = everything; gate = what a migration must pass (as the pipeline runs it); gate-drill = prove the gate stops a deliberately broken step, then recover"
+        type: choice
+        options:
+          - rehearsal
+          - gate
+          - gate-drill
+        default: rehearsal
       owner_email:
         description: "Optional: a Google account to make an owner of staging (needs the redirect URI added to the Google OAuth client first)"
         required: false
@@ -30,6 +44,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       SLUG: office-staging
       SEED: ${{ secrets.STAGING_KEY_SEED }}
+      MODE: ${{ inputs.mode || 'rehearsal' }}
       RESULTS: ${{ github.workspace }}/results
     steps:
       - uses: actions/checkout@v4
@@ -184,6 +199,7 @@ jobs:
           done
 
       - name: Add a temporary schema step (staging only, NEVER committed)
+        if: env.MODE == 'rehearsal'
         run: |
           # A new migration file that exists only in this run's workspace: it adds a column to a table that already holds data. Its number is per run, so every run migrates the objects once more.
           V=$((1000 + GITHUB_RUN_NUMBER % 8000)); P=$(printf '%04d' "$V")
@@ -191,6 +207,12 @@ jobs:
           node tools/gen-baseline.js
           echo "SCHEMA_PROBE=${P}_staging_probe" >> "$GITHUB_ENV"
           echo "SCHEMA_PROBE_COLUMN=probe_${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+
+      - name: Inject a deliberately broken schema step (gate drill only, NEVER committed)
+        if: env.MODE == 'gate-drill'
+        run: |
+          printf -- "-- gate drill only: never committed\nTHIS IS NOT SQL;\n" > worker/migrations/0990_gate_drill_broken.sql
+          node tools/gen-baseline.js
 
       - name: Deploy staging's Worker
         working-directory: worker
@@ -252,7 +274,103 @@ jobs:
           done
           curl -s -X POST -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Target-Business: staging-co" "$BASE/debug/init-indexes" > "$RESULTS/indexes.json"
 
+      - name: Gate - check that every business object applied the real schema steps
+        id: gate
+        if: env.MODE != 'rehearsal'
+        continue-on-error: true
+        run: |
+          BASE="https://${SLUG}.websitehub.co.za"
+          # The newest step number the candidate code knows: the objects must reach it. (Existing objects can keep running the PREVIOUS code for a few minutes after a deploy, so wait for them.)
+          EXPECTED=$(ls worker/migrations/*.sql | sed -E 's#.*/([0-9]{4})_.*#\1#' | sort | tail -1 | sed -E 's/^0+//')
+          echo "the candidate code's newest schema step: $EXPECTED"
+          for b in staging-co staging-two; do
+            for attempt in $(seq 1 24); do
+              curl -s "$BASE/admin/health" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Target-Business: $b" > "$RESULTS/gate-health-$b.json"
+              python3 -c "import json,sys; d=json.load(open('$RESULTS/gate-health-$b.json')); sys.exit(0 if (d.get('schema') or {}).get('latestKnownStep') == $EXPECTED else 1)" 2>/dev/null && break
+              sleep 15
+            done
+            curl -s "$BASE/admin/migration/manifest" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY" -H "X-Target-Business: $b" > "$RESULTS/gate-after-$b.json"
+          done
+          python3 tools/gate-judge.py "$RESULTS" "$EXPECTED" gate
+
+      - name: Gate verdict
+        if: env.MODE == 'gate'
+        env:
+          SMOKE: ${{ steps.smoke.outcome }}
+          GATE: ${{ steps.gate.outcome }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          verdict = json.load(open(os.path.join(os.environ["RESULTS"], "gate.json")))
+          problems = list(verdict.get("problems") or [])
+          if os.environ.get("SMOKE") != "success":
+              problems.append("the staging smoke test did not pass")
+          if os.environ.get("GATE") != "success":
+              problems.append("the gate check itself did not complete")
+          if problems:
+              print("THE STAGING GATE FAILED. Production is NOT deployed.")
+              for p in problems:
+                  print(" -", p)
+              sys.exit(1)
+          print("The staging gate passed: every business object applied the real schema steps and nothing was lost.")
+          PY
+
+      - name: Drill - recover by removing the broken step and redeploying
+        id: recover
+        if: env.MODE == 'gate-drill'
+        continue-on-error: true
+        run: |
+          BASE="https://${SLUG}.websitehub.co.za"
+          rm -f worker/migrations/0990_gate_drill_broken.sql
+          node tools/gen-baseline.js
+          ( cd worker && wrangler deploy --config wrangler.staging.toml )
+          EXPECTED=$(ls worker/migrations/*.sql | sed -E 's#.*/([0-9]{4})_.*#\1#' | sort | tail -1 | sed -E 's/^0+//')
+          echo "after the recovery the newest step is: $EXPECTED"
+          for b in staging-co staging-two; do
+            for attempt in $(seq 1 24); do
+              curl -s "$BASE/admin/health" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Target-Business: $b" > "$RESULTS/recovered-health-$b.json"
+              python3 -c "import json,sys; d=json.load(open('$RESULTS/recovered-health-$b.json')); s=d.get('schema') or {}; sys.exit(0 if (s.get('latestKnownStep') == $EXPECTED and not s.get('error') and not s.get('pending')) else 1)" 2>/dev/null && break
+              sleep 15
+            done
+            curl -s "$BASE/admin/migration/manifest" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY" -H "X-Target-Business: $b" > "$RESULTS/recovered-after-$b.json"
+          done
+          python3 tools/gate-judge.py "$RESULTS" "$EXPECTED" recovered
+
+      - name: Drill - record the result and judge it
+        if: always() && env.MODE == 'gate-drill'
+        run: |
+          mkdir -p ops
+          python3 - <<'PY'
+          import json, os, datetime
+          r = os.environ["RESULTS"]
+          def load(n):
+              try:
+                  return json.load(open(os.path.join(r, n)))
+              except Exception:
+                  return {}
+          caught, recovered = load("gate.json"), load("recovered.json")
+          businesses = caught.get("businesses") or {}
+          detected = bool(businesses) and caught.get("ok") is False and all(any("gate_drill_broken" in p for p in (b.get("problems") or [])) for b in businesses.values())
+          healed = recovered.get("ok") is True
+          out = {"when": datetime.datetime.utcnow().isoformat() + "Z", "run": os.environ.get("GITHUB_RUN_ID"), "commit": os.environ.get("GITHUB_SHA", "")[:7],
+                 "the_gate_caught_the_broken_step_in_every_business": detected, "after_removing_it_every_business_recovered": healed,
+                 "drill_passed": detected and healed, "while_broken": caught, "after_recovery": recovered}
+          json.dump(out, open("ops/staging-gate-drill-last.json", "w"), indent=1)
+          open(os.path.join(r, "drill.json"), "w").write(json.dumps({"drill_passed": detected and healed}))
+          PY
+          # The drill regenerated a TRACKED file and added a file that must never be committed: put both back before committing (git refuses to rebase over unstaged changes).
+          git checkout -- worker/src/schema-steps.ts worker/src/baseline-sql.ts
+          rm -f worker/migrations/0990_gate_drill_broken.sql
+          git config user.name "staging-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/staging-gate-drill-last.json
+          git commit -m "Staging gate drill record (ids and results only)" || echo "nothing to record"
+          git pull --rebase origin main
+          git push origin HEAD:main
+          python3 -c "import json,os,sys; sys.exit(0 if json.load(open(os.path.join(os.environ['RESULTS'],'drill.json')))['drill_passed'] else 1)"
+
       - name: Measure the Durable Object on staging
+        if: env.MODE == 'rehearsal'
         id: trial
         continue-on-error: true
         run: |
@@ -261,6 +379,7 @@ jobs:
           curl -s -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/trial-d1?n=10" > "$RESULTS/trial-d1.json"
 
       - name: Exercise two businesses end to end
+        if: env.MODE == 'rehearsal'
         id: e2e
         continue-on-error: true
         run: |
@@ -327,6 +446,7 @@ jobs:
           PY
 
       - name: Verify the business objects migrated their schema on Cloudflare
+        if: env.MODE == 'rehearsal'
         id: schema
         continue-on-error: true
         run: |
@@ -365,6 +485,7 @@ jobs:
           PY
 
       - name: Back up, damage and restore a business on Cloudflare
+        if: env.MODE == 'rehearsal'
         id: backup
         continue-on-error: true
         run: |
@@ -440,6 +561,7 @@ jobs:
           PY
 
       - name: Probe the memory index on Cloudflare
+        if: env.MODE == 'rehearsal'
         id: vectors
         continue-on-error: true
         run: |
@@ -542,6 +664,7 @@ jobs:
           PY
 
       - name: Measure the model, prompt size and prompt caching
+        if: env.MODE == 'rehearsal'
         id: model
         continue-on-error: true
         run: |
@@ -570,6 +693,7 @@ jobs:
           PY
 
       - name: Send a real sentence through the business object
+        if: env.MODE == 'rehearsal'
         id: sentence
         continue-on-error: true
         run: |
@@ -612,6 +736,7 @@ jobs:
           PY
 
       - name: Read the health report and what the model cost (after the real sentence)
+        if: env.MODE == 'rehearsal'
         id: health
         continue-on-error: true
         run: |
@@ -641,6 +766,7 @@ jobs:
           PY
 
       - name: Rehearse the cost caps on Cloudflare (enforce, then warn)
+        if: env.MODE == 'rehearsal'
         id: caps
         continue-on-error: true
         run: |
@@ -697,12 +823,12 @@ jobs:
           PY
 
       - name: Make the owner of staging
-        if: github.event.inputs.owner_email != ''
+        if: env.MODE == 'rehearsal' && github.event.inputs.owner_email != ''
         run: |
           curl -s -X POST "https://${SLUG}.websitehub.co.za/debug/create-membership" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY" -H "Content-Type: application/json" -d "{\"google_email\": \"${{ github.event.inputs.owner_email }}\", \"role\": \"owner\"}"
 
       - name: Record what happened
-        if: always()
+        if: always() && env.MODE == 'rehearsal'
         env:
           D1_ID: ${{ steps.d1.outputs.id }}
           KV_ID: ${{ steps.kv.outputs.id }}

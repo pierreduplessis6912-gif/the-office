@@ -854,6 +854,8 @@ async function expect(role, method, path, want) {
   await require('./app-limits.test.js')({ check, path, fs, srcDir });
   // Schema steps: ordered, once each, atomic, additive.
   await require('./schema.test.js')({ check, srcDir });
+  // The staging gate: a migration must pass staging before production is deployed.
+  await require('./gate.test.js')({ check, path, fs });
   // The production health alert: its judging script is run against every unhealthy case.
   await require('./prod-health.test.js')({ check, path, fs });
   // The rehearsal workflow creates real resources, so its safety must not be removable by accident.

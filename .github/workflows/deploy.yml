@@ -5,6 +5,9 @@ name: Deploy office-api
 #      was never checked by CI at all.
 #   2. The Worker is deployed only when the Worker itself changed (or this file did, or a person asked).
 #   3. After a deploy a smoke test checks the LIVE Worker. If it fails, the previous version is restored automatically and the run is marked failed.
+#   4. THE STAGING GATE (item 8). A push that changes a MIGRATION file (worker/migrations/NNNN_*.sql) must first pass the staging gate: the candidate code, with the real steps, is deployed to staging and
+#      every staging business object must apply them with nothing failed, nothing pending and no rows lost. If the gate fails the deploy job does not run and production stays as it was. Every other push
+#      skips the gate. A manual run is never gated (a person asked for exactly that deploy).
 # A manual run with "drill" ticked proves the rollback works: it deploys the same code, forces the smoke test to fail, and shows the rollback and a healthy Worker
 # afterwards (production ends on identical code, so nothing is at risk).
 on:
@@ -29,6 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       deploy_needed: ${{ steps.changes.outputs.deploy_needed }}
+      migrations_changed: ${{ steps.changes.outputs.migrations_changed }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -64,6 +68,7 @@ jobs:
           BEFORE: ${{ github.event.before }}
           EVENT: ${{ github.event_name }}
         run: |
+          echo "migrations_changed=$(bash tools/migrations-changed.sh "$BEFORE" "$GITHUB_SHA" "$EVENT")" >> "$GITHUB_OUTPUT"
           if [ "$EVENT" = "workflow_dispatch" ]; then
             echo "deploy_needed=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
@@ -77,9 +82,21 @@ jobs:
             echo "Only tests or documents changed: nothing to deploy."
           fi
 
-  deploy:
+  # The staging gate: runs only when a migration file changed. It is the staging workflow in "gate" mode (provision, deploy the candidate, check every business object), called as a job.
+  gate:
     needs: test
-    if: needs.test.outputs.deploy_needed == 'true'
+    if: needs.test.outputs.migrations_changed == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/staging.yml
+    with:
+      mode: gate
+    secrets: inherit
+
+  deploy:
+    needs: [test, gate]
+    # The gate either passed or was not needed (skipped). A FAILED or cancelled gate stops the deploy.
+    if: ${{ always() && needs.test.result == 'success' && needs.test.outputs.deploy_needed == 'true' && (needs.gate.result == 'success' || needs.gate.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
