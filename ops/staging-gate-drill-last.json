@@ -1,0 +1,95 @@
+{
+ "when": "2026-10-14T09:06:14.720788Z",
+ "run": "38539653643",
+ "commit": "9ea1529",
+ "the_gate_caught_the_broken_step_in_every_business": true,
+ "after_removing_it_every_business_recovered": true,
+ "drill_passed": true,
+ "while_broken": {
+  "expected_latest_step": 990,
+  "businesses": {
+   "staging-co": {
+    "ok": false,
+    "problems": [
+     "a schema step FAILED: 0990_gate_drill_broken: near \"THIS\": syntax error at offset 0: SQLITE_ERROR"
+    ],
+    "tables_compared": 42,
+    "schema": {
+     "latestKnownStep": 990,
+     "appliedSteps": 3,
+     "pending": [
+      "0990_gate_drill_broken"
+     ],
+     "error": {
+      "name": "0990_gate_drill_broken",
+      "message": "near \"THIS\": syntax error at offset 0: SQLITE_ERROR",
+      "at": "2026-10-14T09:05:03.256Z",
+      "pending": [
+       "0990_gate_drill_broken"
+      ]
+     },
+     "unknownApplied": 2
+    }
+   },
+   "staging-two": {
+    "ok": false,
+    "problems": [
+     "a schema step FAILED: 0990_gate_drill_broken: near \"THIS\": syntax error at offset 0: SQLITE_ERROR"
+    ],
+    "tables_compared": 41,
+    "schema": {
+     "latestKnownStep": 990,
+     "appliedSteps": 3,
+     "pending": [
+      "0990_gate_drill_broken"
+     ],
+     "error": {
+      "name": "0990_gate_drill_broken",
+      "message": "near \"THIS\": syntax error at offset 0: SQLITE_ERROR",
+      "at": "2026-10-14T09:05:04.812Z",
+      "pending": [
+       "0990_gate_drill_broken"
+      ]
+     },
+     "unknownApplied": 2
+    }
+   }
+  },
+  "ok": false,
+  "problems": [
+   "staging-co: a schema step FAILED: 0990_gate_drill_broken: near \"THIS\": syntax error at offset 0: SQLITE_ERROR",
+   "staging-two: a schema step FAILED: 0990_gate_drill_broken: near \"THIS\": syntax error at offset 0: SQLITE_ERROR"
+  ]
+ },
+ "after_recovery": {
+  "expected_latest_step": 1,
+  "businesses": {
+   "staging-co": {
+    "ok": true,
+    "problems": [],
+    "tables_compared": 42,
+    "schema": {
+     "latestKnownStep": 1,
+     "appliedSteps": 3,
+     "pending": [],
+     "error": null,
+     "unknownApplied": 2
+    }
+   },
+   "staging-two": {
+    "ok": true,
+    "problems": [],
+    "tables_compared": 41,
+    "schema": {
+     "latestKnownStep": 1,
+     "appliedSteps": 3,
+     "pending": [],
+     "error": null,
+     "unknownApplied": 2
+    }
+   }
+  },
+  "ok": true,
+  "problems": []
+ }
+}
