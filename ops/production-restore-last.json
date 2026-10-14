@@ -1,13 +1,13 @@
 {
- "when": "2026-10-14T18:54:28.780309Z",
- "run": "38618950229",
+ "when": "2026-10-14T19:53:36.135785Z",
+ "run": "38627238915",
  "business": "zululand-flooring-and-blinds",
  "requested_snapshot": "20261014T185130Z",
  "decision": {
   "action": "restore",
   "business": "zululand-flooring-and-blinds",
   "snapshot": "20261014T185130Z",
-  "newestComplete": "20261014T185130Z",
+  "newestComplete": "20261014T185527Z",
   "available": [
    {
     "name": "20261013T163948Z",
@@ -29,16 +29,39 @@
     "finishedAt": "2026-10-14T18:52:29.325Z",
     "rows": 2006,
     "files": 129
+   },
+   {
+    "name": "20261014T185331Z-pre-restore",
+    "complete": true,
+    "finishedAt": "2026-10-14T18:54:26.418Z",
+    "rows": 2006,
+    "files": 129
+   },
+   {
+    "name": "20261014T185527Z",
+    "complete": true,
+    "finishedAt": "2026-10-14T18:56:24.281Z",
+    "rows": 1583,
+    "files": 129
    }
   ],
   "warnings": [
+   "20261014T185130Z is NOT the newest complete snapshot (20261014T185527Z): everything written after 2026-10-14T18:52:29.325Z will be lost",
    "everything written since this snapshot was taken is replaced; a safety snapshot of the current state is taken first, and the business is unavailable to members for a minute or so"
   ],
   "reasons": []
  },
- "restore_status": "400",
+ "restore_status": "200",
  "restore_report": {
-  "error": "FOREIGN KEY constraint failed: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_FOREIGNKEY)"
+  "ok": true,
+  "snapshot": "20261014T185130Z",
+  "safetySnapshot": "20261014T195218Z-pre-restore",
+  "tablesRestored": 47,
+  "rowsRestored": 2006,
+  "notesRestored": 42,
+  "filesRestoredFromMirror": 0,
+  "filesMissingEverywhere": [],
+  "differences": []
  },
  "health_status": "200"
 }
