@@ -1,0 +1,6 @@
+{
+ "snapshots": {
+  "20261014T185527Z": "Taken of the DAMAGED state after the failed restore of 2026-10-14 (1,583 rows; the business had 2,006). Never restore it.",
+  "20261014T195218Z-pre-restore": "The restore's own safety snapshot of that same damaged state (1,583 rows). Restoring it would bring the damage back."
+ }
+}

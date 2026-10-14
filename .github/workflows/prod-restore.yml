@@ -53,7 +53,7 @@ jobs:
         id: guard
         run: |
           set +e
-          python3 tools/restore-guard.py "$RESULTS/list.json" > "$RESULTS/decision.json"
+          python3 tools/restore-guard.py "$RESULTS/list.json" ops/restore-denylist.json > "$RESULTS/decision.json"
           GUARD=$?
           cat "$RESULTS/decision.json"
           echo "action=$(python3 -c "import json; print(json.load(open('$RESULTS/decision.json'))['action'])")" >> "$GITHUB_OUTPUT"
@@ -62,7 +62,7 @@ jobs:
           d = json.load(open(os.path.join(os.environ["RESULTS"], "decision.json")))
           print("### Production restore: " + d["action"].upper())
           for s in d["available"]:
-              print("- `%s` %s, %s rows, %s files, finished %s" % (s["name"], "complete" if s["complete"] else "NOT FINISHED", s["rows"], s["files"], s["finishedAt"]))
+              print("- `%s` %s, %s rows, %s files, finished %s%s" % (s["name"], "complete" if s["complete"] else "NOT FINISHED", s["rows"], s["files"], s["finishedAt"], ("  **DENIED, NEVER RESTORE: " + s["denied"] + "**") if s.get("denied") else ""))
           for w in d["warnings"]:
               print("\n**Warning:** " + w)
           for r in d["reasons"]:

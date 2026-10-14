@@ -5,12 +5,14 @@ module.exports = async function runRestoreGuardTests({ check, path, fs }) {
   const guard = path.join(__dirname, 'restore-guard.py'), BIZ = 'zululand-flooring-and-blinds';
   const snap = (name, complete = true, finishedAt = '2026-10-13T16:42:05.640Z') => ({ name, complete, finishedAt, tables: 46, rows: 2004, notes: 42, files: 129 });
   const LIST = { snapshots: [snap('20261012T163900Z', true, '2026-10-12T16:42:00.000Z'), snap('20261013T163948Z'), snap('20261014T163900Z', false, null)] };
-  const run = (list, snapshot, confirm, business = BIZ) => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rg-')), file = path.join(dir, 'list.json');
+  const run = (list, snapshot, confirm, business = BIZ, deny = undefined) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rg-')), file = path.join(dir, 'list.json'), denyFile = path.join(dir, 'deny.json');
     fs.writeFileSync(file, typeof list === 'string' ? list : JSON.stringify(list));
+    if (deny !== undefined) fs.writeFileSync(denyFile, typeof deny === 'string' ? deny : JSON.stringify(deny));
+    const args = deny === undefined ? [guard, file] : [guard, file, denyFile];
     const env = { ...process.env, BUSINESS: business }; delete env.SNAPSHOT; delete env.CONFIRM;
     if (snapshot !== undefined) env.SNAPSHOT = snapshot; if (confirm !== undefined) env.CONFIRM = confirm;
-    try { return { code: 0, ...JSON.parse(execFileSync('python3', [guard, file], { env, stdio: ['pipe', 'pipe', 'pipe'] }).toString()) }; }
+    try { return { code: 0, ...JSON.parse(execFileSync('python3', args, { env, stdio: ['pipe', 'pipe', 'pipe'] }).toString()) }; }
     catch (e) { return { code: e.status, ...JSON.parse(e.stdout.toString()) }; }
   };
 
@@ -58,6 +60,36 @@ module.exports = async function runRestoreGuardTests({ check, path, fs }) {
   check(missingFile === 2, 'a list file that does not exist is a refusal too');
   check(run(LIST, '20261013T163948Z', BIZ, '').action === 'refuse', 'with no business id configured at all it refuses (an empty confirm box can never match an empty business)');
 
+  // ---- the DENY LIST: a snapshot can be a perfectly COMPLETE copy of a damaged business ----------------------------------------------------------------------------------------------------------------------
+  const DAMAGED = { snapshots: [snap('20261013T163948Z'), { ...snap('20261014T183344Z'), rows: 2006 }, { ...snap('20261014T185527Z'), rows: 1583 }, { ...snap('20261014T195218Z-pre-restore'), rows: 1583 }] };
+  const DENY = { snapshots: { '20261014T185527Z': 'taken of the damaged state', '20261014T195218Z-pre-restore': 'the safety snapshot of that damaged state' } };
+  const d1 = run(DAMAGED, '20261014T185527Z', BIZ, BIZ, DENY), d2 = run(DAMAGED, '20261014T195218Z-pre-restore', BIZ, BIZ, DENY);
+  check(d1.action === 'refuse' && d1.code === 2 && d1.reasons.some((x) => /is on the deny list and will never be restored: taken of the damaged state/.test(x)) && d2.action === 'refuse' && d2.reasons.some((x) => /the safety snapshot of that damaged state/.test(x)), 'a snapshot on the deny list is REFUSED even though it is complete, exists and the business id was typed exactly, and the refusal says why');
+  const ok2 = run(DAMAGED, '20261014T183344Z', BIZ, BIZ, DENY);
+  check(ok2.action === 'restore' && ok2.reasons.length === 0 && !ok2.warnings.some((w) => /largest complete snapshot/.test(w)) && ok2.warnings.some((w) => /NOT the newest complete snapshot/.test(w)), 'a snapshot NOT on the deny list is unaffected: the good one still restores (with the usual warnings, and no shrink warning because it has the most rows)');
+  const shown = run(DAMAGED, '', '', BIZ, DENY);
+  check(shown.action === 'list' && shown.available.filter((s) => s.denied).map((s) => s.name).join() === '20261014T185527Z,20261014T195218Z-pre-restore' && shown.available.find((s) => s.name === '20261014T183344Z').denied === null, 'in list mode the denied snapshots are MARKED with their reasons, and the others are not');
+  const bothProblems = run(DAMAGED, '20261014T185527Z', 'wrong', BIZ, DENY);
+  check(bothProblems.reasons.length === 2, 'a denied snapshot with a wrong confirmation reports both problems at once');
+  const badDeny = [['not JSON', 'nope {'], ['a list instead of an object', { snapshots: ['a'] }], ['an empty reason', { snapshots: { '20261014T185527Z': '' } }], ['a reason that is not text', { snapshots: { '20261014T185527Z': 5 } }], ['no snapshots key', { other: {} }], ['null', 'null']];
+  for (const [label, d] of badDeny) {
+    const a = run(DAMAGED, '', '', BIZ, d), b = run(DAMAGED, '20261013T163948Z', BIZ, BIZ, d);
+    check(a.action === 'refuse' && a.code === 2 && b.action === 'refuse' && /deny list could not be read/.test(b.reasons[0]), `a deny list that was given but cannot be read (${label}) is a refusal, in list mode AND restore mode: nothing is restored blind`);
+  }
+  check(run(LIST, '20261013T163948Z', BIZ, BIZ, { snapshots: {} }).action === 'restore' && run(LIST, '20261013T163948Z', BIZ).action === 'restore', 'an EMPTY deny list denies nothing, and the guard still works when no deny list is given at all');
+  // ---- the shrink WARNING (a snapshot with far fewer rows than the largest complete one) ----------------------------------------------------------------------------------------------------------------
+  const rowsList = (rows) => ({ snapshots: [{ ...snap('20261012T163900Z'), rows: 1000 }, { ...snap('20261013T163948Z'), rows: rows }] });
+  const shrink = run(rowsList(899), '20261013T163948Z', BIZ), edge = run(rowsList(900), '20261013T163948Z', BIZ), same = run(rowsList(1000), '20261013T163948Z', BIZ), big = run({ snapshots: [{ ...snap('20261012T163900Z'), rows: 5000 }, { ...snap('20261013T163948Z'), rows: 1000 }] }, '20261013T163948Z', BIZ);
+  check(shrink.action === 'restore' && shrink.warnings.some((w) => /holds 899 rows and the largest complete snapshot holds 1000: restoring it would lose about 10% of the rows/.test(w)), 'a snapshot with under 90% of the largest snapshot\'s rows gets a WARNING saying how many rows it would lose (still allowed: it is a warning, not a refusal)');
+  check(!edge.warnings.some((w) => /largest complete snapshot/.test(w)) && !same.warnings.some((w) => /largest complete snapshot/.test(w)) && big.warnings.some((w) => /lose about 80% of the rows/.test(w)), 'exactly 90% and equal row counts do not warn; a snapshot with a fifth of the rows does (80% lost)');
+  const incomplete = run({ snapshots: [{ ...snap('20261012T163900Z'), rows: 1000 }, { ...snap('20261013T163948Z'), rows: 100 }, { ...snap('20261014T163900Z', false, null), rows: 99999 }] }, '20261012T163900Z', BIZ);
+  check(!incomplete.warnings.some((w) => /largest complete snapshot/.test(w)), 'an unfinished snapshot never counts as the "largest" one');
+  // ---- the real deny file --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  const realDeny = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'ops', 'restore-denylist.json'), 'utf8')).snapshots;
+  check(Object.keys(realDeny).sort().join() === '20261014T185527Z,20261014T195218Z-pre-restore' && Object.entries(realDeny).every(([k, v]) => /^\d{8}T\d{6}Z(-pre-restore)?$/.test(k) && typeof v === 'string' && v.length > 40), 'the real deny list holds the two snapshots of the damaged state of 2026-10-14, each with a real reason');
+  const viaFile = run(DAMAGED, '20261014T185527Z', BIZ, BIZ, { snapshots: realDeny });
+  check(viaFile.action === 'refuse' && viaFile.reasons.some((x) => /Never restore it/.test(x)), 'and the guard, given that very file, refuses the damaged snapshot');
+
   // ---- the workflow ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   const raw = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'prod-restore.yml'), 'utf8'), code = raw.replace(/^\s*#.*$/gm, '');
   const triggers = code.slice(code.indexOf('on:'), code.indexOf('concurrency:'));
@@ -69,6 +101,7 @@ module.exports = async function runRestoreGuardTests({ check, path, fs }) {
   const restoreStep = step('Restore (the only write; a single attempt)');
   check(/if: steps\.guard\.outputs\.action == 'restore'/.test(restoreStep) && restoreStep.includes('/admin/backup/restore') && /id: guard/.test(step('Decide what may happen (writes nothing)')), 'the restore step runs ONLY when the guard decided "restore"');
   check(!/for attempt in|while |until |sleep /.test(restoreStep), 'the restore is a SINGLE attempt: no retry loop (a blind second restore is not something to automate)');
+  check(/python3 tools\/restore-guard\.py "\$RESULTS\/list\.json" ops\/restore-denylist\.json/.test(step('Decide what may happen (writes nothing)')) && /DENIED, NEVER RESTORE/.test(step('Decide what may happen (writes nothing)')), 'the workflow hands the guard the deny list from the repository, and shows denied snapshots in its summary');
   check(/exit \$GUARD/.test(step('Decide what may happen (writes nothing)')) && /python3 tools\/restore-guard\.py/.test(step('Decide what may happen (writes nothing)')), 'a refusal makes the run go RED (the guard\'s exit status is the step\'s)');
   const runs = [...code.matchAll(/run: \|([\s\S]*?)(?=\n      - |\n[a-z]|$)/g)].map((m) => m[1]).join('\n');
   check(!/\$\{\{\s*(github\.event\.inputs|inputs)/.test(runs) && /SNAPSHOT: \$\{\{ github\.event\.inputs\.snapshot \}\}/.test(code) && /CONFIRM: \$\{\{ github\.event\.inputs\.confirm \}\}/.test(code), 'what a person types reaches the scripts only through environment variables, never pasted into a script (no injection)');
