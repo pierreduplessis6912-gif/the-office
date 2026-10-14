@@ -1,0 +1,127 @@
+name: Production health (every few hours, and on demand)
+
+# SHIP_CHECKLIST.md item 7. The ALERT for everything that must happen on its own, with nobody watching. Every three hours it READS the business's health report (/admin/health) and goes RED (so GitHub emails
+# the owner) if: the hourly memory job FAILED or has not run for too long, its next run is overdue (the alarm is stuck), the memory queue is backing up, server errors are rising, or the backups are unhealthy.
+# A high model bill is reported as a WARNING (it does not turn the check red: a cap is a separate decision). READ-ONLY: one GET. The record (a verdict and counts, committed only for a manual run) holds no names.
+on:
+  schedule:
+    - cron: "7 */3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: prod-health
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    env:
+      PROD_URL: https://office.websitehub.co.za
+      BUSINESS: zululand-flooring-and-blinds
+      JOB_STALE_MINUTES: "150"
+      ALARM_OVERDUE_MINUTES: "30"
+      QUEUE_OLDEST_MINUTES: "180"
+      QUEUE_MAX: "500"
+      ERROR_RATE_LIMIT: "0.2"
+      ERROR_MIN_REQUESTS: "20"
+      BACKUP_STALE_HOURS: "30"
+      SPEND_WARN_USD: "2"
+      RESULTS: ${{ github.workspace }}/results
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the health report (reads only)
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+        run: |
+          mkdir -p "$RESULTS"
+          curl -s "$PROD_URL/admin/health" -H "X-Admin-Key: $ADMIN" -H "X-Target-Business: $BUSINESS" > "$RESULTS/health.json"
+          python3 -c "import json; d=json.load(open('$RESULTS/health.json')); print(json.dumps({k: d.get(k) for k in ('business', 'hourlyJob', 'memoryQueue', 'requests', 'backup')}, indent=1))" || cat "$RESULTS/health.json"
+
+      - name: Judge the health report
+        id: judge
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from datetime import datetime
+          r = os.environ["RESULTS"]
+          try:
+              h = json.load(open(os.path.join(r, "health.json")))
+          except Exception:
+              h = {}
+          env = os.environ
+          problems, warnings = [], []
+          def when(s):
+              try:
+                  return datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+              except Exception:
+                  return None
+          if not isinstance(h, dict) or not h.get("business"):
+              problems.append("the health report could not be read")
+              h = {}
+          now = when(h.get("generatedAt"))
+          job = h.get("hourlyJob") or {}
+          if job.get("lastOk") is False:
+              problems.append("the last hourly job FAILED: %s" % job.get("lastError"))
+          minutes = job.get("minutesSinceLastRun")
+          if minutes is None:
+              if not job.get("nextAlarmAt"):
+                  problems.append("the hourly job has never run and no run is scheduled")
+          elif minutes > float(env["JOB_STALE_MINUTES"]):
+              problems.append("the hourly job last ran %s minutes ago (limit %s)" % (minutes, env["JOB_STALE_MINUTES"]))
+          nxt = when(job.get("nextAlarmAt"))
+          if nxt and now and (now - nxt).total_seconds() / 60 > float(env["ALARM_OVERDUE_MINUTES"]):
+              problems.append("the next hourly run is overdue by %d minutes (the alarm may be stuck)" % ((now - nxt).total_seconds() / 60))
+          q = h.get("memoryQueue") or {}
+          if (q.get("oldestPendingMinutes") or 0) > float(env["QUEUE_OLDEST_MINUTES"]):
+              problems.append("the oldest memory has waited %s minutes to be saved (limit %s)" % (q.get("oldestPendingMinutes"), env["QUEUE_OLDEST_MINUTES"]))
+          if (q.get("pending") or 0) > int(env["QUEUE_MAX"]):
+              problems.append("%s memories are waiting to be saved (limit %s)" % (q.get("pending"), env["QUEUE_MAX"]))
+          rq = h.get("requests") or {}
+          if (rq.get("recent") or 0) >= int(env["ERROR_MIN_REQUESTS"]) and (rq.get("errorRate") or 0) > float(env["ERROR_RATE_LIMIT"]):
+              problems.append("server errors are %s of the last %s requests (limit %s)" % (rq.get("errorRate"), rq.get("recent"), env["ERROR_RATE_LIMIT"]))
+          b = h.get("backup") or {}
+          if b.get("lastAttemptOk") is False:
+              problems.append("the last backup attempt FAILED: %s" % b.get("lastError"))
+          if b.get("newestAgeHours") is None:
+              problems.append("there is no backup")
+          elif b.get("newestAgeHours") > float(env["BACKUP_STALE_HOURS"]):
+              problems.append("the newest backup is %s hours old (limit %s)" % (b.get("newestAgeHours"), env["BACKUP_STALE_HOURS"]))
+          spend = ((h.get("model") or {}).get("today") or {}).get("estimatedUsd") or 0
+          if spend > float(env["SPEND_WARN_USD"]):
+              warnings.append("the model has cost about $%s today (warning above $%s)" % (spend, env["SPEND_WARN_USD"]))
+          verdict = {"healthy": not problems, "problems": problems, "warnings": warnings, "model_today_usd": spend, "queue_pending": q.get("pending"), "job_minutes_since_last_run": minutes}
+          json.dump(verdict, open(os.path.join(r, "verdict.json"), "w"))
+          print(json.dumps(verdict, indent=1))
+          open(os.environ["GITHUB_OUTPUT"], "a").write("healthy=%s\n" % ("true" if not problems else "false"))
+          PY
+
+      - name: Record what was found (manual runs only)
+        if: always() && github.event_name == 'workflow_dispatch'
+        run: |
+          mkdir -p ops
+          python3 - <<'PY'
+          import json, os, datetime
+          r = os.environ["RESULTS"]
+          try:
+              verdict = json.load(open(os.path.join(r, "verdict.json")))
+          except Exception:
+              verdict = None
+          out = {"when": datetime.datetime.utcnow().isoformat() + "Z", "run": os.environ.get("GITHUB_RUN_ID"), "business": os.environ.get("BUSINESS"), "verdict": verdict}
+          json.dump(out, open("ops/production-health-last.json", "w"), indent=1)
+          PY
+          git config user.name "production-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/production-health-last.json
+          git commit -m "Production health record (a verdict and counts only)" || echo "nothing to record"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Go RED if something is wrong
+        if: always() && steps.judge.outputs.healthy != 'true'
+        run: |
+          echo "Something needs attention. See the 'Judge the health report' step."
+          exit 1

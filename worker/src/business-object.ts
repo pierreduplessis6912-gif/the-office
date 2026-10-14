@@ -155,10 +155,14 @@ export function makeBusinessObject(serve: Serve, jobs?: BusinessJobs) {
       }
       // The hourly job: an object that has been named arms its own alarm once (nothing runs for a business nobody has used).
       if (jobs && !this.alarmChecked) {
-        if ((await this.state.storage.getAlarm()) === null) {
+        const existing = await this.state.storage.getAlarm();
+        if (existing === null) {
           const first = Date.now() + jitterMs(claimed) + 60_000;
           await this.state.storage.setAlarm(first);
           await this.setMeta("next_alarm_at", new Date(first).toISOString()).catch(() => undefined);
+        } else {
+          // An alarm armed BEFORE this was recorded (an object that was already running) is recorded now, so the health report can see when it will run. Found by the first real staging run.
+          await this.setMeta("next_alarm_at", new Date(existing).toISOString()).catch(() => undefined);
         }
         this.alarmChecked = true;
       }

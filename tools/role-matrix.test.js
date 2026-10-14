@@ -848,6 +848,8 @@ async function expect(role, method, path, want) {
   await require('./prod-backup.test.js')({ check, path, fs });
   // Per-business model cost metering and the health report.
   await require('./usage.test.js')({ check, srcDir });
+  // The production health alert: its judging script is run against every unhealthy case.
+  await require('./prod-health.test.js')({ check, path, fs });
   // The rehearsal workflow creates real resources, so its safety must not be removable by accident.
   await require('./rehearsal.test.js')({ check, path, fs });
 

@@ -173,6 +173,15 @@ async function businessObjectTests({ check, srcDir }) {
   await objHu.alarm();
   check(dbHu.prepare("SELECT value FROM object_meta WHERE key = 'last_job_at'").get() === undefined, 'an object that was never named records no job (nothing ran)');
 
+  // an alarm that was armed BEFORE the next run time was recorded (an object that was already running when this was deployed)
+  const BusinessPre = bo.makeBusinessObject(serve, { consolidate: async () => {} });
+  const dbPre = new DatabaseSync(':memory:'); const Pre = makeState(dbPre); const objPre = new BusinessPre(Pre.state, jobEnv);
+  const preTime = Date.now() + 1_800_000;
+  await Pre.state.storage.setAlarm(preTime);
+  const setsPre = Pre.alarmSets();
+  await objPre.fetch(named('alpha-co'));
+  check(dbPre.prepare("SELECT value FROM object_meta WHERE key = 'next_alarm_at'").get()?.value === new Date(preTime).toISOString() && Pre.alarmSets() === setsPre, 'an alarm armed BEFORE the next run time was recorded is recorded on first use, and is NOT re-armed (found on the first real staging run: the health report showed no next run for an object that was already running)');
+
   // ---- the schema source -----------------------------------------------------------------------------------------------------------------------
   const migration = fs.readFileSync(path.join(srcDir, '..', 'migrations', '0001_baseline.sql'), 'utf8');
   check(baseline.BASELINE_SQL === migration, 'the baseline an object creates is exactly the migration file (regenerate with node tools/gen-baseline.js)');
