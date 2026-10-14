@@ -1,13 +1,13 @@
 {
- "when": "2026-10-14T17:24:10.589778Z",
- "run": "38606321154",
+ "when": "2026-10-14T18:54:28.780309Z",
+ "run": "38618950229",
  "business": "zululand-flooring-and-blinds",
- "requested_snapshot": "20261013T163948Z",
+ "requested_snapshot": "20261014T185130Z",
  "decision": {
-  "action": "refuse",
+  "action": "restore",
   "business": "zululand-flooring-and-blinds",
-  "snapshot": "20261013T163948Z",
-  "newestComplete": "20261013T163948Z",
+  "snapshot": "20261014T185130Z",
+  "newestComplete": "20261014T185130Z",
   "available": [
    {
     "name": "20261013T163948Z",
@@ -15,14 +15,30 @@
     "finishedAt": "2026-10-13T16:42:05.640Z",
     "rows": 2004,
     "files": 129
+   },
+   {
+    "name": "20261014T183344Z",
+    "complete": true,
+    "finishedAt": "2026-10-14T18:34:43.330Z",
+    "rows": 2006,
+    "files": 129
+   },
+   {
+    "name": "20261014T185130Z",
+    "complete": true,
+    "finishedAt": "2026-10-14T18:52:29.325Z",
+    "rows": 2006,
+    "files": 129
    }
   ],
-  "warnings": [],
-  "reasons": [
-   "to restore, type the business id exactly in the confirm box: zululand-flooring-and-blinds"
-  ]
+  "warnings": [
+   "everything written since this snapshot was taken is replaced; a safety snapshot of the current state is taken first, and the business is unavailable to members for a minute or so"
+  ],
+  "reasons": []
  },
- "restore_status": null,
- "restore_report": null,
- "health_status": null
+ "restore_status": "400",
+ "restore_report": {
+  "error": "FOREIGN KEY constraint failed: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_FOREIGNKEY)"
+ },
+ "health_status": "200"
 }
