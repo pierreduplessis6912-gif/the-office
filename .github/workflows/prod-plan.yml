@@ -1,0 +1,90 @@
+name: Production plan mode (warn or enforce the cost caps)
+
+# SHIP_CHECKLIST.md item 6. Sets the mode of the `standard` plan in production: WARN records usage and never blocks; ENFORCE refuses a message over the limit with a plain-language 429 (the app shows the server's own words).
+# The numbers are fixed here (100 messages per member per day, 400,000 neurons per business per day: decided with Pierre, 2026-10-14); only the mode changes. ONE write (the plan), then reads. It takes effect within five minutes
+# (the plan is cached that long). To go back: run it again with warn. The record holds the plan and statuses only. Started by hand only.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "warn = record only, never block; enforce = refuse over the limit"
+        type: choice
+        options:
+          - enforce
+          - warn
+        default: enforce
+
+concurrency:
+  group: prod-plan
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    env:
+      PROD_URL: https://office.websitehub.co.za
+      RESULTS: ${{ github.workspace }}/results
+      MODE: ${{ github.event.inputs.mode }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set the mode of the standard plan (the only write)
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+          CONFIRM: ${{ secrets.PROD_CONFIRM_KEY }}
+        run: |
+          mkdir -p "$RESULTS"
+          case "$MODE" in enforce|warn) ;; *) echo "mode must be enforce or warn"; exit 1 ;; esac
+          CODE=000
+          for attempt in 1 2 3; do
+            CODE=$(curl -s -o "$RESULTS/set.json" -w '%{http_code}' -X POST "$PROD_URL/debug/directory/plans/set" -H "X-Admin-Key: $ADMIN" -H "X-Admin-Confirm: $CONFIRM" -H "Content-Type: application/json" -d "{\"name\":\"standard\",\"messagesPerMemberPerDay\":100,\"neuronsPerBusinessPerDay\":400000,\"mode\":\"$MODE\"}")
+            if [ "$CODE" = "200" ]; then break; fi
+            sleep 8
+          done
+          echo "$CODE" > "$RESULTS/set.status"
+          echo "plans/set answered $CODE"
+          test "$CODE" = "200"
+
+      - name: Read it back (reads only)
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+        run: |
+          curl -s "$PROD_URL/debug/directory/plans" -H "X-Admin-Key: $ADMIN" > "$RESULTS/plans.json"
+          curl -s -o /dev/null -w '%{http_code}' "$PROD_URL/health" > "$RESULTS/health.status"
+          python3 - <<'PY'
+          import json, os
+          r = os.environ["RESULTS"]
+          plans = json.load(open(os.path.join(r, "plans.json")))
+          items = plans if isinstance(plans, list) else plans.get("plans", plans.get("items", []))
+          std = next((p for p in items if p.get("name") == "standard"), None)
+          print(json.dumps(std))
+          assert std and std.get("mode") == os.environ["MODE"], "the plan did not read back in the requested mode"
+          assert std.get("messagesPerMemberPerDay") == 100 and std.get("neuronsPerBusinessPerDay") == 400000, "the limits are not what was decided"
+          assert open(os.path.join(r, "health.status")).read().strip() == "200", "the Worker's /health did not answer 200"
+          PY
+
+      - name: Record what was found
+        if: always()
+        run: |
+          mkdir -p ops
+          python3 - <<'PY'
+          import json, os, datetime
+          r = os.environ["RESULTS"]
+          def read(n, as_json=True):
+              try:
+                  t = open(os.path.join(r, n)).read()
+                  return json.loads(t) if as_json else t.strip()
+              except Exception:
+                  return None
+          out = {"when": datetime.datetime.utcnow().isoformat() + "Z", "run": os.environ.get("GITHUB_RUN_ID"), "requested_mode": os.environ.get("MODE"), "set_status": read("set.status", False), "set_response": read("set.json"), "plans": read("plans.json"), "health_status": read("health.status", False)}
+          json.dump(out, open("ops/production-plan-last.json", "w"), indent=1)
+          PY
+          git config user.name "production-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/production-plan-last.json
+          git commit -m "Production plan record (the plan and statuses only)" || echo "nothing to record"
+          git pull --rebase origin main
+          git push origin HEAD:main
