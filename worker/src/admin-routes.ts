@@ -7,7 +7,8 @@
 export type AdminTier = "read" | "schema" | "write" | "privileged";
 
 export const ADMIN_ROUTE_TIERS: Readonly<Record<string, AdminTier>> = {
-  // ---- read (62): Looks at data and changes nothing, spends nothing.
+  // ---- read (63): Looks at data and changes nothing, spends nothing.
+  "GET /debug/directory/plans": "read",
   "GET /admin/health": "read",
   "GET /admin/backup/status": "read",
   "GET /admin/backup/list": "read",
@@ -135,7 +136,9 @@ export const ADMIN_ROUTE_TIERS: Readonly<Record<string, AdminTier>> = {
   "POST /debug/resolve-entity-test": "write",
   "POST /debug/retry-quotation": "write",
   "POST /debug/split-topics": "write",
-  // ---- privileged (31): Can change who has access, change the banking details on invoices, delete or merge records, or read everything at once. Needs a SECOND secret (ADMIN_CONFIRM_KEY) on top of the admin key, and is switched off while that secret is not set.
+  // ---- privileged (33): Can change who has access, change the banking details on invoices, delete or merge records, or read everything at once. Needs a SECOND secret (ADMIN_CONFIRM_KEY) on top of the admin key, and is switched off while that secret is not set.
+  "POST /debug/directory/plans/set": "privileged",
+  "POST /debug/directory/set-plan": "privileged",
   "POST /admin/backup/restore": "privileged",
   "POST /admin/backup/unlock": "privileged",
   "GET /admin/migration/whoami": "privileged",

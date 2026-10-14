@@ -14,10 +14,10 @@ module.exports = async function runProdHealthTests({ check, path, fs }) {
     return { ...JSON.parse(fs.readFileSync(path.join(dir, 'verdict.json'), 'utf8')), output: fs.readFileSync(out, 'utf8').trim() };
   };
   const now = '2026-10-14T12:00:00.000Z';
-  const good = { business: 'zulu-co', generatedAt: now, hourlyJob: { lastRunAt: '2026-10-14T11:30:00.000Z', minutesSinceLastRun: 30, lastOk: true, lastError: null, nextAlarmAt: '2026-10-14T12:30:00.000Z' }, memoryQueue: { pending: 2, oldestPendingMinutes: 5 }, requests: { recent: 100, serverErrors: 1, errorRate: 0.01 }, backup: { lastAttemptOk: true, newestAgeHours: 6 }, model: { today: { estimatedUsd: 0.4 } } };
+  const good = { business: 'zulu-co', generatedAt: now, hourlyJob: { lastRunAt: '2026-10-14T11:30:00.000Z', minutesSinceLastRun: 30, lastOk: true, lastError: null, nextAlarmAt: '2026-10-14T12:30:00.000Z' }, memoryQueue: { pending: 2, oldestPendingMinutes: 5 }, requests: { recent: 100, serverErrors: 1, errorRate: 0.01 }, backup: { lastAttemptOk: true, newestAgeHours: 6 }, model: { today: { estimatedUsd: 0.4, neurons: 36000 } }, limits: { plan: { messagesPerMemberPerDay: 100, neuronsPerBusinessPerDay: 400000, mode: 'warn' }, membersAtOrOverLimit: 0 } };
   const mod = (patch) => JSON.parse(JSON.stringify({ ...good, ...Object.fromEntries(Object.entries(patch).map(([k, v]) => [k, typeof v === 'object' && v !== null && !Array.isArray(v) ? { ...good[k], ...v } : v])) }));
 
-  check(Object.keys(thresholds).length === 8 && thresholds.JOB_STALE_MINUTES === '150' && thresholds.BACKUP_STALE_HOURS === '30' && thresholds.ERROR_RATE_LIMIT === '0.2', 'the thresholds are in the workflow where they can be read and changed (eight of them)');
+  check(Object.keys(thresholds).length === 9 && thresholds.JOB_STALE_MINUTES === '150' && thresholds.BACKUP_STALE_HOURS === '30' && thresholds.ERROR_RATE_LIMIT === '0.2', 'the thresholds are in the workflow where they can be read and changed (nine of them)');
   const healthy = judge(good);
   check(healthy.healthy === true && healthy.output === 'healthy=true' && healthy.problems.length === 0 && healthy.warnings.length === 0, 'a healthy business is called healthy, with no problems and no warnings');
   const cases = [
@@ -43,6 +43,9 @@ module.exports = async function runProdHealthTests({ check, path, fs }) {
   check(calm.every(([, r]) => judge(r).healthy === true), `it does NOT cry wolf: ${calm.map((c) => c[0]).join('; ')}`);
   const pricey = judge(mod({ model: { today: { estimatedUsd: 3.5 } } }));
   check(pricey.healthy === true && pricey.warnings.length === 1 && /cost about \$3\.5 today/.test(pricey.warnings[0]), 'a high model bill is a WARNING, not a failure (a spending cap is a separate decision)');
+  const atLimit = judge(mod({ limits: { membersAtOrOverLimit: 2 } })), nearCap = judge(mod({ model: { today: { estimatedUsd: 3, neurons: 340000 } } })), farFromCap = judge(mod({ model: { today: { estimatedUsd: 3, neurons: 319999 } } }));
+  check(atLimit.healthy === true && atLimit.warnings.length === 1 && /2 member\(s\) reached the daily message limit/.test(atLimit.warnings[0]), 'members reaching the daily message limit is a WARNING (it is shown, it does not turn the check red)');
+  check(nearCap.healthy === true && nearCap.warnings.some((w) => /85% of the day's spend ceiling/.test(w)) && !farFromCap.warnings.some((w) => /spend ceiling/.test(w)), 'a business at 85% of its daily spend ceiling is warned about, one at 79.99% is not');
   check(judge('<html>502 Bad Gateway</html>').healthy === false && judge(undefined).healthy === false && judge({}).healthy === false && judge({ error: 'no such route' }).healthy === false, 'an unreadable report (an error page, nothing, an empty object, an error) is UNHEALTHY: silence is never taken for health');
   const triggers = code.slice(code.indexOf('on:'), code.indexOf('concurrency:'));
   check(/schedule:\s*\n\s*- cron: "7 \*\/3 \* \* \*"/.test(triggers) && /workflow_dispatch:/.test(triggers), 'it runs every three hours, and by hand');

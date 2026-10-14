@@ -145,6 +145,7 @@ jobs:
           [vars]
           ENVIRONMENT = "staging"
           RECORD_TIMINGS = "1"
+          PLAN_CACHE_SECONDS = "0"
           BUSINESS_MODE = "object"
 
           [[routes]]
@@ -583,6 +584,62 @@ jobs:
           }))
           PY
 
+      - name: Rehearse the cost caps on Cloudflare (enforce, then warn)
+        id: caps
+        continue-on-error: true
+        run: |
+          BASE="https://${SLUG}.websitehub.co.za"
+          A=(-H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY")
+          COOKIE=$(cat "$RESULTS/cookie.txt")
+          setplan() { curl -s -X POST "${A[@]}" -H "Content-Type: application/json" -d "{\"name\":\"standard\",\"messagesPerMemberPerDay\":$1,\"neuronsPerBusinessPerDay\":$2,\"mode\":\"$3\"}" "$BASE/debug/directory/plans/set" > "$RESULTS/caps-set-$4.json"; }
+          health() { curl -s "$BASE/admin/health" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Target-Business: staging-co" > "$RESULTS/$1"; }
+          send() { curl -s -D "$RESULTS/$1.headers" -o "$RESULTS/$1.json" -w '%{http_code}' -X POST "$BASE/messages/text" -H "Cookie: $COOKIE" -H "Content-Type: application/json" -d "{\"text\":\"What is the total of my unpaid invoices?\",\"idempotency_key\":\"caps-$1-${GITHUB_RUN_ID}\"}" > "$RESULTS/$1.status"; }
+          curl -s "${A[@]}" "$BASE/debug/directory/plans" > "$RESULTS/caps-plans-before.json"
+          # 1. ENFORCE with a limit of 1 message a day: the owner has already sent a real sentence today, so the next one must be refused BEFORE the model is called.
+          setplan 1 400000 enforce enforce
+          health caps-health-0.json
+          send caps-blocked
+          health caps-health-1.json
+          # 2. WARN with the same limit: the same message must go through, with a warning header.
+          setplan 1 400000 warn warn
+          send caps-warned
+          sleep 8
+          health caps-health-2.json
+          # 3. Put the plan back to the starting one.
+          setplan 100 400000 warn restore
+          curl -s "${A[@]}" "$BASE/debug/directory/plans" > "$RESULTS/caps-plans-after.json"
+          python3 - <<'PY' > "$RESULTS/caps.json"
+          import json, os
+          r = os.environ["RESULTS"]
+          def load(n):
+              try:
+                  return json.load(open(os.path.join(r, n)))
+              except Exception:
+                  return {}
+          def text(n):
+              try:
+                  return open(os.path.join(r, n)).read().strip()
+              except Exception:
+                  return ""
+          h0, h1, h2 = load("caps-health-0.json"), load("caps-health-1.json"), load("caps-health-2.json")
+          m = lambda h, k: ((h.get("model") or {}).get("today") or {}).get(k) or 0
+          blocked_body = load("caps-blocked.json")
+          warned_headers = text("caps-warned.headers").lower()
+          plans_after = [p for p in (load("caps-plans-after.json").get("plans") or []) if p.get("name") == "standard"]
+          print(json.dumps({
+              "enforce_status": text("caps-blocked.status"), "enforce_body": {k: blocked_body.get(k) for k in ("capped", "reason", "limit", "used", "resetsInSeconds")},
+              "enforce_blocked_with_429": text("caps-blocked.status") == "429" and blocked_body.get("capped") is True and blocked_body.get("reason") == "messages",
+              "retry_after_header_present": "retry-after:" in text("caps-blocked.headers").lower(),
+              "the_model_was_NOT_called_when_blocked": m(h0, "neurons") == m(h1, "neurons") and m(h0, "requests") == m(h1, "requests"),
+              "warn_status": text("caps-warned.status"), "warn_let_it_through": text("caps-warned.status") == "200",
+              "warn_header_present": "x-usage-warning: daily-message-limit" in warned_headers,
+              "the_model_WAS_called_in_warn_mode": m(h2, "neurons") > m(h1, "neurons"),
+              "health_shows_a_member_at_the_limit": (h2.get("limits") or {}).get("membersAtOrOverLimit", 0) >= 1,
+              "limits_in_health": h2.get("limits"),
+              "plan_restored": bool(plans_after) and plans_after[0].get("messagesPerMemberPerDay") == 100 and plans_after[0].get("mode") == "warn",
+          }))
+          PY
+
       - name: Make the owner of staging
         if: github.event.inputs.owner_email != ''
         run: |
@@ -603,6 +660,7 @@ jobs:
           MODEL: ${{ steps.model.outcome }}
           BACKUP: ${{ steps.backup.outcome }}
           HEALTH: ${{ steps.health.outcome }}
+          CAPS: ${{ steps.caps.outcome }}
         run: |
           mkdir -p ops
           python3 - <<'PY'
@@ -624,7 +682,7 @@ jobs:
               "run": os.environ.get("GITHUB_RUN_ID"),
               "commit": os.environ.get("GITHUB_SHA", "")[:7],
               "resources": {"database_id": os.environ.get("D1_ID"), "kv_namespace_id": os.environ.get("KV_ID"), "worker": "office-staging-api", "host": "office-staging.websitehub.co.za"},
-              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E"), "real_sentence": os.environ.get("SENTENCE"), "businesses_created": os.environ.get("BUSINESSES"), "memory_index_probe": os.environ.get("VECTORS"), "model_probe": os.environ.get("MODEL"), "backup_restore": os.environ.get("BACKUP"), "health_report": os.environ.get("HEALTH")},
+              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E"), "real_sentence": os.environ.get("SENTENCE"), "businesses_created": os.environ.get("BUSINESSES"), "memory_index_probe": os.environ.get("VECTORS"), "model_probe": os.environ.get("MODEL"), "backup_restore": os.environ.get("BACKUP"), "health_report": os.environ.get("HEALTH"), "cost_caps": os.environ.get("CAPS")},
               "init_routes": (read("init.txt") or "").splitlines(),
               "indexes": readjson("indexes.json"),
               "trial_do": readjson("trial-do.json"),
@@ -635,6 +693,7 @@ jobs:
               "model_probe": readjson("model.json"),
               "backup_restore": readjson("backup.json"),
               "health_report": readjson("health.json"),
+              "cost_caps": readjson("caps.json"),
               "real_sentence": readjson("sentence.json"),
           }
           json.dump(out, open("ops/staging-last-run.json", "w"), indent=1)

@@ -167,7 +167,7 @@ export function makeBusinessObject(serve: Serve, jobs?: BusinessJobs) {
         this.alarmChecked = true;
       }
       // The notes store, the file storage and the memory index are shared by every business, so each is confined to this business (scoped-bindings.ts).
-      const objectEnv = scopeBindings({ ...this.env, OFFICE_DB: this.db as unknown as D1Database, BUSINESS_ID: claimed } as Env, claimed);
+      const objectEnv = scopeBindings({ ...this.env, OFFICE_DB: this.db as unknown as D1Database, SHARED_DB: this.env.OFFICE_DB, BUSINESS_ID: claimed } as Env, claimed);
       const ctx = { waitUntil: (p: Promise<unknown>) => this.state.waitUntil(p), passThroughOnException: () => undefined } as unknown as ExecutionContext;
       return serve(request, objectEnv, ctx);
     }

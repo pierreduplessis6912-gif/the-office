@@ -29,6 +29,7 @@ jobs:
       ERROR_MIN_REQUESTS: "20"
       BACKUP_STALE_HOURS: "30"
       SPEND_WARN_USD: "2"
+      CAP_WARN_FRACTION: "0.8"
       RESULTS: ${{ github.workspace }}/results
     steps:
       - uses: actions/checkout@v4
@@ -93,6 +94,13 @@ jobs:
           spend = ((h.get("model") or {}).get("today") or {}).get("estimatedUsd") or 0
           if spend > float(env["SPEND_WARN_USD"]):
               warnings.append("the model has cost about $%s today (warning above $%s)" % (spend, env["SPEND_WARN_USD"]))
+          lim = h.get("limits") or {}
+          if (lim.get("membersAtOrOverLimit") or 0) > 0:
+              warnings.append("%s member(s) reached the daily message limit today (the plan allows %s each)" % (lim.get("membersAtOrOverLimit"), (lim.get("plan") or {}).get("messagesPerMemberPerDay")))
+          cap = (lim.get("plan") or {}).get("neuronsPerBusinessPerDay") or 0
+          used = ((h.get("model") or {}).get("today") or {}).get("neurons") or 0
+          if cap and used >= cap * float(env["CAP_WARN_FRACTION"]):
+              warnings.append("the model has used %d%% of the day's spend ceiling (%s of %s neurons)" % (round(100 * used / cap), used, cap))
           verdict = {"healthy": not problems, "problems": problems, "warnings": warnings, "model_today_usd": spend, "queue_pending": q.get("pending"), "job_minutes_since_last_run": minutes}
           json.dump(verdict, open(os.path.join(r, "verdict.json"), "w"))
           print(json.dumps(verdict, indent=1))

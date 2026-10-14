@@ -855,7 +855,7 @@ export async function checkIdempotencyKey(env: Env, key: string | null): Promise
       // The exact same result as the original — never reprocessed,
       // whether this is a genuine retry or a duplicate request
       // arriving late.
-      return new Response(existing.result, { headers: { "Content-Type": "application/json" } });
+      return new Response(existing.result, { headers: { "Content-Type": "application/json", "X-Idempotent-Replay": "1" } });
     }
     // Still processing — either a genuinely concurrent duplicate, or
     // the original attempt is still running server-side even though

@@ -10,7 +10,7 @@ import type { Env } from "./types";
 
 // Telemetry and the shared layer's own tables are not a business's data and are never moved.
 // `d1_migrations` is wrangler's own record of which schema files it has applied to a D1 database (found on the first real rehearsal: it was being copied as if it were business data).
-export const SKIP_TABLES = new Set(["request_timings", "model_usage", "admin_audit", "object_meta", "idempotency_keys", "businesses", "directory_members", "sqlite_sequence", "d1_migrations"]);
+export const SKIP_TABLES = new Set(["request_timings", "model_usage", "member_usage", "admin_audit", "object_meta", "idempotency_keys", "businesses", "directory_members", "sqlite_sequence", "d1_migrations"]);
 
 // Every business's object keeps its notes under `b:<id>:` and its files under `b/<id>/` in the SAME notes store and bucket the single-business deployment uses (scoped-bindings.ts). The single-business
 // deployment sees those stores UNSCOPED, so it would see the business's copies as if they were its own originals: the first real production copy reported double the notes and files, and a re-run would have

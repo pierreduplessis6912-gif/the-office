@@ -15,6 +15,7 @@
 // are NOT imported here beyond what a route genuinely reads directly
 // (like ROLE_CAPABILITIES, to validate a role name) — the actual
 // gating already ran in index.ts before this function is ever called.
+import { assignPlan, listPlans, setPlan } from "./limits";
 import { healthReport } from "./health";
 import { backupRoute } from "./backup-routes";
 import { migrationRoute } from "./migration-routes";
@@ -93,6 +94,20 @@ export async function handleDebugRoute(
 // Where the time goes, per route (timing.ts). Admin key, like every /debug route that is not one of the app's own.
 if (url.pathname === "/debug/timings" && request.method === "GET") {
       return Response.json(await timingsSummary(env));
+    }
+
+    // The limits as DATA (limits.ts), kept in the shared layer: read the plans, change one, and give a business a plan. The directory routes are answered by the Worker, never by a business's object.
+    if (url.pathname === "/debug/directory/plans" && request.method === "GET") {
+      return Response.json({ plans: await listPlans(env) });
+    }
+    if (url.pathname === "/debug/directory/plans/set" && request.method === "POST") {
+      const result = await setPlan(env, (await request.json()) as Record<string, unknown>);
+      return result.ok ? Response.json(result) : Response.json({ error: result.error }, { status: 400 });
+    }
+    if (url.pathname === "/debug/directory/set-plan" && request.method === "POST") {
+      const body = (await request.json()) as { business?: unknown; plan?: unknown };
+      const result = await assignPlan(env, body.business, body.plan);
+      return result.ok ? Response.json(result) : Response.json({ error: result.error }, { status: result.status });
     }
 
     // One read-only health report for a business (health.ts): its hourly job, backup, memory queue, request errors and what the model is costing.

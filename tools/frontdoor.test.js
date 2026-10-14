@@ -42,7 +42,7 @@ async function frontDoorTests({ check, bundleTo, srcDir, path, fs }) {
   // ---- the front door is actually used, and error responses still get the CORS headers --------------------------------------------
   const indexSrc = fs.readFileSync(path.join(srcDir, 'index.ts'), 'utf8');
   const doorSrc = fs.readFileSync(path.join(srcDir, 'frontdoor.ts'), 'utf8');
-  check(/const response = await runGuarded\(request, requestId, \(\) => handleRequest\(/.test(indexSrc) && (indexSrc.match(/handleRequest\(/g) || []).length === 2, 'the request must be handled only through the front door (handleRequest is defined once and called once, inside it)');
+  check(/const response = cap\.block \?\? \(await runGuarded\(request, requestId, \(\) => handleRequest\(/.test(indexSrc) && (indexSrc.match(/handleRequest\(/g) || []).length === 2, 'the request must be handled only through the front door (handleRequest is defined once and called once, inside it)');
   check(indexSrc.indexOf('runGuarded(') > 0 && indexSrc.indexOf('runGuarded(') < indexSrc.indexOf('newHeaders.set(key, value)'), 'the front door must run BEFORE the CORS headers are added, so an error response carries them and the app can read it');
   const doorCode = doorSrc.replace(/\/\/.*$/gm, '');
   check(!/Response\.json\(\{[^}]*(\.message|\.stack|failure)/.test(doorCode), 'the error response must never include the message or the stack');

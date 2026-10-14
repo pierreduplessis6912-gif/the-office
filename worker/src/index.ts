@@ -1,4 +1,5 @@
 export { TrialObject } from "./trial";
+import { capAfter, capBefore, isCountable } from "./limits";
 import { recordModelUsage } from "./usage";
 import { takeSnapshot } from "./backup";
 import { readOnlyRefusal } from "./freeze";
@@ -3626,7 +3627,12 @@ export async function serveRequest(request: Request, env: Env, ctx: ExecutionCon
   const meterOn = env.METER_USAGE !== "0";
   const tally = newTally();
   // The front door (frontdoor.ts): an error nothing else caught is logged with this request's id and answered with a small JSON 500, never a bare failure.
-  const response = await runGuarded(request, requestId, () => handleRequest(request, timingOn ? instrumentEnv(env, tally) : meterOn ? instrumentEnv(env, tally, "ai") : env, ctx, requestId), log);
+  // Cost caps (limits.ts): for a message that would use the model, the member's day and the business's spend are checked BEFORE the model is called. In warn mode nobody is stopped; in enforce mode a member or
+  // business over the limit gets a clear 429. The check is fail-open: any error in it lets the request through.
+  const cap = await capBefore(env, request);
+  const response = cap.block ?? (await runGuarded(request, requestId, () => handleRequest(request, timingOn ? instrumentEnv(env, tally) : meterOn ? instrumentEnv(env, tally, "ai") : env, ctx, requestId), log));
+  if (cap.countable && cap.over && !cap.block) response.headers.set("X-Usage-Warning", cap.over === "messages" ? "daily-message-limit" : "daily-spend-limit");
+  if (cap.countable && !cap.block && isCountable(response)) ctx.waitUntil(capAfter(env, cap).catch(() => undefined));
   const totalMs = Date.now() - startedAt;
   log("info", requestId, "request end", { status: response.status, durationMs: totalMs, ...(timingOn ? breakdown(tally) : {}) });
   // Every admin call is recorded (route, tier, outcome, hashed source; never the key), after the response has gone. A call refused only because the source
