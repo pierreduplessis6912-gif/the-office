@@ -1,4 +1,6 @@
 export { TrialObject } from "./trial";
+import { bulkImportRoute } from "./imports";
+import { INVOICE_COLUMNS, matchColumns, parseMoney, readCsv } from "./csv-import";
 import { onboardingRoute } from "./onboarding";
 import { atomically } from "./atomic";
 import { capAfter, capBefore, isCountable } from "./limits";
@@ -126,62 +128,6 @@ const QUESTION_STARTERS = [
 // quoted field, no trailing newline, an empty trailing field, CRLF
 // line endings) before being placed here - a naive split(",") would
 // have broken on the first two of those.
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let inQuotes = false;
-  let i = 0;
-  while (i < text.length) {
-    const char = text[i];
-    if (inQuotes) {
-      if (char === '"') {
-        if (text[i + 1] === '"') {
-          field += '"';
-          i += 2;
-          continue;
-        }
-        inQuotes = false;
-        i++;
-        continue;
-      }
-      field += char;
-      i++;
-      continue;
-    }
-    if (char === '"') {
-      inQuotes = true;
-      i++;
-      continue;
-    }
-    if (char === ",") {
-      row.push(field);
-      field = "";
-      i++;
-      continue;
-    }
-    if (char === "\r") {
-      i++;
-      continue;
-    }
-    if (char === "\n") {
-      row.push(field);
-      rows.push(row);
-      row = [];
-      field = "";
-      i++;
-      continue;
-    }
-    field += char;
-    i++;
-  }
-  if (field.length > 0 || row.length > 0) {
-    row.push(field);
-    rows.push(row);
-  }
-  return rows;
-}
-
 // Real, deterministic parser for Invoice Simple's "Payment details"
 // column: "amount; date; method" per payment, multiple payments
 // separated by |. Independently verified against every one of 295
@@ -3275,23 +3221,31 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       }
 
       const text = await csvFile.text();
-      const rows = parseCsv(text);
+      const rows = readCsv(text);
       if (rows.length < 2) {
         return Response.json({ error: "CSV has no data rows" }, { status: 400 });
       }
 
+      // The columns are found by NAME from lists of aliases (csv-import.ts), so an export from any invoicing tool works, not only Invoice Simple's: "Invoice No." or "Inv #", "Customer Name", "Amount (incl. VAT)", a
+      // semicolon-separated file, a byte-order mark in front of the first header. A client and a total are needed; the invoice number, date, balance and payment details are used when they are there.
       const header = rows[0].map((h) => h.trim());
-      const idx = (name: string) => header.indexOf(name);
-      const invoiceIdx = idx("Invoice");
-      const dateIdx = idx("Date");
-      const clientIdx = idx("Client");
-      const totalIdx = idx("Total");
-      const paidIdx = idx("Paid");
-      const balanceIdx = idx("Balance due");
-      const detailsIdx = idx("Payment details");
-
-      if (invoiceIdx === -1 || clientIdx === -1 || totalIdx === -1) {
-        return Response.json({ error: "This doesn't look like an Invoice Simple export - missing Invoice, Client, or Total column" }, { status: 400 });
+      const columns = matchColumns(rows[0], INVOICE_COLUMNS);
+      const invoiceIdx = columns.index.invoice ?? -1;
+      const dateIdx = columns.index.date ?? -1;
+      const clientIdx = columns.index.client ?? -1;
+      const totalIdx = columns.index.total ?? -1;
+      const balanceIdx = columns.index.balance ?? -1;
+      const detailsIdx = columns.index.details ?? -1;
+      const paidIdx = columns.index.paid ?? -1;
+      // The label an Invoice Simple export has always had (its three columns spelled exactly as it spells them); any other export is labelled as a CSV import.
+      const invoiceSimple = header.includes("Invoice") && header.includes("Client") && header.includes("Total");
+      if (clientIdx === -1 || totalIdx === -1) {
+        return Response.json({ error: `I couldn't find the columns I need: the customer's name and the invoice total (a column that says EXCL. VAT is not used as the total). The columns I found are: ${header.filter(Boolean).join(", ")}`, found: header }, { status: 400 });
+      }
+      // Money is never guessed at: an invoice that is already paid and one that is still owed are handled differently (the first is record-keeping, the second changes a customer's balance and is held for confirmation), so a file
+      // that gives no way to tell them apart is refused rather than assumed to be one or the other.
+      if (balanceIdx === -1 && paidIdx === -1 && detailsIdx === -1) {
+        return Response.json({ error: `I can't tell which invoices are already paid: the file has no balance, paid or payment column. Add a "Balance" (what is still owed) or "Paid" column and import it again. The columns I found are: ${header.filter(Boolean).join(", ")}`, found: header }, { status: 400 });
       }
 
       return await atomically(env, async (env) => {
@@ -3299,14 +3253,29 @@ let imported = 0;
       let heldForConfirmation = 0;
       let skipped = 0;
       const skippedRows: number[] = [];
+      let alreadyImported = 0;
+      // SAFE TO RETRY: what an earlier import already brought in (an invoice, or one still waiting for confirmation) is recognised by customer and description and is not brought in a second time. Before this, importing the
+      // same file twice doubled every invoice.
+      const alreadyThere = new Set<string>();
+      for (const r of (await env.OFFICE_DB.prepare("SELECT customer_id, description FROM invoices WHERE description LIKE 'Imported invoice %'").all<{ customer_id: number; description: string }>()).results ?? []) alreadyThere.add(`${r.customer_id}|${r.description}`);
+      for (const r of (await env.OFFICE_DB.prepare("SELECT payload FROM pending_actions WHERE type = 'imported_invoice' AND status IN ('pending', 'processing')").all<{ payload: string }>()).results ?? []) {
+        try {
+          const p = JSON.parse(r.payload) as { customerId?: number; description?: string };
+          alreadyThere.add(`${p.customerId}|${p.description}`);
+        } catch {
+          // a payload that cannot be read cannot be a duplicate of anything
+        }
+      }
 
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
-        const invoiceNumber = row[invoiceIdx]?.trim();
         const clientName = row[clientIdx]?.trim();
-        const total = parseFloat(row[totalIdx]);
+        const total = parseMoney(row[totalIdx]);
+        // Without an invoice number column, the date and the amount stand in for it ("2026-10-01, R100.00").
+        const invoiceNumber = invoiceIdx !== -1 ? row[invoiceIdx]?.trim() : [dateIdx !== -1 ? (row[dateIdx] ?? "").trim() : "", Number.isFinite(total) ? `R${total.toFixed(2)}` : ""].filter(Boolean).join(", ");
 
-        if (!invoiceNumber || !clientName || isNaN(total)) {
+        // A total that is not a positive amount (a credit note, a blank, a word) is skipped and reported, never imported as an invoice.
+        if (!invoiceNumber || !clientName || !(total > 0)) {
           skipped++;
           skippedRows.push(i + 1);
           continue;
@@ -3319,9 +3288,16 @@ let imported = 0;
           continue;
         }
 
-        const balance = balanceIdx !== -1 ? parseFloat(row[balanceIdx]) || 0 : 0;
         const payments = detailsIdx !== -1 ? parsePaymentDetails(row[detailsIdx]) : [];
-        const description = `Imported invoice ${invoiceNumber} (Invoice Simple)`;
+        // What is still owed: the balance column if there is one; otherwise the total less what was paid (the paid column, or the payments listed).
+        const paidFromFile = paidIdx !== -1 ? parseMoney(row[paidIdx]) || 0 : payments.reduce((sum, pay) => sum + pay.amount, 0);
+        const balance = balanceIdx !== -1 ? parseMoney(row[balanceIdx]) || 0 : total - paidFromFile;
+        const description = `Imported invoice ${invoiceNumber}${invoiceSimple ? " (Invoice Simple)" : " (CSV import)"}`;
+        if (alreadyThere.has(`${customer.id}|${description}`)) {
+          alreadyImported++;
+          continue;
+        }
+        alreadyThere.add(`${customer.id}|${description}`);
         const sourceNote = `CSV import: ${invoiceNumber}, ${clientName}`;
 
         if (balance > 0.01) {
@@ -3350,13 +3326,25 @@ let imported = 0;
               .bind(customer.id, payment.amount, `${sourceNote}, paid ${payment.date ?? ""} via ${payment.method ?? "unknown"}`)
               .run();
           }
+          // A settled invoice with no payments listed (the file gives the amount but not the details) still needs its payment, or the customer's balance would be inflated by the whole invoice.
+          const settled = total - Math.max(balance, 0);
+          if (payments.length === 0 && settled > 0.01) {
+            await env.OFFICE_DB.prepare("INSERT INTO payments (customer_id, amount, source_transcript) VALUES (?, ?, ?)")
+              .bind(customer.id, Math.round(settled * 100) / 100, `${sourceNote}, settled per the file`)
+              .run();
+          }
           imported++;
         }
       }
 
-      return Response.json({ status: "ok", totalRows: rows.length - 1, imported, heldForConfirmation, skipped, skippedRows });
+      return Response.json({ status: "ok", totalRows: rows.length - 1, imported, heldForConfirmation, skipped, skippedRows, alreadyImported, columns: { found: columns.found, ignored: columns.ignored } });
 });
     }
+
+    // Bulk import of a business's team, suppliers and materials (imports.ts). Owner-only by the gate's default, like the other imports.
+    if (url.pathname === "/files/team-csv-import" && request.method === "POST") return await bulkImportRoute(request, env, "team");
+    if (url.pathname === "/files/suppliers-csv-import" && request.method === "POST") return await bulkImportRoute(request, env, "suppliers");
+    if (url.pathname === "/files/products-csv-import" && request.method === "POST") return await bulkImportRoute(request, env, "products");
 
     if (url.pathname === "/files/customers-csv-import" && request.method === "POST") {
       const formData = await request.formData();
@@ -3366,7 +3354,7 @@ let imported = 0;
       }
 
       const text = await csvFile.text();
-      const rows = parseCsv(text);
+      const rows = readCsv(text);
       if (rows.length < 2) {
         return Response.json({ error: "CSV has no data rows" }, { status: 400 });
       }

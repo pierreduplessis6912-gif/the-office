@@ -24,7 +24,7 @@ async function routePolicyTests({ check, srcDir, path, fs }) {
   const missing = [...obs.keys()].filter((k) => !exp.has(k)), stale = [...exp.keys()].filter((k) => !obs.has(k));
   check(missing.length === 0, `every route must be in tools/route-policy.json (run node tools/route-policy-gen.js and review the diff). Not in it: ${missing.join(', ')}`);
   check(stale.length === 0, `tools/route-policy.json must list only routes that exist. Listed but not found: ${stale.join(', ')}`);
-  check(observed.length === 69, 'there are 69 route rows (65 routes, with confirm, reject and edit-field each shown for a money, a stock and a job action)');
+  check(observed.length === 72, 'there are 72 route rows (68 routes, with confirm, reject and edit-field each shown for a money, a stock and a job action)');
 
   // ---- the real gate behaves exactly as the file says, for each kind of caller ------------------------------------------------------------
   const changed = [];
@@ -50,6 +50,6 @@ async function routePolicyTests({ check, srcDir, path, fs }) {
   check(rows.filter((r) => /\[invoice\]/.test(r.route)).length === 3 && rows.filter((r) => /\[invoice\]/.test(r.route)).every((r) => r.owner === 'A' && r.accountant === 'A' && r.installer === 403), 'confirming, rejecting or editing a MONEY action is for the owner and the accountant, never the installer');
 
   const ownerOnly = rows.filter((r) => /settings\/permissions|csv-import|^POST \/business-profile\/logo|\/leads|^GET \/debug\/captures|documents\/sign|^(GET|POST) \/files\/\*/.test(r.route));
-  check(ownerOnly.length === 13 && ownerOnly.every((r) => r.class === 'owner only'), `changing permissions, importing customers or invoices, uploading the logo, leads, raw captures, signing documents and raw file access are the OWNER only (checked ${ownerOnly.length})`);
+  check(ownerOnly.length === 16 && ownerOnly.every((r) => r.class === 'owner only'), `changing permissions, importing customers, invoices, team, suppliers or materials, uploading the logo, leads, raw captures, signing documents and raw file access are the OWNER only (checked ${ownerOnly.length})`);
   check(rows.filter((r) => /settings\/permissions/.test(r.route)).length === 4 && rows.filter((r) => /settings\/permissions/.test(r.route)).every((r) => r.accountant === 403 && r.installer === 403), 'nobody but the owner can read or change who may do what');
 }

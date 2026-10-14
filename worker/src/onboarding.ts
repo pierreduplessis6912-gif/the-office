@@ -6,13 +6,13 @@
 import type { Env } from "./types";
 
 export const ONBOARDING_STEPS = [
-  { id: "profile", title: "Your business details", detail: "Name, VAT number, address and logo, so your quotes and invoices carry them.", action: "business_profile" },
-  { id: "customers", title: "Bring in your customers", detail: "Import a list of customers from a spreadsheet (CSV), or just start mentioning them.", action: "import_customers" },
-  { id: "invoices", title: "Bring in your past invoices", detail: "Import your invoice history so balances and statements are right from day one.", action: "import_invoices" },
-  { id: "team", title: "Add your team", detail: "The installers and staff who use it or come up in jobs.", action: "add_team" },
-  { id: "suppliers", title: "Add your suppliers", detail: "The people you buy materials from.", action: "add_suppliers" },
-  { id: "products", title: "Add the materials you work with", detail: "For example vinyl, carpet tile, screed, so they are recognised from the first quote.", action: "add_products" },
-  { id: "try_it", title: "Say your first sentence", detail: "Try: \"Quote Mrs Dlamini R500 for general repairs.\"", action: "try_saying" },
+  { id: "profile", title: "Your business details", detail: "Name, VAT number, address and logo, so your quotes and invoices carry them.", action: "business_profile", upload: null },
+  { id: "customers", title: "Bring in your customers", detail: "Import a list of customers from a spreadsheet (CSV), or just start mentioning them.", action: "import_customers", upload: "/files/customers-csv-import" },
+  { id: "invoices", title: "Bring in your past invoices", detail: "Import your invoice history so balances and statements are right from day one.", action: "import_invoices", upload: "/files/invoices-csv-import" },
+  { id: "team", title: "Add your team", detail: "The installers and staff who use it or come up in jobs.", action: "add_team", upload: "/files/team-csv-import" },
+  { id: "suppliers", title: "Add your suppliers", detail: "The people you buy materials from.", action: "add_suppliers", upload: "/files/suppliers-csv-import" },
+  { id: "products", title: "Add the materials you work with", detail: "For example vinyl, carpet tile, screed, so they are recognised from the first quote.", action: "add_products", upload: "/files/products-csv-import" },
+  { id: "try_it", title: "Say your first sentence", detail: "Try: \"Quote Mrs Dlamini R500 for general repairs.\"", action: "try_saying", upload: null },
 ] as const;
 
 export type OnboardingStepId = (typeof ONBOARDING_STEPS)[number]["id"];
@@ -23,6 +23,7 @@ export interface OnboardingStep {
   title: string;
   detail: string;
   action: string;
+  upload: string | null;               // the route a spreadsheet for this step is sent to (POST, a form with a file called csv); null when the step is not an upload
   status: OnboardingStatus;
   source: "data" | "marked" | null;   // done BECAUSE the data exists, or because the owner marked it; null when pending
 }

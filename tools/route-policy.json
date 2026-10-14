@@ -620,6 +620,36 @@
   "class": "any member"
  },
  {
+  "route": "POST /files/products-csv-import",
+  "pattern": "/files/products-csv-import",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
+ },
+ {
+  "route": "POST /files/suppliers-csv-import",
+  "pattern": "/files/suppliers-csv-import",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
+ },
+ {
+  "route": "POST /files/team-csv-import",
+  "pattern": "/files/team-csv-import",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
+ },
+ {
   "route": "POST /leads/:id/mark-lost",
   "pattern": "/leads/:id/mark-lost",
   "how": "id in path",

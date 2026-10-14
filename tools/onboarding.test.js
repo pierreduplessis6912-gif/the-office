@@ -22,6 +22,7 @@ async function onboardingTests({ check, srcDir }) {
   const W = world();
   let st = await ob.onboardingState(W.env());
   check(st.steps.map((s) => s.id).join() === IDS.join() && st.steps.every((s) => s.status === 'pending' && s.source === null && s.title && s.detail && s.action) && st.complete === false && st.remaining === 7 && st.next === 'profile', 'a blank business has seven steps in order, all pending, each with a title, a detail and an action, and the next one is the first');
+  check(JSON.stringify(ob.ONBOARDING_STEPS.map((s) => s.upload)) === JSON.stringify([null, '/files/customers-csv-import', '/files/invoices-csv-import', '/files/team-csv-import', '/files/suppliers-csv-import', '/files/products-csv-import', null]) && st.steps.every((s, i) => s.upload === ob.ONBOARDING_STEPS[i].upload), 'each import step names the route its spreadsheet goes to (five uploads; the profile and the first sentence are not uploads)');
   check(JSON.stringify(ob.ONBOARDING_STEPS.map((s) => s.action)) === JSON.stringify(['business_profile', 'import_customers', 'import_invoices', 'add_team', 'add_suppliers', 'add_products', 'try_saying']), 'the actions the app will offer are fixed names: business_profile, import_customers, import_invoices, add_team, add_suppliers, add_products, try_saying');
 
   // ---- "done" comes from the DATA, worked out each time it is asked ----------------------------------------------------------------------------------------------------------------------------------------------
