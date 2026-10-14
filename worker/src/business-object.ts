@@ -8,6 +8,7 @@
 // since the last wake). The Worker forwards to an object only when BUSINESS_MODE is "object" and the object exists; otherwise nothing changes.
 import { isAdminPath } from "./auth";
 import { readBackupMeta, recordBackupResult } from "./backup";
+import { locationIsStale, readLocation, recordLocation } from "./location";
 import { scopeBindings } from "./scoped-bindings";
 import { isBusinessId } from "./directory";
 import { migrateSchema, splitStatements, type SchemaOutcome, type SchemaStep } from "./schema";
@@ -128,6 +129,13 @@ export function makeBusinessObject(serve: Serve, jobs?: BusinessJobs, options: {
         } catch {
           // recording must never stop the job or the next alarm
         }
+      }
+      // WHERE this object runs (location.ts): asked once a day and kept in the object's metadata. It is bookkeeping, so it has its own guard: it can never stop the job, the backup or the next alarm.
+      try {
+        const here = { ...this.env, OFFICE_DB: this.db as unknown as D1Database } as Env;
+        if (locationIsStale(await readLocation(here), Date.now())) await recordLocation(here);
+      } catch {
+        // never stops anything
       }
       // The daily backup is separate from the hourly job: neither can stop the other, and a failed backup is RECORDED (so an alert can see it) and tried again next hour.
       try {

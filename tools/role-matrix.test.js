@@ -858,6 +858,8 @@ async function expect(role, method, path, want) {
   await require('./gate.test.js')({ check, path, fs });
   // Atomic writes: fault injection at every write position of the real operations.
   await require('./atomic.test.js')({ check, srcDir });
+  // Where a business's object runs: asked daily, kept in its metadata, shown in the health report.
+  await require('./location.test.js')({ check, srcDir });
   // The load test: its judge, its safety, its mechanics against a fake server, and its workflow.
   await require('./load.test.js')({ check, path, fs });
   // The production health alert: its judging script is run against every unhealthy case.

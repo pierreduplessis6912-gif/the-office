@@ -3,7 +3,10 @@
 
 The targets, and why they are what they are. The test runs from a US runner against a business in South Africa's Cloudflare edge, so every figure includes a long round trip: these are not the
 numbers a member in Zululand would see, they are an UPPER bound. A flooring business has a handful of people on at once (the headroom tested is 5x that), so:
-  * Up to 10 at once, NOTHING may fail (a single non-200 is a problem). Above 10 the test is looking for the knee, so failures there are warnings, not problems.
+  * Up to 10 at once, no REAL failure may happen: anything the application, or a broken connection, returned that is not a 200 is a problem. Above 10 the test is looking for the knee, so failures there are warnings.
+  * Cloudflare's OWN edge error page (an instant HTML 502/503/504) is judged by a RATE, not by zero: the real runs of 2026-10-14 showed about 4 in 30,000 requests (0.013%), including at ONE request at a time, so
+    they are not caused by load and no service on a shared platform can promise none. The cap is 0.1% (about 7x what was measured): enough to catch a platform that has really degraded, not so tight that
+    every run is red for something nobody here can fix. The observed rate is always reported.
   * Reads at 10 at once: p95 within 2 seconds. Writes at 10 at once (each a real transaction): p95 within 5 seconds.
   * ISOLATION: another business's reads, while one is hammered with writes, must stay within 2x of their quiet p95 (or half a second more, whichever is larger: a quiet p95 of 80 ms doubling is noise).
   * MODEL IN FLIGHT: reads on the same business while sentences wait on the model must stay within 2x of quiet (or a second more). And every sentence must succeed.
@@ -14,7 +17,8 @@ import json
 import sys
 
 TARGETS = {
-    "low_concurrency": 10,            # up to here, nothing may fail
+    "low_concurrency": 10,            # up to here, no real failure may happen
+    "edge_failure_rate": 0.001,       # Cloudflare's own instant 502/503/504 page, at 10 at once or fewer, as a share of requests
     "reads_p95_seconds": 2.0,
     "writes_p95_seconds": 5.0,
     "isolation_factor": 2.0, "isolation_slack_seconds": 0.5,
@@ -39,14 +43,29 @@ def judge(d):
         if not any(p.get("name") == fam for p in phases):
             problems.append(f"the {fam} load was never measured")
 
-    # 1. nothing may fail up to the low-concurrency line (and failures above it are worth knowing)
+    # 1. up to the low-concurrency line no REAL failure may happen; Cloudflare's own edge page is judged by its rate; above the line failures are worth knowing (the knee)
     everything = list(phases) + [p for p in (d.get("isolation") or {}).values() if isinstance(p, dict)]
+    low_requests = low_edge = 0
     for p in everything:
-        if p.get("errors", 0) > 0:
-            msg = f"{p.get('name')} at {p.get('concurrency')} at once: {p['errors']} of {p.get('requests')} requests failed ({p.get('statuses')})"
-            (problems if p.get("concurrency", 0) <= TARGETS["low_concurrency"] else warnings).append(msg)
+        errs = p.get("errors", 0)
+        edge = min(p.get("edge_errors", 0), errs)
+        real = errs - edge
+        low = p.get("concurrency", 0) <= TARGETS["low_concurrency"]
+        if low:
+            low_requests += p.get("requests", 0)
+            low_edge += edge
+        if errs > 0:
+            msg = f"{p.get('name')} at {p.get('concurrency')} at once: {errs} of {p.get('requests')} requests failed ({p.get('statuses')})" + (f"; {edge} of them Cloudflare's own edge error page" if edge else "")
+            (problems if low and real > 0 else warnings).append(msg)
         if p.get("requests", 0) == 0:
             problems.append(f"{p.get('name')} at {p.get('concurrency')} at once made no requests at all")
+    if low_edge:
+        rate = low_edge / low_requests if low_requests else 1
+        lines.append(f"background failures: {low_edge} of {low_requests} requests at {TARGETS['low_concurrency']} at once or fewer were Cloudflare's own edge error page ({rate:.3%}; the cap is {TARGETS['edge_failure_rate']:.1%})")
+        if rate > TARGETS["edge_failure_rate"]:
+            problems.append(f"Cloudflare's edge error page appeared in {rate:.3%} of requests at {TARGETS['low_concurrency']} at once or fewer ({low_edge} of {low_requests}), over the {TARGETS['edge_failure_rate']:.1%} cap")
+    if d.get("seed_retries"):
+        warnings.append(f"seeding needed {d['seed_retries']} retries (a chunk that failed was sent again)")
 
     # 2. speed at 10 at once
     r = at_most(phases, "reads", TARGETS["low_concurrency"])

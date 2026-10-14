@@ -1,5 +1,6 @@
 // One read-only health report for a business: is the work that must happen on its own (the hourly memory job, the daily backup) happening, is anything piling up, what is the model costing, and are requests
 // failing. Added 2026-10-14 (SHIP_CHECKLIST.md item 7). A scheduled GitHub check judges it and goes red when something is wrong, so a failing job tells Pierre instead of staying silent.
+import { ensureLocation } from "./location";
 import { SCHEMA_STEPS } from "./schema-steps";
 import { memberUsageToday } from "./limits";
 import { readBackupMeta } from "./backup";
@@ -72,6 +73,8 @@ export async function healthReport(env: Env, now: Date = new Date()): Promise<Re
     requests: { ...requests, errorRate: requests.recent ? Math.round((requests.serverErrors / requests.recent) * 1000) / 1000 : 0, note: "the last 200 requests that changed something (timings must be on)" },
     model: usage,
     limits: await memberUsageToday(env, now),
+    // Where this business's object runs (location.ts): answered on the first reading if it has never been asked. A business whose members are far from it pays a long hop on every request.
+    location: await ensureLocation(env).catch(() => ({ colo: null, country: null, checkedAt: null, error: "the location could not be read" })),
     schema: await schemaHealth(env),
   };
 }
