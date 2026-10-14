@@ -22,7 +22,7 @@ import { migrationRoute } from "./migration-routes";
 import { addDirectoryMember, createBusiness, findDirectoryConflicts, isBusinessId, listDirectory, normaliseEmail } from "./directory";
 import { callBusiness } from "./routing";
 import { applyIndexes } from "./indexes";
-import { trialAi, trialD1, trialDo } from "./trial";
+import { trialAi, trialD1, trialDo, trialTx } from "./trial";
 import { timingsSummary } from "./timing";
 import { Env, Extraction, HistoryTurn, LineItemWithTotal } from "./types";
 import {
@@ -188,6 +188,9 @@ if (url.pathname === "/debug/trial-d1" && request.method === "GET") {
     }
     if (url.pathname === "/debug/trial-do" && request.method === "GET") {
       return trialDo(env, url);
+    }
+    if (url.pathname === "/debug/trial-tx" && request.method === "GET") {
+      return trialTx(env);
     }
     if (url.pathname === "/debug/trial-ai" && request.method === "GET") {
       return trialAi(env, url);

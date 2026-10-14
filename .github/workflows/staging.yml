@@ -378,6 +378,14 @@ jobs:
           curl -s -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/trial-do?n=20&hint=weur&name=staging-a&repeat=4" > "$RESULTS/trial-do.json"
           curl -s -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/trial-d1?n=10" > "$RESULTS/trial-d1.json"
 
+      - name: Measure what a Durable Object's SQLite does about transactions
+        id: tx
+        if: env.MODE == 'rehearsal'
+        continue-on-error: true
+        run: |
+          BASE="https://${SLUG}.websitehub.co.za"
+          curl -s "$BASE/debug/trial-tx" -H "X-Admin-Key: $STAGING_ADMIN_KEY" > "$RESULTS/tx.json"
+
       - name: Exercise two businesses end to end
         if: env.MODE == 'rehearsal'
         id: e2e
@@ -844,6 +852,7 @@ jobs:
           HEALTH: ${{ steps.health.outcome }}
           CAPS: ${{ steps.caps.outcome }}
           SCHEMA: ${{ steps.schema.outcome }}
+          TX: ${{ steps.tx.outcome }}
         run: |
           mkdir -p ops
           python3 - <<'PY'
@@ -865,7 +874,7 @@ jobs:
               "run": os.environ.get("GITHUB_RUN_ID"),
               "commit": os.environ.get("GITHUB_SHA", "")[:7],
               "resources": {"database_id": os.environ.get("D1_ID"), "kv_namespace_id": os.environ.get("KV_ID"), "worker": "office-staging-api", "host": "office-staging.websitehub.co.za"},
-              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E"), "real_sentence": os.environ.get("SENTENCE"), "businesses_created": os.environ.get("BUSINESSES"), "memory_index_probe": os.environ.get("VECTORS"), "model_probe": os.environ.get("MODEL"), "backup_restore": os.environ.get("BACKUP"), "health_report": os.environ.get("HEALTH"), "cost_caps": os.environ.get("CAPS"), "schema_migration": os.environ.get("SCHEMA")},
+              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E"), "real_sentence": os.environ.get("SENTENCE"), "businesses_created": os.environ.get("BUSINESSES"), "memory_index_probe": os.environ.get("VECTORS"), "model_probe": os.environ.get("MODEL"), "backup_restore": os.environ.get("BACKUP"), "health_report": os.environ.get("HEALTH"), "cost_caps": os.environ.get("CAPS"), "schema_migration": os.environ.get("SCHEMA"), "transaction_experiment": os.environ.get("TX")},
               "init_routes": (read("init.txt") or "").splitlines(),
               "indexes": readjson("indexes.json"),
               "trial_do": readjson("trial-do.json"),
@@ -878,6 +887,7 @@ jobs:
               "health_report": readjson("health.json"),
               "cost_caps": readjson("caps.json"),
               "schema_migration": readjson("schema.json"),
+              "transaction_experiment": readjson("tx.json"),
               "real_sentence": readjson("sentence.json"),
           }
           json.dump(out, open("ops/staging-last-run.json", "w"), indent=1)

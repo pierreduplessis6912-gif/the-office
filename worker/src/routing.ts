@@ -14,7 +14,7 @@ export type Route = { kind: "worker" } | { kind: "business"; businessId: string 
 const WORKER_ONLY = new Set(["/", "/health", "/auth/google/login", "/auth/google/callback", "/auth/logout"]);
 // Admin routes the Worker answers itself: they work on the shared layer or on the Worker's own bindings, not on a business's data. The two memory routes report on the WHOLE shared index (its total
 // vector count and indexing lag), which belongs to the platform; a business's own scoped view of the index cannot describe it (scoped-bindings.ts).
-const WORKER_ADMIN = new Set(["/debug/trial-d1", "/debug/trial-do", "/debug/trial-ai", "/debug/memory-health", "/debug/stress-memory"]);   // /debug/timings is NOT here: the model-versus-database split lives inside each business's object
+const WORKER_ADMIN = new Set(["/debug/trial-d1", "/debug/trial-do", "/debug/trial-tx", "/debug/trial-ai", "/debug/memory-health", "/debug/stress-memory"]);   // /debug/timings is NOT here: the model-versus-database split lives inside each business's object
 
 export async function routeRequest(request: Request, env: Env): Promise<Route> {
   const url = new URL(request.url);

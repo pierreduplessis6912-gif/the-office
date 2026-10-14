@@ -10,7 +10,7 @@ async function trialTests({ check, srcDir }) {
   const path = require('path'), fs = require('fs'), os = require('os'), esbuild = require('esbuild');
   const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'tr-')), 'm.js');
   esbuild.buildSync({ entryPoints: [path.join(srcDir, 'trial.ts')], bundle: true, platform: 'node', format: 'cjs', outfile: out, logLevel: 'silent' });
-  const { trialAi } = require(out);
+  const { trialAi, trialTx, TrialObject } = require(out);
   const calls = [];
   const env = { AI: { run: async (model, input, options) => { calls.push({ model, input, options }); return { usage: { prompt_tokens: 10, completion_tokens: 1, cached: calls.length > 1 ? 5 : 0 } }; } } };
   const ask = async (query) => { calls.length = 0; const res = await trialAi(env, new URL('https://x/debug/trial-ai?' + query)); return { res, body: await res.json() }; };
@@ -33,6 +33,23 @@ async function trialTests({ check, srcDir }) {
   const objectEnv = { TRIAL: { idFromName: (n) => n, get: (id, opts) => ({ fetch: async (u) => { forwarded.push({ id, opts, u: String(u) }); return Response.json({ callsMs: [5, 6], usage: [null, null] }); } }) } };
   const viaObject = await (await trialAi(objectEnv, new URL('https://x/debug/trial-ai?where=object&n=2&chars=300&affinity=s1&salt=k'))).json();
   check(forwarded[0].opts.locationHint === 'weur' && /n=2/.test(forwarded[0].u) && /chars=300/.test(forwarded[0].u) && /affinity=s1/.test(forwarded[0].u) && /salt=k/.test(forwarded[0].u) && viaObject.where === 'object' && viaObject.medianMs === 6, 'asked of the London object, the size, the affinity and the salt are all forwarded to it');
+  // ---- the transaction experiment (item 9): nine questions put to a Durable Object's real SQLite, in its OWN scratch table
+  const { DatabaseSync } = require('node:sqlite');
+  const db = new DatabaseSync(':memory:');
+  const standInStorage = {
+    sql: { exec(q, ...b) { const s = db.prepare(q); const rows = /^\s*(select|with|pragma)\b/i.test(q) || /\breturning\b/i.test(q) ? s.all(...b).map((r) => ({ ...r })) : (s.run(...b), []); return { toArray: () => rows }; } },
+    transactionSync(fn) { db.exec('BEGIN'); try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; } },
+  };
+  const trialObject = new TrialObject({ storage: standInStorage }, {});
+  const experiments = await (await trialObject.fetch(new Request('https://trial/tx'))).json();
+  const names = Object.keys(experiments.results);
+  check(names.length === 9 && names[0].startsWith('1_') && names[8].startsWith('9_') && names.every((n) => typeof experiments.results[n].ran === 'boolean'), 'the experiment asks nine questions and reports each answer (or the error the storage gave)');
+  check(experiments.results[names[0]].rowsLeftAfterTheThrow === 0 && experiments.results[names[5]].childrenFound === 2 && experiments.results[names[6]].firstChildPointsAtTheParent === true && experiments.results[names[6]].secondChildPointsAtTheParent === false, 'and what it reports is right: a throw inside transactionSync leaves no rows, a child can use the parent id from RETURNING, and last_insert_rowid() serves the FIRST child only (it moves after every insert)');
+  const left = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all().map((r) => r.name);
+  check(left.join() === 'tx_trial' && db.prepare('SELECT COUNT(*) AS n FROM tx_trial').get().n === 0, 'it touches only its own scratch table and leaves it empty');
+  const sent = [];
+  const viaWorker = await (await trialTx({ TRIAL: { idFromName: (n) => n, get: (id) => ({ fetch: async (u) => { sent.push({ id, u: String(u) }); return Response.json({ results: {} }); } }) } })).json();
+  check(sent.length === 1 && sent[0].id === 'tx-trial' && sent[0].u === 'https://trial/tx' && viaWorker.results !== undefined, 'the route asks one fixed trial object, and nothing else');
   const bad = await trialAi(objectEnv, new URL('https://x/debug/trial-ai?where=object&hint=mars'));
   check(bad.status === 400, 'an invalid placement hint is refused');
 }
