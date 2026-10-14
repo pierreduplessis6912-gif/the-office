@@ -1,7 +1,9 @@
 {
- "when": "2026-10-14T16:59:06.004895Z",
- "run": "38602711228",
+ "when": "2026-10-14T17:13:30.635178Z",
+ "run": "38604805043",
  "requested_mode": "enforce",
+ "requested_messages": "100",
+ "requested_neurons": "400000",
  "set_status": "200",
  "set_response": {
   "ok": true,
