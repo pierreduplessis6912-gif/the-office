@@ -1,6 +1,6 @@
 {
- "when": "2026-10-14T17:04:07.571989Z",
- "run": "38603445765",
+ "when": "2026-10-14T17:43:43.601067Z",
+ "run": "38609088054",
  "business": "zululand-flooring-and-blinds",
  "verdict": {
   "object_location": {
@@ -16,7 +16,7 @@
   ],
   "model_today_usd": 0.0084,
   "queue_pending": 0,
-  "job_minutes_since_last_run": 30,
+  "job_minutes_since_last_run": 10,
   "model_today_neurons": 765.1,
   "model_requests_today": 1,
   "plan_mode": "enforce",
