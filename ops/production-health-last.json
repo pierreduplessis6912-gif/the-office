@@ -1,0 +1,13 @@
+{
+ "when": "2026-10-14T04:55:04.856360Z",
+ "run": "38513867266",
+ "business": "zululand-flooring-and-blinds",
+ "verdict": {
+  "healthy": true,
+  "problems": [],
+  "warnings": [],
+  "model_today_usd": 0,
+  "queue_pending": 0,
+  "job_minutes_since_last_run": 21
+ }
+}
