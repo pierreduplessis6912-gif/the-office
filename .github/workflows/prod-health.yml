@@ -30,8 +30,9 @@ jobs:
       BACKUP_STALE_HOURS: "30"
       SPEND_WARN_USD: "2"
       CAP_WARN_FRACTION: "0.8"
-      # Where the business's members are. The object's own location (health report: location) is compared with it; a mismatch is a WARNING, never a failure (it costs every request a long hop, it does not break anything).
-      EXPECTED_OBJECT_COUNTRY: "ZA"
+      # The South African data centres. The object's own data centre (health report: location.colo) is compared with them; being elsewhere is a WARNING, never a failure (it costs every request a long hop, it breaks nothing).
+      # The data centre is judged, NOT the country the trace reports: that is where the request's address is placed, and a Paris data centre reported "US".
+      EXPECTED_OBJECT_COLOS: "JNB,CPT,DUR"
       RESULTS: ${{ github.workspace }}/results
     steps:
       - uses: actions/checkout@v4
@@ -107,9 +108,9 @@ jobs:
           if (lim.get("membersAtOrOverLimit") or 0) > 0:
               warnings.append("%s member(s) reached the daily message limit today (the plan allows %s each)" % (lim.get("membersAtOrOverLimit"), (lim.get("plan") or {}).get("messagesPerMemberPerDay")))
           loc = h.get("location") or {}
-          expected = env.get("EXPECTED_OBJECT_COUNTRY")
-          if expected and loc.get("country") and loc.get("country") != expected:
-              warnings.append("the business's object runs in %s (%s), not in %s: every request its members make pays that distance (SHIP_CHECKLIST.md item 13)" % (loc.get("colo"), loc.get("country"), expected))
+          expected = [c.strip() for c in (env.get("EXPECTED_OBJECT_COLOS") or "").split(",") if c.strip()]
+          if expected and loc.get("colo") and loc.get("colo") not in expected:
+              warnings.append("the business's object runs in the %s data centre, which is not one of the South African ones (%s): every request its members make pays that distance (SHIP_CHECKLIST.md item 13)" % (loc.get("colo"), ", ".join(expected)))
           cap = (lim.get("plan") or {}).get("neuronsPerBusinessPerDay") or 0
           used = ((h.get("model") or {}).get("today") or {}).get("neurons") or 0
           if cap and used >= cap * float(env["CAP_WARN_FRACTION"]):

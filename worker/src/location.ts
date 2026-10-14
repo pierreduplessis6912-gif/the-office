@@ -14,7 +14,9 @@ export const LOCATION_RETRY_MS = 55 * 60_000;        // a check that found nothi
 
 export interface ObjectLocation {
   colo: string | null;       // the data centre, e.g. "DFW" (Dallas) or "JNB" (Johannesburg)
-  country: string | null;    // the country it is in, e.g. "US" or "ZA"
+  // The country Cloudflare attributes to the ADDRESS the request leaves from. It is NOT reliably the data centre's country: measured on production (2026-10-14), a Paris data centre (CDG) reported "US". Record it, never judge by it:
+  // the data centre code above is the fact.
+  country: string | null;
   checkedAt: string | null;  // when the last check ran (ok or not)
   error: string | null;      // why the last check found nothing, if it did
 }
