@@ -564,7 +564,7 @@ jobs:
               "customers_as_listed": {"before": len(names(before)), "damaged": len(names(damaged)), "restored": len(names(restored))},
               "customers_in_the_fingerprints": {"original": count(fo, "customers"), "damaged": count(fd, "customers"), "restored": count(fr, "customers")},
               "the_import_answered": (json.dumps(damage)[:160] if damage is not None else None),
-              "damage_1_customers_were_added": count(fd, "customers") is not None and count(fd, "customers") == (count(fo, "customers") or 0) + 3 and len(names(damaged)) == len(names(before)) + 3,
+              "damage_1_customers_were_added": count(fd, "customers") is not None and count(fd, "customers") == (count(fo, "customers") or 0) + 3,   # judged by the fingerprint's count: the customers LIST is capped, and staging holds 26,117 customers left by the load tests
               "damage_2_the_note_was_overwritten": note_damaged != note_before and "VANDALISED NOTE" in note_damaged,
               "the_damaged_fingerprint_differs_from_the_original": core(fd) != core(fo),
               "the_note_is_back": note_restored == note_before and "VANDALISED" not in note_restored,
