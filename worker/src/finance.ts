@@ -81,6 +81,31 @@ export async function recordSupplierPayment(
 // customerId here means "which job/customer this cost is FOR" —
 // genuinely distinct from characterId (who was paid) — and is nullable,
 // since most expenses today won't have job context stated at all.
+// The questions put to the model about a cost BEFORE a transaction opens (nothing but the database may be touched inside one). Each is the single place that knows what is asked, so the routes that confirm an
+// action and the functions themselves ask exactly the same thing.
+export async function classifyForSupplierInvoice(env: Env, supplierReference: string | null): Promise<Awaited<ReturnType<typeof classifyExpenseCategory>>> {
+  return classifyExpenseCategory(env, supplierReference ? `Supplier invoice ${supplierReference}` : "Supplier invoice");
+}
+export async function classifyForVarianceDisposition(
+  env: Env,
+  grnLineItemId: number,
+  reason: string | null,
+  resolution: string | null,
+  creditAmount: number | null
+): Promise<Awaited<ReturnType<typeof classifyExpenseCategory>> | undefined> {
+  if (!(resolution === "credit" && creditAmount != null && creditAmount > 0)) return undefined;
+  const line = await env.OFFICE_DB.prepare(
+    `SELECT gli.description, grn.supplier_id
+     FROM grn_line_items gli
+     JOIN goods_received_notes grn ON grn.id = gli.grn_id
+     WHERE gli.id = ?`
+  )
+    .bind(grnLineItemId)
+    .first<{ description: string; supplier_id: number | null }>();
+  if (line?.supplier_id == null) return undefined;
+  return classifyExpenseCategory(env, `Credit for ${line.description} (${reason ?? "discrepancy"})`);
+}
+
 export async function recordExpense(
   env: Env,
   characterId: number | null,
@@ -1779,18 +1804,7 @@ export async function recordVarianceDisposition(
   // One transaction (atomic.ts): the disposition and the credit it creates happen together or not at all. The model is asked what kind of cost the credit is FIRST, outside the transaction: nothing but the
   // database may be touched inside one (this function used to ask it between the two writes).
   if (!env.__atomic) {
-    let category: Awaited<ReturnType<typeof classifyExpenseCategory>> | undefined;
-    if (resolution === "credit" && creditAmount != null && creditAmount > 0) {
-      const line = await env.OFFICE_DB.prepare(
-        `SELECT gli.description, grn.supplier_id
-         FROM grn_line_items gli
-         JOIN goods_received_notes grn ON grn.id = gli.grn_id
-         WHERE gli.id = ?`
-      )
-        .bind(grnLineItemId)
-        .first<{ description: string; supplier_id: number | null }>();
-      if (line?.supplier_id != null) category = await classifyExpenseCategory(env, `Credit for ${line.description} (${reason ?? "discrepancy"})`);
-    }
+    const category = await classifyForVarianceDisposition(env, grnLineItemId, reason, resolution, creditAmount);
     return atomically(env, (tx) => recordVarianceDisposition(tx, grnLineItemId, reason, resolution, creditAmount, recordedByEmail, category));
   }
   const inserted = await env.OFFICE_DB.prepare(
@@ -2026,7 +2040,7 @@ export async function recordSupplierInvoice(
   // One transaction (atomic.ts): all of it happens or none of it does. This call outside a transaction calls itself again inside one.
   // The model is asked what kind of cost this is FIRST, outside the transaction: nothing but the database may be touched inside one (a transaction held open across the model would block the whole business).
   if (!env.__atomic) {
-    const category = await classifyExpenseCategory(env, supplierReference ? `Supplier invoice ${supplierReference}` : "Supplier invoice");
+    const category = await classifyForSupplierInvoice(env, supplierReference);
     return atomically(env, (tx) => recordSupplierInvoice(tx, purchaseOrderId, supplierId, supplierReference, sourceTranscript, lineItems, category));
   }
 

@@ -1,4 +1,5 @@
 export { TrialObject } from "./trial";
+import { atomically } from "./atomic";
 import { capAfter, capBefore, isCountable } from "./limits";
 import { recordModelUsage } from "./usage";
 import { takeSnapshot } from "./backup";
@@ -21,7 +22,20 @@ import { handleOrderHolds, handleOrderRecords } from "./intents/order-admin";
 import { resolveUploadCaption } from "./intents/upload-caption";
 import { decideSupplierDocument } from "./intents/supplier-document";
 import { Env, Extraction, HistoryTurn, LineItemWithTotal, ProcessResult, WorkObservationExtraction } from "./types";
-import { arrayBufferToBase64, classifyDashboardIntent, containsBackwardReference, describeImage, extractIntent, extractMultipleIntents, extractSupplierInvoice, extractWorkObservation, resolveFollowUpEntity, splitIntoTopics, transcribe } from "./ai";
+import {
+  arrayBufferToBase64,
+  classifyDashboardIntent,
+  containsBackwardReference,
+  describeImage,
+  extractIntent,
+  extractMultipleIntents,
+  extractSupplierInvoice,
+  extractWorkObservation,
+  resolveFollowUpEntity,
+  splitIntoTopics,
+  transcribe,
+  classifyExpenseCategory,
+} from "./ai";
 import { listAudit, listPermissions, resetRole, setPermission } from "./permissions";
 import { checkCrossRoleCollision, findExistingEntityByName, logInteractionEdge, reconcileCharacter, reconcileCustomer, reconcilePerson } from "./identity";
 import { completeTask, getCompletedToday, getEmberCounts, getOpenTasks, nowInBusinessTimezone, recordWorkObservation, resolveScheduledDate, schedulingContinuation } from "./scheduler";
@@ -48,7 +62,47 @@ import {
   ROUTE_RULES,
   SIGNABLE_DOCUMENT_PATHS,
   intentCreationRefusal, isAdminPath, CUSTOMER_LINK_TTL_MS } from "./auth";
-import { buildDocumentResponse, checkForJobScopeAmendment, convertQuoteToInvoice, generateAgedCreditorsPdf, generateAgedDebtorsPdf, generateDocumentPdf, generateProfitAndLossPdf, generateStatementPdf, getAgedCreditorsReport, getCustomerFinancialSummary, getJobProfitability, getOpenDiscrepanciesForSupplier, getTrackedStockItems, holdForConfirmation, markLeadLost, recordExpense, addDeliveredItemsToStock, getDeliveryExceptions, getOutstandingOrderLines, proposeStockAdditions, recordDelivery, recordGoodsReceived, recordInvoice, recordPayment, recordQuotation, recordSupplierInvoice, recordSupplierPayment, recordVarianceDisposition, resolveCrossCaptureAttachment, resolveSnag, cancelPurchaseOrder, checkDeliveryUnits, deliveryUnitQuestion, duplicateInvoiceMessage, normalizeInvoiceReference, reopenPurchaseOrder, linkPurchaseOrderAndMoveCosts } from "./finance";
+import {
+  buildDocumentResponse,
+  checkForJobScopeAmendment,
+  convertQuoteToInvoice,
+  generateAgedCreditorsPdf,
+  generateAgedDebtorsPdf,
+  generateDocumentPdf,
+  generateProfitAndLossPdf,
+  generateStatementPdf,
+  getAgedCreditorsReport,
+  getCustomerFinancialSummary,
+  getJobProfitability,
+  getOpenDiscrepanciesForSupplier,
+  getTrackedStockItems,
+  holdForConfirmation,
+  markLeadLost,
+  recordExpense,
+  addDeliveredItemsToStock,
+  getDeliveryExceptions,
+  getOutstandingOrderLines,
+  proposeStockAdditions,
+  recordDelivery,
+  recordGoodsReceived,
+  recordInvoice,
+  recordPayment,
+  recordQuotation,
+  recordSupplierInvoice,
+  recordSupplierPayment,
+  recordVarianceDisposition,
+  resolveCrossCaptureAttachment,
+  resolveSnag,
+  cancelPurchaseOrder,
+  checkDeliveryUnits,
+  deliveryUnitQuestion,
+  duplicateInvoiceMessage,
+  normalizeInvoiceReference,
+  reopenPurchaseOrder,
+  linkPurchaseOrderAndMoveCosts,
+  classifyForSupplierInvoice,
+  classifyForVarianceDisposition,
+} from "./finance";
 import { resolvePDFJS } from "pdfjs-serverless";
 import { handleDebugRoute } from "./debug";
 import { deliveryRecordedMessage } from "./documents";
@@ -2169,6 +2223,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           // person, so the new record is linked to the person the existing one already has, exactly as the near-match answer links
           // its record. It used to insert an unlinked record, leaving one human as two unrelated entries. If the existing record has
           // no person yet, one is created and linked to both.
+          await atomically(env, async (env) => {
           const existingEntity =
             payload.intendedRole === "customer"
               ? await env.OFFICE_DB.prepare("SELECT id, person_id FROM characters WHERE name = ? COLLATE NOCASE AND merged_into_character_id IS NULL ORDER BY id LIMIT 1")
@@ -2199,6 +2254,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           )
             .bind(id)
             .run();
+          });
           const { capabilities: reprocessCapabilities, email: reprocessEmail } = await resolveCapabilities(request, env);
           const outcome = await processOneExtraction(
             env,
@@ -2267,6 +2323,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             );
           }
 
+          await atomically(env, async (env) => {
           if (payload.intendedRole === "customer") {
             await env.OFFICE_DB.prepare("INSERT INTO customers (name, person_id) VALUES (?, ?)").bind(payload.name, chosenPersonId).run();
           } else {
@@ -2280,6 +2337,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           )
             .bind(id)
             .run();
+          });
 
           const { capabilities: reprocessCapabilities, email: reprocessEmail } = await resolveCapabilities(request, env);
           const outcome = await processOneExtraction(
@@ -2305,6 +2363,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         // scheduled_date_raw, installer_id) — no speculative fields
         // for changes that haven't happened yet.
         if (action.type === "job_scope_amendment") {
+          return await atomically(env, async (env) => {
           const payload = JSON.parse(action.payload) as {
             jobScopeId: number;
             jobScopeDescription: string;
@@ -2343,6 +2402,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             .run();
 
           return Response.json({ status: "confirmed", amendedJobScopeId: payload.jobScopeId, changes: payload.changes });
+          });
         }
 
         // Real feature 2026-07-25 — Layer 2 (Project), the
@@ -2351,6 +2411,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         // several real options, not a simple yes — the real project
         // id must be given in the request body.
         if (action.type === "project_ambiguity") {
+          return await atomically(env, async (env) => {
           const payload = JSON.parse(action.payload) as {
             jobScopeId: number;
             candidates: Array<{ id: number; description: string | null }>;
@@ -2376,9 +2437,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             .bind(id)
             .run();
           return Response.json({ status: "confirmed", jobScopeId: payload.jobScopeId, attachedToProject: chosen });
+          });
         }
 
         if (action.type === "payment") {
+          return await atomically(env, async (env) => {
           const payload = JSON.parse(action.payload) as { customerId: number; amount: number | null };
           const payment = await recordPayment(env, payload.customerId, payload.amount, action.source_transcript);
           await env.OFFICE_DB.prepare(
@@ -2387,6 +2450,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             .bind(id)
             .run();
           return Response.json({ status: "confirmed", payment });
+          });
         }
 
         if (action.type === "expense") {
@@ -2398,13 +2462,16 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             amount: number | null;
             description: string;
           };
+          const category = await classifyExpenseCategory(env, payload.description);
+          return await atomically(env, async (env) => {
           const expense = await recordExpense(
             env,
             payload.characterId,
             payload.amount,
             payload.description,
             action.source_transcript,
-            payload.customerId
+            payload.customerId,
+            category
           );
           await env.OFFICE_DB.prepare(
             "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
@@ -2412,6 +2479,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             .bind(id)
             .run();
           return Response.json({ status: "confirmed", expense });
+          });
         }
 
         // Real branch, per direct reasoning worked through with real,
@@ -2421,6 +2489,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         // created here, on explicit confirmation - never written
         // directly by the CSV import itself.
         if (action.type === "imported_invoice") {
+          return await atomically(env, async (env) => {
           const payload = JSON.parse(action.payload) as {
             customerId: number;
             description: string;
@@ -2444,12 +2513,14 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             .bind(id)
             .run();
           return Response.json({ status: "confirmed" });
+          });
         }
 
         // Real feature 2026-07-24 — the real prerequisite for Aged
         // Creditors, mirroring the real, guard()d payment write
         // exactly, just for the supplier side of money moving.
         if (action.type === "supplier_payment") {
+          return await atomically(env, async (env) => {
           const payload = JSON.parse(action.payload) as {
             characterId: number;
             characterName?: string;
@@ -2462,6 +2533,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             .bind(id)
             .run();
           return Response.json({ status: "confirmed", supplierPayment });
+          });
         }
 
         // Real feature 2026-07-21 — Goods Received Notes, the second
@@ -2471,6 +2543,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         // recordGoodsReceived, returned here so Peter sees it
         // immediately, not buried in a debug route.
         if (action.type === "link_order") {
+          return await atomically(env, async (env) => {
           const payload = JSON.parse(action.payload) as { purchaseOrderId: number; customerId: number; customerName?: string; supplierName?: string | null };
           const linked = await linkPurchaseOrderAndMoveCosts(env, payload.purchaseOrderId, payload.customerId);
           await env.OFFICE_DB.prepare(
@@ -2483,9 +2556,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             linked,
             message: `Linked ${payload.supplierName ? `${payload.supplierName} ` : ""}order #${payload.purchaseOrderId} to ${payload.customerName ?? "the customer"}'s job.${linked.moved > 0 ? ` ${linked.moved} cost${linked.moved === 1 ? "" : "s"} already recorded for it${linked.movedAmount > 0 ? ` (R${linked.movedAmount} of supplier invoices)` : ""} now count${linked.moved === 1 ? "s" : ""} toward the job.` : ""}${linked.unmatched > 0 ? ` ${linked.unmatched} supplier invoice${linked.unmatched === 1 ? "" : "s"} could not be matched to ${linked.unmatched === 1 ? "its" : "their"} cost with certainty, so ${linked.unmatched === 1 ? "it was" : "they were"} left as ${linked.unmatched === 1 ? "it was" : "they were"}.` : ""}`,
           });
+          });
         }
 
         if (action.type === "reopen_order") {
+          return await atomically(env, async (env) => {
           const payload = JSON.parse(action.payload) as { purchaseOrderId: number; supplierName?: string };
           const reopened = await reopenPurchaseOrder(env, payload.purchaseOrderId);
           await env.OFFICE_DB.prepare(
@@ -2500,9 +2575,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
               ? `${payload.supplierName ?? "That"} order #${payload.purchaseOrderId} is already open.`
               : `Reopened ${payload.supplierName ?? "the"} order #${payload.purchaseOrderId}.${reopened.reopenedShortages > 0 ? ` ${reopened.reopenedShortages} shortage${reopened.reopenedShortages === 1 ? "" : "s"} the cancellation had closed ${reopened.reopenedShortages === 1 ? "is" : "are"} open again.` : ""}`,
           });
+          });
         }
 
         if (action.type === "cancel_order") {
+          return await atomically(env, async (env) => {
           const payload = JSON.parse(action.payload) as { purchaseOrderId: number; supplierName?: string };
           const { email: cancelledBy } = await resolveCapabilities(request, env);
           const cancelled = await cancelPurchaseOrder(env, payload.purchaseOrderId, cancelledBy);
@@ -2518,12 +2595,14 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
               ? `${payload.supplierName ?? "That"} order #${payload.purchaseOrderId} was already cancelled.`
               : `Cancelled ${payload.supplierName ?? "the"} order #${payload.purchaseOrderId}.${cancelled.closedShortages > 0 ? ` ${cancelled.closedShortages} open shortage${cancelled.closedShortages === 1 ? "" : "s"} on it closed with it.` : ""}`,
           });
+          });
         }
 
         if (action.type === "stock_add") {
           // Decided 2026-10-03 (Pierre): "Add to stock?" on delivery. Confirming registers each item
           // that is not yet stock and adds what arrived; rejecting just leaves the question on record
           // as declined, which is what stops it being asked again.
+          return await atomically(env, async (env) => {
           const payload = JSON.parse(action.payload) as { items?: Array<{ name: string; unit: string | null; quantity: number }> };
           const added = await addDeliveredItemsToStock(env, Array.isArray(payload.items) ? payload.items : []);
           await env.OFFICE_DB.prepare(
@@ -2539,9 +2618,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
                 ? `Added to stock: ${added.map((a) => `${a.name} (${a.quantity}${a.unit ? ` ${a.unit}` : ""})`).join(", ")}.`
                 : "Nothing to add to stock.",
           });
+          });
         }
 
         if (action.type === "goods_received") {
+          return await atomically(env, async (env) => {
           const payload = JSON.parse(action.payload) as {
             purchaseOrderId: number;
             supplierId: number | null;
@@ -2616,6 +2697,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
                 : ""
             }`,
           });
+          });
         }
 
         // Real feature 2026-07-21 — Supplier Invoices, the third and
@@ -2648,13 +2730,16 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
               );
             }
           }
+          const category = await classifyForSupplierInvoice(env, payload.supplierReference);
+          return await atomically(env, async (env) => {
           const recorded = await recordSupplierInvoice(
             env,
             payload.purchaseOrderId,
             payload.supplierId,
             payload.supplierReference,
             action.source_transcript,
-            payload.lineItems
+            payload.lineItems,
+            category
           );
           await env.OFFICE_DB.prepare(
             "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
@@ -2662,6 +2747,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             .bind(id)
             .run();
           return Response.json({ status: "confirmed", supplierInvoice: recorded });
+          });
         }
 
         // Real feature 2026-07-24 — Variance Disposition, the real,
@@ -2678,13 +2764,16 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             creditAmount: number | null;
           };
           const { email: confirmedByEmail } = await resolveCapabilities(request, env);
+          const category = await classifyForVarianceDisposition(env, payload.grnLineItemId, payload.reason, payload.resolution, payload.creditAmount);
+          return await atomically(env, async (env) => {
           const recorded = await recordVarianceDisposition(
             env,
             payload.grnLineItemId,
             payload.reason,
             payload.resolution,
             payload.creditAmount,
-            confirmedByEmail
+            confirmedByEmail,
+            category
           );
           await env.OFFICE_DB.prepare(
             "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
@@ -2692,9 +2781,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             .bind(id)
             .run();
           return Response.json({ status: "confirmed", disposition: recorded });
+          });
         }
 
         if (action.type === "invoice") {
+          return await atomically(env, async (env) => {
           const payload = JSON.parse(action.payload) as {
             customerId: number;
             customerName?: string;
@@ -2728,9 +2819,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             (await resolveCapabilities(request, env)).email
           );
           return Response.json({ status: "confirmed", invoice, pdfUrl, shareMessage });
+          });
         }
 
         if (action.type === "quotation") {
+          return await atomically(env, async (env) => {
           const payload = JSON.parse(action.payload) as {
             customerId: number;
             customerName?: string;
@@ -2764,9 +2857,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             (await resolveCapabilities(request, env)).email
           );
           return Response.json({ status: "confirmed", quotation, pdfUrl, shareMessage });
+          });
         }
 
         if (action.type === "convert_quote") {
+          return await atomically(env, async (env) => {
           const payload = JSON.parse(action.payload) as {
             quotationId: number;
             customerId: number;
@@ -2802,9 +2897,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             (await resolveCapabilities(request, env)).email
           );
           return Response.json({ status: "confirmed", invoice: result, pdfUrl, shareMessage });
+          });
         }
 
         if (action.type === "customer_fact") {
+          return await atomically(env, async (env) => {
           const payload = JSON.parse(action.payload) as {
             customerId: number;
             key: string;
@@ -2817,9 +2914,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             .bind(id)
             .run();
           return Response.json({ status: "confirmed", key: payload.key, value: payload.value });
+          });
         }
 
         if (action.type === "character_fact") {
+          return await atomically(env, async (env) => {
           const payload = JSON.parse(action.payload) as {
             characterId: number;
             key: string;
@@ -2832,12 +2931,14 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             .bind(id)
             .run();
           return Response.json({ status: "confirmed", key: payload.key, value: payload.value });
+          });
         }
 
         if (action.type === "schema_candidate") {
           // Acknowledged only — this never runs a migration itself. The
           // actual ALTER TABLE / CREATE TABLE stays a deliberate, manual
           // step, the same way it has been all day.
+          return await atomically(env, async (env) => {
           await env.OFFICE_DB.prepare(
             "UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?"
           )
@@ -2847,6 +2948,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             status: "acknowledged",
             note: "No migration was run. Add the column or table yourself when ready.",
             payload: JSON.parse(action.payload),
+          });
           });
         }
 
@@ -2939,6 +3041,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           const replayRefused = await refuseReplayIfNotPermitted(request, env, id, payload.extraction);
           if (replayRefused) return replayRefused;
 
+          const newPersonId = await atomically(env, async (env) => {
           const insertedPerson = await env.OFFICE_DB.prepare("INSERT INTO people (name) VALUES (?) RETURNING id")
             .bind(payload.name)
             .first<{ id: number }>();
@@ -2957,6 +3060,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           )
             .bind(id)
             .run();
+          return newPersonId;
+          });
 
           const { capabilities: reprocessCapabilities, email: reprocessEmail } = await resolveCapabilities(request, env);
           const outcome = await processOneExtraction(
@@ -2978,6 +3083,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         // discard the real content of the message the way this
         // action type's reject would otherwise do.
         if (action.type === "job_scope_amendment") {
+          return await atomically(env, async (env) => {
           const payload = JSON.parse(action.payload) as {
             customerId: number;
             observation: WorkObservationExtraction;
@@ -3002,6 +3108,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             .run();
 
           return Response.json({ status: "rejected_as_new_job", newJobScopeId: recorded.jobScopeId });
+          });
         }
 
         await env.OFFICE_DB.prepare(

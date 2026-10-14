@@ -351,7 +351,7 @@ async function __runRouteCase(fns, workerDir, spec) {
   if (globalThis.__RealResponse) globalThis.Response = globalThis.__RealResponse;   // see role-matrix.test.js
   console.log = (l) => logLines.push(String(l));
   console.error = (l) => logLines.push(String(l));
-  let result = null, threw = null, before = null;
+  let result = null, threw = null, before = null, writeCount = 0;
   try {
     await withFrozenClock(async () => {
       try {
@@ -367,6 +367,11 @@ async function __runRouteCase(fns, workerDir, spec) {
           await Promise.all(pendingWork.splice(0));
         }
         before = snapshot(db);
+        // Fault injection (tools/atomic.test.js): spec.failAtWrite = 0 only COUNTS the write statements the request makes; = N makes the Nth of them throw, as a real failure part-way would.
+        if (spec.failAtWrite !== undefined) {
+          const realPrepare = db.prepare.bind(db);
+          db.prepare = (q) => { if (/^\s*(insert|update|delete)\b/i.test(q)) { writeCount++; if (spec.failAtWrite && writeCount === spec.failAtWrite) throw new Error('injected failure at write ' + writeCount); } return realPrepare(q); };
+        }
         result = await call(spec);
         await Promise.all(pendingWork.splice(0));
       } catch (e) {
@@ -379,7 +384,7 @@ async function __runRouteCase(fns, workerDir, spec) {
   }
   if (before === null) before = snapshot(db);
   const errorLogs = logLines.map((l) => { try { return JSON.parse(l); } catch (e) { return null; } }).filter((l) => l && l.level === 'error').map((l) => ({ message: l.message, detail: l.detail, actionId: l.actionId }));
-  return { result, threw, aiCalls: ai.calls, aiInputs: ai.inputs, backgroundErrors, writes: diff(before, snapshot(db)), effects, errorLogs };
+  return { result, threw, aiCalls: ai.calls, aiInputs: ai.inputs, backgroundErrors, writes: diff(before, snapshot(db)), effects, errorLogs, writeCount };
 }
 
 module.exports = { loadFunctions, loadProcessor, get runCase() { return runCase; }, get runTranscriptCase() { return runTranscriptCase; }, get runRouteCase() { return runRouteCase; }, newDatabase, d1, EXTRACTION_DEFAULTS, raceLog };

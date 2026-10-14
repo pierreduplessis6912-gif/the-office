@@ -107,6 +107,67 @@ async function atomicTests({ check, srcDir }) {
   for (const v of verdicts) check(v.ok === true, `${v.label}: ${v.ok ? `failing at each of its ${v.total} writes leaves NOTHING behind (the same faults WITHOUT a transaction damaged the data ${v.damaged} of ${v.total - 1} times: the control bites)` : `FAULT INJECTION FAILED: ${v.why ?? `leaks ${v.leaks}, wrong error ${v.wrongError}, control damage ${v.damaged}/${v.total - 1}`}`}`);
   check(positions >= 22, `${positions} fault positions were tried across ${cases.length} real operations`);
 
+  // ---- the REAL confirm route, failed at every write position ----------------------------------------------------------------------------------------------------------------------------------------------------------
+  // The route claims the action, records, then marks it confirmed; on an exception its catch puts the claim back to 'pending'. Before this change a failure part-way left what was already written AND a retryable
+  // action: a retry would record it twice. Now the record and the 'confirmed' mark are one transaction, so after the route's own cleanup the database must be IDENTICAL to before.
+  const harness = require('./harness.js'), workerDir = path.join(srcDir, '..');
+  const fns = await harness.loadFunctions(workerDir);
+  const withBackend = async (backend, fn) => { const saved = process.env.HARNESS_BACKEND; if (backend) process.env.HARNESS_BACKEND = backend; else delete process.env.HARNESS_BACKEND; try { return await fn(); } finally { if (saved === undefined) delete process.env.HARNESS_BACKEND; else process.env.HARNESS_BACKEND = saved; } };
+  const held = (type, payload) => (db) => { db.exec("INSERT INTO customers (name) VALUES ('Test Customer')"); db.prepare("INSERT INTO pending_actions (type, payload, status, source_transcript) VALUES (?, ?, 'pending', 'transcript')").run(type, JSON.stringify(payload)); };
+  const LI = (d, q, p) => ({ description: d, note: null, quantity: q, unit: 'sqm', unit_price: p, line_total: q * p, discount_percent: null, product_id: null, room: null });
+  const routeCases = [
+    ['confirm a payment', held('payment', { customerId: 1, amount: 200 })],
+    ['confirm an invoice with two lines', held('invoice', { customerId: 1, customerName: 'Test Customer', description: 'Bathroom floor', amount: 500, lineItems: [LI('Vinyl', 2, 100), LI('Labour', 3, 100)], jobScopeId: null })],
+    ['confirm a quotation with two lines', held('quotation', { customerId: 1, customerName: 'Test Customer', description: 'Kitchen', amount: 500, lineItems: [LI('Tiles', 2, 100), LI('Labour', 3, 100)], jobScopeId: null })],
+    ['confirm a stock addition of two items', held('stock_add', { items: [{ name: 'Grout', unit: 'bag', quantity: 5 }, { name: 'Adhesive', unit: 'bag', quantity: 2 }] })],
+  ];
+  const nothingChanged = (w) => (Array.isArray(w) ? w.length : Object.keys(w || {}).length) === 0;
+  const routeVerdicts = [];
+  for (const [label, seed] of routeCases) {
+    const spec = (failAtWrite, name) => ({ name, kind: 'route', seed, path: '/actions/1/confirm', method: 'POST', body: {}, failAtWrite });
+    const normal = await withBackend('do', () => harness.runRouteCase(fns, workerDir, spec(0, label + ' (normal)')));
+    const total = normal.writeCount;
+    if (normal.threw || normal.result.status !== 200 || normal.result.body.status !== 'confirmed' || total < 3 || nothingChanged(normal.writes)) { routeVerdicts.push({ label, ok: false, why: `the normal run did not confirm and write in several statements (status ${normal.result && normal.result.status}, ${total} writes, threw ${normal.threw})` }); continue; }
+    let leaks = 0, notAClean500 = 0, retried = 0;
+    for (let k = 1; k <= total; k++) {
+      const r = await withBackend('do', () => harness.runRouteCase(fns, workerDir, spec(k, `${label} (fail at write ${k})`)));
+      routeVerdicts.positions = (routeVerdicts.positions || 0) + 1;
+      if (!(r.result && r.result.status === 500 && r.result.body.error === 'confirm handler threw' && new RegExp(`injected failure at write ${k}`).test(r.result.body.detail))) notAClean500++;
+      if (!nothingChanged(r.writes)) leaks++;
+    }
+    let damaged = 0;
+    for (let k = 3; k <= total; k++) { const r = await withBackend(null, () => harness.runRouteCase(fns, workerDir, spec(k, `${label} (no transaction, fail at write ${k})`))); if (!nothingChanged(r.writes)) damaged++; }
+    routeVerdicts.push({ label, ok: leaks === 0 && notAClean500 === 0 && damaged >= 1, total, leaks, notAClean500, damaged });
+  }
+  for (const v of routeVerdicts) check(v.ok === true, `route: ${v.label}: ${v.ok ? `failing the real request at each of its ${v.total} writes gives a clean 500 and leaves the database IDENTICAL to before (the same faults without a transaction left rows behind ${v.damaged} time${v.damaged === 1 ? '' : 's'}: a retry would have recorded them twice)` : `ROUTE FAULT INJECTION FAILED: ${v.why ?? `leaks ${v.leaks}, not a clean 500 ${v.notAClean500}, control damage ${v.damaged}`}`}`);
+  check((routeVerdicts.positions || 0) >= 16, `${routeVerdicts.positions || 0} fault positions were tried through the real confirm route across ${routeCases.length} action types`);
+
+  // ---- the action routes, by structure (the compiler reads the code) ----------------------------------------------------------------------------------------------------------------------------------------------------
+  const ts = require('typescript');
+  const idx = fs.readFileSync(path.join(srcDir, 'index.ts'), 'utf8'), isf = ts.createSourceFile('index.ts', idx, ts.ScriptTarget.ES2022, true);
+  const routeIf = (name) => { let found = null; (function f(n) { if (ts.isIfStatement(n) && n.expression.getText(isf).includes(`\\/${name}$/`)) found = n; ts.forEachChild(n, f); })(isf); return found; };
+  const insideAtomically = (n) => { for (let p = n.parent; p; p = p.parent) if (ts.isCallExpression(p) && ts.isIdentifier(p.expression) && p.expression.text === 'atomically') return true; return false; };
+  const OUTSIDE_ONLY = ['processOneExtraction', 'classifyExpenseCategory', 'classifyForSupplierInvoice', 'classifyForVarianceDisposition'];
+  const structural = [];
+  for (const [name, mark] of [['confirm', "status = 'confirmed'"], ['reject', "status = 'rejected'"]]) {
+    const route = routeIf(name);
+    const branches = []; (function f(n) { if (ts.isIfStatement(n) && /^action\.type===/.test(n.expression.getText(isf).replace(/\s+/g, ''))) branches.push(n); ts.forEachChild(n, f); })(route);
+    let marked = 0, markedAtomic = 0; const bad = [];
+    for (const b of branches) {
+      const type = /"([\w-]+)"/.exec(b.expression.getText(isf))[1];
+      (function f(n) {
+        if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && n.expression.name.text === 'prepare' && n.arguments[0] && n.arguments[0].getText(isf).includes(mark)) { marked++; if (insideAtomically(n)) markedAtomic++; else bad.push(`${name}/${type}: the "${mark}" write is not inside a transaction`); }
+        if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && OUTSIDE_ONLY.includes(n.expression.text) && insideAtomically(n)) bad.push(`${name}/${type}: ${n.expression.text}() is inside a transaction (it calls the model or re-runs the pipeline)`);
+        ts.forEachChild(n, f);
+      })(b);
+    }
+    structural.push({ name, branches: branches.length, marked, markedAtomic, bad });
+  }
+  const conf = structural[0], rej = structural[1];
+  check(conf.branches >= 21 && conf.marked >= 21 && conf.markedAtomic === conf.marked && conf.bad.length === 0, `confirm: all ${conf.marked} of its ${conf.branches} action types mark the action confirmed INSIDE the same transaction that records it, and none runs the model or the pipeline inside one${conf.bad.length ? ' (' + conf.bad.join('; ') + ')' : ''}`);
+  check(rej.marked >= 2 && rej.markedAtomic === rej.marked && rej.bad.length === 0, `reject: the ${rej.marked} branches that record something mark the action rejected inside the same transaction, and the pipeline re-run stays outside${rej.bad.length ? ' (' + rej.bad.join('; ') + ')' : ''}`);
+  check(!/\n\s+return atomically\(env, async \(env\) =>/.test(idx) && (idx.match(/return await atomically\(env, async \(env\) =>/g) || []).length >= 20, 'route branches use `return await atomically(...)`: a bare `return` would let a failure ESCAPE the route\'s try/catch (it found exactly that regression: a payload that cannot be read must still put the action back to pending)');
+
   // ---- the wiring --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   const wrapped = { 'finance.ts': ['recordInvoice', 'recordQuotation', 'recordPurchaseOrder', 'recordSupplierInvoice', 'convertQuoteToInvoice', 'recordDelivery', 'recordGoodsReceived', 'recordStocktake', 'recordStockUsage', 'cancelPurchaseOrder', 'reopenPurchaseOrder', 'linkPurchaseOrderAndMoveCosts', 'setUnitConversion', 'forgetUnitConversions', 'addDeliveredItemsToStock', 'resolveCrossCaptureAttachment', 'recordVarianceDisposition'], 'identity.ts': ['reconcileCustomer', 'reconcileCharacter'], 'permissions.ts': ['setPermission', 'resetRole'], 'scheduler.ts': ['recordWorkObservation', 'attachToSiblingJobScope'] };
   const missing = [];
@@ -116,11 +177,11 @@ async function atomicTests({ check, srcDir }) {
   check(!/atomically\(/.test(mem) && !/__atomic/.test(mem), 'the memory functions are NOT wrapped: runConsolidation calls the model and the memory index, and the others write their own failure log (memory_errors), which a rollback would erase along with the failure');
   const finSrc = fs.readFileSync(path.join(srcDir, 'finance.ts'), 'utf8');
   const rsi = finSrc.slice(finSrc.indexOf('export async function recordSupplierInvoice'));
-  check(rsi.indexOf('classifyExpenseCategory(env') > 0 && rsi.indexOf('classifyExpenseCategory(env') < rsi.indexOf('return atomically(env') && /return atomically\(env, \(tx\) => recordSupplierInvoice\(tx,[^)]*lineItems, category\)\)/.test(rsi) && /costFor,\s*\n\s*knownCategory\s*\n\s*\);/.test(rsi), 'a supplier invoice asks the model what kind of cost it is BEFORE the transaction opens, and hands the answer in (the guard found this one: the model call was hidden two functions down)');
+  check(rsi.indexOf('classifyForSupplierInvoice(env, supplierReference)') > 0 && rsi.indexOf('classifyForSupplierInvoice(env, supplierReference)') < rsi.indexOf('return atomically(env') && /return atomically\(env, \(tx\) => recordSupplierInvoice\(tx,[^)]*lineItems, category\)\)/.test(rsi) && /costFor,\s*\n\s*knownCategory\s*\n\s*\);/.test(rsi), 'a supplier invoice asks the model what kind of cost it is BEFORE the transaction opens, and hands the answer in (the guard found this one: the model call was hidden two functions down)');
   const exp = finSrc.slice(finSrc.indexOf('export async function recordExpense'), finSrc.indexOf('export async function recordInvoice'));
   check(/knownCategory\?: Awaited<ReturnType<typeof classifyExpenseCategory>>/.test(exp) && /const category = knownCategory \?\? \(await classifyExpenseCategory\(env, description\)\);/.test(exp), 'and recordExpense does not ask the model again when it is given the category');
   const vd = finSrc.slice(finSrc.indexOf('export async function recordVarianceDisposition'), finSrc.indexOf('export interface InvoiceMatchLine'));
-  check(vd.indexOf('classifyExpenseCategory(env') > 0 && vd.indexOf('classifyExpenseCategory(env') < vd.indexOf('return atomically(env') && /return atomically\(env, \(tx\) => recordVarianceDisposition\(tx, grnLineItemId, reason, resolution, creditAmount, recordedByEmail, category\)\)/.test(vd) && /getCustomerForPurchaseOrders\(env, \[chain\.purchase_order_id\]\),\s*\n\s*knownCategory\s*\n\s*\);/.test(vd), 'a variance disposition asks the model about its credit BEFORE the transaction opens (it used to ask between the two writes) and hands the answer in');
+  check(vd.indexOf('classifyForVarianceDisposition(env, grnLineItemId, reason, resolution, creditAmount)') > 0 && vd.indexOf('classifyForVarianceDisposition(env, grnLineItemId, reason, resolution, creditAmount)') < vd.indexOf('return atomically(env') && /return atomically\(env, \(tx\) => recordVarianceDisposition\(tx, grnLineItemId, reason, resolution, creditAmount, recordedByEmail, category\)\)/.test(vd) && /getCustomerForPurchaseOrders\(env, \[chain\.purchase_order_id\]\),\s*\n\s*knownCategory\s*\n\s*\);/.test(vd), 'a variance disposition asks the model about its credit BEFORE the transaction opens (it used to ask between the two writes) and hands the answer in');
   const dbg = fs.readFileSync(path.join(srcDir, 'debug.ts'), 'utf8');
   const routeBlock = (name) => { const i = dbg.indexOf(`if (url.pathname === "${name}"`); let depth = 0, k = dbg.indexOf('{', i); const start = k; for (; k < dbg.length; k++) { if (dbg[k] === '{') depth++; else if (dbg[k] === '}' && --depth === 0) break; } return dbg.slice(i, k + 1); };
   const merges = ['/debug/merge-customers', '/debug/merge-characters', '/debug/merge-stock-items'].map(routeBlock);
