@@ -65,6 +65,8 @@ async function loadProcessor(workerDir) {
 
 function newDatabase(workerDir) {
   const db = new DatabaseSync(':memory:');
+  // A real Durable Object ENFORCES foreign keys; SQLite's default is OFF. This world used to leave them off, which hid the one failure that reached production on 2026-10-14 (a restore that met payments -> customers).
+  db.exec('PRAGMA foreign_keys = ON');
   db.exec(fs.readFileSync(path.join(workerDir, 'migrations', '0001_baseline.sql'), 'utf8'));
   applyIndexesSync(db);
   return db;
