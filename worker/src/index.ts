@@ -1,5 +1,5 @@
 export { TrialObject } from "./trial";
-import { bulkImportRoute, looseMatchTracker } from "./imports";
+import { bulkImportRoute, similarNameTracker } from "./imports";
 import { INVOICE_COLUMNS, matchColumns, parseMoney, readCsv } from "./csv-import";
 import { onboardingRoute } from "./onboarding";
 import { atomically } from "./atomic";
@@ -3254,7 +3254,7 @@ let imported = 0;
       let skipped = 0;
       const skippedRows: number[] = [];
       let alreadyImported = 0;
-      const loose = looseMatchTracker();
+      const similar = similarNameTracker();
       // SAFE TO RETRY: what an earlier import already brought in (an invoice, or one still waiting for confirmation) is recognised by customer and description and is not brought in a second time. Before this, importing the
       // same file twice doubled every invoice.
       const alreadyThere = new Set<string>();
@@ -3289,7 +3289,7 @@ let imported = 0;
           continue;
         }
 
-        loose.note(customer, clientName, i + 1);
+        similar.note(customer, clientName, i + 1);
         const payments = detailsIdx !== -1 ? parsePaymentDetails(row[detailsIdx]) : [];
         // What is still owed: the balance column if there is one; otherwise the total less what was paid (the paid column, or the payments listed).
         const paidFromFile = paidIdx !== -1 ? parseMoney(row[paidIdx]) || 0 : payments.reduce((sum, pay) => sum + pay.amount, 0);
@@ -3339,7 +3339,7 @@ let imported = 0;
         }
       }
 
-      return Response.json({ status: "ok", totalRows: rows.length - 1, imported, heldForConfirmation, skipped, skippedRows, alreadyImported, looselyMatched: loose.count(), looseMatches: loose.list(), columns: { found: columns.found, ignored: columns.ignored } });
+      return Response.json({ status: "ok", totalRows: rows.length - 1, imported, heldForConfirmation, skipped, skippedRows, alreadyImported, possibleDuplicateCount: similar.count(), possibleDuplicates: similar.list(), columns: { found: columns.found, ignored: columns.ignored } });
 });
     }
 
@@ -3377,7 +3377,7 @@ let created = 0;
       let matched = 0;
       let skipped = 0;
       const skippedRows: number[] = [];
-      const loose = looseMatchTracker();
+      const similar = similarNameTracker();
 
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
@@ -3395,7 +3395,7 @@ let created = 0;
           continue;
         }
 
-        loose.note(customer, rawName, i + 1);
+        similar.note(customer, rawName, i + 1);
         if (customer.matched) {
           matched++;
         } else {
@@ -3410,7 +3410,7 @@ let created = 0;
         }
       }
 
-      return Response.json({ status: "ok", totalRows: rows.length - 1, created, matched, skipped, skippedRows, looselyMatched: loose.count(), looseMatches: loose.list() });
+      return Response.json({ status: "ok", totalRows: rows.length - 1, created, matched, skipped, skippedRows, possibleDuplicateCount: similar.count(), possibleDuplicates: similar.list() });
 });
     }
 

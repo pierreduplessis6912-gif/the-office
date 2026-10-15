@@ -481,16 +481,27 @@ export async function reconcileCharacter(
 // us which field a name came from (customer_name vs character_name),
 // searching the OTHER table at all is the bug, not a safety net.
 // These two functions search only their own real table.
-// For an IMPORT (a customer list, an invoice history): the EXACT name, ignoring case and spacing, wins; only when there is none does it fall back to reconcileCustomer's loose matching (any existing name that contains the first
-// and the last word), and `loose` says that is what happened so the import can report it. The loose rule is right for a spoken name and risky for a list: with "Mrs Nkosi" and "Mr Nkosi" on file, an invoice for "Mr Nkosi" was
-// posted to Mrs Nkosi (seen 2026-10-15). Dictation still calls reconcileCustomer unchanged. Only ever called from inside an import's own transaction.
-export async function reconcileCustomerForImport(env: Env, name: string): Promise<{ id: number; name: string; matched: boolean; loose: boolean } | null> {
+// For an IMPORT (a customer list, an invoice history): ONLY an exact name matches (ignoring case and spacing). Anything else becomes its own customer, and if it merely RESEMBLES an existing one (the rule dictation uses: an
+// existing name that contains the first and last word) the answer carries `similarTo`, so the import can tell the owner. Dictation matches loosely because a spoken name is approximate; a written list is not. With "Mrs Nkosi"
+// and "Mr Nkosi" on file an invoice for "Mr Nkosi" was posted to Mrs Nkosi, and in a fresh business a list holding both folded one into the other (seen 2026-10-15). Two similar names stay two people: a duplicate can be
+// merged later, a wrong merge cannot be undone. A new customer is created exactly as reconcileCustomer creates one (a plain insert). Dictation still calls reconcileCustomer, unchanged. Only called from inside an import's
+// own transaction.
+export async function reconcileCustomerForImport(
+  env: Env,
+  name: string
+): Promise<{ id: number; name: string; matched: boolean; similarTo: { id: number; name: string } | null } | null> {
   if (!looksLikeAName(name)) return null;
   const tidy = name.replace(/\s+/g, " ").trim();
   const exact = await env.OFFICE_DB.prepare("SELECT id, name FROM customers WHERE lower(trim(name)) = lower(?) AND merged_into_customer_id IS NULL ORDER BY id LIMIT 1").bind(tidy).first<{ id: number; name: string }>();
-  if (exact) return { id: exact.id, name: exact.name, matched: true, loose: false };
-  const found = await reconcileCustomer(env, tidy);
-  return found ? { ...found, loose: found.matched } : null;
+  if (exact) return { id: exact.id, name: exact.name, matched: true, similarTo: null };
+  // only to REPORT: the customer the loose rule would have taken this for
+  const tokens = tidy.split(" ");
+  const similarTo =
+    tokens.length >= 2
+      ? await env.OFFICE_DB.prepare("SELECT id, name FROM customers WHERE name LIKE ? AND name LIKE ? AND merged_into_customer_id IS NULL ORDER BY id LIMIT 1").bind(`%${tokens[0]}%`, `%${tokens[tokens.length - 1]}%`).first<{ id: number; name: string }>()
+      : await env.OFFICE_DB.prepare(`SELECT id, name FROM customers WHERE ${wholeWordClause("name")} AND merged_into_customer_id IS NULL ORDER BY id LIMIT 1`).bind(...wholeWordBindings(tokens[0])).first<{ id: number; name: string }>();
+  const created = await env.OFFICE_DB.prepare("INSERT INTO customers (name) VALUES (?) RETURNING id, name").bind(tidy).first<{ id: number; name: string }>();
+  return { id: created!.id, name: created!.name, matched: false, similarTo: similarTo ?? null };
 }
 
 export async function findExistingCustomerByName(
