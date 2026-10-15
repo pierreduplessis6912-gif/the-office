@@ -421,6 +421,13 @@ jobs:
           S_IMPORT_B=$(upload "$COOKIE_B" "$RESULTS/b.csv" "$RESULTS/import-b.json")
           S_LIST_A=$(list "$COOKIE_A" "$RESULTS/list-a.json")
           S_LIST_B=$(list "$COOKIE_B" "$RESULTS/list-b.json")
+          # ISOLATION, asked by SEARCH: each business must find its own customers and NONE of the other's. (It used to look for a name in the first 50 customers, which stopped working when the load tests left 26,000 customers in
+          # staging: page one was full of other names and the check came back false for a reason that had nothing to do with isolation.)
+          search() { curl -s -o "$2" -w '%{http_code}' -G -H "Cookie: $1" --data-urlencode "search=$3" "$BASE/customers"; }
+          search "$COOKIE_A" "$RESULTS/sa-own.json" "Staging Customer" > /dev/null
+          search "$COOKIE_B" "$RESULTS/sb-own.json" "Second Company" > /dev/null
+          search "$COOKIE_A" "$RESULTS/sa-cross.json" "Second Company" > /dev/null
+          search "$COOKIE_B" "$RESULTS/sb-cross.json" "Staging Customer" > /dev/null
           S_WRONG=$(list "$COOKIE_WRONG" "$RESULTS/list-wrong.json")
           S_NOB=$(list "$COOKIE_NOB" "$RESULTS/list-nob.json")
           S_STRANGER=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/customers")
@@ -441,21 +448,37 @@ jobs:
               except Exception:
                   return None
           a, b = names("list-a.json"), names("list-b.json")
+          sa_own, sb_own, sa_cross, sb_cross = names("sa-own.json"), names("sb-own.json"), names("sa-cross.json"), names("sb-cross.json")
           times = [float(x) for x in open(os.path.join(r, "times.txt")).read().split()]
           note_a, note_b = open(os.path.join(r, "notes-a.json")).read(), open(os.path.join(r, "notes-b.json")).read()
           notes_isolated = "FIRST only" in note_a and "SECOND only" not in note_a and "SECOND only" in note_b and "FIRST only" not in note_b
-          isolated = bool(a is not None and b is not None and "Staging Customer One" in a and "Staging Customer Two" in a and "Second Company Customer" in b
-                          and "Second Company Customer" not in a and not any(n.startswith("Staging Customer") for n in b))
+          isolated = bool(None not in (sa_own, sb_own, sa_cross, sb_cross) and "Staging Customer One" in sa_own and "Staging Customer Two" in sa_own and "Second Company Customer" in sb_own
+                          and sa_cross == [] and sb_cross == [])
           print(json.dumps({
               "imports": {"first_business": os.environ["S_IMPORT_A"], "second_business": os.environ["S_IMPORT_B"]},
               "lists": {"first_business": os.environ["S_LIST_A"], "second_business": os.environ["S_LIST_B"]},
               "each_business_sees_only_its_own_customers": isolated,
+              "isolation_by_search": {"first_finds_its_own": len(sa_own) if sa_own is not None else None, "second_finds_its_own": len(sb_own) if sb_own is not None else None, "first_finds_of_the_others": len(sa_cross) if sa_cross is not None else None, "second_finds_of_the_others": len(sb_cross) if sb_cross is not None else None},
               "same_note_key_in_both_businesses_stays_separate": notes_isolated,
               "first_business_customer_count": len(a) if a is not None else None,
               "second_business_customer_count": len(b) if b is not None else None,
               "refused": {"owner_session_placed_in_the_other_business": os.environ["S_WRONG"], "session_with_no_business": os.environ["S_NOB"], "stranger": os.environ["S_STRANGER"], "admin_call_naming_no_business": os.environ["S_NAMELESS"]},
               "five_list_calls_seconds_from_a_US_runner": times,
           }))
+          PY
+          # A false check FAILS the step: until 2026-10-14 these results were only recorded, so a business that could see another's customers would have looked like a step that passed.
+          python3 - <<'PY'
+          import json, os, sys
+          d = json.load(open(os.path.join(os.environ["RESULTS"], "e2e.json")))
+          expected = {"owner_session_placed_in_the_other_business": "403", "session_with_no_business": "401", "stranger": "401", "admin_call_naming_no_business": "400"}
+          problems = []
+          if d.get("each_business_sees_only_its_own_customers") is not True: problems.append("each_business_sees_only_its_own_customers")
+          if d.get("same_note_key_in_both_businesses_stays_separate") is not True: problems.append("same_note_key_in_both_businesses_stays_separate")
+          if d.get("imports") != {"first_business": "200", "second_business": "200"}: problems.append("imports")
+          if d.get("lists") != {"first_business": "200", "second_business": "200"}: problems.append("lists")
+          if d.get("refused") != expected: problems.append("refused")
+          print("end-to-end checks that did not hold:", problems)
+          sys.exit(1 if problems else 0)
           PY
 
       - name: Verify the business objects migrated their schema on Cloudflare
