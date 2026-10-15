@@ -3,7 +3,7 @@
 // file again changes nothing: a name that is already there is MATCHED, not created again.
 import { atomically } from "./atomic";
 import { PRODUCT_COLUMNS, SUPPLIER_COLUMNS, TEAM_COLUMNS, matchColumns, readCsv } from "./csv-import";
-import { reconcileCharacter } from "./identity";
+import { looksLikeAName } from "./identity";
 import type { Env } from "./types";
 
 export const BULK_IMPORT_MAX_ROWS = 2000;
@@ -56,14 +56,20 @@ export async function bulkImportRoute(request: Request, env: Env, kind: BulkImpo
         }
         continue;
       }
-      const relationship = kind === "suppliers" ? "supplier" : teamRelationship(roleAt !== undefined ? row[roleAt] : undefined);
-      const person = await reconcileCharacter(env, rawName, relationship);
-      if (!person) {
+      if (!looksLikeAName(rawName)) {
         skipped++;
         skippedRows.push(i + 1);
-      } else if (person.matched) {
+        continue;
+      }
+      // EXACT names only (ignoring case and spacing), NOT the loose matching that serves dictation. That matching takes any existing name that merely CONTAINS the first and last word ("John Smith" is "John Smithson",
+      // a last name of "A" is anything with an A in it), which is right for a spoken name and wrong for a deliberate list: it would report a team member as "matched" while another person's record stood in for them
+      // (seen on real Cloudflare: two runs with names differing only in an id were taken for the same people). A near-duplicate is the lesser harm: the merge routes can join two records, nothing can separate them.
+      const existing = await env.OFFICE_DB.prepare("SELECT id FROM characters WHERE lower(trim(name)) = lower(?) AND merged_into_character_id IS NULL LIMIT 1").bind(rawName).first<{ id: number }>();
+      if (existing) {
         matched++;
       } else {
+        const relationship = kind === "suppliers" ? "supplier" : teamRelationship(roleAt !== undefined ? row[roleAt] : undefined);
+        await env.OFFICE_DB.prepare("INSERT INTO characters (name, relationship) VALUES (?, ?)").bind(rawName, relationship).run();
         created++;
       }
     }
