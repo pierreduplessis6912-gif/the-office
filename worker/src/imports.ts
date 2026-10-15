@@ -7,6 +7,21 @@ import { looksLikeAName } from "./identity";
 import type { Env } from "./types";
 
 export const BULK_IMPORT_MAX_ROWS = 2000;
+
+// The loose matches an import made (a name in the file taken for a DIFFERENT existing customer because it only resembled it), kept once per name and customer, for the owner to check. The list is capped; the count is not.
+export function looseMatchTracker(): { note: (customer: { id: number; name: string; loose: boolean }, asked: string, row: number) => void; count: () => number; list: () => Array<{ row: number; asked: string; matchedTo: string }> } {
+  const seen = new Set<string>();
+  const all: Array<{ row: number; asked: string; matchedTo: string }> = [];
+  return {
+    note(customer, asked, row) {
+      if (!customer.loose || seen.has(`${asked}|${customer.id}`)) return;
+      seen.add(`${asked}|${customer.id}`);
+      all.push({ row, asked, matchedTo: customer.name });
+    },
+    count: () => all.length,
+    list: () => all.slice(0, 200),
+  };
+}
 export type BulkImportKind = "team" | "suppliers" | "products";
 const SPECS = { team: TEAM_COLUMNS, suppliers: SUPPLIER_COLUMNS, products: PRODUCT_COLUMNS };
 const WHAT = { team: "team member", suppliers: "supplier", products: "product" };

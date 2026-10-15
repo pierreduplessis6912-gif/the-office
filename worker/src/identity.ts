@@ -481,6 +481,18 @@ export async function reconcileCharacter(
 // us which field a name came from (customer_name vs character_name),
 // searching the OTHER table at all is the bug, not a safety net.
 // These two functions search only their own real table.
+// For an IMPORT (a customer list, an invoice history): the EXACT name, ignoring case and spacing, wins; only when there is none does it fall back to reconcileCustomer's loose matching (any existing name that contains the first
+// and the last word), and `loose` says that is what happened so the import can report it. The loose rule is right for a spoken name and risky for a list: with "Mrs Nkosi" and "Mr Nkosi" on file, an invoice for "Mr Nkosi" was
+// posted to Mrs Nkosi (seen 2026-10-15). Dictation still calls reconcileCustomer unchanged. Only ever called from inside an import's own transaction.
+export async function reconcileCustomerForImport(env: Env, name: string): Promise<{ id: number; name: string; matched: boolean; loose: boolean } | null> {
+  if (!looksLikeAName(name)) return null;
+  const tidy = name.replace(/\s+/g, " ").trim();
+  const exact = await env.OFFICE_DB.prepare("SELECT id, name FROM customers WHERE lower(trim(name)) = lower(?) AND merged_into_customer_id IS NULL ORDER BY id LIMIT 1").bind(tidy).first<{ id: number; name: string }>();
+  if (exact) return { id: exact.id, name: exact.name, matched: true, loose: false };
+  const found = await reconcileCustomer(env, tidy);
+  return found ? { ...found, loose: found.matched } : null;
+}
+
 export async function findExistingCustomerByName(
   env: Env,
   name: string
