@@ -545,11 +545,14 @@ jobs:
           printf 'Material,Category\nVinyl %s,Flooring\nScreed %s,\n' "$TAG" "$TAG" > "$RESULTS/products.csv"
           printf '%sInvoice No.;Customer Name;Amount (incl. VAT);Balance;Invoice Date\n%s-1;Import Client %s;R1 500,00;R0,00;2026-10-01\n%s-2;Import Client %s;R2 300,50;R2 300,50;2026-10-02\n' "$BOM" "$TAG" "$TAG" "$TAG" "$TAG" > "$RESULTS/invoices.csv"
           printf 'Customer,Total\nNobody,100\n' > "$RESULTS/unknown-paid.csv"
+          # A list of four DIFFERENT people with look-alike names (this run's tag keeps them new): only an EXACT name matches; the look-alikes must stay separate customers and be reported, not folded into each other.
+          printf 'Name\nMrs Nkosi %s\nMr Nkosi %s\nJohn Smithson %s\nJohn Smith %s\n' "$TAG" "$TAG" "$TAG" "$TAG" > "$RESULTS/lookalikes.csv"
           upload /files/team-csv-import team.csv imp-team-1.json;           upload /files/team-csv-import team.csv imp-team-2.json
           upload /files/suppliers-csv-import suppliers.csv imp-sup-1.json;   upload /files/suppliers-csv-import suppliers.csv imp-sup-2.json
           upload /files/products-csv-import products.csv imp-pro-1.json;     upload /files/products-csv-import products.csv imp-pro-2.json
           upload /files/invoices-csv-import invoices.csv imp-inv-1.json;     upload /files/invoices-csv-import invoices.csv imp-inv-2.json
           upload /files/invoices-csv-import unknown-paid.csv imp-inv-refused.json
+          upload /files/customers-csv-import lookalikes.csv imp-cust-1.json;   upload /files/customers-csv-import lookalikes.csv imp-cust-2.json
           get /onboarding ob-final.json
           python3 - <<'PY' > "$RESULTS/onboarding.json"
           import json, os
@@ -570,7 +573,7 @@ jobs:
           s1, s2, rs = read("ob-skip1.json"), read("ob-skip2.json"), read("ob-reset.json") or {}
           i1, i2, ir = read("imp-inv-1.json") or {}, read("imp-inv-2.json") or {}, read("imp-inv-refused.json") or {}
           pair = lambda a, b: (read("imp-%s-1.json" % a) or {}, read("imp-%s-2.json" % a) or {})
-          t1, t2 = pair("team", 0); u1, u2 = pair("sup", 0); p1, p2 = pair("pro", 0)
+          t1, t2 = pair("team", 0); u1, u2 = pair("sup", 0); p1, p2 = pair("pro", 0); k1, k2 = pair("cust", 0)
           prof = step(after, "profile")
           out = {
               "onboarding_read_ok": status("ob-state.json") == "200" and [x.get("id") for x in st.get("steps", [])] == ids,
@@ -587,6 +590,9 @@ jobs:
               "other_tools_invoice_export_imported_and_held": status("imp-inv-1.json") == "200" and i1.get("imported") == 1 and i1.get("heldForConfirmation") == 1 and (i1.get("columns") or {}).get("found", {}).get("total") == "Amount (incl. VAT)",
               "importing_the_invoice_file_again_adds_nothing": i2.get("imported") == 0 and i2.get("heldForConfirmation") == 0 and i2.get("alreadyImported") == 2,
               "a_file_that_cannot_say_what_is_paid_is_refused": status("imp-inv-refused.json") == "400" and "can't tell which invoices are already paid" in (ir.get("error") or ""),
+              "a_list_of_look_alike_people_creates_every_one_of_them": k1.get("created") == 4 and k1.get("matched") == 0,
+              "look_alikes_are_reported_not_merged": k1.get("possibleDuplicateCount") == 2 and [x.get("asked", "").split(" r")[0] for x in k1.get("possibleDuplicates", [])] == ["Mr Nkosi", "John Smith"],
+              "importing_the_same_customer_list_again_changes_nothing": k2.get("created") == 0 and k2.get("matched") == 4 and k2.get("possibleDuplicateCount") == 0,
               "steps_are_done_because_of_the_data_after_the_imports": all(step(final, i).get("status") == "done" for i in ("invoices", "team", "suppliers", "products")),
           }
           out["answers"] = {"team": [t1, t2], "invoices": [i1, i2], "state_after": [{"id": x.get("id"), "status": x.get("status"), "source": x.get("source")} for x in final.get("steps", [])]}
