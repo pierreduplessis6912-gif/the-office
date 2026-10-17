@@ -1,0 +1,21 @@
+{
+ "when": "2026-10-17T19:47:44.575105Z",
+ "run": "39063974447",
+ "business_id": "ballz-enterprizes-392739",
+ "op": "extend",
+ "plan": null,
+ "days": 1,
+ "action": "apply",
+ "state_before": "running, 14.0 days left",
+ "trial_ends_before": "2026-10-31 18:49:18",
+ "reasons": [],
+ "apply_status": "200",
+ "apply_response": {
+  "ok": true,
+  "business": "ballz-enterprizes-392739",
+  "plan": null,
+  "trialEndsAt": "2026-11-01 18:49:18",
+  "wasEndingAt": "2026-10-31 18:49:18",
+  "error": null
+ }
+}
