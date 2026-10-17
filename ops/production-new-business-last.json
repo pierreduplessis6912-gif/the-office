@@ -1,12 +1,13 @@
 {
- "when": "2026-10-17T12:33:31.031721Z",
- "run": "39032990407",
- "business_id": "zululand-flooring-and-blinds",
- "name": "Zululand Flooring and Blinds",
+ "when": "2026-10-17T18:51:23.620206Z",
+ "run": "39059927182",
+ "business_id": "tender-hub",
+ "name": "Tender Hub",
  "action": "refuse",
  "existing": true,
  "reasons": [
-  "that business already exists and already has 4 member(s): this creates NEW businesses. To add someone to an existing business use the add-member route"
+  "that email address already belongs to another business: one email can sign in to only one business",
+  "that business already exists and already has 2 member(s): this creates NEW businesses. To add someone to an existing business use the add-member route"
  ],
  "create_status": null,
  "create_response": {
