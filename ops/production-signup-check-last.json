@@ -1,7 +1,8 @@
 {
- "when": "2026-10-17T18:39:44.002846Z",
- "run": "39059068886",
+ "when": "2026-10-17T22:34:23.462288Z",
+ "run": "39075610983",
  "the_health_check_answers": true,
+ "the_health_check_reports_the_commit_production_is_running": true,
  "a_garbage_proof_is_refused_with_a_page": true,
  "that_page_is_not_cached_or_framed_and_runs_no_script": true,
  "the_sign_in_callback_still_refuses_a_visit_with_no_state": true,
@@ -13,5 +14,6 @@
   "callback": "400",
   "login": "302",
   "anon": "401"
- }
+ },
+ "running_commit": "faee2dd48c5c7b2d28d7276209f558f4469a5c4c"
 }
