@@ -66,5 +66,5 @@ jobs:
           git config user.email "noreply@github.com"
           git add ops/log-leak-check-last.json
           git commit -m "Log leak check record (counts only)" || echo "nothing to record"
-          git pull --rebase origin main
-          git push origin HEAD:main
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin HEAD:"$GITHUB_REF_NAME"

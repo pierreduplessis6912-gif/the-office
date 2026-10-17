@@ -97,7 +97,14 @@ async function body({ check, srcDir }) {
   }
   { const x = world(); const r = await m.handleSignupPost(post({ token: await m.signSignupToken(x.env, 'a@b.co', -1), business_name: 'Acme', agree: 'on' }), x.env); check(r.status === 400 && rows(x).length === 0, 'refused: an EXPIRED token (the page sat open too long)'); }
   { const x = world(); const r = await m.handleSignupPost(post({ token: await m.signSession(x.env, 'a@b.co', 'acme-co'), business_name: 'Acme', agree: 'on' }), x.env); check(r.status === 400 && rows(x).length === 0, 'refused: a SESSION token offered as the proof'); }
-  { const x = world(); const t = await tokenFor(x.env, 'a@b.co'); const r = await m.handleSignupPost(post({ token: t.replace(/.$/, (c) => (c === 'A' ? 'B' : 'A')), business_name: 'Acme', agree: 'on' }), x.env); check(r.status === 400 && rows(x).length === 0, 'refused: a token with its signature altered'); }
+  {
+    // A signature is 32 bytes = 43 base64url characters, and the LAST character carries only 4 meaningful bits: changing it can alter nothing but padding bits and leave the token VALID. (An earlier version of this test altered the last
+    // character and failed about one run in sixteen, in CI too.) The FIRST character carries all six bits, so every other character must break the signature: tried exhaustively, not by luck.
+    const x = world(), t = await tokenFor(x.env, 'a@b.co'), [pl, sg] = t.split('.'), alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+    let accepted = 0, tried = 0; for (const c of alphabet) { if (c === sg[0]) continue; tried++; if ((await m.readSignupToken(x.env, `${pl}.${c}${sg.slice(1)}`)) !== null) accepted++; }
+    const r = await m.handleSignupPost(post({ token: `${pl}.${sg[0] === 'A' ? 'B' : 'A'}${sg.slice(1)}`, business_name: 'Acme', agree: 'on' }), x.env);
+    check(tried === 63 && accepted === 0 && r.status === 400 && rows(x).length === 0, 'refused: a token with its signature altered (every one of the 63 other first characters breaks it, tried exhaustively; the form refuses it and creates nothing)');
+  }
   for (const [label, name] of [['an empty name', ''], ['one letter', 'A'], ['a name with a tag', 'Acme <script>alert(1)</script>'], ['81 characters', 'x'.repeat(81)]]) {
     const o = await refused((e, t) => ({ token: t, business_name: name, agree: 'on' })); check(o.r.status === 400 && /class="error"/.test(o.body) && !/<script>alert/.test(o.body) && rows(o.x).length === 0, `refused with a message on the same page: ${label}`);
   }

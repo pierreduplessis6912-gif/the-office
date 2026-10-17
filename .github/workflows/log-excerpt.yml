@@ -1,0 +1,73 @@
+name: Log excerpt (the failing lines of a CI test step, read from inside GitHub)
+
+# Built 2026-10-17 because the environment that writes this code cannot download GitHub's run logs, and a CI step that failed with "exit code 1" could not be diagnosed. GitHub's runners can read them. Give it a run id; it finds the log of
+# the TEST step (by name) and records the lines that say what failed plus the last lines, in ops/log-excerpt-last.json. It is restricted to a step whose name contains the text below (default: "Role-matrix"): test output holds no secrets,
+# and a deploy step's log is never excerpted. Output is capped.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "The id of the run (the number at the end of its URL)"
+        type: string
+        required: true
+      step_name:
+        description: "Part of the name of the TEST step to excerpt"
+        type: string
+        required: false
+        default: "Role-matrix"
+
+concurrency:
+  group: log-excerpt
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  excerpt:
+    runs-on: ubuntu-latest
+    env:
+      RUN_ID: ${{ github.event.inputs.run_id }}
+      STEP_NAME: ${{ github.event.inputs.step_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download the run's logs and excerpt the test step (reads only)
+        run: |
+          mkdir -p results
+          case "$RUN_ID" in ''|*[!0-9]*) echo "run id must be a number"; exit 1 ;; esac
+          CODE=$(curl -sL -w '%{http_code}' -H "Authorization: Bearer $GH_TOKEN" -o results/logs.zip "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/logs")
+          python3 - "$CODE" <<'PY'
+          import json, os, re, sys, zipfile
+          out = {"run_id": os.environ["RUN_ID"], "download_status": sys.argv[1], "step_name_filter": os.environ["STEP_NAME"], "steps": []}
+          try:
+              z = zipfile.ZipFile("results/logs.zip")
+              wanted = os.environ["STEP_NAME"].lower()
+              if len(wanted) < 4 or re.search(r"deploy|secret|key|token|prod", wanted):
+                  out["error"] = "refused: choose a test step name of at least 4 characters (a deploy or secret step is never excerpted)"
+              else:
+                  for n in sorted(z.namelist()):
+                      if not n.endswith(".txt") or wanted not in n.lower() or "/" not in n:
+                          continue
+                      lines = [re.sub(r"^\d{4}-\d\d-\d\dT[\d:.]+Z ", "", l) for l in z.read(n).decode("utf-8", "replace").splitlines()]
+                      bad = [l[:400] for l in lines if re.search(r"^FAIL|CRASH|Error:|AssertionError|ERR_|exit code|decisions correct|timed? ?out|ENOMEM|killed", l, re.I)]
+                      out["steps"].append({"file": n.split("/")[-1][:90], "line_count": len(lines), "matching_lines": bad[:40], "last_lines": [l[:300] for l in lines[-25:]]})
+          except Exception as e:  # noqa: BLE001
+              out["error"] = str(e)[:200]
+          json.dump(out, open("ops-log-excerpt.json", "w"), indent=1)
+          print(json.dumps({k: v for k, v in out.items() if k != "steps"}, indent=1), "steps found:", len(out["steps"]))
+          PY
+
+      - name: Record the excerpt
+        if: always()
+        run: |
+          mkdir -p ops
+          cp ops-log-excerpt.json ops/log-excerpt-last.json 2>/dev/null || echo '{"error":"nothing to record"}' > ops/log-excerpt-last.json
+          git config user.name "log-excerpt"
+          git config user.email "noreply@github.com"
+          git add ops/log-excerpt-last.json
+          git commit -m "Log excerpt record (test output only, capped)" || echo "nothing to record"
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin HEAD:"$GITHUB_REF_NAME"
