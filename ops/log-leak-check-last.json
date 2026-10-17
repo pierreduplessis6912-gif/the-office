@@ -1,0 +1,20 @@
+{
+ "run_id": "39028748026",
+ "download_status": "200",
+ "log_files_read": 10,
+ "needle_occurrences": 10,
+ "files_containing_needle": [
+  "0_create.txt",
+  "create/2_Run actions_checkout@v4.txt",
+  "create/3_Read the directory (reads only).txt",
+  "create/4_Ask whether the owner's email is already taken (reads only).txt",
+  "create/5_Decide what may happen (writes nothing).txt",
+  "create/8_Record what happened.txt"
+ ],
+ "control_strings_present": {
+  "##[group]Run ": 10,
+  "env:": 10,
+  "shell: /usr/bin/bash": 8
+ },
+ "masked_stars_present": 12
+}
