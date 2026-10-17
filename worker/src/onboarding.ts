@@ -37,7 +37,8 @@ export interface OnboardingState {
 
 // What each step looks for in the business's own data. A table that is missing or a query that fails means "not done", never an error.
 const DATA_CHECKS: Record<OnboardingStepId, string> = {
-  profile: "SELECT COUNT(*) AS n FROM business_profile WHERE name IS NOT NULL AND TRIM(name) != ''",
+  // The name AND the address: a signup seeds the name from its form (profile-seed.ts), and a step that read "done" on the name alone would never ask for the address that quotes and invoices carry.
+  profile: "SELECT COUNT(*) AS n FROM business_profile WHERE name IS NOT NULL AND TRIM(name) != '' AND address IS NOT NULL AND TRIM(address) != ''",
   customers: "SELECT COUNT(*) AS n FROM customers",
   invoices: "SELECT COUNT(*) AS n FROM invoices",
   team: "SELECT (SELECT COUNT(*) FROM memberships WHERE status = 'active') + (SELECT COUNT(*) FROM characters WHERE relationship IN ('installer', 'subcontractor', 'employee', 'staff')) AS n",

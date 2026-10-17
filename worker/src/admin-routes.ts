@@ -165,6 +165,7 @@ export const ADMIN_ROUTE_TIERS: Readonly<Record<string, AdminTier>> = {
   "GET /admin/export": "privileged",
   "POST /debug/business-profile": "privileged",
   "POST /debug/create-membership": "privileged",
+  "POST /debug/seed-business-name": "privileged",
   "POST /debug/delete-character": "privileged",
   "POST /debug/delete-customer": "privileged",
   "POST /debug/delete-membership": "privileged",

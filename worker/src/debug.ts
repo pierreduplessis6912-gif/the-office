@@ -22,6 +22,7 @@ import { backupRoute } from "./backup-routes";
 import { migrationRoute } from "./migration-routes";
 import { addDirectoryMember, createBusiness, findDirectoryConflicts, isBusinessId, listDirectory, normaliseEmail } from "./directory";
 import { convertTrial, extendTrial } from "./freetrial";
+import { seedBusinessName } from "./profile-seed";
 import { callBusiness } from "./routing";
 import { applyIndexes } from "./indexes";
 import { trialAi, trialD1, trialDo, trialTx } from "./trial";
@@ -1091,6 +1092,13 @@ if (url.pathname === "/debug/memberships" && request.method === "GET") {
       // The effective capabilities (the defaults with the owner's permission-grid changes applied), not the bare defaults.
       const enriched = await Promise.all(results.map(async (m) => ({ ...m, capabilities: await getRoleCapabilities(env, String(m.role)) })));
       return Response.json({ memberships: enriched });
+    }
+
+// The name typed at signup, into this business's own profile (profile-seed.ts): only when there is none, never overwriting. Called by the Worker (signup.ts). Privileged.
+if (url.pathname === "/debug/seed-business-name" && request.method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { name?: unknown };
+      const seeded = await seedBusinessName(env, body.name);
+      return seeded.ok ? Response.json(seeded) : Response.json({ error: seeded.error }, { status: 400 });
     }
 
 if (url.pathname === "/debug/create-membership" && request.method === "POST") {

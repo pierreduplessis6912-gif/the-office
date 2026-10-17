@@ -29,6 +29,11 @@ async function onboardingTests({ check, srcDir }) {
   W.db.exec("INSERT INTO business_profile (id, name) VALUES (1, '   ')");
   check(byId(await ob.onboardingState(W.env())).profile.status === 'pending', 'a business profile with a blank name is NOT done');
   W.db.exec("UPDATE business_profile SET name = 'Zulu Floors' WHERE id = 1");
+  check(byId(await ob.onboardingState(W.env())).profile.status === 'pending', 'a NAME alone is NOT done: the step is the business\'s details, and a signup seeds the name from the form, so the address that invoices carry must still be asked for');
+  W.db.exec("UPDATE business_profile SET address = '   ' WHERE id = 1");
+  check(byId(await ob.onboardingState(W.env())).profile.status === 'pending', 'a name with a BLANK address is not done either');
+  W.db.exec("UPDATE business_profile SET address = '1 Main Road, Eshowe' WHERE id = 1");
+  check(byId(await ob.onboardingState(W.env())).profile.status === 'done', 'a name AND an address is done');
   W.db.exec("INSERT INTO customers (name) VALUES ('Mrs Dlamini')");
   W.db.exec("INSERT INTO invoices (customer_id, description, amount) VALUES (1, 'Repairs', 500)");
   W.db.exec("INSERT INTO characters (name, relationship) VALUES ('Vinyl World', 'supplier')");

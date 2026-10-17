@@ -9,22 +9,23 @@ const MARK = '@@SIGNUP-RESULT@@';
 async function body({ check, srcDir }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'signup-')), entry = path.join(dir, 'entry.ts'), out = path.join(dir, 'signup.js');
   const at = (f) => JSON.stringify(path.join(srcDir, f));
-  fs.writeFileSync(entry, `export * from ${at('signup')};\nexport { signedInRedirect } from ${at('signin')};\nexport { signSession, readSessionPayload, signSignupToken, readSignupToken } from ${at('auth')};\nexport { createBusiness, addDirectoryMember, ensureDirectory, lookupAccessForEmail, lookupBusinessForEmail, findEndedTrialForEmail, listDirectory } from ${at('directory')};\nexport { readPlan, clearPlanCache, TRIAL_PLAN } from ${at('limits')};\nexport { convertTrial, extendTrial, sqlTime, fromSqlTime, MAX_EXTEND_DAYS } from ${at('freetrial')};\n`);
+  fs.writeFileSync(entry, `export * from ${at('signup')};\nexport { signedInRedirect } from ${at('signin')};\nexport { signSession, readSessionPayload, signSignupToken, readSignupToken } from ${at('auth')};\nexport { createBusiness, addDirectoryMember, ensureDirectory, lookupAccessForEmail, lookupBusinessForEmail, findEndedTrialForEmail, listDirectory } from ${at('directory')};\nexport { readPlan, clearPlanCache, TRIAL_PLAN } from ${at('limits')};\nexport { convertTrial, extendTrial, sqlTime, fromSqlTime, MAX_EXTEND_DAYS } from ${at('freetrial')};\nexport { seedBusinessName } from ${at('profile-seed')};\n`);
   esbuild.buildSync({ entryPoints: [entry], bundle: true, platform: 'node', format: 'cjs', outfile: out, logLevel: 'silent' });
   const m = require(out);
   const src = (f) => fs.readFileSync(path.join(srcDir, f), 'utf8');
 
   // A world: the shared directory (a real SQLite behind the same shim the directory tests use) and a fake business namespace that answers like the real one (membership check, membership create) and can be told to fail.
   const world = (extra = {}) => {
-    const db = new DatabaseSync(':memory:'), objects = new Map(), calls = [], state = { failCreate: false };
+    const db = new DatabaseSync(':memory:'), objects = new Map(), calls = [], names = new Map(), state = { failCreate: false, failSeed: false, throwSeed: false };
     const OFFICE_DB = { prepare: (sql) => { const st = (binds) => ({ bind: (...b) => st(b), first: async () => db.prepare(sql).get(...binds) ?? null, all: async () => ({ results: db.prepare(sql).all(...binds) }), run: async () => db.prepare(sql).run(...binds) }); return st([]); } };
     const BUSINESS = { idFromName: (name) => ({ name }), get: (id) => ({ fetch: async (url, init = {}) => {
       const u = new URL(typeof url === 'string' ? url : url.url), bid = id.name.replace(/^business-/, ''), mem = objects.get(bid) ?? objects.set(bid, new Map()).get(bid);
       calls.push({ bid, path: u.pathname, method: init.method });
       if (u.pathname === '/debug/membership-check') { const row = mem.get(u.searchParams.get('email')); return Response.json(row ? { found: true, role: row.role, status: row.status } : { found: false, role: null, status: null }); }
       if (u.pathname === '/debug/create-membership') { if (state.failCreate) return new Response('boom', { status: 500 }); const b = JSON.parse(init.body); mem.set(b.google_email, { role: b.role, status: 'active' }); return Response.json({ ok: true }); }
+      if (u.pathname === '/debug/seed-business-name') { if (state.throwSeed) throw new Error('the object could not be reached'); if (state.failSeed) return new Response('boom', { status: 500 }); const b = JSON.parse(init.body); if (!names.has(bid)) names.set(bid, b.name); return Response.json({ ok: true }); }
       return new Response('?', { status: 404 }); } }) };
-    return { db, objects, calls, state, env: { OFFICE_DB, SHARED_DB: OFFICE_DB, BUSINESS, ADMIN_KEY: 'k', SESSION_SECRET: 'secret-for-the-tests', BUSINESS_MODE: 'object', PLAN_CACHE_SECONDS: '0', ...extra } };
+    return { db, objects, calls, names, state, env: { OFFICE_DB, SHARED_DB: OFFICE_DB, BUSINESS, ADMIN_KEY: 'k', SESSION_SECRET: 'secret-for-the-tests', BUSINESS_MODE: 'object', PLAN_CACHE_SECONDS: '0', ...extra } };
   };
   const post = (fields, ip = '1.2.3.4', headers = {}) => new Request('https://office.websitehub.co.za/auth/signup', { method: 'POST', body: new URLSearchParams(fields), headers: { 'CF-Connecting-IP': ip, ...headers } });
   const tokenFor = (env, email) => m.signSignupToken(env, email);
@@ -301,6 +302,42 @@ async function body({ check, srcDir }) {
     check((await call({ business: id, action: 'convert', plan: 'standard' }, both)).status === 409 && (await call({ business: 'no-such-biz-1', action: 'extend', days: 3 }, both)).status === 404, 'and the failures come back as their own statuses (409 not on a trial, 404 no such business)');
   }
   check(/"POST \/debug\/directory\/trial": "privileged"/.test(src('admin-routes.ts')) && /url\.pathname === "\/debug\/directory\/trial" && request\.method === "POST"/.test(src('debug.ts')) && /import \{ convertTrial, extendTrial \} from "\.\/freetrial"/.test(src('debug.ts')) && /from "\.\/freetrial"/.test(src('signup.ts')) && !/export (async )?function (convertTrial|extendTrial)/.test(src('trial.ts')), 'the route is classified privileged, answered in debug.ts, and lives in freetrial.ts (trial.ts, the older architecture-trial module, is untouched)');
+
+  // ---- the name typed at signup reaches the business's OWN profile (profile-seed.ts) -------------------------------------------------------------------------------------------------------------------------------------------
+  // It used to live only in the directory, so the journey's first step asked for it again and invoices had no name until the owner dictated one. The name is seeded into the business's profile only when that is EMPTY, and the journey's
+  // profile step needs the address too, so seeding the name does not make the step look done.
+  {
+    const { x, id } = await started('owner@seed.co', '  Seed   Floors ');
+    check(x.names.get(id) === 'Seed Floors' && x.calls.filter((c) => c.path === '/debug/seed-business-name').length === 1, 'a signup puts the (tidied) name into the new business\'s own profile, once');
+    const order = x.calls.map((c) => c.path); check(order.indexOf('/debug/create-membership') >= 0 && order.indexOf('/debug/create-membership') < order.indexOf('/debug/seed-business-name'), 'after the owner\'s membership exists (the object is created by then)');
+    await m.handleSignupPost(post({ token: await tokenFor(x.env, 'owner@seed.co'), business_name: 'A Different Name', agree: 'on' }), x.env);
+    check(x.calls.filter((c) => c.path === '/debug/seed-business-name').length === 1 && x.names.get(id) === 'Seed Floors', 'a second tap (a sign-in, not a signup) does not seed again or change the name');
+    const f = world(); f.state.failSeed = true; const r = await m.handleSignupPost(post({ token: await tokenFor(f.env, 'owner@fail.co'), business_name: 'Fail Floors', agree: 'on' }), f.env);
+    check(r.status === 303 && rows(f).length === 1 && rows(f)[0].status === 'active', 'if seeding the name fails the SIGNUP STILL SUCCEEDS (it is cosmetic: the journey simply asks for the name), the business is active and the owner is signed in');
+    const th = world(); th.state.throwSeed = true; const rt = await m.handleSignupPost(post({ token: await tokenFor(th.env, 'owner@throw.co'), business_name: 'Throw Floors', agree: 'on' }), th.env);
+    check(rt.status === 303 && rows(th).length === 1 && rows(th)[0].status === 'active', 'and so does a seeding that THROWS (the object could not be reached): the signup completes, nothing is lost');
+    const g = world(); g.state.failCreate = true; await m.handleSignupPost(post({ token: await tokenFor(g.env, 'owner@retry2.co'), business_name: 'Retry Seed', agree: 'on' }), g.env);
+    check(g.names.size === 0, 'a failure before the object exists seeds nothing');
+    g.state.failCreate = false; await m.handleSignupPost(post({ token: await tokenFor(g.env, 'owner@retry2.co'), business_name: 'Retry Seed', agree: 'on' }), g.env);
+    check([...g.names.values()].join() === 'Retry Seed', 'and the retry that finishes it seeds the name');
+  }
+  {
+    // the seed itself, on a real SQLite: it sets an EMPTY name and never overwrites one
+    const mk = () => { const db = new DatabaseSync(':memory:'); db.exec('CREATE TABLE business_profile (id INTEGER PRIMARY KEY CHECK (id = 1), name TEXT, trading_as TEXT, address TEXT, vat_registered INTEGER DEFAULT 0, vat_rate REAL DEFAULT 15, updated_at TEXT DEFAULT (datetime(\'now\')))'); const env = { OFFICE_DB: { prepare: (sql) => { const st = (binds) => ({ bind: (...b) => st(b), first: async () => db.prepare(sql).get(...binds) ?? null, all: async () => ({ results: db.prepare(sql).all(...binds) }), run: async () => db.prepare(sql).run(...binds) }); return st([]); } } }; return { db, env }; };
+    const row = (db) => db.prepare('SELECT name, address, vat_rate FROM business_profile WHERE id = 1').get();
+    const a = mk(); const ra = await m.seedBusinessName(a.env, '  Acme   Floors ');
+    check(ra.ok === true && ra.seeded === true && row(a.db).name === 'Acme Floors' && row(a.db).vat_rate === 15, 'with no profile row, the name creates one (the other columns keep their defaults)');
+    const ra2 = await m.seedBusinessName(a.env, 'Another Name');
+    check(ra2.ok === true && ra2.seeded === false && row(a.db).name === 'Acme Floors', 'a name already there is NEVER overwritten (a retry, or the owner\'s own edit, wins)');
+    const b = mk(); b.db.exec("INSERT INTO business_profile (id, name, address) VALUES (1, '   ', '1 Main Road')"); const rb = await m.seedBusinessName(b.env, 'Blank Fixed');
+    check(rb.seeded === true && row(b.db).name === 'Blank Fixed' && row(b.db).address === '1 Main Road', 'a blank (whitespace) name is replaced, and the rest of the row is untouched');
+    const c = mk(); c.db.exec("INSERT INTO business_profile (id, name) VALUES (1, NULL)"); check((await m.seedBusinessName(c.env, 'Null Fixed')).seeded === true && row(c.db).name === 'Null Fixed', 'a NULL name is replaced');
+    for (const bad of [undefined, null, 5, ['x'], {}, '', ' ', 'A', 'x'.repeat(81), 'Acme <b>', 'Acme\u0007']) { const d = mk(); const r = await m.seedBusinessName(d.env, bad); check(r.ok === false && typeof r.error === 'string' && /name|characters|leave out/i.test(r.error) && !/bind|undefined|SQLITE|datatype|constraint/i.test(r.error) && d.db.prepare('SELECT COUNT(*) n FROM business_profile').get().n === 0, `a name that is not acceptable (${JSON.stringify(bad) ?? String(bad)}) is refused and writes nothing`); }
+    const e = { OFFICE_DB: { prepare: () => { throw new Error('no such table: business_profile'); } } };
+    check((await m.seedBusinessName(e, 'Acme')).ok === false, 'a missing table is a plain refusal, not a crash');
+  }
+  check(/"POST \/debug\/seed-business-name": "privileged"/.test(src('admin-routes.ts')) && /url\.pathname === "\/debug\/seed-business-name" && request\.method === "POST"/.test(src('debug.ts')) && /callBusiness\(env, id, "POST", "\/debug\/seed-business-name", \{ name: named\.name \}\)/.test(src('signup.ts')), 'the route is privileged, lives in the object, and signup calls it with the validated name');
+  check(/AND address IS NOT NULL AND TRIM\(address\) != ''/.test(src('onboarding.ts')), 'the journey\'s profile step needs the ADDRESS as well as the name');
 
   // ---- how it is wired in ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   const index = src('index.ts');

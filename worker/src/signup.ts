@@ -160,6 +160,8 @@ export async function handleSignupPost(request: Request, env: Env): Promise<Resp
       const made = await callBusiness(env, id, "POST", "/debug/create-membership", { google_email: email, role: "owner" });
       if (!made.ok) throw new Error(`the owner's membership could not be created (${made.status})`);
     }
+    // The name they typed goes into the business's own profile too (profile-seed.ts), which is what invoices and quotes carry. Best effort and harmless to repeat: if it fails the signup still succeeds and the journey simply asks for the name.
+    await callBusiness(env, id, "POST", "/debug/seed-business-name", { name: named.name }).catch(() => undefined);
     await addDirectoryMember(env, email, id);
     await env.OFFICE_DB.prepare("UPDATE businesses SET status = 'active' WHERE id = ? AND status = 'pending'").bind(id).run();
     return signedInRedirect(request, env, { sessionEmail: email, displayEmail: email, role: "owner", businessId: id, notAfterMs: trialEnd }, 303);

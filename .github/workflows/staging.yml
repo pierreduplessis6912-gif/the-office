@@ -650,6 +650,8 @@ jobs:
           dirnow su-directory-converted
           trial tr-again "{\"business\":\"$BID\",\"action\":\"convert\",\"plan\":\"standard\"}" yes
           trial tr-bad "{\"business\":\"$BID\",\"action\":\"delete\"}" yes
+          # The name typed at signup must be in the business's OWN profile (profile-seed.ts), read through the real object.
+          curl -s -o "$RESULTS/su-profile.json" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Target-Business: $BID" "$BASE/debug/business-profile"
           python3 - <<'PY'
           import base64, datetime, json, os, re, sys, urllib.parse as u
           r, tag = os.environ["RESULTS"], "r" + os.environ["GITHUB_RUN_ID"]
@@ -692,6 +694,7 @@ jobs:
           again = location("su-again"); again_q = u.parse_qs(again.query) if again else {}
           cust = rd("su-customers.json"); cust_list = cust.get("items") if isinstance(cust, dict) else cust   # GET /customers answers {"items": [...], "limit", "offset"}
           health = rd("su-health.json") or {}
+          profile = (rd("su-profile.json") or {}).get("profile") or {}
           ob = rd("su-onboarding.json") or {}
           steps = ob.get("steps") if isinstance(ob, dict) else None
           me = rd("su-me.json") or {}
@@ -710,6 +713,8 @@ jobs:
               "extending_a_trial_moves_its_end_later_by_the_days_asked": status("tr-extend") == "200" and ext_end is not None and ext_start is not None and abs((ext_end - ext_start).total_seconds() - 7 * 86400) < 120,
               "converting_clears_the_trial_and_sets_the_plan": status("tr-convert") == "200" and conv.get("plan") == "standard" and conv.get("trial_ends_at") is None and conv.get("status") == "active",
               "a_second_convert_and_an_unknown_action_are_refused": status("tr-again") == "409" and status("tr-bad") == "400",
+              "the_signup_name_is_seeded_into_the_business_profile": profile.get("name") == "Signup Floors " + tag,
+              "the_profile_step_still_asks_for_the_address": isinstance(steps, list) and next((x for x in steps if x.get("id") == "profile"), {}).get("status") == "pending",
               "health_reports_the_running_commit": health.get("commit") == os.environ.get("GITHUB_SHA"),
               "the_directory_columns_exist_on_the_real_database": all("trial_ends_at" in b and "source" in b for b in listing) and len(listing) > 0,
               "answers": {"first": status("su-first"), "again": status("su-again"), "garbage": status("su-garbage"), "untick": status("su-untick"), "days_left": round(days, 3) if days else None, "business": {k: biz.get(k) for k in ("plan", "status", "source", "members")}, "session_b_matches": payload.get("b") == biz.get("id"), "me": {"signedIn": me.get("signedIn"), "role": me.get("role")}, "customers": status("su-customers"), "customer_items": len(cust_list) if isinstance(cust_list, list) else None, "onboarding_steps": len(steps) if isinstance(steps, list) else None, "step_statuses": [x.get("status") for x in steps] if isinstance(steps, list) else None},
