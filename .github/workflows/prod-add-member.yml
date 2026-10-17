@@ -1,0 +1,177 @@
+name: Production add a member (a person to an existing business)
+
+# SHIP_CHECKLIST.md item 15 / RUNBOOK.md section 8. Started by hand only. Adds ONE person to an EXISTING business: their sign-in (one email can belong to only one business) and their membership inside the business's own
+# object, with a role (owner, accountant or installer). It first READS the directory, asks whether the email belongs to ANOTHER business, and asks the business whether the person is already a member; tools/add-member-guard.py
+# then decides, and anything it does not like is refused before any write (see the guard). It is a SINGLE attempt, never retried. The ONLY write is one POST to /debug/directory/add-member.
+# The member's email is personal data and this repository is PUBLIC: it is never in the environment or any expression (GitHub prints every step's env block in its log). The FIRST step reads it from the event file, masks it,
+# and writes a file the other steps read (see prod-new-business.yml; the leak this prevents was found 2026-10-17). The record holds the business id, the role and statuses only.
+on:
+  workflow_dispatch:
+    inputs:
+      business_id:
+        description: "The existing business's id (for example tender-hub)"
+        type: string
+        required: true
+      member_email:
+        description: "The person's email address: the Google account they will sign in with"
+        type: string
+        required: true
+      role:
+        description: "Their role in that business"
+        type: choice
+        required: true
+        options:
+          - installer
+          - accountant
+          - owner
+        default: installer
+      confirm:
+        description: "Type the business id again, exactly"
+        type: string
+        required: true
+
+concurrency:
+  group: prod-add-member
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    env:
+      PROD_URL: https://office.websitehub.co.za
+      RESULTS: ${{ github.workspace }}/results
+      BUSINESS_ID: ${{ github.event.inputs.business_id }}
+      ROLE: ${{ github.event.inputs.role }}
+      CONFIRM: ${{ github.event.inputs.confirm }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the inputs and hide the email (first, before anything is printed)
+        run: |
+          mkdir -p "$RESULTS"
+          python3 - <<'PY'
+          import json, os
+          event = json.load(open(os.environ["GITHUB_EVENT_PATH"]))
+          inputs = event["inputs"] if isinstance(event.get("inputs"), dict) else {}
+          email = str(inputs.get("member_email") or "")
+          # Registered as a mask FIRST: from here on GitHub replaces this text with *** anywhere it would appear in a log.
+          for form in {email, email.strip(), email.strip().lower()}:
+              if form:
+                  print("::add-mask::" + form)
+          json.dump({"business_id": inputs.get("business_id"), "member_email": email.strip().lower(), "role": inputs.get("role"), "confirm": inputs.get("confirm")}, open(os.path.join(os.environ["RESULTS"], "inputs.json"), "w"))
+          PY
+
+      - name: Read the directory (reads only)
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+        run: |
+          curl -s "$PROD_URL/debug/directory" -H "X-Admin-Key: $ADMIN" > "$RESULTS/directory.json"
+
+      - name: Ask whether the email belongs to ANOTHER business (reads only)
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+          ADMIN_CONFIRM: ${{ secrets.PROD_CONFIRM_KEY }}
+        run: |
+          python3 -c "import json, os; i = json.load(open(os.environ['RESULTS'] + '/inputs.json')); print(json.dumps({'business_id': str(i['business_id']).strip(), 'emails': [i['member_email']]}))" > "$RESULTS/check-request.json"
+          curl -s -X POST "$PROD_URL/debug/directory/check-members" -H "X-Admin-Key: $ADMIN" -H "X-Admin-Confirm: $ADMIN_CONFIRM" -H "Content-Type: application/json" -d @"$RESULTS/check-request.json" > "$RESULTS/conflicts.json"
+
+      - name: Ask the business whether the person is already a member (reads only)
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+        run: |
+          EMAIL=$(python3 -c "import json, os; print(json.load(open(os.environ['RESULTS'] + '/inputs.json'))['member_email'])")
+          curl -s -G "$PROD_URL/debug/membership-check" -H "X-Admin-Key: $ADMIN" -H "X-Target-Business: $BUSINESS_ID" --data-urlencode "email=$EMAIL" > "$RESULTS/membership.json"
+
+      - name: Decide what may happen (writes nothing)
+        id: guard
+        run: |
+          set +e
+          python3 tools/add-member-guard.py "$RESULTS/inputs.json" "$RESULTS/directory.json" "$RESULTS/conflicts.json" "$RESULTS/membership.json" > "$RESULTS/decision.json"
+          GUARD=$?
+          cat "$RESULTS/decision.json"
+          echo "action=$(python3 -c "import json; print(json.load(open('$RESULTS/decision.json'))['action'])")" >> "$GITHUB_OUTPUT"
+          python3 - >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json, os
+          d = json.load(open(os.path.join(os.environ["RESULTS"], "decision.json")))
+          print("### Add a member: " + d["action"].upper())
+          print("- business `%s`, role `%s`, member `%s`" % (d["business_id"], d["role"], d["memberMasked"]))
+          for w in d["warnings"]:
+              print("\n**Note:** " + w)
+          for r in d["reasons"]:
+              print("\n**Refused:** " + r)
+          PY
+          exit $GUARD
+
+      - name: Add the member (the only write; a single attempt)
+        if: steps.guard.outputs.action == 'add'
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+          ADMIN_CONFIRM: ${{ secrets.PROD_CONFIRM_KEY }}
+        run: |
+          set +e
+          python3 -c "import json, os; d = json.load(open(os.environ['RESULTS'] + '/decision.json')); i = json.load(open(os.environ['RESULTS'] + '/inputs.json')); print(json.dumps({'email': i['member_email'], 'business_id': d['business_id'], 'role': d['role']}))" > "$RESULTS/add-request.json"
+          CODE=$(curl -s -o "$RESULTS/add.json" -w '%{http_code}' -X POST "$PROD_URL/debug/directory/add-member" -H "X-Admin-Key: $ADMIN" -H "X-Admin-Confirm: $ADMIN_CONFIRM" -H "Content-Type: application/json" -d @"$RESULTS/add-request.json")
+          echo "$CODE" > "$RESULTS/add.status"
+          echo "add-member answered $CODE"
+          test "$CODE" = "200"
+
+      - name: Check it afterwards (reads only)
+        if: always() && steps.guard.outputs.action == 'add'
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+        run: |
+          curl -s "$PROD_URL/debug/directory" -H "X-Admin-Key: $ADMIN" > "$RESULTS/directory-after.json"
+          EMAIL=$(python3 -c "import json, os; print(json.load(open(os.environ['RESULTS'] + '/inputs.json'))['member_email'])")
+          curl -s -G "$PROD_URL/debug/membership-check" -H "X-Admin-Key: $ADMIN" -H "X-Target-Business: $BUSINESS_ID" --data-urlencode "email=$EMAIL" > "$RESULTS/membership-after.json"
+          python3 - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import json, os, sys
+          r = os.environ["RESULTS"]
+          def load(n):
+              try:
+                  return json.load(open(os.path.join(r, n)))
+              except Exception:
+                  return None
+          bid = os.environ["BUSINESS_ID"].strip()
+          decision = load("decision.json") or {}
+          before = decision.get("membersBefore")
+          mine = next((b for b in ((load("directory-after.json") or {}).get("businesses") or []) if b.get("id") == bid), {})
+          after = load("membership-after.json") or {}
+          checks = {
+              "the business has one more member in the directory": isinstance(before, int) and mine.get("members") == before + 1,
+              "the business itself says the person is a member, with the role asked for": after.get("found") is True and after.get("role") == decision.get("role"),
+          }
+          print("### Checked afterwards")
+          for k, v in checks.items():
+              print("- %s: **%s**" % (k, "yes" if v else "NO"))
+          print("\n**Next:** ask them to sign in with Google using exactly the address you gave.")
+          sys.exit(0 if all(checks.values()) else 1)
+          PY
+
+      - name: Record what happened
+        if: always()
+        run: |
+          mkdir -p ops
+          python3 - <<'PY'
+          import json, os, datetime
+          r = os.environ["RESULTS"]
+          def read(n, as_json=True):
+              try:
+                  t = open(os.path.join(r, n)).read()
+                  return json.loads(t) if as_json else t.strip()
+              except Exception:
+                  return None
+          decision = read("decision.json") or {}
+          added = read("add.json") or {}
+          out = {"when": datetime.datetime.utcnow().isoformat() + "Z", "run": os.environ.get("GITHUB_RUN_ID"), "business_id": decision.get("business_id"), "role": decision.get("role"), "action": decision.get("action"),
+                 "members_before": decision.get("membersBefore"), "reasons": decision.get("reasons"), "add_status": read("add.status", False), "add_response": {k: added.get(k) for k in ("business", "inDirectory", "membershipStatus", "error")}}
+          json.dump(out, open("ops/production-add-member-last.json", "w"), indent=1)
+          PY
+          git config user.name "production-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/production-add-member-last.json
+          git commit -m "Production add-member record (the business id, the role and statuses only: no email)" || echo "nothing to record"
+          git pull --rebase origin main
+          git push origin HEAD:main
