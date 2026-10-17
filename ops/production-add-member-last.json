@@ -1,18 +1,16 @@
 {
- "when": "2026-10-17T12:30:12.128048Z",
- "run": "39032764016",
+ "when": "2026-10-17T12:32:17.330275Z",
+ "run": "39032907993",
  "business_id": "tender-hub",
- "role": "installer",
- "action": "refuse",
- "members_before": null,
- "reasons": [
-  "to add a member, type the business id exactly in the confirm box"
- ],
- "add_status": null,
+ "role": "owner",
+ "action": "add",
+ "members_before": 1,
+ "reasons": [],
+ "add_status": "200",
  "add_response": {
-  "business": null,
-  "inDirectory": null,
-  "membershipStatus": null,
+  "business": "tender-hub",
+  "inDirectory": true,
+  "membershipStatus": 200,
   "error": null
  }
 }
