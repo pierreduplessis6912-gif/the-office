@@ -1,12 +1,11 @@
 {
- "when": "2026-10-17T18:51:23.620206Z",
- "run": "39059927182",
+ "when": "2026-10-17T18:52:35.854848Z",
+ "run": "39060009394",
  "business_id": "tender-hub",
  "name": "Tender Hub",
  "action": "refuse",
  "existing": true,
  "reasons": [
-  "that email address already belongs to another business: one email can sign in to only one business",
   "that business already exists and already has 2 member(s): this creates NEW businesses. To add someone to an existing business use the add-member route"
  ],
  "create_status": null,
