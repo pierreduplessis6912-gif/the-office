@@ -1,0 +1,70 @@
+name: Log leak check (does a string appear in a run's logs?)
+
+# Built 2026-10-17 because the environment that writes this code cannot download GitHub's run logs (they are served from a host it cannot reach), so a claim like "the owner's email never appears in a log" could not be
+# CHECKED from there. GitHub's own runners can. Give it a run id and a string; it downloads that run's logs and COUNTS where the string appears, and counts a few control strings that must be present (so a count of zero
+# means the logs were read and the string is absent, not that nothing was read). It records only counts.
+# USE ONLY PLACEHOLDER STRINGS (for example canary-123@example.com): the needle is an input of THIS workflow, so it is visible in this workflow's own run. Never type a real email address here.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "The id of the run whose logs to search (the number at the end of its URL)"
+        type: string
+        required: true
+      needle:
+        description: "A PLACEHOLDER string to look for, for example canary-123@example.com. Never a real address"
+        type: string
+        required: true
+
+concurrency:
+  group: log-leak-check
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      RUN_ID: ${{ github.event.inputs.run_id }}
+      NEEDLE: ${{ github.event.inputs.needle }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download the run's logs and count (reads only)
+        run: |
+          mkdir -p results
+          case "$RUN_ID" in ''|*[!0-9]*) echo "run id must be a number"; exit 1 ;; esac
+          CODE=$(curl -sL -w '%{http_code}' -H "Authorization: Bearer $GH_TOKEN" -o results/logs.zip "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/logs")
+          echo "$CODE" > results/download.status
+          echo "download answered $CODE"
+          python3 - <<'PY'
+          import json, os, zipfile
+          out = {"run_id": os.environ["RUN_ID"], "download_status": open("results/download.status").read().strip()}
+          try:
+              z = zipfile.ZipFile("results/logs.zip")
+              text = {n: z.read(n).decode("utf-8", "replace") for n in z.namelist() if n.endswith(".txt")}
+              needle = os.environ["NEEDLE"]
+              out.update({"log_files_read": len(text), "needle_occurrences": sum(t.count(needle) for t in text.values()), "files_containing_needle": sorted(n for n, t in text.items() if needle in t)[:10],
+                          "control_strings_present": {c: sum(t.count(c) for t in text.values()) for c in ("##[group]Run ", "env:", "shell: /usr/bin/bash")},
+                          "masked_stars_present": sum(t.count("***") for t in text.values())})
+          except Exception as e:  # noqa: BLE001
+              out["error"] = str(e)[:200]
+          json.dump(out, open("ops-log-leak-check.json", "w"), indent=1)
+          print(json.dumps(out, indent=1))
+          PY
+
+      - name: Record the counts
+        if: always()
+        run: |
+          mkdir -p ops
+          cp ops-log-leak-check.json ops/log-leak-check-last.json 2>/dev/null || echo '{"error":"nothing to record"}' > ops/log-leak-check-last.json
+          git config user.name "log-leak-check"
+          git config user.email "noreply@github.com"
+          git add ops/log-leak-check-last.json
+          git commit -m "Log leak check record (counts only)" || echo "nothing to record"
+          git pull --rebase origin main
+          git push origin HEAD:main
