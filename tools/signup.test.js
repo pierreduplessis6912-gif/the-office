@@ -9,7 +9,7 @@ const MARK = '@@SIGNUP-RESULT@@';
 async function body({ check, srcDir }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'signup-')), entry = path.join(dir, 'entry.ts'), out = path.join(dir, 'signup.js');
   const at = (f) => JSON.stringify(path.join(srcDir, f));
-  fs.writeFileSync(entry, `export * from ${at('signup')};\nexport { signedInRedirect } from ${at('signin')};\nexport { signSession, readSessionPayload, signSignupToken, readSignupToken } from ${at('auth')};\nexport { createBusiness, addDirectoryMember, ensureDirectory, lookupAccessForEmail, lookupBusinessForEmail, findEndedTrialForEmail, listDirectory } from ${at('directory')};\nexport { readPlan, clearPlanCache, TRIAL_PLAN } from ${at('limits')};\n`);
+  fs.writeFileSync(entry, `export * from ${at('signup')};\nexport { signedInRedirect } from ${at('signin')};\nexport { signSession, readSessionPayload, signSignupToken, readSignupToken } from ${at('auth')};\nexport { createBusiness, addDirectoryMember, ensureDirectory, lookupAccessForEmail, lookupBusinessForEmail, findEndedTrialForEmail, listDirectory } from ${at('directory')};\nexport { readPlan, clearPlanCache, TRIAL_PLAN } from ${at('limits')};\nexport { convertTrial, extendTrial, sqlTime, fromSqlTime, MAX_EXTEND_DAYS } from ${at('freetrial')};\n`);
   esbuild.buildSync({ entryPoints: [entry], bundle: true, platform: 'node', format: 'cjs', outfile: out, logLevel: 'silent' });
   const m = require(out);
   const src = (f) => fs.readFileSync(path.join(srcDir, f), 'utf8');
@@ -238,6 +238,62 @@ async function body({ check, srcDir }) {
     google('Fresh@Person.co'); const r5 = await signIn(legacy, HTML);
     check(r5.status === 403 && (await r5.json()).error === 'no active membership for this Google account', 'where business objects are not enabled (the old single-database mode) there is no page: the JSON refusal stays');
   } finally { globalThis.fetch = realFetch; }
+
+  // ---- bringing a trial back (freetrial.ts, the "Production trial" workflow) ---------------------------------------------------------------------------------------------------------------------------------------------------
+  // Found missing right after signup shipped: once a trial's end passed the address found no business, and changing the plan did not help because the end date stayed set. An operator must be able to CONVERT a trial business to a plan
+  // it pays for, or EXTEND the trial, and an ENDED trial must come back to life. Only an active business that has a trial may be touched.
+  const started = async (email, name) => { const x = world(); const r = await m.handleSignupPost(post({ token: await tokenFor(x.env, email), business_name: name, agree: 'on' }), x.env); return { x, r, id: rows(x)[0].id }; };
+  const endIt = (x, id, when = '-2 days') => x.db.prepare("UPDATE businesses SET trial_ends_at = datetime('now', ?) WHERE id = ?").run(when, id);
+  const trialRow = (x, id) => x.db.prepare('SELECT status, plan, trial_ends_at FROM businesses WHERE id = ?').get(id);
+  {
+    const { x, id } = await started('owner@back.co', 'Back Co'); endIt(x, id);
+    check((await m.lookupAccessForEmail(x.env, 'owner@back.co')) === null, 'precondition: the trial has ended and the owner finds no business');
+    const e1 = await m.extendTrial(x.env, id, 7);
+    check(e1.ok === true && Math.abs(m.fromSqlTime(e1.trialEndsAt) - (Date.now() + 7 * 86400000)) < 60000 && (await m.lookupAccessForEmail(x.env, 'owner@back.co'))?.businessId === id && (await m.findEndedTrialForEmail(x.env, 'owner@back.co')) === null, 'EXTENDING an ended trial by 7 days brings the business back for exactly 7 days from NOW (an ended trial counts from today, not from when it ended): the owner finds it again and it is no longer an ended trial');
+    check(trialRow(x, id).plan === 'trial' && trialRow(x, id).status === 'active', 'and it stays on the trial plan');
+    x.db.prepare("UPDATE businesses SET trial_ends_at = datetime('now', '+3 days') WHERE id = ?").run(id);
+    const e2 = await m.extendTrial(x.env, id, 5);
+    check(e2.ok && Math.abs(m.fromSqlTime(e2.trialEndsAt) - (Date.now() + 8 * 86400000)) < 60000 && e2.wasEndingAt !== e2.trialEndsAt, 'extending a trial that is STILL RUNNING adds to its current end (3 days left + 5 = 8), so extending never shortens it');
+    const back = await started('owner@conv.co', 'Conv Co'); endIt(back.x, back.id);
+    const c1 = await m.convertTrial(back.x.env, back.id, 'standard');
+    const a = await m.lookupAccessForEmail(back.x.env, 'owner@conv.co');
+    m.clearPlanCache(); const pl = await m.readPlan({ ...back.x.env, BUSINESS_ID: back.id });
+    check(c1.ok === true && c1.plan === 'standard' && trialRow(back.x, back.id).trial_ends_at === null && trialRow(back.x, back.id).plan === 'standard' && a?.businessId === back.id && a.trialEndsAt === null && (await m.findEndedTrialForEmail(back.x.env, 'owner@conv.co')) === null && pl.name === 'standard', 'CONVERTING an ended trial to the standard plan clears the trial: the owner finds the business again as a normal member (no trial end, so their next session is a normal 30 days), it runs on the standard plan, and it is not an ended trial');
+    check((await m.convertTrial(back.x.env, back.id, 'standard')).status === 409 && (await m.extendTrial(back.x.env, back.id, 7)).status === 409, 'a business that has been converted is no longer on a trial: converting or extending it again is refused (409)');
+    const run = await started('owner@run.co', 'Run Co'), before = trialRow(run.x, run.id).trial_ends_at, cv = await m.convertTrial(run.x.env, run.id, 'standard');
+    check(cv.ok && cv.wasEndingAt === before && (await m.lookupAccessForEmail(run.x.env, 'owner@run.co'))?.trialEndsAt === null, 'converting a trial that is still RUNNING also works, and says when it would have ended');
+  }
+  {
+    const { x, id } = await started('owner@ref.co', 'Ref Co'); const snap = () => JSON.stringify(trialRow(x, id));
+    for (const d of [0, -1, 91, 1.5, '7', NaN, null, undefined, Infinity, [7], {}]) check((await m.extendTrial(x.env, id, d)).status === 400, `extend refuses days = ${JSON.stringify(d) ?? String(d)}`);
+    check((await m.extendTrial(x.env, id, 1)).ok === true && (await m.extendTrial(x.env, id, 90)).ok === true && m.MAX_EXTEND_DAYS === 90, 'extend accepts 1 and 90 days (and nothing beyond)');
+    const s0 = snap();
+    for (const [label, call, status] of [['an unknown business', () => m.extendTrial(x.env, 'no-such-biz-1', 7), 404], ['an invalid id', () => m.extendTrial(x.env, 'Bad Id', 7), 400], ['a missing id', () => m.extendTrial(x.env, undefined, 7), 400], ['an id that is not text', () => m.convertTrial(x.env, 42, 'standard'), 400], ['convert with no plan', () => m.convertTrial(x.env, id, undefined), 400], ['convert with an empty plan', () => m.convertTrial(x.env, id, ''), 400], ['convert TO the trial plan', () => m.convertTrial(x.env, id, 'trial'), 400], ['convert to a plan that does not exist', () => m.convertTrial(x.env, id, 'platinum'), 404], ['convert to a plan that is not text', () => m.convertTrial(x.env, id, { name: 'standard' }), 400]]) { const r = await call(); check(r.ok === false && r.status === status, `refused (${status}): ${label}`); }
+    check(snap() === s0, 'and none of those refusals changed the business');
+    const adm = world(); await m.ensureDirectory(adm.env); await m.createBusiness(adm.env, 'op-made', 'Op Made'); const pend = world(); await m.ensureDirectory(pend.env); await m.createBusiness(pend.env, 'half-made', 'Half Made', 'trial', { status: 'pending', trialEndsAt: '2099-01-01 00:00:00', source: 'signup' });
+    const susp = world(); await m.ensureDirectory(susp.env); await m.createBusiness(susp.env, 'gone-co', 'Gone Co', 'trial', { status: 'suspended', trialEndsAt: '2099-01-01 00:00:00' });
+    check((await m.extendTrial(adm.env, 'op-made', 7)).status === 409 && (await m.convertTrial(adm.env, 'op-made', 'standard')).status === 409, 'a business an OPERATOR created (it has no trial) cannot be "converted" or "extended": there is nothing to convert');
+    const pe = await m.extendTrial(pend.env, 'half-made', 7), se = await m.convertTrial(susp.env, 'gone-co', 'standard');
+    check(pe.status === 409 && /pending/.test(pe.error) && se.status === 409 && /suspended/.test(se.error), 'a half-made (pending) or suspended business cannot be moved off a trial');
+    const old = world(); old.db.exec("CREATE TABLE businesses (id TEXT PRIMARY KEY, name TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'active', plan TEXT NOT NULL DEFAULT 'standard', created_at TEXT NOT NULL DEFAULT (datetime('now')));INSERT INTO businesses (id, name) VALUES ('old-co', 'Old Co');");
+    const oe = await m.extendTrial(old.env, 'old-co', 7);
+    check(oe.ok === false && oe.status === 409 && /no trial information/.test(oe.error), 'on a directory from BEFORE trials it says so plainly (409), never a crash');
+  }
+  {
+    const x = world({ ADMIN_KEY: 'k-admin', ADMIN_CONFIRM_KEY: 'k-confirm' }); const r0 = await m.handleSignupPost(post({ token: await tokenFor(x.env, 'owner@route.co'), business_name: 'Route Co', agree: 'on' }), x.env); const id = rows(x)[0].id; endIt(x, id);
+    const call = (body, headers) => worker.fetch(new Request('https://office.websitehub.co.za/debug/directory/trial', { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) }), x.env, ctx);
+    const both = { 'X-Admin-Key': 'k-admin', 'X-Admin-Confirm': 'k-confirm' };
+    const nobody = await call({ business: id, action: 'extend', days: 7 }, {}), onlyKey = await call({ business: id, action: 'extend', days: 7 }, { 'X-Admin-Key': 'k-admin' }), wrong = await call({ business: id, action: 'extend', days: 7 }, { 'X-Admin-Key': 'nope', 'X-Admin-Confirm': 'k-confirm' });
+    check(nobody.status !== 200 && onlyKey.status !== 200 && wrong.status !== 200 && (await m.lookupAccessForEmail(x.env, 'owner@route.co')) === null, 'the route is PRIVILEGED: with no key, only the admin key, or a wrong key it does nothing (an ended trial stays ended)');
+    const bad = await call({ business: id, action: 'delete' }, both), badj = await worker.fetch(new Request('https://office.websitehub.co.za/debug/directory/trial', { method: 'POST', headers: both, body: 'not json' }), x.env, ctx);
+    check(bad.status === 400 && /convert" or "extend/.test((await bad.json()).error) && badj.status === 400, 'an unknown action, or a body that is not JSON, is a plain 400');
+    const ok = await call({ business: id, action: 'extend', days: 7 }, both), okj = await ok.json();
+    check(ok.status === 200 && okj.ok === true && okj.business === id && (await m.lookupAccessForEmail(x.env, 'owner@route.co'))?.businessId === id, 'with BOTH keys the route extends the trial and the owner is restored');
+    const cv = await call({ business: id, action: 'convert', plan: 'standard' }, both), cvj = await cv.json();
+    check(cv.status === 200 && cvj.plan === 'standard' && trialRow(x, id).trial_ends_at === null, 'and converts it');
+    check((await call({ business: id, action: 'convert', plan: 'standard' }, both)).status === 409 && (await call({ business: 'no-such-biz-1', action: 'extend', days: 3 }, both)).status === 404, 'and the failures come back as their own statuses (409 not on a trial, 404 no such business)');
+  }
+  check(/"POST \/debug\/directory\/trial": "privileged"/.test(src('admin-routes.ts')) && /url\.pathname === "\/debug\/directory\/trial" && request\.method === "POST"/.test(src('debug.ts')) && /import \{ convertTrial, extendTrial \} from "\.\/freetrial"/.test(src('debug.ts')) && /from "\.\/freetrial"/.test(src('signup.ts')) && !/export (async )?function (convertTrial|extendTrial)/.test(src('trial.ts')), 'the route is classified privileged, answered in debug.ts, and lives in freetrial.ts (trial.ts, the older architecture-trial module, is untouched)');
 
   // ---- how it is wired in ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   const index = src('index.ts');

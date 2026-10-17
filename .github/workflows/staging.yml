@@ -638,6 +638,17 @@ jobs:
           curl -s -o "$RESULTS/su-onboarding.json" -w '%{http_code}' "${J[@]}" "$BASE/onboarding" > "$RESULTS/su-onboarding.status"
           curl -s -o "$RESULTS/su-directory.json" -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/directory"
           curl -s -o "$RESULTS/su-plans.json" -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/directory/plans"
+          # Bringing a trial back (worker/src/freetrial.ts): extend it by 7 days, convert it to the standard plan, be refused a repeat, and be refused without the confirmation key.
+          BID=$(python3 -c "import json; print(next((b['id'] for b in json.load(open('$RESULTS/su-directory.json')).get('businesses', []) if b.get('name') == 'Signup Floors $TAG'), ''))")
+          trial() { curl -s -o "$RESULTS/$1.json" -w '%{http_code}' -X POST -H "X-Admin-Key: $STAGING_ADMIN_KEY" ${3:+-H "X-Admin-Confirm: $STAGING_CONFIRM_KEY"} -H "Content-Type: application/json" -d "$2" "$BASE/debug/directory/trial" > "$RESULTS/$1.status"; }
+          dirnow() { curl -s -o "$RESULTS/$1.json" -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/directory"; }
+          trial tr-nokey "{\"business\":\"$BID\",\"action\":\"extend\",\"days\":7}"
+          trial tr-extend "{\"business\":\"$BID\",\"action\":\"extend\",\"days\":7}" yes
+          dirnow su-directory-extended
+          trial tr-convert "{\"business\":\"$BID\",\"action\":\"convert\",\"plan\":\"standard\"}" yes
+          dirnow su-directory-converted
+          trial tr-again "{\"business\":\"$BID\",\"action\":\"convert\",\"plan\":\"standard\"}" yes
+          trial tr-bad "{\"business\":\"$BID\",\"action\":\"delete\"}" yes
           python3 - <<'PY'
           import base64, datetime, json, os, re, sys, urllib.parse as u
           r, tag = os.environ["RESULTS"], "r" + os.environ["GITHUB_RUN_ID"]
@@ -668,6 +679,15 @@ jobs:
               pass
           days = (ends - datetime.datetime.now(datetime.timezone.utc)).total_seconds() / 86400 if ends else None
           plans = {p["name"]: p for p in (rd("su-plans.json") or {}).get("plans", [])}
+          def mine_in(n):
+              return next((b for b in ((rd(n) or {}).get("businesses") or []) if b.get("name") == "Signup Floors " + tag), {})
+          def when(t):
+              try:
+                  return datetime.datetime.strptime(t, "%Y-%m-%d %H:%M:%S").replace(tzinfo=datetime.timezone.utc)
+              except Exception:
+                  return None
+          ext_end, ext_start = when(mine_in("su-directory-extended.json").get("trial_ends_at")), ends
+          conv = mine_in("su-directory-converted.json")
           again = location("su-again"); again_q = u.parse_qs(again.query) if again else {}
           cust = rd("su-customers.json"); cust_list = cust.get("items") if isinstance(cust, dict) else cust   # GET /customers answers {"items": [...], "limit", "offset"}
           ob = rd("su-onboarding.json") or {}
@@ -684,6 +704,10 @@ jobs:
               "it_is_a_blank_business_with_its_journey_waiting": status("su-customers") == "200" and cust_list == [] and status("su-onboarding") == "200" and isinstance(steps, list) and len(steps) == 7 and not any(s.get("status") == "done" for s in steps),
               "a_garbage_token_is_refused_with_a_page_and_creates_nothing": status("su-garbage") == "400" and "took too long" in (rd("su-garbage.body", False) or "") and not any(b.get("name") == "Nobody " + tag for b in listing),
               "an_unticked_box_is_refused_with_a_page_and_creates_nothing": status("su-untick") == "400" and "tick the box" in (rd("su-untick.body", False) or "") and not any(b.get("name") == "Untick Co " + tag for b in listing),
+              "the_trial_route_refuses_without_the_confirmation_key": status("tr-nokey") not in ("200", "") and ext_end is not None and ext_start is not None and ext_end > ext_start,
+              "extending_a_trial_moves_its_end_later_by_the_days_asked": status("tr-extend") == "200" and ext_end is not None and ext_start is not None and abs((ext_end - ext_start).total_seconds() - 7 * 86400) < 120,
+              "converting_clears_the_trial_and_sets_the_plan": status("tr-convert") == "200" and conv.get("plan") == "standard" and conv.get("trial_ends_at") is None and conv.get("status") == "active",
+              "a_second_convert_and_an_unknown_action_are_refused": status("tr-again") == "409" and status("tr-bad") == "400",
               "the_directory_columns_exist_on_the_real_database": all("trial_ends_at" in b and "source" in b for b in listing) and len(listing) > 0,
               "answers": {"first": status("su-first"), "again": status("su-again"), "garbage": status("su-garbage"), "untick": status("su-untick"), "days_left": round(days, 3) if days else None, "business": {k: biz.get(k) for k in ("plan", "status", "source", "members")}, "session_b_matches": payload.get("b") == biz.get("id"), "me": {"signedIn": me.get("signedIn"), "role": me.get("role")}, "customers": status("su-customers"), "customer_items": len(cust_list) if isinstance(cust_list, list) else None, "onboarding_steps": len(steps) if isinstance(steps, list) else None, "step_statuses": [x.get("status") for x in steps] if isinstance(steps, list) else None},
           }

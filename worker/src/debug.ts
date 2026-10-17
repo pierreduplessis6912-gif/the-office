@@ -21,6 +21,7 @@ import { healthReport } from "./health";
 import { backupRoute } from "./backup-routes";
 import { migrationRoute } from "./migration-routes";
 import { addDirectoryMember, createBusiness, findDirectoryConflicts, isBusinessId, listDirectory, normaliseEmail } from "./directory";
+import { convertTrial, extendTrial } from "./freetrial";
 import { callBusiness } from "./routing";
 import { applyIndexes } from "./indexes";
 import { trialAi, trialD1, trialDo, trialTx } from "./trial";
@@ -104,6 +105,12 @@ if (url.pathname === "/debug/timings" && request.method === "GET") {
     if (url.pathname === "/debug/directory/plans/set" && request.method === "POST") {
       const result = await setPlan(env, (await request.json()) as Record<string, unknown>);
       return result.ok ? Response.json(result) : Response.json({ error: result.error }, { status: 400 });
+    }
+    // A business on a free trial (trial.ts): CONVERT it to a plan it pays for, or EXTEND the trial by some days. Without this an ended trial can never be brought back. Privileged.
+    if (url.pathname === "/debug/directory/trial" && request.method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { business?: unknown; action?: unknown; plan?: unknown; days?: unknown };
+      const result = body.action === "convert" ? await convertTrial(env, body.business, body.plan) : body.action === "extend" ? await extendTrial(env, body.business, body.days) : ({ ok: false, error: 'action is "convert" or "extend"', status: 400 } as const);
+      return result.ok ? Response.json(result) : Response.json({ error: result.error }, { status: result.status });
     }
     if (url.pathname === "/debug/directory/set-plan" && request.method === "POST") {
       const body = (await request.json()) as { business?: unknown; plan?: unknown };

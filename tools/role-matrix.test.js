@@ -870,6 +870,8 @@ async function expect(role, method, path, want) {
   await require('./add-member-guard.test.js')({ check, path, fs });
   // The read-only production probe of the signup front door.
   await require('./prod-signup-check.test.js')({ check, path, fs });
+  // Converting a trial business to a paid plan, or extending its trial: the guard (every way it must refuse) and the workflow.
+  await require('./trial-guard.test.js')({ check, path, fs });
   // The owner's first-run journey: progress derived from data, owner-only, resumable, safe to retry.
   await require('./onboarding.test.js')({ check, srcDir });
   // Importing a new business's data from any export: columns by name, money never guessed, safe to retry, all or nothing.

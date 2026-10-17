@@ -13,6 +13,7 @@ import { addDirectoryMember, createBusiness, ensureDirectory, findEndedTrialForE
 import { ensureTrialPlan, TRIAL_PLAN } from "./limits";
 import { callBusiness } from "./routing";
 import { signedInRedirect } from "./signin";
+import { fromSqlTime, sqlTime } from "./freetrial";
 import type { Env } from "./types";
 
 export const TRIAL_DAYS = 14;
@@ -47,8 +48,6 @@ export async function businessIdFor(name: string, email: string): Promise<string
   return `${slugify(name)}-${(await sha256Hex(normaliseEmail(email))).slice(0, 6)}`;
 }
 
-const sqlTime = (ms: number): string => new Date(ms).toISOString().slice(0, 19).replace("T", " ");
-const fromSqlTime = (text: string): number => Date.parse(`${text.replace(" ", "T")}Z`);
 
 // ---- pages ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 const STYLE =

@@ -1,0 +1,161 @@
+name: Production trial (convert a business to a paid plan, or extend its free trial)
+
+# SHIP_CHECKLIST.md item 15 / RUNBOOK.md section 14. Started by hand only. A business a customer started from the app is on a 14-day free trial; when it ends the owner can no longer sign in and sees "please contact us". This is how you
+# answer them: CONVERT the business to a plan it pays for (the trial is cleared), or EXTEND the trial by some days (counted from the later of now and its current end, so an ended trial comes back). Nothing is ever deleted.
+# It READS the directory and the plans; tools/trial-guard.py decides (a bad id, a mistyped confirmation, a business that does not exist, is not active or has no trial, an unknown plan or bad number of days are refused before any write);
+# ONE un-retried POST to /debug/directory/trial; then it checks the result. Only business ids, plan names and numbers pass through: no personal data, so no masking is needed.
+on:
+  workflow_dispatch:
+    inputs:
+      business_id:
+        description: "The business's id (for example acme-floors-a1b2c3: see the directory)"
+        type: string
+        required: true
+      op:
+        description: "convert = move it to a plan it pays for and clear the trial; extend = give the trial more days"
+        type: choice
+        required: true
+        options:
+          - extend
+          - convert
+        default: extend
+      days:
+        description: "For extend: how many more days (1 to 90). Ignored for convert"
+        type: string
+        required: false
+        default: "14"
+      plan:
+        description: "For convert: the plan name (for example standard). Ignored for extend"
+        type: string
+        required: false
+        default: "standard"
+      confirm:
+        description: "Type the business id again, exactly"
+        type: string
+        required: true
+
+concurrency:
+  group: prod-trial
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  trial:
+    runs-on: ubuntu-latest
+    env:
+      PROD_URL: https://office.websitehub.co.za
+      RESULTS: ${{ github.workspace }}/results
+      BUSINESS_ID: ${{ github.event.inputs.business_id }}
+      OP: ${{ github.event.inputs.op }}
+      DAYS: ${{ github.event.inputs.days }}
+      PLAN: ${{ github.event.inputs.plan }}
+      CONFIRM: ${{ github.event.inputs.confirm }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the inputs, the directory and the plans (reads only)
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+        run: |
+          mkdir -p "$RESULTS"
+          python3 -c "import json, os; json.dump({'business_id': os.environ['BUSINESS_ID'], 'op': os.environ['OP'], 'plan': os.environ['PLAN'], 'days': os.environ['DAYS'], 'confirm': os.environ['CONFIRM']}, open(os.environ['RESULTS'] + '/inputs.json', 'w'))"
+          curl -s "$PROD_URL/debug/directory" -H "X-Admin-Key: $ADMIN" > "$RESULTS/directory.json"
+          curl -s "$PROD_URL/debug/directory/plans" -H "X-Admin-Key: $ADMIN" > "$RESULTS/plans.json"
+
+      - name: Decide what may happen (writes nothing)
+        id: guard
+        run: |
+          set +e
+          python3 tools/trial-guard.py "$RESULTS/inputs.json" "$RESULTS/directory.json" "$RESULTS/plans.json" > "$RESULTS/decision.json"
+          GUARD=$?
+          cat "$RESULTS/decision.json"
+          echo "action=$(python3 -c "import json; print(json.load(open('$RESULTS/decision.json'))['action'])")" >> "$GITHUB_OUTPUT"
+          python3 - >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json, os
+          d = json.load(open(os.path.join(os.environ["RESULTS"], "decision.json")))
+          print("### Trial: " + d["action"].upper())
+          print("- business `%s` (%s), %s members, trial: %s" % (d["business_id"], d["name"], d["members"], d["state"]))
+          print("- action: **%s**%s" % (d["op"], (" to plan `%s`" % d["plan"]) if d["op"] == "convert" and d["plan"] else (" by %s days" % d["days"] if d["days"] else "")))
+          for w in d["warnings"]:
+              print("\n**Note:** " + w)
+          for r in d["reasons"]:
+              print("\n**Refused:** " + r)
+          PY
+          exit $GUARD
+
+      - name: Apply it (the only write; a single attempt)
+        if: steps.guard.outputs.action == 'apply'
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+          ADMIN_CONFIRM: ${{ secrets.PROD_CONFIRM_KEY }}
+        run: |
+          set +e
+          python3 -c "import json, os; d = json.load(open(os.environ['RESULTS'] + '/decision.json')); print(json.dumps({'business': d['business_id'], 'action': d['op'], **({'plan': d['plan']} if d['op'] == 'convert' else {'days': d['days']})}))" > "$RESULTS/apply-request.json"
+          CODE=$(curl -s -o "$RESULTS/apply.json" -w '%{http_code}' -X POST "$PROD_URL/debug/directory/trial" -H "X-Admin-Key: $ADMIN" -H "X-Admin-Confirm: $ADMIN_CONFIRM" -H "Content-Type: application/json" -d @"$RESULTS/apply-request.json")
+          echo "$CODE" > "$RESULTS/apply.status"
+          echo "trial route answered $CODE"
+          test "$CODE" = "200"
+
+      - name: Check it afterwards (reads only)
+        if: always() && steps.guard.outputs.action == 'apply'
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+        run: |
+          curl -s "$PROD_URL/debug/directory" -H "X-Admin-Key: $ADMIN" > "$RESULTS/directory-after.json"
+          python3 - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import datetime, json, os, sys
+          r = os.environ["RESULTS"]
+          def load(n):
+              try:
+                  return json.load(open(os.path.join(r, n)))
+              except Exception:
+                  return None
+          d = load("decision.json") or {}
+          bid = d.get("business_id")
+          mine = next((b for b in ((load("directory-after.json") or {}).get("businesses") or []) if b.get("id") == bid), {})
+          now = datetime.datetime.now(datetime.timezone.utc)
+          def at(t):
+              try:
+                  return datetime.datetime.strptime(t, "%Y-%m-%d %H:%M:%S").replace(tzinfo=datetime.timezone.utc)
+              except Exception:
+                  return None
+          if d.get("op") == "convert":
+              checks = {"it is on the plan asked for": mine.get("plan") == d.get("plan"), "its trial is cleared": mine.get("trial_ends_at") is None, "it is active": mine.get("status") == "active"}
+          else:
+              new, old = at(mine.get("trial_ends_at")), at(d.get("trialEndsAt"))
+              floor = max(now, old) if old else now
+              checks = {"its trial now ends later than before": bool(new and old and new > old), "it ends at least the days asked for from the later of now and the old end": bool(new and (new - floor).total_seconds() >= d.get("days", 0) * 86400 - 300), "it is active": mine.get("status") == "active"}
+          print("### Checked afterwards")
+          for k, v in checks.items():
+              print("- %s: **%s**" % (k, "yes" if v else "NO"))
+          print("\n**Next:** ask the owner to sign in again.")
+          sys.exit(0 if all(checks.values()) else 1)
+          PY
+
+      - name: Record what happened
+        if: always()
+        run: |
+          mkdir -p ops
+          python3 - <<'PY'
+          import json, os, datetime
+          r = os.environ["RESULTS"]
+          def read(n, as_json=True):
+              try:
+                  t = open(os.path.join(r, n)).read()
+                  return json.loads(t) if as_json else t.strip()
+              except Exception:
+                  return None
+          d = read("decision.json") or {}
+          a = read("apply.json") or {}
+          out = {"when": datetime.datetime.utcnow().isoformat() + "Z", "run": os.environ.get("GITHUB_RUN_ID"), "business_id": d.get("business_id"), "op": d.get("op"), "plan": d.get("plan"), "days": d.get("days"), "action": d.get("action"),
+                 "state_before": d.get("state"), "trial_ends_before": d.get("trialEndsAt"), "reasons": d.get("reasons"), "apply_status": read("apply.status", False), "apply_response": {k: a.get(k) for k in ("ok", "business", "plan", "trialEndsAt", "wasEndingAt", "error")}}
+          json.dump(out, open("ops/production-trial-last.json", "w"), indent=1)
+          PY
+          git config user.name "production-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/production-trial-last.json
+          git commit -m "Production trial record (business id, action and statuses only)" || echo "nothing to record"
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin HEAD:"$GITHUB_REF_NAME"
