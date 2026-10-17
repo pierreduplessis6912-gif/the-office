@@ -878,6 +878,7 @@ async function expect(role, method, path, want) {
   await require('./prod-directory.test.js')({ check, path, fs });
   // The deploy decision: what is production RUNNING, and what changed since (found 2026-10-17).
   await require('./deploy-base.test.js')({ check, path, fs });
+  await require('./pipeline-drill.test.js')({ check });
   // The owner's first-run journey: progress derived from data, owner-only, resumable, safe to retry.
   await require('./onboarding.test.js')({ check, srcDir });
   // Importing a new business's data from any export: columns by name, money never guessed, safe to retry, all or nothing.

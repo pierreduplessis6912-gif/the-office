@@ -362,3 +362,5 @@ export interface LeadLostExtraction {
 export interface SupplierStatementExtraction {
   claimed_closing_balance: number | null;
 }
+
+// Pipeline drill (2026-10-17): this comment is the Worker change used to prove that a red run followed by a tests-only fix still deploys. It changes nothing.
