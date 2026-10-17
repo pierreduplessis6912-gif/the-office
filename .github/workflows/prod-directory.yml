@@ -1,0 +1,63 @@
+name: "Production directory (read-only, which businesses exist, on what plan, with how many members)"
+
+# What GET /debug/directory shows, without needing the admin key on a phone. It READS only: no secret beyond the admin READ key, no write to production. It records the listing (id, name, status, plan, member COUNT, trial end,
+# who started it) in ops/production-directory-last.json. The listing holds no email address by design. NOTE: business ids and names are recorded in this PUBLIC repository; that is fine for test businesses, and a reason to make the
+# repository private before real customers sign up (RUNBOOK.md section 14).
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: prod-directory
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  list:
+    runs-on: ubuntu-latest
+    env:
+      PROD_URL: https://office.websitehub.co.za
+      RESULTS: ${{ github.workspace }}/results
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the directory (reads only)
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+        run: |
+          mkdir -p "$RESULTS"
+          curl -s -o "$RESULTS/directory.json" -w '%{http_code}' "$PROD_URL/debug/directory" -H "X-Admin-Key: $ADMIN" > "$RESULTS/directory.status"
+          python3 - <<'PY'
+          import datetime, json, os, sys
+          r = os.environ["RESULTS"]
+          status = open(os.path.join(r, "directory.status")).read().strip()
+          try:
+              listing = json.load(open(os.path.join(r, "directory.json")))["businesses"]
+              assert isinstance(listing, list)
+          except Exception:
+              listing = None
+          now = datetime.datetime.now(datetime.timezone.utc)
+          def left(t):
+              try:
+                  return round((datetime.datetime.strptime(t, "%Y-%m-%d %H:%M:%S").replace(tzinfo=datetime.timezone.utc) - now).total_seconds() / 86400, 2)
+              except Exception:
+                  return None
+          rows = [{k: b.get(k) for k in ("id", "name", "status", "plan", "members", "source", "trial_ends_at")} | {"trial_days_left": left(b.get("trial_ends_at"))} for b in (listing or [])]
+          out = {"when": now.isoformat(), "run": os.environ.get("GITHUB_RUN_ID"), "directory_status": status, "readable": listing is not None, "count": len(rows), "businesses": rows}
+          json.dump(out, open(os.path.join(r, "directory-record.json"), "w"), indent=1)
+          print(json.dumps(out, indent=1))
+          sys.exit(0 if status == "200" and listing is not None else 1)
+          PY
+
+      - name: Record the listing
+        if: always()
+        run: |
+          mkdir -p ops
+          cp results/directory-record.json ops/production-directory-last.json 2>/dev/null || echo '{"error":"the directory could not be read"}' > ops/production-directory-last.json
+          git config user.name "production-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/production-directory-last.json
+          git commit -m "Production directory record (ids, names, plans, member counts: no emails)" || echo "nothing to record"
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin HEAD:"$GITHUB_REF_NAME"
