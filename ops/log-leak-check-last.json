@@ -1,13 +1,13 @@
 {
- "run_id": "39030047000",
+ "run_id": "39032764016",
  "download_status": "200",
- "log_files_read": 11,
+ "log_files_read": 12,
  "needle_occurrences": 0,
  "files_containing_needle": [],
  "control_strings_present": {
-  "##[group]Run ": 12,
-  "env:": 12,
-  "shell: /usr/bin/bash": 10
+  "##[group]Run ": 14,
+  "env:": 14,
+  "shell: /usr/bin/bash": 12
  },
- "masked_stars_present": 14
+ "masked_stars_present": 16
 }
