@@ -1,0 +1,71 @@
+name: Production signup check (read-only probes of the front door)
+
+# After the self-serve signup was deployed (2026-10-17). Nothing here writes anything and no secret is used: it asks the live Worker what any stranger could ask. The one POST sends a GARBAGE proof to /auth/signup, which must be
+# refused with a page and create nothing. Everything it learns is recorded as booleans in ops/production-signup-check-last.json, and the run goes red if any is false.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: prod-signup-check
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      PROD_URL: https://office.websitehub.co.za
+      RESULTS: ${{ github.workspace }}/results
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Probe the front door (reads, and one refused garbage form)
+        run: |
+          mkdir -p "$RESULTS"
+          curl -s -D "$RESULTS/health.h" -o "$RESULTS/health.b" -w '%{http_code}' "$PROD_URL/health" > "$RESULTS/health.s"
+          curl -s -D "$RESULTS/garbage.h" -o "$RESULTS/garbage.b" -w '%{http_code}' -X POST --data-urlencode "token=garbage" --data-urlencode "business_name=Probe" --data-urlencode "agree=on" "$PROD_URL/auth/signup" > "$RESULTS/garbage.s"
+          curl -s -D "$RESULTS/callback.h" -o "$RESULTS/callback.b" -w '%{http_code}' "$PROD_URL/auth/google/callback" > "$RESULTS/callback.s"
+          curl -s -D "$RESULTS/login.h" -o /dev/null -w '%{http_code}' "$PROD_URL/auth/google/login" > "$RESULTS/login.s"
+          curl -s -o /dev/null -w '%{http_code}' "$PROD_URL/customers" > "$RESULTS/anon.s"
+          python3 - <<'PY'
+          import json, os, re, sys
+          r = os.environ["RESULTS"]
+          rd = lambda n: open(os.path.join(r, n)).read()
+          head = lambda n, k: (re.search(r"(?im)^%s:\s*(.*?)\s*$" % k, rd(n)) or [None, ""])[1]
+          out = {
+              "the_health_check_answers": rd("health.s").strip() == "200" and '"status":"ok"' in rd("health.b").replace(" ", ""),
+              "a_garbage_proof_is_refused_with_a_page": rd("garbage.s").strip() == "400" and "text/html" in head("garbage.h", "content-type") and "took too long" in rd("garbage.b"),
+              "that_page_is_not_cached_or_framed_and_runs_no_script": "no-store" in head("garbage.h", "cache-control") and head("garbage.h", "x-frame-options").upper() == "DENY" and "default-src 'none'" in head("garbage.h", "content-security-policy") and "form-action" not in head("garbage.h", "content-security-policy") and "<script" not in rd("garbage.b").lower(),
+              "the_sign_in_callback_still_refuses_a_visit_with_no_state": rd("callback.s").strip() == "400" and "OAuth state" in rd("callback.b"),
+              "the_sign_in_start_still_sends_people_to_google": rd("login.s").strip() == "302" and "accounts.google.com" in head("login.h", "location"),
+              "a_stranger_is_still_refused_the_data": rd("anon.s").strip() == "401",
+          }
+          out["answers"] = {k: rd(k + ".s").strip() for k in ("health", "garbage", "callback", "login", "anon")}
+          json.dump(out, open(os.path.join(r, "check.json"), "w"), indent=1)
+          bad = [k for k, v in out.items() if v is False]
+          print(json.dumps(out, indent=1))
+          print("checks that did not hold:", bad)
+          sys.exit(1 if bad else 0)
+          PY
+
+      - name: Record what happened
+        if: always()
+        run: |
+          mkdir -p ops
+          python3 - <<'PY'
+          import json, os, datetime
+          try:
+              c = json.load(open(os.path.join(os.environ["RESULTS"], "check.json")))
+          except Exception:
+              c = {"error": "the probe did not complete"}
+          c = {"when": datetime.datetime.utcnow().isoformat() + "Z", "run": os.environ.get("GITHUB_RUN_ID"), **c}
+          json.dump(c, open("ops/production-signup-check-last.json", "w"), indent=1)
+          PY
+          git config user.name "production-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/production-signup-check-last.json
+          git commit -m "Production signup check record (booleans and status codes only)" || echo "nothing to record"
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin HEAD:"$GITHUB_REF_NAME"
