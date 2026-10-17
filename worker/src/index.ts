@@ -440,7 +440,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
     if (gate) return gate;
 
     if (url.pathname === "/" || url.pathname === "/health") {
-      return Response.json({ status: "ok", service: "office-api" });
+      return Response.json({ status: "ok", service: "office-api", commit: env.GIT_SHA ?? null });
     }
 
     // Real, complete auth routes are implemented further down

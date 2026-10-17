@@ -225,7 +225,7 @@ jobs:
         working-directory: worker
         run: |
           npm ci
-          wrangler deploy --config wrangler.staging.toml
+          wrangler deploy --config wrangler.staging.toml --var GIT_SHA:$GITHUB_SHA
 
       - name: Set staging's secrets
         working-directory: worker
@@ -638,6 +638,7 @@ jobs:
           curl -s -o "$RESULTS/su-onboarding.json" -w '%{http_code}' "${J[@]}" "$BASE/onboarding" > "$RESULTS/su-onboarding.status"
           curl -s -o "$RESULTS/su-directory.json" -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/directory"
           curl -s -o "$RESULTS/su-plans.json" -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/directory/plans"
+          curl -s -o "$RESULTS/su-health.json" "$BASE/health"
           # Bringing a trial back (worker/src/freetrial.ts): extend it by 7 days, convert it to the standard plan, be refused a repeat, and be refused without the confirmation key.
           BID=$(python3 -c "import json; print(next((b['id'] for b in json.load(open('$RESULTS/su-directory.json')).get('businesses', []) if b.get('name') == 'Signup Floors $TAG'), ''))")
           trial() { curl -s -o "$RESULTS/$1.json" -w '%{http_code}' -X POST -H "X-Admin-Key: $STAGING_ADMIN_KEY" ${3:+-H "X-Admin-Confirm: $STAGING_CONFIRM_KEY"} -H "Content-Type: application/json" -d "$2" "$BASE/debug/directory/trial" > "$RESULTS/$1.status"; }
@@ -690,6 +691,7 @@ jobs:
           conv = mine_in("su-directory-converted.json")
           again = location("su-again"); again_q = u.parse_qs(again.query) if again else {}
           cust = rd("su-customers.json"); cust_list = cust.get("items") if isinstance(cust, dict) else cust   # GET /customers answers {"items": [...], "limit", "offset"}
+          health = rd("su-health.json") or {}
           ob = rd("su-onboarding.json") or {}
           steps = ob.get("steps") if isinstance(ob, dict) else None
           me = rd("su-me.json") or {}
@@ -708,6 +710,7 @@ jobs:
               "extending_a_trial_moves_its_end_later_by_the_days_asked": status("tr-extend") == "200" and ext_end is not None and ext_start is not None and abs((ext_end - ext_start).total_seconds() - 7 * 86400) < 120,
               "converting_clears_the_trial_and_sets_the_plan": status("tr-convert") == "200" and conv.get("plan") == "standard" and conv.get("trial_ends_at") is None and conv.get("status") == "active",
               "a_second_convert_and_an_unknown_action_are_refused": status("tr-again") == "409" and status("tr-bad") == "400",
+              "health_reports_the_running_commit": health.get("commit") == os.environ.get("GITHUB_SHA"),
               "the_directory_columns_exist_on_the_real_database": all("trial_ends_at" in b and "source" in b for b in listing) and len(listing) > 0,
               "answers": {"first": status("su-first"), "again": status("su-again"), "garbage": status("su-garbage"), "untick": status("su-untick"), "days_left": round(days, 3) if days else None, "business": {k: biz.get(k) for k in ("plan", "status", "source", "members")}, "session_b_matches": payload.get("b") == biz.get("id"), "me": {"signedIn": me.get("signedIn"), "role": me.get("role")}, "customers": status("su-customers"), "customer_items": len(cust_list) if isinstance(cust_list, list) else None, "onboarding_steps": len(steps) if isinstance(steps, list) else None, "step_statuses": [x.get("status") for x in steps] if isinstance(steps, list) else None},
           }

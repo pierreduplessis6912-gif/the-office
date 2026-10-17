@@ -53,6 +53,8 @@ export interface Env {
   // How long a business's plan is remembered, in seconds (limits.ts). 300 by default; "0" reads it every time (staging, so a rehearsal sees a change at once).
   PLAN_CACHE_SECONDS?: string;
   // New businesses a visitor may start from the app per day, across everyone, and per network address (signup.ts). Unset means 50 and 10. A safety rail against a flood, not a product limit: raise or lower it in wrangler.toml.
+  // The commit this Worker was deployed from (the deploy workflows pass it with `wrangler deploy --var GIT_SHA:...`). /health reports it, and the pipeline asks production for it to decide what has changed since (deployed-base.sh).
+  GIT_SHA?: string;
   SIGNUP_DAILY_CAP?: string;
   SIGNUP_IP_DAILY_CAP?: string;
   // One plain sentence shown to an owner whose trial has ended, finishing "To keep using The Office, ...": for example "call Pierre on 082 ...". Unset: "please contact us".
