@@ -36,6 +36,7 @@ jobs:
           head = lambda n, k: (re.search(r"(?im)^%s:\s*(.*?)\s*$" % k, rd(n)) or [None, ""])[1]
           out = {
               "the_health_check_answers": rd("health.s").strip() == "200" and '"status":"ok"' in rd("health.b").replace(" ", ""),
+              "the_health_check_reports_the_commit_production_is_running": bool(re.fullmatch(r"[0-9a-f]{40}", (json.loads(rd("health.b")).get("commit") if rd("health.b").strip().startswith("{") else None) or "")),
               "a_garbage_proof_is_refused_with_a_page": rd("garbage.s").strip() == "400" and "text/html" in head("garbage.h", "content-type") and "took too long" in rd("garbage.b"),
               "that_page_is_not_cached_or_framed_and_runs_no_script": "no-store" in head("garbage.h", "cache-control") and head("garbage.h", "x-frame-options").upper() == "DENY" and "default-src 'none'" in head("garbage.h", "content-security-policy") and "form-action" not in head("garbage.h", "content-security-policy") and "<script" not in rd("garbage.b").lower(),
               "the_sign_in_callback_still_refuses_a_visit_with_no_state": rd("callback.s").strip() == "400" and "OAuth state" in rd("callback.b"),
@@ -43,6 +44,7 @@ jobs:
               "a_stranger_is_still_refused_the_data": rd("anon.s").strip() == "401",
           }
           out["answers"] = {k: rd(k + ".s").strip() for k in ("health", "garbage", "callback", "login", "anon")}
+          out["running_commit"] = (json.loads(rd("health.b")).get("commit") if rd("health.b").strip().startswith("{") else None)
           json.dump(out, open(os.path.join(r, "check.json"), "w"), indent=1)
           bad = [k for k, v in out.items() if v is False]
           print(json.dumps(out, indent=1))
