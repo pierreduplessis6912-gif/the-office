@@ -1,0 +1,43 @@
+{
+ "run_id": "39056891329",
+ "download_status": "200",
+ "step_name_filter": "adapter",
+ "steps": [
+  {
+   "file": "7_Role-matrix test on the Durable Object adapter, with every index applied.txt",
+   "line_count": 47,
+   "matching_lines": [
+    "FAIL  refused: a token with its signature altered",
+    "6214/6215 decisions correct  \u2014  1 WRONG",
+    "##[error]Process completed with exit code 1."
+   ],
+   "last_lines": [
+    "Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.",
+    "Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.",
+    "Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.",
+    "Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.",
+    "Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.",
+    "Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.",
+    "Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.",
+    "Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.",
+    "Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.",
+    "Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.",
+    "Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.",
+    "Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.",
+    "Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.",
+    "Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.",
+    "Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.",
+    "Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.",
+    "Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.",
+    "Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.",
+    "Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.",
+    "Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.",
+    "Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.",
+    "Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.",
+    "",
+    "6214/6215 decisions correct  \u2014  1 WRONG",
+    "##[error]Process completed with exit code 1."
+   ]
+  }
+ ]
+}
