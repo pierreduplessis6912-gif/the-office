@@ -7525,3 +7525,13 @@ After the incident I wrote, in the decision log, in a code comment, in the check
 
 **Not done, not verified.** I cannot see whether he can now sign in: that depends on Google's consent configuration (an app in "testing" mode only admits listed test users) and on the app build pointing at production. `accountant` and `installer` have not been added in production, and **there is no remove-member workflow**, so a person added by mistake would have to be removed by hand.
 
+---
+
+## The first sign-ins from a real phone, 2026-10-17
+
+Pierre tried three Google accounts on his phone and reported the results. **(1) His own account signs in "fine and all the account history is there":** the live business is intact after the restore incident, and the production sign-in and directory routing work. **(2) The account added as owner of the test business (`kpgenquiries`) signs in to a blank business:** that is the whole new-business and add-member path working end to end on a real device, and, with (1), the clearest evidence so far of isolation as a user sees it (one account sees years of history, another sees an empty business, through the same app and server). **(3) An account that belongs to no business (`ballzdeep33333`, the one labelled BALLZ in the chooser) got `{"error":"no active membership for this Google account","email":...}`:** this is the default-deny working. In object mode the sign-in asks Google to verify the token, then asks the DIRECTORY which business the email belongs to, then asks that business whether the membership is active; a "no" at either step gives this 403. It cannot reveal anything about another business or another person: it names only the address the person just signed in with.
+
+**What it is not:** a bug. **What it is:** a rough edge. The refusal is a raw JSON page in the browser tab that Google's sign-in opens. In a customer's business, an employee who picks the wrong Google account from the chooser (the chooser lists every account on the phone, as the earlier screenshot showed) will see that page and have no idea what to do. A readable page (for a browser request: "This Google account isn't set up for The Office. Sign in with the account your owner added, or ask them to add this one", keeping the JSON for anything that is not a browser) would fit the onboarding work; nothing pins the current wording in the tests except as noted in the checklist. **Not built yet.**
+
+**Not verified here:** that the accounts behave the same for the `accountant` and `installer` roles (only owners have signed in), and the app's screens for the onboarding journey (part 4) do not exist, so Tender Hub shows a blank business with no guided steps.
+
