@@ -41,8 +41,10 @@ async function hmacKey(secret: string): Promise<CryptoKey> {
 }
 // `businessId` is set when the sign-in found the member's business in the directory (object mode): the session then carries it (`b`), so a request can be routed to that
 // business's object without any lookup, and an object can refuse a session that was made for another business.
-export async function signSession(env: Env, email: string, businessId?: string): Promise<string> {
-  const payload = JSON.stringify({ email, exp: Date.now() + 30 * 24 * 60 * 60 * 1000, ...(businessId ? { b: businessId } : {}) }); // 30 real days
+// `notAfterMs` ends the session EARLY: a business on a free trial gets a session that dies when the trial does, so nothing has to check the trial on every request (the next sign-in finds the business no longer active).
+export async function signSession(env: Env, email: string, businessId?: string, notAfterMs?: number): Promise<string> {
+  const exp = Math.min(Date.now() + 30 * 24 * 60 * 60 * 1000, notAfterMs ?? Infinity); // 30 real days, or sooner
+  const payload = JSON.stringify({ email, exp, ...(businessId ? { b: businessId } : {}) });
   const payloadB64 = base64UrlEncode(new TextEncoder().encode(payload));
   const key = await hmacKey(env.SESSION_SECRET);
   const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payloadB64));
@@ -387,6 +389,7 @@ const PUBLIC_ROUTES = new Set([
   "/health",
   "/auth/google/login",
   "/auth/google/callback",
+  "/auth/signup",
   "/auth/logout",
   "/auth/me",
 ]);
@@ -963,6 +966,30 @@ export async function resolveCapabilities(request: Request, env: Env): Promise<{
     return { email: session.email, role: null, capabilities: [] };
   }
   return { email: session.email, role: membership.role, capabilities: await getRoleCapabilities(env, membership.role) };
+}
+
+// The proof, in the browser tab Google's sign-in opened, that Google verified THIS address a moment ago: carried by the "start my business" page and checked when the form comes back (signup.ts). Short-lived (15 minutes) and
+// signed over a DIFFERENT string than a session ("signup." + payload), so a session can never pass as one and one can never pass as a session (a session token is just `payload.signature` over the payload alone).
+export async function signSignupToken(env: Env, email: string, ttlMs = 15 * 60 * 1000): Promise<string> {
+  const payloadB64 = base64UrlEncode(new TextEncoder().encode(JSON.stringify({ purpose: "signup", email, exp: Date.now() + ttlMs })));
+  const key = await hmacKey(env.SESSION_SECRET);
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`signup.${payloadB64}`));
+  return `${payloadB64}.${base64UrlEncode(signature)}`;
+}
+
+export async function readSignupToken(env: Env, token: string | null): Promise<{ email: string } | null> {
+  if (!token) return null;
+  const parts = token.split(".");
+  if (parts.length !== 2) return null;
+  try {
+    const key = await hmacKey(env.SESSION_SECRET);
+    if (!(await crypto.subtle.verify("HMAC", key, base64UrlDecode(parts[1]), new TextEncoder().encode(`signup.${parts[0]}`)))) return null;
+    const payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(parts[0]))) as { purpose?: unknown; email?: unknown; exp?: unknown };
+    if (payload.purpose !== "signup" || typeof payload.email !== "string" || typeof payload.exp !== "number" || Date.now() > payload.exp) return null;
+    return { email: payload.email };
+  } catch {
+    return null;
+  }
 }
 
 export function getCookie(request: Request, name: string): string | null {

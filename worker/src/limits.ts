@@ -19,6 +19,9 @@ export interface Plan {
 }
 // Placeholders to tune against real use (one real sentence cost about 939 neurons, so 100 messages is up to about 94,000 neurons, roughly a dollar, for a heavy member).
 export const DEFAULT_PLAN: Plan = { name: "standard", messagesPerMemberPerDay: 100, neuronsPerBusinessPerDay: 400_000, mode: "warn" };
+// The plan a business starts on when its OWNER starts it from the app (signup.ts): small limits, because anyone can do it. 30 messages per member per day and 60,000 neurons per business per day (about 64 messages, roughly
+// $0.66 a day at today's price) bound what one trial can cost to about $9 over its 14 days; the plan a business pays for is `standard`. Always enforced: a trial that only warned would bound nothing.
+export const TRIAL_PLAN: Plan = { name: "trial", messagesPerMemberPerDay: 30, neuronsPerBusinessPerDay: 60_000, mode: "enforce" };
 export const CAP_ROUTES = new Set(["POST /messages/text", "POST /files/audio"]);
 
 const PLANS_DDL = "CREATE TABLE IF NOT EXISTS plans (name TEXT PRIMARY KEY, messages_per_member_per_day INTEGER NOT NULL, neurons_per_business_per_day INTEGER NOT NULL, mode TEXT NOT NULL DEFAULT 'warn', updated_at TEXT NOT NULL DEFAULT (datetime('now')))";
@@ -145,6 +148,13 @@ export async function memberUsageToday(env: Env, now: Date = new Date()): Promis
 }
 
 // ---- the limits as DATA: read and change them in the shared layer -----------------------------------------------------------------------------------------------------------------------------
+// Makes sure the trial plan exists (and creates the plans table if it does not): INSERT OR IGNORE, so a limit an operator has changed is never put back.
+export async function ensureTrialPlan(env: Env): Promise<void> {
+  const db = env.OFFICE_DB;
+  await db.prepare(PLANS_DDL).run();
+  await db.prepare("INSERT OR IGNORE INTO plans (name, messages_per_member_per_day, neurons_per_business_per_day, mode) VALUES (?, ?, ?, ?)").bind(TRIAL_PLAN.name, TRIAL_PLAN.messagesPerMemberPerDay, TRIAL_PLAN.neuronsPerBusinessPerDay, TRIAL_PLAN.mode).run();
+}
+
 export async function listPlans(env: Env): Promise<Plan[]> {
   const db = env.OFFICE_DB;
   await db.prepare(PLANS_DDL).run();

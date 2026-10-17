@@ -60,6 +60,16 @@
   "class": "public"
  },
  {
+  "route": "GET /auth/signup",
+  "pattern": "/auth/signup",
+  "how": "public list",
+  "none": "A",
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "public"
+ },
+ {
   "route": "GET /business-profile/logo",
   "pattern": "/business-profile/logo",
   "how": "exact path",
@@ -542,6 +552,16 @@
  {
   "route": "POST /auth/logout",
   "pattern": "/auth/logout",
+  "how": "exact path",
+  "none": "A",
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "public"
+ },
+ {
+  "route": "POST /auth/signup",
+  "pattern": "/auth/signup",
   "how": "exact path",
   "none": "A",
   "owner": "A",

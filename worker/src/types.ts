@@ -52,6 +52,11 @@ export interface Env {
   RETRY_SCHEMA?: () => Promise<{ applied: string[]; pending: string[]; error: { name: string; message: string } | null }>;
   // How long a business's plan is remembered, in seconds (limits.ts). 300 by default; "0" reads it every time (staging, so a rehearsal sees a change at once).
   PLAN_CACHE_SECONDS?: string;
+  // New businesses a visitor may start from the app per day, across everyone, and per network address (signup.ts). Unset means 50 and 10. A safety rail against a flood, not a product limit: raise or lower it in wrangler.toml.
+  SIGNUP_DAILY_CAP?: string;
+  SIGNUP_IP_DAILY_CAP?: string;
+  // One plain sentence shown to an owner whose trial has ended, finishing "To keep using The Office, ...": for example "call Pierre on 082 ...". Unset: "please contact us".
+  SUPPORT_CONTACT?: string;
   // "0" switches off the per-business model usage metering (usage.ts). On by default.
   METER_USAGE?: string;
   // "1" freezes every request that changes something (for the final copy of a migration). See freeze.ts.

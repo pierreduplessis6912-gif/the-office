@@ -55,6 +55,11 @@ RECORD_TIMINGS = "1"
 BUSINESS_MODE = "object"
 LEGACY_LINK_BUSINESS = "zululand-flooring-and-blinds"
 
+# Starting a business from the app (src/signup.ts): anyone may, with a 14-day trial on small limits. These are a SAFETY RAIL against a flood of fake businesses, not a product limit: at most this many new businesses a day
+# across everyone, and from one network address. (A trial is bounded to about $9 of model use, so 50 a day bounds the worst case at a few hundred dollars a day.) Raise them when real demand needs it; 0 closes signup.
+SIGNUP_DAILY_CAP = "50"
+SIGNUP_IP_DAILY_CAP = "10"
+
 # Subdomain route on the existing websitehub.co.za zone — see README
 # for the DNS-record curl that has to run once before this route works.
 [[routes]]

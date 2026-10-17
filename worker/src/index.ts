@@ -8,7 +8,9 @@ import { recordModelUsage } from "./usage";
 import { takeSnapshot } from "./backup";
 import { readOnlyRefusal } from "./freeze";
 import { adminTargetBusiness, callBusiness, forwardToBusiness, routeRequest } from "./routing";
-import { lookupBusinessForEmail, normaliseEmail } from "./directory";
+import { lookupAccessForEmail, normaliseEmail } from "./directory";
+import { handleSignupPost, handleUnknownAccount } from "./signup";
+import { signedInRedirect } from "./signin";
 import { makeBusinessObject } from "./business-object";
 import { adminTierOf, hashSource, recordAdminCall } from "./admin-gate";
 import { runGuarded } from "./frontdoor";
@@ -54,7 +56,6 @@ import {
   getMemberContext,
   getJobScope,
   denyForRole,
-  signSession,
   verifySession,
   getSessionToken,
   getCookie,
@@ -1617,10 +1618,13 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       let membership: { id?: number; google_email?: string; role: string; status: string } | null;
       let sessionEmail = claims.email;
       let sessionBusiness: string | undefined;
+      let notAfterMs: number | undefined;
       if (env.BUSINESS_MODE === "object") {
         // Object mode: the DIRECTORY says which business this member signs in to, and that business's own object says whether the membership is active and what role it has.
         sessionEmail = normaliseEmail(claims.email);
-        const businessId = await lookupBusinessForEmail(env, sessionEmail);
+        const access = await lookupAccessForEmail(env, sessionEmail);
+        const businessId = access?.businessId ?? null;
+        if (access?.trialEndsAt) notAfterMs = Date.parse(`${access.trialEndsAt.replace(" ", "T")}Z`);   // a trial's session ends with the trial
         const reply = businessId ? await callBusiness(env, businessId, "GET", `/debug/membership-check?email=${encodeURIComponent(sessionEmail)}`) : null;
         const found = reply && reply.ok ? ((await reply.json()) as { found: boolean; role: string | null; status: string | null }) : null;
         membership = found?.found && found.role && found.status ? { role: found.role, status: found.status } : null;
@@ -1632,37 +1636,20 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       }
 
       if (!membership || membership.status !== "active") {
+        // A BROWSER (the tab Google's sign-in opened) gets a page: start a business, or ask the owner to add you (signup.ts). Anything else keeps the JSON refusal.
+        if (env.BUSINESS_MODE === "object" && (request.headers.get("Accept") ?? "").includes("text/html")) return handleUnknownAccount(request, env, sessionEmail);
         return Response.json(
           { error: "no active membership for this Google account", email: claims.email },
           { status: 403 }
         );
       }
 
-      const sessionToken = await signSession(env, sessionEmail, sessionBusiness);
-      // Real, final form 2026-07-27 — the redirect target is now
-      // platform-aware. flutter_web_auth_2's web implementation
-      // requires landing on the exact same origin the app is running
-      // on (its own postMessage security model) — genuinely
-      // different from native, which uses the theoffice:// scheme.
-      // Falls back to native if no platform/origin was remembered
-      // from /auth/google/login, since that's always been the real,
-      // working path.
-      const platform = getCookie(request, "oauth_platform");
-      const redirectOrigin = getCookie(request, "oauth_redirect_origin");
-      const callbackUrl =
-        platform === "web" && redirectOrigin
-          ? new URL(`${redirectOrigin}/auth-callback.html`)
-          : new URL("theoffice://auth-callback");
-      callbackUrl.searchParams.set("token", sessionToken);
-      callbackUrl.searchParams.set("email", claims.email);
-      callbackUrl.searchParams.set("role", membership.role);
-      return new Response(null, {
-        status: 302,
-        headers: {
-          Location: callbackUrl.toString(),
-          "Set-Cookie": `office_session=${sessionToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`,
-        },
-      });
+      return signedInRedirect(request, env, { sessionEmail, displayEmail: claims.email, role: membership.role, businessId: sessionBusiness, notAfterMs });
+    }
+
+    // A new owner starting their own business (signup.ts): the form on the page the callback showed comes back here, carrying a short-lived signed proof that Google verified the address.
+    if (url.pathname === "/auth/signup" && request.method === "POST") {
+      return await handleSignupPost(request, env);
     }
 
     if (url.pathname === "/auth/me" && request.method === "GET") {

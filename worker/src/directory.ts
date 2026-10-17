@@ -18,50 +18,93 @@ const DDL = [
   "CREATE INDEX IF NOT EXISTS idx_directory_members_business ON directory_members (business_id)",
 ];
 
+// Columns added after the table's first version (trial support, 2026-10-17): when a business's free trial ends, and whether an operator or the owner themselves created it. SQLite has no "ADD COLUMN IF NOT EXISTS", so look first.
+// This runs from the WRITERS (ensureDirectory), never from a read: every read below tolerates the columns not being there yet, so a deploy that precedes the first write breaks nothing.
+async function ensureBusinessColumns(env: Env): Promise<void> {
+  const { results } = await env.OFFICE_DB.prepare("PRAGMA table_info(businesses)").all<{ name: string }>();
+  const have = new Set((results ?? []).map((r) => r.name));
+  if (!have.has("trial_ends_at")) await env.OFFICE_DB.prepare("ALTER TABLE businesses ADD COLUMN trial_ends_at TEXT").run();
+  if (!have.has("source")) await env.OFFICE_DB.prepare("ALTER TABLE businesses ADD COLUMN source TEXT NOT NULL DEFAULT 'admin'").run();
+}
+
 export async function ensureDirectory(env: Env): Promise<void> {
   for (const statement of DDL) await env.OFFICE_DB.prepare(statement).run();
+  await ensureBusinessColumns(env);
 }
 
 const missingTable = (error: unknown): boolean => /no such table/i.test(String((error as { message?: string } | null)?.message ?? error));
+const missingColumn = (error: unknown): boolean => /no such column/i.test(String((error as { message?: string } | null)?.message ?? error));
 
 // Which business does this email sign in to? Null when it is in none (or the directory does not exist yet): a read never creates anything.
 export async function lookupBusinessForEmail(env: Env, email: string): Promise<string | null> {
+  return (await lookupAccessForEmail(env, email))?.businessId ?? null;
+}
+
+// The business an email may sign in to RIGHT NOW, and when its free trial ends (null for a business that is not on a trial). A business whose trial has ended is not returned at all: the next sign-in finds nothing, and a session
+// already issued dies at the trial's end (auth.ts signSession), so no request needs a status check.
+export async function lookupAccessForEmail(env: Env, email: string): Promise<{ businessId: string; trialEndsAt: string | null } | null> {
+  const base = "SELECT m.business_id AS business_id";
+  const from = " FROM directory_members m JOIN businesses b ON b.id = m.business_id WHERE m.email = ? AND b.status = 'active'";
+  const run = (sql: string) => env.OFFICE_DB.prepare(sql).bind(normaliseEmail(email)).first<{ business_id: string; trial_ends_at?: string | null }>();
   try {
-    const row = await env.OFFICE_DB.prepare(
-      "SELECT m.business_id AS business_id FROM directory_members m JOIN businesses b ON b.id = m.business_id WHERE m.email = ? AND b.status = 'active'"
-    )
-      .bind(normaliseEmail(email))
-      .first<{ business_id: string }>();
-    return row && isBusinessId(row.business_id) ? row.business_id : null;
+    let row: { business_id: string; trial_ends_at?: string | null } | null;
+    try {
+      row = await run(`${base}, b.trial_ends_at AS trial_ends_at${from} AND (b.trial_ends_at IS NULL OR b.trial_ends_at > datetime('now'))`);
+    } catch (error) {
+      if (!missingColumn(error)) throw error;
+      row = await run(`${base}${from}`);   // the directory predates trials: no business has one
+    }
+    return row && isBusinessId(row.business_id) ? { businessId: row.business_id, trialEndsAt: row.trial_ends_at ?? null } : null;
   } catch (error) {
     if (missingTable(error)) return null;
     throw error;
   }
 }
 
+// An email whose business had a trial that has now ENDED (so the sign-in can say so, instead of "you are not set up").
+export async function findEndedTrialForEmail(env: Env, email: string): Promise<{ businessId: string; name: string; endedAt: string } | null> {
+  try {
+    const row = await env.OFFICE_DB.prepare(
+      "SELECT b.id AS id, b.name AS name, b.trial_ends_at AS ended FROM directory_members m JOIN businesses b ON b.id = m.business_id WHERE m.email = ? AND b.trial_ends_at IS NOT NULL AND b.trial_ends_at <= datetime('now')"
+    )
+      .bind(normaliseEmail(email))
+      .first<{ id: string; name: string; ended: string }>();
+    return row && isBusinessId(row.id) ? { businessId: row.id, name: row.name, endedAt: row.ended } : null;
+  } catch (error) {
+    if (missingTable(error) || missingColumn(error)) return null;
+    throw error;
+  }
+}
+
 export interface DirectoryListing {
-  businesses: { id: string; name: string; status: string; plan: string; members: number }[];
+  businesses: { id: string; name: string; status: string; plan: string; members: number; trial_ends_at?: string | null; source?: string }[];
 }
 
 export async function listDirectory(env: Env): Promise<DirectoryListing> {
   try {
-    const { results } = await env.OFFICE_DB.prepare(
-      "SELECT b.id AS id, b.name AS name, b.status AS status, b.plan AS plan, (SELECT COUNT(*) FROM directory_members m WHERE m.business_id = b.id) AS members FROM businesses b ORDER BY b.created_at, b.id"
-    ).all<{ id: string; name: string; status: string; plan: string; members: number }>();
-    return { businesses: results ?? [] };
+    const members = "(SELECT COUNT(*) FROM directory_members m WHERE m.business_id = b.id) AS members FROM businesses b ORDER BY b.created_at, b.id";
+    type Row = { id: string; name: string; status: string; plan: string; members: number; trial_ends_at?: string | null; source?: string };
+    try {
+      const { results } = await env.OFFICE_DB.prepare(`SELECT b.id AS id, b.name AS name, b.status AS status, b.plan AS plan, b.trial_ends_at AS trial_ends_at, b.source AS source, ${members}`).all<Row>();
+      return { businesses: results ?? [] };
+    } catch (error) {
+      if (!missingColumn(error)) throw error;
+      const { results } = await env.OFFICE_DB.prepare(`SELECT b.id AS id, b.name AS name, b.status AS status, b.plan AS plan, ${members}`).all<Row>();
+      return { businesses: results ?? [] };
+    }
   } catch (error) {
     if (missingTable(error)) return { businesses: [] };
     throw error;
   }
 }
 
-export async function createBusiness(env: Env, id: string, name: string, plan = "standard"): Promise<{ created: boolean }> {
+export async function createBusiness(env: Env, id: string, name: string, plan = "standard", options: { status?: string; trialEndsAt?: string | null; source?: string } = {}): Promise<{ created: boolean }> {
   if (!isBusinessId(id)) throw new Error("a business id is 3 to 40 lower-case letters, digits and hyphens, not starting or ending with a hyphen");
   if (!name.trim()) throw new Error("a business needs a name");
   await ensureDirectory(env);
   const existing = await env.OFFICE_DB.prepare("SELECT id FROM businesses WHERE id = ?").bind(id).first();
   if (existing) return { created: false };
-  await env.OFFICE_DB.prepare("INSERT INTO businesses (id, name, plan) VALUES (?, ?, ?)").bind(id, name.trim(), plan).run();
+  await env.OFFICE_DB.prepare("INSERT INTO businesses (id, name, plan, status, trial_ends_at, source) VALUES (?, ?, ?, ?, ?, ?)").bind(id, name.trim(), plan, options.status ?? "active", options.trialEndsAt ?? null, options.source ?? "admin").run();
   return { created: true };
 }
 

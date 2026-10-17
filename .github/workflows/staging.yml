@@ -167,6 +167,8 @@ jobs:
           RECORD_TIMINGS = "1"
           PLAN_CACHE_SECONDS = "0"
           BUSINESS_MODE = "object"
+          SIGNUP_DAILY_CAP = "1000"
+          SIGNUP_IP_DAILY_CAP = "1000"
 
           [[routes]]
           pattern = "${SLUG}.websitehub.co.za/*"
@@ -370,8 +372,8 @@ jobs:
           git config user.email "noreply@github.com"
           git add ops/staging-gate-drill-last.json
           git commit -m "Staging gate drill record (ids and results only)" || echo "nothing to record"
-          git pull --rebase origin main
-          git push origin HEAD:main
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin HEAD:"$GITHUB_REF_NAME"
           python3 -c "import json,os,sys; sys.exit(0 if json.load(open(os.path.join(os.environ['RESULTS'],'drill.json')))['drill_passed'] else 1)"
 
       - name: Measure the Durable Object on staging
@@ -606,6 +608,90 @@ jobs:
           sys.exit(1 if failed else 0)
           PY
 
+      - name: Starting a business from the app on Cloudflare (a signup proof, a real Durable Object)
+        if: env.MODE == 'rehearsal'
+        id: signup
+        continue-on-error: true
+        run: |
+          # The page itself needs a real Google sign-in, which a runner cannot do. What CAN be done for real: mint the signed proof the page carries (the staging session secret is derived in this workflow), post the form to the real
+          # staging Worker, and check the real D1, the real Durable Object, the real session and the real routing. Caps are raised in the staging config so repeated rehearsals from one runner address are not refused.
+          BASE="https://${SLUG}.websitehub.co.za"
+          TAG="r${GITHUB_RUN_ID}"
+          EMAIL="signup-owner-${TAG}@example.com"
+          proof() {
+            python3 - "$1" <<'PY'
+          import base64, hashlib, hmac, json, os, sys, time
+          b = lambda x: base64.urlsafe_b64encode(x).rstrip(b"=").decode()
+          p = b(json.dumps({"purpose": "signup", "email": sys.argv[1], "exp": int(time.time() * 1000) + 600000}, separators=(",", ":")).encode())
+          print(p + "." + b(hmac.new(os.environ["STAGING_SESSION_SECRET"].encode(), ("signup." + p).encode(), hashlib.sha256).digest()))
+          PY
+          }
+          form() { curl -s -D "$RESULTS/$1.headers" -o "$RESULTS/$1.body" -w '%{http_code}' -X POST --data-urlencode "token=$2" --data-urlencode "business_name=$3" ${4:+--data-urlencode "agree=on"} "$BASE/auth/signup" > "$RESULTS/$1.status"; }
+          form su-first "$(proof "$EMAIL")" "Signup Floors $TAG" yes
+          form su-again "$(proof "$EMAIL")" "A Different Name $TAG" yes
+          form su-garbage "garbage" "Nobody $TAG" yes
+          form su-untick "$(proof "untick-${TAG}@example.com")" "Untick Co $TAG"
+          SESSION=$(python3 -c "import re,sys,urllib.parse as u; h=open('$RESULTS/su-first.headers').read(); m=re.search(r'(?im)^location:\\s*(\\S+)', h); print(u.parse_qs(u.urlparse(m.group(1)).query).get('token',[''])[0] if m else '')")
+          J=(-H "Cookie: office_session=$SESSION")
+          curl -s -o "$RESULTS/su-me.json" "${J[@]}" "$BASE/auth/me"
+          curl -s -o "$RESULTS/su-customers.json" -w '%{http_code}' "${J[@]}" "$BASE/customers" > "$RESULTS/su-customers.status"
+          curl -s -o "$RESULTS/su-onboarding.json" -w '%{http_code}' "${J[@]}" "$BASE/onboarding" > "$RESULTS/su-onboarding.status"
+          curl -s -o "$RESULTS/su-directory.json" -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/directory"
+          curl -s -o "$RESULTS/su-plans.json" -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/directory/plans"
+          python3 - <<'PY'
+          import base64, datetime, json, os, re, sys, urllib.parse as u
+          r, tag = os.environ["RESULTS"], "r" + os.environ["GITHUB_RUN_ID"]
+          def rd(n, js=True):
+              try:
+                  t = open(os.path.join(r, n)).read()
+                  return json.loads(t) if js else t
+              except Exception:
+                  return None
+          def location(n):
+              m = re.search(r"(?im)^location:\s*(\S+)", rd(n + ".headers", False) or "")
+              return u.urlparse(m.group(1)) if m else None
+          status = lambda n: (rd(n + ".status", False) or "").strip()
+          loc = location("su-first"); q = u.parse_qs(loc.query) if loc else {}
+          token = (q.get("token") or [""])[0]
+          payload = {}
+          try:
+              payload = json.loads(base64.urlsafe_b64decode(token.split(".")[0] + "=="))
+          except Exception:
+              pass
+          listing = (rd("su-directory.json") or {}).get("businesses") or []
+          mine = [b for b in listing if b.get("name") == "Signup Floors " + tag]
+          biz = mine[0] if mine else {}
+          ends = None
+          try:
+              ends = datetime.datetime.strptime(biz.get("trial_ends_at"), "%Y-%m-%d %H:%M:%S").replace(tzinfo=datetime.timezone.utc)
+          except Exception:
+              pass
+          days = (ends - datetime.datetime.now(datetime.timezone.utc)).total_seconds() / 86400 if ends else None
+          plans = {p["name"]: p for p in (rd("su-plans.json") or {}).get("plans", [])}
+          again = location("su-again"); again_q = u.parse_qs(again.query) if again else {}
+          cust = rd("su-customers.json"); cust_list = cust if isinstance(cust, list) else (cust or {}).get("customers", None)
+          ob = rd("su-onboarding.json") or {}
+          steps = ob.get("steps") if isinstance(ob, dict) else None
+          me = rd("su-me.json") or {}
+          out = {
+              "first_form_ends_in_the_apps_own_address": status("su-first") == "303" and loc is not None and loc.scheme == "theoffice" and (q.get("role") or [""])[0] == "owner" and bool(token),
+              "exactly_one_business_was_created_even_after_a_second_tap": len(mine) == 1 and status("su-again") == "303" and again is not None and again.scheme == "theoffice",
+              "it_is_active_on_the_trial_plan_and_marked_as_started_by_its_owner": biz.get("status") == "active" and biz.get("plan") == "trial" and biz.get("source") == "signup" and biz.get("members") == 1,
+              "its_trial_ends_in_about_14_days": days is not None and 13.9 < days < 14.1,
+              "the_session_is_for_that_business_and_ends_with_the_trial": payload.get("b") == biz.get("id") and ends is not None and abs(payload.get("exp", 0) / 1000 - ends.timestamp()) < 3,
+              "the_trial_plan_exists_with_the_small_limits_enforced": plans.get("trial", {}).get("messagesPerMemberPerDay") == 30 and plans.get("trial", {}).get("neuronsPerBusinessPerDay") == 60000 and plans.get("trial", {}).get("mode") == "enforce",
+              "the_new_owner_is_an_owner_inside_the_business_object": me.get("signedIn") is True and me.get("role") == "owner",
+              "it_is_a_blank_business_with_its_journey_waiting": status("su-customers") == "200" and cust_list == [] and status("su-onboarding") == "200" and isinstance(steps, list) and len(steps) == 7 and not any(s.get("status") == "done" for s in steps),
+              "a_garbage_token_is_refused_with_a_page_and_creates_nothing": status("su-garbage") == "400" and "took too long" in (rd("su-garbage.body", False) or "") and not any(b.get("name") == "Nobody " + tag for b in listing),
+              "an_unticked_box_is_refused_with_a_page_and_creates_nothing": status("su-untick") == "400" and "tick the box" in (rd("su-untick.body", False) or "") and not any(b.get("name") == "Untick Co " + tag for b in listing),
+              "the_directory_columns_exist_on_the_real_database": all("trial_ends_at" in b and "source" in b for b in listing) and len(listing) > 0,
+              "answers": {"first": status("su-first"), "again": status("su-again"), "garbage": status("su-garbage"), "untick": status("su-untick"), "days_left": round(days, 3) if days else None, "business": {k: biz.get(k) for k in ("plan", "status", "source", "members")}, "session_b_matches": payload.get("b") == biz.get("id"), "me": {"signedIn": me.get("signedIn"), "role": me.get("role")}, "customers": status("su-customers"), "onboarding_steps": len(steps) if isinstance(steps, list) else None},
+          }
+          json.dump(out, open(os.path.join(r, "signup.json"), "w"), indent=1)
+          bad = [k for k, v in out.items() if v is False]
+          print("signup checks that did not hold:", bad)
+          sys.exit(1 if bad else 0)
+          PY
       - name: Back up, damage and restore a business on Cloudflare
         if: env.MODE == 'rehearsal'
         id: backup
@@ -1015,8 +1101,8 @@ jobs:
           git config user.email "noreply@github.com"
           git add ops/load-test-last.json
           git commit -m "Load test record (numbers only, no secrets)" || echo "nothing to record"
-          git pull --rebase origin main
-          git push origin HEAD:main
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin HEAD:"$GITHUB_REF_NAME"
 
       - name: Make the owner of staging
         if: env.MODE == 'rehearsal' && github.event.inputs.owner_email != ''
@@ -1038,6 +1124,7 @@ jobs:
           MODEL: ${{ steps.model.outcome }}
           BACKUP: ${{ steps.backup.outcome }}
           ONBOARDING: ${{ steps.onboarding.outcome }}
+          SIGNUP: ${{ steps.signup.outcome }}
           HEALTH: ${{ steps.health.outcome }}
           CAPS: ${{ steps.caps.outcome }}
           SCHEMA: ${{ steps.schema.outcome }}
@@ -1063,7 +1150,7 @@ jobs:
               "run": os.environ.get("GITHUB_RUN_ID"),
               "commit": os.environ.get("GITHUB_SHA", "")[:7],
               "resources": {"database_id": os.environ.get("D1_ID"), "kv_namespace_id": os.environ.get("KV_ID"), "worker": "office-staging-api", "host": "office-staging.websitehub.co.za"},
-              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E"), "real_sentence": os.environ.get("SENTENCE"), "businesses_created": os.environ.get("BUSINESSES"), "memory_index_probe": os.environ.get("VECTORS"), "model_probe": os.environ.get("MODEL"), "backup_restore": os.environ.get("BACKUP"), "onboarding_imports": os.environ.get("ONBOARDING"), "health_report": os.environ.get("HEALTH"), "cost_caps": os.environ.get("CAPS"), "schema_migration": os.environ.get("SCHEMA"), "transaction_experiment": os.environ.get("TX")},
+              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E"), "real_sentence": os.environ.get("SENTENCE"), "businesses_created": os.environ.get("BUSINESSES"), "signup_on_cloudflare": os.environ.get("SIGNUP"), "memory_index_probe": os.environ.get("VECTORS"), "model_probe": os.environ.get("MODEL"), "backup_restore": os.environ.get("BACKUP"), "onboarding_imports": os.environ.get("ONBOARDING"), "health_report": os.environ.get("HEALTH"), "cost_caps": os.environ.get("CAPS"), "schema_migration": os.environ.get("SCHEMA"), "transaction_experiment": os.environ.get("TX")},
               "init_routes": (read("init.txt") or "").splitlines(),
               "indexes": readjson("indexes.json"),
               "trial_do": readjson("trial-do.json"),
@@ -1074,6 +1161,7 @@ jobs:
               "model_probe": readjson("model.json"),
               "backup_restore": readjson("backup.json"),
               "onboarding_imports": readjson("onboarding.json"),
+              "signup_on_cloudflare": readjson("signup.json"),
               "health_report": readjson("health.json"),
               "cost_caps": readjson("caps.json"),
               "schema_migration": readjson("schema.json"),
@@ -1090,5 +1178,6 @@ jobs:
           git config user.email "noreply@github.com"
           git add ops/staging-last-run.json
           git commit -m "Staging run record (no secrets: ids and results only)" || echo "nothing to record"
-          git pull --rebase origin main
-          git push origin HEAD:main
+          # Record on the branch the run was STARTED from (main for every run the pipeline makes, so nothing changes there). A rehearsal of an unmerged branch must never push that branch's code to main: main deploys to production.
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin HEAD:"$GITHUB_REF_NAME"
