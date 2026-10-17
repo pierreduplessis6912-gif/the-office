@@ -1,0 +1,154 @@
+name: Production new business (create a customer's business with its owner)
+
+# SHIP_CHECKLIST.md item 15, part 3 (RUNBOOK.md section 8). Started by hand only; a business is created by Pierre, not by self-serve sign-up.
+#
+# Creates ONE new business in production with its OWNER: the directory entry, the owner's sign-in (one email can belong to only one business), the owner's membership inside the business's own Durable Object (which also
+# creates the object), on the `standard` plan. It first READS the directory and asks whether the owner's email is already taken; tools/new-business-guard.py then decides, and anything it does not like (a bad id, name or
+# email, a wrong confirmation, an email that belongs to another business, a business that already has members) is refused before any write. It is a SINGLE attempt, never retried; if it stops half way, run it again with the same
+# inputs: a business that exists with no members is completed, one that has members is refused. The ONLY write is one POST to /debug/directory/create-business.
+# The owner's email is personal data: it is never printed in full and never recorded; the record holds the business id, its name and statuses only.
+on:
+  workflow_dispatch:
+    inputs:
+      business_id:
+        description: "The business id: 3 to 40 lower-case letters, digits and hyphens (for example acme-floors)"
+        type: string
+        required: true
+      business_name:
+        description: "The business's name as it should appear (for example Acme Floors)"
+        type: string
+        required: true
+      owner_email:
+        description: "The owner's email address: the Google account they will sign in with"
+        type: string
+        required: true
+      confirm:
+        description: "Type the business id again, exactly"
+        type: string
+        required: true
+
+concurrency:
+  group: prod-new-business
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    env:
+      PROD_URL: https://office.websitehub.co.za
+      RESULTS: ${{ github.workspace }}/results
+      BUSINESS_ID: ${{ github.event.inputs.business_id }}
+      BUSINESS_NAME: ${{ github.event.inputs.business_name }}
+      OWNER_EMAIL: ${{ github.event.inputs.owner_email }}
+      CONFIRM: ${{ github.event.inputs.confirm }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the directory (reads only)
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+        run: |
+          mkdir -p "$RESULTS"
+          curl -s "$PROD_URL/debug/directory" -H "X-Admin-Key: $ADMIN" > "$RESULTS/directory.json"
+
+      - name: Ask whether the owner's email is already taken (reads only)
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+          ADMIN_CONFIRM: ${{ secrets.PROD_CONFIRM_KEY }}
+        run: |
+          python3 -c "import json, os; print(json.dumps({'business_id': os.environ['BUSINESS_ID'].strip(), 'emails': [os.environ['OWNER_EMAIL'].strip().lower()]}))" > "$RESULTS/check-request.json"
+          curl -s -X POST "$PROD_URL/debug/directory/check-members" -H "X-Admin-Key: $ADMIN" -H "X-Admin-Confirm: $ADMIN_CONFIRM" -H "Content-Type: application/json" -d @"$RESULTS/check-request.json" > "$RESULTS/conflicts.json"
+
+      - name: Decide what may happen (writes nothing)
+        id: guard
+        run: |
+          set +e
+          python3 tools/new-business-guard.py "$RESULTS/directory.json" "$RESULTS/conflicts.json" > "$RESULTS/decision.json"
+          GUARD=$?
+          cat "$RESULTS/decision.json"
+          echo "action=$(python3 -c "import json; print(json.load(open('$RESULTS/decision.json'))['action'])")" >> "$GITHUB_OUTPUT"
+          python3 - >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json, os
+          d = json.load(open(os.path.join(os.environ["RESULTS"], "decision.json")))
+          print("### New business: " + d["action"].upper())
+          print("- id `%s`, name `%s`, owner `%s`" % (d["business_id"], d["name"], d["ownerMasked"]))
+          for w in d["warnings"]:
+              print("\n**Note:** " + w)
+          for r in d["reasons"]:
+              print("\n**Refused:** " + r)
+          PY
+          exit $GUARD
+
+      - name: Create the business and its owner (the only write; a single attempt)
+        if: steps.guard.outputs.action == 'create' || steps.guard.outputs.action == 'resume'
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+          ADMIN_CONFIRM: ${{ secrets.PROD_CONFIRM_KEY }}
+        run: |
+          set +e
+          python3 -c "import json, os; d = json.load(open(os.environ['RESULTS'] + '/decision.json')); print(json.dumps({'id': d['business_id'], 'name': d['name'], 'owner_email': os.environ['OWNER_EMAIL'].strip().lower(), 'plan': 'standard'}))" > "$RESULTS/create-request.json"
+          CODE=$(curl -s -o "$RESULTS/create.json" -w '%{http_code}' -X POST "$PROD_URL/debug/directory/create-business" -H "X-Admin-Key: $ADMIN" -H "X-Admin-Confirm: $ADMIN_CONFIRM" -H "Content-Type: application/json" -d @"$RESULTS/create-request.json")
+          echo "$CODE" > "$RESULTS/create.status"
+          echo "create-business answered $CODE"
+          test "$CODE" = "200"
+
+      - name: Check it afterwards (reads only)
+        if: always() && (steps.guard.outputs.action == 'create' || steps.guard.outputs.action == 'resume')
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+        run: |
+          curl -s "$PROD_URL/debug/directory" -H "X-Admin-Key: $ADMIN" > "$RESULTS/directory-after.json"
+          curl -s -o "$RESULTS/health.json" -w '%{http_code}' "$PROD_URL/admin/health" -H "X-Admin-Key: $ADMIN" -H "X-Target-Business: $BUSINESS_ID" > "$RESULTS/health.status"
+          python3 - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import json, os, sys
+          r = os.environ["RESULTS"]
+          def load(n):
+              try:
+                  return json.load(open(os.path.join(r, n)))
+              except Exception:
+                  return None
+          bid = os.environ["BUSINESS_ID"].strip()
+          listing = (load("directory-after.json") or {}).get("businesses") or []
+          mine = next((b for b in listing if b.get("id") == bid), {})
+          health = load("health.json") or {}
+          checks = {
+              "the business is in the directory, active, on the standard plan": mine.get("status") in (None, "active") and mine.get("plan") == "standard" and bool(mine),
+              "it has its owner as a member": isinstance(mine.get("members"), int) and mine["members"] >= 1,
+              "its own object answers, and as itself": open(os.path.join(r, "health.status")).read().strip() == "200" and health.get("business") == bid,
+          }
+          print("### Checked afterwards")
+          for k, v in checks.items():
+              print("- %s: **%s**" % (k, "yes" if v else "NO"))
+          print("\n**Next:** ask the owner to install the app and sign in with Google using exactly the address you gave. Their journey (business details, customers, invoices, team, suppliers, materials) starts the first time they open it.")
+          sys.exit(0 if all(checks.values()) else 1)
+          PY
+
+      - name: Record what happened
+        if: always()
+        run: |
+          mkdir -p ops
+          python3 - <<'PY'
+          import json, os, datetime
+          r = os.environ["RESULTS"]
+          def read(n, as_json=True):
+              try:
+                  t = open(os.path.join(r, n)).read()
+                  return json.loads(t) if as_json else t.strip()
+              except Exception:
+                  return None
+          decision = read("decision.json") or {}
+          created = read("create.json") or {}
+          out = {"when": datetime.datetime.utcnow().isoformat() + "Z", "run": os.environ.get("GITHUB_RUN_ID"), "business_id": decision.get("business_id"), "name": decision.get("name"),
+                 "action": decision.get("action"), "existing": decision.get("existing"), "reasons": decision.get("reasons"), "create_status": read("create.status", False),
+                 "create_response": {k: created.get(k) for k in ("business", "created", "ownerInDirectory", "ownerMembershipStatus", "error")}, "health_status": read("health.status", False)}
+          json.dump(out, open("ops/production-new-business-last.json", "w"), indent=1)
+          PY
+          git config user.name "production-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/production-new-business-last.json
+          git commit -m "Production new-business record (the business id, its name and statuses only: no email)" || echo "nothing to record"
+          git pull --rebase origin main
+          git push origin HEAD:main

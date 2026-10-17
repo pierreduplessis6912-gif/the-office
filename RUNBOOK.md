@@ -134,6 +134,7 @@ A message costs about 940 neurons (about $0.01). Free allowance: 10,000 neurons 
 | Cost spike | **Yes** | The plan workflow ran in production on 2026-10-14: warn to enforce (run `acec10d`), then again with the new number inputs (run `b5184c7`: set 200, read back as 100 / 400,000 / enforce, health 200). On staging, enforce at a limit of 1 gave a 429 with the model spend unchanged | A real refusal on production; a real spike |
 | Health alerts | **Yes** | The judging script is run by the tests against every way a business can be unhealthy; the check ran in production several times on 2026-10-14 | A real red alert reaching you |
 | Support questions | **Written from the code** | Health, directory, backup status and plan reads were run | The member and merge routes, export |
+| Create a customer's business | **Tested, not yet run** | The guard (88 checks, 14 breakages caught) and the workflow's structure; the route it calls has created two businesses on real Cloudflare in every staging rehearsal | **The workflow has never been run**, not even its refusal paths (list the directory, refuse an existing business with members) |
 
 ## 11. Gaps this runbook cannot close yet
 
@@ -142,3 +143,20 @@ A message costs about 940 neurons (about $0.01). Free allowance: 10,000 neurons 
 3. **A real model outage has never been seen.**
 4. **The intermittent edge 502s on uploads** are unexplained (checklist item 13).
 5. **Admin work needs the keys in Termux** (apart from the workflows listed here).
+
+## 12. Creating a new customer's business
+
+A business is created by **you**, not by self-serve sign-up (decided 2026-10-14). It needs three things: a **business id** (3 to 40 lower-case letters, digits and hyphens, for example `acme-floors`), the **business name** as it should appear, and the **owner's Google email**, the account they will sign in with.
+
+1. GitHub, Actions, **"Production new business"**, Run workflow. Fill the four boxes: the id, the name, the owner's email, and **the id again** in `confirm`.
+2. It first **reads** the directory and asks whether that email already belongs to a business. A small script then decides. It **refuses**, before any write and with the run going red, when: the id is not valid or is reserved (`admin`, `api`, `app`, `auth`, `debug`, `demo`, `health`, `office`, `staging`, `test`, `www`, or starting `staging-`); the name or email is not valid; the id is not typed again exactly; **the email already belongs to another business** (one email can sign in to only one business; it does not say which); or **the business already exists and already has members** (so a typed id can never add a second owner to a live business; to add someone use `add-member`, section 8).
+3. If it is allowed, it makes **one** attempt to create the business on the `standard` plan (100 messages per member per day, 400,000 neurons per business per day, enforced) with the owner as its owner. It then checks the result: the business is in the directory, active, on the standard plan; the owner is a member; its own object answers **as itself**. A failed check turns the run red.
+4. **If it stops half way**, run it again with the **same boxes**: a business that exists with **no** members is completed; one that has members is refused.
+5. Then tell the owner to install the app and **sign in with Google using exactly that address**. Their journey (business details, customers, invoices, team, suppliers, materials) starts the first time they open it, and each import step takes a spreadsheet.
+
+The owner's email is personal data: the workflow shows it only masked (`o***@acme.co.za`) and the record (`ops/production-new-business-last.json`) holds the business id, its name and statuses only.
+
+**What it does not do:** it sends no invitation (you tell the owner); there is **no workflow to delete a business**, so a business created by mistake stays as an empty business until Claude removes it by hand; and a new business's object is created from a GitHub runner, so it is placed wherever Cloudflare chooses for that first request (the Paris finding in section 3 applies; not felt so far).
+
+**Executed?** The guard and the workflow's structure are tested (88 checks, 14 breakages caught). The create route it calls has run on **real Cloudflare** for two businesses in every staging rehearsal. **The workflow itself has not been run**, not even in its refusal paths.
+

@@ -862,6 +862,8 @@ async function expect(role, method, path, want) {
   await require('./location.test.js')({ check, srcDir });
   // The production restore: its guard (what may be restored, and every way it must refuse) and its workflow.
   await require('./restore-guard.test.js')({ check, path, fs });
+  // Creating a customer's business with its owner: its guard (every way it must refuse) and its workflow.
+  await require('./new-business-guard.test.js')({ check, path, fs });
   // The owner's first-run journey: progress derived from data, owner-only, resumable, safe to retry.
   await require('./onboarding.test.js')({ check, srcDir });
   // Importing a new business's data from any export: columns by name, money never guessed, safe to retry, all or nothing.
