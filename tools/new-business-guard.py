@@ -5,8 +5,10 @@
   action "resume"  the business exists but has NO members (a half-created one): the workflow may complete it with its owner
   action "refuse"  anything else (exit status 2): the workflow stops before any write and goes red, with the reasons
 
-Usage: new-business-guard.py <directory.json> <conflicts.json>      Environment: BUSINESS_ID, BUSINESS_NAME, OWNER_EMAIL, CONFIRM
-Never decides blind: a directory or a clash answer that cannot be read is a refusal. The input checks come FIRST, so a bad id or email is reported even when the files could not be fetched.
+Usage: new-business-guard.py <inputs.json> <directory.json> <conflicts.json>
+  inputs.json holds business_id, business_name, owner_email and confirm. They arrive in a FILE and never in environment variables: GitHub prints every step's `env:` block in its log, and the owner's email is personal
+  data in a public repository (it appeared ten times in one run's logs when it was in the environment: found 2026-10-17 with the log-leak-check workflow).
+Never decides blind: inputs, a directory or a clash answer that cannot be read is a refusal. The input checks come FIRST, so a bad id or email is reported even when the files could not be fetched.
 
 The owner's email is personal data: the output carries it only masked, and never says which OTHER business an email belongs to.
 """
@@ -83,14 +85,22 @@ def decide(business_id, name, owner, confirm, directory_raw, conflicts_raw):
 
 
 def main():
-    if len(sys.argv) != 3:
-        sys.exit("usage: new-business-guard.py <directory.json> <conflicts.json>")
+    if len(sys.argv) != 4:
+        sys.exit("usage: new-business-guard.py <inputs.json> <directory.json> <conflicts.json>")
     def read(path):
         try:
             return open(path, encoding="utf-8").read()
         except OSError:
             return ""
-    result = decide(os.environ.get("BUSINESS_ID"), os.environ.get("BUSINESS_NAME"), os.environ.get("OWNER_EMAIL"), os.environ.get("CONFIRM"), read(sys.argv[1]), read(sys.argv[2]))
+    try:
+        inputs = json.loads(read(sys.argv[1]))
+        if not isinstance(inputs, dict):
+            raise ValueError("not an object")
+    except Exception:  # noqa: BLE001
+        print(json.dumps({"action": "refuse", "business_id": None, "name": None, "ownerMasked": None, "existing": False, "warnings": [], "reasons": ["the inputs could not be read, so nothing will be created"]}, indent=1))
+        sys.exit(2)
+    text = lambda k: inputs.get(k) if isinstance(inputs.get(k), str) else None   # a number, a list or an object is not text: it is refused by the ordinary rules, not a crash
+    result = decide(text("business_id"), text("business_name"), text("owner_email"), text("confirm"), read(sys.argv[2]), read(sys.argv[3]))
     print(json.dumps(result, indent=1))
     sys.exit(0 if result["action"] in ("create", "resume") else 2)
 

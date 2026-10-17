@@ -6,7 +6,9 @@ name: Production new business (create a customer's business with its owner)
 # creates the object), on the `standard` plan. It first READS the directory and asks whether the owner's email is already taken; tools/new-business-guard.py then decides, and anything it does not like (a bad id, name or
 # email, a wrong confirmation, an email that belongs to another business, a business that already has members) is refused before any write. It is a SINGLE attempt, never retried; if it stops half way, run it again with the same
 # inputs: a business that exists with no members is completed, one that has members is refused. The ONLY write is one POST to /debug/directory/create-business.
-# The owner's email is personal data: it is never printed in full and never recorded; the record holds the business id, its name and statuses only.
+# The owner's email is personal data and this repository is PUBLIC, so it must never reach a log. GitHub prints every step's `env:` block, so the email is NOT in the environment or in any expression: the FIRST step reads it from
+# the event file, registers it as a mask (any later print shows ***) and writes it to a file that the other steps read. (The first version had it in the job's env and it appeared ten times in one run's logs: found 2026-10-17 with
+# .github/workflows/log-leak-check.yml.) The record holds the business id, its name and statuses only.
 on:
   workflow_dispatch:
     inputs:
@@ -42,16 +44,29 @@ jobs:
       RESULTS: ${{ github.workspace }}/results
       BUSINESS_ID: ${{ github.event.inputs.business_id }}
       BUSINESS_NAME: ${{ github.event.inputs.business_name }}
-      OWNER_EMAIL: ${{ github.event.inputs.owner_email }}
       CONFIRM: ${{ github.event.inputs.confirm }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Read the inputs and hide the email (first, before anything is printed)
+        run: |
+          mkdir -p "$RESULTS"
+          python3 - <<'PY'
+          import json, os
+          event = json.load(open(os.environ["GITHUB_EVENT_PATH"]))
+          inputs = event["inputs"] if isinstance(event.get("inputs"), dict) else {}
+          email = str(inputs.get("owner_email") or "")
+          # Registered as a mask FIRST: from here on GitHub replaces this text with *** anywhere it would appear in a log.
+          for form in {email, email.strip(), email.strip().lower()}:
+              if form:
+                  print("::add-mask::" + form)
+          json.dump({"business_id": inputs.get("business_id"), "business_name": inputs.get("business_name"), "owner_email": email.strip().lower(), "confirm": inputs.get("confirm")}, open(os.path.join(os.environ["RESULTS"], "inputs.json"), "w"))
+          PY
 
       - name: Read the directory (reads only)
         env:
           ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
         run: |
-          mkdir -p "$RESULTS"
           curl -s "$PROD_URL/debug/directory" -H "X-Admin-Key: $ADMIN" > "$RESULTS/directory.json"
 
       - name: Ask whether the owner's email is already taken (reads only)
@@ -59,14 +74,14 @@ jobs:
           ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
           ADMIN_CONFIRM: ${{ secrets.PROD_CONFIRM_KEY }}
         run: |
-          python3 -c "import json, os; print(json.dumps({'business_id': os.environ['BUSINESS_ID'].strip(), 'emails': [os.environ['OWNER_EMAIL'].strip().lower()]}))" > "$RESULTS/check-request.json"
+          python3 -c "import json, os; i = json.load(open(os.environ['RESULTS'] + '/inputs.json')); print(json.dumps({'business_id': str(i['business_id']).strip(), 'emails': [i['owner_email']]}))" > "$RESULTS/check-request.json"
           curl -s -X POST "$PROD_URL/debug/directory/check-members" -H "X-Admin-Key: $ADMIN" -H "X-Admin-Confirm: $ADMIN_CONFIRM" -H "Content-Type: application/json" -d @"$RESULTS/check-request.json" > "$RESULTS/conflicts.json"
 
       - name: Decide what may happen (writes nothing)
         id: guard
         run: |
           set +e
-          python3 tools/new-business-guard.py "$RESULTS/directory.json" "$RESULTS/conflicts.json" > "$RESULTS/decision.json"
+          python3 tools/new-business-guard.py "$RESULTS/inputs.json" "$RESULTS/directory.json" "$RESULTS/conflicts.json" > "$RESULTS/decision.json"
           GUARD=$?
           cat "$RESULTS/decision.json"
           echo "action=$(python3 -c "import json; print(json.load(open('$RESULTS/decision.json'))['action'])")" >> "$GITHUB_OUTPUT"
@@ -89,7 +104,7 @@ jobs:
           ADMIN_CONFIRM: ${{ secrets.PROD_CONFIRM_KEY }}
         run: |
           set +e
-          python3 -c "import json, os; d = json.load(open(os.environ['RESULTS'] + '/decision.json')); print(json.dumps({'id': d['business_id'], 'name': d['name'], 'owner_email': os.environ['OWNER_EMAIL'].strip().lower(), 'plan': 'standard'}))" > "$RESULTS/create-request.json"
+          python3 -c "import json, os; d = json.load(open(os.environ['RESULTS'] + '/decision.json')); i = json.load(open(os.environ['RESULTS'] + '/inputs.json')); print(json.dumps({'id': d['business_id'], 'name': d['name'], 'owner_email': i['owner_email'], 'plan': 'standard'}))" > "$RESULTS/create-request.json"
           CODE=$(curl -s -o "$RESULTS/create.json" -w '%{http_code}' -X POST "$PROD_URL/debug/directory/create-business" -H "X-Admin-Key: $ADMIN" -H "X-Admin-Confirm: $ADMIN_CONFIRM" -H "Content-Type: application/json" -d @"$RESULTS/create-request.json")
           echo "$CODE" > "$RESULTS/create.status"
           echo "create-business answered $CODE"

@@ -8,11 +8,13 @@ module.exports = async function runNewBusinessGuardTests({ check, path, fs }) {
   const NONE = { conflicts: [] };
   const OK = { id: 'acme-floors', name: 'Acme Floors', email: 'Owner@Acme.co.za', confirm: 'acme-floors' };
   const run = (over = {}, dir = DIR, conflicts = NONE) => {
-    const a = { ...OK, ...over }, d = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-')), f1 = path.join(d, 'dir.json'), f2 = path.join(d, 'con.json');
+    const a = { ...OK, ...over }, d = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-')), f0 = path.join(d, 'inputs.json'), f1 = path.join(d, 'dir.json'), f2 = path.join(d, 'con.json');
+    // The inputs reach the guard in a FILE (the workflow's first step writes it), never in environment variables: GitHub prints every step's env block in its log, and this repository is public.
+    const inputs = { business_id: a.id, business_name: a.name, owner_email: a.email, confirm: a.confirm }; for (const k of Object.keys(inputs)) if (inputs[k] === undefined) delete inputs[k];
+    fs.writeFileSync(f0, typeof over.__inputsRaw === 'string' ? over.__inputsRaw : JSON.stringify(inputs));
     fs.writeFileSync(f1, typeof dir === 'string' ? dir : JSON.stringify(dir)); fs.writeFileSync(f2, typeof conflicts === 'string' ? conflicts : JSON.stringify(conflicts));
-    const env = { ...process.env, BUSINESS_ID: a.id, BUSINESS_NAME: a.name, OWNER_EMAIL: a.email, CONFIRM: a.confirm };
-    for (const k of ['BUSINESS_ID', 'BUSINESS_NAME', 'OWNER_EMAIL', 'CONFIRM']) if (env[k] === undefined) delete env[k];
-    try { const stdout = execFileSync('python3', [guard, f1, f2], { env, stdio: ['pipe', 'pipe', 'pipe'] }).toString(); return { code: 0, raw: stdout, ...JSON.parse(stdout) }; }
+    const env = { ...process.env }; for (const k of ['BUSINESS_ID', 'BUSINESS_NAME', 'OWNER_EMAIL', 'CONFIRM']) delete env[k];   // the guard must not need them
+    try { const stdout = execFileSync('python3', [guard, f0, f1, f2], { env, stdio: ['pipe', 'pipe', 'pipe'] }).toString(); return { code: 0, raw: stdout, ...JSON.parse(stdout) }; }
     catch (e) { const stdout = e.stdout.toString(); return { code: e.status, raw: stdout, ...JSON.parse(stdout) }; }
   };
 
@@ -61,8 +63,10 @@ module.exports = async function runNewBusinessGuardTests({ check, path, fs }) {
   const noCount = run({ id: 'half-made', confirm: 'half-made', name: 'Half Made' }, { businesses: [{ id: 'half-made', status: 'active' }] });
   check(noCount.action === 'refuse' && /member count could not be read/.test(noCount.reasons[0]), 'a business whose member count cannot be read is refused rather than assumed empty');
   check(run({}, { businesses: [] }).action === 'create', 'an empty directory is fine: the first business can be created');
-  const missing = (() => { try { execFileSync('python3', [guard, '/no/such/a.json', '/no/such/b.json'], { env: { ...process.env, BUSINESS_ID: 'acme-floors', BUSINESS_NAME: 'Acme Floors', OWNER_EMAIL: 'o@acme.co.za', CONFIRM: 'acme-floors' }, stdio: ['pipe', 'pipe', 'pipe'] }); return 0; } catch (e) { return e.status; } })();
-  check(missing === 2, 'files that do not exist are a refusal too');
+  const missing = (() => { try { execFileSync('python3', [guard, '/no/such/i.json', '/no/such/a.json', '/no/such/b.json'], { stdio: ['pipe', 'pipe', 'pipe'] }); return 0; } catch (e) { return e.status; } })();
+  check(missing === 2, 'files that do not exist (the inputs included) are a refusal too');
+  for (const [label, raw] of [['not JSON', 'nope {'], ['a list', '[1,2]'], ['empty', ''], ['null', 'null']]) { const r = run({ __inputsRaw: raw }); check(r.action === 'refuse' && r.code === 2, `inputs that cannot be read (${label}) are a refusal, not a crash`); }
+  check(run({ __inputsRaw: JSON.stringify({ business_id: 5, business_name: ['x'], owner_email: { a: 1 }, confirm: null }) }).action === 'refuse', 'inputs of the wrong TYPE (numbers, lists, objects) are refused, not a crash');
 
   // ---- the workflow --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   const raw = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'prod-new-business.yml'), 'utf8'), code = raw.replace(/^\s*#.*$/gm, '');
@@ -74,12 +78,20 @@ module.exports = async function runNewBusinessGuardTests({ check, path, fs }) {
   const createStep = step("Create the business and its owner (the only write; a single attempt)");
   check(/if: steps\.guard\.outputs\.action == 'create' \|\| steps\.guard\.outputs\.action == 'resume'/.test(createStep) && createStep.includes('/debug/directory/create-business') && /id: guard/.test(step('Decide what may happen (writes nothing)')), 'the create step runs ONLY when the guard decided create or resume');
   check(!/for attempt in|while |until |sleep /.test(createStep), 'the create is a SINGLE attempt: no retry loop');
-  check(/exit \$GUARD/.test(step('Decide what may happen (writes nothing)')) && /python3 tools\/new-business-guard\.py "\$RESULTS\/directory\.json" "\$RESULTS\/conflicts\.json"/.test(step('Decide what may happen (writes nothing)')), 'a refusal makes the run go RED (the guard\'s exit status is the step\'s) and it is handed both files it needs');
+  check(/exit \$GUARD/.test(step('Decide what may happen (writes nothing)')) && /python3 tools\/new-business-guard\.py "\$RESULTS\/inputs\.json" "\$RESULTS\/directory\.json" "\$RESULTS\/conflicts\.json"/.test(step('Decide what may happen (writes nothing)')), 'a refusal makes the run go RED (the guard\'s exit status is the step\'s) and it is handed the three files it needs');
   const runs = [...code.matchAll(/run: \|([\s\S]*?)(?=\n      - |\n[a-z]|$)/g)].map((m) => m[1]).join('\n');
-  check(!/\$\{\{\s*(github\.event\.inputs|inputs)/.test(runs) && ['business_id', 'business_name', 'owner_email', 'confirm'].every((k) => new RegExp(`: \\$\\{\\{ github\\.event\\.inputs\\.${k} \\}\\}`).test(code)), 'what a person types reaches the scripts only through environment variables, never pasted into a script (no injection)');
-  check(/json\.dumps\(\{'id': d\['business_id'\], 'name': d\['name'\], 'owner_email': os\.environ\['OWNER_EMAIL'\]\.strip\(\)\.lower\(\), 'plan': 'standard'\}\)/.test(createStep) && /-d @"\$RESULTS\/create-request\.json"/.test(createStep) && /json\.dumps\(\{'business_id'/.test(step("Ask whether the owner's email is already taken (reads only)")), 'both request bodies are built by Python (the id and name from the guard\'s tidied decision) and sent from a file, not assembled in shell; the plan is fixed to standard');
+  check(!/\$\{\{\s*(github\.event\.inputs|inputs)/.test(runs) && ['business_id', 'business_name', 'confirm'].every((k) => new RegExp(`: \\$\\{\\{ github\\.event\\.inputs\\.${k} \\}\\}`).test(code)), 'what a person types reaches the scripts only through environment variables (the three that are not personal data) or the inputs file (the email), never pasted into a script (no injection)');
+  check(/json\.dumps\(\{'id': d\['business_id'\], 'name': d\['name'\], 'owner_email': i\['owner_email'\], 'plan': 'standard'\}\)/.test(createStep) && /-d @"\$RESULTS\/create-request\.json"/.test(createStep) && /json\.dumps\(\{'business_id'/.test(step("Ask whether the owner's email is already taken (reads only)")), 'both request bodies are built by Python (the id and name from the guard\'s tidied decision) and sent from a file, not assembled in shell; the plan is fixed to standard');
   check(JSON.stringify([...new Set([...code.matchAll(/secrets\.([A-Z_]+)/g)].map((m) => m[1]))].sort()) === JSON.stringify(['PROD_ADMIN_KEY', 'PROD_CONFIRM_KEY']) && /PROD_URL: https:\/\/office\.websitehub\.co\.za/.test(code), 'it uses only the two production admin secrets, against production');
   check(['Ask whether the owner\'s email is already taken (reads only)', 'Create the business and its owner (the only write; a single attempt)'].every((n) => /PROD_CONFIRM_KEY/.test(step(n))) && !/PROD_CONFIRM_KEY/.test(code.replace(step("Ask whether the owner's email is already taken (reads only)"), '').replace(createStep, '')), 'the confirmation key is available to those TWO steps only (the check and the create)');
+  // ---- THE LEAK. Found 2026-10-17 with tools/log-leak-check: the owner's email was in the job's `env`, GitHub prints every step's env block in its log, and the repository is public, so the address appeared in 10 places in the
+  // logs of a single run (the "masked in the output" claim was true of the script and false of the log). The email now never touches env or any expression: the first step reads it from the event file and registers it as a mask.
+  const noScripts = code.replace(/run: \|[\s\S]*?(?=\n      - |\n[a-z]|$)/g, 'run: |');
+  check(!/github\.event\.inputs\.owner_email/.test(code) && !/\$\{\{[^}]*owner_email/i.test(code) && !/OWNER_EMAIL/.test(code), 'the owner\'s email is NOT in any environment variable and NOT in any expression anywhere in the workflow (GitHub prints a step\'s env block in its public log)');
+  const firstRun = step('Read the inputs and hide the email (first, before anything is printed)');
+  check(code.indexOf('- name: Read the inputs and hide the email') < code.indexOf('- name: Read the directory') && /GITHUB_EVENT_PATH/.test(firstRun) && /::add-mask::/.test(firstRun) && /event\["inputs"\]/.test(firstRun) && /results\/inputs\.json|RESULTS.*inputs\.json/.test(firstRun), 'the FIRST step reads the inputs from the event file, registers the email as a mask (so any later print shows ***), and writes them to a file; nothing runs before it');
+  check(/mask/.test(firstRun) && firstRun.indexOf('::add-mask::') < firstRun.indexOf('json.dump'), 'the mask is registered BEFORE the inputs are written anywhere');
+  check(!/os\.environ\['OWNER_EMAIL'\]|os\.environ\["OWNER_EMAIL"\]/.test(code) && /new-business-guard\.py "\$RESULTS\/inputs\.json" "\$RESULTS\/directory\.json" "\$RESULTS\/conflicts\.json"/.test(step('Decide what may happen (writes nothing)')), 'every later step reads the email from that file, and the guard is handed it as a file');
   const recordStep = step('Record what happened');
   check(/if: always\(\)/.test(recordStep) && /ops\/production-new-business-last\.json/.test(recordStep) && !/OWNER_EMAIL|ownerMasked|owner_email|ADMIN|CONFIRM/.test(recordStep), 'it records what happened even when it fails, and the record step has no secret and never touches the owner\'s email');
   check(/ownerMasked/.test(step('Decide what may happen (writes nothing)')) && !/OWNER_EMAIL/.test(step('Decide what may happen (writes nothing)').replace(/python3 tools[^\n]*/, '')), 'the summary shows the owner only as the masked address');
