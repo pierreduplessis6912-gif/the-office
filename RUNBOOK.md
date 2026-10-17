@@ -100,7 +100,7 @@ A message costs about 940 neurons (about $0.01). Free allowance: 10,000 neurons 
 
 | A member says | It is | Do this |
 |---|---|---|
-| "I can't sign in" | Sign-in is Google. Their email must be in this business's directory | `curl -s $OFFICE/debug/directory -H "X-Admin-Key: $ADMIN"` to look. To add: `POST /debug/directory/add-member` (privileged) with `{"email":"...","business_id":"zululand-flooring-and-blinds","role":"installer"}`. Roles: `owner`, `accountant`, `installer` (default) |
+| "I can't sign in" | Sign-in is Google. Their email must be a member of this business (and of no other: one email, one business) | Use **"Production add a member"** (section 13). Check which Google account they are signing in WITH: a screenshot of the account chooser showed the owner's address was not on the phone at all (2026-10-17) |
 | "I can't confirm that invoice or payment" | The role decides. Installers cannot confirm money actions; accountants can; some actions are owner-only | Check their role; change it with the add-member route |
 | "It says the business is being updated / restored" | A database change failed (section 2) or a restore is running (section 5). Retry in a minute | Run the health check |
 | "It says I reached my limit" | Section 7 | Raise the limit if it is normal use |
@@ -163,4 +163,14 @@ A business is created by **you**, not by self-serve sign-up (decided 2026-10-14)
 ### Checking whether something appears in a run's logs
 
 `Log leak check` (GitHub, Actions, Run workflow): give it a run id (the number at the end of a run's URL) and a **placeholder** string; it downloads that run's logs **from inside GitHub** (this environment cannot) and records how many times the string appears, with control counts (so zero means "read the logs and it is not there", not "read nothing"). Counts only, in `ops/log-leak-check-last.json`. The needle is an input of that workflow, so it is visible in that run: use only a made-up address, for example `canary-123@example.com`, and test a new workflow by running it with that canary first.
+
+## 13. Adding a person to an existing business
+
+GitHub, Actions, **"Production add a member"**, Run workflow. Four boxes: the **business id**, the person's **Google email**, their **role** (`installer`, `accountant` or `owner`; a fixed choice) and **the business id again** in `confirm`.
+
+It first reads the directory, asks whether that email already belongs to ANOTHER business (one email can sign in to only one business), and asks the business itself whether the person is already a member. A tested script then decides and **refuses** (the run goes red, nothing is written) for: a bad id, email or role; a mistyped confirmation; an email that belongs to another business (it does not say which); a person who is already a member here (it says their role); a business that does not exist or is not active; and **another OWNER for a business that already has more than one member** (so a typed id and a typo cannot hand an established business to someone: add an accountant or an installer instead, or change a role by hand). If allowed, it makes **one** attempt to add them, then checks: one more member in the directory, and the business itself says the person is a member **with the role asked for**. A failed check turns the run red.
+
+**The email is personal data and the repository is public**: it is never in the environment or any expression (GitHub prints a step's env block in its log); the first step reads it from the event file, masks it, and passes it by file. The record (`ops/production-add-member-last.json`) holds the business id, the role and statuses only. **Verified with the leak-check tool** (section 12): a canary address appears 0 times in 12 log files of a run.
+
+**Executed (2026-10-17):** a refusal (mistyped confirmation, a canary email, nothing added) and one real addition: **the account labelled "Pierre" on Pierre's phone was added as OWNER of `tender-hub`** (`k***@gmail.com`), because the owner the business was created with (`t***@gmail.com`) is not an account on his phone. Every step passed; the live business was checked afterwards and still has 4 members. **Not run:** the roles `accountant` and `installer` in production, and a removal (there is no remove-member workflow).
 
