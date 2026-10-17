@@ -7499,3 +7499,15 @@ After the incident I wrote, in the decision log, in a code comment, in the check
 
 **The habit this is meant to build.** A claim that something is not exposed needs a check that can fail, run against the real surface, not a reading of my own code. The check here could not have passed on the old design; that is why it was worth building.
 
+---
+
+## The first real business created through the workflow: Tender Hub (test), 2026-10-17
+
+**What was created.** At Pierre's request, a TEST business: id `tender-hub`, name "Tender Hub", owner `t***@gmail.com` (his own second Google account), standard plan (100 messages per member per day, 400,000 neurons per business per day, enforced). It went through the fixed "Production new business" workflow, after the email leak was found and fixed (previous entry), so the address was masked from the first step on.
+
+**What the run showed.** Every step succeeded: the inputs step (masking the address), the directory read, the email-clash question, the guard (`create`, no reasons), the single create (HTTP 200: `created: true`, `ownerInDirectory: true`, `ownerMembershipStatus: 200`), and the post-checks (in the directory, active, standard plan, the owner a member, its own object answering as itself: 200). The record holds the business id, name, action and statuses and no `@`. **Verified independently afterwards,** by running the guard with made-up emails against each id, which states a business's member count in its refusal: the live business still has exactly **4** members, Tender Hub exactly **1**; and the production health check still reads healthy for the live business.
+
+**What was NOT checked, said plainly.** The real address was not searched for in the create run's logs: the log-leak tool takes its search string as a public input, so it must only ever be given placeholders. The evidence that the real run did not leak is the canary run of identical code (0 occurrences in 11 log files, `***` present) plus the structural tests that pin the design. I also did not check whether the owner can actually SIGN IN to the app: that depends on Google's OAuth consent configuration for the app (if it is in "testing" mode, this address must be added as a test user) and on a build of the app that points at production, which I cannot see from here.
+
+**What it leaves behind.** A real directory entry, a real Durable Object and a member row, in production, for a test. **There is no workflow to delete a business**; removing `tender-hub` would be a manual operation, and the same applies to any business created by mistake. If test businesses become routine, a guarded delete workflow (typed confirmation, refuses a business that has data or other members, takes a snapshot first) would be the next tool to build.
+
