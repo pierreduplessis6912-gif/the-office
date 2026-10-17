@@ -1,0 +1,18 @@
+{
+ "when": "2026-10-17T12:30:12.128048Z",
+ "run": "39032764016",
+ "business_id": "tender-hub",
+ "role": "installer",
+ "action": "refuse",
+ "members_before": null,
+ "reasons": [
+  "to add a member, type the business id exactly in the confirm box"
+ ],
+ "add_status": null,
+ "add_response": {
+  "business": null,
+  "inDirectory": null,
+  "membershipStatus": null,
+  "error": null
+ }
+}
