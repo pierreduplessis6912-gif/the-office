@@ -7689,3 +7689,17 @@ Pierre shared a note arguing for "one coordinator per business, add more objects
 
 **Not done, said plainly.** No alert for a never-signed-in member; no last-seen; the log is not visible to an operator across businesses (their own actions are in `admin_audit`); nothing is visible in the app until the Team screen is built and installed, and **the Team screen, now extended to show both, has still never been compiled**.
 
+---
+
+## Getting the Team screen compiled, 2026-10-18
+
+**What happened.** Pierre opened the app and saw no Team drawer. That was expected and my fault for not saying so plainly: the screen was on a branch because I could not compile Dart here, and Codemagic builds from `main`. The question was how to remove that blocker without waiting for him to start a branch build.
+
+**The find.** The repo already had a workflow (`deploy-web-preview.yml`) that builds the REAL app for web on GitHub, as a free loop separate from Codemagic, but only on pushes to `main`, which is exactly where I did not want unverified code. I had treated "no Dart SDK" as a fixed constraint; the right move was to look at what CI could already do. A copy that compiles every OTHER branch and deploys nothing turned "never compiled" into "compiled on real Flutter" within about ten minutes.
+
+**The first run failed, and read correctly it was good news.** `flutter analyze` reported 121 issues and one error, in `test/widget_test.dart`: a sample file `flutter create` adds in CI that refers to a class the app does not have. So the error was an artefact of the scaffolding, not the app, and the Team room itself had none. I could only see that because I extended the existing log-excerpt tool to pick out the analyzer's lines (the logs cannot be downloaded from where I work); guessing would have meant "fixing" the app. The second run, analyzing only `lib/`, passed the analyzer and the full web compile.
+
+**The decision to merge.** The branch existed because the code had never been compiled. That reason was gone. The remaining difference is Android versus web, and the room uses only Flutter widgets, `http` and `Clipboard`, so I judged that low risk and merged, with the web-preview deploy on `main` as a second independent compile (it succeeded). I said plainly that an Android build and a tap on Team are still the real confirmation.
+
+**Not done, said plainly.** Not installed: Pierre must install the Codemagic build before the item appears. Not verified on Android or a phone. The web preview has not been opened, so whether sign-in works there is unknown. The compile check does not run tests (there are none for the app) and does not catch behavioural mistakes: it proves the code compiles, not that the screen does the right thing.
+
