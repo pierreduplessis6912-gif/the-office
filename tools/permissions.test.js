@@ -18,7 +18,7 @@ module.exports = async function runPermissionTests({ check, compiled, srcDir, fs
   const ownerOnly = CAPABILITY_CATALOG.filter((c) => c.ownerOnly).map((c) => c.key).sort();
   check(sameJson(ownerOnly, ['can_delete_data', 'can_invite_members', 'can_manage_settings']), `exactly the three administrative capabilities are owner only (got ${ownerOnly.join(', ')})`);
   for (const role of EDITABLE_ROLES) for (const k of ROLE_CAPABILITIES[role]) check(!CAPABILITY_BY_KEY[k].ownerOnly, `the default for "${role}" must never include the owner-only capability "${k}"`);
-  check(sameJson([...EDITABLE_ROLES].sort(), ['accountant', 'installer']) && !EDITABLE_ROLES.includes('owner'), 'the roles the owner can edit are the accountant and the installer, never the owner');
+  check(sameJson([...EDITABLE_ROLES].sort(), ['accountant', 'admin', 'installer', 'sales']) && !EDITABLE_ROLES.includes('owner'), 'the roles the owner can edit are the accountant, the installer, sales and admin (the last two added 2026-10-18), never the owner');
   check(CAPABILITY_CATALOG.every((c) => c.label && c.description), 'every capability has a plain-language label and description for the screen');
   check(CAPABILITY_CATALOG.filter((c) => isEditableCapability(c.key)).length === 10, 'exactly ten capabilities can be switched today: money, debtors, profit, materials, jobs, payroll, banking, and (since 2026-10-04) expense totals, supplier balances and material prices (the others are owner only or not used by anything yet)');
 

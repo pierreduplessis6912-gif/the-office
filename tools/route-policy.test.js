@@ -31,13 +31,22 @@ async function routePolicyTests({ check, srcDir, path, fs }) {
   for (const [route, o] of obs) {
     const e = exp.get(route);
     if (!e) continue;
-    for (const who of ['none', 'owner', 'accountant', 'installer']) if (e[who] !== o[who]) changed.push(`${route} for ${who}: file says ${e[who]}, the gate now gives ${o[who]}`);
+    for (const who of ['none', ...lib.ROLES]) if (e[who] !== o[who]) changed.push(`${route} for ${who}: file says ${e[who]}, the gate now gives ${o[who]}`);
   }
   check(changed.length === 0, `the gate must behave as route-policy.json says (a change to who may do what must be deliberate: regenerate and review). Differences: ${changed.slice(0, 4).join(' | ')}${changed.length > 4 ? ` (and ${changed.length - 4} more)` : ''}`);
   check(fs.readFileSync(path.join(__dirname, '..', 'ROUTE_POLICY.md'), 'utf8') === lib.toMarkdown(expected), 'ROUTE_POLICY.md must be exactly the readable form of route-policy.json (run node tools/route-policy-gen.js)');
 
   // ---- invariants: what must never be true, whatever the file says ------------------------------------------------------------------------
   const rows = observed;
+
+  // ---- the roles added 2026-10-18 (sales, admin): invariants that hold WHATEVER the file says, so a mistake in my reading of the file cannot hide one ---------------------------------------------------------------------------
+  const route2 = (r) => r.route;
+  check(rows.filter((r) => r.admin === 'A' && r.accountant !== 'A' && r.installer !== 'A').map(route2).length === 0, 'ADMIN may only reach what an accountant or an installer can already reach: there is no route only an admin can use (leaks: ' + rows.filter((r) => r.admin === 'A' && r.accountant !== 'A' && r.installer !== 'A').map(route2).join(', ') + ')');
+  check(rows.filter((r) => r.sales === 'A' && r.installer !== 'A').map(route2).length === 0, 'SALES may only reach what an installer can already reach (leaks: ' + rows.filter((r) => r.sales === 'A' && r.installer !== 'A').map(route2).join(', ') + ')');
+  check(rows.filter((r) => r.class === 'owner only' && (r.admin === 'A' || r.sales === 'A')).length === 0 && rows.filter((r) => r.owner === 'A' && r.accountant !== 'A' && r.installer !== 'A' && (r.admin === 'A' || r.sales === 'A')).length === 0, 'a route only the owner can reach is NEVER reachable by an admin or a sales role');
+  check(rows.filter((r) => /^(GET|POST|PATCH) \/(team|settings)/.test(r.route) && r.class !== 'public').every((r) => r.owner === 'A' && r.admin !== 'A' && r.sales !== 'A' && r.accountant !== 'A' && r.installer !== 'A') && rows.some((r) => r.route === 'POST /team/invite'), 'the team and settings routes are owner only: never an admin, never sales (so an admin cannot add people or change permissions)');
+  check(rows.filter((r) => r.none === 'A').every((r) => r.admin === 'A' && r.sales === 'A'), 'a public route is public to every role too');
+  check(rows.every((r) => r.none !== 401 || r.admin === 'A' || r.admin === 403 || r.admin === 401) && rows.filter((r) => r.owner === 401).length === 0, 'no route answers 401 to a signed-in role');
   const reachableWithoutLogin = rows.filter((r) => r.none === 'A').map((r) => r.route).sort();
   const expectedPublic = ['GET /', 'GET /auth/google/callback', 'GET /auth/google/login', 'GET /auth/logout', 'GET /auth/me', 'GET /auth/signup', 'GET /auth/join', 'GET /health', 'POST /', 'POST /auth/join', 'POST /auth/logout', 'POST /auth/signup'].sort();
   check(JSON.stringify(reachableWithoutLogin) === JSON.stringify(expectedPublic), `without signing in, ONLY the sign-in routes, the health check and the root may be reached (found: ${reachableWithoutLogin.join(', ')})`);

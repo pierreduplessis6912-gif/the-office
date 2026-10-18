@@ -700,6 +700,20 @@ jobs:
           api inv-me GET "$ISESS" /auth/me
           joinform inv-join-again "$(proof "$INVITEE")" "$IID"
           api inv-list2 GET "$SESSION" /team
+          # ROLES (worker/src/auth.ts ROLE_CAPABILITIES): the owner gives someone ADMIN and someone SALES, and acts as each on the REAL object. Sales sees jobs but no money; admin sees money and jobs but cannot manage the team or the permissions.
+          ADMINM="admin-member-${TAG}@example.com"; SALESM="sales-member-${TAG}@example.com"
+          api ro-add-admin POST "$SESSION" /team "{\"email\":\"$ADMINM\",\"role\":\"admin\"}"
+          api ro-add-sales POST "$SESSION" /team "{\"email\":\"$SALESM\",\"role\":\"sales\"}"
+          ASESS=$(msession "$ADMINM"); SSESS=$(msession "$SALESM")
+          api ro-owner-finance GET "$SESSION" /embers/finance
+          api ro-admin-jobs GET "$ASESS" /projects
+          api ro-admin-finance GET "$ASESS" /embers/finance
+          api ro-admin-team GET "$ASESS" /team
+          api ro-admin-perms GET "$ASESS" /settings/permissions
+          api ro-sales-jobs GET "$SSESS" /projects
+          api ro-sales-finance GET "$SSESS" /embers/finance
+          api ro-sales-team GET "$SSESS" /team
+          api ro-owner-perms GET "$SESSION" /settings/permissions
           python3 - <<'PY'
           import base64, datetime, json, os, re, sys, urllib.parse as u
           r, tag = os.environ["RESULTS"], "r" + os.environ["GITHUB_RUN_ID"]
@@ -753,6 +767,7 @@ jobs:
           inv_me = rd("inv-me.json") or {}
           invitee = "invitee-" + tag + "@example.com"
           inv_member = next((x for x in (inv_after.get("members") or []) if x.get("email") == invitee), {})
+          ro_grid = [r.get("role") for r in ((rd("ro-owner-perms.json") or {}).get("roles") or [])]
           profile = (rd("su-profile.json") or {}).get("profile") or {}
           ob = rd("su-onboarding.json") or {}
           steps = ob.get("steps") if isinstance(ob, dict) else None
@@ -786,6 +801,10 @@ jobs:
               "a_revoked_invitation_cannot_be_accepted": status("inv-revoke") == "200" and status("inv-revoked") == "400" and "no longer valid" in (rd("inv-revoked.body", False) or "") and not any(x.get("email") == "revokee-" + tag + "@example.com" for x in (inv_after.get("members") or [])),
               "another_address_cannot_accept_someone_elses_invitation": status("inv-stranger") == "400" and not any(x.get("email") == "stranger-" + tag + "@example.com" for x in (inv_after.get("members") or [])),
               "accepting_twice_just_signs_in": status("inv-join-again") == "303" and inv_again is not None and inv_again.scheme == "theoffice" and sum(1 for x in (inv_after.get("members") or []) if x.get("email") == invitee) == 1,
+              "an_owner_can_give_the_admin_and_sales_roles": status("ro-add-admin") == "201" and status("ro-add-sales") == "201",
+              "sales_sees_jobs_but_no_money_and_cannot_manage_the_team": status("ro-sales-jobs") == "200" and status("ro-sales-finance") == "403" and status("ro-sales-team") == "403",
+              "admin_sees_money_and_jobs_but_cannot_manage_the_team_or_the_permissions": status("ro-owner-finance") == "200" and status("ro-admin-jobs") == "200" and status("ro-admin-finance") == "200" and status("ro-admin-team") == "403" and status("ro-admin-perms") == "403",
+              "the_owners_permission_grid_lists_admin_and_sales": status("ro-owner-perms") == "200" and "admin" in ro_grid and "sales" in ro_grid,
               "health_reports_the_running_commit": health.get("commit") == os.environ.get("GITHUB_SHA"),
               "the_directory_columns_exist_on_the_real_database": all("trial_ends_at" in b and "source" in b for b in listing) and len(listing) > 0,
               "answers": {"first": status("su-first"), "again": status("su-again"), "garbage": status("su-garbage"), "untick": status("su-untick"), "days_left": round(days, 3) if days else None, "business": {k: biz.get(k) for k in ("plan", "status", "source", "members")}, "session_b_matches": payload.get("b") == biz.get("id"), "me": {"signedIn": me.get("signedIn"), "role": me.get("role")}, "customers": status("su-customers"), "customer_items": len(cust_list) if isinstance(cust_list, list) else None, "onboarding_steps": len(steps) if isinstance(steps, list) else None, "step_statuses": [x.get("status") for x in steps] if isinstance(steps, list) else None},

@@ -4,11 +4,11 @@
 // Adding a person is a SIGN-IN GRANT, so: an address that belongs to ANOTHER business is refused (one email, one business; the refusal never says which); the roles an owner may give are fixed here; and the protections that keep a business
 // from losing its owner are structural: an owner is never changed, deactivated or reactivated through the app (only the operator can), nobody changes or deactivates themselves, and so a co-owner can never lock the first owner out.
 // The directory and the business cannot share a transaction, so the order is: check, write the membership, write the directory entry; a retry finishes a half-done add (it never leaves a stuck state). No cap on the team (Pierre).
-// Direct add only for now; invite-and-accept, and the roles "sales" and "admin" (whose capabilities are not decided yet), come next.
+// Both ways to add someone exist: directly (here) and by invitation the person accepts (below). The roles are those in ROLE_CAPABILITIES except that no role outside this list can be given.
 import { addDirectoryMember, findDirectoryConflicts, listInvitationsFor, normaliseEmail, revokeInvitation, upsertInvitation, type Invitation } from "./directory";
 import type { Env } from "./types";
 
-export const ASSIGNABLE_ROLES = ["owner", "accountant", "installer"];
+export const ASSIGNABLE_ROLES = ["owner", "admin", "accountant", "sales", "installer"];
 const EMAIL_OK = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 export type TeamMember = { id: number; email: string; role: string; status: string; invitedBy: string | null; createdAt: string };

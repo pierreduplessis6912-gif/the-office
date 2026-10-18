@@ -6,88 +6,88 @@ Shown for the **default** role permissions; the owner can change them in Setting
 
 Classes: **public** 12, **any member** 13, **some roles** 27, **signed link** 6, **owner only** 25. A **signed link** route is opened only by a link the business sent (it carries its own signature), so it is refused to everyone who simply asks.
 
-| Route | Class | No login | Owner | Accountant | Installer |
-|---|---|---|---|---|---|
-| `GET /` | public | yes | yes | yes | yes |
-| `GET /actions/pending` | any member | no (sign in) | yes | yes | yes |
-| `GET /auth/google/callback` | public | yes | yes | yes | yes |
-| `GET /auth/google/login` | public | yes | yes | yes | yes |
-| `GET /auth/join` | public | yes | yes | yes | yes |
-| `GET /auth/logout` | public | yes | yes | yes | yes |
-| `GET /auth/me` | public | yes | yes | yes | yes |
-| `GET /auth/signup` | public | yes | yes | yes | yes |
-| `GET /business-profile/logo` | any member | no (sign in) | yes | yes | yes |
-| `GET /customers` | any member | no (sign in) | yes | yes | yes |
-| `GET /customers/:id/profitability` | some roles | no (sign in) | yes | yes | no |
-| `GET /customers/:id/statement/pdf` | signed link | no | no | no | no |
-| `GET /debug/captures` | owner only | no (sign in) | yes | no | no |
-| `GET /debug/characters-list` | any member | no (sign in) | yes | yes | yes |
-| `GET /debug/finance-list` | some roles | no (sign in) | yes | yes | no |
-| `GET /debug/financial-snapshot` | some roles | no (sign in) | yes | yes | no |
-| `GET /debug/schedule` | some roles | no (sign in) | yes | no | yes |
-| `GET /debug/suppliers-list` | some roles | no (sign in) | yes | yes | no |
-| `GET /debug/tasks-list` | some roles | no (sign in) | yes | no | yes |
-| `GET /delivery-exceptions` | some roles | no (sign in) | yes | yes | no |
-| `GET /documents/sign` | owner only | no (sign in) | yes | no | no |
-| `GET /embers/expenses` | some roles | no (sign in) | yes | yes | no |
-| `GET /embers/finance` | some roles | no (sign in) | yes | yes | no |
-| `GET /embers/pending` | any member | no (sign in) | yes | yes | yes |
-| `GET /embers/scheduler` | some roles | no (sign in) | yes | no | yes |
-| `GET /embers/suppliers` | some roles | no (sign in) | yes | yes | no |
-| `GET /embers/tasks` | some roles | no (sign in) | yes | no | yes |
-| `GET /files/*` | owner only | no (sign in) | yes | no | no |
-| `GET /health` | public | yes | yes | yes | yes |
-| `GET /invoices/:id/pdf` | signed link | no | no | no | no |
-| `GET /leads` | owner only | no (sign in) | yes | no | no |
-| `GET /onboarding` | owner only | no (sign in) | yes | no | no |
-| `GET /projects` | some roles | no (sign in) | yes | no | yes |
-| `GET /quotations/:id/pdf` | signed link | no | no | no | no |
-| `GET /reports/aged-creditors/pdf` | signed link | no | no | no | no |
-| `GET /reports/aged-debtors/pdf` | signed link | no | no | no | no |
-| `GET /reports/profit-and-loss/pdf` | signed link | no | no | no | no |
-| `GET /settings/permissions` | owner only | no (sign in) | yes | no | no |
-| `GET /settings/permissions/audit` | owner only | no (sign in) | yes | no | no |
-| `GET /snags` | some roles | no (sign in) | yes | no | yes |
-| `GET /stock` | any member | no (sign in) | yes | yes | yes |
-| `GET /suppliers/:id/discrepancies` | some roles | no (sign in) | yes | yes | no |
-| `GET /team` | owner only | no (sign in) | yes | no | no |
-| `PATCH /customers/:id` | some roles | no (sign in) | yes | yes | no |
-| `PATCH /invoices/:id` | some roles | no (sign in) | yes | yes | no |
-| `PATCH /quotations/:id` | some roles | no (sign in) | yes | yes | no |
-| `PATCH /settings/permissions` | owner only | no (sign in) | yes | no | no |
-| `PATCH /team/:id` | owner only | no (sign in) | yes | no | no |
-| `POST /` | public | yes | yes | yes | yes |
-| `POST /actions/:id/confirm [invoice]` | some roles | no (sign in) | yes | yes | no |
-| `POST /actions/:id/confirm [job_scope_amendment]` | some roles | no (sign in) | yes | no | yes |
-| `POST /actions/:id/confirm [stock_add]` | any member | no (sign in) | yes | yes | yes |
-| `POST /actions/:id/edit-field [invoice]` | some roles | no (sign in) | yes | yes | no |
-| `POST /actions/:id/edit-field [job_scope_amendment]` | some roles | no (sign in) | yes | no | yes |
-| `POST /actions/:id/edit-field [stock_add]` | any member | no (sign in) | yes | yes | yes |
-| `POST /actions/:id/reject [invoice]` | some roles | no (sign in) | yes | yes | no |
-| `POST /actions/:id/reject [job_scope_amendment]` | some roles | no (sign in) | yes | no | yes |
-| `POST /actions/:id/reject [stock_add]` | any member | no (sign in) | yes | yes | yes |
-| `POST /auth/join` | public | yes | yes | yes | yes |
-| `POST /auth/logout` | public | yes | yes | yes | yes |
-| `POST /auth/signup` | public | yes | yes | yes | yes |
-| `POST /business-profile/logo` | owner only | no (sign in) | yes | no | no |
-| `POST /files/*` | owner only | no (sign in) | yes | no | no |
-| `POST /files/audio` | any member | no (sign in) | yes | yes | yes |
-| `POST /files/customers-csv-import` | owner only | no (sign in) | yes | no | no |
-| `POST /files/document` | any member | no (sign in) | yes | yes | yes |
-| `POST /files/invoices-csv-import` | owner only | no (sign in) | yes | no | no |
-| `POST /files/photo` | any member | no (sign in) | yes | yes | yes |
-| `POST /files/products-csv-import` | owner only | no (sign in) | yes | no | no |
-| `POST /files/suppliers-csv-import` | owner only | no (sign in) | yes | no | no |
-| `POST /files/team-csv-import` | owner only | no (sign in) | yes | no | no |
-| `POST /leads/:id/mark-lost` | owner only | no (sign in) | yes | no | no |
-| `POST /messages/text` | any member | no (sign in) | yes | yes | yes |
-| `POST /onboarding/step` | owner only | no (sign in) | yes | no | no |
-| `POST /settings/permissions/reset` | owner only | no (sign in) | yes | no | no |
-| `POST /snags/:id/resolve` | some roles | no (sign in) | yes | no | yes |
-| `POST /suppliers/discrepancies/:id/resolve` | some roles | no (sign in) | yes | yes | no |
-| `POST /tasks/:id/done` | some roles | no (sign in) | yes | no | yes |
-| `POST /team` | owner only | no (sign in) | yes | no | no |
-| `POST /team/:id/deactivate` | owner only | no (sign in) | yes | no | no |
-| `POST /team/:id/reactivate` | owner only | no (sign in) | yes | no | no |
-| `POST /team/invitations/:id/revoke` | owner only | no (sign in) | yes | no | no |
-| `POST /team/invite` | owner only | no (sign in) | yes | no | no |
+| Route | Class | No login | Owner | Accountant | Installer | Sales | Admin |
+|---|---|---|---|---|---|---|---|
+| `GET /` | public | yes | yes | yes | yes | yes | yes |
+| `GET /actions/pending` | any member | no (sign in) | yes | yes | yes | yes | yes |
+| `GET /auth/google/callback` | public | yes | yes | yes | yes | yes | yes |
+| `GET /auth/google/login` | public | yes | yes | yes | yes | yes | yes |
+| `GET /auth/join` | public | yes | yes | yes | yes | yes | yes |
+| `GET /auth/logout` | public | yes | yes | yes | yes | yes | yes |
+| `GET /auth/me` | public | yes | yes | yes | yes | yes | yes |
+| `GET /auth/signup` | public | yes | yes | yes | yes | yes | yes |
+| `GET /business-profile/logo` | any member | no (sign in) | yes | yes | yes | yes | yes |
+| `GET /customers` | any member | no (sign in) | yes | yes | yes | yes | yes |
+| `GET /customers/:id/profitability` | some roles | no (sign in) | yes | yes | no | no | no |
+| `GET /customers/:id/statement/pdf` | signed link | no | no | no | no | no | no |
+| `GET /debug/captures` | owner only | no (sign in) | yes | no | no | no | no |
+| `GET /debug/characters-list` | any member | no (sign in) | yes | yes | yes | yes | yes |
+| `GET /debug/finance-list` | some roles | no (sign in) | yes | yes | no | no | yes |
+| `GET /debug/financial-snapshot` | some roles | no (sign in) | yes | yes | no | no | yes |
+| `GET /debug/schedule` | some roles | no (sign in) | yes | no | yes | yes | yes |
+| `GET /debug/suppliers-list` | some roles | no (sign in) | yes | yes | no | no | yes |
+| `GET /debug/tasks-list` | some roles | no (sign in) | yes | no | yes | yes | yes |
+| `GET /delivery-exceptions` | some roles | no (sign in) | yes | yes | no | no | yes |
+| `GET /documents/sign` | owner only | no (sign in) | yes | no | no | no | no |
+| `GET /embers/expenses` | some roles | no (sign in) | yes | yes | no | no | yes |
+| `GET /embers/finance` | some roles | no (sign in) | yes | yes | no | no | yes |
+| `GET /embers/pending` | any member | no (sign in) | yes | yes | yes | yes | yes |
+| `GET /embers/scheduler` | some roles | no (sign in) | yes | no | yes | yes | yes |
+| `GET /embers/suppliers` | some roles | no (sign in) | yes | yes | no | no | yes |
+| `GET /embers/tasks` | some roles | no (sign in) | yes | no | yes | yes | yes |
+| `GET /files/*` | owner only | no (sign in) | yes | no | no | no | no |
+| `GET /health` | public | yes | yes | yes | yes | yes | yes |
+| `GET /invoices/:id/pdf` | signed link | no | no | no | no | no | no |
+| `GET /leads` | owner only | no (sign in) | yes | no | no | no | no |
+| `GET /onboarding` | owner only | no (sign in) | yes | no | no | no | no |
+| `GET /projects` | some roles | no (sign in) | yes | no | yes | yes | yes |
+| `GET /quotations/:id/pdf` | signed link | no | no | no | no | no | no |
+| `GET /reports/aged-creditors/pdf` | signed link | no | no | no | no | no | no |
+| `GET /reports/aged-debtors/pdf` | signed link | no | no | no | no | no | no |
+| `GET /reports/profit-and-loss/pdf` | signed link | no | no | no | no | no | no |
+| `GET /settings/permissions` | owner only | no (sign in) | yes | no | no | no | no |
+| `GET /settings/permissions/audit` | owner only | no (sign in) | yes | no | no | no | no |
+| `GET /snags` | some roles | no (sign in) | yes | no | yes | yes | yes |
+| `GET /stock` | any member | no (sign in) | yes | yes | yes | yes | yes |
+| `GET /suppliers/:id/discrepancies` | some roles | no (sign in) | yes | yes | no | no | yes |
+| `GET /team` | owner only | no (sign in) | yes | no | no | no | no |
+| `PATCH /customers/:id` | some roles | no (sign in) | yes | yes | no | no | yes |
+| `PATCH /invoices/:id` | some roles | no (sign in) | yes | yes | no | no | yes |
+| `PATCH /quotations/:id` | some roles | no (sign in) | yes | yes | no | no | yes |
+| `PATCH /settings/permissions` | owner only | no (sign in) | yes | no | no | no | no |
+| `PATCH /team/:id` | owner only | no (sign in) | yes | no | no | no | no |
+| `POST /` | public | yes | yes | yes | yes | yes | yes |
+| `POST /actions/:id/confirm [invoice]` | some roles | no (sign in) | yes | yes | no | no | yes |
+| `POST /actions/:id/confirm [job_scope_amendment]` | some roles | no (sign in) | yes | no | yes | yes | yes |
+| `POST /actions/:id/confirm [stock_add]` | any member | no (sign in) | yes | yes | yes | yes | yes |
+| `POST /actions/:id/edit-field [invoice]` | some roles | no (sign in) | yes | yes | no | no | yes |
+| `POST /actions/:id/edit-field [job_scope_amendment]` | some roles | no (sign in) | yes | no | yes | yes | yes |
+| `POST /actions/:id/edit-field [stock_add]` | any member | no (sign in) | yes | yes | yes | yes | yes |
+| `POST /actions/:id/reject [invoice]` | some roles | no (sign in) | yes | yes | no | no | yes |
+| `POST /actions/:id/reject [job_scope_amendment]` | some roles | no (sign in) | yes | no | yes | yes | yes |
+| `POST /actions/:id/reject [stock_add]` | any member | no (sign in) | yes | yes | yes | yes | yes |
+| `POST /auth/join` | public | yes | yes | yes | yes | yes | yes |
+| `POST /auth/logout` | public | yes | yes | yes | yes | yes | yes |
+| `POST /auth/signup` | public | yes | yes | yes | yes | yes | yes |
+| `POST /business-profile/logo` | owner only | no (sign in) | yes | no | no | no | no |
+| `POST /files/*` | owner only | no (sign in) | yes | no | no | no | no |
+| `POST /files/audio` | any member | no (sign in) | yes | yes | yes | yes | yes |
+| `POST /files/customers-csv-import` | owner only | no (sign in) | yes | no | no | no | no |
+| `POST /files/document` | any member | no (sign in) | yes | yes | yes | yes | yes |
+| `POST /files/invoices-csv-import` | owner only | no (sign in) | yes | no | no | no | no |
+| `POST /files/photo` | any member | no (sign in) | yes | yes | yes | yes | yes |
+| `POST /files/products-csv-import` | owner only | no (sign in) | yes | no | no | no | no |
+| `POST /files/suppliers-csv-import` | owner only | no (sign in) | yes | no | no | no | no |
+| `POST /files/team-csv-import` | owner only | no (sign in) | yes | no | no | no | no |
+| `POST /leads/:id/mark-lost` | owner only | no (sign in) | yes | no | no | no | no |
+| `POST /messages/text` | any member | no (sign in) | yes | yes | yes | yes | yes |
+| `POST /onboarding/step` | owner only | no (sign in) | yes | no | no | no | no |
+| `POST /settings/permissions/reset` | owner only | no (sign in) | yes | no | no | no | no |
+| `POST /snags/:id/resolve` | some roles | no (sign in) | yes | no | yes | yes | yes |
+| `POST /suppliers/discrepancies/:id/resolve` | some roles | no (sign in) | yes | yes | no | no | yes |
+| `POST /tasks/:id/done` | some roles | no (sign in) | yes | no | yes | yes | yes |
+| `POST /team` | owner only | no (sign in) | yes | no | no | no | no |
+| `POST /team/:id/deactivate` | owner only | no (sign in) | yes | no | no | no | no |
+| `POST /team/:id/reactivate` | owner only | no (sign in) | yes | no | no | no | no |
+| `POST /team/invitations/:id/revoke` | owner only | no (sign in) | yes | no | no | no | no |
+| `POST /team/invite` | owner only | no (sign in) | yes | no | no | no | no |
