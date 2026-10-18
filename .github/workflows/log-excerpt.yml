@@ -52,7 +52,7 @@ jobs:
                       if not n.endswith(".txt") or wanted not in n.lower() or "/" not in n:
                           continue
                       lines = [re.sub(r"^\d{4}-\d\d-\d\dT[\d:.]+Z ", "", l) for l in z.read(n).decode("utf-8", "replace").splitlines()]
-                      bad = [l[:400] for l in lines if re.search(r"^FAIL|CRASH|Error:|AssertionError|ERR_|exit code|decisions correct|timed? ?out|ENOMEM|killed", l, re.I)]
+                      bad = [l[:400] for l in lines if re.search(r"^FAIL|CRASH|Error:|AssertionError|ERR_|exit code|decisions correct|timed? ?out|ENOMEM|killed|^\s*error \u2022|issues? found", l, re.I)]   # the last two are the Dart analyzer's own lines (app-compile-check.yml)
                       out["steps"].append({"file": n.split("/")[-1][:90], "line_count": len(lines), "matching_lines": bad[:40], "last_lines": [l[:300] for l in lines[-25:]]})
           except Exception as e:  # noqa: BLE001
               out["error"] = str(e)[:200]
