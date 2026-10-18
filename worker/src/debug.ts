@@ -24,6 +24,7 @@ import { addDirectoryMember, createBusiness, findDirectoryConflicts, isBusinessI
 import { convertTrial, extendTrial } from "./freetrial";
 import { seedBusinessName } from "./profile-seed";
 import { businessIsEmpty } from "./emptiness";
+import { recordSignIn, recordTeamEvent } from "./team-log";
 import { callBusiness } from "./routing";
 import { applyIndexes } from "./indexes";
 import { trialAi, trialD1, trialDo, trialTx } from "./trial";
@@ -1095,6 +1096,14 @@ if (url.pathname === "/debug/memberships" && request.method === "GET") {
       return Response.json({ memberships: enriched });
     }
 
+// A person signed in (signin.ts): their last-signed-in stamp (team-log.ts). Called by the Worker, best-effort on its side; it records nothing for an address that is not on the team.
+if (url.pathname === "/debug/record-sign-in" && request.method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { email?: unknown };
+      if (typeof body.email !== "string" || !body.email) return Response.json({ error: "email is required" }, { status: 400 });
+      await recordSignIn(env, body.email);
+      return Response.json({ status: "recorded" });
+    }
+
 // Is this business verifiably empty (emptiness.ts)? Asked by the Worker during the empty-business handover; it only reads.
 if (url.pathname === "/debug/emptiness" && request.method === "GET") {
       return Response.json(await businessIsEmpty(env, url.searchParams.get("email") ?? ""));
@@ -1124,6 +1133,8 @@ if (url.pathname === "/debug/create-membership" && request.method === "POST") {
         )
           .bind(body.google_email, body.role, typeof body.invited_by === "string" ? body.invited_by : null)
           .first<{ id: number }>();
+        // A membership made ON AN INVITATION (it carries who invited them) is the person accepting: that goes in the team log. One made by an operator or at signup carries no inviter and is not logged here.
+        if (typeof body.invited_by === "string") await recordTeamEvent(env, body.google_email, "joined", body.google_email, { role: body.role, invitedBy: body.invited_by });
         return Response.json({
           status: "created",
           id: inserted!.id,

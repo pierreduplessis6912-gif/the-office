@@ -16,7 +16,7 @@ async function body({ check, srcDir }) {
 
   // A world: the shared directory (a real SQLite behind the same shim the directory tests use) and a fake business namespace that answers like the real one (membership check, membership create) and can be told to fail.
   const world = (extra = {}) => {
-    const db = new DatabaseSync(':memory:'), objects = new Map(), calls = [], names = new Map(), state = { failCreate: false, failSeed: false, throwSeed: false, hasData: new Set() };
+    const db = new DatabaseSync(':memory:'), objects = new Map(), calls = [], names = new Map(), state = { failCreate: false, failSeed: false, throwSeed: false, hasData: new Set(), signIns: [], failSignIn: false, throwSignIn: false };
     const OFFICE_DB = { prepare: (sql) => { const st = (binds) => ({ bind: (...b) => st(b), first: async () => db.prepare(sql).get(...binds) ?? null, all: async () => ({ results: db.prepare(sql).all(...binds) }), run: async () => db.prepare(sql).run(...binds) }); return st([]); } };
     const BUSINESS = { idFromName: (name) => ({ name }), get: (id) => ({ fetch: async (url, init = {}) => {
       const u = new URL(typeof url === 'string' ? url : url.url), bid = id.name.replace(/^business-/, ''), mem = objects.get(bid) ?? objects.set(bid, new Map()).get(bid);
@@ -24,6 +24,7 @@ async function body({ check, srcDir }) {
       if (u.pathname === '/debug/membership-check') { const row = mem.get(u.searchParams.get('email')); return Response.json(row ? { found: true, role: row.role, status: row.status } : { found: false, role: null, status: null }); }
       if (u.pathname === '/debug/create-membership') { if (state.failCreate) return new Response('boom', { status: 500 }); const b = JSON.parse(init.body); mem.set(b.google_email, { role: b.role, status: 'active', invitedBy: b.invited_by ?? null }); return Response.json({ ok: true }); }
       if (u.pathname === '/debug/seed-business-name') { if (state.throwSeed) throw new Error('the object could not be reached'); if (state.failSeed) return new Response('boom', { status: 500 }); const b = JSON.parse(init.body); if (!names.has(bid)) names.set(bid, b.name); return Response.json({ ok: true }); }
+      if (u.pathname === '/debug/record-sign-in') { if (state.throwSignIn) throw new Error('the business object is unreachable'); if (state.failSignIn) return new Response('boom', { status: 500 }); state.signIns.push({ bid, email: JSON.parse(init.body).email }); return Response.json({ status: 'recorded' }); }
       if (u.pathname === '/debug/emptiness') { const owner = u.searchParams.get('email'); const only = [...mem.entries()]; return Response.json({ empty: !state.hasData.has(bid) && only.length === 1 && only[0][0] === owner && only[0][1].role === 'owner' }); }
       return new Response('?', { status: 404 }); } }) };
     return { db, objects, calls, names, state, env: { OFFICE_DB, SHARED_DB: OFFICE_DB, BUSINESS, ADMIN_KEY: 'k', SESSION_SECRET: 'secret-for-the-tests', BUSINESS_MODE: 'object', PLAN_CACHE_SECONDS: '0', ...extra } };
@@ -506,6 +507,37 @@ async function body({ check, srcDir }) {
     google('Regular@Gmail.com'); const reg = await worker.fetch(new Request('https://office.websitehub.co.za/auth/google/callback?code=c&state=S', { headers: { Cookie: 'oauth_state=S', Accept: 'text/html' } }), penv, ctx); check(reg.status === 302 && new URL(reg.headers.get('Location')).searchParams.get('role') === 'owner', 'an operator-created business\'s member with a pending invitation is NOT interrupted: straight in, as always');
   }
   check(/maybeHandoverPage\(request, env, sessionEmail, accessForHandover\)/.test(src('index.ts')) && /export async function maybeHandoverPage/.test(src('signup.ts')) && /closed_into/.test(src('directory.ts')) && /selfStarted/.test(src('directory.ts')), 'the callback offers the choice only through maybeHandoverPage, and the directory records closed_into and whether a business was self-started');
+
+  // ---- the SIGN-IN STAMP (signin.ts records every session that is issued, in the business it is for; team-log.ts keeps it) ----------------------------------------------------------------------------------------------------
+  const signedIn = (x) => x.state.signIns.map((s) => `${s.email}@${s.bid}`);
+  {
+    const x = world(); await m.handleSignupPost(post({ token: await tokenFor(x.env, 'founder@gmail.com'), business_name: 'Founder Floors', agree: 'on' }, '3.3.3.3'), x.env); const id = rows(x)[0].id;
+    check(JSON.stringify(signedIn(x)) === JSON.stringify([`founder@gmail.com@${id}`]), 'starting a business records the owner\'s sign-in in THAT business');
+  }
+  {
+    const { x, id } = await invited(); await join(x, await tokenFor(x.env, 'newhire@gmail.com'), id);
+    check(JSON.stringify(signedIn(x)) === JSON.stringify(['newhire@gmail.com@live-co']), 'joining on an invitation records the sign-in in the business joined');
+    const again = await join(x, await tokenFor(x.env, 'newhire@gmail.com'), id); check(signedIn(x).length === 2 && again.status === 303, 'and signing in again records again (a count, not a duplicate row: the business keeps one row per person)');
+  }
+  {
+    const w = await handoverWorld(); const before = signedIn(w.x).length; await handoverPost(w.x, await tokenFor(w.x.env, 'newhire@gmail.com'), { invitation: String(w.id), handover: '1' });
+    const after = signedIn(w.x).slice(before); check(JSON.stringify(after) === JSON.stringify(['newhire@gmail.com@live-co']), 'a handover records the sign-in in the NEW business, not in the empty one that was closed');
+    const k = await handoverWorld(); const kb = signedIn(k.x).length; await handoverPost(k.x, await tokenFor(k.x.env, 'newhire@gmail.com'), { invitation: String(k.id), keep: '1' }); check(JSON.stringify(signedIn(k.x).slice(kb)) === JSON.stringify([`newhire@gmail.com@${k.mine}`]), 'keeping their own business records it there');
+  }
+  {
+    const { x, id } = await invited(); x.state.failSignIn = true; const r = await join(x, await tokenFor(x.env, 'newhire@gmail.com'), id);
+    check(r.status === 303 && new URL(r.headers.get('Location')).protocol === 'theoffice:' && /office_session=/.test(r.headers.get('Set-Cookie')), 'when the sign-in cannot be RECORDED the person is signed in anyway (recording is best-effort and never blocks a sign-in)');
+    const th = await invited({ email: 'thrower@gmail.com' }); th.x.state.throwSignIn = true; const tr = await join(th.x, await tokenFor(th.x.env, 'thrower@gmail.com'), th.id); check(tr.status === 303 && /office_session=/.test(tr.headers.get('Set-Cookie')), 'and when calling the business THROWS (it is unreachable) the person is still signed in');
+    const plain = await invited({ email: 'regular@gmail.com' }); const penv = { ...plain.x.env, GOOGLE_CLIENT_ID: 'client-id', GOOGLE_CLIENT_SECRET: 'secret' }; await m.createBusiness(plain.x.env, 'real-co', 'Real Co'); await m.addDirectoryMember(plain.x.env, 'regular@gmail.com', 'real-co'); plain.x.objects.set('real-co', new Map([['regular@gmail.com', { role: 'owner', status: 'active' }]]));
+    google('Regular@Gmail.com'); const reg = await worker.fetch(new Request('https://office.websitehub.co.za/auth/google/callback?code=c&state=S', { headers: { Cookie: 'oauth_state=S' } }), penv, ctx);
+    check(reg.status === 302 && JSON.stringify(signedIn(plain.x)) === JSON.stringify(['regular@gmail.com@real-co']), 'an ordinary Google sign-in through the real entry point records the sign-in in the member\'s business (for a browser or anything else)');
+  }
+  {
+    const sIn = src('signin.ts'), dbg = src('debug.ts'), adm = src('admin-routes.ts');
+    check(/callBusiness\(env, who\.businessId, "POST", "\/debug\/record-sign-in", \{ email: who\.sessionEmail \}\)/.test(sIn) && /try \{[\s\S]{0,400}\} catch/.test(sIn) && /BUSINESS_MODE === "object"/.test(sIn), 'the ONE place a session is issued records the sign-in, only in object mode, inside a try/catch');
+    check(/url\.pathname === "\/debug\/record-sign-in" && request\.method === "POST"/.test(dbg) && /"POST \/debug\/record-sign-in": "privileged"/.test(adm), 'the recording is a PRIVILEGED admin route inside the business object (only the Worker can call it)');
+    check(/typeof body\.invited_by === "string"[\s\S]{0,200}recordTeamEvent\(env, body\.google_email, "joined"/.test(dbg), 'a membership created ON AN INVITATION is logged as "joined" (and one created by an operator or at signup is not)');
+  }
 
   // ---- how it is wired in ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   const index = src('index.ts');
