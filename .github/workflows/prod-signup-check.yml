@@ -31,6 +31,8 @@ jobs:
           curl -s -o /dev/null -w '%{http_code}' "$PROD_URL/customers" > "$RESULTS/anon.s"
           curl -s -o /dev/null -w '%{http_code}' "$PROD_URL/team" > "$RESULTS/team.s"
           curl -s -o /dev/null -w '%{http_code}' -X POST -H "Content-Type: application/json" -d '{"email":"nobody@example.com","role":"owner"}' "$PROD_URL/team" > "$RESULTS/teampost.s"
+          curl -s -o /dev/null -w '%{http_code}' -X POST -H "Content-Type: application/json" -d '{"email":"nobody@example.com","role":"owner"}' "$PROD_URL/team/invite" > "$RESULTS/teaminvite.s"
+          curl -s -o "$RESULTS/join.b" -w '%{http_code}' -X POST --data-urlencode "token=garbage" --data-urlencode "invitation=1" "$PROD_URL/auth/join" > "$RESULTS/join.s"
           python3 - <<'PY'
           import json, os, re, sys
           r = os.environ["RESULTS"]
@@ -45,8 +47,9 @@ jobs:
               "the_sign_in_start_still_sends_people_to_google": rd("login.s").strip() == "302" and "accounts.google.com" in head("login.h", "location"),
               "a_stranger_is_still_refused_the_data": rd("anon.s").strip() == "401",
               "a_stranger_is_refused_the_team_list_and_cannot_add_a_person": rd("team.s").strip() == "401" and rd("teampost.s").strip() == "401",
+              "a_stranger_cannot_send_an_invitation_and_a_garbage_join_is_refused_with_a_page": rd("teaminvite.s").strip() == "401" and rd("join.s").strip() == "400" and "took too long" in rd("join.b"),
           }
-          out["answers"] = {k: rd(k + ".s").strip() for k in ("health", "garbage", "callback", "login", "anon", "team", "teampost")}
+          out["answers"] = {k: rd(k + ".s").strip() for k in ("health", "garbage", "callback", "login", "anon", "team", "teampost", "teaminvite", "join")}
           out["running_commit"] = (json.loads(rd("health.b")).get("commit") if rd("health.b").strip().startswith("{") else None)
           json.dump(out, open(os.path.join(r, "check.json"), "w"), indent=1)
           bad = [k for k, v in out.items() if v is False]
