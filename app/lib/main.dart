@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
@@ -1416,6 +1417,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         onStockTap: _showStockSheet,
         onCustomersTap: _showCustomersSheet,
         onPermissionsTap: _showPermissionsSheet,
+        onTeamTap: _showTeamSheet,
       ),
       body: SafeArea(
         child: Stack(
@@ -2126,6 +2128,19 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     );
   }
 
+  // The team (2026-10-18): the owner's own people. Opened like every other room.
+  Future<void> _showTeamSheet(Offset origin) async {
+    await _igniteEmber(origin, _emberBlue);
+    if (!mounted) return;
+    await showOfficeRoom(
+      context: context,
+      officeState: _officeState,
+      origin: origin,
+      accentColor: _emberBlue,
+      builder: (context) => _TeamRoomContent(authHeaders: _authHeaders()),
+    );
+  }
+
   // Real, new room, per direct instruction, part of the real
   // discoverability-plus-audit pass, third and final domain — same
   // real pattern as Snags and Leads, above.
@@ -2313,6 +2328,7 @@ class _OfficeDrawer extends StatelessWidget {
   final void Function(Offset) onStockTap;
   final void Function(Offset) onCustomersTap;
   final void Function(Offset) onPermissionsTap;
+  final void Function(Offset) onTeamTap;
   const _OfficeDrawer({
     required this.onReportsTap,
     required this.onPeopleTap,
@@ -2324,6 +2340,7 @@ class _OfficeDrawer extends StatelessWidget {
     required this.onStockTap,
     required this.onCustomersTap,
     required this.onPermissionsTap,
+    required this.onTeamTap,
   });
 
   @override
@@ -2365,6 +2382,8 @@ class _OfficeDrawer extends StatelessWidget {
             _drawerItem(Icons.people_alt_outlined, 'Customers', onCustomersTap, context),
             // The permission grid. Owner only: the server refuses anyone else, and the room says so.
             _drawerItem(Icons.lock_outline, 'Permissions', onPermissionsTap, context),
+            // The team (2026-10-18): the owner adds people, invites them, changes roles and deactivates. Owner only: the server refuses anyone else and the room says so.
+            _drawerItem(Icons.group_add_outlined, 'Team', onTeamTap, context),
           ],
         ),
       ),
@@ -5539,6 +5558,499 @@ class _LeadsRoomContentState extends State<_LeadsRoomContent> {
 // only shows what the server returns and asks the server to change it; every rule (the owner cannot be edited, owner-only
 // permissions cannot be given away, a permission nothing uses cannot be switched) lives on the server, so the screen cannot
 // get around them. Anyone who is not the owner is refused by the server and told so here.
+// The team room (2026-10-18; server side: worker/src/team.ts). The owner sees who is on the team, adds a person straight away or INVITES them (they accept when they sign in with that Google account), changes a role, and
+// deactivates or reactivates someone. The server decides everything (who may, which roles, what is refused and why); this room only shows what it says and sends what it asks, and shows the server's own words when it refuses.
+// Owner only: anyone else gets the server's refusal and the room says so. Nothing here needs a new package (sharing is copying a ready-made message).
+class _TeamRoomContent extends StatefulWidget {
+  final Map<String, String> authHeaders;
+  const _TeamRoomContent({required this.authHeaders});
+
+  @override
+  State<_TeamRoomContent> createState() => _TeamRoomContentState();
+}
+
+class _TeamRoomContentState extends State<_TeamRoomContent> {
+  List<dynamic> _members = [];
+  List<dynamic> _invitations = [];
+  List<String> _roles = ['owner', 'admin', 'accountant', 'sales', 'installer'];
+  final TextEditingController _email = TextEditingController();
+  String _role = 'installer';
+  bool _loading = true;
+  bool _sending = false;
+  int? _busyId;
+  String? _error;
+  String? _notice;
+  String? _shareText;
+
+  static const Map<String, String> _roleNames = {
+    'owner': 'Co-owner',
+    'admin': 'Admin',
+    'accountant': 'Accountant',
+    'sales': 'Sales',
+    'installer': 'Installer',
+  };
+
+  static const Map<String, String> _roleHints = {
+    'owner': 'Everything you can do, including managing the team.',
+    'admin': 'Runs the office day to day: money in and out, suppliers, jobs. No profit, payroll or banking, and cannot manage the team.',
+    'accountant': 'Money, profit, payroll and banking. No jobs.',
+    'sales': 'Sees every job, measurements and materials. No money.',
+    'installer': 'Sees only their own jobs, measurements and materials.',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  @override
+  void dispose() {
+    _email.dispose();
+    super.dispose();
+  }
+
+  Map<String, String> get _jsonHeaders => {...widget.authHeaders, 'Content-Type': 'application/json'};
+
+  String _roleName(String role) => _roleNames[role] ?? role;
+
+  String _problem(int status) {
+    if (status == 403) return 'Only the owner can manage the team.';
+    return 'Could not reach the team right now.';
+  }
+
+  // The server's own words when it refuses (they say exactly why), otherwise a plain fallback.
+  String _messageFrom(http.Response response) {
+    try {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (data['error'] is String) return data['error'] as String;
+    } catch (_) {}
+    return _problem(response.statusCode);
+  }
+
+  Future<void> _fetch({bool quiet = false}) async {
+    if (!quiet) setState(() => _loading = true);
+    try {
+      final response = await http.get(Uri.parse('$officeApiBase/team'), headers: widget.authHeaders);
+      if (response.statusCode != 200) {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = _problem(response.statusCode);
+        });
+        return;
+      }
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (!mounted) return;
+      setState(() {
+        _members = data['members'] as List? ?? [];
+        _invitations = data['invitations'] as List? ?? [];
+        final roles = (data['roles'] as List? ?? []).whereType<String>().toList();
+        if (roles.isNotEmpty) _roles = roles;
+        if (!_roles.contains(_role)) _role = _roles.last;
+        _loading = false;
+        _error = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Could not reach the team right now.';
+      });
+    }
+  }
+
+  // Adding straight away ('/team') or inviting ('/team/invite'). Either way the server answers with what it did, or why not.
+  Future<void> _send({required bool invite}) async {
+    final email = _email.text.trim();
+    if (email.isEmpty) {
+      setState(() => _error = 'Type the Google email address they will sign in with.');
+      return;
+    }
+    setState(() {
+      _sending = true;
+      _error = null;
+      _notice = null;
+      _shareText = null;
+    });
+    try {
+      final response = await http.post(
+        Uri.parse(invite ? '$officeApiBase/team/invite' : '$officeApiBase/team'),
+        headers: _jsonHeaders,
+        body: jsonEncode({'email': email, 'role': _role}),
+      );
+      if (!mounted) return;
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        _email.clear();
+        setState(() {
+          _notice = invite
+              ? 'Invitation sent to $email. They accept it when they sign in with that Google account.'
+              : '$email can sign in now, as ${_roleName(_role).toLowerCase()}.';
+          _shareText = invite
+              ? 'I have invited you to join our business on The Office. Install the app and sign in with Google using $email, then tap Join.'
+              : 'I have added you to our business on The Office. Install the app and sign in with Google using $email.';
+        });
+        await _fetch(quiet: true);
+      } else {
+        setState(() => _error = _messageFrom(response));
+      }
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Could not reach the team right now.');
+    }
+    if (mounted) setState(() => _sending = false);
+  }
+
+  Future<void> _changeRole(Map<String, dynamic> member, String role) async {
+    final id = member['id'] as int?;
+    if (id == null) return;
+    setState(() {
+      _busyId = id;
+      _error = null;
+      _notice = null;
+    });
+    try {
+      final response = await http.patch(Uri.parse('$officeApiBase/team/$id'), headers: _jsonHeaders, body: jsonEncode({'role': role}));
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        await _fetch(quiet: true);
+      } else {
+        setState(() => _error = _messageFrom(response));
+      }
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Could not change that right now.');
+    }
+    if (mounted) setState(() => _busyId = null);
+  }
+
+  Future<void> _setActive(Map<String, dynamic> member, bool active) async {
+    final id = member['id'] as int?;
+    if (id == null) return;
+    final email = member['email'] as String? ?? 'this person';
+    if (!active) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: _charcoal,
+          title: Text('Deactivate $email?', style: GoogleFonts.workSans(color: _paper, fontSize: 16)),
+          content: Text('They lose access straight away. You can bring them back later.', style: GoogleFonts.workSans(color: _muted, fontSize: 13)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text('CANCEL', style: GoogleFonts.ibmPlexMono(color: _muted, fontSize: 11, letterSpacing: 0.8)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text('DEACTIVATE', style: GoogleFonts.ibmPlexMono(color: _stampRed, fontSize: 11, letterSpacing: 0.8)),
+            ),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
+    }
+    setState(() {
+      _busyId = id;
+      _error = null;
+      _notice = null;
+    });
+    try {
+      final response = await http.post(Uri.parse('$officeApiBase/team/$id/${active ? 'reactivate' : 'deactivate'}'), headers: _jsonHeaders, body: jsonEncode({}));
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        await _fetch(quiet: true);
+      } else {
+        setState(() => _error = _messageFrom(response));
+      }
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Could not change that right now.');
+    }
+    if (mounted) setState(() => _busyId = null);
+  }
+
+  Future<void> _revoke(Map<String, dynamic> invitation) async {
+    final id = invitation['id'] as int?;
+    if (id == null) return;
+    setState(() {
+      _busyId = id;
+      _error = null;
+      _notice = null;
+    });
+    try {
+      final response = await http.post(Uri.parse('$officeApiBase/team/invitations/$id/revoke'), headers: _jsonHeaders, body: jsonEncode({}));
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        await _fetch(quiet: true);
+      } else {
+        setState(() => _error = _messageFrom(response));
+      }
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Could not withdraw that right now.');
+    }
+    if (mounted) setState(() => _busyId = null);
+  }
+
+  Future<void> _copyShare() async {
+    final text = _shareText;
+    if (text == null) return;
+    await Clipboard.setData(ClipboardData(text: text));
+    if (mounted) setState(() => _notice = 'Copied. Paste it into WhatsApp or a message to them.');
+  }
+
+  String _day(String? iso) {
+    if (iso == null || iso.length < 10) return '';
+    return iso.substring(0, 10);
+  }
+
+  Widget _label(String text) => Padding(
+        padding: const EdgeInsets.only(top: 22, bottom: 6),
+        child: Text(text, style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 1)),
+      );
+
+  Widget _addPanel() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: _email,
+          keyboardType: TextInputType.emailAddress,
+          autocorrect: false,
+          enableSuggestions: false,
+          textCapitalization: TextCapitalization.none,
+          style: GoogleFonts.workSans(color: _paper, fontSize: 15),
+          decoration: InputDecoration(
+            hintText: 'Their Google email address',
+            hintStyle: GoogleFonts.workSans(color: _textTertiary, fontSize: 14),
+            enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: _textTertiary)),
+            focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: _paper)),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            for (final r in _roles)
+              _FilterChip(label: _roleName(r).toUpperCase(), selected: r == _role, onTap: () => setState(() => _role = r)),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(_roleHints[_role] ?? '', style: GoogleFonts.workSans(color: _muted, fontSize: 12.5)),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _sending ? null : () => _send(invite: false),
+                child: Text('ADD NOW', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 11, letterSpacing: 0.8)),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _sending ? null : () => _send(invite: true),
+                child: Text('INVITE', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 11, letterSpacing: 0.8)),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text('Add now lets them in as soon as they sign in. Invite waits until they accept it.', style: GoogleFonts.workSans(color: _muted, fontSize: 12)),
+        if (_sending)
+          const Padding(
+            padding: EdgeInsets.only(top: 10),
+            child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: _textTertiary)),
+          ),
+        if (_notice != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Text(_notice!, style: GoogleFonts.workSans(color: _confirmedGreen, fontSize: 12.5)),
+          ),
+        if (_shareText != null)
+          InkWell(
+            onTap: _copyShare,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text('COPY A MESSAGE TO SEND THEM', style: GoogleFonts.ibmPlexMono(color: _emberBlue, fontSize: 10.5, letterSpacing: 0.8, fontWeight: FontWeight.w600)),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _memberCard(Map<String, dynamic> m) {
+    final id = m['id'] as int?;
+    final role = m['role'] as String? ?? '';
+    final active = (m['status'] as String? ?? 'active') == 'active';
+    final invitedBy = m['invitedBy'] as String?;
+    final busy = id != null && _busyId == id;
+    final isOwner = role == 'owner';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(m['email'] as String? ?? '', style: GoogleFonts.workSans(color: active ? _paper : _muted, fontSize: 14, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 3),
+                Row(
+                  children: [
+                    Text(_roleName(role).toUpperCase(), style: GoogleFonts.ibmPlexMono(color: _muted, fontSize: 10, letterSpacing: 0.8)),
+                    if (!active) ...[
+                      const SizedBox(width: 8),
+                      Text('DEACTIVATED', style: GoogleFonts.ibmPlexMono(color: _stampRed, fontSize: 9.5, letterSpacing: 0.8)),
+                    ],
+                  ],
+                ),
+                if (invitedBy != null && invitedBy.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Text('Added by $invitedBy', style: GoogleFonts.workSans(color: _textTertiary, fontSize: 11.5)),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          if (busy)
+            const Padding(
+              padding: EdgeInsets.only(top: 6, right: 8),
+              child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: _textTertiary)),
+            )
+          else if (isOwner)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text('OWNER', style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 9.5, letterSpacing: 0.8)),
+            )
+          else
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                PopupMenuButton<String>(
+                  color: _charcoal,
+                  icon: const Icon(Icons.swap_horiz, size: 18, color: _muted),
+                  tooltip: 'Change role',
+                  onSelected: (r) => _changeRole(m, r),
+                  itemBuilder: (context) => [
+                    for (final r in _roles)
+                      if (r != role) PopupMenuItem<String>(value: r, child: Text('Make ${_roleName(r)}', style: GoogleFonts.workSans(color: _paper, fontSize: 13))),
+                  ],
+                ),
+                IconButton(
+                  icon: Icon(active ? Icons.person_off_outlined : Icons.person_add_alt_1_outlined, size: 18),
+                  color: active ? _stampRed : _confirmedGreen,
+                  tooltip: active ? 'Deactivate' : 'Reactivate',
+                  onPressed: () => _setActive(m, !active),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _invitationCard(Map<String, dynamic> i) {
+    final id = i['id'] as int?;
+    final busy = id != null && _busyId == id;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(i['email'] as String? ?? '', style: GoogleFonts.workSans(color: _paper, fontSize: 14, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 3),
+                Text(
+                  '${_roleName(i['role'] as String? ?? '').toUpperCase()}   waiting until ${_day(i['expiresAt'] as String?)}',
+                  style: GoogleFonts.ibmPlexMono(color: _muted, fontSize: 10, letterSpacing: 0.6),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          if (busy)
+            const Padding(
+              padding: EdgeInsets.only(top: 6, right: 8),
+              child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: _textTertiary)),
+            )
+          else
+            InkWell(
+              onTap: () => _revoke(i),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                child: Text('WITHDRAW', style: GoogleFonts.ibmPlexMono(color: _stampRed, fontSize: 10, letterSpacing: 0.8, fontWeight: FontWeight.w600)),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: _void,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('TEAM', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    color: _muted,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text('The people who can sign in to your business, and what they can do.', style: GoogleFonts.workSans(color: _muted, fontSize: 12.5)),
+              const SizedBox(height: 10),
+              if (_loading)
+                const Padding(padding: EdgeInsets.only(top: 24), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+              else if (_members.isEmpty && _error != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 24),
+                  child: Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)),
+                )
+              else
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.only(top: 4),
+                    children: [
+                      if (_error != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(_error!, style: GoogleFonts.workSans(color: _stampRed, fontSize: 12.5)),
+                        ),
+                      _label('ADD SOMEONE'),
+                      _addPanel(),
+                      _label('ON THE TEAM'),
+                      for (final m in _members) _memberCard(m as Map<String, dynamic>),
+                      if (_invitations.isNotEmpty) ...[
+                        _label('INVITED, NOT JOINED YET'),
+                        for (final i in _invitations) _invitationCard(i as Map<String, dynamic>),
+                      ],
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _PermissionsRoomContent extends StatefulWidget {
   final Map<String, String> authHeaders;
   const _PermissionsRoomContent({required this.authHeaders});
