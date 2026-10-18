@@ -59,6 +59,15 @@ export interface Env {
   SIGNUP_IP_DAILY_CAP?: string;
   // One plain sentence shown to an owner whose trial has ended, finishing "To keep using The Office, ...": for example "call Pierre on 082 ...". Unset: "please contact us".
   SUPPORT_CONTACT?: string;
+  // PayFast (billing.ts). Sandbox is the default; live needs PAYFAST_MODE=live and the live merchant. The secrets are set by the deploy, never committed; PAYFAST_SKIP_CONFIRM is a staging-only test seam that live mode ignores.
+  PAYFAST_MODE?: string;
+  PAYFAST_MERCHANT_ID?: string;
+  PAYFAST_MERCHANT_KEY?: string;
+  PAYFAST_PASSPHRASE?: string;
+  PAYFAST_SANDBOX_MERCHANT_ID?: string;
+  PAYFAST_SANDBOX_MERCHANT_KEY?: string;
+  PAYFAST_SANDBOX_PASSPHRASE?: string;
+  PAYFAST_SKIP_CONFIRM?: string;
   // "0" switches off the per-business model usage metering (usage.ts). On by default.
   METER_USAGE?: string;
   // "1" freezes every request that changes something (for the final copy of a migration). See freeze.ts.

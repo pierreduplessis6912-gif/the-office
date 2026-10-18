@@ -1,0 +1,186 @@
+// The payment flow (billing slice 2). An owner chooses a plan; we make an ORDER whose amount is fixed by OUR price table (never by the payer), send them to PayFast with a signed subscription, and PayFast reports the result in a notification (ITN).
+// The notification handler is where money is decided. Its order: not configured (503), a signature that does not verify (400), PayFast's own confirmation (400 unless exactly "VALID"), and ONLY THEN anything is read or written. Then: the same payment
+// is never applied twice (a unique PayFast payment id); a notification must name the order's own business; the amount must equal the order EXACTLY; a renewal must carry the subscription's own token; a refused notification is recorded as
+// rejected and changes nothing (and still answers 200, so PayFast stops retrying). The source address is recorded but advisory (PayFast can change its ranges, and a wrong list would silently reject real payments). The ledger holds no names or
+// email addresses. A fault here must never touch a business that has not paid. Pinned in tools/billing.test.js; what it cannot prove is that PayFast's own sandbox accepts our signature (a real sandbox payment does).
+import { clearPlanCache, listOffers } from "./limits";
+import { buildCheckout, confirmWithPayFast, ipAllowed, parseItnBody, randToCents, verifyItnSignature, type Pair } from "./payfast";
+import type { Env } from "./types";
+
+// ---- configuration ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+export interface PayFastConfig { sandbox: boolean; merchantId: string; merchantKey: string; passphrase: string; skipConfirm: boolean }
+// SANDBOX unless PAYFAST_MODE is exactly "live", so no real money can move by accident. Live never borrows the sandbox merchant, and the confirmation-skipping test seam is ignored in live mode.
+export function payfastConfig(env: Env): PayFastConfig | null {
+  const sandbox = env.PAYFAST_MODE !== "live";
+  const merchantId = (sandbox ? env.PAYFAST_SANDBOX_MERCHANT_ID : env.PAYFAST_MERCHANT_ID) ?? "";
+  const merchantKey = (sandbox ? env.PAYFAST_SANDBOX_MERCHANT_KEY : env.PAYFAST_MERCHANT_KEY) ?? "";
+  if (!merchantId.trim() || !merchantKey.trim()) return null;
+  return { sandbox, merchantId: merchantId.trim(), merchantKey: merchantKey.trim(), passphrase: ((sandbox ? env.PAYFAST_SANDBOX_PASSPHRASE : env.PAYFAST_PASSPHRASE) ?? "").trim(), skipConfirm: sandbox && env.PAYFAST_SKIP_CONFIRM === "1" };
+}
+
+// ---- tables (created by the writers; the directory's other billing columns too) -----------------------------------------------------------------------------------------------------------------------------
+const DDL = [
+  "CREATE TABLE IF NOT EXISTS billing_orders (id TEXT PRIMARY KEY, business_id TEXT NOT NULL, plan TEXT NOT NULL, interval TEXT NOT NULL, seats INTEGER NOT NULL, amount_cents INTEGER NOT NULL, item_name TEXT NOT NULL, payer_email TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT (datetime('now')), completed_at TEXT)",
+  "CREATE INDEX IF NOT EXISTS idx_billing_orders_business ON billing_orders (business_id, status)",
+  "CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY AUTOINCREMENT, pf_payment_id TEXT NOT NULL UNIQUE, order_id TEXT, business_id TEXT, token TEXT, status TEXT NOT NULL, amount_gross_cents INTEGER, amount_fee_cents INTEGER, confirmed INTEGER NOT NULL DEFAULT 0, ip_ok INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')))",
+];
+const BUSINESS_COLUMNS: Array<[string, string]> = [["billing_status", "TEXT"], ["billing_interval", "TEXT"], ["pf_token", "TEXT"], ["period_end", "TEXT"], ["grace_until", "TEXT"]];
+export async function ensureBilling(env: Env): Promise<void> {
+  for (const sql of DDL) await env.OFFICE_DB.prepare(sql).run();
+  const { results } = await env.OFFICE_DB.prepare("PRAGMA table_info(businesses)").all<{ name: string }>();
+  const have = new Set((results ?? []).map((r) => r.name));
+  for (const [name, type] of BUSINESS_COLUMNS) if (!have.has(name)) await env.OFFICE_DB.prepare(`ALTER TABLE businesses ADD COLUMN ${name} ${type}`).run();
+}
+
+// ---- dates (UTC, whole days; a month that is shorter clamps: 31 January plus a month is 28 February) ---------------------------------------------------------------------------------------------------
+const ymd = (d: Date): string => d.toISOString().slice(0, 10);
+export function addMonths(date: string, months: number): string {
+  const [y, m, d] = date.split("-").map(Number);
+  const total = y * 12 + (m - 1) + months, year = Math.floor(total / 12), month = total % 12;
+  const last = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return ymd(new Date(Date.UTC(year, month, Math.min(d, last))));
+}
+const addDays = (date: string, days: number): string => ymd(new Date(Date.parse(`${date}T00:00:00Z`) + days * 86400000));
+const GRACE_DAYS = 7;
+
+// ---- an order -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+export interface Order { id: string; businessId: string; plan: string; interval: "monthly" | "annual"; seats: number; amountCents: number; itemName: string; payerEmail: string }
+export type OrderResult = { ok: true; order: Order } | { ok: false; status: number; error: string };
+type OrderRow = { id: string; business_id: string; plan: string; interval: "monthly" | "annual"; seats: number; amount_cents: number; item_name: string; payer_email: string; status: string };
+const toOrder = (r: OrderRow): Order => ({ id: r.id, businessId: r.business_id, plan: r.plan, interval: r.interval, seats: r.seats, amountCents: r.amount_cents, itemName: r.item_name, payerEmail: r.payer_email });
+const MAX_SEATS = 1000;
+
+// The amount is the plan's price in OUR table, per seat for a per-seat plan, times the seats: the payer never supplies it. A plan that is not public, has no price for that interval, or is the trial cannot be bought online.
+export async function createOrder(env: Env, input: { businessId: unknown; payerEmail: unknown; plan: unknown; interval: unknown; seats: unknown }): Promise<OrderResult> {
+  if (input.interval !== "monthly" && input.interval !== "annual") return { ok: false, status: 400, error: "Choose monthly or annual billing." };
+  const email = typeof input.payerEmail === "string" ? input.payerEmail.trim().toLowerCase() : "";
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, status: 400, error: "We need the owner's email address to take payment." };
+  if (typeof input.businessId !== "string" || typeof input.plan !== "string") return { ok: false, status: 400, error: "Choose a plan." };
+  if (!payfastConfig(env)) return { ok: false, status: 503, error: "Payments are not set up yet." };
+  const offer = (await listOffers(env)).find((o) => o.name === input.plan && o.public);
+  const price = offer ? (input.interval === "monthly" ? offer.monthlyCents : offer.annualCents) : null;
+  if (!offer || price === null) return { ok: false, status: 400, error: "That plan cannot be bought online." };
+  let seats = 1;
+  if (offer.perSeat) {
+    if (typeof input.seats !== "number" || !Number.isInteger(input.seats) || input.seats < offer.minSeats || input.seats > MAX_SEATS) return { ok: false, status: 400, error: `Choose between ${offer.minSeats} and ${MAX_SEATS} seats.` };
+    seats = input.seats;
+  }
+  const business = await env.OFFICE_DB.prepare("SELECT status FROM businesses WHERE id = ?").bind(input.businessId).first<{ status: string }>();
+  if (!business) return { ok: false, status: 404, error: "There is no such business." };
+  if (business.status !== "active") return { ok: false, status: 409, error: "This business cannot be changed right now." };
+  await ensureBilling(env);
+  const id = crypto.randomUUID();
+  const amountCents = price * seats;
+  const itemName = `The Office ${offer.label}${offer.perSeat ? ` (${seats} seat${seats === 1 ? "" : "s"})` : ""}`;
+  await env.OFFICE_DB.prepare("INSERT INTO billing_orders (id, business_id, plan, interval, seats, amount_cents, item_name, payer_email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").bind(id, input.businessId, offer.name, input.interval, seats, amountCents, itemName, email).run();
+  return { ok: true, order: { id, businessId: input.businessId, plan: offer.name, interval: input.interval, seats, amountCents, itemName, payerEmail: email } };
+}
+
+// ---- the signed checkout and the page that sends the payer to PayFast ----------------------------------------------------------------------------------------------------------------------------------------
+export function checkoutFor(env: Env, order: Order, origin: string, today: string): { url: string; fields: Pair[] } {
+  const config = payfastConfig(env);
+  if (!config) throw new Error("PayFast is not configured");
+  return buildCheckout({
+    merchantId: config.merchantId, merchantKey: config.merchantKey, passphrase: config.passphrase, sandbox: config.sandbox,
+    orderId: order.id, amountCents: order.amountCents, itemName: order.itemName, itemDescription: order.interval === "monthly" ? "Monthly subscription" : "Annual subscription",
+    frequency: order.interval, email: order.payerEmail, businessId: order.businessId, customStr2: `${order.plan}:${order.interval}:${order.seats}`,
+    returnUrl: `${origin}/billing/return`, cancelUrl: `${origin}/billing/cancelled`, notifyUrl: `${origin}/billing/payfast/notify`, today,
+  });
+}
+
+const escapeHtml = (s: string): string => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
+const html = (body: string, status = 200): Response => new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>The Office</title><style>body{font-family:system-ui,sans-serif;max-width:30rem;margin:3rem auto;padding:0 1rem;color:#111}button{font-size:1rem;padding:.8rem 1.2rem}</style></head><body>${body}</body></html>`, { status, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" } });
+
+export async function payPage(env: Env, orderId: string, origin: string, now: Date = new Date()): Promise<Response> {
+  if (!/^[0-9a-f-]{36}$/i.test(orderId)) return html("<h1>Not found</h1>", 404);
+  const row = await env.OFFICE_DB.prepare("SELECT id, business_id, plan, interval, seats, amount_cents, item_name, payer_email, status FROM billing_orders WHERE id = ?").bind(orderId).first<OrderRow>();
+  if (!row) return html("<h1>Not found</h1>", 404);
+  if (row.status === "completed") return html("<h1>Already paid</h1><p>This order has been paid. You can return to the app.</p>");
+  if (!payfastConfig(env)) return html("<h1>Payments are not set up yet</h1><p>Please try again later.</p>", 503);
+  const checkout = checkoutFor(env, toOrder(row), origin, ymd(now));
+  const inputs = checkout.fields.map(([k, v]) => `<input type="hidden" name="${escapeHtml(k)}" value="${escapeHtml(v)}">`).join("\n");
+  return html(`<h1>Taking you to PayFast</h1><p>${escapeHtml(row.item_name)}: R${(row.amount_cents / 100).toFixed(2)} ${row.interval === "monthly" ? "a month" : "a year"}.</p><form method="post" action="${escapeHtml(checkout.url)}" id="pf">\n${inputs}\n<button type="submit">Continue to PayFast</button>\n</form><script>document.getElementById("pf").submit();</script>`);
+}
+
+// ---- the notification ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+export interface NotifyResult { status: number; outcome: string }
+type Fetch = (url: string, init: RequestInit) => Promise<Response>;
+
+export async function handleNotification(env: Env, rawBody: string, ip: string | null, fetchFn: Fetch, now: Date = new Date()): Promise<NotifyResult> {
+  const config = payfastConfig(env);
+  if (!config) return { status: 503, outcome: "not_configured" };
+  const pairs = parseItnBody(rawBody);
+  if (pairs.length === 0 || !verifyItnSignature(pairs, config.passphrase)) return { status: 400, outcome: "bad_signature" };
+  if (!config.skipConfirm && !(await confirmWithPayFast(fetchFn, config.sandbox, pairs))) return { status: 400, outcome: "not_confirmed" };
+  const field = (name: string): string => [...pairs].reverse().find(([k]) => k === name)?.[1] ?? "";
+  const pfPaymentId = field("pf_payment_id");
+  if (!pfPaymentId) return { status: 400, outcome: "bad_body" };
+  try {
+    await ensureBilling(env);
+    return await decide(env, config, field, pfPaymentId, ip, ymd(now));
+  } catch {
+    return { status: 500, outcome: "error" };   // PayFast retries a non-200: nothing was half-applied that a retry cannot finish
+  }
+}
+
+async function decide(env: Env, _config: PayFastConfig, field: (n: string) => string, pfPaymentId: string, ip: string | null, today: string): Promise<NotifyResult> {
+  const db = env.OFFICE_DB;
+  const status = field("payment_status"), token = field("token") || null, orderId = field("m_payment_id"), claimedBusiness = field("custom_str1");
+  const gross = randToCents(field("amount_gross")), fee = randToCents(field("amount_fee").replace(/^-/, ""));
+  const ipOk = ipAllowed(ip) ? 1 : 0;
+  if (status !== "COMPLETE" && status !== "FAILED" && status !== "CANCELLED") return { status: 200, outcome: "ignored" };
+
+  const seen = await db.prepare("SELECT status FROM payments WHERE pf_payment_id = ?").bind(pfPaymentId).first<{ status: string }>();
+  if (seen && !(status === "COMPLETE" && (seen.status === "failed" || seen.status === "cancelled"))) return { status: 200, outcome: "duplicate" };   // a payment PayFast first reported as failed may later complete: that is not a replay
+  if (seen) await db.prepare("DELETE FROM payments WHERE pf_payment_id = ?").bind(pfPaymentId).run();
+
+  const record = async (paymentStatus: string, order: OrderRow | null, confirmed: number): Promise<void> => {
+    await db.prepare("INSERT INTO payments (pf_payment_id, order_id, business_id, token, status, amount_gross_cents, amount_fee_cents, confirmed, ip_ok) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(pfPaymentId, order?.id ?? null, order?.business_id ?? (claimedBusiness || null), token, paymentStatus, gross, fee, confirmed, ipOk).run();
+  };
+
+  let order = orderId ? await db.prepare("SELECT * FROM billing_orders WHERE id = ?").bind(orderId).first<OrderRow>() : null;
+  if (!order && token) {   // a renewal may not carry our order id: find the subscription by its token
+    order = await db.prepare("SELECT o.* FROM billing_orders o JOIN businesses b ON b.id = o.business_id WHERE b.pf_token = ? AND o.status = 'completed' ORDER BY o.completed_at DESC LIMIT 1").bind(token).first<OrderRow>();
+  }
+  if (!order) { await record("rejected", null, 1); return { status: 200, outcome: "unknown_order" }; }
+  if (claimedBusiness && claimedBusiness !== order.business_id) { await record("rejected", order, 1); return { status: 200, outcome: "order_mismatch" }; }
+
+  const business = await db.prepare("SELECT id, status, pf_token, period_end FROM businesses WHERE id = ?").bind(order.business_id).first<{ id: string; status: string; pf_token: string | null; period_end: string | null }>();
+  if (!business || business.status !== "active") { await record("rejected", order, 1); return { status: 200, outcome: "unknown_business" }; }
+  const subscribed = order.status === "completed";
+  if (subscribed && business.pf_token && token && business.pf_token !== token) { await record("rejected", order, 1); return { status: 200, outcome: "token_mismatch" }; }
+
+  if (status === "CANCELLED") {
+    if (subscribed) await db.prepare("UPDATE businesses SET billing_status = 'cancelled' WHERE id = ?").bind(order.business_id).run();
+    await record("cancelled", order, 1);
+    return { status: 200, outcome: "cancelled" };
+  }
+  if (status === "FAILED") {
+    if (subscribed) await db.prepare("UPDATE businesses SET billing_status = 'past_due', grace_until = ? WHERE id = ?").bind(addDays(today, GRACE_DAYS), order.business_id).run();
+    await record("failed", order, 1);
+    return { status: 200, outcome: "failed" };
+  }
+
+  // COMPLETE: the amount must equal the order EXACTLY
+  if (gross === null || gross !== order.amount_cents) { await record("rejected", order, 1); return { status: 200, outcome: "amount_mismatch" }; }
+  const months = order.interval === "annual" ? 12 : 1;
+  if (!subscribed) {
+    if (order.status !== "pending") { await record("rejected", order, 1); return { status: 200, outcome: "order_closed" }; }
+    await db.prepare("UPDATE businesses SET plan = ?, seats = ?, billing_status = 'active', billing_interval = ?, pf_token = ?, period_end = ?, grace_until = NULL, trial_ends_at = NULL WHERE id = ?")
+      .bind(order.plan, order.seats, order.interval, token, addMonths(today, months), order.business_id).run();
+    await db.prepare("UPDATE billing_orders SET status = 'completed', completed_at = datetime('now') WHERE id = ?").bind(order.id).run();
+    await record("complete", order, 1);
+    clearPlanCache();
+    return { status: 200, outcome: "applied" };
+  }
+  const from = business.period_end && business.period_end >= today ? business.period_end : business.period_end ?? today;
+  await db.prepare("UPDATE businesses SET billing_status = 'active', grace_until = NULL, period_end = ? WHERE id = ?").bind(addMonths(from, months), order.business_id).run();
+  await record("complete", order, 1);
+  return { status: 200, outcome: "renewed" };
+}
+
+// The pages PayFast sends the payer back to. They promise nothing: the payment is only real once PayFast's notification has been confirmed, which can arrive a moment after the payer lands here.
+export const returnPage = (): Response => html("<h1>Thank you</h1><p>Your payment is being confirmed. You can return to the app now: your plan will be active in a moment.</p>");
+export const cancelledPage = (): Response => html("<h1>Payment cancelled</h1><p>Nothing was charged. You can return to the app and choose a plan whenever you are ready.</p>");
+

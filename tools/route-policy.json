@@ -96,6 +96,54 @@
   "class": "public"
  },
  {
+  "route": "GET /billing/cancelled",
+  "pattern": "/billing/cancelled",
+  "how": "public list",
+  "none": "A",
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "sales": "A",
+  "admin": "A",
+  "class": "public"
+ },
+ {
+  "route": "GET /billing/pay",
+  "pattern": "/billing/pay",
+  "how": "public list",
+  "none": "A",
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "sales": "A",
+  "admin": "A",
+  "class": "public"
+ },
+ {
+  "route": "GET /billing/payfast/notify",
+  "pattern": "/billing/payfast/notify",
+  "how": "public list",
+  "none": "A",
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "sales": "A",
+  "admin": "A",
+  "class": "public"
+ },
+ {
+  "route": "GET /billing/return",
+  "pattern": "/billing/return",
+  "how": "public list",
+  "none": "A",
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "sales": "A",
+  "admin": "A",
+  "class": "public"
+ },
+ {
   "route": "GET /business-profile/logo",
   "pattern": "/business-profile/logo",
   "how": "exact path",
@@ -734,6 +782,30 @@
  {
   "route": "POST /auth/signup",
   "pattern": "/auth/signup",
+  "how": "exact path",
+  "none": "A",
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "sales": "A",
+  "admin": "A",
+  "class": "public"
+ },
+ {
+  "route": "POST /billing/checkout",
+  "pattern": "/billing/checkout",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "sales": 403,
+  "admin": 403,
+  "class": "owner only"
+ },
+ {
+  "route": "POST /billing/payfast/notify",
+  "pattern": "/billing/payfast/notify",
   "how": "exact path",
   "none": "A",
   "owner": "A",

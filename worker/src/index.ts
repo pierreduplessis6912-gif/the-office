@@ -10,6 +10,7 @@ import { readOnlyRefusal } from "./freeze";
 import { adminTargetBusiness, callBusiness, forwardToBusiness, routeRequest } from "./routing";
 import { lookupAccessForEmail, normaliseEmail } from "./directory";
 import { handleJoinPost, handleSignupPost, handleUnknownAccount, maybeHandoverPage } from "./signup";
+import { cancelledPage, createOrder, handleNotification, payPage, returnPage } from "./billing";
 import { addTeamMember, changeTeamRole, inviteTeamMember, listTeam, revokeTeamInvitation, setTeamMemberStatus, updateTeamProfile } from "./team";
 import { signedInRedirect } from "./signin";
 import { makeBusinessObject } from "./business-object";
@@ -872,6 +873,16 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       const added = await addTeamMember(env, actor ?? "", body?.email, body?.role, body);
       return added.ok ? Response.json({ member: added.member, healed: added.healed ?? false }, { status: added.status }) : Response.json({ error: added.error }, { status: added.status });
     }
+    // Choosing a plan: an ORDER whose amount comes from our own price table, and the address of the page that sends the owner to PayFast. Owner only (can_manage_settings). Nothing changes until PayFast's notification is confirmed.
+    if (url.pathname === "/billing/checkout" && request.method === "POST") {
+      const body = (await request.json().catch(() => null)) as { plan?: unknown; interval?: unknown; seats?: unknown } | null;
+      const { email: payer } = await resolveCapabilities(request, env);
+      const made = await createOrder({ ...env, OFFICE_DB: (env.SHARED_DB ?? env.OFFICE_DB) as D1Database }, { businessId: env.BUSINESS_ID, payerEmail: payer, plan: body?.plan, interval: body?.interval, seats: body?.seats });
+      return made.ok
+        ? Response.json({ orderId: made.order.id, amountCents: made.order.amountCents, itemName: made.order.itemName, payUrl: `${url.origin}/billing/pay?order=${made.order.id}` }, { status: 201 })
+        : Response.json({ error: made.error }, { status: made.status });
+    }
+
     // Inviting (the person accepts on sign-in), and withdrawing an invitation. Owner only, like the rest.
     if (url.pathname === "/team/invite" && request.method === "POST") {
       const body = (await request.json().catch(() => null)) as { email?: unknown; role?: unknown } | null;
@@ -1714,6 +1725,17 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
     if (url.pathname === "/auth/join" && request.method === "POST") {
       return await handleJoinPost(request, env);
     }
+
+    // PAYMENT (billing.ts). The owner's checkout is inside the business (below); these four are public and answered here: the pay page the app opens in a browser, PayFast's notification, and the pages the payer comes back to.
+    if (url.pathname === "/billing/pay" && request.method === "GET") {
+      return await payPage(env, url.searchParams.get("order") ?? "", url.origin);
+    }
+    if (url.pathname === "/billing/payfast/notify" && request.method === "POST") {
+      const result = await handleNotification(env, await request.text(), request.headers.get("CF-Connecting-IP"), (u, init) => fetch(u, init));
+      return new Response(result.outcome, { status: result.status });   // PayFast wants a 200; a 400 or 503 tells it the notification was not accepted
+    }
+    if (url.pathname === "/billing/return" && request.method === "GET") return returnPage();
+    if (url.pathname === "/billing/cancelled" && request.method === "GET") return cancelledPage();
 
     if (url.pathname === "/auth/me" && request.method === "GET") {
       const session = await verifySession(env, getSessionToken(request));

@@ -24,7 +24,7 @@ async function routePolicyTests({ check, srcDir, path, fs }) {
   const missing = [...obs.keys()].filter((k) => !exp.has(k)), stale = [...exp.keys()].filter((k) => !obs.has(k));
   check(missing.length === 0, `every route must be in tools/route-policy.json (run node tools/route-policy-gen.js and review the diff). Not in it: ${missing.join(', ')}`);
   check(stale.length === 0, `tools/route-policy.json must list only routes that exist. Listed but not found: ${stale.join(', ')}`);
-  check(observed.length === 84, 'there are 84 route rows (80 routes, with confirm, reject and edit-field each shown for a money, a stock and a job action)');
+  check(observed.length === 90, 'there are 90 route rows (86 routes, with confirm, reject and edit-field each shown for a money, a stock and a job action)');
 
   // ---- the real gate behaves exactly as the file says, for each kind of caller ------------------------------------------------------------
   const changed = [];
@@ -50,7 +50,7 @@ async function routePolicyTests({ check, srcDir, path, fs }) {
   check(rows.filter((r) => r.none === 'A').every((r) => r.admin === 'A' && r.sales === 'A'), 'a public route is public to every role too');
   check(rows.every((r) => r.none !== 401 || r.admin === 'A' || r.admin === 403 || r.admin === 401) && rows.filter((r) => r.owner === 401).length === 0, 'no route answers 401 to a signed-in role');
   const reachableWithoutLogin = rows.filter((r) => r.none === 'A').map((r) => r.route).sort();
-  const expectedPublic = ['GET /', 'GET /auth/google/callback', 'GET /auth/google/login', 'GET /auth/logout', 'GET /auth/me', 'GET /auth/signup', 'GET /auth/join', 'GET /health', 'POST /', 'POST /auth/join', 'POST /auth/logout', 'POST /auth/signup'].sort();
+  const expectedPublic = ['GET /', 'GET /auth/google/callback', 'GET /auth/google/login', 'GET /auth/logout', 'GET /auth/me', 'GET /auth/signup', 'GET /auth/join', 'GET /billing/cancelled', 'GET /billing/pay', 'GET /billing/payfast/notify', 'GET /billing/return', 'GET /health', 'POST /', 'POST /auth/join', 'POST /auth/logout', 'POST /auth/signup', 'POST /billing/payfast/notify'].sort();
   check(JSON.stringify(reachableWithoutLogin) === JSON.stringify(expectedPublic), `without signing in, ONLY the sign-in routes, the health check and the root may be reached (found: ${reachableWithoutLogin.join(', ')})`);
   check(rows.filter((r) => r.class === 'signed link').every((r) => [r.none, r.owner, r.accountant, r.installer].every((v) => v === 403)) && rows.filter((r) => r.class === 'signed link').length === 6, 'the six document routes are opened ONLY by a signed link: a person who is signed in, owner included, is refused without one');
   check(rows.filter((r) => r.class !== 'public' && r.class !== 'signed link').every((r) => r.none === 401), 'every route that is not public or a signed link asks for a sign-in (401), never serves a stranger');
