@@ -746,6 +746,24 @@ jobs:
           api ho-x-me GET "$XSESS" /auth/me
           api ho-list2 GET "$SESSION" /team
           dirnow ho-dir-after
+          # QUOTATIONS AS THEIR OWN SWITCH (worker/src/auth.ts can_make_quotes) on the REAL object. The gate runs BEFORE the handler, so a caller who may edit a quotation gets 404 for one that does not exist, and a caller who may not gets 403:
+          # that proves the gate without needing any data. Sales may quote and may not edit an invoice or a customer; an installer may not quote; the owner switches quoting OFF for sales (persisted on the real object) and back ON.
+          api qs-sales-quote PATCH "$SSESS" /quotations/999999 '{}'
+          api qs-sales-invoice PATCH "$SSESS" /invoices/999999 '{}'
+          api qs-sales-customer PATCH "$SSESS" /customers/999999 '{}'
+          api qs-installer-quote PATCH "$XSESS" /quotations/999999 '{}'
+          api qs-admin-quote PATCH "$ASESS" /quotations/999999 '{}'
+          api qs-off PATCH "$SESSION" /settings/permissions '{"role":"sales","capability":"can_make_quotes","granted":false}'
+          api qs-sales-quote-off PATCH "$SSESS" /quotations/999999 '{}'
+          api qs-admin-quote-after PATCH "$ASESS" /quotations/999999 '{}'
+          api qs-on PATCH "$SESSION" /settings/permissions '{"role":"sales","capability":"can_make_quotes","granted":true}'
+          api qs-sales-quote-on PATCH "$SSESS" /quotations/999999 '{}'
+          api qs-installer-only PATCH "$SESSION" /settings/permissions '{"role":"installer","capability":"can_make_quotes","granted":true}'
+          api qs-installer-quote-on PATCH "$XSESS" /quotations/999999 '{}'
+          api qs-installer-invoice-on PATCH "$XSESS" /invoices/999999 '{}'
+          api qs-installer-reset PATCH "$SESSION" /settings/permissions '{"role":"installer","capability":"can_make_quotes","granted":false}'
+          api qs-installer-quote-reset PATCH "$XSESS" /quotations/999999 '{}'
+          api qs-grid GET "$SESSION" /settings/permissions
           python3 - <<'PY'
           import base64, datetime, json, os, re, sys, urllib.parse as u
           r, tag = os.environ["RESULTS"], "r" + os.environ["GITHUB_RUN_ID"]
@@ -800,6 +818,8 @@ jobs:
           invitee = "invitee-" + tag + "@example.com"
           inv_member = next((x for x in (inv_after.get("members") or []) if x.get("email") == invitee), {})
           ro_grid = [r.get("role") for r in ((rd("ro-owner-perms.json") or {}).get("roles") or [])]
+          qs_grid_sales = next((r for r in ((rd("qs-grid.json") or {}).get("roles") or []) if r.get("role") == "sales"), {})
+          qs_row = next((c for c in (qs_grid_sales.get("capabilities") or []) if c.get("key") == "can_make_quotes"), {})
           ho_before = {b.get("name"): b for b in ((rd("ho-dir-before.json") or {}).get("businesses") or [])}
           ho_after = {b.get("name"): b for b in ((rd("ho-dir-after.json") or {}).get("businesses") or [])}
           ho_x, ho_y, ho_z = "Handover X " + tag, "Handover Y " + tag, "Handover Z " + tag
@@ -848,6 +868,10 @@ jobs:
               "an_employee_with_an_empty_business_who_agrees_joins_and_their_empty_business_is_closed": status("ho-x-join") == "303" and ho_x_loc is not None and ho_x_loc.scheme == "theoffice" and role_of(ho_x_loc) == "installer" and (rd("ho-x-me.json") or {}).get("signedIn") is True and (rd("ho-x-me.json") or {}).get("role") == "installer" and ho_before.get(ho_x, {}).get("status") == "active" and ho_after.get(ho_x, {}).get("status") == "closed" and any(x.get("email") == "handover-x-" + tag + "@example.com" and x.get("role") == "installer" for x in ho_members),
               "an_employee_whose_business_has_data_is_never_moved": status("ho-y-data") == "200" and status("ho-y-join") == "303" and role_of(ho_y_loc) == "owner" and ho_after.get(ho_y, {}).get("status") == "active" and not any(x.get("email") == "handover-y-" + tag + "@example.com" for x in ho_members),
               "keeping_their_own_business_declines_the_invitation_and_signs_them_in_to_it": status("ho-z-keep") == "303" and role_of(ho_z_loc) == "owner" and ho_after.get(ho_z, {}).get("status") == "active" and not any(i.get("email") == "handover-z-" + tag + "@example.com" for i in ho_invites) and not any(x.get("email") == "handover-z-" + tag + "@example.com" for x in ho_members),
+              "sales_can_quote_but_cannot_edit_an_invoice_or_a_customer_and_an_installer_cannot_quote": status("qs-sales-quote") == "404" and status("qs-sales-invoice") == "403" and status("qs-sales-customer") == "403" and status("qs-installer-quote") == "403" and status("qs-admin-quote") == "404",
+              "an_owner_can_switch_quoting_off_for_sales_and_back_on_and_it_persists_on_the_real_object": status("qs-off") == "200" and status("qs-sales-quote-off") == "403" and status("qs-admin-quote-after") == "404" and status("qs-on") == "200" and status("qs-sales-quote-on") == "404",
+              "an_owner_can_give_an_installer_only_quoting_and_take_it_back": status("qs-installer-only") == "200" and status("qs-installer-quote-on") == "404" and status("qs-installer-invoice-on") == "403" and status("qs-installer-reset") == "200" and status("qs-installer-quote-reset") == "403",
+              "the_permission_grid_lists_quotations_as_on_for_sales": status("qs-grid") == "200" and bool(qs_row) and (qs_row.get("granted") is True or qs_row.get("on") is True),
               "health_reports_the_running_commit": health.get("commit") == os.environ.get("GITHUB_SHA"),
               "the_directory_columns_exist_on_the_real_database": all("trial_ends_at" in b and "source" in b for b in listing) and len(listing) > 0,
               "answers": {"first": status("su-first"), "again": status("su-again"), "garbage": status("su-garbage"), "untick": status("su-untick"), "days_left": round(days, 3) if days else None, "business": {k: biz.get(k) for k in ("plan", "status", "source", "members")}, "session_b_matches": payload.get("b") == biz.get("id"), "me": {"signedIn": me.get("signedIn"), "role": me.get("role")}, "customers": status("su-customers"), "customer_items": len(cust_list) if isinstance(cust_list, list) else None, "onboarding_steps": len(steps) if isinstance(steps, list) else None, "step_statuses": [x.get("status") for x in steps] if isinstance(steps, list) else None},

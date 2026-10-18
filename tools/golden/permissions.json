@@ -11,7 +11,18 @@
        {
         "key": "can_manage_invoices",
         "label": "Money in and out",
-        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+        "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": false,
+        "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_make_quotes",
+        "label": "Quotations",
+        "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
         "inUse": true,
         "ownerOnly": false,
         "editable": true,
@@ -182,7 +193,18 @@
        {
         "key": "can_manage_invoices",
         "label": "Money in and out",
-        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+        "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_make_quotes",
+        "label": "Quotations",
+        "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
         "inUse": true,
         "ownerOnly": false,
         "editable": true,
@@ -353,7 +375,18 @@
        {
         "key": "can_manage_invoices",
         "label": "Money in and out",
-        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+        "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_make_quotes",
+        "label": "Quotations",
+        "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
         "inUse": true,
         "ownerOnly": false,
         "editable": true,
@@ -524,12 +557,23 @@
        {
         "key": "can_manage_invoices",
         "label": "Money in and out",
-        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+        "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
         "inUse": true,
         "ownerOnly": false,
         "editable": true,
         "granted": false,
         "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_make_quotes",
+        "label": "Quotations",
+        "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
         "changed": false
        },
        {
@@ -748,7 +792,18 @@
       {
        "key": "can_manage_invoices",
        "label": "Money in and out",
-       "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+       "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_make_quotes",
+       "label": "Quotations",
+       "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
        "inUse": true,
        "ownerOnly": false,
        "editable": true,
@@ -955,7 +1010,18 @@
       {
        "key": "can_manage_invoices",
        "label": "Money in and out",
-       "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+       "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": false,
+       "changed": true
+      },
+      {
+       "key": "can_make_quotes",
+       "label": "Quotations",
+       "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
        "inUse": true,
        "ownerOnly": false,
        "editable": true,
@@ -1162,7 +1228,18 @@
       {
        "key": "can_manage_invoices",
        "label": "Money in and out",
-       "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+       "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_make_quotes",
+       "label": "Quotations",
+       "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
        "inUse": true,
        "ownerOnly": false,
        "editable": true,
@@ -1346,7 +1423,18 @@
       {
        "key": "can_manage_invoices",
        "label": "Money in and out",
-       "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+       "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_make_quotes",
+       "label": "Quotations",
+       "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
        "inUse": true,
        "ownerOnly": false,
        "editable": true,
@@ -2907,7 +2995,18 @@
       {
        "key": "can_manage_invoices",
        "label": "Money in and out",
-       "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+       "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": true,
+       "changed": true
+      },
+      {
+       "key": "can_make_quotes",
+       "label": "Quotations",
+       "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
        "inUse": true,
        "ownerOnly": false,
        "editable": true,
@@ -3114,7 +3213,18 @@
       {
        "key": "can_manage_invoices",
        "label": "Money in and out",
-       "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+       "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": true,
+       "changed": true
+      },
+      {
+       "key": "can_make_quotes",
+       "label": "Quotations",
+       "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
        "inUse": true,
        "ownerOnly": false,
        "editable": true,
@@ -3322,7 +3432,18 @@
       {
        "key": "can_manage_invoices",
        "label": "Money in and out",
-       "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+       "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": true,
+       "default": true,
+       "changed": false
+      },
+      {
+       "key": "can_make_quotes",
+       "label": "Quotations",
+       "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
        "inUse": true,
        "ownerOnly": false,
        "editable": true,
@@ -3535,7 +3656,18 @@
        {
         "key": "can_manage_invoices",
         "label": "Money in and out",
-        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+        "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": false,
+        "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_make_quotes",
+        "label": "Quotations",
+        "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
         "inUse": true,
         "ownerOnly": false,
         "editable": true,
@@ -3706,7 +3838,18 @@
        {
         "key": "can_manage_invoices",
         "label": "Money in and out",
-        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+        "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": false,
+        "default": true,
+        "changed": true
+       },
+       {
+        "key": "can_make_quotes",
+        "label": "Quotations",
+        "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
         "inUse": true,
         "ownerOnly": false,
         "editable": true,
@@ -3877,7 +4020,18 @@
        {
         "key": "can_manage_invoices",
         "label": "Money in and out",
-        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+        "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_make_quotes",
+        "label": "Quotations",
+        "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
         "inUse": true,
         "ownerOnly": false,
         "editable": true,
@@ -4048,12 +4202,23 @@
        {
         "key": "can_manage_invoices",
         "label": "Money in and out",
-        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+        "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
         "inUse": true,
         "ownerOnly": false,
         "editable": true,
         "granted": false,
         "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_make_quotes",
+        "label": "Quotations",
+        "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
         "changed": false
        },
        {
@@ -4233,7 +4398,18 @@
        {
         "key": "can_manage_invoices",
         "label": "Money in and out",
-        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+        "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": false,
+        "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_make_quotes",
+        "label": "Quotations",
+        "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
         "inUse": true,
         "ownerOnly": false,
         "editable": true,
@@ -4404,7 +4580,18 @@
        {
         "key": "can_manage_invoices",
         "label": "Money in and out",
-        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+        "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_make_quotes",
+        "label": "Quotations",
+        "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
         "inUse": true,
         "ownerOnly": false,
         "editable": true,
@@ -4575,7 +4762,18 @@
        {
         "key": "can_manage_invoices",
         "label": "Money in and out",
-        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+        "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_make_quotes",
+        "label": "Quotations",
+        "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
         "inUse": true,
         "ownerOnly": false,
         "editable": true,
@@ -4746,12 +4944,23 @@
        {
         "key": "can_manage_invoices",
         "label": "Money in and out",
-        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+        "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
         "inUse": true,
         "ownerOnly": false,
         "editable": true,
         "granted": false,
         "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_make_quotes",
+        "label": "Quotations",
+        "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
         "changed": false
        },
        {
@@ -4957,7 +5166,18 @@
        {
         "key": "can_manage_invoices",
         "label": "Money in and out",
-        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+        "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": false,
+        "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_make_quotes",
+        "label": "Quotations",
+        "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
         "inUse": true,
         "ownerOnly": false,
         "editable": true,
@@ -5128,7 +5348,18 @@
        {
         "key": "can_manage_invoices",
         "label": "Money in and out",
-        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+        "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_make_quotes",
+        "label": "Quotations",
+        "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
         "inUse": true,
         "ownerOnly": false,
         "editable": true,
@@ -5299,7 +5530,18 @@
        {
         "key": "can_manage_invoices",
         "label": "Money in and out",
-        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+        "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
+        "changed": false
+       },
+       {
+        "key": "can_make_quotes",
+        "label": "Quotations",
+        "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
         "inUse": true,
         "ownerOnly": false,
         "editable": true,
@@ -5470,12 +5712,23 @@
        {
         "key": "can_manage_invoices",
         "label": "Money in and out",
-        "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+        "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
         "inUse": true,
         "ownerOnly": false,
         "editable": true,
         "granted": false,
         "default": false,
+        "changed": false
+       },
+       {
+        "key": "can_make_quotes",
+        "label": "Quotations",
+        "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
+        "inUse": true,
+        "ownerOnly": false,
+        "editable": true,
+        "granted": true,
+        "default": true,
         "changed": false
        },
        {
@@ -5769,7 +6022,18 @@
       {
        "key": "can_manage_invoices",
        "label": "Money in and out",
-       "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+       "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_make_quotes",
+       "label": "Quotations",
+       "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
        "inUse": true,
        "ownerOnly": false,
        "editable": true,
@@ -5991,7 +6255,18 @@
       {
        "key": "can_manage_invoices",
        "label": "Money in and out",
-       "description": "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+       "description": "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
+       "inUse": true,
+       "ownerOnly": false,
+       "editable": true,
+       "granted": false,
+       "default": false,
+       "changed": false
+      },
+      {
+       "key": "can_make_quotes",
+       "label": "Quotations",
+       "description": "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
        "inUse": true,
        "ownerOnly": false,
        "editable": true,

@@ -53,7 +53,7 @@ Classes: **public** 12, **any member** 13, **some roles** 27, **signed link** 6,
 | `GET /team` | owner only | no (sign in) | yes | no | no | no | no |
 | `PATCH /customers/:id` | some roles | no (sign in) | yes | yes | no | no | yes |
 | `PATCH /invoices/:id` | some roles | no (sign in) | yes | yes | no | no | yes |
-| `PATCH /quotations/:id` | some roles | no (sign in) | yes | yes | no | no | yes |
+| `PATCH /quotations/:id` | some roles | no (sign in) | yes | yes | no | yes | yes |
 | `PATCH /settings/permissions` | owner only | no (sign in) | yes | no | no | no | no |
 | `PATCH /team/:id` | owner only | no (sign in) | yes | no | no | no | no |
 | `POST /` | public | yes | yes | yes | yes | yes | yes |
