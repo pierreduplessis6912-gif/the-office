@@ -178,6 +178,23 @@ export const ROLE_CAPABILITIES: Record<string, string[]> = {
     "can_know_materials",
     "can_know_material_prices",
   ],
+  // sales and admin: added 2026-10-18 when Pierre said an owner may give them (the doctrine above: a role is added when a real person is named for it). Defaults by a LEAST-PRIVILEGE rule, each one adjustable by the owner per
+  // business through the permission grid (every role but the owner is editable; an owner-only capability can never be granted by an override), and each pinned in tools/roles.test.js and in the route policy.
+  //  - admin: the office's day-to-day running: everything an accountant or an installer can do EXCEPT the three most sensitive views (profit, payroll, banking), and NONE of the owner-only capabilities (invite, delete, settings).
+  //  - sales: no money at all. The same capabilities as an installer, but NOT scoped to their own jobs (only the role named "installer" is: getJobScope), so a salesperson sees every job. Quoting lives inside "Money in and out"
+  //    (can_manage_invoices), the capability that also confirms payments, so a salesperson cannot quote until the owner switches that on for them; splitting quoting into its own capability is a separate decision.
+  admin: [
+    "can_know_debtors",
+    "can_manage_invoices",
+    "can_know_expense_totals",
+    "can_know_supplier_balances",
+    "can_know_materials",
+    "can_know_material_prices",
+    "can_know_jobs",
+    "can_know_measurements",
+    "can_capture_voice_notes",
+  ],
+  sales: ["can_know_jobs", "can_know_measurements", "can_capture_voice_notes", "can_know_materials", "can_know_material_prices"],
 };
 
 // ---------------------------------------------------------------------------------------------------------------------

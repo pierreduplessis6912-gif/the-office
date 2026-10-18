@@ -330,7 +330,7 @@ async function __runRouteCase(fns, workerDir, spec) {
   const { processOne, handleRequest, auth } = fns;
   const db = newDatabase(workerDir);
   if (spec.seed) spec.seed(db);
-  for (const role of ['owner', 'accountant', 'installer']) db.prepare("INSERT INTO memberships (google_email, role, status) VALUES (?, ?, 'active')").run(`${role}@example.com`, role);
+  for (const role of ['owner', 'accountant', 'installer', 'sales', 'admin']) db.prepare("INSERT INTO memberships (google_email, role, status) VALUES (?, ?, 'active')").run(`${role}@example.com`, role);
   const ai = scriptedAi(spec.ai);
   const pendingWork = [], backgroundErrors = [];
   const ctx = { waitUntil: (p) => pendingWork.push(Promise.resolve(p).catch((e) => backgroundErrors.push(String(e && e.message || e)))), passThroughOnException() {} };

@@ -7,6 +7,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "public"
  },
  {
@@ -17,6 +19,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "any member"
  },
  {
@@ -27,6 +31,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "public"
  },
  {
@@ -37,6 +43,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "public"
  },
  {
@@ -47,6 +55,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "public"
  },
  {
@@ -57,6 +67,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "public"
  },
  {
@@ -67,6 +79,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "public"
  },
  {
@@ -77,6 +91,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "public"
  },
  {
@@ -87,6 +103,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "any member"
  },
  {
@@ -97,6 +115,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "any member"
  },
  {
@@ -107,6 +127,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "some roles"
  },
  {
@@ -117,6 +139,8 @@
   "owner": 403,
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "signed link"
  },
  {
@@ -127,6 +151,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  },
  {
@@ -137,6 +163,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "any member"
  },
  {
@@ -147,6 +175,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": 403,
+  "sales": 403,
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -157,6 +187,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": 403,
+  "sales": 403,
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -167,6 +199,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -177,6 +211,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": 403,
+  "sales": 403,
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -187,6 +223,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -197,6 +235,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": 403,
+  "sales": 403,
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -207,6 +247,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  },
  {
@@ -217,6 +259,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": 403,
+  "sales": 403,
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -227,6 +271,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": 403,
+  "sales": 403,
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -237,6 +283,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "any member"
  },
  {
@@ -247,6 +295,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -257,6 +307,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": 403,
+  "sales": 403,
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -267,6 +319,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -277,6 +331,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  },
  {
@@ -287,6 +343,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "public"
  },
  {
@@ -297,6 +355,8 @@
   "owner": 403,
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "signed link"
  },
  {
@@ -307,6 +367,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  },
  {
@@ -317,6 +379,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  },
  {
@@ -327,6 +391,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -337,6 +403,8 @@
   "owner": 403,
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "signed link"
  },
  {
@@ -347,6 +415,8 @@
   "owner": 403,
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "signed link"
  },
  {
@@ -357,6 +427,8 @@
   "owner": 403,
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "signed link"
  },
  {
@@ -367,6 +439,8 @@
   "owner": 403,
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "signed link"
  },
  {
@@ -377,6 +451,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  },
  {
@@ -387,6 +463,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  },
  {
@@ -397,6 +475,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -407,6 +487,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "any member"
  },
  {
@@ -417,6 +499,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": 403,
+  "sales": 403,
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -427,6 +511,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  },
  {
@@ -437,6 +523,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": 403,
+  "sales": 403,
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -447,6 +535,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": 403,
+  "sales": 403,
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -457,6 +547,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": 403,
+  "sales": 403,
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -467,6 +559,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  },
  {
@@ -477,6 +571,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  },
  {
@@ -487,6 +583,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "public"
  },
  {
@@ -497,6 +595,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": 403,
+  "sales": 403,
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -507,6 +607,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -517,6 +619,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "any member"
  },
  {
@@ -527,6 +631,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": 403,
+  "sales": 403,
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -537,6 +643,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -547,6 +655,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "any member"
  },
  {
@@ -557,6 +667,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": 403,
+  "sales": 403,
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -567,6 +679,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -577,6 +691,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "any member"
  },
  {
@@ -587,6 +703,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "public"
  },
  {
@@ -597,6 +715,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "public"
  },
  {
@@ -607,6 +727,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "public"
  },
  {
@@ -617,6 +739,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  },
  {
@@ -627,6 +751,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  },
  {
@@ -637,6 +763,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "any member"
  },
  {
@@ -647,6 +775,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  },
  {
@@ -657,6 +787,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "any member"
  },
  {
@@ -667,6 +799,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  },
  {
@@ -677,6 +811,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "any member"
  },
  {
@@ -687,6 +823,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  },
  {
@@ -697,6 +835,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  },
  {
@@ -707,6 +847,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  },
  {
@@ -717,6 +859,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  },
  {
@@ -727,6 +871,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "any member"
  },
  {
@@ -737,6 +883,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  },
  {
@@ -747,6 +895,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  },
  {
@@ -757,6 +907,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -767,6 +919,8 @@
   "owner": "A",
   "accountant": "A",
   "installer": 403,
+  "sales": 403,
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -777,6 +931,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": "A",
+  "sales": "A",
+  "admin": "A",
   "class": "some roles"
  },
  {
@@ -787,6 +943,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  },
  {
@@ -797,6 +955,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  },
  {
@@ -807,6 +967,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  },
  {
@@ -817,6 +979,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  },
  {
@@ -827,6 +991,8 @@
   "owner": "A",
   "accountant": 403,
   "installer": 403,
+  "sales": 403,
+  "admin": 403,
   "class": "owner only"
  }
 ]
