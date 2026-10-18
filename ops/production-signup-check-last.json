@@ -1,6 +1,6 @@
 {
- "when": "2026-10-18T22:31:16.446296Z",
- "run": "39172576261",
+ "when": "2026-10-18T23:35:09.994350Z",
+ "run": "39177125662",
  "the_health_check_answers": true,
  "the_health_check_reports_the_commit_production_is_running": true,
  "a_garbage_proof_is_refused_with_a_page": true,
@@ -22,7 +22,7 @@
   "teaminvite": "401",
   "join": "400",
   "billpay": "404",
-  "billnotify": "503",
+  "billnotify": "400",
   "billcheckout": "401"
  },
  "running_commit": "25543cd82aaaf082b75986fa44b2389e2e796c2d"
