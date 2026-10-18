@@ -25,6 +25,7 @@ import { convertTrial, extendTrial } from "./freetrial";
 import { seedBusinessName } from "./profile-seed";
 import { businessIsEmpty } from "./emptiness";
 import { recordSignIn, recordTeamEvent } from "./team-log";
+import { ensureTeamPerson, validFullName } from "./team-people";
 import { callBusiness } from "./routing";
 import { applyIndexes } from "./indexes";
 import { trialAi, trialD1, trialDo, trialTx } from "./trial";
@@ -1117,7 +1118,7 @@ if (url.pathname === "/debug/seed-business-name" && request.method === "POST") {
     }
 
 if (url.pathname === "/debug/create-membership" && request.method === "POST") {
-      const body = (await request.json().catch(() => ({}))) as { google_email?: string; role?: string; invited_by?: unknown };
+      const body = (await request.json().catch(() => ({}))) as { google_email?: string; role?: string; invited_by?: unknown; person_name?: unknown };
       if (!body.google_email || !body.role) {
         return Response.json({ error: "google_email and role are both required" }, { status: 400 });
       }
@@ -1133,13 +1134,32 @@ if (url.pathname === "/debug/create-membership" && request.method === "POST") {
         )
           .bind(body.google_email, body.role, typeof body.invited_by === "string" ? body.invited_by : null)
           .first<{ id: number }>();
+        // A person_name (it travels with an invitation) makes or links the PERSON record for this login. It is best-effort and never undoes the membership: if the name is not valid, or that person is already tied to another login, the
+        // member exists WITHOUT a person (the owner can name them in the Team screen), which for an installer means no jobs until then.
+        let person: { linked: boolean; created?: boolean; reason?: string } = { linked: false };
+        if (typeof body.person_name === "string" && body.person_name.trim()) {
+          try {
+            const full = body.person_name.trim().replace(/\s+/g, " ");
+            if (!validFullName(full)) person = { linked: false, reason: "not a valid name" };
+            else {
+              const made = await ensureTeamPerson(env, full, body.role, body.google_email);
+              if (made.ok) {
+                await env.OFFICE_DB.prepare("UPDATE memberships SET character_id = ? WHERE id = ?").bind(made.characterId, inserted!.id).run();
+                person = { linked: true, created: made.created };
+              } else person = { linked: false, reason: made.error };
+            }
+          } catch {
+            person = { linked: false, reason: "could not be linked just now" };
+          }
+        }
         // A membership made ON AN INVITATION (it carries who invited them) is the person accepting: that goes in the team log. One made by an operator or at signup carries no inviter and is not logged here.
-        if (typeof body.invited_by === "string") await recordTeamEvent(env, body.google_email, "joined", body.google_email, { role: body.role, invitedBy: body.invited_by });
+        if (typeof body.invited_by === "string") await recordTeamEvent(env, body.google_email, "joined", body.google_email, { role: body.role, invitedBy: body.invited_by, name: typeof body.person_name === "string" ? body.person_name : null, linked: person.linked });
         return Response.json({
           status: "created",
           id: inserted!.id,
           google_email: body.google_email,
           role: body.role,
+          person,
           capabilities: ROLE_CAPABILITIES[body.role],
         });
       } catch (err) {

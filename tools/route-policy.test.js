@@ -24,7 +24,7 @@ async function routePolicyTests({ check, srcDir, path, fs }) {
   const missing = [...obs.keys()].filter((k) => !exp.has(k)), stale = [...exp.keys()].filter((k) => !obs.has(k));
   check(missing.length === 0, `every route must be in tools/route-policy.json (run node tools/route-policy-gen.js and review the diff). Not in it: ${missing.join(', ')}`);
   check(stale.length === 0, `tools/route-policy.json must list only routes that exist. Listed but not found: ${stale.join(', ')}`);
-  check(observed.length === 83, 'there are 83 route rows (79 routes, with confirm, reject and edit-field each shown for a money, a stock and a job action)');
+  check(observed.length === 84, 'there are 84 route rows (80 routes, with confirm, reject and edit-field each shown for a money, a stock and a job action)');
 
   // ---- the real gate behaves exactly as the file says, for each kind of caller ------------------------------------------------------------
   const changed = [];

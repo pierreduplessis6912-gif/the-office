@@ -18,7 +18,7 @@ const DDL = [
   "CREATE INDEX IF NOT EXISTS idx_directory_members_business ON directory_members (business_id)",
   // An owner's invitation to an address that has no business yet: it waits here (the directory is the only place that can be asked at sign-in, before the person belongs to anything) until they accept. UNIQUE (email, business_id):
   // inviting the same person again refreshes the one row.
-  "CREATE TABLE IF NOT EXISTS invitations (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL, business_id TEXT NOT NULL, role TEXT NOT NULL, invited_by TEXT, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT (datetime('now')), expires_at TEXT NOT NULL, UNIQUE (email, business_id))",
+  "CREATE TABLE IF NOT EXISTS invitations (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL, business_id TEXT NOT NULL, role TEXT NOT NULL, invited_by TEXT, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT (datetime('now')), expires_at TEXT NOT NULL, person_name TEXT, UNIQUE (email, business_id))",
   "CREATE INDEX IF NOT EXISTS idx_invitations_email ON invitations (email, status)",
 ];
 
@@ -33,9 +33,16 @@ async function ensureBusinessColumns(env: Env): Promise<void> {
   if (!have.has("closed_into")) await env.OFFICE_DB.prepare("ALTER TABLE businesses ADD COLUMN closed_into TEXT").run();
 }
 
+// The name an owner gave an invitation (the person record is made or linked when the invitation is accepted). Added to a table that already exists the same way the business columns are: by the writers, never by a read.
+async function ensureInvitationColumns(env: Env): Promise<void> {
+  const { results } = await env.OFFICE_DB.prepare("PRAGMA table_info(invitations)").all<{ name: string }>();
+  if (!(results ?? []).some((r) => r.name === "person_name")) await env.OFFICE_DB.prepare("ALTER TABLE invitations ADD COLUMN person_name TEXT").run();
+}
+
 export async function ensureDirectory(env: Env): Promise<void> {
   for (const statement of DDL) await env.OFFICE_DB.prepare(statement).run();
   await ensureBusinessColumns(env);
+  await ensureInvitationColumns(env);
 }
 
 const missingTable = (error: unknown): boolean => /no such table/i.test(String((error as { message?: string } | null)?.message ?? error));
@@ -156,42 +163,48 @@ export async function findDirectoryConflicts(env: Env, emails: string[], busines
 
 // ---- invitations --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 export const INVITATION_DAYS = 30;
-export interface Invitation { id: number; email: string; businessId: string; role: string; invitedBy: string | null; createdAt: string; expiresAt: string }
-type InvitationRow = { id: number; email: string; business_id: string; role: string; invited_by: string | null; created_at: string; expires_at: string; business_name?: string; trial_ends_at?: string | null };
-const toInvitation = (r: InvitationRow): Invitation => ({ id: r.id, email: r.email, businessId: r.business_id, role: r.role, invitedBy: r.invited_by, createdAt: r.created_at, expiresAt: r.expires_at });
+export interface Invitation { id: number; email: string; businessId: string; role: string; invitedBy: string | null; createdAt: string; expiresAt: string; personName: string | null }
+type InvitationRow = { id: number; email: string; business_id: string; role: string; invited_by: string | null; created_at: string; expires_at: string; business_name?: string; trial_ends_at?: string | null; person_name?: string | null };
+const toInvitation = (r: InvitationRow): Invitation => ({ id: r.id, email: r.email, businessId: r.business_id, role: r.role, invitedBy: r.invited_by, createdAt: r.created_at, expiresAt: r.expires_at, personName: r.person_name ?? null });
 
 // Invite an address to a business, or REFRESH the invitation it already has (a new role, a new 30 days, pending again).
-export async function upsertInvitation(env: Env, email: string, businessId: string, role: string, invitedBy: string | null): Promise<{ id: number; created: boolean }> {
+export async function upsertInvitation(env: Env, email: string, businessId: string, role: string, invitedBy: string | null, personName: string | null = null): Promise<{ id: number; created: boolean }> {
   if (!isBusinessId(businessId)) throw new Error("not a valid business id");
   const address = normaliseEmail(email);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(address)) throw new Error("not a valid email address");
   await ensureDirectory(env);
   const existing = await env.OFFICE_DB.prepare("SELECT id FROM invitations WHERE email = ? AND business_id = ?").bind(address, businessId).first<{ id: number }>();
   if (existing) {
-    await env.OFFICE_DB.prepare(`UPDATE invitations SET role = ?, invited_by = ?, status = 'pending', created_at = datetime('now'), expires_at = datetime('now', '+${INVITATION_DAYS} days') WHERE id = ?`).bind(role, invitedBy, existing.id).run();
+    await env.OFFICE_DB.prepare(`UPDATE invitations SET role = ?, invited_by = ?, person_name = ?, status = 'pending', created_at = datetime('now'), expires_at = datetime('now', '+${INVITATION_DAYS} days') WHERE id = ?`).bind(role, invitedBy, personName, existing.id).run();
     return { id: existing.id, created: false };
   }
-  const row = await env.OFFICE_DB.prepare(`INSERT INTO invitations (email, business_id, role, invited_by, expires_at) VALUES (?, ?, ?, ?, datetime('now', '+${INVITATION_DAYS} days')) RETURNING id`).bind(address, businessId, role, invitedBy).first<{ id: number }>();
+  const row = await env.OFFICE_DB.prepare(`INSERT INTO invitations (email, business_id, role, invited_by, person_name, expires_at) VALUES (?, ?, ?, ?, ?, datetime('now', '+${INVITATION_DAYS} days')) RETURNING id`).bind(address, businessId, role, invitedBy, personName).first<{ id: number }>();
   return { id: (row as { id: number }).id, created: true };
 }
 
-// A business's own PENDING, unexpired invitations (what its owner sees and can revoke).
+// A business's own PENDING, unexpired invitations (what its owner sees and can revoke). Tolerates a directory that predates the person_name column (a read can happen before any write adds it).
 export async function listInvitationsFor(env: Env, businessId: string): Promise<Invitation[]> {
+  const run = async (columns: string) => ((await env.OFFICE_DB.prepare(`SELECT ${columns} FROM invitations WHERE business_id = ? AND status = 'pending' AND expires_at > datetime('now') ORDER BY id`).bind(businessId).all<InvitationRow>()).results ?? []).map(toInvitation);
   try {
-    const { results } = await env.OFFICE_DB.prepare("SELECT id, email, business_id, role, invited_by, created_at, expires_at FROM invitations WHERE business_id = ? AND status = 'pending' AND expires_at > datetime('now') ORDER BY id").bind(businessId).all<InvitationRow>();
-    return (results ?? []).map(toInvitation);
+    try {
+      return await run("id, email, business_id, role, invited_by, created_at, expires_at, person_name");
+    } catch (error) {
+      if (!missingColumn(error)) throw error;
+      return await run("id, email, business_id, role, invited_by, created_at, expires_at");
+    }
   } catch (error) {
     if (missingTable(error)) return [];
     throw error;
   }
 }
 
-// What an ADDRESS may accept right now: pending, unexpired, and for a business that is active and not past its trial. Carries the business's name (to show) and trial end (for the session). Joining is only ever offered through this.
+// What an ADDRESS may accept right now: pending, unexpired, and for a business that is active and not past its trial. Carries the business's name (to show), trial end (for the session) and the name the owner gave the person (so
+// accepting makes or links their person record). Joining is only ever offered through this. Tolerates a directory that predates the trial columns AND the person_name column.
 export async function pendingInvitationsForEmail(env: Env, email: string): Promise<Array<Invitation & { businessName: string; trialEndsAt: string | null }>> {
-  const base = "SELECT i.id AS id, i.email AS email, i.business_id AS business_id, i.role AS role, i.invited_by AS invited_by, i.created_at AS created_at, i.expires_at AS expires_at, b.name AS business_name";
-  const from = " FROM invitations i JOIN businesses b ON b.id = i.business_id WHERE i.email = ? AND i.status = 'pending' AND i.expires_at > datetime('now') AND b.status = 'active'";
-  const run = async (sql: string) => (await env.OFFICE_DB.prepare(sql).bind(normaliseEmail(email)).all<InvitationRow>()).results ?? [];
-  try {
+  const attempt = async (withPerson: boolean) => {
+    const base = `SELECT i.id AS id, i.email AS email, i.business_id AS business_id, i.role AS role, i.invited_by AS invited_by, i.created_at AS created_at, i.expires_at AS expires_at, b.name AS business_name${withPerson ? ", i.person_name AS person_name" : ""}`;
+    const from = " FROM invitations i JOIN businesses b ON b.id = i.business_id WHERE i.email = ? AND i.status = 'pending' AND i.expires_at > datetime('now') AND b.status = 'active'";
+    const run = async (sql: string) => (await env.OFFICE_DB.prepare(sql).bind(normaliseEmail(email)).all<InvitationRow>()).results ?? [];
     let rows: InvitationRow[];
     try {
       rows = await run(`${base}, b.trial_ends_at AS trial_ends_at${from} AND (b.trial_ends_at IS NULL OR b.trial_ends_at > datetime('now')) ORDER BY i.id`);
@@ -200,6 +213,14 @@ export async function pendingInvitationsForEmail(env: Env, email: string): Promi
       rows = await run(`${base}${from} ORDER BY i.id`);   // the directory predates trials
     }
     return rows.map((r) => ({ ...toInvitation(r), businessName: r.business_name ?? "", trialEndsAt: r.trial_ends_at ?? null }));
+  };
+  try {
+    try {
+      return await attempt(true);
+    } catch (error) {
+      if (!missingColumn(error)) throw error;
+      return await attempt(false);   // the directory predates person_name
+    }
   } catch (error) {
     if (missingTable(error)) return [];
     throw error;

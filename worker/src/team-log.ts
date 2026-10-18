@@ -10,7 +10,7 @@ const TABLES = [
   "CREATE TABLE IF NOT EXISTS member_sign_ins (email TEXT PRIMARY KEY, first_at TEXT NOT NULL, last_at TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 1)",
 ];
 
-export type TeamAction = "added" | "invited" | "invitation_withdrawn" | "role_changed" | "deactivated" | "reactivated" | "joined";
+export type TeamAction = "added" | "invited" | "invitation_withdrawn" | "role_changed" | "deactivated" | "reactivated" | "joined" | "named" | "renamed" | "profile_updated";
 export interface TeamEvent { id: number; at: string; actor: string | null; action: string; target: string | null; detail: Record<string, unknown> }
 export interface SignInStamp { firstAt: string; lastAt: string; count: number }
 

@@ -780,6 +780,7 @@ export const ROUTE_RULES: Array<{ method: string; path: RegExp; anyOf: string[] 
   { method: "PATCH", path: /^\/team\/\d+$/, anyOf: ["can_invite_members"] },
   { method: "POST", path: /^\/team\/\d+\/(deactivate|reactivate)$/, anyOf: ["can_invite_members"] },
   { method: "POST", path: /^\/team\/invite$/, anyOf: ["can_invite_members"] },
+  { method: "PATCH", path: /^\/team\/\d+\/profile$/, anyOf: ["can_invite_members"] },
   { method: "POST", path: /^\/team\/invitations\/\d+\/revoke$/, anyOf: ["can_invite_members"] },
   { method: "POST", path: /^\/business-profile\/logo$/, anyOf: ["can_manage_settings"] },
   { method: "POST", path: /^\/files\/(customers|invoices)-csv-import$/, anyOf: ["can_manage_settings"] },
