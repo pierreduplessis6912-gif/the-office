@@ -788,6 +788,7 @@ jobs:
           api pe-final GET "$SESSION" /team
           # PAYMENT (worker/src/billing.ts) on the REAL objects, before the seat steps: the owner (and only the owner) starts a checkout for a plan that can be bought; the pay page is a signed form to the PayFast SANDBOX and an unknown order is a
           # 404; a notification with a bad signature, and one for the wrong amount, change nothing; a correctly signed one for the exact amount converts the business (plan changed, trial ended); and the same payment again is ignored.
+          # Each run uses its OWN PayFast payment ids (the staging database persists between runs, and a payment id is remembered for good: reusing one is correctly treated as a replay).
           itn_body() { python3 - "$@" <<'PY'
           import hashlib, sys, urllib.parse
           order, pf, status, amount, biz, token, kind = sys.argv[1:8]
@@ -808,11 +809,11 @@ jobs:
           curl -s -o /dev/null -w '%{http_code}' "$BASE/billing/pay?order=not-a-real-order" > "$RESULTS/bl-pay-bad.status"
           curl -s -o /dev/null -w '%{http_code}' "$BASE/billing/return" > "$RESULTS/bl-return.status"
           dirnow bl-dir-before
-          notify bl-bad "$(itn_body "$BORDER" 7000001 COMPLETE 897.00 "$BID" "tok-$TAG" bad)"
-          notify bl-short "$(itn_body "$BORDER" 7000002 COMPLETE 1.00 "$BID" "tok-$TAG" good)"
+          notify bl-bad "$(itn_body "$BORDER" "${GITHUB_RUN_ID}1" COMPLETE 897.00 "$BID" "tok-$TAG" bad)"
+          notify bl-short "$(itn_body "$BORDER" "${GITHUB_RUN_ID}2" COMPLETE 1.00 "$BID" "tok-$TAG" good)"
           dirnow bl-dir-mid
-          notify bl-ok "$(itn_body "$BORDER" 7000003 COMPLETE 897.00 "$BID" "tok-$TAG" good)"
-          notify bl-replay "$(itn_body "$BORDER" 7000003 COMPLETE 897.00 "$BID" "tok-$TAG" good)"
+          notify bl-ok "$(itn_body "$BORDER" "${GITHUB_RUN_ID}3" COMPLETE 897.00 "$BID" "tok-$TAG" good)"
+          notify bl-replay "$(itn_body "$BORDER" "${GITHUB_RUN_ID}3" COMPLETE 897.00 "$BID" "tok-$TAG" good)"
           dirnow bl-dir-after
           # The OPERATOR's side (worker/src/billing.ts billingStatus, debug.ts): a read-only view of what the business has bought and paid, and a way to start an order for it. Both on the REAL database.
           billadm() { curl -s -o "$RESULTS/$1.json" -w '%{http_code}' -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/directory/billing?business=$BID" > "$RESULTS/$1.status"; }
