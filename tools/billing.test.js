@@ -16,12 +16,14 @@ async function billingTests({ check, srcDir }) {
   let bl, lm, dir, D1;
   try { bl = bundle('billing.ts'); lm = bundle('limits.ts'); dir = bundle('directory.ts'); D1 = bundle('storage/do-d1.ts').DoD1Database; } catch (e) { check(false, 'billing.ts builds: ' + String(e.message).split('\n')[0].slice(0, 160)); return; }
   const plain = (r) => (r ? { ...r } : r);
-  const makeDb = () => { const db = new DatabaseSync(':memory:'); const sql = { exec(query, ...binds) { const s = db.prepare(query); if (/^\s*(select|with|pragma|values)\b/i.test(query) || /\breturning\b/i.test(query)) { const rows = s.all(...binds).map(plain); return { toArray: () => rows, rowsRead: rows.length, rowsWritten: 0 }; } const r = s.run(...binds); return { toArray: () => [], rowsRead: 0, rowsWritten: Number(r.changes) }; } }; const storage = { transactionSync(fn) { db.exec('BEGIN'); try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; } } }; return { db, d1: new D1(sql, storage) }; };
+  const makeDb = (existing) => { const db = existing ?? new DatabaseSync(':memory:'); const sql = { exec(query, ...binds) { const s = db.prepare(query); if (/^\s*(select|with|pragma|values)\b/i.test(query) || /\breturning\b/i.test(query)) { const rows = s.all(...binds).map(plain); return { toArray: () => rows, rowsRead: rows.length, rowsWritten: 0 }; } const r = s.run(...binds); return { toArray: () => [], rowsRead: 0, rowsWritten: Number(r.changes) }; } }; const storage = { transactionSync(fn) { db.exec('BEGIN'); try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; } } }; return { db, d1: new D1(sql, storage) }; };
   const enc = (s) => encodeURIComponent(s).replace(/%20/g, '+').replace(/[!'()*~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());
   const md5 = (s) => crypto.createHash('md5').update(s, 'utf8').digest('hex');
   const PASS = 'test passphrase!', CFG = { PAYFAST_MODE: 'sandbox', PAYFAST_SANDBOX_MERCHANT_ID: '10000100', PAYFAST_SANDBOX_MERCHANT_KEY: '46f0cd694581a', PAYFAST_SANDBOX_PASSPHRASE: PASS };
   const NOW = new Date('2026-10-20T10:00:00Z');
-  const world = async (extra = {}) => { const shared = makeDb(); const env = { OFFICE_DB: shared.d1, SHARED_DB: shared.d1, ...CFG, ...extra }; await dir.ensureDirectory(env); await lm.listPlans(env); await bl.ensureBilling(env); return { shared, env }; };
+  // The shared layer ALSO carries the business tables (staging and production do: the baseline schema is applied to the same database). A billing table that shared a name with one of them would silently do nothing, which is exactly how the first real rehearsal found a `payments` collision.
+  const { newDatabase } = require('./harness.js');
+  const world = async (extra = {}) => { const shared = makeDb(newDatabase(path.join(srcDir, '..'))); const env = { OFFICE_DB: shared.d1, SHARED_DB: shared.d1, ...CFG, ...extra }; await dir.ensureDirectory(env); await lm.listPlans(env); await bl.ensureBilling(env); return { shared, env }; };
   const business = async (w, id = 'acme-co', plan = 'trial', trialDays = 5) => { await dir.createBusiness(w.env, id, 'Acme Co', plan, { source: 'signup' }); if (trialDays !== null) w.shared.db.prepare("UPDATE businesses SET trial_ends_at = datetime('now', ?) WHERE id = ?").run(`${trialDays} days`, id); };
   const bizRow = (w, id = 'acme-co') => w.shared.db.prepare('SELECT * FROM businesses WHERE id = ?').get(id);
   const order = async (w, o = {}) => { const r = await bl.createOrder(w.env, { businessId: 'acme-co', payerEmail: 'Owner@Acme.co', plan: 'team', interval: 'monthly', seats: 3, ...o }); return r; };
@@ -30,7 +32,7 @@ async function billingTests({ check, srcDir }) {
   const bodyOf = (pairs) => pairs.map(([k, v]) => `${enc(k)}=${enc(v)}`).join('&');
   const valid = async () => new Response('VALID');
   const notify = (w, pairs, o = {}) => bl.handleNotification(o.env ?? w.env, bodyOf(pairs), o.ip ?? '197.97.145.150', o.fetch ?? valid, NOW);
-  const payments = (w) => w.shared.db.prepare('SELECT * FROM payments ORDER BY id').all();
+  const payments = (w) => w.shared.db.prepare('SELECT * FROM billing_payments ORDER BY id').all();
 
   // ---- configuration ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   { const c = bl.payfastConfig({ ...CFG });
@@ -113,6 +115,13 @@ async function billingTests({ check, srcDir }) {
     const unknown = await bl.payPage(w.env, 'ffffffff-ffff-ffff-ffff-ffffffffffff', 'https://x.co', NOW), junk = await bl.payPage(w.env, "x'; DROP TABLE billing_orders;--", 'https://x.co', NOW); check(unknown.status === 404 && junk.status === 404 && w.shared.db.prepare('SELECT COUNT(*) n FROM billing_orders').get().n === 1, 'an unknown or hostile order id is a 404 and touches nothing');
     await notify(w, itn(o)); const done = await bl.payPage(w.env, o.id, 'https://x.co', NOW); check(done.status === 200 && !/<form/.test(await done.text()), 'an order that is already paid shows no form (it cannot be paid twice)');
     const nc = await bl.payPage({ ...w.env, PAYFAST_SANDBOX_MERCHANT_ID: '' }, (await order(w)).order.id, 'https://x.co', NOW); check(nc.status === 503, 'and when payments are not configured the page says so'); }
+  // ---- the shared layer and the business tables must never share a name ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  { const baseline = fs.readFileSync(path.join(srcDir, 'baseline-sql.ts'), 'utf8'), business = new Set([...baseline.matchAll(/CREATE TABLE(?: IF NOT EXISTS)? \\?"?([a-z_]+)/g)].map((m) => m[1]));
+    const made = {}; for (const f of ['directory.ts', 'billing.ts', 'signup.ts']) for (const m of fs.readFileSync(path.join(srcDir, f), 'utf8').matchAll(/CREATE TABLE IF NOT EXISTS ([a-z_]+) \(/g)) (made[f] ||= []).push(m[1]);
+    const clash = Object.entries(made).flatMap(([f, names]) => names.filter((n) => business.has(n)).map((n) => `${n} (${f})`));
+    check(clash.length === 0 && business.size >= 38, `no table the shared layer makes has the name of a business table (a CREATE TABLE IF NOT EXISTS on a name that already exists silently does nothing). Clashes: ${clash.join(', ') || 'none'}`);
+    check(business.has('payments') && !Object.values(made).flat().includes('payments'), 'in particular the business "payments" table (what customers pay the business) is not ours: the billing ledger is billing_payments'); }
+
   // ---- the wiring ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   { const idx = fs.readFileSync(path.join(srcDir, 'index.ts'), 'utf8'), auth = fs.readFileSync(path.join(srcDir, 'auth.ts'), 'utf8'), route = fs.readFileSync(path.join(srcDir, 'routing.ts'), 'utf8');
     const checkout = (idx.match(/url\.pathname === "\/billing\/checkout"[\s\S]*?\n    \}\n/) || [''])[0];

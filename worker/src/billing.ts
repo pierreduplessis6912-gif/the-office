@@ -22,7 +22,7 @@ export function payfastConfig(env: Env): PayFastConfig | null {
 const DDL = [
   "CREATE TABLE IF NOT EXISTS billing_orders (id TEXT PRIMARY KEY, business_id TEXT NOT NULL, plan TEXT NOT NULL, interval TEXT NOT NULL, seats INTEGER NOT NULL, amount_cents INTEGER NOT NULL, item_name TEXT NOT NULL, payer_email TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT (datetime('now')), completed_at TEXT)",
   "CREATE INDEX IF NOT EXISTS idx_billing_orders_business ON billing_orders (business_id, status)",
-  "CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY AUTOINCREMENT, pf_payment_id TEXT NOT NULL UNIQUE, order_id TEXT, business_id TEXT, token TEXT, status TEXT NOT NULL, amount_gross_cents INTEGER, amount_fee_cents INTEGER, confirmed INTEGER NOT NULL DEFAULT 0, ip_ok INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')))",
+  "CREATE TABLE IF NOT EXISTS billing_payments (id INTEGER PRIMARY KEY AUTOINCREMENT, pf_payment_id TEXT NOT NULL UNIQUE, order_id TEXT, business_id TEXT, token TEXT, status TEXT NOT NULL, amount_gross_cents INTEGER, amount_fee_cents INTEGER, confirmed INTEGER NOT NULL DEFAULT 0, ip_ok INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')))",
 ];
 const BUSINESS_COLUMNS: Array<[string, string]> = [["billing_status", "TEXT"], ["billing_interval", "TEXT"], ["pf_token", "TEXT"], ["period_end", "TEXT"], ["grace_until", "TEXT"]];
 export async function ensureBilling(env: Env): Promise<void> {
@@ -118,8 +118,9 @@ export async function handleNotification(env: Env, rawBody: string, ip: string |
   try {
     await ensureBilling(env);
     return await decide(env, config, field, pfPaymentId, ip, ymd(now));
-  } catch {
-    return { status: 500, outcome: "error" };   // PayFast retries a non-200: nothing was half-applied that a retry cannot finish
+  } catch (error) {
+    // PayFast retries a non-200: nothing was half-applied that a retry cannot finish. The reason is given ONLY where the confirmation skip is on (the staging test seam, which live mode ignores), so a real failure can be read there.
+    return { status: 500, outcome: config.skipConfirm ? `error: ${error instanceof Error ? error.message : String(error)}`.slice(0, 200) : "error" };
   }
 }
 
@@ -130,12 +131,12 @@ async function decide(env: Env, _config: PayFastConfig, field: (n: string) => st
   const ipOk = ipAllowed(ip) ? 1 : 0;
   if (status !== "COMPLETE" && status !== "FAILED" && status !== "CANCELLED") return { status: 200, outcome: "ignored" };
 
-  const seen = await db.prepare("SELECT status FROM payments WHERE pf_payment_id = ?").bind(pfPaymentId).first<{ status: string }>();
+  const seen = await db.prepare("SELECT status FROM billing_payments WHERE pf_payment_id = ?").bind(pfPaymentId).first<{ status: string }>();
   if (seen && !(status === "COMPLETE" && (seen.status === "failed" || seen.status === "cancelled"))) return { status: 200, outcome: "duplicate" };   // a payment PayFast first reported as failed may later complete: that is not a replay
-  if (seen) await db.prepare("DELETE FROM payments WHERE pf_payment_id = ?").bind(pfPaymentId).run();
+  if (seen) await db.prepare("DELETE FROM billing_payments WHERE pf_payment_id = ?").bind(pfPaymentId).run();
 
   const record = async (paymentStatus: string, order: OrderRow | null, confirmed: number): Promise<void> => {
-    await db.prepare("INSERT INTO payments (pf_payment_id, order_id, business_id, token, status, amount_gross_cents, amount_fee_cents, confirmed, ip_ok) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    await db.prepare("INSERT INTO billing_payments (pf_payment_id, order_id, business_id, token, status, amount_gross_cents, amount_fee_cents, confirmed, ip_ok) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
       .bind(pfPaymentId, order?.id ?? null, order?.business_id ?? (claimedBusiness || null), token, paymentStatus, gross, fee, confirmed, ipOk).run();
   };
 
