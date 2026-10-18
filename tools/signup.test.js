@@ -9,14 +9,14 @@ const MARK = '@@SIGNUP-RESULT@@';
 async function body({ check, srcDir }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'signup-')), entry = path.join(dir, 'entry.ts'), out = path.join(dir, 'signup.js');
   const at = (f) => JSON.stringify(path.join(srcDir, f));
-  fs.writeFileSync(entry, `export * from ${at('signup')};\nexport { signedInRedirect } from ${at('signin')};\nexport { signSession, readSessionPayload, signSignupToken, readSignupToken } from ${at('auth')};\nexport { createBusiness, addDirectoryMember, ensureDirectory, lookupAccessForEmail, lookupBusinessForEmail, findEndedTrialForEmail, listDirectory, upsertInvitation, pendingInvitationsForEmail, revokeInvitation } from ${at('directory')};\nexport { readPlan, clearPlanCache, TRIAL_PLAN } from ${at('limits')};\nexport { convertTrial, extendTrial, sqlTime, fromSqlTime, MAX_EXTEND_DAYS } from ${at('freetrial')};\nexport { seedBusinessName } from ${at('profile-seed')};\n`);
+  fs.writeFileSync(entry, `export * from ${at('signup')};\nexport { signedInRedirect } from ${at('signin')};\nexport { signSession, readSessionPayload, signSignupToken, readSignupToken } from ${at('auth')};\nexport { createBusiness, addDirectoryMember, ensureDirectory, lookupAccessForEmail, lookupBusinessForEmail, findEndedTrialForEmail, listDirectory, upsertInvitation, pendingInvitationsForEmail, revokeInvitation, findDirectoryConflicts, closeBusiness } from ${at('directory')};\nexport { readPlan, clearPlanCache, TRIAL_PLAN } from ${at('limits')};\nexport { convertTrial, extendTrial, sqlTime, fromSqlTime, MAX_EXTEND_DAYS } from ${at('freetrial')};\nexport { seedBusinessName } from ${at('profile-seed')};\n`);
   esbuild.buildSync({ entryPoints: [entry], bundle: true, platform: 'node', format: 'cjs', outfile: out, logLevel: 'silent' });
   const m = require(out);
   const src = (f) => fs.readFileSync(path.join(srcDir, f), 'utf8');
 
   // A world: the shared directory (a real SQLite behind the same shim the directory tests use) and a fake business namespace that answers like the real one (membership check, membership create) and can be told to fail.
   const world = (extra = {}) => {
-    const db = new DatabaseSync(':memory:'), objects = new Map(), calls = [], names = new Map(), state = { failCreate: false, failSeed: false, throwSeed: false };
+    const db = new DatabaseSync(':memory:'), objects = new Map(), calls = [], names = new Map(), state = { failCreate: false, failSeed: false, throwSeed: false, hasData: new Set() };
     const OFFICE_DB = { prepare: (sql) => { const st = (binds) => ({ bind: (...b) => st(b), first: async () => db.prepare(sql).get(...binds) ?? null, all: async () => ({ results: db.prepare(sql).all(...binds) }), run: async () => db.prepare(sql).run(...binds) }); return st([]); } };
     const BUSINESS = { idFromName: (name) => ({ name }), get: (id) => ({ fetch: async (url, init = {}) => {
       const u = new URL(typeof url === 'string' ? url : url.url), bid = id.name.replace(/^business-/, ''), mem = objects.get(bid) ?? objects.set(bid, new Map()).get(bid);
@@ -24,6 +24,7 @@ async function body({ check, srcDir }) {
       if (u.pathname === '/debug/membership-check') { const row = mem.get(u.searchParams.get('email')); return Response.json(row ? { found: true, role: row.role, status: row.status } : { found: false, role: null, status: null }); }
       if (u.pathname === '/debug/create-membership') { if (state.failCreate) return new Response('boom', { status: 500 }); const b = JSON.parse(init.body); mem.set(b.google_email, { role: b.role, status: 'active', invitedBy: b.invited_by ?? null }); return Response.json({ ok: true }); }
       if (u.pathname === '/debug/seed-business-name') { if (state.throwSeed) throw new Error('the object could not be reached'); if (state.failSeed) return new Response('boom', { status: 500 }); const b = JSON.parse(init.body); if (!names.has(bid)) names.set(bid, b.name); return Response.json({ ok: true }); }
+      if (u.pathname === '/debug/emptiness') { const owner = u.searchParams.get('email'); const only = [...mem.entries()]; return Response.json({ empty: !state.hasData.has(bid) && only.length === 1 && only[0][0] === owner && only[0][1].role === 'owner' }); }
       return new Response('?', { status: 404 }); } }) };
     return { db, objects, calls, names, state, env: { OFFICE_DB, SHARED_DB: OFFICE_DB, BUSINESS, ADMIN_KEY: 'k', SESSION_SECRET: 'secret-for-the-tests', BUSINESS_MODE: 'object', PLAN_CACHE_SECONDS: '0', ...extra } };
   };
@@ -411,6 +412,100 @@ async function body({ check, srcDir }) {
     google('NewHire@Gmail.com'); const next = await worker.fetch(new Request('https://office.websitehub.co.za/auth/google/callback?code=c&state=S', { headers: { Cookie: 'oauth_state=S', Accept: 'text/html' } }), env, ctx); check(next.status === 302 && new URL(next.headers.get('Location')).searchParams.get('role') === 'installer', 'and the next sign-in is a normal member\'s: straight in');
   }
   check(/url\.pathname === "\/auth\/join" && request\.method === "POST"[\s\S]{0,300}handleJoinPost\(request, env\)/.test(src('index.ts')) && /"\/auth\/join"/.test(src('auth.ts')) && /WORKER_ONLY = new Set\(\[[^\]]*"\/auth\/join"/.test(src('routing.ts')), 'the join route exists, is public (the person has no session yet) and is answered by the Worker itself');
+
+  // ---- the EMPTY-BUSINESS HANDOVER (signup.ts maybeHandoverPage, handleJoinPost; emptiness.ts decides "empty") --------------------------------------------------------------------------------------------------------------
+  // An employee who started their own trial by mistake is invited to the business they work for. Their address is bound to their empty business, so they never reach the "unknown address" page. If, and only if, that business is
+  // verifiably empty and self-started, they are ASKED: join (their empty business is closed, nothing deleted) or keep it. They must choose; nobody can do it for them.
+  const handoverWorld = async (opts = {}) => {
+    const { x, id } = await invited({ email: 'newhire@gmail.com', role: 'installer' });
+    await m.handleSignupPost(post({ token: await tokenFor(x.env, 'newhire@gmail.com'), business_name: 'Mine Floors', agree: 'on' }, '7.7.7.7'), x.env);
+    const mine = rows(x).find((b) => b.name === 'Mine Floors').id;
+    return { x, id, mine };
+  };
+  const accessOf = (x, email = 'newhire@gmail.com') => m.lookupAccessForEmail(x.env, email);
+  const offer = async (x, email = 'newhire@gmail.com') => m.maybeHandoverPage(new Request('https://x/auth/google/callback', { headers: { Accept: 'text/html' } }), x.env, email, await accessOf(x, email));
+  const handoverPost = (x, token, fields) => m.handleJoinPost(post({ token, ...fields }, '8.8.8.8'), x.env);
+  {
+    const { x, id, mine } = await handoverWorld(); const page = await offer(x), html = page ? await text(page) : '';
+    check(page && page.status === 200 && /Live Co/.test(html) && /as <strong>an installer<\/strong>/.test(html) && /Mine Floors/.test(html) && /empty/i.test(html) && /closed/i.test(html) && /nothing is deleted/i.test(html), 'an employee in their OWN EMPTY self-started trial business who has an invitation is ASKED: the inviting business, the role, their own business\'s name, that it is empty and that joining closes it (nothing deleted)');
+    check(new RegExp(`name="handover" value="1"`).test(html) && new RegExp(`name="invitation" value="${id}"`).test(html) && /name="keep" value="1"/.test(html) && (html.match(/action="\/auth\/join"/g) || []).length === 2, 'with a Join button (carrying the invitation) and a Keep my own business button');
+    const proof = html.match(/name="token" value="([^"]+)"/)?.[1]; check((await m.readSignupToken(x.env, proof))?.email === 'newhire@gmail.com', 'both carry the signed proof for exactly that address');
+    const hostile = await handoverWorld(); hostile.x.db.exec("UPDATE businesses SET name = '\"><img src=x onerror=alert(1)>' WHERE id = '" + hostile.mine + "'"); const hh = await text(await offer(hostile.x)); check(!/<img src=x/.test(hh) && /&lt;img src=x onerror=alert\(1\)&gt;/.test(hh), 'both business names are HTML-escaped on the page');
+  }
+  for (const [label, setup] of [
+    ['their own business HAS DATA', (w) => w.x.state.hasData.add(w.mine)],
+    ['their own business was created by an OPERATOR (not self-started)', (w) => w.x.db.exec(`UPDATE businesses SET source = 'admin' WHERE id = '${w.mine}'`)],
+    ['their own business has been CONVERTED (no longer a trial)', (w) => w.x.db.exec(`UPDATE businesses SET trial_ends_at = NULL WHERE id = '${w.mine}'`)],
+    ['their own business has a SECOND member', async (w) => { await m.addDirectoryMember(w.x.env, 'colleague@gmail.com', w.mine); }],
+    ['the invitation has EXPIRED', (w) => w.x.db.exec("UPDATE invitations SET expires_at = datetime('now', '-1 minute')")],
+    ['the invitation was REVOKED', (w) => w.x.db.exec("UPDATE invitations SET status = 'revoked'")],
+    ['the invitation was DECLINED', (w) => w.x.db.exec("UPDATE invitations SET status = 'declined'")],
+    ['the inviting business is SUSPENDED', (w) => w.x.db.exec("UPDATE businesses SET status = 'suspended' WHERE id = 'live-co'")],
+    ['the inviting business\'s trial has ENDED', (w) => w.x.db.exec("UPDATE businesses SET trial_ends_at = datetime('now', '-1 day') WHERE id = 'live-co'")],
+  ]) { const w = await handoverWorld(); await setup(w); check((await offer(w.x)) === null, `NO offer when ${label}: they simply sign in to their own business`); }
+  { const w = await handoverWorld(); w.x.db.exec("DELETE FROM invitations"); check((await offer(w.x)) === null, 'NO offer when there is no invitation at all'); const own = await handoverWorld(); own.x.db.exec(`UPDATE invitations SET business_id = '${own.mine}'`); check((await offer(own.x)) === null, 'NO offer for an invitation to their OWN business'); }
+  {
+    const w = await handoverWorld(); const proof = await tokenFor(w.x.env, 'newhire@gmail.com'), r = await handoverPost(w.x, proof, { invitation: String(w.id), handover: '1' }), loc = new URL(r.headers.get('Location') ?? 'x:/');
+    check(r.status === 303 && loc.protocol === 'theoffice:' && loc.searchParams.get('role') === 'installer' && (await m.readSessionPayload(w.x.env, loc.searchParams.get('token')))?.b === 'live-co', 'JOINING signs them in to the INVITING business with the invited role');
+    const old = w.x.db.prepare('SELECT status, closed_into FROM businesses WHERE id = ?').get(w.mine);
+    check(old.status === 'closed' && old.closed_into === 'live-co' && rows(w.x).find((b) => b.id === w.mine).status === 'closed', 'their own empty business is CLOSED (not deleted) and records where its owner went');
+    check(w.x.db.prepare("SELECT business_id FROM directory_members WHERE email = 'newhire@gmail.com'").all().map((r) => r.business_id).join() === 'live-co' && (await m.lookupBusinessForEmail(w.x.env, 'newhire@gmail.com')) === 'live-co', 'their address is now bound to the new business ONLY');
+    check(w.x.objects.get('live-co').get('newhire@gmail.com')?.role === 'installer' && w.x.objects.get('live-co').get('newhire@gmail.com').invitedBy === 'boss@live.co' && w.x.db.prepare('SELECT status FROM invitations').get().status === 'accepted', 'the membership exists in the new business recording who invited them, and the invitation is accepted');
+    const again = await handoverPost(w.x, await tokenFor(w.x.env, 'newhire@gmail.com'), { invitation: String(w.id), handover: '1' }); check(again.status === 303 && new URL(again.headers.get('Location')).searchParams.get('role') === 'installer' && w.x.db.prepare("SELECT COUNT(*) n FROM businesses WHERE status = 'closed'").get().n === 1, 'doing it AGAIN just signs them in to the new business (nothing more is closed)');
+    check((await offer(w.x)) === null, 'and they are never offered anything again');
+  }
+  {
+    // the server re-checks EVERYTHING when they tap, whatever the form says
+    const bad = [['their business got data after the page was shown', (w) => w.x.state.hasData.add(w.mine), null], ['the invitation expired meanwhile', (w) => w.x.db.exec("UPDATE invitations SET expires_at = datetime('now', '-1 minute')"), null], ['the invitation was revoked meanwhile', (w) => w.x.db.exec("UPDATE invitations SET status = 'revoked'"), null], ['the form names an invitation for ANOTHER address', async (w) => { const other = await m.upsertInvitation(w.x.env, 'someone.else@gmail.com', 'live-co', 'owner', 'boss@live.co'); w.id = other.id; }, null]];
+    for (const [label, setup] of bad) { const w = await handoverWorld(); await setup(w); const r = await handoverPost(w.x, await tokenFor(w.x.env, 'newhire@gmail.com'), { invitation: String(w.id), handover: '1' }); const loc = r.headers.get('Location') ? new URL(r.headers.get('Location')) : null;
+      check(r.status === 303 && loc && (await m.readSessionPayload(w.x.env, loc.searchParams.get('token')))?.b === w.mine && loc.searchParams.get('role') === 'owner' && w.x.db.prepare('SELECT status FROM businesses WHERE id = ?').get(w.mine).status === 'active' && !w.x.objects.get('live-co').has('newhire@gmail.com'), `refused when ${label}: they are signed in to their OWN business, nothing is closed and nothing is added to the other`); }
+    const w = await handoverWorld(); const plain = await handoverPost(w.x, await tokenFor(w.x.env, 'newhire@gmail.com'), { invitation: String(w.id) }); check(plain.status === 303 && w.x.db.prepare('SELECT status FROM businesses WHERE id = ?').get(w.mine).status === 'active' && !w.x.objects.get('live-co').has('newhire@gmail.com'), 'a join WITHOUT the handover field never closes anything (the same as before this existed)');
+  }
+  {
+    const w = await handoverWorld(), r = await handoverPost(w.x, await tokenFor(w.x.env, 'newhire@gmail.com'), { invitation: String(w.id), keep: '1' }), loc = new URL(r.headers.get('Location') ?? 'x:/');
+    check(r.status === 303 && (await m.readSessionPayload(w.x.env, loc.searchParams.get('token')))?.b === w.mine && w.x.db.prepare('SELECT status FROM invitations').get().status === 'declined' && w.x.db.prepare('SELECT status FROM businesses WHERE id = ?').get(w.mine).status === 'active', 'KEEP my own business signs them in to it and DECLINES the invitation, so they are not asked at every sign-in');
+    check((await offer(w.x)) === null && (await m.listInvitationsFor?.(w.x.env, 'live-co') ?? []).length === 0, 'and they are not asked again, and the owner no longer sees it as waiting');
+    const other = await handoverWorld(); const stranger = await m.upsertInvitation(other.x.env, 'someone.else@gmail.com', 'live-co', 'installer', 'boss@live.co'); await handoverPost(other.x, await tokenFor(other.x.env, 'newhire@gmail.com'), { invitation: String(stranger.id), keep: '1' }); check(other.x.db.prepare('SELECT status FROM invitations WHERE id = ?').get(stranger.id).status === 'pending', 'Keep can only decline THEIR OWN invitation, never someone else\'s');
+  }
+  {
+    // failures part way: nothing is lost, and the same person trying again finishes it
+    const a = await handoverWorld(); a.x.state.failCreate = true; const r1 = await handoverPost(a.x, await tokenFor(a.x.env, 'newhire@gmail.com'), { invitation: String(a.id), handover: '1' });
+    check(r1.status === 500 && a.x.db.prepare('SELECT status FROM businesses WHERE id = ?').get(a.mine).status === 'active' && a.x.db.prepare('SELECT status FROM invitations').get().status === 'pending', 'when the new membership cannot be created NOTHING is closed and the invitation stays pending');
+    a.x.state.failCreate = false; const r2 = await handoverPost(a.x, await tokenFor(a.x.env, 'newhire@gmail.com'), { invitation: String(a.id), handover: '1' }); check(r2.status === 303 && a.x.db.prepare('SELECT status FROM businesses WHERE id = ?').get(a.mine).status === 'closed', 'and the retry completes it');
+    const b = await handoverWorld(); let armed = true; const real = b.x.env.OFFICE_DB.prepare; b.x.env.OFFICE_DB = { prepare: (sql) => { if (armed && /UPDATE directory_members|INSERT INTO directory_members/.test(sql)) { armed = false; throw new Error('the directory could not be written'); } return real(sql); } }; b.x.env.SHARED_DB = b.x.env.OFFICE_DB;
+    const r3 = await handoverPost(b.x, await tokenFor(b.x.env, 'newhire@gmail.com'), { invitation: String(b.id), handover: '1' });
+    check(r3.status === 500 && b.x.db.prepare('SELECT status FROM businesses WHERE id = ?').get(b.mine).status === 'closed' && b.x.db.prepare("SELECT business_id FROM directory_members WHERE email = 'newhire@gmail.com'").get().business_id === b.mine, 'a failure AFTER their business was closed but BEFORE the address moved leaves them on a closed business with the invitation still pending (the state a retry must handle)');
+    const r4 = await handoverPost(b.x, await tokenFor(b.x.env, 'newhire@gmail.com'), { invitation: String(b.id) }); const loc4 = r4.headers.get('Location') ? new URL(r4.headers.get('Location')) : null;
+    check(r4.status === 303 && loc4 && (await m.readSessionPayload(b.x.env, loc4.searchParams.get('token')))?.b === 'live-co' && b.x.db.prepare("SELECT business_id FROM directory_members WHERE email = 'newhire@gmail.com'").get().business_id === 'live-co' && b.x.db.prepare('SELECT status FROM invitations').get().status === 'accepted', 'and the retry (an ordinary Join now, since their business is closed) moves the address and completes it');
+  }
+  {
+    const w = await handoverWorld(); await handoverPost(w.x, await tokenFor(w.x.env, 'newhire@gmail.com'), { invitation: String(w.id), handover: '1' });
+    check((await m.findDirectoryConflicts(w.x.env, ['newhire@gmail.com'], 'other-biz')).length === 1, 'an address bound to a live business still conflicts with another');
+    const w2 = await handoverWorld(); w2.x.db.exec(`UPDATE businesses SET status = 'closed' WHERE id = '${w2.mine}'`);
+    check((await m.findDirectoryConflicts(w2.x.env, ['newhire@gmail.com'], 'live-co')).length === 0, 'but an address bound only to a CLOSED business conflicts with nothing: a closed business never blocks anyone again');
+    await m.createBusiness(w2.x.env, 'third-co', 'Third Co'); check((await m.addDirectoryMember(w2.x.env, 'newhire@gmail.com', 'third-co')).added === true && w2.x.db.prepare("SELECT business_id FROM directory_members WHERE email = 'newhire@gmail.com'").all().length === 1, 'and adding it elsewhere MOVES the one binding (an address is still in exactly one business)');
+  }
+  {
+    // the directory's own rails, tested directly (the paths above stop earlier, so these would otherwise be untested)
+    const w = await handoverWorld(); const before = (id) => w.x.db.prepare('SELECT status FROM businesses WHERE id = ?').get(id).status;
+    await m.closeBusiness(w.x.env, 'live-co', 'elsewhere'); check(before('live-co') === 'active', 'closeBusiness NEVER closes a business an operator created (only a self-started one)');
+    w.x.db.exec("UPDATE businesses SET status = 'suspended' WHERE id = '" + w.mine + "'"); await m.closeBusiness(w.x.env, w.mine, 'live-co'); check(before(w.mine) === 'suspended', 'nor one that is not active');
+    const live = await handoverWorld(); let threw = false; try { await m.addDirectoryMember(live.x.env, 'newhire@gmail.com', 'live-co'); } catch { threw = true; }
+    check(threw && live.x.db.prepare("SELECT business_id FROM directory_members WHERE email = 'newhire@gmail.com'").get().business_id === live.mine, 'an address bound to a LIVE business is never stolen by adding it to another: only an address on a CLOSED business moves');
+  }
+  {
+    // through the Worker's real entry point
+    const w = await handoverWorld(); const env = { ...w.x.env, GOOGLE_CLIENT_ID: 'client-id', GOOGLE_CLIENT_SECRET: 'secret' };
+    google('NewHire@Gmail.com'); const page = await worker.fetch(new Request('https://office.websitehub.co.za/auth/google/callback?code=c&state=S', { headers: { Cookie: 'oauth_state=S', Accept: 'text/html' } }), env, ctx), html = await text(page);
+    check(page.status === 200 && /Live Co/.test(html) && /Mine Floors/.test(html) && /name="handover" value="1"/.test(html), 'through the REAL entry point the Google callback shows that employee the choice instead of signing them in');
+    google('NewHire@Gmail.com'); const nonBrowser = await worker.fetch(new Request('https://office.websitehub.co.za/auth/google/callback?code=c&state=S', { headers: { Cookie: 'oauth_state=S' } }), env, ctx); check(nonBrowser.status === 302 && new URL(nonBrowser.headers.get('Location')).searchParams.get('role') === 'owner', 'anything that is not a browser is simply signed in to their own business, as before');
+    const proof = html.match(/name="token" value="([^"]+)"/)?.[1], done = await worker.fetch(new Request('https://office.websitehub.co.za/auth/join', { method: 'POST', body: new URLSearchParams({ token: proof, invitation: String(w.id), handover: '1' }), headers: { 'CF-Connecting-IP': '5.5.5.5' } }), env, ctx);
+    check(done.status === 303 && new URL(done.headers.get('Location')).searchParams.get('role') === 'installer', 'the Join form is accepted with no session and ends signed in to the inviting business');
+    google('NewHire@Gmail.com'); const next = await worker.fetch(new Request('https://office.websitehub.co.za/auth/google/callback?code=c&state=S', { headers: { Cookie: 'oauth_state=S', Accept: 'text/html' } }), env, ctx); check(next.status === 302 && new URL(next.headers.get('Location')).searchParams.get('role') === 'installer', 'and the next sign-in is a normal member\'s of the new business');
+    const plain = await invited({ email: 'regular@gmail.com' }); const penv = { ...plain.x.env, GOOGLE_CLIENT_ID: 'client-id', GOOGLE_CLIENT_SECRET: 'secret' }; await m.createBusiness(plain.x.env, 'real-co', 'Real Co'); await m.addDirectoryMember(plain.x.env, 'regular@gmail.com', 'real-co'); plain.x.objects.set('real-co', new Map([['regular@gmail.com', { role: 'owner', status: 'active' }]]));
+    google('Regular@Gmail.com'); const reg = await worker.fetch(new Request('https://office.websitehub.co.za/auth/google/callback?code=c&state=S', { headers: { Cookie: 'oauth_state=S', Accept: 'text/html' } }), penv, ctx); check(reg.status === 302 && new URL(reg.headers.get('Location')).searchParams.get('role') === 'owner', 'an operator-created business\'s member with a pending invitation is NOT interrupted: straight in, as always');
+  }
+  check(/maybeHandoverPage\(request, env, sessionEmail, accessForHandover\)/.test(src('index.ts')) && /export async function maybeHandoverPage/.test(src('signup.ts')) && /closed_into/.test(src('directory.ts')) && /selfStarted/.test(src('directory.ts')), 'the callback offers the choice only through maybeHandoverPage, and the directory records closed_into and whether a business was self-started');
 
   // ---- how it is wired in ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   const index = src('index.ts');

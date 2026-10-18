@@ -23,6 +23,7 @@ import { migrationRoute } from "./migration-routes";
 import { addDirectoryMember, createBusiness, findDirectoryConflicts, isBusinessId, listDirectory, normaliseEmail } from "./directory";
 import { convertTrial, extendTrial } from "./freetrial";
 import { seedBusinessName } from "./profile-seed";
+import { businessIsEmpty } from "./emptiness";
 import { callBusiness } from "./routing";
 import { applyIndexes } from "./indexes";
 import { trialAi, trialD1, trialDo, trialTx } from "./trial";
@@ -1092,6 +1093,11 @@ if (url.pathname === "/debug/memberships" && request.method === "GET") {
       // The effective capabilities (the defaults with the owner's permission-grid changes applied), not the bare defaults.
       const enriched = await Promise.all(results.map(async (m) => ({ ...m, capabilities: await getRoleCapabilities(env, String(m.role)) })));
       return Response.json({ memberships: enriched });
+    }
+
+// Is this business verifiably empty (emptiness.ts)? Asked by the Worker during the empty-business handover; it only reads.
+if (url.pathname === "/debug/emptiness" && request.method === "GET") {
+      return Response.json(await businessIsEmpty(env, url.searchParams.get("email") ?? ""));
     }
 
 // The name typed at signup, into this business's own profile (profile-seed.ts): only when there is none, never overwriting. Called by the Worker (signup.ts). Privileged.

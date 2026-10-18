@@ -9,7 +9,7 @@
 // Safe enough because: only a Google-verified address, proven by a short-lived signed token the page carries; one email can belong to one business (enforced by the directory); a cap on new businesses per day (everyone) and per
 // network address; a small trial limit (limits.ts TRIAL_PLAN); and a session that dies when the trial does. Not solved here: billing after the trial (a business stays inactive until an operator moves it to a paid plan).
 import { readSignupToken, signSignupToken } from "./auth";
-import { acceptInvitation, addDirectoryMember, createBusiness, ensureDirectory, findDirectoryConflicts, findEndedTrialForEmail, lookupAccessForEmail, normaliseEmail, pendingInvitationsForEmail } from "./directory";
+import { acceptInvitation, addDirectoryMember, closeBusiness, countDirectoryMembers, createBusiness, declineInvitation, ensureDirectory, findDirectoryConflicts, findEndedTrialForEmail, lookupAccessForEmail, normaliseEmail, pendingInvitationsForEmail } from "./directory";
 import { ensureTrialPlan, TRIAL_PLAN } from "./limits";
 import { callBusiness } from "./routing";
 import { signedInRedirect } from "./signin";
@@ -213,6 +213,13 @@ export async function handleJoinPost(request: Request, env: Env): Promise<Respon
 
   const existing = await lookupAccessForEmail(env, email);
   if (existing) {
+    // Someone who already belongs to a business is signed in to THEIR OWN. Two choices on the handover page land here: KEEP (decline the invitations they were shown) and JOIN-AND-CLOSE (verified again below, from scratch).
+    if (form.get("keep") === "1") {
+      for (const raw of form.getAll("invitation")) if (/^\d{1,9}$/.test(String(raw))) await declineInvitation(env, Number(raw), email).catch(() => undefined);
+    } else if (form.get("handover") === "1") {
+      const done = await performHandover(request, env, email, existing, String(form.get("invitation") ?? ""));
+      if (done) return done;
+    }
     const role = await memberRole(env, existing.businessId, email);
     if (!role) return notActivePage(email);
     return signedInRedirect(request, env, { sessionEmail: email, displayEmail: email, role, businessId: existing.businessId, notAfterMs: existing.trialEndsAt ? fromSqlTime(existing.trialEndsAt) : undefined }, 303);
@@ -230,6 +237,79 @@ export async function handleJoinPost(request: Request, env: Env): Promise<Respon
       const made = await callBusiness(env, invite.businessId, "POST", "/debug/create-membership", { google_email: email, role: invite.role, invited_by: invite.invitedBy });
       if (!made.ok) throw new Error(`the membership could not be created (${made.status})`);
     }
+    await addDirectoryMember(env, email, invite.businessId);
+    await acceptInvitation(env, invite.id);
+    return signedInRedirect(request, env, { sessionEmail: email, displayEmail: email, role: invite.role, businessId: invite.businessId, notAfterMs: invite.trialEndsAt ? fromSqlTime(invite.trialEndsAt) : undefined }, 303);
+  } catch {
+    return errorPage();
+  }
+}
+
+// ---- the empty-business handover ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// An employee who started their own trial by mistake is invited to the business they work for. Their address is bound to their own business, so the sign-in goes straight there and they never see the invitation. If that business is
+// SELF-STARTED, still on its TRIAL, has exactly ONE member (them) and is verifiably EMPTY (emptiness.ts), they are ASKED: join (their empty business is closed, nothing deleted; the audit is `closed_into`) or keep it. They must choose:
+// nobody can do it for them (an owner can only invite; a direct add to an address in another business is still refused). Anything else, and the sign-in is exactly as before. Everything is re-checked when they tap, whatever the form says.
+async function handoverOffer(env: Env, email: string, access: { businessId: string; trialEndsAt: string | null; selfStarted: boolean } | null) {
+  if (!access || !access.selfStarted || !access.trialEndsAt) return null;
+  try {
+    const invites = (await pendingInvitationsForEmail(env, email)).filter((i) => i.businessId !== access.businessId);
+    if (invites.length === 0) return null;
+    if ((await countDirectoryMembers(env, access.businessId)) !== 1) return null;
+    const reply = await callBusiness(env, access.businessId, "GET", `/debug/emptiness?email=${encodeURIComponent(email)}`);
+    const answer = (await reply.json().catch(() => null)) as { empty?: boolean } | null;
+    if (!reply.ok || answer?.empty !== true) return null;
+    const own = await env.OFFICE_DB.prepare("SELECT name FROM businesses WHERE id = ?").bind(access.businessId).first<{ name: string }>();
+    return { ownId: access.businessId, ownName: own?.name ?? "your business", invites };
+  } catch {
+    return null;   // never block a sign-in because the question could not be answered
+  }
+}
+
+export async function maybeHandoverPage(_request: Request, env: Env, email: string, access: { businessId: string; trialEndsAt: string | null; selfStarted: boolean } | null): Promise<Response | null> {
+  const address = normaliseEmail(email);
+  const offer = await handoverOffer(env, address, access);
+  if (!offer) return null;
+  const token = await signSignupToken(env, address);
+  const joins = offer.invites
+    .map((i) => `<form method="post" action="/auth/join">
+<input type="hidden" name="token" value="${escapeHtml(token)}">
+<input type="hidden" name="invitation" value="${i.id}">
+<input type="hidden" name="handover" value="1">
+<p><strong>${escapeHtml(i.businessName)}</strong> has invited you to join as <strong>${escapeHtml(ROLE_LABELS[i.role] ?? i.role)}</strong>.</p>
+<button type="submit">Join ${escapeHtml(i.businessName)}</button>
+</form>`)
+    .join("\n");
+  const declines = offer.invites.map((i) => `<input type="hidden" name="invitation" value="${i.id}">`).join("");
+  return page(
+    "You have been invited",
+    `<h1>You have been invited</h1>
+<p>You are signed in with <strong>${escapeHtml(address)}</strong>. You already have your own business, <strong>${escapeHtml(offer.ownName)}</strong>, and nothing has been put in it yet.</p>
+${joins}
+<p class="small">If you join, <strong>${escapeHtml(offer.ownName)}</strong> is closed because it is empty. Nothing is deleted, and nothing that matters is lost.</p>
+<form method="post" action="/auth/join">
+<input type="hidden" name="token" value="${escapeHtml(token)}">
+${declines}
+<input type="hidden" name="keep" value="1">
+<button type="submit">Keep my own business</button>
+</form>`
+  );
+}
+
+// Join-and-close. Returns a response when it handled the request (success, or a failure the person should see), or null when they are NOT eligible (anything changed, anything tampered): the caller then signs them in to their own
+// business, and nothing is closed or added. The order makes a failure part way recoverable: the membership in the new business, the old business closed, the address moved (it may move off a CLOSED business), the invitation accepted;
+// if it stops after the old business closed, the same person's ordinary Join finishes it.
+async function performHandover(request: Request, env: Env, email: string, access: { businessId: string; trialEndsAt: string | null; selfStarted: boolean }, rawInvitation: string): Promise<Response | null> {
+  if (!/^\d{1,9}$/.test(rawInvitation)) return null;
+  const offer = await handoverOffer(env, email, access);
+  const invite = offer?.invites.find((i) => i.id === Number(rawInvitation));
+  if (!offer || !invite) return null;
+  try {
+    await ensureDirectory(env);
+    if (!(await memberRole(env, invite.businessId, email))) {
+      const made = await callBusiness(env, invite.businessId, "POST", "/debug/create-membership", { google_email: email, role: invite.role, invited_by: invite.invitedBy });
+      if (!made.ok) throw new Error(`the membership could not be created (${made.status})`);
+    }
+    await closeBusiness(env, offer.ownId, invite.businessId);
     await addDirectoryMember(env, email, invite.businessId);
     await acceptInvitation(env, invite.id);
     return signedInRedirect(request, env, { sessionEmail: email, displayEmail: email, role: invite.role, businessId: invite.businessId, notAfterMs: invite.trialEndsAt ? fromSqlTime(invite.trialEndsAt) : undefined }, 303);

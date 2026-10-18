@@ -18,6 +18,7 @@ export const ADMIN_ROUTE_TIERS: Readonly<Record<string, AdminTier>> = {
   "GET /debug/pending-action/:id": "read",
   "GET /debug/aged-creditors": "read",
   "GET /debug/business-profile": "read",
+  "GET /debug/emptiness": "read",
   "GET /debug/capture-id-audit": "read",
   "GET /debug/captures": "read",
   "GET /debug/character-facts": "read",

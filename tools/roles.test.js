@@ -41,7 +41,7 @@ async function rolesTests({ check, srcDir }) {
   for (const f of fs.readdirSync(srcDir).filter((x) => x.endsWith('.ts'))) for (const line of fs.readFileSync(path.join(srcDir, f), 'utf8').split('\n')) for (const m of line.matchAll(/(?<!typeof )\b([A-Za-z_.]*role)\s*(===|!==|==|!=)\s*"([a-z_]+)"/g)) found.push(`${f}: ${m[1]} ${m[2]} "${m[3]}"`);
   const counts = found.reduce((o, k) => ((o[k] = (o[k] || 0) + 1), o), {});
   // Each is justified: auth.ts x2 (the owner's capabilities cannot be overridden; the gate's owner bypass), the ONE installer job scope, index.ts x2 (the owner bypass in two handlers), permissions.ts x2 (the owner's row cannot be edited),
-  // team.ts (an owner is never changed through the app), and an unrelated chat-history role in ai.ts.
-  const EXPECTED = { 'auth.ts: role === "owner"': 2, 'auth.ts: ctx.role !== "installer"': 1, 'index.ts: ctx.role !== "owner"': 2, 'permissions.ts: role === "owner"': 2, 'team.ts: row.role === "owner"': 1, 'ai.ts: h.role === "user"': 2 };
+  // team.ts (an owner is never changed through the app), emptiness.ts (the one member of an empty business must be an OWNER), and an unrelated chat-history role in ai.ts.
+  const EXPECTED = { 'auth.ts: role === "owner"': 2, 'auth.ts: ctx.role !== "installer"': 1, 'index.ts: ctx.role !== "owner"': 2, 'permissions.ts: role === "owner"': 2, 'team.ts: row.role === "owner"': 1, 'emptiness.ts: role !== "owner"': 1, 'ai.ts: h.role === "user"': 2 };
   check(JSON.stringify(counts, Object.keys(counts).sort()) === JSON.stringify(EXPECTED, Object.keys(EXPECTED).sort()), 'the role-name comparisons in the whole Worker source are EXACTLY these (owner guards, the ONE installer job scope, and an unrelated chat-history role). A NEW one fails this test: decide what it means for admin, sales, accountant and installer before changing the list. Found: ' + JSON.stringify(counts));
 }
