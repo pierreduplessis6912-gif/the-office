@@ -50,7 +50,8 @@ export async function inviteTeamMember(env: Env, actorEmail: string, rawEmail: u
   try {
     const existing = await env.OFFICE_DB.prepare(`SELECT ${COLUMNS} FROM memberships WHERE google_email = ?`).bind(email).first<Row>();
     if (existing) return existing.status === "active" ? fail(409, `${email} is already on your team (as ${existing.role}).`) : fail(409, `${email} is already on your team but deactivated: reactivate them instead.`);
-    if ((await findDirectoryConflicts(shared(env), [email], businessId)).length > 0) return fail(409, "That email address already belongs to another business. Ask them to sign in with a different Google account, or contact us.");
+    // NEUTRAL on purpose: an address in another business is invited exactly like any other, and the owner learns nothing about it either way. (Refusing it used to reveal that the person already has an account.) The invitation is only
+    // ever shown to someone with no business, or to an employee in their own EMPTY self-started trial business, who may then choose to join (signup.ts); for anyone else it just waits and expires.
     const { id, created } = await upsertInvitation(shared(env), email, businessId, role, actorEmail || null);
     const invitation = (await listInvitationsFor(shared(env), businessId)).find((i) => i.id === id);
     return { ok: true, status: created ? 201 : 200, invitation: invitation as Invitation };
@@ -87,7 +88,7 @@ export async function addTeamMember(env: Env, actorEmail: string, rawEmail: unkn
       if (added && existing.status === "active") return { ok: true, status: 200, member: toMember(existing), healed: true };
       return existing.status === "active" ? fail(409, `${email} is already on your team (as ${existing.role}).`) : fail(409, `${email} is already on your team but deactivated: reactivate them instead.`);
     }
-    if ((await findDirectoryConflicts(shared(env), [email], businessId)).length > 0) return fail(409, "That email address already belongs to another business. Ask them to sign in with a different Google account, or contact us.");
+    if ((await findDirectoryConflicts(shared(env), [email], businessId)).length > 0) return fail(409, "That email address already belongs to another business. Ask them to sign in with a different Google account, or send them an invitation instead.");
     await env.OFFICE_DB.prepare("INSERT INTO memberships (google_email, role, status, invited_by) VALUES (?, ?, 'active', ?)").bind(email, role, actorEmail || null).run();
     try {
       await addDirectoryMember(shared(env), email, businessId);

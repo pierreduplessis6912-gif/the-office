@@ -29,6 +29,8 @@ async function ensureBusinessColumns(env: Env): Promise<void> {
   const have = new Set((results ?? []).map((r) => r.name));
   if (!have.has("trial_ends_at")) await env.OFFICE_DB.prepare("ALTER TABLE businesses ADD COLUMN trial_ends_at TEXT").run();
   if (!have.has("source")) await env.OFFICE_DB.prepare("ALTER TABLE businesses ADD COLUMN source TEXT NOT NULL DEFAULT 'admin'").run();
+  // Where the owner of a business that was CLOSED in the empty-business handover went: the only record that it happened (signup.ts, emptiness.ts).
+  if (!have.has("closed_into")) await env.OFFICE_DB.prepare("ALTER TABLE businesses ADD COLUMN closed_into TEXT").run();
 }
 
 export async function ensureDirectory(env: Env): Promise<void> {
@@ -46,19 +48,19 @@ export async function lookupBusinessForEmail(env: Env, email: string): Promise<s
 
 // The business an email may sign in to RIGHT NOW, and when its free trial ends (null for a business that is not on a trial). A business whose trial has ended is not returned at all: the next sign-in finds nothing, and a session
 // already issued dies at the trial's end (auth.ts signSession), so no request needs a status check.
-export async function lookupAccessForEmail(env: Env, email: string): Promise<{ businessId: string; trialEndsAt: string | null } | null> {
+export async function lookupAccessForEmail(env: Env, email: string): Promise<{ businessId: string; trialEndsAt: string | null; selfStarted: boolean } | null> {
   const base = "SELECT m.business_id AS business_id";
   const from = " FROM directory_members m JOIN businesses b ON b.id = m.business_id WHERE m.email = ? AND b.status = 'active'";
-  const run = (sql: string) => env.OFFICE_DB.prepare(sql).bind(normaliseEmail(email)).first<{ business_id: string; trial_ends_at?: string | null }>();
+  const run = (sql: string) => env.OFFICE_DB.prepare(sql).bind(normaliseEmail(email)).first<{ business_id: string; trial_ends_at?: string | null; source?: string }>();
   try {
-    let row: { business_id: string; trial_ends_at?: string | null } | null;
+    let row: { business_id: string; trial_ends_at?: string | null; source?: string } | null;
     try {
-      row = await run(`${base}, b.trial_ends_at AS trial_ends_at${from} AND (b.trial_ends_at IS NULL OR b.trial_ends_at > datetime('now'))`);
+      row = await run(`${base}, b.trial_ends_at AS trial_ends_at, b.source AS source${from} AND (b.trial_ends_at IS NULL OR b.trial_ends_at > datetime('now'))`);
     } catch (error) {
       if (!missingColumn(error)) throw error;
       row = await run(`${base}${from}`);   // the directory predates trials: no business has one
     }
-    return row && isBusinessId(row.business_id) ? { businessId: row.business_id, trialEndsAt: row.trial_ends_at ?? null } : null;
+    return row && isBusinessId(row.business_id) ? { businessId: row.business_id, trialEndsAt: row.trial_ends_at ?? null, selfStarted: row.source === "signup" } : null;
   } catch (error) {
     if (missingTable(error)) return null;
     throw error;
@@ -124,7 +126,11 @@ export async function addDirectoryMember(env: Env, email: string, businessId: st
   const existing = await env.OFFICE_DB.prepare("SELECT business_id FROM directory_members WHERE email = ?").bind(address).first<{ business_id: string }>();
   if (existing) {
     if (existing.business_id === businessId) return { added: false };
-    throw new Error("that email already belongs to another business");
+    // An address bound only to a CLOSED business (the empty-business handover closed it) is free: it MOVES, so it is still in exactly one business.
+    const old = await env.OFFICE_DB.prepare("SELECT status FROM businesses WHERE id = ?").bind(existing.business_id).first<{ status: string }>();
+    if (old?.status !== "closed") throw new Error("that email already belongs to another business");
+    await env.OFFICE_DB.prepare("UPDATE directory_members SET business_id = ? WHERE email = ?").bind(businessId, address).run();
+    return { added: true };
   }
   await env.OFFICE_DB.prepare("INSERT INTO directory_members (email, business_id) VALUES (?, ?)").bind(address, businessId).run();
   return { added: true };
@@ -137,7 +143,8 @@ export async function findDirectoryConflicts(env: Env, emails: string[], busines
   try {
     for (const raw of emails) {
       const email = normaliseEmail(raw);
-      const row = await env.OFFICE_DB.prepare("SELECT business_id FROM directory_members WHERE email = ?").bind(email).first<{ business_id: string }>();
+      // A CLOSED business (the empty-business handover) conflicts with nothing: its owner has moved on.
+      const row = await env.OFFICE_DB.prepare("SELECT m.business_id AS business_id FROM directory_members m LEFT JOIN businesses b ON b.id = m.business_id WHERE m.email = ? AND COALESCE(b.status, '') != 'closed'").bind(email).first<{ business_id: string }>();
       if (row && row.business_id !== businessId) conflicts.push({ email, business_id: row.business_id });
     }
     return conflicts;
@@ -209,5 +216,28 @@ export async function revokeInvitation(env: Env, businessId: string, id: number)
 
 export async function acceptInvitation(env: Env, id: number): Promise<void> {
   await env.OFFICE_DB.prepare("UPDATE invitations SET status = 'accepted' WHERE id = ?").bind(id).run();
+}
+
+// ---- the empty-business handover (signup.ts) ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// How many addresses are bound to a business (the handover needs exactly one: the person leaving it).
+export async function countDirectoryMembers(env: Env, businessId: string): Promise<number> {
+  try {
+    return Number((await env.OFFICE_DB.prepare("SELECT COUNT(*) AS n FROM directory_members WHERE business_id = ?").bind(businessId).first<{ n: number }>())?.n ?? 0);
+  } catch (error) {
+    if (missingTable(error)) return 0;
+    throw error;
+  }
+}
+
+// CLOSE a business that a person started from the app and has now left for another (never deletes: the business is verified empty first, and it is marked closed with where its owner went). Only an ACTIVE, self-started business can be
+// closed this way: an operator's business never is.
+export async function closeBusiness(env: Env, businessId: string, into: string): Promise<void> {
+  await ensureDirectory(env);
+  await env.OFFICE_DB.prepare("UPDATE businesses SET status = 'closed', closed_into = ? WHERE id = ? AND source = 'signup' AND status = 'active'").bind(into, businessId).run();
+}
+
+// An invitation the person chose NOT to take ("keep my own business"): only THEIR OWN pending invitation, so they are not asked again.
+export async function declineInvitation(env: Env, id: number, email: string): Promise<void> {
+  await env.OFFICE_DB.prepare("UPDATE invitations SET status = 'declined' WHERE id = ? AND email = ? AND status = 'pending'").bind(id, normaliseEmail(email)).run();
 }
 

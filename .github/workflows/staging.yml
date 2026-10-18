@@ -714,6 +714,38 @@ jobs:
           api ro-sales-finance GET "$SSESS" /embers/finance
           api ro-sales-team GET "$SSESS" /team
           api ro-owner-perms GET "$SESSION" /settings/permissions
+          # THE EMPTY-BUSINESS HANDOVER (worker/src/signup.ts, emptiness.ts) on the REAL objects: three employees each started their own trial by mistake, and each is invited to this business. X agrees (their empty business is closed and
+          # they join); Y has DATA in theirs (never moved: signed in to their own); Z keeps theirs (the invitation is declined). The emptiness question is asked of the real object.
+          XE="handover-x-${TAG}@example.com"; YE="handover-y-${TAG}@example.com"; ZE="handover-z-${TAG}@example.com"
+          form ho-x-start "$(proof "$XE")" "Handover X $TAG" yes
+          form ho-y-start "$(proof "$YE")" "Handover Y $TAG" yes
+          form ho-z-start "$(proof "$ZE")" "Handover Z $TAG" yes
+          dirnow ho-dir-before
+          bsession() {
+            python3 - "$1" "$2" <<'PY'
+          import base64, hashlib, hmac, json, os, sys, time
+          b = lambda x: base64.urlsafe_b64encode(x).rstrip(b"=").decode()
+          p = b(json.dumps({"email": sys.argv[1], "exp": int(time.time() * 1000) + 600000, "b": sys.argv[2]}, separators=(",", ":")).encode())
+          print(p + "." + b(hmac.new(os.environ["STAGING_SESSION_SECRET"].encode(), p.encode(), hashlib.sha256).digest()))
+          PY
+          }
+          YB=$(python3 -c "import json; print(next((b['id'] for b in json.load(open('$RESULTS/ho-dir-before.json')).get('businesses', []) if b.get('name') == 'Handover Y $TAG'), ''))")
+          YSESS=$(bsession "$YE" "$YB")
+          printf 'name\nY Customer\n' > "$RESULTS/y.csv"
+          curl -s -o "$RESULTS/ho-y-data.json" -w '%{http_code}' -X POST -H "Cookie: office_session=$YSESS" -F "csv=@$RESULTS/y.csv;type=text/csv" "$BASE/files/customers-csv-import" > "$RESULTS/ho-y-data.status"
+          api ho-inv-x POST "$SESSION" /team/invite "{\"email\":\"$XE\",\"role\":\"installer\"}"
+          api ho-inv-y POST "$SESSION" /team/invite "{\"email\":\"$YE\",\"role\":\"installer\"}"
+          api ho-inv-z POST "$SESSION" /team/invite "{\"email\":\"$ZE\",\"role\":\"installer\"}"
+          api ho-list GET "$SESSION" /team
+          XI=$(idof ho-list "$XE"); YI=$(idof ho-list "$YE"); ZI=$(idof ho-list "$ZE")
+          joinx() { curl -s -D "$RESULTS/$1.headers" -o "$RESULTS/$1.body" -w '%{http_code}' -X POST --data-urlencode "token=$2" --data-urlencode "invitation=$3" --data-urlencode "$4" "$BASE/auth/join" > "$RESULTS/$1.status"; }
+          joinx ho-x-join "$(proof "$XE")" "$XI" handover=1
+          joinx ho-y-join "$(proof "$YE")" "$YI" handover=1
+          joinx ho-z-keep "$(proof "$ZE")" "$ZI" keep=1
+          XSESS=$(python3 -c "import re,sys,urllib.parse as u; h=open('$RESULTS/ho-x-join.headers').read(); m=re.search(r'(?im)^location:\\s*(\\S+)', h); print(u.parse_qs(u.urlparse(m.group(1)).query).get('token',[''])[0] if m else '')")
+          api ho-x-me GET "$XSESS" /auth/me
+          api ho-list2 GET "$SESSION" /team
+          dirnow ho-dir-after
           python3 - <<'PY'
           import base64, datetime, json, os, re, sys, urllib.parse as u
           r, tag = os.environ["RESULTS"], "r" + os.environ["GITHUB_RUN_ID"]
@@ -768,6 +800,13 @@ jobs:
           invitee = "invitee-" + tag + "@example.com"
           inv_member = next((x for x in (inv_after.get("members") or []) if x.get("email") == invitee), {})
           ro_grid = [r.get("role") for r in ((rd("ro-owner-perms.json") or {}).get("roles") or [])]
+          ho_before = {b.get("name"): b for b in ((rd("ho-dir-before.json") or {}).get("businesses") or [])}
+          ho_after = {b.get("name"): b for b in ((rd("ho-dir-after.json") or {}).get("businesses") or [])}
+          ho_x, ho_y, ho_z = "Handover X " + tag, "Handover Y " + tag, "Handover Z " + tag
+          ho_x_loc, ho_y_loc, ho_z_loc = location("ho-x-join"), location("ho-y-join"), location("ho-z-keep")
+          role_of = lambda loc: (u.parse_qs(loc.query).get("role") or [""])[0] if loc else None
+          ho_members = (rd("ho-list2.json") or {}).get("members") or []
+          ho_invites = (rd("ho-list2.json") or {}).get("invitations") or []
           profile = (rd("su-profile.json") or {}).get("profile") or {}
           ob = rd("su-onboarding.json") or {}
           steps = ob.get("steps") if isinstance(ob, dict) else None
@@ -805,6 +844,10 @@ jobs:
               "sales_sees_jobs_but_no_money_and_cannot_manage_the_team": status("ro-sales-jobs") == "200" and status("ro-sales-finance") == "403" and status("ro-sales-team") == "403",
               "admin_sees_money_and_jobs_but_cannot_manage_the_team_or_the_permissions": status("ro-owner-finance") == "200" and status("ro-admin-jobs") == "200" and status("ro-admin-finance") == "200" and status("ro-admin-team") == "403" and status("ro-admin-perms") == "403",
               "the_owners_permission_grid_lists_admin_and_sales": status("ro-owner-perms") == "200" and "admin" in ro_grid and "sales" in ro_grid,
+              "an_invitation_to_an_address_in_another_business_is_accepted_without_revealing_anything": status("ho-inv-x") == "201" and "belongs" not in json.dumps(rd("ho-inv-x.json") or {}) and "another business" not in json.dumps(rd("ho-inv-x.json") or {}),
+              "an_employee_with_an_empty_business_who_agrees_joins_and_their_empty_business_is_closed": status("ho-x-join") == "303" and ho_x_loc is not None and ho_x_loc.scheme == "theoffice" and role_of(ho_x_loc) == "installer" and (rd("ho-x-me.json") or {}).get("signedIn") is True and (rd("ho-x-me.json") or {}).get("role") == "installer" and ho_before.get(ho_x, {}).get("status") == "active" and ho_after.get(ho_x, {}).get("status") == "closed" and any(x.get("email") == "handover-x-" + tag + "@example.com" and x.get("role") == "installer" for x in ho_members),
+              "an_employee_whose_business_has_data_is_never_moved": status("ho-y-data") == "200" and status("ho-y-join") == "303" and role_of(ho_y_loc) == "owner" and ho_after.get(ho_y, {}).get("status") == "active" and not any(x.get("email") == "handover-y-" + tag + "@example.com" for x in ho_members),
+              "keeping_their_own_business_declines_the_invitation_and_signs_them_in_to_it": status("ho-z-keep") == "303" and role_of(ho_z_loc) == "owner" and ho_after.get(ho_z, {}).get("status") == "active" and not any(i.get("email") == "handover-z-" + tag + "@example.com" for i in ho_invites) and not any(x.get("email") == "handover-z-" + tag + "@example.com" for x in ho_members),
               "health_reports_the_running_commit": health.get("commit") == os.environ.get("GITHUB_SHA"),
               "the_directory_columns_exist_on_the_real_database": all("trial_ends_at" in b and "source" in b for b in listing) and len(listing) > 0,
               "answers": {"first": status("su-first"), "again": status("su-again"), "garbage": status("su-garbage"), "untick": status("su-untick"), "days_left": round(days, 3) if days else None, "business": {k: biz.get(k) for k in ("plan", "status", "source", "members")}, "session_b_matches": payload.get("b") == biz.get("id"), "me": {"signedIn": me.get("signedIn"), "role": me.get("role")}, "customers": status("su-customers"), "customer_items": len(cust_list) if isinstance(cust_list, list) else None, "onboarding_steps": len(steps) if isinstance(steps, list) else None, "step_statuses": [x.get("status") for x in steps] if isinstance(steps, list) else None},

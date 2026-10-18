@@ -9,7 +9,7 @@ import { takeSnapshot } from "./backup";
 import { readOnlyRefusal } from "./freeze";
 import { adminTargetBusiness, callBusiness, forwardToBusiness, routeRequest } from "./routing";
 import { lookupAccessForEmail, normaliseEmail } from "./directory";
-import { handleJoinPost, handleSignupPost, handleUnknownAccount } from "./signup";
+import { handleJoinPost, handleSignupPost, handleUnknownAccount, maybeHandoverPage } from "./signup";
 import { addTeamMember, changeTeamRole, inviteTeamMember, listTeam, revokeTeamInvitation, setTeamMemberStatus } from "./team";
 import { signedInRedirect } from "./signin";
 import { makeBusinessObject } from "./business-object";
@@ -1661,10 +1661,12 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       let sessionEmail = claims.email;
       let sessionBusiness: string | undefined;
       let notAfterMs: number | undefined;
+      let accessForHandover: Awaited<ReturnType<typeof lookupAccessForEmail>> = null;
       if (env.BUSINESS_MODE === "object") {
         // Object mode: the DIRECTORY says which business this member signs in to, and that business's own object says whether the membership is active and what role it has.
         sessionEmail = normaliseEmail(claims.email);
         const access = await lookupAccessForEmail(env, sessionEmail);
+        accessForHandover = access;
         const businessId = access?.businessId ?? null;
         if (access?.trialEndsAt) notAfterMs = Date.parse(`${access.trialEndsAt.replace(" ", "T")}Z`);   // a trial's session ends with the trial
         const reply = businessId ? await callBusiness(env, businessId, "GET", `/debug/membership-check?email=${encodeURIComponent(sessionEmail)}`) : null;
@@ -1684,6 +1686,12 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           { error: "no active membership for this Google account", email: claims.email },
           { status: 403 }
         );
+      }
+
+      // An employee in their OWN empty self-started trial business who has been INVITED elsewhere is ASKED (signup.ts: join and close the empty one, or keep it). Only for a browser, and only when every condition holds; otherwise null.
+      if (env.BUSINESS_MODE === "object" && (request.headers.get("Accept") ?? "").includes("text/html")) {
+        const offer = await maybeHandoverPage(request, env, sessionEmail, accessForHandover);
+        if (offer) return offer;
       }
 
       return signedInRedirect(request, env, { sessionEmail, displayEmail: claims.email, role: membership.role, businessId: sessionBusiness, notAfterMs });
