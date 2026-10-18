@@ -42,7 +42,8 @@ jobs:
         shell: bash
         run: |
           cd app
-          flutter analyze --no-fatal-infos --no-fatal-warnings 2>&1 | tee /tmp/analyze.txt
+          # Only lib/: the scaffolding step runs `flutter create`, which adds a sample test (test/widget_test.dart) that refers to a class this app does not have. That is an artefact of CI, not the app.
+          flutter analyze lib --no-fatal-infos --no-fatal-warnings 2>&1 | tee /tmp/analyze.txt
           echo "ERROR_COUNT=$(grep -c '^ *error •' /tmp/analyze.txt || true)"
 
       - name: Compile for web
