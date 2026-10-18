@@ -683,6 +683,23 @@ jobs:
           api tm-list2 GET "$SESSION" /team
           COID=$(python3 -c "import json; print(next((m['id'] for m in json.load(open('$RESULTS/tm-list2.json')).get('members', []) if m['email'] == '$COOWNER'), ''))")
           api tm-co-deact POST "$SESSION" "/team/$COID/deactivate" '{}'
+          # INVITATIONS (worker/src/directory.ts, signup.ts handleJoinPost) on the REAL directory and object: the owner invites, the invitation WAITS (nothing about the team changes), the person accepts with the signed proof, a revoked
+          # invitation cannot be accepted, and another address cannot accept someone else's.
+          INVITEE="invitee-${TAG}@example.com"; REVOKEE="revokee-${TAG}@example.com"; STRANGER="stranger-${TAG}@example.com"
+          joinform() { curl -s -D "$RESULTS/$1.headers" -o "$RESULTS/$1.body" -w '%{http_code}' -X POST --data-urlencode "token=$2" --data-urlencode "invitation=$3" "$BASE/auth/join" > "$RESULTS/$1.status"; }
+          idof() { python3 -c "import json,sys; print(next((i['id'] for i in json.load(open('$RESULTS/$1.json')).get('invitations', []) if i['email'] == '$2'), ''))"; }
+          api inv-add POST "$SESSION" /team/invite "{\"email\":\"$INVITEE\",\"role\":\"accountant\"}"
+          api inv-add2 POST "$SESSION" /team/invite "{\"email\":\"$REVOKEE\",\"role\":\"installer\"}"
+          api inv-list GET "$SESSION" /team
+          IID=$(idof inv-list "$INVITEE"); RID2=$(idof inv-list "$REVOKEE")
+          api inv-revoke POST "$SESSION" "/team/invitations/$RID2/revoke" '{}'
+          joinform inv-revoked "$(proof "$REVOKEE")" "$RID2"
+          joinform inv-stranger "$(proof "$STRANGER")" "$IID"
+          joinform inv-join "$(proof "$INVITEE")" "$IID"
+          ISESS=$(python3 -c "import re,sys,urllib.parse as u; h=open('$RESULTS/inv-join.headers').read(); m=re.search(r'(?im)^location:\\s*(\\S+)', h); print(u.parse_qs(u.urlparse(m.group(1)).query).get('token',[''])[0] if m else '')")
+          api inv-me GET "$ISESS" /auth/me
+          joinform inv-join-again "$(proof "$INVITEE")" "$IID"
+          api inv-list2 GET "$SESSION" /team
           python3 - <<'PY'
           import base64, datetime, json, os, re, sys, urllib.parse as u
           r, tag = os.environ["RESULTS"], "r" + os.environ["GITHUB_RUN_ID"]
@@ -729,6 +746,13 @@ jobs:
           tm_member = next((m for m in tm_list if m.get("email") == "team-member-" + tag + "@example.com"), {})
           tm_dir = mine_in("tm-directory.json")
           tm_conflict = json.dumps(rd("tm-conflict.json") or {})
+          inv_before = (rd("inv-list.json") or {})
+          inv_after = (rd("inv-list2.json") or {})
+          inv_loc = location("inv-join"); inv_q = u.parse_qs(inv_loc.query) if inv_loc else {}
+          inv_again = location("inv-join-again")
+          inv_me = rd("inv-me.json") or {}
+          invitee = "invitee-" + tag + "@example.com"
+          inv_member = next((x for x in (inv_after.get("members") or []) if x.get("email") == invitee), {})
           profile = (rd("su-profile.json") or {}).get("profile") or {}
           ob = rd("su-onboarding.json") or {}
           steps = ob.get("steps") if isinstance(ob, dict) else None
@@ -756,6 +780,12 @@ jobs:
               "a_duplicate_is_refused_and_a_role_can_be_changed": status("tm-dup") == "409" and status("tm-role") == "200",
               "an_address_in_another_business_is_refused_without_saying_which": status("tm-conflict") == "409" and "belongs to another business" in tm_conflict and "Second Floors" not in tm_conflict and "second" not in tm_conflict.lower().replace("belongs", ""),
               "a_co_owner_can_be_added_but_never_deactivated": status("tm-co") == "201" and status("tm-co-deact") == "403",
+              "an_owner_invites_and_the_invitation_waits_without_changing_the_team": status("inv-add") == "201" and any(i.get("email") == invitee for i in (inv_before.get("invitations") or [])) and not any(x.get("email") == invitee for x in (inv_before.get("members") or [])),
+              "accepting_with_the_signed_proof_joins_the_business_with_the_invited_role": status("inv-join") == "303" and inv_loc is not None and inv_loc.scheme == "theoffice" and (inv_q.get("role") or [""])[0] == "accountant" and inv_me.get("signedIn") is True and inv_me.get("role") == "accountant",
+              "the_accepted_invitation_leaves_the_list_and_the_member_records_who_invited_them": not any(i.get("email") == invitee for i in (inv_after.get("invitations") or [])) and inv_member.get("role") == "accountant" and inv_member.get("invitedBy") == "signup-owner-" + tag + "@example.com",
+              "a_revoked_invitation_cannot_be_accepted": status("inv-revoke") == "200" and status("inv-revoked") == "400" and "no longer valid" in (rd("inv-revoked.body", False) or "") and not any(x.get("email") == "revokee-" + tag + "@example.com" for x in (inv_after.get("members") or [])),
+              "another_address_cannot_accept_someone_elses_invitation": status("inv-stranger") == "400" and not any(x.get("email") == "stranger-" + tag + "@example.com" for x in (inv_after.get("members") or [])),
+              "accepting_twice_just_signs_in": status("inv-join-again") == "303" and inv_again is not None and inv_again.scheme == "theoffice" and sum(1 for x in (inv_after.get("members") or []) if x.get("email") == invitee) == 1,
               "health_reports_the_running_commit": health.get("commit") == os.environ.get("GITHUB_SHA"),
               "the_directory_columns_exist_on_the_real_database": all("trial_ends_at" in b and "source" in b for b in listing) and len(listing) > 0,
               "answers": {"first": status("su-first"), "again": status("su-again"), "garbage": status("su-garbage"), "untick": status("su-untick"), "days_left": round(days, 3) if days else None, "business": {k: biz.get(k) for k in ("plan", "status", "source", "members")}, "session_b_matches": payload.get("b") == biz.get("id"), "me": {"signedIn": me.get("signedIn"), "role": me.get("role")}, "customers": status("su-customers"), "customer_items": len(cust_list) if isinstance(cust_list, list) else None, "onboarding_steps": len(steps) if isinstance(steps, list) else None, "step_statuses": [x.get("status") for x in steps] if isinstance(steps, list) else None},

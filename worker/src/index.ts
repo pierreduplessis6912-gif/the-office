@@ -9,8 +9,8 @@ import { takeSnapshot } from "./backup";
 import { readOnlyRefusal } from "./freeze";
 import { adminTargetBusiness, callBusiness, forwardToBusiness, routeRequest } from "./routing";
 import { lookupAccessForEmail, normaliseEmail } from "./directory";
-import { handleSignupPost, handleUnknownAccount } from "./signup";
-import { addTeamMember, changeTeamRole, listTeam, setTeamMemberStatus } from "./team";
+import { handleJoinPost, handleSignupPost, handleUnknownAccount } from "./signup";
+import { addTeamMember, changeTeamRole, inviteTeamMember, listTeam, revokeTeamInvitation, setTeamMemberStatus } from "./team";
 import { signedInRedirect } from "./signin";
 import { makeBusinessObject } from "./business-object";
 import { adminTierOf, hashSource, recordAdminCall } from "./admin-gate";
@@ -872,6 +872,19 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       const added = await addTeamMember(env, actor ?? "", body?.email, body?.role);
       return added.ok ? Response.json({ member: added.member, healed: added.healed ?? false }, { status: added.status }) : Response.json({ error: added.error }, { status: added.status });
     }
+    // Inviting (the person accepts on sign-in), and withdrawing an invitation. Owner only, like the rest.
+    if (url.pathname === "/team/invite" && request.method === "POST") {
+      const body = (await request.json().catch(() => null)) as { email?: unknown; role?: unknown } | null;
+      const { email: actor } = await resolveCapabilities(request, env);
+      const invited = await inviteTeamMember(env, actor ?? "", body?.email, body?.role);
+      return invited.ok ? Response.json({ invitation: invited.invitation }, { status: invited.status }) : Response.json({ error: invited.error }, { status: invited.status });
+    }
+    if (url.pathname.match(/^\/team\/invitations\/\d+\/revoke$/) && request.method === "POST") {
+      const { email: actor } = await resolveCapabilities(request, env);
+      const revoked = await revokeTeamInvitation(env, actor ?? "", url.pathname.split("/")[3]);
+      return revoked.ok ? Response.json({ revoked: true }, { status: revoked.status }) : Response.json({ error: revoked.error }, { status: revoked.status });
+    }
+
     // One condition per route (not one combined pattern) so the route policy can see each of them and pin that only an owner reaches it.
     if (url.pathname.match(/^\/team\/\d+$/) && request.method === "PATCH") {
       const body = (await request.json().catch(() => null)) as { role?: unknown } | null;
@@ -1679,6 +1692,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
     // A new owner starting their own business (signup.ts): the form on the page the callback showed comes back here, carrying a short-lived signed proof that Google verified the address.
     if (url.pathname === "/auth/signup" && request.method === "POST") {
       return await handleSignupPost(request, env);
+    }
+
+    // Accepting an invitation to a business (signup.ts): the Join button on the page the callback showed an invited address. Public like signup: the person has no session yet, only the signed proof.
+    if (url.pathname === "/auth/join" && request.method === "POST") {
+      return await handleJoinPost(request, env);
     }
 
     if (url.pathname === "/auth/me" && request.method === "GET") {

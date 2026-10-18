@@ -40,6 +40,16 @@
   "class": "public"
  },
  {
+  "route": "GET /auth/join",
+  "pattern": "/auth/join",
+  "how": "public list",
+  "none": "A",
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "public"
+ },
+ {
   "route": "GET /auth/logout",
   "pattern": "/auth/logout",
   "how": "public list",
@@ -570,6 +580,16 @@
   "class": "any member"
  },
  {
+  "route": "POST /auth/join",
+  "pattern": "/auth/join",
+  "how": "exact path",
+  "none": "A",
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "class": "public"
+ },
+ {
   "route": "POST /auth/logout",
   "pattern": "/auth/logout",
   "how": "exact path",
@@ -783,6 +803,26 @@
   "route": "POST /team/:id/reactivate",
   "pattern": "/team/:id/reactivate",
   "how": "id in path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
+ },
+ {
+  "route": "POST /team/invitations/:id/revoke",
+  "pattern": "/team/invitations/:id/revoke",
+  "how": "id in path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
+ },
+ {
+  "route": "POST /team/invite",
+  "pattern": "/team/invite",
+  "how": "exact path",
   "none": 401,
   "owner": "A",
   "accountant": 403,

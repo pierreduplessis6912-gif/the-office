@@ -16,6 +16,10 @@ const DDL = [
   "CREATE TABLE IF NOT EXISTS businesses (id TEXT PRIMARY KEY, name TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'active', plan TEXT NOT NULL DEFAULT 'standard', created_at TEXT NOT NULL DEFAULT (datetime('now')))",
   "CREATE TABLE IF NOT EXISTS directory_members (email TEXT PRIMARY KEY, business_id TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))",
   "CREATE INDEX IF NOT EXISTS idx_directory_members_business ON directory_members (business_id)",
+  // An owner's invitation to an address that has no business yet: it waits here (the directory is the only place that can be asked at sign-in, before the person belongs to anything) until they accept. UNIQUE (email, business_id):
+  // inviting the same person again refreshes the one row.
+  "CREATE TABLE IF NOT EXISTS invitations (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL, business_id TEXT NOT NULL, role TEXT NOT NULL, invited_by TEXT, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT (datetime('now')), expires_at TEXT NOT NULL, UNIQUE (email, business_id))",
+  "CREATE INDEX IF NOT EXISTS idx_invitations_email ON invitations (email, status)",
 ];
 
 // Columns added after the table's first version (trial support, 2026-10-17): when a business's free trial ends, and whether an operator or the owner themselves created it. SQLite has no "ADD COLUMN IF NOT EXISTS", so look first.
@@ -142,3 +146,68 @@ export async function findDirectoryConflicts(env: Env, emails: string[], busines
     throw error;
   }
 }
+
+// ---- invitations --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+export const INVITATION_DAYS = 30;
+export interface Invitation { id: number; email: string; businessId: string; role: string; invitedBy: string | null; createdAt: string; expiresAt: string }
+type InvitationRow = { id: number; email: string; business_id: string; role: string; invited_by: string | null; created_at: string; expires_at: string; business_name?: string; trial_ends_at?: string | null };
+const toInvitation = (r: InvitationRow): Invitation => ({ id: r.id, email: r.email, businessId: r.business_id, role: r.role, invitedBy: r.invited_by, createdAt: r.created_at, expiresAt: r.expires_at });
+
+// Invite an address to a business, or REFRESH the invitation it already has (a new role, a new 30 days, pending again).
+export async function upsertInvitation(env: Env, email: string, businessId: string, role: string, invitedBy: string | null): Promise<{ id: number; created: boolean }> {
+  if (!isBusinessId(businessId)) throw new Error("not a valid business id");
+  const address = normaliseEmail(email);
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(address)) throw new Error("not a valid email address");
+  await ensureDirectory(env);
+  const existing = await env.OFFICE_DB.prepare("SELECT id FROM invitations WHERE email = ? AND business_id = ?").bind(address, businessId).first<{ id: number }>();
+  if (existing) {
+    await env.OFFICE_DB.prepare(`UPDATE invitations SET role = ?, invited_by = ?, status = 'pending', created_at = datetime('now'), expires_at = datetime('now', '+${INVITATION_DAYS} days') WHERE id = ?`).bind(role, invitedBy, existing.id).run();
+    return { id: existing.id, created: false };
+  }
+  const row = await env.OFFICE_DB.prepare(`INSERT INTO invitations (email, business_id, role, invited_by, expires_at) VALUES (?, ?, ?, ?, datetime('now', '+${INVITATION_DAYS} days')) RETURNING id`).bind(address, businessId, role, invitedBy).first<{ id: number }>();
+  return { id: (row as { id: number }).id, created: true };
+}
+
+// A business's own PENDING, unexpired invitations (what its owner sees and can revoke).
+export async function listInvitationsFor(env: Env, businessId: string): Promise<Invitation[]> {
+  try {
+    const { results } = await env.OFFICE_DB.prepare("SELECT id, email, business_id, role, invited_by, created_at, expires_at FROM invitations WHERE business_id = ? AND status = 'pending' AND expires_at > datetime('now') ORDER BY id").bind(businessId).all<InvitationRow>();
+    return (results ?? []).map(toInvitation);
+  } catch (error) {
+    if (missingTable(error)) return [];
+    throw error;
+  }
+}
+
+// What an ADDRESS may accept right now: pending, unexpired, and for a business that is active and not past its trial. Carries the business's name (to show) and trial end (for the session). Joining is only ever offered through this.
+export async function pendingInvitationsForEmail(env: Env, email: string): Promise<Array<Invitation & { businessName: string; trialEndsAt: string | null }>> {
+  const base = "SELECT i.id AS id, i.email AS email, i.business_id AS business_id, i.role AS role, i.invited_by AS invited_by, i.created_at AS created_at, i.expires_at AS expires_at, b.name AS business_name";
+  const from = " FROM invitations i JOIN businesses b ON b.id = i.business_id WHERE i.email = ? AND i.status = 'pending' AND i.expires_at > datetime('now') AND b.status = 'active'";
+  const run = async (sql: string) => (await env.OFFICE_DB.prepare(sql).bind(normaliseEmail(email)).all<InvitationRow>()).results ?? [];
+  try {
+    let rows: InvitationRow[];
+    try {
+      rows = await run(`${base}, b.trial_ends_at AS trial_ends_at${from} AND (b.trial_ends_at IS NULL OR b.trial_ends_at > datetime('now')) ORDER BY i.id`);
+    } catch (error) {
+      if (!missingColumn(error)) throw error;
+      rows = await run(`${base}${from} ORDER BY i.id`);   // the directory predates trials
+    }
+    return rows.map((r) => ({ ...toInvitation(r), businessName: r.business_name ?? "", trialEndsAt: r.trial_ends_at ?? null }));
+  } catch (error) {
+    if (missingTable(error)) return [];
+    throw error;
+  }
+}
+
+// Revoke one of THIS business's pending invitations. Another business's invitation looks like it does not exist.
+export async function revokeInvitation(env: Env, businessId: string, id: number): Promise<boolean> {
+  const row = await env.OFFICE_DB.prepare("SELECT id FROM invitations WHERE id = ? AND business_id = ? AND status = 'pending'").bind(id, businessId).first<{ id: number }>();
+  if (!row) return false;
+  await env.OFFICE_DB.prepare("UPDATE invitations SET status = 'revoked' WHERE id = ?").bind(id).run();
+  return true;
+}
+
+export async function acceptInvitation(env: Env, id: number): Promise<void> {
+  await env.OFFICE_DB.prepare("UPDATE invitations SET status = 'accepted' WHERE id = ?").bind(id).run();
+}
+

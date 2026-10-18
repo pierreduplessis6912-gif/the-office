@@ -9,7 +9,7 @@ const MARK = '@@SIGNUP-RESULT@@';
 async function body({ check, srcDir }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'signup-')), entry = path.join(dir, 'entry.ts'), out = path.join(dir, 'signup.js');
   const at = (f) => JSON.stringify(path.join(srcDir, f));
-  fs.writeFileSync(entry, `export * from ${at('signup')};\nexport { signedInRedirect } from ${at('signin')};\nexport { signSession, readSessionPayload, signSignupToken, readSignupToken } from ${at('auth')};\nexport { createBusiness, addDirectoryMember, ensureDirectory, lookupAccessForEmail, lookupBusinessForEmail, findEndedTrialForEmail, listDirectory } from ${at('directory')};\nexport { readPlan, clearPlanCache, TRIAL_PLAN } from ${at('limits')};\nexport { convertTrial, extendTrial, sqlTime, fromSqlTime, MAX_EXTEND_DAYS } from ${at('freetrial')};\nexport { seedBusinessName } from ${at('profile-seed')};\n`);
+  fs.writeFileSync(entry, `export * from ${at('signup')};\nexport { signedInRedirect } from ${at('signin')};\nexport { signSession, readSessionPayload, signSignupToken, readSignupToken } from ${at('auth')};\nexport { createBusiness, addDirectoryMember, ensureDirectory, lookupAccessForEmail, lookupBusinessForEmail, findEndedTrialForEmail, listDirectory, upsertInvitation, pendingInvitationsForEmail, revokeInvitation } from ${at('directory')};\nexport { readPlan, clearPlanCache, TRIAL_PLAN } from ${at('limits')};\nexport { convertTrial, extendTrial, sqlTime, fromSqlTime, MAX_EXTEND_DAYS } from ${at('freetrial')};\nexport { seedBusinessName } from ${at('profile-seed')};\n`);
   esbuild.buildSync({ entryPoints: [entry], bundle: true, platform: 'node', format: 'cjs', outfile: out, logLevel: 'silent' });
   const m = require(out);
   const src = (f) => fs.readFileSync(path.join(srcDir, f), 'utf8');
@@ -22,7 +22,7 @@ async function body({ check, srcDir }) {
       const u = new URL(typeof url === 'string' ? url : url.url), bid = id.name.replace(/^business-/, ''), mem = objects.get(bid) ?? objects.set(bid, new Map()).get(bid);
       calls.push({ bid, path: u.pathname, method: init.method });
       if (u.pathname === '/debug/membership-check') { const row = mem.get(u.searchParams.get('email')); return Response.json(row ? { found: true, role: row.role, status: row.status } : { found: false, role: null, status: null }); }
-      if (u.pathname === '/debug/create-membership') { if (state.failCreate) return new Response('boom', { status: 500 }); const b = JSON.parse(init.body); mem.set(b.google_email, { role: b.role, status: 'active' }); return Response.json({ ok: true }); }
+      if (u.pathname === '/debug/create-membership') { if (state.failCreate) return new Response('boom', { status: 500 }); const b = JSON.parse(init.body); mem.set(b.google_email, { role: b.role, status: 'active', invitedBy: b.invited_by ?? null }); return Response.json({ ok: true }); }
       if (u.pathname === '/debug/seed-business-name') { if (state.throwSeed) throw new Error('the object could not be reached'); if (state.failSeed) return new Response('boom', { status: 500 }); const b = JSON.parse(init.body); if (!names.has(bid)) names.set(bid, b.name); return Response.json({ ok: true }); }
       return new Response('?', { status: 404 }); } }) };
     return { db, objects, calls, names, state, env: { OFFICE_DB, SHARED_DB: OFFICE_DB, BUSINESS, ADMIN_KEY: 'k', SESSION_SECRET: 'secret-for-the-tests', BUSINESS_MODE: 'object', PLAN_CACHE_SECONDS: '0', ...extra } };
@@ -338,6 +338,79 @@ async function body({ check, srcDir }) {
   }
   check(/"POST \/debug\/seed-business-name": "privileged"/.test(src('admin-routes.ts')) && /url\.pathname === "\/debug\/seed-business-name" && request\.method === "POST"/.test(src('debug.ts')) && /callBusiness\(env, id, "POST", "\/debug\/seed-business-name", \{ name: named\.name \}\)/.test(src('signup.ts')), 'the route is privileged, lives in the object, and signup calls it with the validated name');
   check(/AND address IS NOT NULL AND TRIM\(address\) != ''/.test(src('onboarding.ts')), 'the journey\'s profile step needs the ADDRESS as well as the name');
+
+  // ---- invitations: the sign-in side (handleUnknownAccount, handleJoinPost; the owner's side is in team.test.js) -------------------------------------------------------------------------------------------------------
+  // An address that belongs to no business but has a PENDING invitation sees the invitation (and may still start its own business). Accepting needs the same Google-verified proof as signup, so only the invited address can accept.
+  const invited = async (opts = {}) => {
+    const x = world(); await m.ensureDirectory(x.env); await m.createBusiness(x.env, 'live-co', opts.name ?? 'Live Co', 'standard', opts.biz ?? {}); await m.addDirectoryMember(x.env, 'boss@live.co', 'live-co');
+    x.objects.set('live-co', new Map([['boss@live.co', { role: 'owner', status: 'active' }]]));
+    const iv = await m.upsertInvitation(x.env, opts.email ?? 'newhire@gmail.com', 'live-co', opts.role ?? 'installer', 'boss@live.co');
+    return { x, id: iv.id };
+  };
+  const callbackReq = new Request('https://x/auth/google/callback', { headers: { Accept: 'text/html' } });
+  const join = (x, token, id, ip = '5.5.5.5') => m.handleJoinPost(post({ token, invitation: String(id) }, ip), x.env);
+  {
+    const { x, id } = await invited(); const page = await m.handleUnknownAccount(callbackReq, x.env, 'NewHire@Gmail.com'), html = await text(page);
+    check(page.status === 200 && /invited you/i.test(html) && /Live Co/.test(html) && /as <strong>an installer<\/strong>/.test(html) && new RegExp(`name="invitation" value="${id}"`).test(html) && /method="post" action="\/auth\/join"/.test(html) && /Join Live Co/.test(html), 'an address with a pending invitation SEES it: the business\'s name, the role, and a Join button');
+    check(/Start my business/.test(html) && /name="business_name"/.test(html), 'and may still start its own business instead (the invitation is an offer, not a trap)');
+    const proof = html.match(/name="token" value="([^"]+)"/)?.[1]; check((await m.readSignupToken(x.env, proof))?.email === 'newhire@gmail.com', 'both forms carry the signed proof for exactly that address');
+    const plain = await text(await m.handleUnknownAccount(callbackReq, x.env, 'nobody@gmail.com')); check(!/invited you/i.test(plain) && /Start my business/.test(plain), 'an address with NO invitation sees the page it always did');
+    const evil = await invited({ name: '"><img src=x onerror=alert(1)>', email: 'evil@gmail.com' }); const eh = await text(await m.handleUnknownAccount(callbackReq, evil.x.env, 'evil@gmail.com')); check(!/<img src=x/.test(eh) && /&lt;img src=x onerror=alert\(1\)&gt;/.test(eh), 'a business name put on the page is HTML-escaped, whatever the owner typed');
+    const two = await invited(); await m.createBusiness(two.x.env, 'second-co', 'Second Co'); await m.upsertInvitation(two.x.env, 'newhire@gmail.com', 'second-co', 'accountant', 'x'); const th = await text(await m.handleUnknownAccount(callbackReq, two.x.env, 'newhire@gmail.com')); check(/Live Co/.test(th) && /Second Co/.test(th) && (th.match(/action="\/auth\/join"/g) || []).length === 2, 'invitations from TWO businesses are both offered, each with its own Join button');
+  }
+  for (const [label, mutate] of [['EXPIRED', (x) => x.db.exec("UPDATE invitations SET expires_at = datetime('now', '-1 minute')")], ['REVOKED', (x) => x.db.exec("UPDATE invitations SET status = 'revoked'")], ['already ACCEPTED', (x) => x.db.exec("UPDATE invitations SET status = 'accepted'")], ['to a SUSPENDED business', (x) => x.db.exec("UPDATE businesses SET status = 'suspended'")], ['to a business whose trial has ENDED', (x) => x.db.exec("UPDATE businesses SET trial_ends_at = datetime('now', '-1 day')")]]) {
+    const { x } = await invited(); mutate(x); const html = await text(await m.handleUnknownAccount(callbackReq, x.env, 'newhire@gmail.com'));
+    check(!/invited you/i.test(html) && /Start my business/.test(html), `an invitation that is ${label} is not shown`);
+  }
+  {
+    const { x, id } = await invited({ email: 'newhire@gmail.com', role: 'accountant' }); const proof = await tokenFor(x.env, 'newhire@gmail.com'), r = await join(x, proof, id), loc = new URL(r.headers.get('Location') ?? 'x:/');
+    check(r.status === 303 && loc.protocol === 'theoffice:' && loc.searchParams.get('role') === 'accountant' && loc.searchParams.get('email') === 'newhire@gmail.com' && (await m.readSessionPayload(x.env, loc.searchParams.get('token')))?.b === 'live-co' && /office_session=/.test(r.headers.get('Set-Cookie')), 'JOINING signs the person in to THAT business with the invited role (a 303 to the app)');
+    const mem = x.objects.get('live-co').get('newhire@gmail.com');
+    check(mem?.role === 'accountant' && mem.status === 'active' && mem.invitedBy === 'boss@live.co' && (await m.lookupBusinessForEmail(x.env, 'newhire@gmail.com')) === 'live-co', 'the membership exists inside the business with the role asked for and WHO invited them, and the directory sends the address there');
+    check((await m.pendingInvitationsForEmail(x.env, 'newhire@gmail.com')).length === 0 && x.db.prepare('SELECT status FROM invitations').get().status === 'accepted' && rows(x).length === 1, 'the invitation is ACCEPTED (no longer pending) and no business was created');
+    const tamper = await invited({ email: 'tamper@gmail.com', role: 'installer' }); const tr = await m.handleJoinPost(post({ token: await tokenFor(tamper.x.env, 'tamper@gmail.com'), invitation: String(tamper.id), role: 'owner', business: 'other-co' }), tamper.x.env);
+    check(tr.status === 303 && new URL(tr.headers.get('Location')).searchParams.get('role') === 'installer' && tamper.x.objects.get('live-co').get('tamper@gmail.com')?.role === 'installer', 'the role comes from the INVITATION alone: a join form that adds role=owner (or another business) changes nothing');
+    const again = await join(x, await tokenFor(x.env, 'newhire@gmail.com'), id); check(again.status === 303 && [...x.objects.get('live-co').keys()].length === 2 && new URL(again.headers.get('Location')).searchParams.get('role') === 'accountant', 'joining AGAIN (a double tap, an old page) just signs them in: no duplicate membership');
+  }
+  {
+    const { x, id } = await invited(); const nothing = () => !x.objects.get('live-co').has('newhire@gmail.com') && x.db.prepare('SELECT status FROM invitations').get().status === 'pending';
+    const wrongPerson = await join(x, await tokenFor(x.env, 'someone.else@gmail.com'), id); check(wrongPerson.status === 400 && /no longer valid/i.test(await text(wrongPerson)) && nothing(), 'a DIFFERENT address cannot accept someone else\'s invitation (even with a valid proof of their own)');
+    for (const [label, token] of [['a garbage token', 'garbage'], ['no token', ''], ['a session token', await m.signSession(x.env, 'newhire@gmail.com', 'live-co')], ['an expired proof', await m.signSignupToken(x.env, 'newhire@gmail.com', -1)]]) { const r = await join(x, token, id); check(r.status === 400 && nothing() && !r.headers.get('Location'), `refused: ${label}`); }
+    for (const [label, bad] of [['an id that is not a number', 'x'], ['an id that does not exist', '9999'], ['no id', ''], ['a negative id', '-1'], ['an enormous id', '99999999999999']]) { const r = await m.handleJoinPost(post({ token: await tokenFor(x.env, 'newhire@gmail.com'), invitation: bad }), x.env); check(r.status === 400 && nothing(), `refused: ${label}`); }
+    x.db.exec("UPDATE invitations SET status = 'revoked'"); const rv = await join(x, await tokenFor(x.env, 'newhire@gmail.com'), id); check(rv.status === 400 && /no longer valid/i.test(await text(rv)) && !x.objects.get('live-co').has('newhire@gmail.com'), 'an invitation REVOKED after the page was shown cannot be accepted');
+    const nb = world({ BUSINESS: undefined }); check((await m.handleJoinPost(post({ token: await tokenFor(nb.env, 'a@b.co'), invitation: '1' }), nb.env)).status === 404, 'where business objects are not enabled there is nothing to join');
+    const bad = await m.handleJoinPost(new Request('https://x/auth/join', { method: 'POST', body: 'x', headers: { 'Content-Type': 'application/json' } }), x.env); check(bad.status === 400, 'a body that is not a form is a page, not a crash');
+  }
+  {
+    const { x, id } = await invited(); x.db.exec("UPDATE businesses SET trial_ends_at = datetime('now', '+5 days')");
+    const r = await join(x, await tokenFor(x.env, 'newhire@gmail.com'), id); const exp = decode(new URL(r.headers.get('Location')).searchParams.get('token')).exp, end = m.fromSqlTime(x.db.prepare("SELECT trial_ends_at t FROM businesses WHERE id = 'live-co'").get().t);
+    check(r.status === 303 && Math.abs(exp - end) < 1500, 'joining a business that is on a TRIAL gives a session that ends with the trial, like its owner\'s');
+    const e = await invited(); e.x.db.exec("UPDATE businesses SET trial_ends_at = datetime('now', '-1 day')"); const er = await join(e.x, await tokenFor(e.x.env, 'newhire@gmail.com'), e.id); check(er.status !== 303 && !e.x.objects.get('live-co').has('newhire@gmail.com'), 'a business whose trial has ENDED cannot be joined');
+    const s = await invited(); s.x.db.exec("UPDATE businesses SET status = 'suspended'"); check((await join(s.x, await tokenFor(s.x.env, 'newhire@gmail.com'), s.id)).status !== 303, 'nor can one that is not active');
+  }
+  {
+    // someone who already belongs to a business is signed in to THEIR OWN, and the invitation is left alone
+    const { x, id } = await invited({ email: 'staff@elsewhere.co' }); await m.createBusiness(x.env, 'own-co', 'Own Co'); await m.addDirectoryMember(x.env, 'staff@elsewhere.co', 'own-co'); x.objects.set('own-co', new Map([['staff@elsewhere.co', { role: 'installer', status: 'active' }]]));
+    const cb = await text(await m.handleUnknownAccount(callbackReq, x.env, 'staff@elsewhere.co')); check(!/invited you/i.test(cb), 'a person who already belongs to a business is not offered an invitation at sign-in');
+    const r = await join(x, await tokenFor(x.env, 'staff@elsewhere.co'), id); check(r.status === 303 && (await m.readSessionPayload(x.env, new URL(r.headers.get('Location')).searchParams.get('token')))?.b === 'own-co' && !x.objects.get('live-co').has('staff@elsewhere.co') && x.db.prepare('SELECT status FROM invitations').get().status === 'pending', 'and if they submit the join anyway they are signed in to their OWN business, the invitation is NOT used, and nothing is added to the other');
+    const c = await invited({ email: 'race@gmail.com' }); await m.createBusiness(c.x.env, 'rival-co', 'Rival Co', 'standard', { status: 'suspended' }); await m.addDirectoryMember(c.x.env, 'race@gmail.com', 'rival-co');   // bound to a business that is NOT active, so only the conflict check stands between them and a stray membership here
+    const cr = await join(c.x, await tokenFor(c.x.env, 'race@gmail.com'), c.id); check(cr.status !== 303 && !c.x.objects.get('live-co').has('race@gmail.com'), 'an address bound to ANOTHER business meanwhile cannot join: nothing is created in this one (the conflict is found BEFORE the membership is written)');
+  }
+  {
+    const { x, id } = await invited(); x.state.failCreate = true; const bad = await join(x, await tokenFor(x.env, 'newhire@gmail.com'), id);
+    check(bad.status === 500 && !/boom|500/.test(await text(bad.clone())) && x.db.prepare('SELECT status FROM invitations').get().status === 'pending' && (await m.lookupBusinessForEmail(x.env, 'newhire@gmail.com')) === null, 'when the membership cannot be created the person sees a plain page, the invitation stays PENDING, and they are not bound to the business');
+    x.state.failCreate = false; const ok = await join(x, await tokenFor(x.env, 'newhire@gmail.com'), id); check(ok.status === 303 && x.db.prepare('SELECT status FROM invitations').get().status === 'accepted', 'the retry completes it');
+  }
+  {
+    // the whole journey through the Worker's real entry point: the callback shows the invitation, the form is accepted with no session
+    const { x, id } = await invited(); const env = { ...x.env, GOOGLE_CLIENT_ID: 'client-id', GOOGLE_CLIENT_SECRET: 'secret' };
+    google('NewHire@Gmail.com'); const page = await worker.fetch(new Request('https://office.websitehub.co.za/auth/google/callback?code=c&state=S', { headers: { Cookie: 'oauth_state=S', Accept: 'text/html' } }), env, ctx), html = await text(page), proof = html.match(/name="token" value="([^"]+)"/)?.[1];
+    check(page.status === 200 && /invited you/i.test(html) && /Live Co/.test(html), 'through the REAL entry point, the Google callback shows an invited address its invitation');
+    const done = await worker.fetch(new Request('https://office.websitehub.co.za/auth/join', { method: 'POST', body: new URLSearchParams({ token: proof, invitation: String(id) }), headers: { 'CF-Connecting-IP': '5.5.5.5' } }), env, ctx), loc = new URL(done.headers.get('Location') ?? 'x:/');
+    check(done.status === 303 && loc.protocol === 'theoffice:' && loc.searchParams.get('role') === 'installer' && (await m.readSessionPayload(x.env, loc.searchParams.get('token')))?.b === 'live-co', 'and the join form is accepted with NO session (the gate lets the public route through) and ends signed in to the business');
+    google('NewHire@Gmail.com'); const next = await worker.fetch(new Request('https://office.websitehub.co.za/auth/google/callback?code=c&state=S', { headers: { Cookie: 'oauth_state=S', Accept: 'text/html' } }), env, ctx); check(next.status === 302 && new URL(next.headers.get('Location')).searchParams.get('role') === 'installer', 'and the next sign-in is a normal member\'s: straight in');
+  }
+  check(/url\.pathname === "\/auth\/join" && request\.method === "POST"[\s\S]{0,300}handleJoinPost\(request, env\)/.test(src('index.ts')) && /"\/auth\/join"/.test(src('auth.ts')) && /WORKER_ONLY = new Set\(\[[^\]]*"\/auth\/join"/.test(src('routing.ts')), 'the join route exists, is public (the person has no session yet) and is answered by the Worker itself');
 
   // ---- how it is wired in ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   const index = src('index.ts');

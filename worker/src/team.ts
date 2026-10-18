@@ -5,7 +5,7 @@
 // from losing its owner are structural: an owner is never changed, deactivated or reactivated through the app (only the operator can), nobody changes or deactivates themselves, and so a co-owner can never lock the first owner out.
 // The directory and the business cannot share a transaction, so the order is: check, write the membership, write the directory entry; a retry finishes a half-done add (it never leaves a stuck state). No cap on the team (Pierre).
 // Direct add only for now; invite-and-accept, and the roles "sales" and "admin" (whose capabilities are not decided yet), come next.
-import { addDirectoryMember, findDirectoryConflicts, normaliseEmail } from "./directory";
+import { addDirectoryMember, findDirectoryConflicts, listInvitationsFor, normaliseEmail, revokeInvitation, upsertInvitation, type Invitation } from "./directory";
 import type { Env } from "./types";
 
 export const ASSIGNABLE_ROLES = ["owner", "accountant", "installer"];
@@ -31,9 +31,44 @@ const validId = (raw: unknown): number | null => {
   return Number.isInteger(n) && n > 0 ? n : null;
 };
 
-export async function listTeam(env: Env): Promise<{ members: TeamMember[]; roles: string[] }> {
+export async function listTeam(env: Env): Promise<{ members: TeamMember[]; invitations: Invitation[]; roles: string[] }> {
   const { results } = await env.OFFICE_DB.prepare(`SELECT ${COLUMNS} FROM memberships ORDER BY id`).all<Row>();
-  return { members: (results ?? []).map(toMember), roles: ASSIGNABLE_ROLES };
+  let invitations: Invitation[] = [];
+  try { if (env.BUSINESS_ID) invitations = await listInvitationsFor(shared(env), env.BUSINESS_ID); } catch { /* the directory could not be read: the members still show */ }
+  return { members: (results ?? []).map(toMember), invitations, roles: ASSIGNABLE_ROLES };
+}
+
+// An INVITATION: nothing about the team changes until the person signs in with that Google account and accepts (signup.ts handleJoinPost). It waits in the shared directory for 30 days, an owner can revoke it, and inviting the same
+// person again refreshes the one invitation. The same refusals as adding directly: already on the team, or an address that belongs to another business (never named).
+export async function inviteTeamMember(env: Env, actorEmail: string, rawEmail: unknown, rawRole: unknown): Promise<{ ok: true; status: number; invitation: Invitation } | Failed> {
+  const businessId = env.BUSINESS_ID;
+  if (!businessId) return fail(500, "Team changes can only be made inside a business.");
+  const email = validEmail(rawEmail);
+  if (!email) return fail(400, "Send a valid email address: the Google account they will sign in with.");
+  const role = validRole(rawRole);
+  if (!role) return fail(400, `The role must be one of: ${ASSIGNABLE_ROLES.join(", ")}.`);
+  try {
+    const existing = await env.OFFICE_DB.prepare(`SELECT ${COLUMNS} FROM memberships WHERE google_email = ?`).bind(email).first<Row>();
+    if (existing) return existing.status === "active" ? fail(409, `${email} is already on your team (as ${existing.role}).`) : fail(409, `${email} is already on your team but deactivated: reactivate them instead.`);
+    if ((await findDirectoryConflicts(shared(env), [email], businessId)).length > 0) return fail(409, "That email address already belongs to another business. Ask them to sign in with a different Google account, or contact us.");
+    const { id, created } = await upsertInvitation(shared(env), email, businessId, role, actorEmail || null);
+    const invitation = (await listInvitationsFor(shared(env), businessId)).find((i) => i.id === id);
+    return { ok: true, status: created ? 201 : 200, invitation: invitation as Invitation };
+  } catch {
+    return fail(500, "We could not send the invitation just now. Please try again in a minute.");
+  }
+}
+
+export async function revokeTeamInvitation(env: Env, _actorEmail: string, rawId: unknown): Promise<{ ok: true; status: number } | Failed> {
+  const businessId = env.BUSINESS_ID;
+  if (!businessId) return fail(500, "Team changes can only be made inside a business.");
+  const id = validId(rawId);
+  if (id === null) return fail(400, "Send a valid invitation.");
+  try {
+    return (await revokeInvitation(shared(env), businessId, id)) ? { ok: true, status: 200 } : fail(404, "There is no such pending invitation.");
+  } catch {
+    return fail(500, "We could not revoke that just now. Please try again in a minute.");
+  }
 }
 
 export async function addTeamMember(env: Env, actorEmail: string, rawEmail: unknown, rawRole: unknown): Promise<{ ok: true; status: number; member: TeamMember; healed?: boolean } | Failed> {

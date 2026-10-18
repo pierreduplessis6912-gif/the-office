@@ -9,7 +9,7 @@
 // Safe enough because: only a Google-verified address, proven by a short-lived signed token the page carries; one email can belong to one business (enforced by the directory); a cap on new businesses per day (everyone) and per
 // network address; a small trial limit (limits.ts TRIAL_PLAN); and a session that dies when the trial does. Not solved here: billing after the trial (a business stays inactive until an operator moves it to a paid plan).
 import { readSignupToken, signSignupToken } from "./auth";
-import { addDirectoryMember, createBusiness, ensureDirectory, findEndedTrialForEmail, lookupAccessForEmail, normaliseEmail } from "./directory";
+import { acceptInvitation, addDirectoryMember, createBusiness, ensureDirectory, findDirectoryConflicts, findEndedTrialForEmail, lookupAccessForEmail, normaliseEmail, pendingInvitationsForEmail } from "./directory";
 import { ensureTrialPlan, TRIAL_PLAN } from "./limits";
 import { callBusiness } from "./routing";
 import { signedInRedirect } from "./signin";
@@ -64,12 +64,29 @@ function page(title: string, body: string, status = 200): Response {
   );
 }
 
-export function startBusinessPage(email: string, token: string, options: { error?: string; name?: string; status?: number } = {}): Response {
+const ROLE_LABELS: Record<string, string> = { owner: "an owner", accountant: "an accountant", installer: "an installer" };
+
+// The invitations an address may accept, shown ABOVE the option to start its own business (an invitation is an offer, not a trap). Each has its own form so accepting names exactly one invitation.
+function invitationsSection(token: string, invites: Array<{ id: number; businessName: string; role: string }>): string {
+  if (invites.length === 0) return "";
+  const forms = invites
+    .map((i) => `<form method="post" action="/auth/join">
+<input type="hidden" name="token" value="${escapeHtml(token)}">
+<input type="hidden" name="invitation" value="${i.id}">
+<p><strong>${escapeHtml(i.businessName)}</strong> has invited you to join as <strong>${escapeHtml(ROLE_LABELS[i.role] ?? i.role)}</strong>.</p>
+<button type="submit">Join ${escapeHtml(i.businessName)}</button>
+</form>`)
+    .join("\n");
+  return `<h2>You have been invited</h2>\n${forms}\n<p class="small">Not expecting this? You can ignore it, or start your own business below.</p>`;
+}
+
+export function startBusinessPage(email: string, token: string, options: { error?: string; name?: string; status?: number; invites?: Array<{ id: number; businessName: string; role: string }> } = {}): Response {
   const error = options.error ? `<p class="error">${escapeHtml(options.error)}</p>` : "";
   return page(
     "Welcome to The Office",
     `<h1>Welcome to The Office</h1>
 <p>You are signed in with <strong>${escapeHtml(email)}</strong>, which is not set up yet.</p>${error}
+${invitationsSection(token, options.invites ?? [])}
 <form method="post" action="/auth/signup">
 <input type="hidden" name="token" value="${escapeHtml(token)}">
 <h2>Start my business</h2>
@@ -91,6 +108,7 @@ const notActivePage = (email: string): Response =>
   page("Not active", `<h1>This account is not active</h1><p><strong>${escapeHtml(email)}</strong> belongs to a business, but its membership is not active. Ask the owner of the business to check it.</p>`, 403);
 const fullPage = (): Response => page("Try again tomorrow", "<h1>We are full for today</h1><p>We can only open so many new businesses a day. Please try again tomorrow.</p>", 429);
 const expiredPage = (): Response => page("Start again", "<h1>That took too long</h1><p>For your safety the sign-in page only lasts a few minutes. Please close this page and sign in again.</p>", 400);
+const invitationGonePage = (): Response => page("Invitation", "<h1>That invitation is no longer valid</h1><p>It may have expired or been withdrawn. Ask the owner of the business to send it again.</p>", 400);
 const errorPage = (): Response => page("Something went wrong", "<h1>Something went wrong</h1><p>We could not finish setting up. Nothing is lost: please close this page, wait a minute and try again.</p>", 500);
 
 // What a browser sees when Google has verified an address that is not (or no longer) a member of any business. Called from the callback, for requests that ask for a web page; anything else keeps the JSON refusal.
@@ -99,7 +117,8 @@ export async function handleUnknownAccount(request: Request, env: Env, email: st
   const ended = await findEndedTrialForEmail(env, address);
   if (ended) return trialEndedPage(ended.name, env.SUPPORT_CONTACT);
   if (await lookupAccessForEmail(env, address)) return notActivePage(address);
-  return startBusinessPage(address, await signSignupToken(env, address));
+  const invites = await pendingInvitationsForEmail(env, address).catch(() => []);   // an invitation that cannot be looked up must never block the page
+  return startBusinessPage(address, await signSignupToken(env, address), { invites });
 }
 
 // ---- caps ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -180,3 +199,42 @@ async function memberRole(env: Env, businessId: string, email: string): Promise<
     return null;
   }
 }
+
+// The Join button (/auth/join): accepting ONE invitation. The same Google-verified proof as starting a business, so only the invited address can accept; and the invitation must still be pending, unexpired and for a business that is active and
+// not past its trial (pendingInvitationsForEmail is the single place that decides). Someone who already belongs to a business is simply signed in to THEIR OWN (the invitation is left alone). The conflict with another business is
+// found BEFORE anything is written, then the order is: the membership inside the business, the directory entry, the invitation marked accepted; a failure part way leaves the invitation pending and a retry finishes it.
+export async function handleJoinPost(request: Request, env: Env): Promise<Response> {
+  if (!env.BUSINESS) return Response.json({ error: "joining a business is not available here" }, { status: 404 });
+  const form = await request.formData().catch(() => null);
+  if (!form) return expiredPage();
+  const proof = await readSignupToken(env, String(form.get("token") ?? ""));
+  if (!proof) return expiredPage();
+  const email = normaliseEmail(proof.email);
+
+  const existing = await lookupAccessForEmail(env, email);
+  if (existing) {
+    const role = await memberRole(env, existing.businessId, email);
+    if (!role) return notActivePage(email);
+    return signedInRedirect(request, env, { sessionEmail: email, displayEmail: email, role, businessId: existing.businessId, notAfterMs: existing.trialEndsAt ? fromSqlTime(existing.trialEndsAt) : undefined }, 303);
+  }
+  const ended = await findEndedTrialForEmail(env, email);
+  if (ended) return trialEndedPage(ended.name, env.SUPPORT_CONTACT);
+
+  const rawId = String(form.get("invitation") ?? "");
+  if (!/^\d{1,9}$/.test(rawId)) return invitationGonePage();
+  try {
+    const invite = (await pendingInvitationsForEmail(env, email)).find((i) => i.id === Number(rawId));
+    if (!invite) return invitationGonePage();
+    if ((await findDirectoryConflicts(env, [email], invite.businessId)).length > 0) return page("Already in a business", "<h1>This address already belongs to another business</h1><p>One Google account can belong to only one business. Ask the owner to invite a different Google account, or contact us.</p>", 409);
+    if (!(await memberRole(env, invite.businessId, email))) {
+      const made = await callBusiness(env, invite.businessId, "POST", "/debug/create-membership", { google_email: email, role: invite.role, invited_by: invite.invitedBy });
+      if (!made.ok) throw new Error(`the membership could not be created (${made.status})`);
+    }
+    await addDirectoryMember(env, email, invite.businessId);
+    await acceptInvitation(env, invite.id);
+    return signedInRedirect(request, env, { sessionEmail: email, displayEmail: email, role: invite.role, businessId: invite.businessId, notAfterMs: invite.trialEndsAt ? fromSqlTime(invite.trialEndsAt) : undefined }, 303);
+  } catch {
+    return errorPage();
+  }
+}
+

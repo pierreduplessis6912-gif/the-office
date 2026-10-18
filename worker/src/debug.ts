@@ -1102,7 +1102,7 @@ if (url.pathname === "/debug/seed-business-name" && request.method === "POST") {
     }
 
 if (url.pathname === "/debug/create-membership" && request.method === "POST") {
-      const body = (await request.json().catch(() => ({}))) as { google_email?: string; role?: string };
+      const body = (await request.json().catch(() => ({}))) as { google_email?: string; role?: string; invited_by?: unknown };
       if (!body.google_email || !body.role) {
         return Response.json({ error: "google_email and role are both required" }, { status: 400 });
       }
@@ -1114,9 +1114,9 @@ if (url.pathname === "/debug/create-membership" && request.method === "POST") {
       }
       try {
         const inserted = await env.OFFICE_DB.prepare(
-          "INSERT INTO memberships (google_email, role) VALUES (?, ?) RETURNING id"
+          "INSERT INTO memberships (google_email, role, invited_by) VALUES (?, ?, ?) RETURNING id"
         )
-          .bind(body.google_email, body.role)
+          .bind(body.google_email, body.role, typeof body.invited_by === "string" ? body.invited_by : null)
           .first<{ id: number }>();
         return Response.json({
           status: "created",
