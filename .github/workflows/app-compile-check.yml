@@ -1,0 +1,51 @@
+name: App compile check
+
+# Compiles the REAL app (flutter analyze, then flutter build web) on every branch EXCEPT main, and deploys nothing. Why: a push to main starts a Codemagic release build and a web preview deploy, so a Dart mistake that is only
+# found there blocks everything waiting in the build. Nothing else in CI looked at the app at all, and the tools Claude works with cannot reach a Dart SDK, so until now new app code was checked for syntax only.
+# It builds exactly as deploy-web-preview.yml does (same scaffolding), so "it compiles here" means "the preview deploy will compile it". Errors fail the job; infos and warnings (there are many in the existing app) do not.
+on:
+  push:
+    branches-ignore: [main]
+    paths:
+      - "app/**"
+      - ".github/workflows/app-compile-check.yml"
+  workflow_dispatch:
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Bootstrap web scaffolding (same as the preview deploy)
+        run: |
+          cd app
+          if [ ! -d "web" ]; then
+            cp pubspec.yaml /tmp/pubspec.yaml.bak
+            cp lib/main.dart /tmp/main.dart.bak
+            flutter create --platforms=web --org za.co.websitehub --project-name the_office .
+            cp /tmp/pubspec.yaml.bak pubspec.yaml
+            cp /tmp/main.dart.bak lib/main.dart
+          fi
+          cp auth-callback-template.html web/auth-callback.html
+
+      - name: Get packages
+        run: |
+          cd app
+          flutter pub get
+
+      - name: Analyze (errors fail; infos and warnings are listed)
+        shell: bash
+        run: |
+          cd app
+          flutter analyze --no-fatal-infos --no-fatal-warnings 2>&1 | tee /tmp/analyze.txt
+          echo "ERROR_COUNT=$(grep -c '^ *error •' /tmp/analyze.txt || true)"
+
+      - name: Compile for web
+        run: |
+          cd app
+          flutter build web --release
