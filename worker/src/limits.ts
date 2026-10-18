@@ -24,7 +24,47 @@ export const DEFAULT_PLAN: Plan = { name: "standard", messagesPerMemberPerDay: 1
 export const TRIAL_PLAN: Plan = { name: "trial", messagesPerMemberPerDay: 30, neuronsPerBusinessPerDay: 60_000, mode: "enforce" };
 export const CAP_ROUTES = new Set(["POST /messages/text", "POST /files/audio"]);
 
-const PLANS_DDL = "CREATE TABLE IF NOT EXISTS plans (name TEXT PRIMARY KEY, messages_per_member_per_day INTEGER NOT NULL, neurons_per_business_per_day INTEGER NOT NULL, mode TEXT NOT NULL DEFAULT 'warn', updated_at TEXT NOT NULL DEFAULT (datetime('now')))";
+const PLANS_DDL = "CREATE TABLE IF NOT EXISTS plans (name TEXT PRIMARY KEY, messages_per_member_per_day INTEGER NOT NULL, neurons_per_business_per_day INTEGER NOT NULL, mode TEXT NOT NULL DEFAULT 'warn', updated_at TEXT NOT NULL DEFAULT (datetime('now')), label TEXT, monthly_cents INTEGER, annual_cents INTEGER, per_seat INTEGER NOT NULL DEFAULT 0, min_seats INTEGER NOT NULL DEFAULT 1, max_seats INTEGER, sort INTEGER NOT NULL DEFAULT 100, public INTEGER NOT NULL DEFAULT 0)";
+// What a plan table from BEFORE billing lacks. Added by the writers (never by a read), the way the directory adds its columns; every read that needs them falls back to the old query, because these limits are FAIL-OPEN and a failed read would
+// silently drop a trial business's enforcement.
+const PLAN_COLUMNS: Array<[string, string]> = [["label", "TEXT"], ["monthly_cents", "INTEGER"], ["annual_cents", "INTEGER"], ["per_seat", "INTEGER NOT NULL DEFAULT 0"], ["min_seats", "INTEGER NOT NULL DEFAULT 1"], ["max_seats", "INTEGER"], ["sort", "INTEGER NOT NULL DEFAULT 100"], ["public", "INTEGER NOT NULL DEFAULT 0"]];
+async function ensurePlanColumns(db: D1Database): Promise<void> {
+  const { results } = await db.prepare("PRAGMA table_info(plans)").all<{ name: string }>();
+  const have = new Set((results ?? []).map((r) => r.name));
+  for (const [name, type] of PLAN_COLUMNS) if (!have.has(name)) await db.prepare(`ALTER TABLE plans ADD COLUMN ${name} ${type}`).run();
+}
+async function ensureSeatsColumn(db: D1Database): Promise<void> {
+  const { results } = await db.prepare("PRAGMA table_info(businesses)").all<{ name: string }>();
+  if (!(results ?? []).some((r) => r.name === "seats")) await db.prepare("ALTER TABLE businesses ADD COLUMN seats INTEGER").run();
+}
+
+// ---- the catalogue: what a customer can choose (decided with Pierre 2026-10-20, copying the structure of Anthropic's plans: a flat individual plan, a per-seat team plan with a minimum, and a sales-led enterprise plan) ----------------
+// Prices are in cents and are DATA: an operator changes them (setPlan) without a deploy, and re-seeding never puts one back. The AI figures bound what a plan can cost (20,000 units a day is about R120 a month at full use, assuming R18 to the dollar).
+export interface Offer {
+  name: string; label: string; monthlyCents: number | null; annualCents: number | null; perSeat: boolean; minSeats: number; maxSeats: number | null; sort: number; public: boolean;
+  messagesPerMemberPerDay: number; neuronsPerBusinessPerDay: number; mode: CapMode;
+}
+export const CATALOG: Offer[] = [
+  { name: "solo", label: "Single user", monthlyCents: 39900, annualCents: 399000, perSeat: false, minSeats: 1, maxSeats: 1, sort: 10, public: true, messagesPerMemberPerDay: 100, neuronsPerBusinessPerDay: 20_000, mode: "enforce" },
+  { name: "team", label: "Team", monthlyCents: 29900, annualCents: 299000, perSeat: true, minSeats: 3, maxSeats: null, sort: 20, public: true, messagesPerMemberPerDay: 100, neuronsPerBusinessPerDay: 20_000, mode: "enforce" },
+  { name: "enterprise", label: "Enterprise", monthlyCents: null, annualCents: null, perSeat: true, minSeats: 1, maxSeats: null, sort: 30, public: false, messagesPerMemberPerDay: 300, neuronsPerBusinessPerDay: 50_000, mode: "enforce" },
+];
+export async function ensureCatalog(env: Env): Promise<void> {
+  const db = env.OFFICE_DB;
+  await db.prepare(PLANS_DDL).run();
+  await ensurePlanColumns(db);
+  for (const o of CATALOG) {
+    await db.prepare("INSERT OR IGNORE INTO plans (name, messages_per_member_per_day, neurons_per_business_per_day, mode, label, monthly_cents, annual_cents, per_seat, min_seats, max_seats, sort, public) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(o.name, o.messagesPerMemberPerDay, o.neuronsPerBusinessPerDay, o.mode, o.label, o.monthlyCents, o.annualCents, o.perSeat ? 1 : 0, o.minSeats, o.maxSeats, o.sort, o.public ? 1 : 0)
+      .run();
+  }
+}
+type OfferRow = { name: string; label: string | null; monthly_cents: number | null; annual_cents: number | null; per_seat: number; min_seats: number; max_seats: number | null; sort: number; public: number; messages_per_member_per_day: number; neurons_per_business_per_day: number; mode: string };
+export async function listOffers(env: Env): Promise<Offer[]> {
+  await ensureCatalog(env);
+  const { results } = await env.OFFICE_DB.prepare("SELECT name, label, monthly_cents, annual_cents, per_seat, min_seats, max_seats, sort, public, messages_per_member_per_day, neurons_per_business_per_day, mode FROM plans WHERE label IS NOT NULL AND label != '' ORDER BY sort, name").all<OfferRow>();
+  return (results ?? []).filter((r) => r.mode === "warn" || r.mode === "enforce").map((r) => ({ name: r.name, label: r.label as string, monthlyCents: r.monthly_cents, annualCents: r.annual_cents, perSeat: r.per_seat === 1, minSeats: r.min_seats, maxSeats: r.max_seats, sort: r.sort, public: r.public === 1, messagesPerMemberPerDay: r.messages_per_member_per_day, neuronsPerBusinessPerDay: r.neurons_per_business_per_day, mode: r.mode as CapMode }));
+}
 const USAGE_DDL = "CREATE TABLE IF NOT EXISTS member_usage (day TEXT NOT NULL, member TEXT NOT NULL, messages INTEGER NOT NULL DEFAULT 0, over_limit INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, member))";
 
 const isCount = (x: unknown, max: number): x is number => typeof x === "number" && Number.isInteger(x) && x >= 1 && x <= max;
@@ -58,10 +98,25 @@ export async function readPlan(env: Env, now: number = Date.now()): Promise<Plan
   if (hit && ttl > 0 && now - hit.at < ttl) return hit.plan;
   let plan = DEFAULT_PLAN;
   try {
-    const row = await sharedOf(env)
-      .prepare("SELECT p.name AS name, p.messages_per_member_per_day AS messages_per_member_per_day, p.neurons_per_business_per_day AS neurons_per_business_per_day, p.mode AS mode FROM businesses b JOIN plans p ON p.name = b.plan WHERE b.id = ?")
-      .bind(business)
-      .first<{ name: string; messages_per_member_per_day: number; neurons_per_business_per_day: number; mode: string }>();
+    type Row = { name: string; messages_per_member_per_day: number; neurons_per_business_per_day: number; mode: string; per_seat?: number; seats?: number | null };
+    let row: Row | null;
+    try {
+      // A per-seat plan's daily AI allowance is its figure times the seats paid for (capped at the ceiling, so a huge seat count can never make the plan invalid).
+      row = await sharedOf(env)
+        .prepare("SELECT p.name AS name, p.messages_per_member_per_day AS messages_per_member_per_day, p.neurons_per_business_per_day AS neurons_per_business_per_day, p.mode AS mode, p.per_seat AS per_seat, b.seats AS seats FROM businesses b JOIN plans p ON p.name = b.plan WHERE b.id = ?")
+        .bind(business)
+        .first<Row>();
+    } catch {
+      // A shared layer from before billing has no per_seat or seats yet: the OLD query, so a trial business keeps its enforced limits instead of silently falling to the default that only warns.
+      row = await sharedOf(env)
+        .prepare("SELECT p.name AS name, p.messages_per_member_per_day AS messages_per_member_per_day, p.neurons_per_business_per_day AS neurons_per_business_per_day, p.mode AS mode FROM businesses b JOIN plans p ON p.name = b.plan WHERE b.id = ?")
+        .bind(business)
+        .first<Row>();
+    }
+    if (row && row.per_seat === 1 && typeof row.neurons_per_business_per_day === "number") {
+      const seats = Math.max(1, Math.floor(Number(row.seats) || 1));
+      row = { ...row, neurons_per_business_per_day: Math.min(row.neurons_per_business_per_day * seats, MAX_NEURONS) };
+    }
     plan = validPlan(row) ?? DEFAULT_PLAN;
   } catch {
     plan = DEFAULT_PLAN;   // no shared tables, no row, any error: the default warns and never blocks
@@ -152,35 +207,71 @@ export async function memberUsageToday(env: Env, now: Date = new Date()): Promis
 export async function ensureTrialPlan(env: Env): Promise<void> {
   const db = env.OFFICE_DB;
   await db.prepare(PLANS_DDL).run();
+  await ensurePlanColumns(db);
   await db.prepare("INSERT OR IGNORE INTO plans (name, messages_per_member_per_day, neurons_per_business_per_day, mode) VALUES (?, ?, ?, ?)").bind(TRIAL_PLAN.name, TRIAL_PLAN.messagesPerMemberPerDay, TRIAL_PLAN.neuronsPerBusinessPerDay, TRIAL_PLAN.mode).run();
 }
 
 export async function listPlans(env: Env): Promise<Plan[]> {
   const db = env.OFFICE_DB;
   await db.prepare(PLANS_DDL).run();
+  await ensurePlanColumns(db);
   await db.prepare("INSERT OR IGNORE INTO plans (name, messages_per_member_per_day, neurons_per_business_per_day, mode) VALUES (?, ?, ?, ?)").bind(DEFAULT_PLAN.name, DEFAULT_PLAN.messagesPerMemberPerDay, DEFAULT_PLAN.neuronsPerBusinessPerDay, DEFAULT_PLAN.mode).run();
+  await ensureCatalog(env);
   const { results } = await db.prepare("SELECT name, messages_per_member_per_day, neurons_per_business_per_day, mode FROM plans ORDER BY name").all<{ name: string; messages_per_member_per_day: number; neurons_per_business_per_day: number; mode: string }>();
   return (results ?? []).map((r) => validPlan(r)).filter((p): p is Plan => p !== null);
 }
 
-export async function setPlan(env: Env, input: { name?: unknown; messagesPerMemberPerDay?: unknown; neuronsPerBusinessPerDay?: unknown; mode?: unknown }): Promise<{ ok: true; plan: Plan } | { ok: false; error: string }> {
+type PlanInput = { name?: unknown; messagesPerMemberPerDay?: unknown; neuronsPerBusinessPerDay?: unknown; mode?: unknown; label?: unknown; monthlyCents?: unknown; annualCents?: unknown; perSeat?: unknown; minSeats?: unknown; maxSeats?: unknown; sort?: unknown; public?: unknown };
+const isPrice = (x: unknown): x is number | null => x === null || (typeof x === "number" && Number.isInteger(x) && x >= 0 && x <= 10_000_000);
+const isSeatCount = (x: unknown): x is number => typeof x === "number" && Number.isInteger(x) && x >= 1 && x <= 100_000;
+
+// Define a plan's LIMITS (as before) and, optionally, how it is OFFERED: its label, its prices in cents (null clears one), whether it is per seat, its minimum and maximum seats, where it sorts, and whether it is shown on the plans page. Only the
+// fields sent are changed, so changing a price never touches a limit and the other way round. A re-seed of the catalogue never puts any of it back.
+export async function setPlan(env: Env, input: PlanInput): Promise<{ ok: true; plan: Plan } | { ok: false; error: string }> {
   if (typeof input.name !== "string" || !/^[a-z][a-z0-9-]{1,30}$/.test(input.name)) return { ok: false, error: "name must be 2 to 31 characters: lowercase letters, digits and hyphens, starting with a letter" };
   if (!isCount(input.messagesPerMemberPerDay, MAX_MESSAGES)) return { ok: false, error: `messagesPerMemberPerDay must be a whole number from 1 to ${MAX_MESSAGES}` };
   if (!isCount(input.neuronsPerBusinessPerDay, MAX_NEURONS)) return { ok: false, error: `neuronsPerBusinessPerDay must be a whole number from 1 to ${MAX_NEURONS}` };
   if (input.mode !== "warn" && input.mode !== "enforce") return { ok: false, error: 'mode must be "warn" or "enforce"' };
+  if (input.label !== undefined && (typeof input.label !== "string" || input.label.trim().length < 1 || input.label.trim().length > 40)) return { ok: false, error: "label must be 1 to 40 characters" };
+  for (const key of ["monthlyCents", "annualCents"] as const) if (input[key] !== undefined && !isPrice(input[key])) return { ok: false, error: `${key} must be a whole number of cents from 0 to 10,000,000, or null for no price` };
+  if (input.perSeat !== undefined && typeof input.perSeat !== "boolean") return { ok: false, error: "perSeat must be true or false" };
+  if (input.public !== undefined && typeof input.public !== "boolean") return { ok: false, error: "public must be true or false" };
+  if (input.minSeats !== undefined && !isSeatCount(input.minSeats)) return { ok: false, error: "minSeats must be a whole number from 1 to 100,000" };
+  if (input.maxSeats !== undefined && input.maxSeats !== null && !isSeatCount(input.maxSeats)) return { ok: false, error: "maxSeats must be a whole number from 1 to 100,000, or null for no maximum" };
+  if (typeof input.minSeats === "number" && typeof input.maxSeats === "number" && input.maxSeats < input.minSeats) return { ok: false, error: "maxSeats cannot be below minSeats" };
+  if (input.sort !== undefined && !(typeof input.sort === "number" && Number.isInteger(input.sort) && input.sort >= 0 && input.sort <= 10_000)) return { ok: false, error: "sort must be a whole number from 0 to 10,000" };
   await env.OFFICE_DB.prepare(PLANS_DDL).run();
+  await ensurePlanColumns(env.OFFICE_DB);
   await env.OFFICE_DB.prepare("INSERT INTO plans (name, messages_per_member_per_day, neurons_per_business_per_day, mode) VALUES (?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET messages_per_member_per_day = excluded.messages_per_member_per_day, neurons_per_business_per_day = excluded.neurons_per_business_per_day, mode = excluded.mode, updated_at = datetime('now')")
     .bind(input.name, input.messagesPerMemberPerDay, input.neuronsPerBusinessPerDay, input.mode)
     .run();
+  const columns: Array<[string, unknown]> = [];
+  if (input.label !== undefined) columns.push(["label", (input.label as string).trim()]);
+  if (input.monthlyCents !== undefined) columns.push(["monthly_cents", input.monthlyCents]);
+  if (input.annualCents !== undefined) columns.push(["annual_cents", input.annualCents]);
+  if (input.perSeat !== undefined) columns.push(["per_seat", input.perSeat ? 1 : 0]);
+  if (input.minSeats !== undefined) columns.push(["min_seats", input.minSeats]);
+  if (input.maxSeats !== undefined) columns.push(["max_seats", input.maxSeats]);
+  if (input.sort !== undefined) columns.push(["sort", input.sort]);
+  if (input.public !== undefined) columns.push(["public", input.public ? 1 : 0]);
+  if (columns.length > 0) await env.OFFICE_DB.prepare(`UPDATE plans SET ${columns.map(([c]) => `${c} = ?`).join(", ")} WHERE name = ?`).bind(...columns.map(([, v]) => v), input.name).run();
   clearPlanCache();
   return { ok: true, plan: { name: input.name, messagesPerMemberPerDay: input.messagesPerMemberPerDay, neuronsPerBusinessPerDay: input.neuronsPerBusinessPerDay, mode: input.mode } };
 }
 
-export async function assignPlan(env: Env, businessId: unknown, plan: unknown): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+// Put a business on a plan, and (optionally) say how many seats it has paid for: a whole number, or null for none recorded. A plan with a seat limit needs the seats; one without ignores them.
+export async function assignPlan(env: Env, businessId: unknown, plan: unknown, seats?: unknown): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
   if (typeof businessId !== "string" || typeof plan !== "string") return { ok: false, error: "send a business and a plan", status: 400 };
+  if (seats !== undefined && seats !== null && !isSeatCount(seats)) return { ok: false, error: "seats must be a whole number from 1 to 100,000, or null", status: 400 };
   const known = (await listPlans(env)).some((p) => p.name === plan);
   if (!known) return { ok: false, error: `no such plan: ${plan}`, status: 404 };
-  const done = await env.OFFICE_DB.prepare("UPDATE businesses SET plan = ? WHERE id = ?").bind(plan, businessId).run();
+  let done;
+  if (seats === undefined) {
+    done = await env.OFFICE_DB.prepare("UPDATE businesses SET plan = ? WHERE id = ?").bind(plan, businessId).run();
+  } else {
+    await ensureSeatsColumn(env.OFFICE_DB);
+    done = await env.OFFICE_DB.prepare("UPDATE businesses SET plan = ?, seats = ? WHERE id = ?").bind(plan, seats, businessId).run();
+  }
   if (!done.meta.changes) return { ok: false, error: `no such business: ${businessId}`, status: 404 };
   clearPlanCache();
   return { ok: true };
