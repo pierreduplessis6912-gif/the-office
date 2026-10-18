@@ -53,7 +53,7 @@ module.exports = async function runEmptinessTests({ check, srcDir }) {
   // Every table the source creates LAZILY (not in the baseline schema) inside a business object must be CLASSIFIED: either platform bookkeeping (ignored above) or something an owner's own activity writes (counts as data). A new one fails
   // this test, so nobody can add a table without deciding which, which is how a real object's tables caused the bug above.
   const baseline = fs.readFileSync(path.join(srcDir, 'baseline-sql.ts'), 'utf8'), inBaseline = new Set([...baseline.matchAll(/CREATE TABLE(?: IF NOT EXISTS)? \\?"?([a-z_]+)/g)].map((m) => m[1]));
-  const sharedOrExperiment = new Set(['directory.ts', 'signup.ts', 'trial.ts']), lazy = new Set();
+  const sharedOrExperiment = new Set(['directory.ts', 'signup.ts', 'trial.ts', 'billing.ts']), lazy = new Set();   // billing.ts makes its tables in the SHARED directory, never inside a business object
   for (const f of fs.readdirSync(srcDir).filter((x) => x.endsWith('.ts') && x !== 'baseline-sql.ts' && !sharedOrExperiment.has(x))) for (const m of fs.readFileSync(path.join(srcDir, f), 'utf8').matchAll(/CREATE TABLE IF NOT EXISTS ([a-z_]+) \(/g)) if (!inBaseline.has(m[1])) lazy.add(m[1]);
   const IGNORED = ['admin_audit', 'member_sign_ins', 'object_meta', 'request_timings', 'schema_steps'], COUNTS = ['member_selections', 'member_usage', 'model_usage', 'onboarding_progress', 'permission_audit', 'plans', 'purchase_order_cancellations', 'purchase_order_customers', 'role_capability_overrides', 'stock_item_merges', 'supplier_statements', 'team_audit', 'unit_conversions'];
   const expected = new Set([...IGNORED, ...COUNTS]), unclassified = [...lazy].filter((n) => !expected.has(n)), gone = [...expected].filter((n) => !lazy.has(n));

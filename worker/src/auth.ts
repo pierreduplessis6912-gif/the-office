@@ -429,6 +429,11 @@ const PUBLIC_ROUTES = new Set([
   "/auth/google/callback",
   "/auth/signup",
   "/auth/join",
+  // Billing (billing.ts): the pay page the app opens in a browser (an unguessable order id is its only key), PayFast's notification address (authenticated by its signature and by PayFast's own confirmation), and the two pages the payer returns to.
+  "/billing/pay",
+  "/billing/payfast/notify",
+  "/billing/return",
+  "/billing/cancelled",
   "/auth/logout",
   "/auth/me",
 ]);
@@ -780,6 +785,8 @@ export const ROUTE_RULES: Array<{ method: string; path: RegExp; anyOf: string[] 
   { method: "PATCH", path: /^\/team\/\d+$/, anyOf: ["can_invite_members"] },
   { method: "POST", path: /^\/team\/\d+\/(deactivate|reactivate)$/, anyOf: ["can_invite_members"] },
   { method: "POST", path: /^\/team\/invite$/, anyOf: ["can_invite_members"] },
+  // Choosing a plan and paying for it is the OWNER's: settings is an owner-only capability that no override can grant.
+  { method: "POST", path: /^\/billing\/checkout$/, anyOf: ["can_manage_settings"] },
   { method: "PATCH", path: /^\/team\/\d+\/profile$/, anyOf: ["can_invite_members"] },
   { method: "POST", path: /^\/team\/invitations\/\d+\/revoke$/, anyOf: ["can_invite_members"] },
   { method: "POST", path: /^\/business-profile\/logo$/, anyOf: ["can_manage_settings"] },

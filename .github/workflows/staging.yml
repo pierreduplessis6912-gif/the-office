@@ -169,6 +169,13 @@ jobs:
           BUSINESS_MODE = "object"
           SIGNUP_DAILY_CAP = "1000"
           SIGNUP_IP_DAILY_CAP = "1000"
+          # PayFast for the REHEARSAL ONLY: PayFast's own public sandbox merchant, a passphrase invented for this throwaway environment, and the flag that skips PayFast's confirmation call (it cannot succeed for a made-up payment). Production
+          # has none of these: its keys are secrets set by the deploy, it is not in live mode until Pierre says so, and live mode ignores the flag anyway (tools/billing.test.js pins all of it).
+          PAYFAST_MODE = "sandbox"
+          PAYFAST_SANDBOX_MERCHANT_ID = "10000100"
+          PAYFAST_SANDBOX_MERCHANT_KEY = "46f0cd694581a"
+          PAYFAST_SANDBOX_PASSPHRASE = "rehearsal-passphrase"
+          PAYFAST_SKIP_CONFIRM = "1"
 
           [[routes]]
           pattern = "${SLUG}.websitehub.co.za/*"
@@ -779,6 +786,34 @@ jobs:
           api pe-nothing PATCH "$SESSION" "/team/$MIDP/profile" '{}'
           api pe-owner-name PATCH "$SESSION" "/team/$OIDP/profile" '{"firstName":"Owen","surname":"Owner"}'
           api pe-final GET "$SESSION" /team
+          # PAYMENT (worker/src/billing.ts) on the REAL objects, before the seat steps: the owner (and only the owner) starts a checkout for a plan that can be bought; the pay page is a signed form to the PayFast SANDBOX and an unknown order is a
+          # 404; a notification with a bad signature, and one for the wrong amount, change nothing; a correctly signed one for the exact amount converts the business (plan changed, trial ended); and the same payment again is ignored.
+          itn_body() { python3 - "$@" <<'PY'
+          import hashlib, sys, urllib.parse
+          order, pf, status, amount, biz, token, kind = sys.argv[1:8]
+          enc = lambda s: urllib.parse.quote_plus(s, safe="").replace("~", "%7E")
+          pairs = [("m_payment_id", order), ("pf_payment_id", pf), ("payment_status", status), ("item_name", "The Office Team (3 seats)"), ("amount_gross", amount), ("amount_fee", "-20.60"), ("amount_net", "876.40"), ("custom_str1", biz), ("custom_str2", ""), ("token", token)]
+          body = "&".join(k + "=" + enc(v) for k, v in pairs)
+          sig = "0" * 32 if kind == "bad" else hashlib.md5((body + "&passphrase=" + enc("rehearsal-passphrase")).encode()).hexdigest()
+          print(body + "&signature=" + sig)
+          PY
+          }
+          notify() { curl -s -o "$RESULTS/$1.body" -w '%{http_code}' -X POST -H "Content-Type: application/x-www-form-urlencoded" --data-binary "$2" "$BASE/billing/payfast/notify" > "$RESULTS/$1.status"; }
+          api bl-checkout POST "$SESSION" /billing/checkout '{"plan":"team","interval":"monthly","seats":3}'
+          api bl-checkout-sales POST "$SSESS" /billing/checkout '{"plan":"team","interval":"monthly","seats":3}'
+          api bl-checkout-ent POST "$SESSION" /billing/checkout '{"plan":"enterprise","interval":"monthly","seats":3}'
+          api bl-checkout-few POST "$SESSION" /billing/checkout '{"plan":"team","interval":"monthly","seats":2}'
+          BORDER=$(python3 -c "import json; print(json.load(open('$RESULTS/bl-checkout.json')).get('orderId',''))")
+          curl -s -o "$RESULTS/bl-pay.html" -w '%{http_code}' "$BASE/billing/pay?order=$BORDER" > "$RESULTS/bl-pay.status"
+          curl -s -o /dev/null -w '%{http_code}' "$BASE/billing/pay?order=not-a-real-order" > "$RESULTS/bl-pay-bad.status"
+          curl -s -o /dev/null -w '%{http_code}' "$BASE/billing/return" > "$RESULTS/bl-return.status"
+          dirnow bl-dir-before
+          notify bl-bad "$(itn_body "$BORDER" 7000001 COMPLETE 897.00 "$BID" "tok-$TAG" bad)"
+          notify bl-short "$(itn_body "$BORDER" 7000002 COMPLETE 1.00 "$BID" "tok-$TAG" good)"
+          dirnow bl-dir-mid
+          notify bl-ok "$(itn_body "$BORDER" 7000003 COMPLETE 897.00 "$BID" "tok-$TAG" good)"
+          notify bl-replay "$(itn_body "$BORDER" 7000003 COMPLETE 897.00 "$BID" "tok-$TAG" good)"
+          dirnow bl-dir-after
           # SEATS (worker/src/seats.ts, limits.ts) on the REAL objects, at the END so nothing above is disturbed. The business already has more than three people, so a 3-seat Team plan is FULL: every way of adding someone is refused (402) and
           # leaves nothing behind; buying seats lets the owner add again; and Single user refuses again without removing anyone. The first operator write also adds the plan columns to the real shared layer, which predates them.
           setplan() { curl -s -o "$RESULTS/$1.json" -w '%{http_code}' -X POST -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY" -H "Content-Type: application/json" -d "$2" "$BASE/debug/directory/set-plan" > "$RESULTS/$1.status"; }
@@ -791,6 +826,7 @@ jobs:
           setplan ss-solo "{\"business\":\"$BID\",\"plan\":\"solo\"}"
           api ss-solo-add POST "$SESSION" /team "{\"email\":\"seat-solo-$TAG@example.com\",\"role\":\"installer\",\"firstName\":\"Sela\",\"surname\":\"Solo\"}"
           api ss-solo-list GET "$SESSION" /team
+          export BID
           python3 - <<'PY'
           import base64, datetime, json, os, re, sys, urllib.parse as u
           r, tag = os.environ["RESULTS"], "r" + os.environ["GITHUB_RUN_ID"]
@@ -852,6 +888,10 @@ jobs:
           pe_invitee = next((m for m in (rd("pe-final.json") or {}).get("members", []) if (m.get("person") or {}).get("name") == "Ivy Invitee"), {})
           pe_x = next((m for m in (rd("pe-final.json") or {}).get("members", []) if (m.get("person") or {}).get("name") == "Xena Handover"), {})
           pe_joined = [a for a in ((rd("pe-final.json") or {}).get("activity") or []) if a.get("action") == "joined"]
+          bl_biz = lambda n: next((b for b in ((rd(n) or {}).get("businesses") or []) if b.get("id") == os.environ.get("BID")), {})
+          bl_before, bl_mid, bl_after = bl_biz("bl-dir-before.json"), bl_biz("bl-dir-mid.json"), bl_biz("bl-dir-after.json")
+          bl_checkout = rd("bl-checkout.json") or {}
+          bl_html = rd("bl-pay.html", False) or ""
           ss_before = len((rd("ss-full-list.json") or {}).get("members") or [])
           ss_emails = lambda n: {m.get("email") for m in ((rd(n) or {}).get("members") or [])}
           ss_inv = {i.get("email") for i in ((rd("ss-full-list.json") or {}).get("invitations") or [])}
@@ -924,9 +964,13 @@ jobs:
               "a_team_plan_with_all_its_seats_in_use_refuses_to_add_or_invite_anyone_and_leaves_nothing_behind": status("ss-team") == "200" and status("ss-add") == "402" and "seats" in json.dumps(rd("ss-add.json") or {}) and status("ss-invite") == "402" and "seat-add-" + tag + "@example.com" not in ss_emails("ss-full-list.json") and "seat-inv-" + tag + "@example.com" not in ss_inv,
               "buying_seats_lets_the_owner_add_again": status("ss-buy") == "200" and status("ss-add2") == "201" and "seat-add-" + tag + "@example.com" in ss_emails("ss-solo-list.json"),
               "a_single_user_plan_refuses_and_nobody_is_removed": status("ss-solo") == "200" and status("ss-solo-add") == "402" and "Single user" in json.dumps(rd("ss-solo-add.json") or {}) and len(ss_emails("ss-solo-list.json")) == ss_before + 1 and "seat-solo-" + tag + "@example.com" not in ss_emails("ss-solo-list.json"),
+              "an_owner_starts_a_checkout_for_a_plan_that_can_be_bought_and_nobody_else_can": status("bl-checkout") == "201" and bl_checkout.get("amountCents") == 89700 and "/billing/pay?order=" in (bl_checkout.get("payUrl") or "") and status("bl-checkout-sales") == "403" and status("bl-checkout-ent") == "400" and status("bl-checkout-few") == "400",
+              "the_pay_page_is_a_signed_form_to_the_sandbox_and_an_unknown_order_is_a_404": status("bl-pay") == "200" and "sandbox.payfast.co.za/eng/process" in bl_html and 'name="signature"' in bl_html and 'name="amount" value="897.00"' in bl_html and "rehearsal-passphrase" not in bl_html and status("bl-pay-bad") == "404" and status("bl-return") == "200",
+              "a_notification_with_a_bad_signature_or_the_wrong_amount_converts_nothing": status("bl-bad") == "400" and "bad_signature" in (rd("bl-bad.body", False) or "") and status("bl-short") == "200" and "amount_mismatch" in (rd("bl-short.body", False) or "") and bl_before.get("plan") == "standard" and bl_mid.get("plan") == "standard",   # the business was already converted by an earlier step: a refused notification must leave it exactly there
+              "a_confirmed_payment_for_the_exact_amount_converts_the_business_and_the_same_payment_is_never_applied_twice": status("bl-ok") == "200" and "applied" in (rd("bl-ok.body", False) or "") and status("bl-replay") == "200" and "duplicate" in (rd("bl-replay.body", False) or "") and bl_after.get("plan") == "team" and bl_after.get("trial_ends_at") is None,
               "health_reports_the_running_commit": health.get("commit") == os.environ.get("GITHUB_SHA"),
               "the_directory_columns_exist_on_the_real_database": all("trial_ends_at" in b and "source" in b for b in listing) and len(listing) > 0,
-              "answers": {"first": status("su-first"), "again": status("su-again"), "garbage": status("su-garbage"), "untick": status("su-untick"), "days_left": round(days, 3) if days else None, "business": {k: biz.get(k) for k in ("plan", "status", "source", "members")}, "session_b_matches": payload.get("b") == biz.get("id"), "me": {"signedIn": me.get("signedIn"), "role": me.get("role")}, "customers": status("su-customers"), "customer_items": len(cust_list) if isinstance(cust_list, list) else None, "onboarding_steps": len(steps) if isinstance(steps, list) else None, "step_statuses": [x.get("status") for x in steps] if isinstance(steps, list) else None},
+              "answers": {"billing": {n: [status(n), (rd(n + ".body", False) or "")[:40]] for n in ("bl-bad", "bl-short", "bl-ok", "bl-replay")}, "billing_business": [bl_before.get("plan"), bl_mid.get("plan"), bl_mid.get("trial_ends_at") is not None, bl_after.get("plan"), bl_after.get("trial_ends_at")], "first": status("su-first"), "again": status("su-again"), "garbage": status("su-garbage"), "untick": status("su-untick"), "days_left": round(days, 3) if days else None, "business": {k: biz.get(k) for k in ("plan", "status", "source", "members")}, "session_b_matches": payload.get("b") == biz.get("id"), "me": {"signedIn": me.get("signedIn"), "role": me.get("role")}, "customers": status("su-customers"), "customer_items": len(cust_list) if isinstance(cust_list, list) else None, "onboarding_steps": len(steps) if isinstance(steps, list) else None, "step_statuses": [x.get("status") for x in steps] if isinstance(steps, list) else None},
           }
           json.dump(out, open(os.path.join(r, "signup.json"), "w"), indent=1)
           bad = [k for k, v in out.items() if v is False]
