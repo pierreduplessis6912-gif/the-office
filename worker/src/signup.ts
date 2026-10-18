@@ -108,6 +108,7 @@ const notActivePage = (email: string): Response =>
   page("Not active", `<h1>This account is not active</h1><p><strong>${escapeHtml(email)}</strong> belongs to a business, but its membership is not active. Ask the owner of the business to check it.</p>`, 403);
 const fullPage = (): Response => page("Try again tomorrow", "<h1>We are full for today</h1><p>We can only open so many new businesses a day. Please try again tomorrow.</p>", 429);
 const expiredPage = (): Response => page("Start again", "<h1>That took too long</h1><p>For your safety the sign-in page only lasts a few minutes. Please close this page and sign in again.</p>", 400);
+const seatsFullPage = (): Response => page("No free seat", "<h1>This business has no free seat</h1><p>The plan it is on has all its seats in use. Ask the owner of the business to add a seat, then try again.</p>", 409);
 const invitationGonePage = (): Response => page("Invitation", "<h1>That invitation is no longer valid</h1><p>It may have expired or been withdrawn. Ask the owner of the business to send it again.</p>", 400);
 const errorPage = (): Response => page("Something went wrong", "<h1>Something went wrong</h1><p>We could not finish setting up. Nothing is lost: please close this page, wait a minute and try again.</p>", 500);
 
@@ -235,6 +236,7 @@ export async function handleJoinPost(request: Request, env: Env): Promise<Respon
     if ((await findDirectoryConflicts(env, [email], invite.businessId)).length > 0) return page("Already in a business", "<h1>This address already belongs to another business</h1><p>One Google account can belong to only one business. Ask the owner to invite a different Google account, or contact us.</p>", 409);
     if (!(await memberRole(env, invite.businessId, email))) {
       const made = await callBusiness(env, invite.businessId, "POST", "/debug/create-membership", { google_email: email, role: invite.role, invited_by: invite.invitedBy, person_name: invite.personName });
+      if (made.status === 402) return seatsFullPage();   // no free seat: a clear page, and nothing is bound, accepted or closed
       if (!made.ok) throw new Error(`the membership could not be created (${made.status})`);
     }
     await addDirectoryMember(env, email, invite.businessId);
@@ -307,6 +309,7 @@ async function performHandover(request: Request, env: Env, email: string, access
     await ensureDirectory(env);
     if (!(await memberRole(env, invite.businessId, email))) {
       const made = await callBusiness(env, invite.businessId, "POST", "/debug/create-membership", { google_email: email, role: invite.role, invited_by: invite.invitedBy, person_name: invite.personName });
+      if (made.status === 402) return seatsFullPage();   // no free seat: a clear page, and nothing is bound, accepted or closed
       if (!made.ok) throw new Error(`the membership could not be created (${made.status})`);
     }
     await closeBusiness(env, offer.ownId, invite.businessId);

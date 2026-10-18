@@ -12,7 +12,7 @@ module.exports = async function runTeamTests(context) {
 
 async function teamTests({ check, srcDir }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'team-')), entry = path.join(dir, 'entry.ts'), out = path.join(dir, 'team.js'), at = (f) => JSON.stringify(path.join(srcDir, f));
-  fs.writeFileSync(entry, `export * from ${at('team')};\nexport { ensureDirectory, createBusiness, addDirectoryMember, lookupBusinessForEmail, upsertInvitation, listInvitationsFor, pendingInvitationsForEmail } from ${at('directory')};\nexport * from ${at('team-log')};\nexport { validFullName } from ${at('team-people')};\n`);
+  fs.writeFileSync(entry, `export * from ${at('team')};\nexport { ensureDirectory, createBusiness, addDirectoryMember, lookupBusinessForEmail, upsertInvitation, listInvitationsFor, pendingInvitationsForEmail } from ${at('directory')};\nexport * from ${at('team-log')};\nexport { validFullName } from ${at('team-people')};\nexport { listPlans } from ${at('limits')};\n`);
   try { esbuild.buildSync({ entryPoints: [entry], bundle: true, platform: 'node', format: 'cjs', outfile: out, logLevel: 'silent' }); } catch (e) { check(false, 'team.ts exists and builds: ' + String(e.message).split('\n')[0].slice(0, 160)); return; }
   const t = require(out), src = (f) => fs.readFileSync(path.join(srcDir, f), 'utf8');
   const shim = (db) => ({ prepare: (sql) => { const st = (binds) => ({ bind: (...b) => st(b), first: async () => db.prepare(sql).get(...binds) ?? null, all: async () => ({ results: db.prepare(sql).all(...binds) }), run: async () => db.prepare(sql).run(...binds) }); return st([]); } });
@@ -244,6 +244,35 @@ async function teamTests({ check, srcDir }) {
     check(list.length === 1 && list[0].personName === null && pend.length === 1 && pend[0].personName === null, 'a directory from BEFORE this change (no person_name column) still lists and offers its invitations: a read never needs the column');
     const up = await t.upsertInvitation(sh, 'new@y.co', 'acme-co', 'installer', 'boss@acme.co', 'New Person'); check(up.created && w.shared.prepare("SELECT person_name FROM invitations WHERE email = 'new@y.co'").get().person_name === 'New Person' && (await t.listInvitationsFor(sh, 'acme-co')).find((i) => i.email === 'old@y.co').personName === null, 'and the first write adds the column, keeps the old invitation, and stores the new name');
   }
+
+  // ---- SEATS: a plan with a seat limit refuses to go beyond it (worker/src/seats.ts; billing) --------------------------------------------------------------------------------------------------------------------------
+  // Single user is one person; a Team or Enterprise plan is the seats paid for. Adding, inviting, reactivating and accepting all use a seat; a refusal is a 402 that says what to do and writes NOTHING; a trial, an operator's business and a plan
+  // with no seats recorded are never limited; and a fault in reading the plan never stops an owner.
+  const seated = async (plan, seats) => { const w = await world(); await t.listPlans({ OFFICE_DB: w.env.SHARED_DB }); w.shared.prepare("UPDATE businesses SET plan = ?, seats = ? WHERE id = 'acme-co'").run(plan, seats ?? null); return w; };
+  const trace = (w) => JSON.stringify([w.members(), chars(w), w.shared.prepare('SELECT COUNT(*) n FROM directory_members').get().n, w.shared.prepare('SELECT COUNT(*) n FROM invitations').get().n]);
+  {
+    const w = await seated('solo'); const before = trace(w);
+    const a = await t.addTeamMember(w.env, BOSS, 'sam@acme.co', 'installer', nm('sam@acme.co')), i = await t.inviteTeamMember(w.env, BOSS, 'sam@acme.co', 'installer', nm('sam@acme.co'));
+    check(a.ok === false && a.status === 402 && /Single user/.test(a.error) && /Team/.test(a.error) && i.ok === false && i.status === 402, 'a Single user business (the owner is its one person) cannot add or invite anyone: a 402 that says to move to Team');
+    check(trace(w) === before, 'and the refusals wrote NOTHING: no member, no person, no directory entry, no invitation');
+  }
+  {
+    const w = await seated('team', 3); const ok1 = await t.addTeamMember(w.env, BOSS, 'a@acme.co', 'installer', nm('a@acme.co')), ok2 = await t.addTeamMember(w.env, BOSS, 'b@acme.co', 'sales', nm('b@acme.co')), full = await t.addTeamMember(w.env, BOSS, 'c@acme.co', 'installer', nm('c@acme.co'));
+    check(ok1.ok && ok2.ok && full.ok === false && full.status === 402 && /3 seats/.test(full.error) && w.members().length === 3, 'a 3-seat Team takes the owner and two more, then refuses the fourth person, saying it has 3 seats');
+    const w2 = await seated('team', 3); await t.addTeamMember(w2.env, BOSS, 'a@acme.co', 'installer', nm('a@acme.co')); const inv = await t.inviteTeamMember(w2.env, BOSS, 'wait@gmail.com', 'installer', nm('wait@gmail.com'));
+    check(inv.ok === true && (await t.addTeamMember(w2.env, BOSS, 'd@acme.co', 'installer', nm('d@acme.co'))).status === 402 && (await t.inviteTeamMember(w2.env, BOSS, 'other@gmail.com', 'installer', nm('other@gmail.com'))).status === 402, 'a WAITING invitation uses a seat: with the owner, one member and one invitation, a 3-seat Team is full');
+    check((await t.inviteTeamMember(w2.env, BOSS, 'WAIT@gmail.com', 'accountant', nm('wait@gmail.com'))).ok === true && w2.shared.prepare('SELECT COUNT(*) n FROM invitations').get().n === 1, 'but inviting the SAME address again (to change the role or the name) does not need another seat');
+    const revoke = await t.revokeTeamInvitation(w2.env, BOSS, (await t.listTeam(w2.env)).invitations[0].id); const now = await t.addTeamMember(w2.env, BOSS, 'd@acme.co', 'installer', nm('d@acme.co')); check(revoke.ok && now.ok, 'withdrawing the invitation frees the seat');
+  }
+  {
+    const w = await seated('team', 2); const a = await t.addTeamMember(w.env, BOSS, 'a@acme.co', 'installer', nm('a@acme.co')); await t.setTeamMemberStatus(w.env, BOSS, a.member.id, false); const b = await t.addTeamMember(w.env, BOSS, 'b@acme.co', 'installer', nm('b@acme.co')); const back = await t.setTeamMemberStatus(w.env, BOSS, a.member.id, true);
+    check(b.ok === true && back.ok === false && back.status === 402 && w.members().find((m) => m.google_email === 'a@acme.co')?.status === 'inactive', 'a deactivated member does not hold a seat, and bringing them back is refused when someone else now has it (they stay deactivated)');
+    await t.setTeamMemberStatus(w.env, BOSS, b.member.id, false); check((await t.setTeamMemberStatus(w.env, BOSS, a.member.id, true)).ok === true, 'and once a seat is free they can come back');
+  }
+  for (const [plan, seats] of [['trial', null], ['standard', null], ['team', null], ['enterprise', null], ['team', 100]]) { const w = await seated(plan, seats); const rs = []; for (let i = 0; i < 6; i++) { const e = `p${String.fromCharCode(97 + i)}@acme.co`; rs.push(await t.addTeamMember(w.env, BOSS, e, 'installer', nm(e))); } check(rs.every((r) => r.ok) && w.members().length === 7, `${plan}${seats ? ` with ${seats} seats` : seats === null && plan === 'team' ? ' with no seats recorded' : ''} is not limited by seats: seven people is fine`); }
+  { const w = await seated('solo'); w.shared.exec('DROP TABLE plans'); const r = await t.addTeamMember(w.env, BOSS, 'sam@acme.co', 'installer', nm('sam@acme.co')); check(r.ok === true, 'if the plan cannot be read the owner is NOT stopped (a billing fault never stops a business working)'); }
+  { const w = await seated('team', 2); await t.addTeamMember(w.env, BOSS, 'a@acme.co', 'installer', nm('a@acme.co')); const dup = await t.addTeamMember(w.env, BOSS, 'a@acme.co', 'installer', nm('a@acme.co')); check(dup.ok === false && dup.status === 409, 'a full business still answers "already on your team" (409) for someone who is, not a seat refusal'); }
+  check(/if \(typeof body\.invited_by === "string"\) \{\s*const seat = await checkSeat\(env, \{ adding: 1, ignoreInvitationFor: body\.google_email \}\);\s*if \(!seat\.ok\) return Response\.json\(\{ error: seat\.error \}, \{ status: seat\.status \}\);\s*\}\s*try \{/.test(src('debug.ts')), 'ACCEPTING an invitation uses a seat (the person\'s own invitation is not counted twice), and an operator\'s create-membership, which carries no inviter, is never limited');
 
   // ---- the routes, as each role ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   const harness = require('./harness.js'), workerDir = path.join(srcDir, '..'), fns = await harness.loadFunctions(workerDir);

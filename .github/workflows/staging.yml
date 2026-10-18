@@ -779,6 +779,18 @@ jobs:
           api pe-nothing PATCH "$SESSION" "/team/$MIDP/profile" '{}'
           api pe-owner-name PATCH "$SESSION" "/team/$OIDP/profile" '{"firstName":"Owen","surname":"Owner"}'
           api pe-final GET "$SESSION" /team
+          # SEATS (worker/src/seats.ts, limits.ts) on the REAL objects, at the END so nothing above is disturbed. The business already has more than three people, so a 3-seat Team plan is FULL: every way of adding someone is refused (402) and
+          # leaves nothing behind; buying seats lets the owner add again; and Single user refuses again without removing anyone. The first operator write also adds the plan columns to the real shared layer, which predates them.
+          setplan() { curl -s -o "$RESULTS/$1.json" -w '%{http_code}' -X POST -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY" -H "Content-Type: application/json" -d "$2" "$BASE/debug/directory/set-plan" > "$RESULTS/$1.status"; }
+          setplan ss-team "{\"business\":\"$BID\",\"plan\":\"team\",\"seats\":3}"
+          api ss-add POST "$SESSION" /team "{\"email\":\"seat-add-$TAG@example.com\",\"role\":\"installer\",\"firstName\":\"Sela\",\"surname\":\"Added\"}"
+          api ss-invite POST "$SESSION" /team/invite "{\"email\":\"seat-inv-$TAG@example.com\",\"role\":\"installer\",\"firstName\":\"Sela\",\"surname\":\"Invited\"}"
+          api ss-full-list GET "$SESSION" /team
+          setplan ss-buy "{\"business\":\"$BID\",\"plan\":\"team\",\"seats\":100}"
+          api ss-add2 POST "$SESSION" /team "{\"email\":\"seat-add-$TAG@example.com\",\"role\":\"installer\",\"firstName\":\"Sela\",\"surname\":\"Added\"}"
+          setplan ss-solo "{\"business\":\"$BID\",\"plan\":\"solo\"}"
+          api ss-solo-add POST "$SESSION" /team "{\"email\":\"seat-solo-$TAG@example.com\",\"role\":\"installer\",\"firstName\":\"Sela\",\"surname\":\"Solo\"}"
+          api ss-solo-list GET "$SESSION" /team
           python3 - <<'PY'
           import base64, datetime, json, os, re, sys, urllib.parse as u
           r, tag = os.environ["RESULTS"], "r" + os.environ["GITHUB_RUN_ID"]
@@ -840,6 +852,9 @@ jobs:
           pe_invitee = next((m for m in (rd("pe-final.json") or {}).get("members", []) if (m.get("person") or {}).get("name") == "Ivy Invitee"), {})
           pe_x = next((m for m in (rd("pe-final.json") or {}).get("members", []) if (m.get("person") or {}).get("name") == "Xena Handover"), {})
           pe_joined = [a for a in ((rd("pe-final.json") or {}).get("activity") or []) if a.get("action") == "joined"]
+          ss_before = len((rd("ss-full-list.json") or {}).get("members") or [])
+          ss_emails = lambda n: {m.get("email") for m in ((rd(n) or {}).get("members") or [])}
+          ss_inv = {i.get("email") for i in ((rd("ss-full-list.json") or {}).get("invitations") or [])}
           tl = rd("pe-final.json") or {}   # the last team list of the step (it holds every event: about 18, under the 30-event window)
           tl_acts = tl.get("activity") or []
           tl_by = {m.get("email"): m for m in (tl.get("members") or [])}
@@ -906,6 +921,9 @@ jobs:
               "a_name_is_required_and_the_person_is_made_and_tied_to_the_login_and_one_person_cannot_have_two_logins": status("pe-noname") == "400" and "first name and surname" in json.dumps(rd("pe-noname.json") or {}) and (pe_tina_m.get("person") or {}).get("name") == "Tina Added" and pe_tina_m.get("characterId") is not None and status("pe-same-person") == "409" and "already linked" in json.dumps(rd("pe-same-person.json") or {}) and not any(m.get("email") == "second-tina-" + tag + "@example.com" for m in (rd("pe-final.json") or {}).get("members", [])),
               "the_owner_keeps_a_profile_and_an_update_replaces_it_and_only_the_owner_may": status("pe-set") == "200" and ((rd("pe-set.json") or {}).get("member") or {}).get("person", {}).get("nickname") == "Tee" and status("pe-replace") == "200" and ((rd("pe-replace.json") or {}).get("member") or {}).get("person", {}).get("phone") == "083 999 9999" and ((rd("pe-replace.json") or {}).get("member") or {}).get("person", {}).get("nickname") is None and ((rd("pe-replace.json") or {}).get("member") or {}).get("person", {}).get("strengths") == "Stairs and vinyl" and status("pe-sales") == "403" and status("pe-nothing") == "400",
               "the_owner_can_name_themselves_and_an_invited_person_is_made_a_person_when_they_accept": status("pe-owner-name") == "200" and ((rd("pe-owner-name.json") or {}).get("member") or {}).get("person", {}).get("name") == "Owen Owner" and (pe_invitee.get("person") or {}).get("name") == "Ivy Invitee" and pe_invitee.get("characterId") is not None and (pe_x.get("person") or {}).get("name") == "Xena Handover" and any((a.get("detail") or {}).get("linked") is True and (a.get("detail") or {}).get("name") == "Ivy Invitee" for a in pe_joined),
+              "a_team_plan_with_all_its_seats_in_use_refuses_to_add_or_invite_anyone_and_leaves_nothing_behind": status("ss-team") == "200" and status("ss-add") == "402" and "seats" in json.dumps(rd("ss-add.json") or {}) and status("ss-invite") == "402" and "seat-add-" + tag + "@example.com" not in ss_emails("ss-full-list.json") and "seat-inv-" + tag + "@example.com" not in ss_inv,
+              "buying_seats_lets_the_owner_add_again": status("ss-buy") == "200" and status("ss-add2") == "201" and "seat-add-" + tag + "@example.com" in ss_emails("ss-solo-list.json"),
+              "a_single_user_plan_refuses_and_nobody_is_removed": status("ss-solo") == "200" and status("ss-solo-add") == "402" and "Single user" in json.dumps(rd("ss-solo-add.json") or {}) and len(ss_emails("ss-solo-list.json")) == ss_before + 1 and "seat-solo-" + tag + "@example.com" not in ss_emails("ss-solo-list.json"),
               "health_reports_the_running_commit": health.get("commit") == os.environ.get("GITHUB_SHA"),
               "the_directory_columns_exist_on_the_real_database": all("trial_ends_at" in b and "source" in b for b in listing) and len(listing) > 0,
               "answers": {"first": status("su-first"), "again": status("su-again"), "garbage": status("su-garbage"), "untick": status("su-untick"), "days_left": round(days, 3) if days else None, "business": {k: biz.get(k) for k in ("plan", "status", "source", "members")}, "session_b_matches": payload.get("b") == biz.get("id"), "me": {"signedIn": me.get("signedIn"), "role": me.get("role")}, "customers": status("su-customers"), "customer_items": len(cust_list) if isinstance(cust_list, list) else None, "onboarding_steps": len(steps) if isinstance(steps, list) else None, "step_statuses": [x.get("status") for x in steps] if isinstance(steps, list) else None},

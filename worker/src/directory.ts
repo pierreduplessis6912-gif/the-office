@@ -31,6 +31,8 @@ async function ensureBusinessColumns(env: Env): Promise<void> {
   if (!have.has("source")) await env.OFFICE_DB.prepare("ALTER TABLE businesses ADD COLUMN source TEXT NOT NULL DEFAULT 'admin'").run();
   // Where the owner of a business that was CLOSED in the empty-business handover went: the only record that it happened (signup.ts, emptiness.ts).
   if (!have.has("closed_into")) await env.OFFICE_DB.prepare("ALTER TABLE businesses ADD COLUMN closed_into TEXT").run();
+  // How many seats a business has paid for (billing): a Team or Enterprise plan is priced and capped per seat. Null means none recorded (no limit).
+  if (!have.has("seats")) await env.OFFICE_DB.prepare("ALTER TABLE businesses ADD COLUMN seats INTEGER").run();
 }
 
 // The name an owner gave an invitation (the person record is made or linked when the invitation is accepted). Added to a table that already exists the same way the business columns are: by the writers, never by a read.

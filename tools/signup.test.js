@@ -16,13 +16,13 @@ async function body({ check, srcDir }) {
 
   // A world: the shared directory (a real SQLite behind the same shim the directory tests use) and a fake business namespace that answers like the real one (membership check, membership create) and can be told to fail.
   const world = (extra = {}) => {
-    const db = new DatabaseSync(':memory:'), objects = new Map(), calls = [], names = new Map(), state = { failCreate: false, failSeed: false, throwSeed: false, hasData: new Set(), signIns: [], failSignIn: false, throwSignIn: false };
+    const db = new DatabaseSync(':memory:'), objects = new Map(), calls = [], names = new Map(), state = { failCreate: false, failSeed: false, throwSeed: false, hasData: new Set(), signIns: [], failSignIn: false, throwSignIn: false, seatFull: false };
     const OFFICE_DB = { prepare: (sql) => { const st = (binds) => ({ bind: (...b) => st(b), first: async () => db.prepare(sql).get(...binds) ?? null, all: async () => ({ results: db.prepare(sql).all(...binds) }), run: async () => db.prepare(sql).run(...binds) }); return st([]); } };
     const BUSINESS = { idFromName: (name) => ({ name }), get: (id) => ({ fetch: async (url, init = {}) => {
       const u = new URL(typeof url === 'string' ? url : url.url), bid = id.name.replace(/^business-/, ''), mem = objects.get(bid) ?? objects.set(bid, new Map()).get(bid);
       calls.push({ bid, path: u.pathname, method: init.method });
       if (u.pathname === '/debug/membership-check') { const row = mem.get(u.searchParams.get('email')); return Response.json(row ? { found: true, role: row.role, status: row.status } : { found: false, role: null, status: null }); }
-      if (u.pathname === '/debug/create-membership') { if (state.failCreate) return new Response('boom', { status: 500 }); const b = JSON.parse(init.body); mem.set(b.google_email, { role: b.role, status: 'active', invitedBy: b.invited_by ?? null, personName: b.person_name ?? null }); return Response.json({ ok: true }); }
+      if (u.pathname === '/debug/create-membership') { if (state.failCreate) return new Response('boom', { status: 500 }); const b = JSON.parse(init.body); if (state.seatFull) return Response.json({ error: 'all seats are in use' }, { status: 402 }); mem.set(b.google_email, { role: b.role, status: 'active', invitedBy: b.invited_by ?? null, personName: b.person_name ?? null }); return Response.json({ ok: true }); }
       if (u.pathname === '/debug/seed-business-name') { if (state.throwSeed) throw new Error('the object could not be reached'); if (state.failSeed) return new Response('boom', { status: 500 }); const b = JSON.parse(init.body); if (!names.has(bid)) names.set(bid, b.name); return Response.json({ ok: true }); }
       if (u.pathname === '/debug/record-sign-in') { if (state.throwSignIn) throw new Error('the business object is unreachable'); if (state.failSignIn) return new Response('boom', { status: 500 }); state.signIns.push({ bid, email: JSON.parse(init.body).email }); return Response.json({ status: 'recorded' }); }
       if (u.pathname === '/debug/emptiness') { const owner = u.searchParams.get('email'); const only = [...mem.entries()]; return Response.json({ empty: !state.hasData.has(bid) && only.length === 1 && only[0][0] === owner && only[0][1].role === 'owner' }); }
@@ -550,6 +550,16 @@ async function body({ check, srcDir }) {
   {
     const dbg = src('debug.ts');
     check(/ensureTeamPerson\(env, full, body\.role, body\.google_email\)/.test(dbg) && /validFullName\(full\)/.test(dbg) && /UPDATE memberships SET character_id = \? WHERE id = \?/.test(dbg) && /catch \{[\s\S]{0,120}could not be linked just now/.test(dbg) && /person,\s*capabilities/.test(dbg), 'creating a membership with a person_name validates it, makes or links the person, ties the login, never undoes the membership if that fails, and answers with what happened');
+  }
+
+  // ---- a business with no free seat (the plan's seats are all in use) --------------------------------------------------------------------------------------------------------------------------------------------------------------
+  {
+    const { x, id } = await invited({ email: 'late@gmail.com' }); x.state.seatFull = true; const r = await join(x, await tokenFor(x.env, 'late@gmail.com'), id), html = await text(r);
+    check(r.status === 409 && /no free seat/i.test(html) && /owner/i.test(html) && !r.headers.get('Location') && !/office_session=/.test(r.headers.get('Set-Cookie') ?? ''), 'accepting an invitation to a business with no free seat shows a clear page that says what to do, and signs nobody in');
+    check(!x.objects.get('live-co').has('late@gmail.com') && x.db.prepare('SELECT status FROM invitations').get().status === 'pending' && (await m.lookupBusinessForEmail(x.env, 'late@gmail.com')) === null, 'and nothing is created, bound or accepted: the invitation stays pending');
+    x.state.seatFull = false; const ok = await join(x, await tokenFor(x.env, 'late@gmail.com'), id); check(ok.status === 303 && x.db.prepare('SELECT status FROM invitations').get().status === 'accepted', 'and once a seat is free the same invitation can be accepted');
+    const w = await handoverWorld(); w.x.state.seatFull = true; const h = await handoverPost(w.x, await tokenFor(w.x.env, 'newhire@gmail.com'), { invitation: String(w.id), handover: '1' });
+    check(h.status === 409 && /no free seat/i.test(await text(h)) && w.x.db.prepare('SELECT status FROM businesses WHERE id = ?').get(w.mine).status === 'active' && w.x.db.prepare('SELECT status FROM invitations').get().status === 'pending', 'a handover into a full business is refused BEFORE the person\'s own empty business is closed (it would otherwise strand them with neither)');
   }
 
   // ---- how it is wired in ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

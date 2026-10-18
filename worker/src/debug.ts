@@ -26,6 +26,7 @@ import { seedBusinessName } from "./profile-seed";
 import { businessIsEmpty } from "./emptiness";
 import { recordSignIn, recordTeamEvent } from "./team-log";
 import { ensureTeamPerson, validFullName } from "./team-people";
+import { checkSeat } from "./seats";
 import { callBusiness } from "./routing";
 import { applyIndexes } from "./indexes";
 import { trialAi, trialD1, trialDo, trialTx } from "./trial";
@@ -117,8 +118,8 @@ if (url.pathname === "/debug/timings" && request.method === "GET") {
       return result.ok ? Response.json(result) : Response.json({ error: result.error }, { status: result.status });
     }
     if (url.pathname === "/debug/directory/set-plan" && request.method === "POST") {
-      const body = (await request.json()) as { business?: unknown; plan?: unknown };
-      const result = await assignPlan(env, body.business, body.plan);
+      const body = (await request.json()) as { business?: unknown; plan?: unknown; seats?: unknown };
+      const result = await assignPlan(env, body.business, body.plan, body.seats);
       return result.ok ? Response.json(result) : Response.json({ error: result.error }, { status: result.status });
     }
 
@@ -1127,6 +1128,11 @@ if (url.pathname === "/debug/create-membership" && request.method === "POST") {
           { error: `unknown role "${body.role}" — defined roles are: ${Object.keys(ROLE_CAPABILITIES).join(", ")}` },
           { status: 400 }
         );
+      }
+      // ACCEPTING an invitation uses a seat on a plan that has a limit (an operator creating a membership, which carries no inviter, is never limited). The person's own invitation is already counted, so it is not counted twice.
+      if (typeof body.invited_by === "string") {
+        const seat = await checkSeat(env, { adding: 1, ignoreInvitationFor: body.google_email });
+        if (!seat.ok) return Response.json({ error: seat.error }, { status: seat.status });
       }
       try {
         const inserted = await env.OFFICE_DB.prepare(

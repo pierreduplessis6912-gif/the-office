@@ -7,6 +7,7 @@
 // Both ways to add someone exist: directly (here) and by invitation the person accepts (below). The roles are those in ROLE_CAPABILITIES except that no role outside this list can be given.
 import { addDirectoryMember, findDirectoryConflicts, listInvitationsFor, normaliseEmail, revokeInvitation, upsertInvitation, type Invitation } from "./directory";
 import { listTeamActivity, readSignIns, recordTeamEvent, type TeamEvent } from "./team-log";
+import { checkSeat } from "./seats";
 import { ensureTeamPerson, parsePersonName, parseProfile, readProfiles, writeProfile, TEAM_RELATIONSHIPS, type PersonProfile } from "./team-people";
 import type { Env } from "./types";
 
@@ -74,6 +75,8 @@ export async function inviteTeamMember(env: Env, actorEmail: string, rawEmail: u
     if (existing) return existing.status === "active" ? fail(409, `${email} is already on your team (as ${existing.role}).`) : fail(409, `${email} is already on your team but deactivated: reactivate them instead.`);
     // NEUTRAL on purpose: an address in another business is invited exactly like any other, and the owner learns nothing about it either way. (Refusing it used to reveal that the person already has an account.) The invitation is only
     // ever shown to someone with no business, or to an employee in their own EMPTY self-started trial business, who may then choose to join (signup.ts); for anyone else it just waits and expires.
+    const seat = await checkSeat(env, { adding: 1, ignoreInvitationFor: email });   // a waiting invitation uses a seat; inviting the SAME address again does not use another
+    if (!seat.ok) return fail(seat.status, seat.error);
     const { id, created } = await upsertInvitation(shared(env), email, businessId, role, actorEmail || null, name.full);
     const invitation = (await listInvitationsFor(shared(env), businessId)).find((i) => i.id === id);
     await recordTeamEvent(env, actorEmail, "invited", email, { role, name: name.full, refreshed: !created });
@@ -117,6 +120,9 @@ export async function addTeamMember(env: Env, actorEmail: string, rawEmail: unkn
       return existing.status === "active" ? fail(409, `${email} is already on your team (as ${existing.role}).`) : fail(409, `${email} is already on your team but deactivated: reactivate them instead.`);
     }
     if ((await findDirectoryConflicts(shared(env), [email], businessId)).length > 0) return fail(409, "That email address already belongs to another business. Ask them to sign in with a different Google account, or send them an invitation instead.");
+    // A plan with a seat limit (Single user, a Team or Enterprise plan's seats) refuses to add beyond it, before anything is written.
+    const seat = await checkSeat(env, { adding: 1 });
+    if (!seat.ok) return fail(seat.status, seat.error);
     // The person first (a refusal here leaves nothing behind; an add that stops after this is retried and finds the same person), then the membership WITH the link.
     const person = await ensureTeamPerson(env, name.full, role, email);
     if (!person.ok) return fail(person.status, person.error);
@@ -161,6 +167,10 @@ export async function setTeamMemberStatus(env: Env, actorEmail: string, rawId: u
   if (!target.ok) return target;
   const status = active ? "active" : "inactive";
   if (target.row.status === status) return { ok: true, status: 200, member: toMember(target.row) };   // already so: nothing is logged
+  if (active) {
+    const seat = await checkSeat(env, { adding: 1 });   // bringing someone back uses a seat again
+    if (!seat.ok) return fail(seat.status, seat.error);
+  }
   await env.OFFICE_DB.prepare("UPDATE memberships SET status = ? WHERE id = ?").bind(status, target.row.id).run();
   await recordTeamEvent(env, actorEmail, active ? "reactivated" : "deactivated", target.row.google_email, {});
   return { ok: true, status: 200, member: toMember({ ...target.row, status }) };
