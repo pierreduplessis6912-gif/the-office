@@ -7673,3 +7673,19 @@ Pierre shared a note arguing for "one coordinator per business, add more objects
 
 **Not done, said plainly.** Sales cannot use `price_scope` (the plain "quote ..." phrasing works), have no list of their quotations, and no real dictated quote has been tried as a salesperson. The admin role's Quotations default follows money (it holds it), so an owner who removes money from an admin also removes quoting, which is the consistent behaviour but worth knowing. The Team screen is still unverified.
 
+---
+
+## The team log and the sign-in stamp, 2026-10-18
+
+**The request.** Pierre: "do both" (the audit trail of team changes and the last-signed-in stamp). Both were pinned as the remaining risk after invitations: an owner who mistypes an address gives a stranger access, and nothing showed who had changed what or who had ever signed in.
+
+**Design choices.** (1) **Self-creating tables, not a schema step**, on the precedent of `permission_audit` ("no migration step to run by hand"): it avoids the pinned schema-step machinery and the deploy gate for two small tables, at the cost that a business that has never logged anything has no tables (reads tolerate that and never create them). (2) **Written after the change, and a failure is swallowed**: I weighed "audit first" (a row for something that then failed would be a lie) against "audit after, swallowed" (a gap if the write fails) and chose the second, because an audit that can stop the business working is worse; the gap is logged. (3) **The sign-in is recorded in `signedInRedirect`**, the one place every session is issued, rather than at each of four call sites, so a fifth path cannot forget; it is one extra privileged call and never blocks. (4) **"Last signed in", honestly named**: a session lasts 30 days, so this is not "last seen", and I did not add per-request writes to make it so. (5) **No alert**: the value is that an owner can look; building notifications is a separate decision.
+
+**The trap, and why the previous step's rule caught it.** The emptiness rule that makes the handover safe was built from a local database, and the real rehearsal had shown (the previous turn) that platform-written tables make every real business look used. The owner signs in at signup, so `member_sign_ins` would have been the third such table. This time the test that fails when a lazily-created table is added without classification refused both new tables until each was decided (`member_sign_ins` ignored as platform bookkeeping; `team_audit` counts as owner activity). The real rehearsal's handover check, which the new table could have broken, passed with it. **A lesson turned into a test paid for itself within a day.**
+
+**Two weak tests of my own, strengthened before breaking anything.** "A stranger's sign-in records nothing" checked only the team LIST, which never shows stray rows, so a mutant that recorded strangers would have survived; it now checks the table. "A failed recording never blocks a sign-in" exercised only a 500 RESPONSE, but a thrown exception is the real failure; it now also makes the business unreachable. One mutant survived (a default parameter that is never used because the caller passes 30): equivalent, not a gap. I also caught a nonsense assertion in my first draft (`... === undefined === false || true`, always true) while re-reading, and replaced it with real checks.
+
+**Process.** I confirmed the rehearsal was on my commit before waiting; used shell-safe commands; checked the unmodified tests before trusting any breakage result; and verified every name in the unverified Dart before committing it.
+
+**Not done, said plainly.** No alert for a never-signed-in member; no last-seen; the log is not visible to an operator across businesses (their own actions are in `admin_audit`); nothing is visible in the app until the Team screen is built and installed, and **the Team screen, now extended to show both, has still never been compiled**.
+
