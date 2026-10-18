@@ -5572,6 +5572,7 @@ class _TeamRoomContent extends StatefulWidget {
 class _TeamRoomContentState extends State<_TeamRoomContent> {
   List<dynamic> _members = [];
   List<dynamic> _invitations = [];
+  List<dynamic> _activity = [];
   List<String> _roles = ['owner', 'admin', 'accountant', 'sales', 'installer'];
   final TextEditingController _email = TextEditingController();
   String _role = 'installer';
@@ -5645,6 +5646,7 @@ class _TeamRoomContentState extends State<_TeamRoomContent> {
       setState(() {
         _members = data['members'] as List? ?? [];
         _invitations = data['invitations'] as List? ?? [];
+        _activity = data['activity'] as List? ?? [];
         final roles = (data['roles'] as List? ?? []).whereType<String>().toList();
         if (roles.isNotEmpty) _roles = roles;
         if (!_roles.contains(_role)) _role = _roles.last;
@@ -5795,6 +5797,47 @@ class _TeamRoomContentState extends State<_TeamRoomContent> {
     if (mounted) setState(() => _notice = 'Copied. Paste it into WhatsApp or a message to them.');
   }
 
+  // One plain sentence for each kind of event in the team log (the server records who did it, to whom, and the detail).
+  String _sentence(Map<String, dynamic> a) {
+    final who = a['actor'] as String? ?? 'Someone';
+    final to = a['target'] as String? ?? 'someone';
+    final detail = a['detail'] is Map ? a['detail'] as Map : const {};
+    final role = _roleName((detail['role'] ?? '').toString()).toLowerCase();
+    final action = a['action'] as String? ?? '';
+    switch (action) {
+      case 'added':
+        return '$who added $to as $role';
+      case 'invited':
+        return '$who invited $to as $role';
+      case 'invitation_withdrawn':
+        return '$who withdrew the invitation to $to';
+      case 'role_changed':
+        return '$who made $to ${_roleName((detail['to'] ?? '').toString()).toLowerCase()} (was ${_roleName((detail['from'] ?? '').toString()).toLowerCase()})';
+      case 'deactivated':
+        return '$who deactivated $to';
+      case 'reactivated':
+        return '$who reactivated $to';
+      case 'joined':
+        return '$to joined';
+      default:
+        return '$who changed $to';
+    }
+  }
+
+  Widget _activityLine(Map<String, dynamic> a) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(_sentence(a), style: GoogleFonts.workSans(color: _paper, fontSize: 13)),
+          const SizedBox(height: 2),
+          Text(_day(a['at'] as String?), style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 9.5, letterSpacing: 0.6)),
+        ],
+      ),
+    );
+  }
+
   String _day(String? iso) {
     if (iso == null || iso.length < 10) return '';
     return iso.substring(0, 10);
@@ -5908,6 +5951,13 @@ class _TeamRoomContentState extends State<_TeamRoomContent> {
                     padding: const EdgeInsets.only(top: 3),
                     child: Text('Added by $invitedBy', style: GoogleFonts.workSans(color: _textTertiary, fontSize: 11.5)),
                   ),
+                // The last Google sign-in (a session lasts 30 days, so this is not "last seen"). Someone added who has NEVER signed in is what to look at twice: it may be a mistyped address.
+                Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: m['lastSignInAt'] == null
+                      ? Text('NEVER SIGNED IN', style: GoogleFonts.ibmPlexMono(color: _emberAmber, fontSize: 9.5, letterSpacing: 0.8))
+                      : Text('Last signed in ${_day(m['lastSignInAt'] as String?)}', style: GoogleFonts.workSans(color: _textTertiary, fontSize: 11.5)),
+                ),
               ],
             ),
           ),
@@ -6039,6 +6089,10 @@ class _TeamRoomContentState extends State<_TeamRoomContent> {
                       if (_invitations.isNotEmpty) ...[
                         _label('INVITED, NOT JOINED YET'),
                         for (final i in _invitations) _invitationCard(i as Map<String, dynamic>),
+                      ],
+                      if (_activity.isNotEmpty) ...[
+                        _label('RECENT CHANGES'),
+                        for (final a in _activity.take(10)) _activityLine(a as Map<String, dynamic>),
                       ],
                     ],
                   ),
