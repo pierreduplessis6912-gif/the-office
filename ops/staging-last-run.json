@@ -1,7 +1,7 @@
 {
- "when": "2026-10-18T17:13:24.122562Z",
- "run": "39148153562",
- "commit": "62f9acc",
+ "when": "2026-10-18T17:35:27.305294Z",
+ "run": "39149754214",
+ "commit": "f62d279",
  "resources": {
   "database_id": "527785b0-2ca7-4d18-a3b0-0a1d6d0d671a",
   "kv_namespace_id": "5cb9a972eeef4e6b95fea4f6ed95e28a",
@@ -15,7 +15,7 @@
   "business_object_e2e": "success",
   "real_sentence": "success",
   "businesses_created": "success",
-  "signup_on_cloudflare": "failure",
+  "signup_on_cloudflare": "success",
   "memory_index_probe": "success",
   "model_probe": "success",
   "backup_restore": "success",
@@ -115,23 +115,23 @@
   "sharedTrips": 0,
   "sharedMs": null,
   "objectColo": null,
-  "rowsInThisObjectsOwnTable": 1232,
+  "rowsInThisObjectsOwnTable": 1260,
   "object": "staging-a",
   "hint": "weur",
   "callsMs": [
-   256,
-   97,
-   97,
-   166
+   304,
+   157,
+   155,
+   155
   ],
-  "firstCallMs": 256,
-  "warmCallsMedianMs": 97,
-  "workerToObjectAndBackMs": 166
+  "firstCallMs": 304,
+  "warmCallsMedianMs": 155,
+  "workerToObjectAndBackMs": 155
  },
  "trial_d1": {
   "statements": 10,
-  "totalMs": 1097,
-  "perStatementMs": 109.7,
+  "totalMs": 1673,
+  "perStatementMs": 167.3,
   "note": "SELECT 1 against the production database: reads no data"
  },
  "businesses": {
@@ -164,11 +164,11 @@
    "admin_call_naming_no_business": "400"
   },
   "five_list_calls_seconds_from_a_US_runner": [
-   0.187927,
-   0.160085,
-   0.16212,
-   0.15402,
-   0.159568
+   0.21873,
+   0.239098,
+   0.307104,
+   0.214055,
+   0.386207
   ]
  },
  "memory_index_probe": {
@@ -176,18 +176,18 @@
    "first_business": "200",
    "second_business": "200"
   },
-  "seconds_waited_for_cloudflare_to_process_the_writes": 55,
+  "seconds_waited_for_cloudflare_to_process_the_writes": 70,
   "index_info_before_waiting": {
-   "dimensions": 768,
-   "vectorCount": 229,
-   "processedUpToDatetime": "2026-10-18T17:01:53.587Z",
-   "processedUpToMutation": "a4208afc-ca60-4ccb-b2ab-71fd3830b00e"
-  },
-  "index_info_after_waiting": {
    "dimensions": 768,
    "vectorCount": 229,
    "processedUpToDatetime": "2026-10-18T17:11:31.919Z",
    "processedUpToMutation": "34e8f3a2-3edd-4198-8898-8c86912b7c46"
+  },
+  "index_info_after_waiting": {
+   "dimensions": 768,
+   "vectorCount": 229,
+   "processedUpToDatetime": "2026-10-18T17:32:44.564Z",
+   "processedUpToMutation": "a5e9350a-5e94-4907-964d-04ae96b1aeed"
   },
   "search_in_first_business_returns": [
    "FIRST probe",
@@ -230,8 +230,8 @@
   ],
   "raw_first_search_answer": "{\"matches\":[{\"id\":\"staging-co:probe-1\",\"score\":1,\"metadata\":{\"customerId\":\"1\",\"text\":\"FIRST probe\"}},{\"id\":\"probe-1\",\"score\":1,\"metadata\":{\"customerId\":\"1\",\"text\":\"FIRST probe\"}}]}",
   "raw_first_by_id_answer": "{\"vectors\":[{\"id\":\"probe-1\",\"values\":[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,",
-  "raw_first_upsert_answer": "{\"written\":1,\"mutationId\":\"28606d33-6fde-47fe-8218-3143636e4be7\"}",
-  "raw_second_upsert_answer": "{\"written\":1,\"mutationId\":\"34e8f3a2-3edd-4198-8898-8c86912b7c46\"}",
+  "raw_first_upsert_answer": "{\"written\":1,\"mutationId\":\"d125a6ec-ba36-4652-be03-94ce06817bd3\"}",
+  "raw_second_upsert_answer": "{\"written\":1,\"mutationId\":\"a5e9350a-5e94-4907-964d-04ae96b1aeed\"}",
   "raw_direct_query_staging_two": "{\"result\":{\"count\":2,\"matches\":[{\"id\":\"staging-two:probe-1\",\"score\":1.0,\"namespace\":\"staging-two\",\"metadata\":{\"customerId\":\"1\",\"text\":\"SECOND probe\"}},{\"id\":\"2e7af795~probe-1\",\"score\":1.0,\"namespace\":\"staging-two\",\"metadata\":{\"customerId\":\"1\",\"text\":\"SECOND probe\"}}]},\"result_info\":null,\"success\":true,\"errors\":[],\"messages\":[]}"
  },
  "model_probe": {
@@ -239,12 +239,12 @@
    "padding_chars": 500,
    "affinity_sent": false,
    "calls_ms": [
-    1203,
-    350,
-    288
+    4702,
+    2018,
+    1783
    ],
-   "first_ms": 1203,
-   "later_calls_median_ms": 350,
+   "first_ms": 4702,
+   "later_calls_median_ms": 2018,
    "first_usage": {
     "prompt_tokens": 114,
     "completion_tokens": 2,
@@ -259,21 +259,21 @@
     "completion_tokens": 2,
     "total_tokens": 116,
     "prompt_tokens_details": {
-     "cached_tokens": 64
+     "cached_tokens": 0
     },
-    "neurons": 5.9763641357421875
+    "neurons": 10.57272720336914
    }
   },
   "medium": {
    "padding_chars": 8000,
    "affinity_sent": false,
    "calls_ms": [
-    343,
-    767,
-    525
+    5524,
+    1694,
+    9775
    ],
-   "first_ms": 343,
-   "later_calls_median_ms": 767,
+   "first_ms": 5524,
+   "later_calls_median_ms": 9775,
    "first_usage": {
     "prompt_tokens": 1412,
     "completion_tokens": 2,
@@ -297,12 +297,12 @@
    "padding_chars": 40000,
    "affinity_sent": false,
    "calls_ms": [
-    833,
-    439,
-    318
+    3372,
+    1484,
+    891
    ],
-   "first_ms": 833,
-   "later_calls_median_ms": 439,
+   "first_ms": 3372,
+   "later_calls_median_ms": 1484,
    "first_usage": {
     "prompt_tokens": 6949,
     "completion_tokens": 2,
@@ -326,14 +326,14 @@
    "padding_chars": 40000,
    "affinity_sent": true,
    "calls_ms": [
-    632,
-    353,
-    491,
-    401,
-    366
+    2137,
+    708,
+    336,
+    334,
+    604
    ],
-   "first_ms": 632,
-   "later_calls_median_ms": 401,
+   "first_ms": 2137,
+   "later_calls_median_ms": 604,
    "first_usage": {
     "prompt_tokens": 6950,
     "completion_tokens": 2,
@@ -357,14 +357,14 @@
    "padding_chars": 40000,
    "affinity_sent": false,
    "calls_ms": [
-    628,
-    416,
-    488,
-    924,
-    500
+    953,
+    409,
+    411,
+    415,
+    431
    ],
-   "first_ms": 628,
-   "later_calls_median_ms": 500,
+   "first_ms": 953,
+   "later_calls_median_ms": 415,
    "first_usage": {
     "prompt_tokens": 6950,
     "completion_tokens": 2,
@@ -386,14 +386,14 @@
   }
  },
  "backup_restore": {
-  "snapshot": "20261018T171004Z",
+  "snapshot": "20261018T173119Z",
   "snapshot_took": {
    "tables": 43,
-   "rows": 40699,
+   "rows": 40721,
    "notes": 1,
    "files": 0,
    "filesMirroredNow": 0,
-   "ms": 25927
+   "ms": 23724
   },
   "status_after_the_snapshot": {
    "backupBucketConfigured": true,
@@ -407,9 +407,9 @@
    "restored": 50
   },
   "customers_in_the_fingerprints": {
-   "original": 26216,
-   "damaged": 26219,
-   "restored": 26216
+   "original": 26221,
+   "damaged": 26224,
+   "restored": 26221
   },
   "the_import_answered": "{\"status\": \"ok\", \"totalRows\": 3, \"created\": 3, \"matched\": 0, \"skipped\": 0, \"skippedRows\": [], \"possibleDuplicateCount\": 0, \"possibleDuplicates\": []}",
   "damage_1_customers_were_added": true,
@@ -419,7 +419,7 @@
   "restore_report": {
    "ok": true,
    "tablesRestored": 43,
-   "rowsRestored": 40699,
+   "rowsRestored": 40721,
    "notesRestored": 1,
    "filesRestoredFromMirror": 0,
    "filesMissingEverywhere": [],
@@ -431,8 +431,8 @@
   "no_damage_left": true,
   "linked_import_answered": "{\"status\": \"ok\", \"totalRows\": 2, \"imported\": 0, \"heldForConfirmation\": 0, \"skipped\": 0, \"skippedRows\": [], \"alreadyImported\": 2, \"possibleDuplicateCount\": 0, \"p",
   "payments_before_and_after": {
-   "original": 27,
-   "restored": 27
+   "original": 28,
+   "restored": 28
   },
   "linked_rows_exist_before": true,
   "the_linked_rows_are_back": true,
@@ -618,7 +618,7 @@
   "an_owner_can_switch_quoting_off_for_sales_and_back_on_and_it_persists_on_the_real_object": true,
   "an_owner_can_give_an_installer_only_quoting_and_take_it_back": true,
   "the_permission_grid_lists_quotations_as_on_for_sales": true,
-  "the_team_log_records_who_added_invited_changed_deactivated_and_withdrew_whom_on_the_real_object": false,
+  "the_team_log_records_who_added_invited_changed_deactivated_and_withdrew_whom_on_the_real_object": true,
   "people_who_really_signed_in_show_when_and_members_added_who_never_did_show_never": true,
   "a_name_is_required_and_the_person_is_made_and_tied_to_the_login_and_one_person_cannot_have_two_logins": true,
   "the_owner_keeps_a_profile_and_an_update_replaces_it_and_only_the_owner_may": true,
@@ -660,22 +660,22 @@
   "business": "staging-co",
   "model_today": {
    "day": "2026-10-18",
-   "requests": 20,
-   "modelCalls": 69,
+   "requests": 22,
+   "modelCalls": 76,
    "failures": 0,
-   "promptTokens": 228504,
-   "completionTokens": 2415,
-   "cachedTokens": 196736,
-   "neurons": 6483.4,
-   "estimatedUsd": 0.0713
+   "promptTokens": 251288,
+   "completionTokens": 2645,
+   "cachedTokens": 218944,
+   "neurons": 6939.8,
+   "estimatedUsd": 0.0763
   },
-  "estimated_usd_today": 0.0713,
+  "estimated_usd_today": 0.0763,
   "usage_was_recorded": true,
-  "cached_tokens_seen": 196736,
+  "cached_tokens_seen": 218944,
   "the_other_business_was_not_charged": true,
   "hourly_job": {
    "lastRunAt": "2026-10-18T16:41:03.256Z",
-   "minutesSinceLastRun": 32,
+   "minutesSinceLastRun": 54,
    "lastOk": true,
    "lastError": null,
    "lastMs": null,
@@ -687,10 +687,10 @@
    "oldestPendingMinutes": null
   },
   "backup": {
-   "lastSuccessAt": "2026-10-18T17:10:30.215Z",
+   "lastSuccessAt": "2026-10-18T17:31:43.419Z",
    "lastAttemptOk": true,
    "lastError": null,
-   "newestAgeHours": 0,
+   "newestAgeHours": 0.1,
    "skipped": null
   },
   "requests": {
@@ -706,8 +706,8 @@
    "capped": true,
    "reason": "messages",
    "limit": 1,
-   "used": 20,
-   "resetsInSeconds": 24412
+   "used": 22,
+   "resetsInSeconds": 23096
   },
   "enforce_blocked_with_429": true,
   "retry_after_header_present": true,
@@ -725,42 +725,42 @@
     "mode": "warn"
    },
    "activeMembers": 1,
-   "messages": 21,
-   "topMemberMessages": 21,
+   "messages": 23,
+   "topMemberMessages": 23,
    "membersAtOrOverLimit": 1
   },
   "plan_restored": true
  },
  "schema_migration": {
-  "step_added_to_the_build_only": "1049_staging_probe",
-  "column": "probe_49",
+  "step_added_to_the_build_only": "1050_staging_probe",
+  "column": "probe_50",
   "businesses": {
    "staging-co": {
     "migrated_by_this_deploy": true,
     "last_migration_applied": [
-     "1049_staging_probe"
+     "1050_staging_probe"
     ],
     "nothing_pending": true,
     "no_error": true,
-    "steps_applied": 31,
-    "steps_this_code_knows": 1049,
-    "steps_from_earlier_runs_this_code_does_not_know": 28,
+    "steps_applied": 32,
+    "steps_this_code_knows": 1050,
+    "steps_from_earlier_runs_this_code_does_not_know": 29,
     "column_is_there": true,
     "column_was_not_there_before": true,
-    "customers_before": 26211,
-    "customers_after": 26211,
+    "customers_before": 26216,
+    "customers_after": 26216,
     "data_kept": true
    },
    "staging-two": {
     "migrated_by_this_deploy": true,
     "last_migration_applied": [
-     "1049_staging_probe"
+     "1050_staging_probe"
     ],
     "nothing_pending": true,
     "no_error": true,
-    "steps_applied": 31,
-    "steps_this_code_knows": 1049,
-    "steps_from_earlier_runs_this_code_does_not_know": 28,
+    "steps_applied": 32,
+    "steps_this_code_knows": 1050,
+    "steps_from_earlier_runs_this_code_does_not_know": 29,
     "column_is_there": true,
     "column_was_not_there_before": true,
     "customers_before": 101,
@@ -797,12 +797,12 @@
    },
    "6_a_child_can_use_the_parent_id_from_RETURNING_inside_transactionSync": {
     "ran": true,
-    "parentId": 263,
+    "parentId": 273,
     "childrenFound": 2
    },
    "7_last_insert_rowid_moves_after_every_insert_so_it_cannot_serve_several_children": {
     "ran": true,
-    "parentId": 266,
+    "parentId": 276,
     "firstChildPointsAtTheParent": true,
     "secondChildPointsAtTheParent": false
    },
@@ -820,24 +820,24 @@
  },
  "real_sentence": {
   "sentence": "Invoice Staging Customer One R1500 for repairing the bathroom floor",
-  "message_status_and_seconds_from_a_US_runner": "200 9.304574",
-  "reply": "Invoice noted for Staging Customer One of R1500 \u2014 needs your confirmation (action #76) before it's recorded. Job scope #39 also recorded \u2014 1 component measured, 1 task noted.",
+  "message_status_and_seconds_from_a_US_runner": "200 11.527136",
+  "reply": "Invoice noted for Staging Customer One of R1500 \u2014 needs your confirmation (action #78) before it's recorded. Job scope #40 also recorded \u2014 1 component measured, 1 task noted.",
   "held_action": {
-   "id": 76,
+   "id": 78,
    "type": "invoice"
   },
   "customer_matched": "Staging Customer One",
-  "confirm_status_and_seconds": "200 0.299122",
+  "confirm_status_and_seconds": "200 0.243269",
   "confirm_reply": "confirmed",
   "inside_the_object_model_versus_database": {
    "POST /admin/backup/restore": {
     "n": 5,
-    "p50Ms": 43041,
+    "p50Ms": 44551,
     "p95Ms": 46825,
     "meanAiMs": 0,
     "meanAiCalls": 0,
     "meanDbMs": 0,
-    "meanDbCalls": 42267.6
+    "meanDbCalls": 42290
    },
    "POST /admin/backup/run": {
     "n": 5,
@@ -850,9 +850,9 @@
    },
    "POST /messages/text": {
     "n": 13,
-    "p50Ms": 5070,
+    "p50Ms": 5068,
     "p95Ms": 12745,
-    "meanAiMs": 4916.8,
+    "meanAiMs": 5329.6,
     "meanAiCalls": 2.4,
     "meanDbMs": 0,
     "meanDbCalls": 14.5
@@ -860,7 +860,7 @@
    "POST /admin/migration/vectors": {
     "n": 5,
     "p50Ms": 908,
-    "p95Ms": 1004,
+    "p95Ms": 1522,
     "meanAiMs": 0,
     "meanAiCalls": 0,
     "meanDbMs": 0,
@@ -868,8 +868,8 @@
    },
    "POST /admin/migration/vectors-by-ids": {
     "n": 5,
-    "p50Ms": 393,
-    "p95Ms": 760,
+    "p50Ms": 373,
+    "p95Ms": 491,
     "meanAiMs": 0,
     "meanAiCalls": 0,
     "meanDbMs": 0,
@@ -877,8 +877,8 @@
    },
    "POST /admin/migration/vectors-query": {
     "n": 5,
-    "p50Ms": 432,
-    "p95Ms": 471,
+    "p50Ms": 460,
+    "p95Ms": 475,
     "meanAiMs": 0,
     "meanAiCalls": 0,
     "meanDbMs": 0,
@@ -886,7 +886,7 @@
    },
    "POST /debug/kv-set": {
     "n": 9,
-    "p50Ms": 54,
+    "p50Ms": 52,
     "p95Ms": 61,
     "meanAiMs": 0,
     "meanAiCalls": 0,
