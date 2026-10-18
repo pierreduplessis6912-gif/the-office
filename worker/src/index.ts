@@ -10,7 +10,7 @@ import { readOnlyRefusal } from "./freeze";
 import { adminTargetBusiness, callBusiness, forwardToBusiness, routeRequest } from "./routing";
 import { lookupAccessForEmail, normaliseEmail } from "./directory";
 import { handleJoinPost, handleSignupPost, handleUnknownAccount, maybeHandoverPage } from "./signup";
-import { addTeamMember, changeTeamRole, inviteTeamMember, listTeam, revokeTeamInvitation, setTeamMemberStatus } from "./team";
+import { addTeamMember, changeTeamRole, inviteTeamMember, listTeam, revokeTeamInvitation, setTeamMemberStatus, updateTeamProfile } from "./team";
 import { signedInRedirect } from "./signin";
 import { makeBusinessObject } from "./business-object";
 import { adminTierOf, hashSource, recordAdminCall } from "./admin-gate";
@@ -869,20 +869,28 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
     if (url.pathname === "/team" && request.method === "POST") {
       const body = (await request.json().catch(() => null)) as { email?: unknown; role?: unknown } | null;
       const { email: actor } = await resolveCapabilities(request, env);
-      const added = await addTeamMember(env, actor ?? "", body?.email, body?.role);
+      const added = await addTeamMember(env, actor ?? "", body?.email, body?.role, body);
       return added.ok ? Response.json({ member: added.member, healed: added.healed ?? false }, { status: added.status }) : Response.json({ error: added.error }, { status: added.status });
     }
     // Inviting (the person accepts on sign-in), and withdrawing an invitation. Owner only, like the rest.
     if (url.pathname === "/team/invite" && request.method === "POST") {
       const body = (await request.json().catch(() => null)) as { email?: unknown; role?: unknown } | null;
       const { email: actor } = await resolveCapabilities(request, env);
-      const invited = await inviteTeamMember(env, actor ?? "", body?.email, body?.role);
+      const invited = await inviteTeamMember(env, actor ?? "", body?.email, body?.role, body);
       return invited.ok ? Response.json({ invitation: invited.invitation }, { status: invited.status }) : Response.json({ error: invited.error }, { status: invited.status });
     }
     if (url.pathname.match(/^\/team\/invitations\/\d+\/revoke$/) && request.method === "POST") {
       const { email: actor } = await resolveCapabilities(request, env);
       const revoked = await revokeTeamInvitation(env, actor ?? "", url.pathname.split("/")[3]);
       return revoked.ok ? Response.json({ revoked: true }, { status: revoked.status }) : Response.json({ error: revoked.error }, { status: revoked.status });
+    }
+
+    // A member's PERSON: first name and surname, and the profile (nickname, phone, strengths). Owner only. (team.ts updateTeamProfile)
+    if (url.pathname.match(/^\/team\/\d+\/profile$/) && request.method === "PATCH") {
+      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+      const { email: actor } = await resolveCapabilities(request, env);
+      const updated = await updateTeamProfile(env, actor ?? "", url.pathname.split("/")[2], body);
+      return updated.ok ? Response.json({ member: updated.member }, { status: updated.status }) : Response.json({ error: updated.error }, { status: updated.status });
     }
 
     // One condition per route (not one combined pattern) so the route policy can see each of them and pin that only an owner reaches it.

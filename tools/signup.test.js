@@ -22,7 +22,7 @@ async function body({ check, srcDir }) {
       const u = new URL(typeof url === 'string' ? url : url.url), bid = id.name.replace(/^business-/, ''), mem = objects.get(bid) ?? objects.set(bid, new Map()).get(bid);
       calls.push({ bid, path: u.pathname, method: init.method });
       if (u.pathname === '/debug/membership-check') { const row = mem.get(u.searchParams.get('email')); return Response.json(row ? { found: true, role: row.role, status: row.status } : { found: false, role: null, status: null }); }
-      if (u.pathname === '/debug/create-membership') { if (state.failCreate) return new Response('boom', { status: 500 }); const b = JSON.parse(init.body); mem.set(b.google_email, { role: b.role, status: 'active', invitedBy: b.invited_by ?? null }); return Response.json({ ok: true }); }
+      if (u.pathname === '/debug/create-membership') { if (state.failCreate) return new Response('boom', { status: 500 }); const b = JSON.parse(init.body); mem.set(b.google_email, { role: b.role, status: 'active', invitedBy: b.invited_by ?? null, personName: b.person_name ?? null }); return Response.json({ ok: true }); }
       if (u.pathname === '/debug/seed-business-name') { if (state.throwSeed) throw new Error('the object could not be reached'); if (state.failSeed) return new Response('boom', { status: 500 }); const b = JSON.parse(init.body); if (!names.has(bid)) names.set(bid, b.name); return Response.json({ ok: true }); }
       if (u.pathname === '/debug/record-sign-in') { if (state.throwSignIn) throw new Error('the business object is unreachable'); if (state.failSignIn) return new Response('boom', { status: 500 }); state.signIns.push({ bid, email: JSON.parse(init.body).email }); return Response.json({ status: 'recorded' }); }
       if (u.pathname === '/debug/emptiness') { const owner = u.searchParams.get('email'); const only = [...mem.entries()]; return Response.json({ empty: !state.hasData.has(bid) && only.length === 1 && only[0][0] === owner && only[0][1].role === 'owner' }); }
@@ -346,7 +346,7 @@ async function body({ check, srcDir }) {
   const invited = async (opts = {}) => {
     const x = world(); await m.ensureDirectory(x.env); await m.createBusiness(x.env, 'live-co', opts.name ?? 'Live Co', 'standard', opts.biz ?? {}); await m.addDirectoryMember(x.env, 'boss@live.co', 'live-co');
     x.objects.set('live-co', new Map([['boss@live.co', { role: 'owner', status: 'active' }]]));
-    const iv = await m.upsertInvitation(x.env, opts.email ?? 'newhire@gmail.com', 'live-co', opts.role ?? 'installer', 'boss@live.co');
+    const iv = await m.upsertInvitation(x.env, opts.email ?? 'newhire@gmail.com', 'live-co', opts.role ?? 'installer', 'boss@live.co', opts.personName ?? null);
     return { x, id: iv.id };
   };
   const callbackReq = new Request('https://x/auth/google/callback', { headers: { Accept: 'text/html' } });
@@ -537,6 +537,19 @@ async function body({ check, srcDir }) {
     check(/callBusiness\(env, who\.businessId, "POST", "\/debug\/record-sign-in", \{ email: who\.sessionEmail \}\)/.test(sIn) && /try \{[\s\S]{0,400}\} catch/.test(sIn) && /BUSINESS_MODE === "object"/.test(sIn), 'the ONE place a session is issued records the sign-in, only in object mode, inside a try/catch');
     check(/url\.pathname === "\/debug\/record-sign-in" && request\.method === "POST"/.test(dbg) && /"POST \/debug\/record-sign-in": "privileged"/.test(adm), 'the recording is a PRIVILEGED admin route inside the business object (only the Worker can call it)');
     check(/typeof body\.invited_by === "string"[\s\S]{0,200}recordTeamEvent\(env, body\.google_email, "joined"/.test(dbg), 'a membership created ON AN INVITATION is logged as "joined" (and one created by an operator or at signup is not)');
+  }
+
+  // ---- the PERSON travels with the invitation (team-people.ts makes or links it inside the business when the membership is created) ------------------------------------------------------------------------------------------------
+  {
+    const { x, id } = await invited({ email: 'thandi@gmail.com', role: 'installer', personName: 'Thandi Nkosi' }); const r = await join(x, await tokenFor(x.env, 'thandi@gmail.com'), id);
+    check(r.status === 303 && x.objects.get('live-co').get('thandi@gmail.com')?.personName === 'Thandi Nkosi', 'accepting an invitation passes the invited name to the business, so the person is made or linked when the membership is created');
+    const none = await invited({ email: 'plain@gmail.com' }); await join(none.x, await tokenFor(none.x.env, 'plain@gmail.com'), none.id); check(none.x.objects.get('live-co').get('plain@gmail.com')?.personName === null, 'an invitation with no name (one made before names existed) passes none, and the person still joins');
+    const w = await handoverWorld(); w.x.db.exec("UPDATE invitations SET person_name = 'Hand Over'"); await handoverPost(w.x, await tokenFor(w.x.env, 'newhire@gmail.com'), { invitation: String(w.id), handover: '1' }); check(w.x.objects.get('live-co').get('newhire@gmail.com')?.personName === 'Hand Over', 'a handover passes it too');
+    const page = await text(await m.handleUnknownAccount(callbackReq, x.env, 'otherperson@gmail.com')); check(!/Thandi|Nkosi/.test(page), 'the invited name is never shown to anyone else');
+  }
+  {
+    const dbg = src('debug.ts');
+    check(/ensureTeamPerson\(env, full, body\.role, body\.google_email\)/.test(dbg) && /validFullName\(full\)/.test(dbg) && /UPDATE memberships SET character_id = \? WHERE id = \?/.test(dbg) && /catch \{[\s\S]{0,120}could not be linked just now/.test(dbg) && /person,\s*capabilities/.test(dbg), 'creating a membership with a person_name validates it, makes or links the person, ties the login, never undoes the membership if that fails, and answers with what happened');
   }
 
   // ---- how it is wired in ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

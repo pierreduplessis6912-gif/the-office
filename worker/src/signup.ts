@@ -234,7 +234,7 @@ export async function handleJoinPost(request: Request, env: Env): Promise<Respon
     if (!invite) return invitationGonePage();
     if ((await findDirectoryConflicts(env, [email], invite.businessId)).length > 0) return page("Already in a business", "<h1>This address already belongs to another business</h1><p>One Google account can belong to only one business. Ask the owner to invite a different Google account, or contact us.</p>", 409);
     if (!(await memberRole(env, invite.businessId, email))) {
-      const made = await callBusiness(env, invite.businessId, "POST", "/debug/create-membership", { google_email: email, role: invite.role, invited_by: invite.invitedBy });
+      const made = await callBusiness(env, invite.businessId, "POST", "/debug/create-membership", { google_email: email, role: invite.role, invited_by: invite.invitedBy, person_name: invite.personName });
       if (!made.ok) throw new Error(`the membership could not be created (${made.status})`);
     }
     await addDirectoryMember(env, email, invite.businessId);
@@ -306,7 +306,7 @@ async function performHandover(request: Request, env: Env, email: string, access
   try {
     await ensureDirectory(env);
     if (!(await memberRole(env, invite.businessId, email))) {
-      const made = await callBusiness(env, invite.businessId, "POST", "/debug/create-membership", { google_email: email, role: invite.role, invited_by: invite.invitedBy });
+      const made = await callBusiness(env, invite.businessId, "POST", "/debug/create-membership", { google_email: email, role: invite.role, invited_by: invite.invitedBy, person_name: invite.personName });
       if (!made.ok) throw new Error(`the membership could not be created (${made.status})`);
     }
     await closeBusiness(env, offer.ownId, invite.businessId);

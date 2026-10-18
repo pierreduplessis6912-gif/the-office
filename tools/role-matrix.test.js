@@ -835,6 +835,8 @@ async function expect(role, method, path, want) {
   await require('./emptiness.test.js')({ check, srcDir });
   // Quoting as its own capability (sales can quote without money)
   await require('./quotes.test.js')({ check, srcDir });
+  // A person for every login: names, linking, and the profile
+  await require('./team-people.test.js')({ check, srcDir });
   // The notes store, the file storage and the memory index are shared by every business: each business sees only its own.
   await require('./scoped-bindings.test.js')({ check, srcDir });
   // Moving a business's data in, and proving it arrived.
