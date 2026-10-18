@@ -14,6 +14,10 @@ module.exports = async function runEmptinessTests({ check, srcDir }) {
   check((await ask(fresh())).empty === true, 'a business exactly as signup leaves it (the owner\'s membership and the name in the profile) is EMPTY');
   const real = fresh((db) => { db.exec("CREATE TABLE IF NOT EXISTS object_meta (key TEXT PRIMARY KEY, value TEXT); CREATE TABLE IF NOT EXISTS schema_steps (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL); INSERT INTO object_meta VALUES ('business_id', 'acme'); INSERT INTO schema_steps VALUES (1, 'baseline', 'now'), (2, 'onboarding_progress', 'now')"); });
   check((await ask(real)).empty === true, 'and so is a REAL object, which also carries two bookkeeping tables with rows (object_meta, schema_steps): those are ignored, nothing else is');
+  // Found by the first real rehearsal: a real object ALSO has these two, written by the platform for every business (signup itself makes two audited calls; RECORD_TIMINGS is on in production). The local test database has neither, so
+  // without this every real business looked non-empty and the handover would never have fired.
+  const realer = fresh((db) => { db.exec("CREATE TABLE IF NOT EXISTS object_meta (key TEXT PRIMARY KEY, value TEXT); CREATE TABLE IF NOT EXISTS schema_steps (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL); CREATE TABLE admin_audit (id INTEGER PRIMARY KEY AUTOINCREMENT, what TEXT); CREATE TABLE request_timings (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT); INSERT INTO admin_audit (what) VALUES ('create-membership'), ('seed-business-name'); INSERT INTO request_timings (path) VALUES ('/debug/membership-check'), ('/debug/create-membership')"); });
+  check((await ask(realer)).empty === true, 'and a real object with the PLATFORM\'s own audit rows (admin_audit: signup makes two privileged calls) and request timings (on in production) is still EMPTY');
 
   // ---- the owner and the profile -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   check((await ask(fresh(), 'someone.else@x.co')).empty === false && (await ask(fresh(), '  OWNER@X.CO ')).empty === true, 'the single member must BE the person asked about (case and spaces do not matter)');
@@ -45,7 +49,18 @@ module.exports = async function runEmptinessTests({ check, srcDir }) {
   const survivor = fresh((db) => db.exec('CREATE TABLE a_feature_added_next_year (x TEXT); INSERT INTO a_feature_added_next_year VALUES (1)')); check((await ask(survivor)).empty === false, 'and a table that does not exist yet, added by some future feature, counts too: an unknown table with rows is NOT empty (the rule can only err on the safe side)');
   check((await ask(fresh((db) => db.exec("CREATE TABLE a_future_table (x TEXT)")))).empty === true, 'while an unknown table with NO rows changes nothing');
   const src = fs.readFileSync(path.join(srcDir, 'emptiness.ts'), 'utf8');
-  check(/new Set\(\["object_meta", "schema_steps"\]\)/.test(src) && !/DELETE|UPDATE|INSERT|DROP|ALTER/.test(src.replace(/\/\/[^\n]*/g, '')), 'the ONLY tables ignored are the two bookkeeping ones, and the module only READS (no write statement in it)');
+  check(/new Set\(\["object_meta", "schema_steps", "admin_audit", "request_timings"\]\)/.test(src) && !/DELETE|UPDATE|INSERT|DROP|ALTER/.test(src.replace(/\/\/[^\n]*/g, '')), 'the ONLY tables ignored are the four the platform writes for every business, and the module only READS (no write statement in it)');
+  // Every table the source creates LAZILY (not in the baseline schema) inside a business object must be CLASSIFIED: either platform bookkeeping (ignored above) or something an owner's own activity writes (counts as data). A new one fails
+  // this test, so nobody can add a table without deciding which, which is how a real object's tables caused the bug above.
+  const baseline = fs.readFileSync(path.join(srcDir, 'baseline-sql.ts'), 'utf8'), inBaseline = new Set([...baseline.matchAll(/CREATE TABLE(?: IF NOT EXISTS)? \\?"?([a-z_]+)/g)].map((m) => m[1]));
+  const sharedOrExperiment = new Set(['directory.ts', 'signup.ts', 'trial.ts']), lazy = new Set();
+  for (const f of fs.readdirSync(srcDir).filter((x) => x.endsWith('.ts') && x !== 'baseline-sql.ts' && !sharedOrExperiment.has(x))) for (const m of fs.readFileSync(path.join(srcDir, f), 'utf8').matchAll(/CREATE TABLE IF NOT EXISTS ([a-z_]+) \(/g)) if (!inBaseline.has(m[1])) lazy.add(m[1]);
+  const IGNORED = ['admin_audit', 'object_meta', 'request_timings', 'schema_steps'], COUNTS = ['member_selections', 'member_usage', 'model_usage', 'onboarding_progress', 'permission_audit', 'plans', 'purchase_order_cancellations', 'purchase_order_customers', 'role_capability_overrides', 'stock_item_merges', 'supplier_statements', 'unit_conversions'];
+  const expected = new Set([...IGNORED, ...COUNTS]), unclassified = [...lazy].filter((n) => !expected.has(n)), gone = [...expected].filter((n) => !lazy.has(n));
+  check(unclassified.length === 0, `every lazily-created table is classified (bookkeeping the platform writes, or data the owner's activity writes). UNCLASSIFIED: ${unclassified.join(', ')}: decide which, then add it to emptiness.ts or to this list`);
+  check(gone.length === 0, `and the classification lists no table that no longer exists (stale: ${gone.join(', ')})`);
+  check(sorted2(IGNORED) === sorted2(src.match(/new Set\(\[([^\]]*)\]\)/)[1].match(/[a-z_]+/g)), 'and the ignored list in this test is exactly the list in the module');
+  function sorted2(a) { return [...a].sort().join(); }
   const dbg = fs.readFileSync(path.join(srcDir, 'debug.ts'), 'utf8'), adm = fs.readFileSync(path.join(srcDir, 'admin-routes.ts'), 'utf8');
   check(/url\.pathname === "\/debug\/emptiness" && request\.method === "GET"/.test(dbg) && /"GET \/debug\/emptiness": "read"/.test(adm), 'the question is a READ-tier admin route inside the business object (the Worker asks it; it changes nothing)');
 };
