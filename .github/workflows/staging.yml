@@ -814,6 +814,13 @@ jobs:
           notify bl-ok "$(itn_body "$BORDER" 7000003 COMPLETE 897.00 "$BID" "tok-$TAG" good)"
           notify bl-replay "$(itn_body "$BORDER" 7000003 COMPLETE 897.00 "$BID" "tok-$TAG" good)"
           dirnow bl-dir-after
+          # The OPERATOR's side (worker/src/billing.ts billingStatus, debug.ts): a read-only view of what the business has bought and paid, and a way to start an order for it. Both on the REAL database.
+          billadm() { curl -s -o "$RESULTS/$1.json" -w '%{http_code}' -H "X-Admin-Key: $STAGING_ADMIN_KEY" "$BASE/debug/directory/billing?business=$BID" > "$RESULTS/$1.status"; }
+          billadm bl-status
+          curl -s -o "$RESULTS/bl-op-order.json" -w '%{http_code}' -X POST -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY" -H "Content-Type: application/json" -d "{\"business\":\"$BID\",\"plan\":\"solo\",\"interval\":\"monthly\",\"email\":\"operator-$TAG@example.com\"}" "$BASE/debug/directory/billing-order" > "$RESULTS/bl-op-order.status"
+          OPORDER=$(python3 -c "import json; print(json.load(open('$RESULTS/bl-op-order.json')).get('orderId',''))")
+          curl -s -o /dev/null -w '%{http_code}' "$BASE/billing/pay?order=$OPORDER" > "$RESULTS/bl-op-pay.status"
+          billadm bl-status2
           # SEATS (worker/src/seats.ts, limits.ts) on the REAL objects, at the END so nothing above is disturbed. The business already has more than three people, so a 3-seat Team plan is FULL: every way of adding someone is refused (402) and
           # leaves nothing behind; buying seats lets the owner add again; and Single user refuses again without removing anyone. The first operator write also adds the plan columns to the real shared layer, which predates them.
           setplan() { curl -s -o "$RESULTS/$1.json" -w '%{http_code}' -X POST -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY" -H "Content-Type: application/json" -d "$2" "$BASE/debug/directory/set-plan" > "$RESULTS/$1.status"; }
@@ -891,6 +898,9 @@ jobs:
           bl_biz = lambda n: next((b for b in ((rd(n) or {}).get("businesses") or []) if b.get("id") == os.environ.get("BID")), {})
           bl_before, bl_mid, bl_after = bl_biz("bl-dir-before.json"), bl_biz("bl-dir-mid.json"), bl_biz("bl-dir-after.json")
           bl_checkout = rd("bl-checkout.json") or {}
+          bl_status = rd("bl-status.json") or {}
+          bl_status2 = rd("bl-status2.json") or {}
+          bl_op = rd("bl-op-order.json") or {}
           bl_html = rd("bl-pay.html", False) or ""
           ss_before = len((rd("ss-full-list.json") or {}).get("members") or [])
           ss_emails = lambda n: {m.get("email") for m in ((rd(n) or {}).get("members") or [])}
@@ -968,6 +978,8 @@ jobs:
               "the_pay_page_is_a_signed_form_to_the_sandbox_and_an_unknown_order_is_a_404": status("bl-pay") == "200" and "sandbox.payfast.co.za/eng/process" in bl_html and 'name="signature"' in bl_html and 'name="amount" value="897.00"' in bl_html and "rehearsal-passphrase" not in bl_html and status("bl-pay-bad") == "404" and status("bl-return") == "200",
               "a_notification_with_a_bad_signature_or_the_wrong_amount_converts_nothing": status("bl-bad") == "400" and "bad_signature" in (rd("bl-bad.body", False) or "") and status("bl-short") == "200" and "amount_mismatch" in (rd("bl-short.body", False) or "") and bl_before.get("plan") == "standard" and bl_mid.get("plan") == "standard",   # the business was already converted by an earlier step: a refused notification must leave it exactly there
               "a_confirmed_payment_for_the_exact_amount_converts_the_business_and_the_same_payment_is_never_applied_twice": status("bl-ok") == "200" and "applied" in (rd("bl-ok.body", False) or "") and status("bl-replay") == "200" and "duplicate" in (rd("bl-replay.body", False) or "") and bl_after.get("plan") == "team" and bl_after.get("trial_ends_at") is None,
+              "the_operator_view_shows_the_converted_plan_subscription_and_payment_without_a_token_or_email": status("bl-status") == "200" and (bl_status.get("business") or {}).get("plan") == "team" and (bl_status.get("business") or {}).get("seats") == 3 and (bl_status.get("business") or {}).get("billingStatus") == "active" and (bl_status.get("business") or {}).get("hasSubscription") is True and any(p.get("status") == "complete" and p.get("amountCents") == 89700 and p.get("confirmed") is True for p in (bl_status.get("payments") or [])) and "tok-" not in json.dumps(bl_status) and "example.com" not in json.dumps(bl_status),
+              "an_operator_can_start_an_order_for_a_business_and_gets_a_working_pay_link": status("bl-op-order") == "201" and bl_op.get("amountCents") == 39900 and "/billing/pay?order=" in (bl_op.get("payUrl") or "") and status("bl-op-pay") == "200" and any(o.get("status") == "pending" and o.get("plan") == "solo" for o in (bl_status2.get("orders") or [])),
               "health_reports_the_running_commit": health.get("commit") == os.environ.get("GITHUB_SHA"),
               "the_directory_columns_exist_on_the_real_database": all("trial_ends_at" in b and "source" in b for b in listing) and len(listing) > 0,
               "answers": {"billing": {n: [status(n), (rd(n + ".body", False) or "")[:40]] for n in ("bl-bad", "bl-short", "bl-ok", "bl-replay")}, "billing_business": [bl_before.get("plan"), bl_mid.get("plan"), bl_mid.get("trial_ends_at") is not None, bl_after.get("plan"), bl_after.get("trial_ends_at")], "first": status("su-first"), "again": status("su-again"), "garbage": status("su-garbage"), "untick": status("su-untick"), "days_left": round(days, 3) if days else None, "business": {k: biz.get(k) for k in ("plan", "status", "source", "members")}, "session_b_matches": payload.get("b") == biz.get("id"), "me": {"signedIn": me.get("signedIn"), "role": me.get("role")}, "customers": status("su-customers"), "customer_items": len(cust_list) if isinstance(cust_list, list) else None, "onboarding_steps": len(steps) if isinstance(steps, list) else None, "step_statuses": [x.get("status") for x in steps] if isinstance(steps, list) else None},

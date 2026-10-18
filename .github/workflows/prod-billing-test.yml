@@ -1,0 +1,124 @@
+name: Production billing test (start a PayFast order for a business, or look at what it has bought and paid)
+
+# For the real PayFast SANDBOX test (and later for taking a payment on a customer's behalf). "create" starts an ORDER for one business, priced from OUR plan table (this workflow cannot set an amount), and records the link that sends its owner to
+# PayFast: open that link on your phone. "status" reads what the business has bought and paid (amounts and states only: never the subscription token, an email or a signature). The Worker is in SANDBOX mode, so no real money moves.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "create = start an order and get the pay link; status = look at what the business has bought and paid"
+        type: choice
+        required: true
+        options:
+          - create
+          - status
+        default: create
+      business_id:
+        description: "The business's id (see the directory). The Ballz test business is ballz-enterprizes-392739"
+        type: string
+        required: true
+        default: "ballz-enterprizes-392739"
+      plan:
+        description: "For create: solo (Single user) or team (Team)"
+        type: choice
+        required: false
+        options:
+          - team
+          - solo
+        default: team
+      interval:
+        description: "For create: monthly or annual"
+        type: choice
+        required: false
+        options:
+          - monthly
+          - annual
+        default: monthly
+      seats:
+        description: "For create, Team only: how many seats (3 or more). Ignored for solo"
+        type: string
+        required: false
+        default: "3"
+      email:
+        description: "For create: the payer's email address (PayFast's receipt goes here). It is masked in the logs and never written down"
+        type: string
+        required: false
+      confirm:
+        description: "For create: type the business id again, exactly"
+        type: string
+        required: false
+
+concurrency:
+  group: prod-billing-test
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  billing:
+    runs-on: ubuntu-latest
+    env:
+      PROD_URL: https://office.websitehub.co.za
+      ACTION: ${{ github.event.inputs.action }}
+      BUSINESS_ID: ${{ github.event.inputs.business_id }}
+      PLAN: ${{ github.event.inputs.plan }}
+      INTERVAL: ${{ github.event.inputs.interval }}
+      SEATS: ${{ github.event.inputs.seats }}
+      CONFIRM: ${{ github.event.inputs.confirm }}
+    steps:
+      - name: Mask the payer's email address before anything else sees it
+        env:
+          PAYER: ${{ github.event.inputs.email }}
+        run: |
+          if [ -n "$PAYER" ]; then echo "::add-mask::$PAYER"; fi
+
+      - uses: actions/checkout@v4
+
+      - name: Ask production
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+          CONFIRM_KEY: ${{ secrets.PROD_CONFIRM_KEY }}
+          PAYER: ${{ github.event.inputs.email }}
+        run: |
+          mkdir -p results
+          if [ "$ACTION" = "create" ]; then
+            if [ "$CONFIRM" != "$BUSINESS_ID" ]; then echo "::error::To create an order, type the business id again in the confirm box, exactly."; exit 1; fi
+            if [ -z "$PAYER" ]; then echo "::error::To create an order, give the payer's email address."; exit 1; fi
+            python3 -c "import json, os; print(json.dumps({'business': os.environ['BUSINESS_ID'], 'plan': os.environ['PLAN'], 'interval': os.environ['INTERVAL'], 'seats': int(os.environ['SEATS'] or 3), 'email': os.environ['PAYER']}))" > results/body.json
+            CODE=$(curl -s -o results/answer.json -w '%{http_code}' -X POST "$PROD_URL/debug/directory/billing-order" -H "X-Admin-Key: $ADMIN" -H "X-Admin-Confirm: $CONFIRM_KEY" -H "Content-Type: application/json" --data-binary @results/body.json)
+            rm -f results/body.json
+          else
+            CODE=$(curl -s -o results/answer.json -w '%{http_code}' "$PROD_URL/debug/directory/billing?business=$BUSINESS_ID" -H "X-Admin-Key: $ADMIN")
+          fi
+          echo "HTTP $CODE"
+          echo "$CODE" > results/code.txt
+
+      - name: Record the result (ids, amounts and the pay link only; no secrets)
+        run: |
+          python3 - <<'PY'
+          import datetime, json, os
+          code = open("results/code.txt").read().strip()
+          try: answer = json.load(open("results/answer.json"))
+          except Exception: answer = {"error": "no JSON answer"}
+          out = {"when": datetime.datetime.now(datetime.timezone.utc).isoformat(), "action": os.environ["ACTION"], "business": os.environ["BUSINESS_ID"], "http": code, "answer": answer}
+          if os.environ["ACTION"] == "create" and code == "201":
+              out["next"] = "Open payUrl on your phone, pay with PayFast's sandbox test buyer, then run this workflow again with action = status."
+              summary = "Pay link: " + answer.get("payUrl", "") + "  (" + answer.get("itemName", "") + ", R" + str(answer.get("amountCents", 0) / 100) + ")"
+          else:
+              summary = json.dumps(answer)[:1500]
+          os.makedirs("ops", exist_ok=True)
+          json.dump(out, open("ops/billing-test-last.json", "w"), indent=1)
+          open(os.environ["GITHUB_STEP_SUMMARY"], "a").write(summary + "\n")
+          print(summary)
+          if code not in ("200", "201"): raise SystemExit(1)
+          PY
+
+      - name: Commit the record
+        if: always()
+        run: |
+          git config user.name "Claude"; git config user.email "noreply@anthropic.com"
+          git add ops/billing-test-last.json || true
+          git commit -m "Production billing test record (ids, amounts and the pay link only)" || echo "nothing to record"
+          git pull --rebase origin "$GITHUB_REF_NAME" || true
+          git push origin HEAD:"$GITHUB_REF_NAME" || echo "could not push the record"

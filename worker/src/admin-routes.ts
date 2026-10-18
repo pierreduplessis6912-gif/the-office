@@ -142,6 +142,8 @@ export const ADMIN_ROUTE_TIERS: Readonly<Record<string, AdminTier>> = {
   // ---- privileged (33): Can change who has access, change the banking details on invoices, delete or merge records, or read everything at once. Needs a SECOND secret (ADMIN_CONFIRM_KEY) on top of the admin key, and is switched off while that secret is not set.
   "POST /debug/directory/plans/set": "privileged",
   "POST /debug/directory/set-plan": "privileged",
+  "POST /debug/directory/billing-order": "privileged",
+  "GET /debug/directory/billing": "read",
   "POST /debug/directory/trial": "privileged",
   "POST /admin/backup/restore": "privileged",
   "POST /admin/backup/unlock": "privileged",
