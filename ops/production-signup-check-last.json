@@ -1,6 +1,6 @@
 {
- "when": "2026-10-17T23:17:32.454135Z",
- "run": "39078442834",
+ "when": "2026-10-18T06:25:14.889620Z",
+ "run": "39103959934",
  "the_health_check_answers": true,
  "the_health_check_reports_the_commit_production_is_running": true,
  "a_garbage_proof_is_refused_with_a_page": true,
@@ -8,12 +8,15 @@
  "the_sign_in_callback_still_refuses_a_visit_with_no_state": true,
  "the_sign_in_start_still_sends_people_to_google": true,
  "a_stranger_is_still_refused_the_data": true,
+ "a_stranger_is_refused_the_team_list_and_cannot_add_a_person": true,
  "answers": {
   "health": "200",
   "garbage": "400",
   "callback": "400",
   "login": "302",
-  "anon": "401"
+  "anon": "401",
+  "team": "401",
+  "teampost": "401"
  },
- "running_commit": "6570e86a0c75837ea3aa22db1587af0037af34fd"
+ "running_commit": "e8b23d76e46e3398bd55e153b994698c5d1ce56a"
 }
