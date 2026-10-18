@@ -29,6 +29,8 @@ jobs:
           curl -s -D "$RESULTS/callback.h" -o "$RESULTS/callback.b" -w '%{http_code}' "$PROD_URL/auth/google/callback" > "$RESULTS/callback.s"
           curl -s -D "$RESULTS/login.h" -o /dev/null -w '%{http_code}' "$PROD_URL/auth/google/login" > "$RESULTS/login.s"
           curl -s -o /dev/null -w '%{http_code}' "$PROD_URL/customers" > "$RESULTS/anon.s"
+          curl -s -o /dev/null -w '%{http_code}' "$PROD_URL/team" > "$RESULTS/team.s"
+          curl -s -o /dev/null -w '%{http_code}' -X POST -H "Content-Type: application/json" -d '{"email":"nobody@example.com","role":"owner"}' "$PROD_URL/team" > "$RESULTS/teampost.s"
           python3 - <<'PY'
           import json, os, re, sys
           r = os.environ["RESULTS"]
@@ -42,8 +44,9 @@ jobs:
               "the_sign_in_callback_still_refuses_a_visit_with_no_state": rd("callback.s").strip() == "400" and "OAuth state" in rd("callback.b"),
               "the_sign_in_start_still_sends_people_to_google": rd("login.s").strip() == "302" and "accounts.google.com" in head("login.h", "location"),
               "a_stranger_is_still_refused_the_data": rd("anon.s").strip() == "401",
+              "a_stranger_is_refused_the_team_list_and_cannot_add_a_person": rd("team.s").strip() == "401" and rd("teampost.s").strip() == "401",
           }
-          out["answers"] = {k: rd(k + ".s").strip() for k in ("health", "garbage", "callback", "login", "anon")}
+          out["answers"] = {k: rd(k + ".s").strip() for k in ("health", "garbage", "callback", "login", "anon", "team", "teampost")}
           out["running_commit"] = (json.loads(rd("health.b")).get("commit") if rd("health.b").strip().startswith("{") else None)
           json.dump(out, open(os.path.join(r, "check.json"), "w"), indent=1)
           bad = [k for k, v in out.items() if v is False]
