@@ -5575,6 +5575,8 @@ class _TeamRoomContentState extends State<_TeamRoomContent> {
   List<dynamic> _activity = [];
   List<String> _roles = ['owner', 'admin', 'accountant', 'sales', 'installer'];
   final TextEditingController _email = TextEditingController();
+  final TextEditingController _firstName = TextEditingController();
+  final TextEditingController _surname = TextEditingController();
   String _role = 'installer';
   bool _loading = true;
   bool _sending = false;
@@ -5608,6 +5610,8 @@ class _TeamRoomContentState extends State<_TeamRoomContent> {
   @override
   void dispose() {
     _email.dispose();
+    _firstName.dispose();
+    _surname.dispose();
     super.dispose();
   }
 
@@ -5665,10 +5669,17 @@ class _TeamRoomContentState extends State<_TeamRoomContent> {
   // Adding straight away ('/team') or inviting ('/team/invite'). Either way the server answers with what it did, or why not.
   Future<void> _send({required bool invite}) async {
     final email = _email.text.trim();
+    final first = _firstName.text.trim();
+    final surname = _surname.text.trim();
+    if (first.isEmpty || surname.isEmpty) {
+      setState(() => _error = 'Type their first name and surname.');
+      return;
+    }
     if (email.isEmpty) {
       setState(() => _error = 'Type the Google email address they will sign in with.');
       return;
     }
+    final fullName = '$first $surname';
     setState(() {
       _sending = true;
       _error = null;
@@ -5679,15 +5690,17 @@ class _TeamRoomContentState extends State<_TeamRoomContent> {
       final response = await http.post(
         Uri.parse(invite ? '$officeApiBase/team/invite' : '$officeApiBase/team'),
         headers: _jsonHeaders,
-        body: jsonEncode({'email': email, 'role': _role}),
+        body: jsonEncode({'email': email, 'role': _role, 'firstName': first, 'surname': surname}),
       );
       if (!mounted) return;
       if (response.statusCode == 200 || response.statusCode == 201) {
         _email.clear();
+        _firstName.clear();
+        _surname.clear();
         setState(() {
           _notice = invite
-              ? 'Invitation sent to $email. They accept it when they sign in with that Google account.'
-              : '$email can sign in now, as ${_roleName(_role).toLowerCase()}.';
+              ? 'Invitation sent to $fullName ($email). They accept it when they sign in with that Google account.'
+              : '$fullName can sign in now, as ${_roleName(_role).toLowerCase()}.';
           _shareText = invite
               ? 'I have invited you to join our business on The Office. Install the app and sign in with Google using $email, then tap Join.'
               : 'I have added you to our business on The Office. Install the app and sign in with Google using $email.';
@@ -5799,8 +5812,8 @@ class _TeamRoomContentState extends State<_TeamRoomContent> {
 
   // One plain sentence for each kind of event in the team log (the server records who did it, to whom, and the detail).
   String _sentence(Map<String, dynamic> a) {
-    final who = a['actor'] as String? ?? 'Someone';
-    final to = a['target'] as String? ?? 'someone';
+    final who = (a['actorName'] ?? a['actor'] ?? 'Someone').toString();
+    final to = (a['targetName'] ?? a['target'] ?? 'someone').toString();
     final detail = a['detail'] is Map ? a['detail'] as Map : const {};
     final role = _roleName((detail['role'] ?? '').toString()).toLowerCase();
     final action = a['action'] as String? ?? '';
@@ -5819,6 +5832,12 @@ class _TeamRoomContentState extends State<_TeamRoomContent> {
         return '$who reactivated $to';
       case 'joined':
         return '$to joined';
+      case 'named':
+        return '$who gave $to the name ${(detail['name'] ?? '').toString()}';
+      case 'renamed':
+        return '$who renamed $to to ${(detail['to'] ?? '').toString()}';
+      case 'profile_updated':
+        return '$who updated the profile of $to';
       default:
         return '$who changed $to';
     }
@@ -5848,24 +5867,150 @@ class _TeamRoomContentState extends State<_TeamRoomContent> {
         child: Text(text, style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 1)),
       );
 
+  Widget _textField(TextEditingController controller, String hint, {TextInputType? type, TextCapitalization capitalization = TextCapitalization.none, bool email = false, int maxLines = 1}) {
+    return TextField(
+      controller: controller,
+      keyboardType: type,
+      autocorrect: !email,
+      enableSuggestions: !email,
+      textCapitalization: capitalization,
+      maxLines: maxLines,
+      style: GoogleFonts.workSans(color: _paper, fontSize: 15),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: GoogleFonts.workSans(color: _textTertiary, fontSize: 14),
+        enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: _textTertiary)),
+        focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: _paper)),
+      ),
+    );
+  }
+
+  // The person behind a login (the server keeps it as a person record: the same one dictation talks about). The name is
+  // sent only if it was changed (a name with several words cannot be split back perfectly, so an untouched one is never
+  // re-sent); each profile field is sent only if changed, and a blank clears it. Work-related details only: no medical,
+  // disciplinary or banking details belong here.
+  Future<void> _editProfile(Map<String, dynamic> m) async {
+    final id = m['id'] as int?;
+    if (id == null) return;
+    final person = m['person'] is Map ? m['person'] as Map : null;
+    final fullName = person == null ? '' : (person['name'] ?? '').toString();
+    final words = fullName.split(' ').where((w) => w.isNotEmpty).toList();
+    final originalFirst = words.isEmpty ? '' : words.first;
+    final originalSurname = words.length > 1 ? words.sublist(1).join(' ') : '';
+    final originalNickname = person == null ? '' : (person['nickname'] ?? '').toString();
+    final originalPhone = person == null ? '' : (person['phone'] ?? '').toString();
+    final originalStrengths = person == null ? '' : (person['strengths'] ?? '').toString();
+    final first = TextEditingController(text: originalFirst);
+    final surname = TextEditingController(text: originalSurname);
+    final nickname = TextEditingController(text: originalNickname);
+    final phone = TextEditingController(text: originalPhone);
+    final strengths = TextEditingController(text: originalStrengths);
+    String? dialogError;
+    bool saving = false;
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: _charcoal,
+          title: Text(m['email'] as String? ?? 'Profile', style: GoogleFonts.workSans(color: _paper, fontSize: 15)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _textField(first, 'First name', capitalization: TextCapitalization.words),
+                const SizedBox(height: 6),
+                _textField(surname, 'Surname', capitalization: TextCapitalization.words),
+                const SizedBox(height: 6),
+                _textField(nickname, 'Nickname (optional)', capitalization: TextCapitalization.words),
+                const SizedBox(height: 6),
+                _textField(phone, 'Phone (optional)', type: TextInputType.phone),
+                const SizedBox(height: 6),
+                _textField(strengths, 'Skills and strengths (optional, work only)', capitalization: TextCapitalization.sentences, maxLines: 2),
+                const SizedBox(height: 8),
+                Text('Work details only. Please do not add medical, disciplinary or banking details.', style: GoogleFonts.workSans(color: _muted, fontSize: 11.5)),
+                if (dialogError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(dialogError!, style: GoogleFonts.workSans(color: _stampRed, fontSize: 12.5)),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving ? null : () => Navigator.of(dialogContext).pop(false),
+              child: Text('CANCEL', style: GoogleFonts.ibmPlexMono(color: _muted, fontSize: 11, letterSpacing: 0.8)),
+            ),
+            TextButton(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      final body = <String, dynamic>{};
+                      final nameChanged = first.text.trim() != originalFirst || surname.text.trim() != originalSurname;
+                      if (nameChanged) {
+                        if (first.text.trim().isEmpty || surname.text.trim().isEmpty) {
+                          setDialogState(() => dialogError = 'Type both the first name and the surname.');
+                          return;
+                        }
+                        body['firstName'] = first.text.trim();
+                        body['surname'] = surname.text.trim();
+                      }
+                      if (nickname.text.trim() != originalNickname) body['nickname'] = nickname.text.trim();
+                      if (phone.text.trim() != originalPhone) body['phone'] = phone.text.trim();
+                      if (strengths.text.trim() != originalStrengths) body['strengths'] = strengths.text.trim();
+                      if (body.isEmpty) {
+                        Navigator.of(dialogContext).pop(false);
+                        return;
+                      }
+                      setDialogState(() {
+                        saving = true;
+                        dialogError = null;
+                      });
+                      try {
+                        final response = await http.patch(Uri.parse('$officeApiBase/team/$id/profile'), headers: _jsonHeaders, body: jsonEncode(body));
+                        if (response.statusCode == 200) {
+                          if (dialogContext.mounted) Navigator.of(dialogContext).pop(true);
+                        } else {
+                          setDialogState(() {
+                            saving = false;
+                            dialogError = _messageFrom(response);
+                          });
+                        }
+                      } catch (_) {
+                        setDialogState(() {
+                          saving = false;
+                          dialogError = 'Could not save that right now.';
+                        });
+                      }
+                    },
+              child: Text('SAVE', style: GoogleFonts.ibmPlexMono(color: _emberBlue, fontSize: 11, letterSpacing: 0.8, fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      ),
+    );
+    first.dispose();
+    surname.dispose();
+    nickname.dispose();
+    phone.dispose();
+    strengths.dispose();
+    if (saved == true && mounted) await _fetch(quiet: true);
+  }
+
   Widget _addPanel() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TextField(
-          controller: _email,
-          keyboardType: TextInputType.emailAddress,
-          autocorrect: false,
-          enableSuggestions: false,
-          textCapitalization: TextCapitalization.none,
-          style: GoogleFonts.workSans(color: _paper, fontSize: 15),
-          decoration: InputDecoration(
-            hintText: 'Their Google email address',
-            hintStyle: GoogleFonts.workSans(color: _textTertiary, fontSize: 14),
-            enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: _textTertiary)),
-            focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: _paper)),
-          ),
+        Row(
+          children: [
+            Expanded(child: _textField(_firstName, 'First name', capitalization: TextCapitalization.words)),
+            const SizedBox(width: 12),
+            Expanded(child: _textField(_surname, 'Surname', capitalization: TextCapitalization.words)),
+          ],
         ),
+        const SizedBox(height: 6),
+        _textField(_email, 'Their Google email address', type: TextInputType.emailAddress, email: true),
         const SizedBox(height: 12),
         Wrap(
           spacing: 8,
@@ -5935,11 +6080,28 @@ class _TeamRoomContentState extends State<_TeamRoomContent> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(m['email'] as String? ?? '', style: GoogleFonts.workSans(color: active ? _paper : _muted, fontSize: 14, fontWeight: FontWeight.w600)),
+                Text(m['person'] is Map ? (m['person']['name'] ?? '').toString() : (m['email'] as String? ?? ''), style: GoogleFonts.workSans(color: active ? _paper : _muted, fontSize: 14, fontWeight: FontWeight.w600)),
+                if (m['person'] is Map)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      [m['email'] as String? ?? '', if ((m['person']['nickname'] ?? '').toString().isNotEmpty) '"${m['person']['nickname']}"', if ((m['person']['phone'] ?? '').toString().isNotEmpty) m['person']['phone'].toString()].join('   '),
+                      style: GoogleFonts.workSans(color: _textTertiary, fontSize: 11.5),
+                    ),
+                  ),
+                if (m['person'] is Map && (m['person']['strengths'] ?? '').toString().isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(m['person']['strengths'].toString(), style: GoogleFonts.workSans(color: _muted, fontSize: 11.5)),
+                  ),
                 const SizedBox(height: 3),
                 Row(
                   children: [
                     Text(_roleName(role).toUpperCase(), style: GoogleFonts.ibmPlexMono(color: _muted, fontSize: 10, letterSpacing: 0.8)),
+                    if (m['person'] is! Map) ...[
+                      const SizedBox(width: 8),
+                      Text(role == 'installer' ? 'NO NAME YET: CANNOT SEE JOBS' : 'NO NAME YET', style: GoogleFonts.ibmPlexMono(color: _emberAmber, fontSize: 9.5, letterSpacing: 0.8)),
+                    ],
                     if (!active) ...[
                       const SizedBox(width: 8),
                       Text('DEACTIVATED', style: GoogleFonts.ibmPlexMono(color: _stampRed, fontSize: 9.5, letterSpacing: 0.8)),
@@ -5961,7 +6123,13 @@ class _TeamRoomContentState extends State<_TeamRoomContent> {
               ],
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 6),
+          IconButton(
+            icon: const Icon(Icons.edit_outlined, size: 18),
+            color: _muted,
+            tooltip: 'Edit name and profile',
+            onPressed: busy ? null : () => _editProfile(m),
+          ),
           if (busy)
             const Padding(
               padding: EdgeInsets.only(top: 6, right: 8),
@@ -6011,7 +6179,12 @@ class _TeamRoomContentState extends State<_TeamRoomContent> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(i['email'] as String? ?? '', style: GoogleFonts.workSans(color: _paper, fontSize: 14, fontWeight: FontWeight.w600)),
+                Text((i['personName'] ?? '').toString().isNotEmpty ? i['personName'].toString() : (i['email'] as String? ?? ''), style: GoogleFonts.workSans(color: _paper, fontSize: 14, fontWeight: FontWeight.w600)),
+                if ((i['personName'] ?? '').toString().isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(i['email'] as String? ?? '', style: GoogleFonts.workSans(color: _textTertiary, fontSize: 11.5)),
+                  ),
                 const SizedBox(height: 3),
                 Text(
                   '${_roleName(i['role'] as String? ?? '').toUpperCase()}   waiting until ${_day(i['expiresAt'] as String?)}',
