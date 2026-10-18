@@ -12,7 +12,7 @@ module.exports = async function runTeamTests(context) {
 
 async function teamTests({ check, srcDir }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'team-')), entry = path.join(dir, 'entry.ts'), out = path.join(dir, 'team.js'), at = (f) => JSON.stringify(path.join(srcDir, f));
-  fs.writeFileSync(entry, `export * from ${at('team')};\nexport { ensureDirectory, createBusiness, addDirectoryMember, lookupBusinessForEmail, upsertInvitation, listInvitationsFor, pendingInvitationsForEmail } from ${at('directory')};\n`);
+  fs.writeFileSync(entry, `export * from ${at('team')};\nexport { ensureDirectory, createBusiness, addDirectoryMember, lookupBusinessForEmail, upsertInvitation, listInvitationsFor, pendingInvitationsForEmail } from ${at('directory')};\nexport * from ${at('team-log')};\n`);
   try { esbuild.buildSync({ entryPoints: [entry], bundle: true, platform: 'node', format: 'cjs', outfile: out, logLevel: 'silent' }); } catch (e) { check(false, 'team.ts exists and builds: ' + String(e.message).split('\n')[0].slice(0, 160)); return; }
   const t = require(out), src = (f) => fs.readFileSync(path.join(srcDir, f), 'utf8');
   const shim = (db) => ({ prepare: (sql) => { const st = (binds) => ({ bind: (...b) => st(b), first: async () => db.prepare(sql).get(...binds) ?? null, all: async () => ({ results: db.prepare(sql).all(...binds) }), run: async () => db.prepare(sql).run(...binds) }); return st([]); } });
@@ -128,6 +128,46 @@ async function teamTests({ check, srcDir }) {
     const w = await world(); const sh = { OFFICE_DB: w.env.SHARED_DB }; await t.upsertInvitation(sh, 'old@y.co', 'acme-co', 'installer', BOSS); w.shared.prepare("UPDATE invitations SET expires_at = datetime('now', '-1 minute')").run();
     check((await t.listTeam(w.env)).invitations.length === 0 && (await t.pendingInvitationsForEmail(sh, 'old@y.co')).length === 0, 'an EXPIRED invitation is not listed and cannot be accepted');
     const re = await t.inviteTeamMember(w.env, BOSS, 'old@y.co', 'installer'); const days = (Date.parse(w.shared.prepare('SELECT expires_at FROM invitations').get().expires_at.replace(' ', 'T') + 'Z') - Date.now()) / 86400000; check(re.ok && days > 29.9, 'and inviting them again gives them a fresh 30 days');
+  }
+
+  // ---- the TEAM LOG and the SIGN-IN stamp (worker/src/team-log.ts) ------------------------------------------------------------------------------------------------------------------------------------------------------------
+  // Who added, invited, changed and removed whom, and when each person last signed in. Both live in tables that create themselves on first use (the precedent of permission_audit), written AFTER the change they describe, and a failure to
+  // write one never fails the owner's action. An action that is REFUSED leaves no trace, so the log only ever says what actually happened.
+  const audit = (w) => w.obj.prepare('SELECT actor, action, target, detail FROM team_audit ORDER BY id').all();
+  {
+    const w = await world(); check((await t.listTeam(w.env)).activity.length === 0 && (await t.listTeam(w.env)).members.every((m) => m.lastSignInAt === null && m.signInCount === 0), 'a business that has never logged anything lists an empty activity and "never signed in" for everyone, without crashing (the tables do not exist yet)');
+    check(w.obj.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE name IN ('team_audit', 'member_sign_ins')").get().n === 0, 'and READING never creates the tables');
+    const add = await t.addTeamMember(w.env, BOSS, 'sam@acme.co', 'installer'); const id = add.member.id;
+    await t.inviteTeamMember(w.env, BOSS, 'invitee@gmail.com', 'accountant'); const inv = (await t.listTeam(w.env)).invitations[0].id;
+    await t.changeTeamRole(w.env, BOSS, id, 'sales'); await t.setTeamMemberStatus(w.env, BOSS, id, false); await t.setTeamMemberStatus(w.env, BOSS, id, true); await t.revokeTeamInvitation(w.env, BOSS, inv);
+    check(JSON.stringify(audit(w).map((r) => [r.actor, r.action, r.target])) === JSON.stringify([[BOSS, 'added', 'sam@acme.co'], [BOSS, 'invited', 'invitee@gmail.com'], [BOSS, 'role_changed', 'sam@acme.co'], [BOSS, 'deactivated', 'sam@acme.co'], [BOSS, 'reactivated', 'sam@acme.co'], [BOSS, 'invitation_withdrawn', 'invitee@gmail.com']]), 'every change is logged in order with WHO did it and to WHOM: added, invited, role changed, deactivated, reactivated, invitation withdrawn (the withdrawn one names the person, not an id)');
+    const d = audit(w); check(JSON.parse(d[0].detail).role === 'installer' && JSON.parse(d[1].detail).role === 'accountant' && JSON.parse(d[2].detail).from === 'installer' && JSON.parse(d[2].detail).to === 'sales', 'with the role given, and for a role change what it was and what it became');
+    const l = await t.listTeam(w.env); check(l.activity.length === 6 && l.activity[0].action === 'invitation_withdrawn' && l.activity[5].action === 'added' && typeof l.activity[0].at === 'string' && l.activity[0].actor === BOSS && l.activity[0].target === 'invitee@gmail.com' && l.activity[3].action === 'role_changed' && l.activity[3].detail.from === 'installer' && l.activity[3].detail.to === 'sales', 'the team list carries the activity NEWEST FIRST with when, who, what and to whom');
+    check(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(l.activity[0].at) && l.activity[0].id > l.activity[5].id && typeof l.activity[3].detail === 'object', 'each entry has a time (UTC, to the second) and its detail already parsed');
+  }
+  {
+    const w = await world(); await t.addTeamMember(w.env, BOSS, 'sam@acme.co', 'installer'); const before = JSON.stringify(audit(w)), id = (await t.listTeam(w.env)).members[1].id;
+    for (const r of [await t.addTeamMember(w.env, BOSS, 'sam@acme.co', 'installer'), await t.addTeamMember(w.env, BOSS, 'nope', 'installer'), await t.addTeamMember(w.env, BOSS, 'x@y.co', 'superadmin'), await t.inviteTeamMember(w.env, BOSS, 'sam@acme.co', 'installer'), await t.inviteTeamMember(w.env, BOSS, 'bad', 'installer'), await t.changeTeamRole(w.env, BOSS, 1, 'installer'), await t.changeTeamRole(w.env, BOSS, 9999, 'installer'), await t.changeTeamRole(w.env, BOSS, id, 'superadmin'), await t.setTeamMemberStatus(w.env, BOSS, 1, false), await t.setTeamMemberStatus(w.env, BOSS, 9999, false), await t.revokeTeamInvitation(w.env, BOSS, 9999), await t.revokeTeamInvitation(w.env, BOSS, 'x')]) check(r.ok === false, 'a refused action returns a refusal (setup for the next check)');
+    check(JSON.stringify(audit(w)) === before, 'and NONE of the refused actions left a trace: the log only says what actually happened');
+    const noop = await t.changeTeamRole(w.env, BOSS, id, 'installer'); check(JSON.stringify(audit(w)) === before || audit(w).length === 1, 'changing a role to the one it already is is not logged as a change');
+    const heal = await t.addTeamMember(w.env, BOSS, 'sam@acme.co', 'installer'); check(audit(w).filter((r) => r.action === 'added').length === 1, 'and adding someone who is already there (even finishing a half-done add) is not logged twice');
+  }
+  {
+    const w = await world(); let fail = true; const real = w.env.OFFICE_DB.prepare; w.env.OFFICE_DB = { ...w.env.OFFICE_DB, prepare: (sql) => { if (fail && /team_audit/.test(sql) && /INSERT/.test(sql)) throw new Error('the log could not be written'); return real(sql); } };
+    const r = await t.addTeamMember(w.env, BOSS, 'sam@acme.co', 'installer'); check(r.ok === true && w.members().length === 2, 'if the log cannot be written the owner\'s action STILL succeeds (an audit failure must never stop the business working)'); fail = false;
+  }
+  {
+    const w = await world(); await t.recordSignIn(w.env, '  Boss@Acme.co '); const a = (await t.listTeam(w.env)).members[0];
+    check(a.lastSignInAt && a.signInCount === 1 && a.firstSignInAt === a.lastSignInAt, 'a sign-in is recorded against the member (the address is tidied): first and last are the same, and the count is one');
+    w.obj.prepare("UPDATE member_sign_ins SET first_at = '2026-01-01 08:00:00', last_at = '2026-01-01 08:00:00'").run(); await t.recordSignIn(w.env, BOSS); const b = (await t.listTeam(w.env)).members[0];
+    check(b.signInCount === 2 && b.firstSignInAt === '2026-01-01 08:00:00' && b.lastSignInAt !== '2026-01-01 08:00:00', 'signing in again moves LAST and counts it, and never touches FIRST');
+    await t.addTeamMember(w.env, BOSS, 'sam@acme.co', 'installer'); const l = await t.listTeam(w.env); check(l.members.find((m) => m.email === 'sam@acme.co').lastSignInAt === null && l.members.find((m) => m.email === 'sam@acme.co').signInCount === 0, 'someone added who has NEVER signed in shows exactly that: no time, count zero (what an owner needs to spot a mistyped address)');
+    await t.recordSignIn(w.env, 'stranger@nowhere.co'); check((await t.listTeam(w.env)).members.length === 2 && w.obj.prepare("SELECT COUNT(*) n FROM member_sign_ins WHERE email = 'stranger@nowhere.co'").get().n === 0, 'a sign-in for an address that is not on the team records NOTHING (no row, and it never adds anyone)');
+    let threw = false; try { await t.recordSignIn({ OFFICE_DB: { prepare: () => { throw new Error('no database'); } } }, BOSS); } catch { threw = true; } check(threw === false, 'a sign-in that cannot be recorded never throws (it must never block signing in)');
+  }
+  {
+    const w = await world(); for (let i = 0; i < 40; i++) w.obj.exec(`CREATE TABLE IF NOT EXISTS team_audit (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL DEFAULT (datetime('now')), actor TEXT, action TEXT NOT NULL, target TEXT, detail TEXT); INSERT INTO team_audit (actor, action, target) VALUES ('boss@acme.co', 'added', 'p${i}@x.co')`);
+    const l = await t.listTeam(w.env); check(l.activity.length === 30 && l.activity[0].target === 'p39@x.co', 'the team list carries the latest 30 events, newest first');
   }
 
   // ---- the routes, as each role ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

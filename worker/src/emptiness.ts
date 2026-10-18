@@ -1,14 +1,15 @@
 // Is this business EMPTY? (SHIP_CHECKLIST.md item 15, the empty-business handover.) An employee who signed up for their own trial by mistake can, if THEY agree, move into the business that invited them, and the one they leave is closed.
 // Nothing is merged and nothing is deleted, so this question must be STRICT: it is the only thing standing between "closing a business nobody has used" and closing one that has data.
 // Measured, not guessed: a business database has 42 tables, and right after signup exactly TWO hold a row: `memberships` (the owner) and `business_profile` (the name). So a business is empty when every OTHER table has no rows, its
-// only member is the person asked about (an active owner), and its profile holds nothing but a name. FOUR tables are written by the PLATFORM for every real object and are ignored: `object_meta` and `schema_steps` (which schema
+// only member is the person asked about (an active owner), and its profile holds nothing but a name. FIVE tables are written by the PLATFORM for every real object and are ignored: `member_sign_ins` (the owner signs in at signup, and
+// recording it must not make a business look used), `object_meta` and `schema_steps` (which schema
 // steps were applied), `admin_audit` (every privileged call is audited inside the object, and signup itself makes two) and `request_timings` (RECORD_TIMINGS is on in production, so every request leaves a row). The first real
 // rehearsal found the last two: the local test database had neither, so every real business looked non-empty and the handover would never have fired. Every other table counts, including any a future feature adds (an unknown table with
 // rows is NOT empty), and tools/emptiness.test.js fails when a lazily-created table is added without a decision, so this can only ever err on the safe side. It only READS.
 import { normaliseEmail } from "./directory";
 import type { Env } from "./types";
 
-const BOOKKEEPING = new Set(["object_meta", "schema_steps", "admin_audit", "request_timings"]);
+const BOOKKEEPING = new Set(["member_sign_ins", "object_meta", "schema_steps", "admin_audit", "request_timings"]);
 // What a profile holds once the owner has started setting it up (a name alone is what signup leaves, and is still empty).
 const PROFILE_TOUCHED = ["trading_as", "vat_no", "address", "phone", "email", "website", "banking_details", "logo_r2_key"];
 

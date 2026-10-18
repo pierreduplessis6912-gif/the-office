@@ -764,6 +764,9 @@ jobs:
           api qs-installer-reset PATCH "$SESSION" /settings/permissions '{"role":"installer","capability":"can_make_quotes","granted":false}'
           api qs-installer-quote-reset PATCH "$XSESS" /quotations/999999 '{}'
           api qs-grid GET "$SESSION" /settings/permissions
+          # THE TEAM LOG AND THE SIGN-IN STAMP (worker/src/team-log.ts, signin.ts) on the REAL object: everything the owner did above is in the log with who and to whom, and every person who really signed in has a stamp while members who
+          # were added and never signed in (the ones given a minted session) show "never".
+          api tl-final GET "$SESSION" /team
           python3 - <<'PY'
           import base64, datetime, json, os, re, sys, urllib.parse as u
           r, tag = os.environ["RESULTS"], "r" + os.environ["GITHUB_RUN_ID"]
@@ -818,6 +821,13 @@ jobs:
           invitee = "invitee-" + tag + "@example.com"
           inv_member = next((x for x in (inv_after.get("members") or []) if x.get("email") == invitee), {})
           ro_grid = [r.get("role") for r in ((rd("ro-owner-perms.json") or {}).get("roles") or [])]
+          tl = rd("tl-final.json") or {}
+          tl_acts = tl.get("activity") or []
+          tl_by = {m.get("email"): m for m in (tl.get("members") or [])}
+          tl_owner = "signup-owner-" + tag + "@example.com"
+          tl_invitee = "invitee-" + tag + "@example.com"
+          tl_x = "handover-x-" + tag + "@example.com"
+          tl_actions = {a.get("action") for a in tl_acts}
           qs_grid_sales = next((r for r in ((rd("qs-grid.json") or {}).get("roles") or []) if r.get("role") == "sales"), {})
           qs_row = next((c for c in (qs_grid_sales.get("capabilities") or []) if c.get("key") == "can_make_quotes"), {})
           ho_before = {b.get("name"): b for b in ((rd("ho-dir-before.json") or {}).get("businesses") or [])}
@@ -872,6 +882,8 @@ jobs:
               "an_owner_can_switch_quoting_off_for_sales_and_back_on_and_it_persists_on_the_real_object": status("qs-off") == "200" and status("qs-sales-quote-off") == "403" and status("qs-admin-quote-after") == "404" and status("qs-on") == "200" and status("qs-sales-quote-on") == "404",
               "an_owner_can_give_an_installer_only_quoting_and_take_it_back": status("qs-installer-only") == "200" and status("qs-installer-quote-on") == "404" and status("qs-installer-invoice-on") == "403" and status("qs-installer-reset") == "200" and status("qs-installer-quote-reset") == "403",
               "the_permission_grid_lists_quotations_as_on_for_sales": status("qs-grid") == "200" and bool(qs_row) and (qs_row.get("granted") is True or qs_row.get("on") is True),
+              "the_team_log_records_who_added_invited_changed_deactivated_and_withdrew_whom_on_the_real_object": status("tl-final") == "200" and {"added", "invited", "invitation_withdrawn", "role_changed", "deactivated", "reactivated", "joined"} <= tl_actions and any(a.get("action") == "invited" and a.get("actor") == tl_owner and a.get("target") == tl_invitee for a in tl_acts) and any(a.get("action") == "joined" and a.get("target") == tl_invitee and a.get("actor") == tl_invitee for a in tl_acts) and any(a.get("action") == "joined" and a.get("target") == tl_x for a in tl_acts) and any(a.get("action") == "invitation_withdrawn" and a.get("target") == "revokee-" + tag + "@example.com" for a in tl_acts) and all(isinstance(a.get("at"), str) and len(a.get("at")) == 19 for a in tl_acts),
+              "people_who_really_signed_in_show_when_and_members_added_who_never_did_show_never": all((tl_by.get(e) or {}).get("lastSignInAt") and (tl_by.get(e) or {}).get("signInCount", 0) >= 1 for e in (tl_owner, tl_invitee, tl_x)) and (tl_by.get("admin-member-" + tag + "@example.com") or {}).get("lastSignInAt") is None and (tl_by.get("admin-member-" + tag + "@example.com") or {}).get("signInCount") == 0 and (tl_by.get("sales-member-" + tag + "@example.com") or {}).get("lastSignInAt") is None,
               "health_reports_the_running_commit": health.get("commit") == os.environ.get("GITHUB_SHA"),
               "the_directory_columns_exist_on_the_real_database": all("trial_ends_at" in b and "source" in b for b in listing) and len(listing) > 0,
               "answers": {"first": status("su-first"), "again": status("su-again"), "garbage": status("su-garbage"), "untick": status("su-untick"), "days_left": round(days, 3) if days else None, "business": {k: biz.get(k) for k in ("plan", "status", "source", "members")}, "session_b_matches": payload.get("b") == biz.get("id"), "me": {"signedIn": me.get("signedIn"), "role": me.get("role")}, "customers": status("su-customers"), "customer_items": len(cust_list) if isinstance(cust_list, list) else None, "onboarding_steps": len(steps) if isinstance(steps, list) else None, "step_statuses": [x.get("status") for x in steps] if isinstance(steps, list) else None},
