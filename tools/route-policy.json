@@ -547,7 +547,7 @@
   "owner": "A",
   "accountant": "A",
   "installer": 403,
-  "sales": 403,
+  "sales": "A",
   "admin": "A",
   "class": "some roles"
  },

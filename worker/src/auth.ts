@@ -148,6 +148,7 @@ export const ROLE_CAPABILITIES: Record<string, string[]> = {
     "can_know_payroll",
     "can_know_banking",
     "can_manage_invoices",
+    "can_make_quotes",
     "can_know_expense_totals",
     "can_know_supplier_balances",
     "can_know_material_prices",
@@ -173,6 +174,7 @@ export const ROLE_CAPABILITIES: Record<string, string[]> = {
     "can_know_payroll",
     "can_know_banking",
     "can_manage_invoices",
+    "can_make_quotes",
     "can_know_expense_totals",
     "can_know_supplier_balances",
     "can_know_materials",
@@ -186,6 +188,7 @@ export const ROLE_CAPABILITIES: Record<string, string[]> = {
   admin: [
     "can_know_debtors",
     "can_manage_invoices",
+    "can_make_quotes",
     "can_know_expense_totals",
     "can_know_supplier_balances",
     "can_know_materials",
@@ -194,7 +197,7 @@ export const ROLE_CAPABILITIES: Record<string, string[]> = {
     "can_know_measurements",
     "can_capture_voice_notes",
   ],
-  sales: ["can_know_jobs", "can_know_measurements", "can_capture_voice_notes", "can_know_materials", "can_know_material_prices"],
+  sales: ["can_know_jobs", "can_know_measurements", "can_capture_voice_notes", "can_know_materials", "can_know_material_prices", "can_make_quotes"],
 };
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -226,7 +229,14 @@ export const CAPABILITY_CATALOG: CapabilityInfo[] = [
     key: "can_manage_invoices",
     label: "Money in and out",
     description:
-      "Record and confirm payments, invoices, quotations, expenses and supplier transactions. See quotations, and clear delivery shortages.",
+      "Record and confirm payments, invoices, expenses and supplier transactions, and clear delivery shortages. Quotations follow it until set on their own.",
+    inUse: true,
+    ownerOnly: false,
+  },
+  {
+    key: "can_make_quotes",
+    label: "Quotations",
+    description: "Make and confirm quotations, change them, and send them to customers. Until set on its own, follows \"Money in and out\". Give it on its own to someone who should quote but not confirm payments or raise invoices.",
     inUse: true,
     ownerOnly: false,
   },
@@ -355,7 +365,7 @@ export async function getRoleCapabilities(env: Env, role: string): Promise<strin
   const defaults = ROLE_CAPABILITIES[role] ?? [];
   if (role === "owner" || !(role in ROLE_CAPABILITIES)) return defaults;
   const overrides = await readOverrides(env, role);
-  return followParents(applyOverrides(defaults, overrides), overrides);
+  return followParents(applyOverrides(defaults, overrides), overrides, defaults);
 }
 
 // Decided by Pierre 2026-10-04: expense totals and supplier balances used to be governed by "Money in and out" alone, and are now switches of
@@ -364,12 +374,23 @@ export async function getRoleCapabilities(env: Env, role: string): Promise<strin
 export const INHERITED_FROM: Record<string, string> = {
   can_know_expense_totals: "can_manage_invoices",
   can_know_supplier_balances: "can_manage_invoices",
+  // Quotations (2026-10-18, step 3 of the sequence Pierre approved): a salesperson must be able to quote WITHOUT confirming payments, so quoting is its own switch. It follows money until set, so nothing changes for anyone until then.
+  can_make_quotes: "can_manage_invoices",
 };
-export function followParents(effective: string[], overrides: Array<{ capability: string; granted: number }>): string[] {
+// Does this capability FOLLOW its parent for this role? Yes, except for a role whose static default has the child WITHOUT the parent (sales: quoting without money): that role is independent, or "follow your parent" would strip the very
+// capability its default gives it, and the permission screen would treat switching it off as "back to default" and never store it. ONE rule, used by the loader below and by the permission switch (permissions.ts), so they cannot disagree.
+export function followsParent(role: string, capability: string): boolean {
+  const parent = INHERITED_FROM[capability];
+  if (!parent) return false;
+  const defaults = ROLE_CAPABILITIES[role] ?? [];
+  return !(defaults.includes(capability) && !defaults.includes(parent));
+}
+export function followParents(effective: string[], overrides: Array<{ capability: string; granted: number }>, staticDefaults: string[] = []): string[] {
   const explicit = new Set(overrides.filter((o) => isEditableCapability(o.capability)).map((o) => o.capability));
   let out = effective;
   for (const [child, parent] of Object.entries(INHERITED_FROM)) {
     if (explicit.has(child)) continue;
+    if (staticDefaults.includes(child) && !staticDefaults.includes(parent)) continue;   // independent for this role (see followsParent)
     const parentOn = out.includes(parent);
     const childOn = out.includes(child);
     if (parentOn && !childOn) out = [...out, child];
@@ -459,7 +480,7 @@ export const ENFORCE_CAPABILITIES = true;
 // schema_candidate — and any type added in future, until classified.
 export const ACTION_TYPE_CAPABILITY: Record<string, string[]> = {
   invoice: ["can_manage_invoices"],
-  quotation: ["can_manage_invoices"],
+  quotation: ["can_make_quotes"],
   convert_quote: ["can_manage_invoices"],
   payment: ["can_manage_invoices"],
   expense: ["can_manage_invoices"],
@@ -551,7 +572,7 @@ export const INTENT_RULES: Record<Extraction["intent"], IntentRule> = {
     reason:
       "The invoice branch also records a job scope and can raise a job_scope_amendment, which installers may confirm; only the invoice itself needs can_manage_invoices.",
   },
-  quotation: { produces: ["quotation"], create: ["can_manage_invoices"], refusal: MONEY_REFUSAL },
+  quotation: { produces: ["quotation"], create: ["can_make_quotes"], refusal: MONEY_REFUSAL },
   price_scope: { produces: ["invoice", "quotation"], create: ["can_manage_invoices"], refusal: MONEY_REFUSAL },
   convert_quote: { produces: ["convert_quote"], create: ["can_manage_invoices"], refusal: MONEY_REFUSAL },
   supplier_invoice: { produces: ["supplier_invoice"], create: ["can_manage_invoices"], refusal: MONEY_REFUSAL },
@@ -649,7 +670,8 @@ export function intentKeepsOutOfNotes(intent: string | null | undefined): boolea
   if (!Object.prototype.hasOwnProperty.call(INTENT_RULES, key)) return false;
   if (ALSO_STRUCTURED_BUT_OPEN.has(key)) return true;
   const rule = INTENT_RULES[key as Extraction["intent"]];
-  return Array.isArray(rule.create) && rule.create.includes("can_manage_invoices");
+  // Quoting is money too (a quote's sentence names a customer and a price): it moved from "Money in and out" to its own switch, and this must still say so, or a dictated quote would land in a note an installer can read.
+  return Array.isArray(rule.create) && (rule.create.includes("can_manage_invoices") || rule.create.includes("can_make_quotes"));
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------
@@ -715,7 +737,8 @@ const MEMBER_OPEN_ROUTES: Array<{ method: string; path: RegExp }> = [
 export const ROUTE_RULES: Array<{ method: string; path: RegExp; anyOf: string[] }> = [
   // Money — accountant and owner.
   { method: "GET", path: /^\/customers\/\d+\/profitability$/, anyOf: ["can_know_profit"] },
-  { method: "PATCH", path: /^\/(invoices|quotations|customers)\/\d+$/, anyOf: ["can_manage_invoices"] },
+  { method: "PATCH", path: /^\/(invoices|customers)\/\d+$/, anyOf: ["can_manage_invoices"] },
+  { method: "PATCH", path: /^\/quotations\/\d+$/, anyOf: ["can_make_quotes"] },
   { method: "GET", path: /^\/suppliers\/\d+\/discrepancies$/, anyOf: ["can_manage_invoices"] },
   { method: "GET", path: /^\/delivery-exceptions$/, anyOf: ["can_manage_invoices"] },
   { method: "POST", path: /^\/suppliers\/discrepancies\/\d+\/resolve$/, anyOf: ["can_manage_invoices"] },
@@ -771,7 +794,7 @@ const ACTION_ROUTE = /^\/actions\/(\d+)\/(confirm|reject|edit-field)$/;
 // same as the REST routes for the same underlying data.
 export const SIGNABLE_DOCUMENT_PATHS: Array<{ pattern: RegExp; anyOf: string[] }> = [
   { pattern: /^\/invoices\/\d+\/pdf$/, anyOf: ["can_manage_invoices"] },
-  { pattern: /^\/quotations\/\d+\/pdf$/, anyOf: ["can_manage_invoices"] },
+  { pattern: /^\/quotations\/\d+\/pdf$/, anyOf: ["can_make_quotes"] },
   { pattern: /^\/customers\/\d+\/statement\/pdf$/, anyOf: ["can_manage_invoices", "can_know_profit"] },
   { pattern: /^\/reports\/aged-debtors\/pdf$/, anyOf: ["can_know_debtors", "can_know_profit"] },
   { pattern: /^\/reports\/aged-creditors\/pdf$/, anyOf: ["can_know_supplier_balances"] },

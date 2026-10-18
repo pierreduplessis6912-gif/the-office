@@ -20,7 +20,7 @@ module.exports = async function runPermissionTests({ check, compiled, srcDir, fs
   for (const role of EDITABLE_ROLES) for (const k of ROLE_CAPABILITIES[role]) check(!CAPABILITY_BY_KEY[k].ownerOnly, `the default for "${role}" must never include the owner-only capability "${k}"`);
   check(sameJson([...EDITABLE_ROLES].sort(), ['accountant', 'admin', 'installer', 'sales']) && !EDITABLE_ROLES.includes('owner'), 'the roles the owner can edit are the accountant, the installer, sales and admin (the last two added 2026-10-18), never the owner');
   check(CAPABILITY_CATALOG.every((c) => c.label && c.description), 'every capability has a plain-language label and description for the screen');
-  check(CAPABILITY_CATALOG.filter((c) => isEditableCapability(c.key)).length === 10, 'exactly ten capabilities can be switched today: money, debtors, profit, materials, jobs, payroll, banking, and (since 2026-10-04) expense totals, supplier balances and material prices (the others are owner only or not used by anything yet)');
+  check(CAPABILITY_CATALOG.filter((c) => isEditableCapability(c.key)).length === 11, 'exactly eleven capabilities can be switched today: money, debtors, profit, materials, jobs, payroll, banking, and (since 2026-10-04) expense totals, supplier balances and material prices, and (since 2026-10-18) quotations (the others are owner only or not used by anything yet)');
 
   // ---- 3. The "in use" flags match the code, so a switch is never wired to nothing ----------------------------------------
   // A capability nothing checks cannot be switched. When code starts checking one, this fails until its flag is flipped on purpose,

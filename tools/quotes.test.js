@@ -1,0 +1,61 @@
+// Quoting as its own capability (worker/src/auth.ts: can_make_quotes; step 3 of the sequence Pierre approved 2026-10-18). A salesperson must be able to quote WITHOUT being able to confirm payments or raise invoices, so quotations
+// stopped being governed by "Money in and out" alone. Built on the precedent of 2026-10-04 (expense totals and supplier balances): the new switch is real (the quotation rules check IT, and nothing else), and it FOLLOWS "Money in and out" until
+// an owner sets it, so nothing changes for any existing role or business until then. The one new wrinkle: sales has quoting WITHOUT money, so a role whose static default has the child but not the parent is independent of the parent.
+// The dangerous part is not the capability but what is DERIVED from it: which sentences are kept out of free-text notes (notes bypass every gate), so that is pinned against the list recorded from the code before the change.
+const path = require('path'), fs = require('fs'), os = require('os'), esbuild = require('esbuild');
+
+module.exports = async function runQuotesTests({ check, srcDir }) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'quotes-')), build = (f) => { const out = path.join(dir, f.replace('.ts', '.js')); esbuild.buildSync({ entryPoints: [path.join(srcDir, f)], bundle: true, platform: 'node', format: 'cjs', outfile: out, logLevel: 'silent' }); return require(out); };
+  const a = build('auth.ts'), p = build('permissions.ts'), { newDatabase, d1 } = require('./harness.js'), workerDir = path.join(srcDir, '..');
+  const same = (x, y) => JSON.stringify(x) === JSON.stringify(y);
+  const world = () => { const db = newDatabase(workerDir); return { db, env: { OFFICE_DB: d1(db), __atomic: true } }; };
+  const caps = (w, role) => a.getRoleCapabilities(w.env, role);
+  const set = (w, role, cap, on) => p.setPermission(w.env, role, cap, on, 'owner@x.co');
+  const money = ['invoice', 'payment', 'expense', 'convert_quote', 'price_scope', 'supplier_invoice', 'supplier_payment', 'purchase_order'];
+
+  // ---- the catalog and the defaults ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  const info = a.CAPABILITY_BY_KEY.can_make_quotes;
+  check(info && info.label === 'Quotations' && info.inUse === true && info.ownerOnly === false && /quotation/i.test(info.description) && /Money in and out/.test(info.description), 'there is a capability "Quotations": in use, not owner only, and its description says how it relates to "Money in and out"');
+  check(a.INHERITED_FROM.can_make_quotes === 'can_manage_invoices', 'it FOLLOWS "Money in and out" until an owner sets it (the precedent of expense totals): nothing changes for anyone until then');
+  const R = a.ROLE_CAPABILITIES;
+  check(['owner', 'accountant', 'admin', 'sales'].every((r) => R[r].includes('can_make_quotes')) && !R.installer.includes('can_make_quotes'), 'by default the owner, accountant, admin and SALES can quote, and an installer cannot');
+  check(!R.sales.includes('can_manage_invoices') && R.sales.every((c) => c === 'can_make_quotes' || !['can_manage_invoices', 'can_know_profit', 'can_know_debtors', 'can_know_payroll', 'can_know_banking', 'can_know_expense_totals', 'can_know_supplier_balances'].includes(c)), 'and sales still has NO other money capability: quoting is the only thing it gained');
+  check(a.followsParent('accountant', 'can_make_quotes') && a.followsParent('admin', 'can_make_quotes') && a.followsParent('installer', 'can_make_quotes') && !a.followsParent('sales', 'can_make_quotes') && a.followsParent('accountant', 'can_know_expense_totals') && !a.followsParent('sales', 'can_manage_invoices'), 'only sales is INDEPENDENT of "Money in and out" for quoting (its default has quoting without money); every other role follows, and the earlier children still follow');
+
+  // ---- followParents ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  check(a.followParents(['can_manage_invoices'], [], []).includes('can_make_quotes') && !a.followParents(['can_make_quotes'], [], []).includes('can_make_quotes'), 'a role with money gains quoting by following, and a role with quoting but no money (and no reason to keep it) loses it, as before');
+  check(a.followParents(['can_make_quotes'], [], ['can_make_quotes']).includes('can_make_quotes') && a.followParents(['can_make_quotes'], [{ capability: 'can_make_quotes', granted: 1 }], []).includes('can_make_quotes'), 'but a role whose default has quoting without money keeps it, and so does one it was explicitly granted to');
+  check(!a.followParents(['can_manage_invoices'], [{ capability: 'can_make_quotes', granted: 0 }], ['can_manage_invoices', 'can_make_quotes']).includes('can_make_quotes') && a.followParents(['can_manage_invoices'], [], ['can_manage_invoices', 'can_make_quotes']).includes('can_make_quotes'), 'an explicit OFF is never overridden by following, and with no setting a role with money follows into quoting');
+
+  // ---- what each role can do with NO override, through the real functions -------------------------------------------------------------------------------------------------------------------------------------------------
+  const w0 = world(), c = Object.fromEntries(await Promise.all(['owner', 'accountant', 'admin', 'sales', 'installer'].map(async (r) => [r, await caps(w0, r)])));
+  for (const r of ['owner', 'accountant', 'admin', 'sales']) check(a.canResolveActionType('quotation', c[r]) && a.intentCreationRefusal('quotation', c[r]) === null, `${r} can dictate a quotation and confirm it`);
+  check(!a.canResolveActionType('quotation', c.installer) && a.intentCreationRefusal('quotation', c.installer) !== null, 'an installer can do neither');
+  for (const m of money) check(!a.canResolveActionType(m, c.sales) && a.intentCreationRefusal(m, c.sales) !== null, `SALES still cannot create or confirm "${m}"`);
+  check(!a.canResolveActionType('payment', c.sales) && c.sales.includes('can_know_jobs'), 'in particular sales cannot confirm a payment');
+  for (const r of ['owner', 'accountant', 'admin']) for (const m of ['invoice', 'payment']) check(a.canResolveActionType(m, c[r]), `${r} can still confirm ${m}`);
+
+  // ---- the part that could leak: free-text notes ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  const KEEPS = ['cancel_order', 'convert_quote', 'expense', 'forget_unit_conversion', 'goods_received', 'invoice', 'link_order', 'lose_lead', 'payment', 'price_scope', 'purchase_order', 'quotation', 'raise_lead', 'raise_snag', 'register_stock_item', 'reopen_order', 'resolve_snag', 'set_unit_conversion', 'stock_usage', 'stocktake', 'supplier_invoice', 'supplier_payment', 'supplier_statement', 'variance_disposition', 'work_observation'];
+  check(same(Object.keys(a.INTENT_RULES).filter((i) => a.intentKeepsOutOfNotes(i)).sort(), KEEPS), 'the set of intents whose sentence is kept OUT of free-text notes is EXACTLY what it was before the split (25 intents, "quotation" among them): a dictated quote never lands in a note an installer can read');
+
+  // ---- what an owner can do with the switch --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  { const w = world(); await set(w, 'accountant', 'can_manage_invoices', false); const x = await caps(w, 'accountant'); check(!x.includes('can_manage_invoices') && !x.includes('can_make_quotes') && !a.canResolveActionType('quotation', x), 'taking "Money in and out" away from an accountant STILL takes quoting away (it follows): unchanged behaviour'); }
+  { const w = world(); await set(w, 'installer', 'can_manage_invoices', true); const x = await caps(w, 'installer'); check(x.includes('can_make_quotes') && a.canResolveActionType('quotation', x), 'giving an installer "Money in and out" still lets them quote (it follows): unchanged'); }
+  { const w = world(); const r = await set(w, 'installer', 'can_make_quotes', true); const x = await caps(w, 'installer'); check(r.ok && x.includes('can_make_quotes') && !x.includes('can_manage_invoices') && a.canResolveActionType('quotation', x) && !a.canResolveActionType('invoice', x) && !a.canResolveActionType('payment', x), 'an owner can give an installer ONLY quoting: they can quote, and still cannot raise an invoice or confirm a payment'); }
+  { const w = world(); const r = await set(w, 'accountant', 'can_make_quotes', false); const x = await caps(w, 'accountant'); check(r.ok && x.includes('can_manage_invoices') && !x.includes('can_make_quotes') && !a.canResolveActionType('quotation', x) && a.canResolveActionType('invoice', x), 'an owner can take quoting away from an accountant WITHOUT taking money away: the switch is real, not cosmetic'); }
+  { const w = world(); await set(w, 'sales', 'can_make_quotes', false); const off = await caps(w, 'sales'); const stored = w.db.prepare("SELECT granted FROM role_capability_overrides WHERE role = 'sales' AND capability = 'can_make_quotes'").get();
+    check(!off.includes('can_make_quotes') && !a.canResolveActionType('quotation', off) && stored && stored.granted === 0, 'an owner can switch quoting OFF for sales, and it PERSISTS (the override is stored: the grid\'s "default" for sales is quoting, not its parent\'s state)');
+    await set(w, 'sales', 'can_make_quotes', true); check((await caps(w, 'sales')).includes('can_make_quotes') && w.db.prepare("SELECT COUNT(*) n FROM role_capability_overrides WHERE role = 'sales'").get().n === 0, 'and switching it back on removes the override (it is the default again)');
+    await set(w, 'sales', 'can_manage_invoices', true); const both = await caps(w, 'sales'); check(both.includes('can_make_quotes') && both.includes('can_manage_invoices'), 'giving sales money as well keeps quoting');
+    await set(w, 'sales', 'can_manage_invoices', false); check((await caps(w, 'sales')).includes('can_make_quotes'), 'and taking money away again leaves quoting (sales is independent of it)');
+    check(w.db.prepare("SELECT COUNT(*) n FROM permission_audit WHERE role = 'sales'").get().n >= 3, 'every one of those changes is in the audit trail'); }
+  { const w = world(); const grid = await p.getRolePermissions(w.env, 'sales'); const row = (grid.capabilities || grid.permissions || []).find((x) => x.key === 'can_make_quotes'); check(!!row && (row.granted === true || row.on === true || row.granted === 1), 'the permission screen shows Quotations as ON for sales'); }
+
+  // ---- the gate rules that were split ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  const auth = fs.readFileSync(path.join(srcDir, 'auth.ts'), 'utf8');
+  check(/\{ method: "PATCH", path: \/\^\\\/\(invoices\|customers\)\\\/\\d\+\$\/, anyOf: \["can_manage_invoices"\] \}/.test(auth) && /\{ method: "PATCH", path: \/\^\\\/quotations\\\/\\d\+\$\/, anyOf: \["can_make_quotes"\] \}/.test(auth), 'editing a QUOTATION needs quoting, while editing an invoice or a customer still needs money');
+  check(/pattern: \/\^\\\/quotations\\\/\\d\+\\\/pdf\$\/, anyOf: \["can_make_quotes"\]/.test(auth) && /pattern: \/\^\\\/invoices\\\/\\d\+\\\/pdf\$\/, anyOf: \["can_manage_invoices"\]/.test(auth), 'the quotation PDF link needs quoting, the invoice PDF link still needs money');
+  check(/quotation: \{ produces: \["quotation"\], create: \["can_make_quotes"\]/.test(auth) && /quotation: \["can_make_quotes"\]/.test(auth), 'the quotation action is created and confirmed by quoting alone');
+  check(/convert_quote: \{ produces: \["convert_quote"\], create: \["can_manage_invoices"\]/.test(auth) && /price_scope: \{ produces: \["invoice", "quotation"\], create: \["can_manage_invoices"\]/.test(auth), 'turning a quote into an invoice, and pricing a scope (which can produce an invoice), STILL need money');
+};

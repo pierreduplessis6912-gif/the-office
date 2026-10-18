@@ -1,7 +1,7 @@
 // The permission grid's handlers (2026-10-04). The catalog, the guard rails and the loader live in auth.ts, next to the
 // table they override; this file is the owner-only read and write side. See the long comment above CAPABILITY_CATALOG.
 import { atomically } from "./atomic";
-import { CAPABILITY_CATALOG, EDITABLE_ROLES, INHERITED_FROM, ROLE_CAPABILITIES, getRoleCapabilities, isEditableCapability, readOverrides, CAPABILITY_BY_KEY } from "./auth";
+import { CAPABILITY_CATALOG, EDITABLE_ROLES, INHERITED_FROM, ROLE_CAPABILITIES, followsParent, getRoleCapabilities, isEditableCapability, readOverrides, CAPABILITY_BY_KEY } from "./auth";
 import type { Env } from "./types";
 
 const ROLE_LABELS: Record<string, string> = { accountant: "Accountant", installer: "Installer" };
@@ -72,7 +72,7 @@ export async function setPermission(env: Env, role: unknown, capability: unknown
   // decided 2026-10-04) that is whatever the other currently says; for the rest it is the standard default. Comparing a following switch with its
   // static default was a bug: with money taken away, switching expense totals ON equalled the default, so it deleted the very setting meant to
   // keep it on, and it fell straight back to following money.
-  const parent = INHERITED_FROM[capability];
+  const parent = followsParent(role, capability) ? INHERITED_FROM[capability] : undefined;   // a role that is INDEPENDENT of the parent (sales and quoting) compares with its static default instead
   const isDefault = parent ? effectiveNow.includes(parent) : (ROLE_CAPABILITIES[role] ?? []).includes(capability);
   if (granted === current) return { ok: true, changed: false, role: await getRolePermissions(env, role) };
 
