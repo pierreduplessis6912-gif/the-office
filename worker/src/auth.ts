@@ -272,7 +272,7 @@ export const CAPABILITY_CATALOG: CapabilityInfo[] = [
     inUse: false,
     ownerOnly: false,
   },
-  { key: "can_invite_members", label: "Invite members", description: "Owner only.", inUse: false, ownerOnly: true },
+  { key: "can_invite_members", label: "Invite members", description: "Owner only.", inUse: true, ownerOnly: true },
   { key: "can_delete_data", label: "Delete data", description: "Owner only.", inUse: false, ownerOnly: true },
   {
     key: "can_manage_settings",
@@ -733,6 +733,11 @@ export const ROUTE_RULES: Array<{ method: string; path: RegExp; anyOf: string[] 
   { method: "GET", path: /^\/settings\/permissions\/audit$/, anyOf: ["can_manage_settings"] },
   { method: "GET", path: /^\/leads$/, anyOf: ["can_manage_settings"] },
   { method: "POST", path: /^\/leads\/\d+\/mark-lost$/, anyOf: ["can_manage_settings"] },
+  // The owner's own team (team.ts): list, add, change a role, deactivate and reactivate. can_invite_members is owner-only and can never be granted to another role.
+  { method: "GET", path: /^\/team$/, anyOf: ["can_invite_members"] },
+  { method: "POST", path: /^\/team$/, anyOf: ["can_invite_members"] },
+  { method: "PATCH", path: /^\/team\/\d+$/, anyOf: ["can_invite_members"] },
+  { method: "POST", path: /^\/team\/\d+\/(deactivate|reactivate)$/, anyOf: ["can_invite_members"] },
   { method: "POST", path: /^\/business-profile\/logo$/, anyOf: ["can_manage_settings"] },
   { method: "POST", path: /^\/files\/(customers|invoices)-csv-import$/, anyOf: ["can_manage_settings"] },
 ];

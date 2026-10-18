@@ -827,6 +827,8 @@ async function expect(role, method, path, want) {
   await require('./directory.test.js')({ check, srcDir });
   // Starting a business from the app: the signed proof, the page, the provisioning and its retries, the caps, the trial's end.
   await require('./signup.test.js')({ check, srcDir });
+  // An owner managing their own team from the app.
+  await require('./team.test.js')({ check, srcDir });
   // The notes store, the file storage and the memory index are shared by every business: each business sees only its own.
   await require('./scoped-bindings.test.js')({ check, srcDir });
   // Moving a business's data in, and proving it arrived.

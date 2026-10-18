@@ -336,6 +336,7 @@ async function __runRouteCase(fns, workerDir, spec) {
   const ctx = { waitUntil: (p) => pendingWork.push(Promise.resolve(p).catch((e) => backgroundErrors.push(String(e && e.message || e)))), passThroughOnException() {} };
   const effects = [];
   const env = { OFFICE_DB: d1(db), AI: raceWrap(ai, 'ai'), CUSTOMER_NOTES: raceWrap(fakeKv(effects, spec.kvSeed), 'kv'), OFFICE_VAULT: raceWrap(fakeR2(effects), 'r2'), MEMORY: raceWrap(fakeVectorize(effects), 'vec'), SESSION_SECRET: 'harness-session-secret', ADMIN_CONFIRM_KEY: 'test-confirm-key', ADMIN_KEY: 'harness-admin-key', GOOGLE_CLIENT_ID: 'harness-client-id' };
+  Object.assign(env, spec.env || {});   // a case may add environment (for example BUSINESS_ID, as inside a business's own object)
   const call = async (step) => {
     const headers = step.form ? {} : { 'content-type': 'application/json' };   // a form sets its own boundary
     if (step.admin) headers['X-Admin-Key'] = env.ADMIN_KEY;

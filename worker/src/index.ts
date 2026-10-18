@@ -10,6 +10,7 @@ import { readOnlyRefusal } from "./freeze";
 import { adminTargetBusiness, callBusiness, forwardToBusiness, routeRequest } from "./routing";
 import { lookupAccessForEmail, normaliseEmail } from "./directory";
 import { handleSignupPost, handleUnknownAccount } from "./signup";
+import { addTeamMember, changeTeamRole, listTeam, setTeamMemberStatus } from "./team";
 import { signedInRedirect } from "./signin";
 import { makeBusinessObject } from "./business-object";
 import { adminTierOf, hashSource, recordAdminCall } from "./admin-gate";
@@ -860,6 +861,34 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
     // The permission grid (2026-10-04, per direct instruction): the owner switches a role's capabilities on and off.
     // Owner only, by ROUTE_RULES in auth.ts (nothing a restricted role holds includes can_manage_settings). PATCH, not PUT,
     // to match every other update here and the allowed methods in the CORS headers.
+    // The owner's own team (team.ts): list, add, change a role, deactivate, reactivate. Owner only: every route needs can_invite_members (ROUTE_RULES in auth.ts), which no other role can ever hold. The handlers learn who is acting from the
+    // session, so "yourself" and "who added them" are real.
+    if (url.pathname === "/team" && request.method === "GET") {
+      return Response.json(await listTeam(env));
+    }
+    if (url.pathname === "/team" && request.method === "POST") {
+      const body = (await request.json().catch(() => null)) as { email?: unknown; role?: unknown } | null;
+      const { email: actor } = await resolveCapabilities(request, env);
+      const added = await addTeamMember(env, actor ?? "", body?.email, body?.role);
+      return added.ok ? Response.json({ member: added.member, healed: added.healed ?? false }, { status: added.status }) : Response.json({ error: added.error }, { status: added.status });
+    }
+    // One condition per route (not one combined pattern) so the route policy can see each of them and pin that only an owner reaches it.
+    if (url.pathname.match(/^\/team\/\d+$/) && request.method === "PATCH") {
+      const body = (await request.json().catch(() => null)) as { role?: unknown } | null;
+      const { email: actor } = await resolveCapabilities(request, env);
+      const changed = await changeTeamRole(env, actor ?? "", url.pathname.split("/")[2], body?.role);
+      return changed.ok ? Response.json({ member: changed.member }, { status: changed.status }) : Response.json({ error: changed.error }, { status: changed.status });
+    }
+    if (url.pathname.match(/^\/team\/\d+\/deactivate$/) && request.method === "POST") {
+      const { email: actor } = await resolveCapabilities(request, env);
+      const changed = await setTeamMemberStatus(env, actor ?? "", url.pathname.split("/")[2], false);
+      return changed.ok ? Response.json({ member: changed.member }, { status: changed.status }) : Response.json({ error: changed.error }, { status: changed.status });
+    }
+    if (url.pathname.match(/^\/team\/\d+\/reactivate$/) && request.method === "POST") {
+      const { email: actor } = await resolveCapabilities(request, env);
+      const changed = await setTeamMemberStatus(env, actor ?? "", url.pathname.split("/")[2], true);
+      return changed.ok ? Response.json({ member: changed.member }, { status: changed.status }) : Response.json({ error: changed.error }, { status: changed.status });
+    }
     if (url.pathname === "/settings/permissions" && request.method === "GET") {
       return Response.json(await listPermissions(env));
     }

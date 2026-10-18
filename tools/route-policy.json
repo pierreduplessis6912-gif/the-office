@@ -410,6 +410,16 @@
   "class": "some roles"
  },
  {
+  "route": "GET /team",
+  "pattern": "/team",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
+ },
+ {
   "route": "PATCH /customers/:id",
   "pattern": "/customers/:id",
   "how": "id in path",
@@ -443,6 +453,16 @@
   "route": "PATCH /settings/permissions",
   "pattern": "/settings/permissions",
   "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
+ },
+ {
+  "route": "PATCH /team/:id",
+  "pattern": "/team/:id",
+  "how": "id in path",
   "none": 401,
   "owner": "A",
   "accountant": 403,
@@ -738,5 +758,35 @@
   "accountant": 403,
   "installer": "A",
   "class": "some roles"
+ },
+ {
+  "route": "POST /team",
+  "pattern": "/team",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
+ },
+ {
+  "route": "POST /team/:id/deactivate",
+  "pattern": "/team/:id/deactivate",
+  "how": "id in path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
+ },
+ {
+  "route": "POST /team/:id/reactivate",
+  "pattern": "/team/:id/reactivate",
+  "how": "id in path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "class": "owner only"
  }
 ]

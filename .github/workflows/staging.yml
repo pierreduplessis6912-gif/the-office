@@ -652,6 +652,37 @@ jobs:
           trial tr-bad "{\"business\":\"$BID\",\"action\":\"delete\"}" yes
           # The name typed at signup must be in the business's OWN profile (profile-seed.ts), read through the real object.
           curl -s -o "$RESULTS/su-profile.json" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Target-Business: $BID" "$BASE/debug/business-profile"
+          # Team management (worker/src/team.ts) on the REAL object: the owner adds a person, who is then seen in the list and the directory; a session minted for that person shows that DEACTIVATING cuts their access at once and reactivating
+          # restores it; and the refusals: a duplicate, an address that belongs to another business (a second signup makes one), and a co-owner who can be added but never deactivated.
+          TEAM="team-member-${TAG}@example.com"; COOWNER="coowner-${TAG}@example.com"; OTHER="signup-owner2-${TAG}@example.com"
+          msession() {
+            python3 - "$1" "$BID" <<'PY'
+          import base64, hashlib, hmac, json, os, sys, time
+          b = lambda x: base64.urlsafe_b64encode(x).rstrip(b"=").decode()
+          p = b(json.dumps({"email": sys.argv[1], "exp": int(time.time() * 1000) + 600000, "b": sys.argv[2]}, separators=(",", ":")).encode())
+          print(p + "." + b(hmac.new(os.environ["STAGING_SESSION_SECRET"].encode(), p.encode(), hashlib.sha256).digest()))
+          PY
+          }
+          api() { curl -s -o "$RESULTS/$1.json" -w '%{http_code}' -X "$2" -H "Cookie: office_session=$3" -H "Content-Type: application/json" ${5:+-d "$5"} "$BASE$4" > "$RESULTS/$1.status"; }
+          api tm-add POST "$SESSION" /team "{\"email\":\"$TEAM\",\"role\":\"installer\"}"
+          api tm-list GET "$SESSION" /team
+          MID=$(python3 -c "import json; print(next((m['id'] for m in json.load(open('$RESULTS/tm-list.json')).get('members', []) if m['email'] == '$TEAM'), ''))")
+          MSESS=$(msession "$TEAM")
+          api tm-m-before GET "$MSESS" /projects
+          api tm-m-team GET "$MSESS" /team
+          dirnow tm-directory
+          api tm-deact POST "$SESSION" "/team/$MID/deactivate" '{}'
+          api tm-m-after GET "$MSESS" /projects
+          api tm-react POST "$SESSION" "/team/$MID/reactivate" '{}'
+          api tm-m-back GET "$MSESS" /projects
+          api tm-role PATCH "$SESSION" "/team/$MID" '{"role":"accountant"}'
+          api tm-dup POST "$SESSION" /team "{\"email\":\"$TEAM\",\"role\":\"installer\"}"
+          form su-second "$(proof "$OTHER")" "Second Floors $TAG" yes
+          api tm-conflict POST "$SESSION" /team "{\"email\":\"$OTHER\",\"role\":\"installer\"}"
+          api tm-co POST "$SESSION" /team "{\"email\":\"$COOWNER\",\"role\":\"owner\"}"
+          api tm-list2 GET "$SESSION" /team
+          COID=$(python3 -c "import json; print(next((m['id'] for m in json.load(open('$RESULTS/tm-list2.json')).get('members', []) if m['email'] == '$COOWNER'), ''))")
+          api tm-co-deact POST "$SESSION" "/team/$COID/deactivate" '{}'
           python3 - <<'PY'
           import base64, datetime, json, os, re, sys, urllib.parse as u
           r, tag = os.environ["RESULTS"], "r" + os.environ["GITHUB_RUN_ID"]
@@ -694,6 +725,10 @@ jobs:
           again = location("su-again"); again_q = u.parse_qs(again.query) if again else {}
           cust = rd("su-customers.json"); cust_list = cust.get("items") if isinstance(cust, dict) else cust   # GET /customers answers {"items": [...], "limit", "offset"}
           health = rd("su-health.json") or {}
+          tm_list = (rd("tm-list.json") or {}).get("members") or []
+          tm_member = next((m for m in tm_list if m.get("email") == "team-member-" + tag + "@example.com"), {})
+          tm_dir = mine_in("tm-directory.json")
+          tm_conflict = json.dumps(rd("tm-conflict.json") or {})
           profile = (rd("su-profile.json") or {}).get("profile") or {}
           ob = rd("su-onboarding.json") or {}
           steps = ob.get("steps") if isinstance(ob, dict) else None
@@ -715,6 +750,12 @@ jobs:
               "a_second_convert_and_an_unknown_action_are_refused": status("tr-again") == "409" and status("tr-bad") == "400",
               "the_signup_name_is_seeded_into_the_business_profile": profile.get("name") == "Signup Floors " + tag,
               "the_profile_step_still_asks_for_the_address": isinstance(steps, list) and next((x for x in steps if x.get("id") == "profile"), {}).get("status") == "pending",
+              "an_owner_adds_a_person_and_the_membership_records_who_added_them": status("tm-add") == "201" and tm_member.get("role") == "installer" and tm_member.get("status") == "active" and tm_member.get("invitedBy") == "signup-owner-" + tag + "@example.com",
+              "the_new_member_is_in_the_directory_and_can_act_but_not_manage_the_team": tm_dir.get("members") == 2 and status("tm-m-before") == "200" and status("tm-m-team") == "403",
+              "deactivating_cuts_access_at_once_and_reactivating_restores_it": status("tm-deact") == "200" and status("tm-m-after") == "403" and status("tm-react") == "200" and status("tm-m-back") == "200",
+              "a_duplicate_is_refused_and_a_role_can_be_changed": status("tm-dup") == "409" and status("tm-role") == "200",
+              "an_address_in_another_business_is_refused_without_saying_which": status("tm-conflict") == "409" and "belongs to another business" in tm_conflict and "Second Floors" not in tm_conflict and "second" not in tm_conflict.lower().replace("belongs", ""),
+              "a_co_owner_can_be_added_but_never_deactivated": status("tm-co") == "201" and status("tm-co-deact") == "403",
               "health_reports_the_running_commit": health.get("commit") == os.environ.get("GITHUB_SHA"),
               "the_directory_columns_exist_on_the_real_database": all("trial_ends_at" in b and "source" in b for b in listing) and len(listing) > 0,
               "answers": {"first": status("su-first"), "again": status("su-again"), "garbage": status("su-garbage"), "untick": status("su-untick"), "days_left": round(days, 3) if days else None, "business": {k: biz.get(k) for k in ("plan", "status", "source", "members")}, "session_b_matches": payload.get("b") == biz.get("id"), "me": {"signedIn": me.get("signedIn"), "role": me.get("role")}, "customers": status("su-customers"), "customer_items": len(cust_list) if isinstance(cust_list, list) else None, "onboarding_steps": len(steps) if isinstance(steps, list) else None, "step_statuses": [x.get("status") for x in steps] if isinstance(steps, list) else None},
