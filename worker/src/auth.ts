@@ -817,6 +817,8 @@ export const SIGNABLE_DOCUMENT_PATHS: Array<{ pattern: RegExp; anyOf: string[] }
   { pattern: /^\/reports\/aged-creditors$/, anyOf: ["can_know_supplier_balances"] },
   { pattern: /^\/reports\/profit-and-loss\/pdf$/, anyOf: ["can_know_profit"] },
   { pattern: /^\/reports\/profit-and-loss$/, anyOf: ["can_know_profit"] },
+  // WHY a figure changed (analysis.ts) reads the profit and loss and the records behind it, so it needs exactly the capability that guards the profit and loss.
+  { pattern: /^\/reports\/analysis$/, anyOf: ["can_know_profit"] },
 ];
 
 export function denyForRole(): Response {

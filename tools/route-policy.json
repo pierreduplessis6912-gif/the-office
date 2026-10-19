@@ -552,6 +552,18 @@
   "class": "signed link"
  },
  {
+  "route": "GET /reports/analysis",
+  "pattern": "/reports/analysis",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "sales": 403,
+  "admin": 403,
+  "class": "owner only"
+ },
+ {
   "route": "GET /reports/profit-and-loss",
   "pattern": "/reports/profit-and-loss",
   "how": "exact path",

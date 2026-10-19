@@ -1,6 +1,7 @@
 export { TrialObject } from "./trial";
 import { agedCreditorsData, agedDebtorsData, parsePeriodParams, profitAndLossData } from "./reports-data";
 import { withExperience } from "./experience";
+import { analysisData, parseAnalysisParams } from "./analysis";
 import { businessLapsed } from "./access";
 import { bulkImportRoute, similarNameTracker } from "./imports";
 import { INVOICE_COLUMNS, matchColumns, parseMoney, readCsv } from "./csv-import";
@@ -1327,6 +1328,16 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         return Response.json(await profitAndLossData(env, parsed));
       } catch {
         return Response.json({ error: "The report could not be built." }, { status: 500 });
+      }
+    }
+    // WHY a figure changed (analysis.ts): from the report's own figures, with the records behind them and no invented cause. Stateless and read-only, so the open report is never touched; authorised exactly like the profit and loss.
+    if (url.pathname === "/reports/analysis" && request.method === "GET") {
+      const parsed = parseAnalysisParams(url.searchParams);
+      if (!parsed.ok) return Response.json({ error: parsed.error }, { status: 400 });
+      try {
+        return Response.json(await analysisData(env, parsed.topic, { period: parsed.period, compare: parsed.compare }));
+      } catch {
+        return Response.json({ error: "The analysis could not be built." }, { status: 500 });
       }
     }
     if (url.pathname === "/reports/aged-debtors" && request.method === "GET") {

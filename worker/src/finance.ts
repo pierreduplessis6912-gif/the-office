@@ -2901,6 +2901,27 @@ export async function getProfitAndLoss(env: Env, range?: DateRange): Promise<Pro
   return report;
 }
 
+// The records BEHIND a profit and loss figure, read through the SAME date filter the report uses (so a record the report counts in a period is a record listed for it, border days and time zone included). Read-only. Used by the analysis layer (analysis.ts),
+// which compares the total here with the report's own figure and says whether they match.
+export interface EvidenceRecord { id: number; date: string; amount: number; description: string; customerId: number | null }
+export interface EvidenceSet { count: number; total: number; records: EvidenceRecord[] }
+const localDate = (enteredAtUtc: string): string => new Date(Date.parse(`${enteredAtUtc.replace(" ", "T")}Z`) + 2 * 3_600_000).toISOString().slice(0, 10);   // South African time, UTC+2: the day the period filter counts it in
+
+export async function getExpenseEvidence(env: Env, range: DateRange | undefined, category: string, limit: number): Promise<EvidenceSet> {
+  const filter = dateFilter(range, "created_at", "AND");
+  const where = `WHERE COALESCE(category, 'other') = ?${filter.sql}`;
+  const totals = await env.OFFICE_DB.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(amount), 0) AS total FROM expenses ${where}`).bind(category, ...filter.binds).first<{ n: number; total: number }>();
+  const { results } = await env.OFFICE_DB.prepare(`SELECT id, amount, description, created_at, customer_id FROM expenses ${where} ORDER BY amount DESC, id DESC LIMIT ?`).bind(category, ...filter.binds, limit).all<{ id: number; amount: number; description: string; created_at: string; customer_id: number | null }>();
+  return { count: totals?.n ?? 0, total: totals?.total ?? 0, records: results.map((r) => ({ id: r.id, date: localDate(r.created_at), amount: r.amount, description: r.description, customerId: r.customer_id })) };
+}
+
+export async function getInvoiceEvidence(env: Env, range: DateRange | undefined, limit: number): Promise<EvidenceSet> {
+  const filter = dateFilter(range, "created_at", "WHERE");
+  const totals = await env.OFFICE_DB.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(amount), 0) AS total FROM invoices${filter.sql}`).bind(...filter.binds).first<{ n: number; total: number }>();
+  const { results } = await env.OFFICE_DB.prepare(`SELECT id, amount, description, created_at, customer_id FROM invoices${filter.sql} ORDER BY amount DESC, id DESC LIMIT ?`).bind(...filter.binds, limit).all<{ id: number; amount: number; description: string; created_at: string; customer_id: number | null }>();
+  return { count: totals?.n ?? 0, total: totals?.total ?? 0, records: results.map((r) => ({ id: r.id, date: localDate(r.created_at), amount: r.amount, description: r.description, customerId: r.customer_id })) };
+}
+
 export async function getProfitAndLossSummary(env: Env, range?: DateRange): Promise<string[]> {
   const report = await getProfitAndLoss(env, range);
   const period = describeRange(range);
