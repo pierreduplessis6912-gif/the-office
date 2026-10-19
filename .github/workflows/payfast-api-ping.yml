@@ -1,0 +1,48 @@
+name: PayFast API ping (read only, SANDBOX)
+
+# Asks PayFast's own sandbox API whether our way of SIGNING a request is right, and whether this merchant account has the API enabled, with PayFast's harmless ping endpoint. Nothing is changed at PayFast, no money is involved, and no secret is printed or
+# written down (only the HTTP status and PayFast's short answer). The signature is MD5 over the request's header values (merchant-id, passphrase, timestamp, version), keys in alphabetical order, values URL-encoded the PHP way.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ping PayFast's sandbox API
+        env:
+          MERCHANT: ${{ secrets.PAYFAST_SANDBOX_MERCHANT_ID }}
+          PASSPHRASE: ${{ secrets.PAYFAST_SANDBOX_PASSPHRASE }}
+        run: |
+          python3 - <<'PY'
+          import datetime, hashlib, json, os, urllib.parse, urllib.request
+          enc = lambda s: urllib.parse.quote_plus(s, safe="").replace("~", "%7E")
+          def call(timestamp, passphrase_value):
+              data = {"merchant-id": os.environ["MERCHANT"], "passphrase": passphrase_value, "timestamp": timestamp, "version": "v1"}
+              signature = hashlib.md5("&".join(f"{k}={enc(data[k])}" for k in sorted(data)).encode()).hexdigest()
+              req = urllib.request.Request("https://api.payfast.co.za/ping?testing=true", headers={"merchant-id": data["merchant-id"], "version": "v1", "timestamp": timestamp, "signature": signature, "User-Agent": "the-office-ping"})
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as r: return r.status, r.read().decode()[:160]
+              except urllib.error.HTTPError as e: return e.code, e.read().decode()[:160]
+              except Exception as e: return 0, str(e)[:160]
+          now = datetime.datetime.now(datetime.timezone.utc).astimezone(datetime.timezone(datetime.timedelta(hours=2)))
+          stamp = now.strftime("%Y-%m-%dT%H:%M:%S+02:00")
+          good = call(stamp, os.environ["PASSPHRASE"])
+          wrong = call(stamp, "not-the-passphrase")   # a deliberately WRONG signature, to see how PayFast refuses one
+          out = {"when": datetime.datetime.now(datetime.timezone.utc).isoformat(), "with_our_signature": {"http": good[0], "answer": good[1]}, "with_a_wrong_signature": {"http": wrong[0], "answer": wrong[1]}}
+          os.makedirs("ops", exist_ok=True)
+          json.dump(out, open("ops/payfast-api-ping-last.json", "w"), indent=1)
+          print(json.dumps(out, indent=1))
+          PY
+      - name: Commit the record
+        if: always()
+        run: |
+          git config user.name "Claude"; git config user.email "noreply@anthropic.com"
+          git add ops/payfast-api-ping-last.json || true
+          git commit -m "PayFast API ping record (statuses and short answers only)" || echo "nothing to record"
+          git pull --rebase origin "$GITHUB_REF_NAME" || true
+          git push origin HEAD:"$GITHUB_REF_NAME" || echo "could not push the record"
