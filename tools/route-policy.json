@@ -960,6 +960,18 @@
   "class": "owner only"
  },
  {
+  "route": "POST /context/check",
+  "pattern": "/context/check",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "sales": "A",
+  "admin": "A",
+  "class": "any member"
+ },
+ {
   "route": "POST /files/*",
   "pattern": "/files/*",
   "how": "any path under /files",

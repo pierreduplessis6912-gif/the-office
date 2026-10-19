@@ -3,6 +3,7 @@
 // recorded speech and stays in `captures` (it is read from there, not copied); what The Office GENERATED (interpretation, reply, mode) is kept apart from it. (3) "Executed" is TRACED at read time through the capture_id that 18 business tables already
 // carry, not guessed. (4) A decision on a held action (confirm, reject, edit-field) is recorded with who and the outcome, including refused attempts, from the response STATUS alone (the body is never read). (5) A member reads only their OWN turns; only an owner
 // (can_manage_settings) may ask for everyone's. (6) Only an allowlist of the reply is stored: no capabilities, tokens or addresses beyond the actor. (7) Reading is read-only and bounded; the record is append-only. Nothing here deletes anything.
+import { parseContext } from "./context";
 import { buildExperience } from "./experience";
 import type { Env } from "./types";
 
@@ -14,7 +15,10 @@ const made = new WeakSet<object>();
 async function ensureTables(env: Env): Promise<void> {
   const db = env.OFFICE_DB as unknown as object;
   if (made.has(db)) return;
-  await env.OFFICE_DB.prepare("CREATE TABLE IF NOT EXISTS interaction_log (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL DEFAULT (datetime('now')), actor_email TEXT, source TEXT NOT NULL, capture_id INTEGER, interpreted TEXT, proposed TEXT, replied TEXT, mode TEXT)").run();
+  await env.OFFICE_DB.prepare("CREATE TABLE IF NOT EXISTS interaction_log (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL DEFAULT (datetime('now')), actor_email TEXT, source TEXT NOT NULL, capture_id INTEGER, interpreted TEXT, proposed TEXT, replied TEXT, mode TEXT, viewing TEXT)").run();
+  // A table created before `viewing` existed is upgraded the first time it is written (history is append-only: nothing is lost).
+  const columns = await env.OFFICE_DB.prepare("PRAGMA table_info(interaction_log)").all<{ name: string }>();
+  if (!(columns.results ?? []).some((c) => c.name === "viewing")) await env.OFFICE_DB.prepare("ALTER TABLE interaction_log ADD COLUMN viewing TEXT").run();
   await env.OFFICE_DB.prepare("CREATE INDEX IF NOT EXISTS idx_interaction_actor ON interaction_log (actor_email, id)").run();
   await env.OFFICE_DB.prepare("CREATE TABLE IF NOT EXISTS action_events (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL DEFAULT (datetime('now')), action_id INTEGER NOT NULL, kind TEXT NOT NULL, actor_email TEXT, outcome TEXT)").run();
   await env.OFFICE_DB.prepare("CREATE INDEX IF NOT EXISTS idx_action_events_action ON action_events (action_id, id)").run();
@@ -26,7 +30,7 @@ const tidyEmail = (value: unknown): string | null => (typeof value === "string" 
 
 // ---- recording -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Records one turn. Returns whether it was written; NEVER throws.
-export async function recordInteraction(env: Env, turn: { actorEmail: unknown; source: unknown; captureId: number | null; processed: unknown }): Promise<boolean> {
+export async function recordInteraction(env: Env, turn: { actorEmail: unknown; source: unknown; captureId: number | null; processed: unknown; viewing?: unknown }): Promise<boolean> {
   try {
     await ensureTables(env);
     const experience = buildExperience(turn.processed);   // the held actions and the recommended mode come from the envelope's own function: one derivation
@@ -41,8 +45,11 @@ export async function recordInteraction(env: Env, turn: { actorEmail: unknown; s
     }
     const source = typeof turn.source === "string" && turn.source.length <= 20 ? turn.source : "text";
     const captureId = typeof turn.captureId === "number" && Number.isSafeInteger(turn.captureId) && turn.captureId > 0 ? turn.captureId : null;
-    await env.OFFICE_DB.prepare("INSERT INTO interaction_log (actor_email, source, capture_id, interpreted, proposed, replied, mode) VALUES (?, ?, ?, ?, ?, ?, ?)")
-      .bind(tidyEmail(turn.actorEmail), source, captureId, interpreted, JSON.stringify(experience.established.heldActions), replied, experience.recommendation.mode).run();
+    // What the app said was on screen (workspace context): re-validated HERE, so nothing unvalidated can ever be stored; null when there is nothing to record.
+    const shown = parseContext(turn.viewing).context;
+    const viewing = shown !== null && Object.keys(shown).length > 0 ? JSON.stringify(shown) : null;
+    await env.OFFICE_DB.prepare("INSERT INTO interaction_log (actor_email, source, capture_id, interpreted, proposed, replied, mode, viewing) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(tidyEmail(turn.actorEmail), source, captureId, interpreted, JSON.stringify(experience.established.heldActions), replied, experience.recommendation.mode, viewing).run();
     return true;
   } catch {
     return false;
@@ -93,7 +100,7 @@ export function resolveScope(who: "me" | "all", capabilities: readonly string[])
 }
 
 // ---- reading (read-only, bounded) ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-type Row = { id: number; at: string; actor_email: string | null; source: string; capture_id: number | null; interpreted: string | null; proposed: string | null; replied: string | null; mode: string | null; heard: string | null };
+type Row = { id: number; at: string; actor_email: string | null; source: string; capture_id: number | null; interpreted: string | null; proposed: string | null; replied: string | null; mode: string | null; viewing?: string | null; heard: string | null };
 const parseJson = (text: string | null): unknown => { if (text === null) return null; try { return JSON.parse(text); } catch { return null; } };
 const marks = (count: number): string => Array.from({ length: count }, () => "?").join(", ");
 
@@ -102,9 +109,11 @@ export async function readHistory(env: Env, query: { scope: "own" | "all"; viewe
   const viewer = tidyEmail(query.viewer);
   let rows: Row[];
   try {
-    const result = await env.OFFICE_DB.prepare(
-      "SELECT l.id AS id, l.created_at AS at, l.actor_email AS actor_email, l.source AS source, l.capture_id AS capture_id, l.interpreted AS interpreted, l.proposed AS proposed, l.replied AS replied, l.mode AS mode, c.raw_text AS heard FROM interaction_log l LEFT JOIN captures c ON c.id = l.capture_id WHERE (? = 1 OR l.actor_email = ?) AND (? IS NULL OR l.id < ?) ORDER BY l.id DESC LIMIT ?",
-    ).bind(query.scope === "all" ? 1 : 0, viewer, query.before, query.before, query.limit + 1).all<Row>();
+    const select = (viewingColumn: string): string => `SELECT l.id AS id, l.created_at AS at, l.actor_email AS actor_email, l.source AS source, l.capture_id AS capture_id, l.interpreted AS interpreted, l.proposed AS proposed, l.replied AS replied, l.mode AS mode, ${viewingColumn} AS viewing, c.raw_text AS heard FROM interaction_log l LEFT JOIN captures c ON c.id = l.capture_id WHERE (? = 1 OR l.actor_email = ?) AND (? IS NULL OR l.id < ?) ORDER BY l.id DESC LIMIT ?`;
+    const binds = [query.scope === "all" ? 1 : 0, viewer, query.before, query.before, query.limit + 1];
+    let result;
+    try { result = await env.OFFICE_DB.prepare(select("l.viewing")).bind(...binds).all<Row>(); }
+    catch { result = await env.OFFICE_DB.prepare(select("NULL")).bind(...binds).all<Row>(); }   // a table created before `viewing` existed has no such column yet: read it as "nothing was said to be on screen"
     rows = result.results ?? [];
   } catch {
     return empty;   // the tables do not exist yet: nothing has been recorded
@@ -151,6 +160,7 @@ export async function readHistory(env: Env, query: { scope: "own" | "all"; viewe
     const mine = proposed.get(row.id) ?? [];
     const item = {
       id: row.id, at: row.at, source: row.source,
+      viewing: row.viewing ? parseJson(row.viewing) : null,   // what the APP said was on screen (untrusted, validated): neither recorded speech nor generated
       recorded: { heard: row.heard },   // what was actually said or typed: recorded speech
       generated: { interpreted: parseJson(row.interpreted), replied: row.replied, mode: row.mode },   // what The Office produced: system-generated
       proposed: mine.map((a) => ({ id: a.id, type: a.type, status: status.get(a.id) ?? null })),

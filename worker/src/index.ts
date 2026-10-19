@@ -1,4 +1,5 @@
 export { TrialObject } from "./trial";
+import { checkContextRequest, contextFromHeader, parseContext } from "./context";
 import { decisionOf, parseHistoryParams, readHistory, recordDecision, recordInteraction, resolveScope } from "./history";
 import { agedCreditorsData, agedDebtorsData, parsePeriodParams, profitAndLossData } from "./reports-data";
 import { withExperience } from "./experience";
@@ -1332,6 +1333,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       } catch {
         return Response.json({ error: "The report could not be built." }, { status: 500 });
       }
+    }
+    // The dry run for workspace context (context.ts): what WOULD be kept and what would be dropped. Changes nothing, reads nothing, open to every member like the message routes.
+    if (url.pathname === "/context/check" && request.method === "POST") {
+      const checked = checkContextRequest(await request.json().catch(() => null));
+      return Response.json(checked.body, { status: checked.status });
     }
     // The history of what the person said and what The Office did (history.ts). A member reads only their OWN turns; everyone's needs can_manage_settings. Read-only.
     if (url.pathname === "/history" && request.method === "GET") {
@@ -3304,7 +3310,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             rewrittenQuery: "",
           };
 
-      await recordInteraction(env, { actorEmail: voiceEmail, source: "voice", captureId: captured, processed });   // swallowed on failure: it can never change a reply
+      await recordInteraction(env, { actorEmail: voiceEmail, source: "voice", captureId: captured, processed, viewing: contextFromHeader(request.headers.get("X-Office-Context")).context });   // swallowed on failure: it can never change a reply
       const audioResponseBody = JSON.stringify({ status: "stored", key, transcript, transcriptionError, ...withExperience(processed) });
       await completeIdempotencyKey(env, idempotencyKey, audioResponseBody);
       return new Response(audioResponseBody, { headers: { "Content-Type": "application/json" } });
@@ -3812,7 +3818,7 @@ let created = 0;
     // "Type" mode. Same pipeline, no transcription step needed since
     // the text is already text.
     if (url.pathname === "/messages/text" && request.method === "POST") {
-      const body = (await request.json()) as { text?: string; history?: HistoryTurn[]; idempotency_key?: string };
+      const body = (await request.json()) as { text?: string; history?: HistoryTurn[]; idempotency_key?: string; context?: unknown };
       const text = body.text?.trim();
       const history = Array.isArray(body.history) ? body.history : [];
       const idempotencyKey = body.idempotency_key ?? null;
@@ -3837,7 +3843,7 @@ let created = 0;
       const { capabilities, email: textEmail } = await resolveCapabilities(request, env);
       let captured: number | null = null;
       const processed = await processTranscript(env, text, ctx, history, "text", null, capabilities, textEmail, (id) => { captured = id; });
-      await recordInteraction(env, { actorEmail: textEmail, source: "text", captureId: captured, processed });   // swallowed on failure: it can never change a reply
+      await recordInteraction(env, { actorEmail: textEmail, source: "text", captureId: captured, processed, viewing: parseContext(body.context).context });   // swallowed on failure: it can never change a reply
       const responseBody = JSON.stringify({ status: "processed", transcript: text, ...withExperience(processed) });
 
       await completeIdempotencyKey(env, idempotencyKey, responseBody);
