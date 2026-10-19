@@ -43,6 +43,20 @@ jobs:
               out["bot_errors"] = [e.get("message") for e in (b.get("errors") or [])][:3]
               d = get(f"/zones/{zid}/dns_records?name=office.websitehub.co.za")
               out["office_dns"] = [{"type": r.get("type"), "proxied": r.get("proxied")} for r in (d.get("result") or [])]
+          # What actually happened to requests for the notification address in the last day, from Cloudflare's own analytics: did anything REACH the edge, and what was done with it? (needs analytics read access; the result says if it is missing)
+          def graphql(query):
+              req = urllib.request.Request("https://api.cloudflare.com/client/v4/graphql", data=json.dumps({"query": query}).encode(), headers={"Authorization": "Bearer " + tok, "Content-Type": "application/json"})
+              try:
+                  with urllib.request.urlopen(req, timeout=40) as r: return json.load(r)
+              except urllib.error.HTTPError as e:
+                  try: return json.load(e)
+                  except Exception: return {"errors": [{"message": "HTTP " + str(e.code)}]}
+          if zid:
+              now = datetime.datetime.now(datetime.timezone.utc); since = (now - datetime.timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ"); until = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+              q1 = '{ viewer { zones(filter: {zoneTag: "%s"}) { httpRequestsAdaptiveGroups(filter: {datetime_geq: "%s", datetime_leq: "%s", clientRequestPath: "/billing/payfast/notify"}, limit: 20, orderBy: [datetime_DESC]) { count dimensions { datetime clientRequestHTTPMethodName edgeResponseStatus originResponseStatus clientAsn clientCountryName securitySource securityAction } } } } }' % (zid, since, until)
+              g1 = graphql(q1); out["edge_requests_for_notify_path"] = (((g1.get("data") or {}).get("viewer") or {}).get("zones") or [{}])[0].get("httpRequestsAdaptiveGroups") if g1.get("data") else None; out["edge_requests_errors"] = [e.get("message") for e in (g1.get("errors") or [])][:3]
+              q2 = '{ viewer { zones(filter: {zoneTag: "%s"}) { firewallEventsAdaptive(filter: {datetime_geq: "%s", datetime_leq: "%s", clientRequestPath: "/billing/payfast/notify"}, limit: 20, orderBy: [datetime_DESC]) { datetime action source ruleId clientAsn clientCountryName userAgent clientRequestHTTPMethodName } } } }' % (zid, since, until)
+              g2 = graphql(q2); out["security_events_for_notify_path"] = (((g2.get("data") or {}).get("viewer") or {}).get("zones") or [{}])[0].get("firewallEventsAdaptive") if g2.get("data") else None; out["security_events_errors"] = [e.get("message") for e in (g2.get("errors") or [])][:3]
           os.makedirs("ops", exist_ok=True)
           json.dump(out, open("ops/zone-settings-last.json", "w"), indent=1)
           print(json.dumps(out, indent=1))
