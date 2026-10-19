@@ -84,6 +84,13 @@ jobs:
           probe "form content type, no charset" -H "Content-Type: application/x-www-form-urlencoded"
           probe "very short timeout (2s)" --max-time 2
           echo "--- DNS the zone publishes for the host:"; getent ahosts office.websitehub.co.za | awk '{print $1}' | sort -u | head -6
+          echo "--- What the server offers, asked with openssl (client-side limits switched off):"
+          for V in tls1 tls1_1 tls1_2 tls1_3; do
+            R=$(echo | timeout 15 openssl s_client -connect office.websitehub.co.za:443 -servername office.websitehub.co.za -$V -cipher 'ALL:@SECLEVEL=0' 2>&1 | grep -E "^\s+Protocol  :|Protocol version|Cipher is|alert|no protocols|handshake failure" | head -3 | tr '\n' ' ')
+            echo "$V -> ${R:-no answer}"
+          done
+          echo "--- Certificate chain presented:"
+          echo | timeout 15 openssl s_client -connect office.websitehub.co.za:443 -servername office.websitehub.co.za -showcerts 2>/dev/null | grep -E "^ *[0-9] s:|^   i:|a:PKEY|Verification|Verify return" | head -14
       - name: Commit the record
         if: always()
         run: |
