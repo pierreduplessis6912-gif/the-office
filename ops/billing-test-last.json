@@ -1,5 +1,5 @@
 {
- "when": "2026-10-19T05:51:00.965276+00:00",
+ "when": "2026-10-19T06:19:52.733613+00:00",
  "action": "status",
  "business": "ballz-enterprizes-392739",
  "http": "200",
@@ -25,7 +25,8 @@
     "amountCents": 89700,
     "status": "completed",
     "createdAt": "2026-10-19 05:47:16",
-    "completedAt": "2026-10-19 05:50:14"
+    "completedAt": "2026-10-19 05:50:14",
+    "notices": []
    },
    {
     "id": "9c4b8d2b-0eb5-438e-9c2a-5b2c8921e39d",
@@ -35,7 +36,8 @@
     "amountCents": 89700,
     "status": "pending",
     "createdAt": "2026-10-19 04:39:20",
-    "completedAt": null
+    "completedAt": null,
+    "notices": []
    },
    {
     "id": "574a0ef3-aeda-4c12-a9f9-a7ebef74eb48",
@@ -45,7 +47,8 @@
     "amountCents": 89700,
     "status": "pending",
     "createdAt": "2026-10-19 00:14:32",
-    "completedAt": null
+    "completedAt": null,
+    "notices": []
    }
   ],
   "payments": [
