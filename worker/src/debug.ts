@@ -27,7 +27,7 @@ import { businessIsEmpty } from "./emptiness";
 import { recordSignIn, recordTeamEvent } from "./team-log";
 import { ensureTeamPerson, validFullName } from "./team-people";
 import { checkSeat } from "./seats";
-import { billingStatus, createOrder, setBillingState } from "./billing";
+import { billingStatus, createOrder, pingPayFast, setBillingState, subscriptionAction } from "./billing";
 import { callBusiness } from "./routing";
 import { applyIndexes } from "./indexes";
 import { trialAi, trialD1, trialDo, trialTx } from "./trial";
@@ -126,6 +126,20 @@ if (url.pathname === "/debug/timings" && request.method === "GET") {
       return made.ok
         ? Response.json({ orderId: made.order.id, amountCents: made.order.amountCents, itemName: made.order.itemName, payUrl: `${url.origin}/billing/pay?order=${made.order.id}` }, { status: 201 })
         : Response.json({ error: made.error }, { status: made.status });
+    }
+    // A business's subscription AT PayFast (billing.ts): look at it, pause, resume or cancel it, and check that our signing and merchant account are accepted. Nothing here changes OUR record of the business.
+    if (url.pathname === "/debug/directory/payfast-ping" && request.method === "GET") {
+      const pinged = await pingPayFast(env, (u, init) => fetch(u, init));
+      return pinged.ok ? Response.json({ ok: true }) : Response.json({ ok: false, error: pinged.error }, { status: pinged.status });
+    }
+    if (url.pathname === "/debug/directory/payfast-subscription" && request.method === "GET") {
+      const seen = await subscriptionAction(env, url.searchParams.get("business"), "fetch", (u, init) => fetch(u, init));
+      return seen.ok ? Response.json(seen.result) : Response.json({ error: seen.error }, { status: seen.status });
+    }
+    if (url.pathname === "/debug/directory/payfast-subscription" && request.method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { business?: unknown; action?: unknown };
+      const done = await subscriptionAction(env, body.business, body.action, (u, init) => fetch(u, init));
+      return done.ok ? Response.json(done.result) : Response.json({ error: done.error }, { status: done.status });
     }
     // Set a business's subscription state (to correct one, grant a free month, or rehearse a lapse): privileged, strictly validated in billing.ts, and it touches nothing but those three fields.
     if (url.pathname === "/debug/directory/billing-state" && request.method === "POST") {

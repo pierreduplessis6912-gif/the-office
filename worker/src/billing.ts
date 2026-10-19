@@ -5,6 +5,7 @@
 // email addresses. A fault here must never touch a business that has not paid. Pinned in tools/billing.test.js; what it cannot prove is that PayFast's own sandbox accepts our signature (a real sandbox payment does).
 import { clearPlanCache, listOffers } from "./limits";
 import { buildCheckout, confirmWithPayFastDetailed, ipAllowed, parseItnBody, randToCents, verifyItnSignature, type Pair } from "./payfast";
+import { callApi, reasonOf, shownFacts } from "./payfast-api";
 import type { Env } from "./types";
 
 // ---- configuration ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -295,5 +296,36 @@ export async function setBillingState(env: Env, input: { business: unknown; bill
   await env.OFFICE_DB.prepare(`UPDATE businesses SET ${sets.join(", ")} WHERE id = ?`).bind(...binds, input.business).run();
   const status = await billingStatus(env, input.business);
   return status ? { ok: true, status } : { ok: false, status: 404, error: "There is no such business." };
+}
+
+// ---- an operator works with a business's subscription AT PayFast ---------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Inspect it, pause it, resume it, or cancel it (a failing subscription is locked by PayFast after five failed attempts and needs the merchant to reactivate it). The subscription token is read from OUR record and put in the address only if it is exactly the shape
+// of a PayFast subscription token; it is never returned. Only an allowlist of facts comes back (payfast-api.ts). And these actions NEVER change OUR record of the business: our state moves only when PayFast's own notification arrives (or an operator sets it).
+const API_ACTIONS: Record<string, "GET" | "PUT"> = { fetch: "GET", pause: "PUT", unpause: "PUT", cancel: "PUT" };
+type ApiFetch = (url: string, init: RequestInit) => Promise<Response>;
+const apiFailure = (answer: { reached: boolean; httpStatus: number; json: unknown }): { ok: false; status: number; error: string } => {
+  if (!answer.reached) return { ok: false, status: 502, error: "PayFast could not be reached." };
+  const reason = reasonOf(answer.json);
+  return { ok: false, status: 502, error: `PayFast answered ${answer.httpStatus}${reason ? `: ${reason}` : ""}` };
+};
+const apiSucceeded = (answer: { httpStatus: number; json: unknown }): boolean => answer.httpStatus === 200 && answer.json !== null && (typeof answer.json === "string" || (typeof answer.json === "object" && (answer.json as { status?: unknown }).status !== "failed"));
+
+export async function pingPayFast(env: Env, fetchFn: ApiFetch, now: Date = new Date()): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const config = payfastConfig(env);
+  if (!config) return { ok: false, status: 503, error: "Payments are not set up yet." };
+  const answer = await callApi(config, "GET", "/ping", fetchFn, now);
+  return apiSucceeded(answer) ? { ok: true } : apiFailure(answer);
+}
+
+export async function subscriptionAction(env: Env, businessId: unknown, action: unknown, fetchFn: ApiFetch, now: Date = new Date()): Promise<{ ok: true; result: Record<string, string | number | boolean> } | { ok: false; status: number; error: string }> {
+  if (typeof action !== "string" || !Object.prototype.hasOwnProperty.call(API_ACTIONS, action)) return { ok: false, status: 400, error: "action must be exactly one of: fetch, pause, unpause, cancel." };
+  const config = payfastConfig(env);
+  if (!config) return { ok: false, status: 503, error: "Payments are not set up yet." };
+  const row = typeof businessId === "string" ? await env.OFFICE_DB.prepare("SELECT pf_token FROM businesses WHERE id = ?").bind(businessId).first<{ pf_token: string | null }>().catch(() => null) : null;
+  if (!row || !row.pf_token) return { ok: false, status: 404, error: "That business has no subscription." };
+  if (!/^[0-9a-f-]{36}$/i.test(row.pf_token)) return { ok: false, status: 409, error: "The stored subscription reference is not a PayFast subscription." };
+  const answer = await callApi(config, API_ACTIONS[action], `/subscriptions/${row.pf_token}/${action}`, fetchFn, now);
+  if (!apiSucceeded(answer) || (typeof answer.json === "string")) return apiFailure(answer);
+  return { ok: true, result: action === "fetch" ? shownFacts(answer.json) : { done: true } };
 }
 
