@@ -1,0 +1,33 @@
+name: Production billing health (alerts by failing, so GitHub e-mails the owner when a run fails)
+
+# Every half hour, ask production whether MONEY MAY BE STUCK: a payment notification that failed to apply, a notification refused for an unpaid order, or a payment recorded as rejected or review. If there is a problem the run FAILS and GitHub e-mails you; it also
+# fails when the check itself cannot be made (a silent monitor is worse than a noisy one). It uses only the READ key, commits nothing (a check every half hour must not fill the history), prints no key, and changes nothing.
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ask production how billing is
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+        run: |
+          CODE=$(curl -s -o health.json -w '%{http_code}' --max-time 30 "https://office.websitehub.co.za/debug/directory/billing-health" -H "X-Admin-Key: $ADMIN" || true)
+          if [ "$CODE" != "200" ]; then echo "::error::The billing health check could not be made (HTTP $CODE)."; exit 1; fi
+          python3 - <<'PY'
+          import json, sys
+          h = json.load(open("health.json"))
+          c = h.get("counts", {})
+          print("checked at", h.get("checkedAt"), "| pending orders:", c.get("ordersPending"), "| past due:", c.get("businessesPastDue"), "| problems:", c.get("problemsTotal"), "| watch:", c.get("watchTotal"))
+          for w in h.get("watch", []): print("WATCH  ", w.get("code"), w.get("business", ""), "-", w.get("detail"))
+          for p in h.get("problems", []): print("PROBLEM", p.get("code"), p.get("business", ""), p.get("order", ""), "-", p.get("detail"))
+          if not h.get("ok"):
+              print("::error::Billing has a problem: money may be stuck. See the lines above.")
+              sys.exit(1)
+          PY

@@ -144,6 +144,7 @@ export const ADMIN_ROUTE_TIERS: Readonly<Record<string, AdminTier>> = {
   "POST /debug/directory/set-plan": "privileged",
   "POST /debug/directory/billing-order": "privileged",
   "POST /debug/directory/billing-state": "privileged",
+  "GET /debug/directory/billing-health": "read",
   "GET /debug/directory/payfast-ping": "read",
   "GET /debug/directory/payfast-subscription": "read",
   "POST /debug/directory/payfast-subscription": "privileged",

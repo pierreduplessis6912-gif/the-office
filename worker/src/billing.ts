@@ -6,6 +6,7 @@
 import { clearPlanCache, listOffers } from "./limits";
 import { buildCheckout, confirmWithPayFastDetailed, ipAllowed, parseItnBody, randToCents, verifyItnSignature, type Pair } from "./payfast";
 import { callApi, reasonOf, shownFacts } from "./payfast-api";
+import { lapseOf } from "./access";
 import type { Env } from "./types";
 
 // ---- configuration ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -327,5 +328,52 @@ export async function subscriptionAction(env: Env, businessId: unknown, action: 
   const answer = await callApi(config, API_ACTIONS[action], `/subscriptions/${row.pf_token}/${action}`, fetchFn, now);
   if (!apiSucceeded(answer) || (typeof answer.json === "string")) return apiFailure(answer);
   return { ok: true, result: action === "fetch" ? shownFacts(answer.json) : { done: true } };
+}
+
+// ---- the billing health check: is MONEY STUCK? ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Read-only. Two lists. PROBLEMS are page-worthy because money may have been taken and not applied, or applying it failed: a payment notification that failed to apply in the last 24 hours, a notification refused for an order that is still unpaid, and a payment
+// recorded as rejected or review (a second subscription, a wrong amount) in the last 7 days. WATCH is information, never an alarm: a past-due business whose grace period ends within 2 days, and businesses that have lapsed. A missing table or column means "nothing
+// to report", but a database that cannot be READ is itself a problem: a silent monitor is worse than a noisy one. It shows no payer address, token or secret, and every detail is at most 120 characters. A scheduled workflow calls it and goes red on a problem.
+export interface HealthItem { code: string; detail: string; business?: string; order?: string }
+export interface BillingHealth { ok: boolean; checkedAt: string; problems: HealthItem[]; watch: HealthItem[]; counts: { problemsTotal: number; watchTotal: number; ordersPending: number; businessesPastDue: number }; notes: string[] }
+const HEALTH_NOTICE_HOURS = 24, HEALTH_PAYMENT_DAYS = 7, HEALTH_MAX_LISTED = 50, HEALTH_DETAIL_MAX = 120, HEALTH_GRACE_WARNING_DAYS = 2;
+const isMissingThing = (error: unknown): boolean => /no such (table|column)/i.test(error instanceof Error ? error.message : String(error));
+const sqlStamp = (ms: number): string => new Date(ms).toISOString().slice(0, 19).replace("T", " ");
+
+export async function billingHealth(env: Env, now: Date = new Date()): Promise<BillingHealth> {
+  const problems: HealthItem[] = [], watch: HealthItem[] = [], notes: string[] = [];
+  const clip = (text: string): string => text.replace(/[^\x20-\x7e]/g, "?").slice(0, HEALTH_DETAIL_MAX);
+  const db = env.OFFICE_DB, today = ymd(now);
+  const since = sqlStamp(now.getTime() - HEALTH_NOTICE_HOURS * 3_600_000), sinceDays = sqlStamp(now.getTime() - HEALTH_PAYMENT_DAYS * 86_400_000);
+  let ordersPending = 0, businessesPastDue = 0;
+  try {
+    try {   // a notification that failed to apply, or was refused for an order still unpaid
+      const { results } = await db.prepare("SELECT id, business_id, status, last_notice FROM billing_orders WHERE last_notice IS NOT NULL ORDER BY created_at DESC LIMIT 500").all<{ id: string; business_id: string; status: string; last_notice: string }>();
+      for (const row of results ?? []) {
+        for (const line of String(row.last_notice).split("\n")) {
+          const parts = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) (.*)$/.exec(line);
+          if (!parts || parts[1] < since) continue;
+          if (parts[2].startsWith("error:")) { problems.push({ code: "notification_error", business: row.business_id, order: row.id.slice(0, 8), detail: clip(parts[2].slice(6).trim() || "a payment notification failed to apply") }); break; }
+          if (row.status === "pending" && (parts[2].startsWith("bad_signature") || parts[2].startsWith("not_confirmed"))) { problems.push({ code: "notification_refused", business: row.business_id, order: row.id.slice(0, 8), detail: clip(parts[2]) }); break; }
+        }
+      }
+    } catch (error) { if (!isMissingThing(error)) throw error; notes.push("no notification trail yet"); }
+    try {   // money taken but not applied
+      const { results } = await db.prepare("SELECT business_id, status, amount_gross_cents FROM billing_payments WHERE status IN ('rejected', 'review') AND created_at >= ? ORDER BY id DESC LIMIT 500").bind(sinceDays).all<{ business_id: string | null; status: string; amount_gross_cents: number | null }>();
+      for (const row of results ?? []) problems.push({ code: "payment_needs_review", ...(row.business_id ? { business: row.business_id } : {}), detail: clip(`${row.amount_gross_cents === null ? "a payment" : `R${(row.amount_gross_cents / 100).toFixed(2)}`} was recorded as ${row.status} and not applied`) });
+    } catch (error) { if (!isMissingThing(error)) throw error; notes.push("no billing tables yet"); }
+    try { ordersPending = (await db.prepare("SELECT COUNT(*) AS n FROM billing_orders WHERE status = 'pending'").first<{ n: number }>())?.n ?? 0; } catch (error) { if (!isMissingThing(error)) throw error; }
+    try {   // information: a grace period ending soon, a business now lapsed
+      const { results } = await db.prepare("SELECT id, billing_status, grace_until, period_end FROM businesses WHERE billing_status IN ('past_due', 'cancelled')").all<{ id: string; billing_status: string; grace_until: string | null; period_end: string | null }>();
+      for (const row of results ?? []) {
+        if (row.billing_status === "past_due") businessesPastDue++;
+        if (lapseOf(row, today)) watch.push({ code: "lapsed_now", business: row.id, detail: row.billing_status === "past_due" ? "payment overdue and the grace period is over" : "subscription cancelled and the paid period is over" });
+        else if (row.billing_status === "past_due" && row.grace_until && row.grace_until >= today && row.grace_until <= addDays(today, HEALTH_GRACE_WARNING_DAYS)) watch.push({ code: "grace_ending_soon", business: row.id, detail: clip(`grace period ends ${row.grace_until}: the owner needs to update their card`) });
+      }
+    } catch (error) { if (!isMissingThing(error)) throw error; }
+  } catch (error) {
+    problems.unshift({ code: "health_check_failed", detail: clip(`the database could not be read: ${error instanceof Error ? error.message : String(error)}`) });
+  }
+  return { ok: problems.length === 0, checkedAt: now.toISOString(), problems: problems.slice(0, HEALTH_MAX_LISTED), watch: watch.slice(0, HEALTH_MAX_LISTED), counts: { problemsTotal: problems.length, watchTotal: watch.length, ordersPending, businessesPastDue }, notes };
 }
 
