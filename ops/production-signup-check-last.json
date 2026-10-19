@@ -1,6 +1,6 @@
 {
- "when": "2026-10-19T08:28:48.318701Z",
- "run": "39223033163",
+ "when": "2026-10-19T09:47:15.243595Z",
+ "run": "39232657053",
  "the_health_check_answers": true,
  "the_health_check_reports_the_commit_production_is_running": true,
  "a_garbage_proof_is_refused_with_a_page": true,
@@ -10,6 +10,7 @@
  "a_stranger_is_still_refused_the_data": true,
  "a_stranger_is_refused_the_team_list_and_cannot_add_a_person": true,
  "the_payment_routes_refuse_a_stranger_a_forged_notification_and_an_unknown_order": true,
+ "nobody_can_open_the_plans_page_or_start_an_order_without_a_signed_link": true,
  "a_stranger_cannot_send_an_invitation_and_a_garbage_join_is_refused_with_a_page": true,
  "answers": {
   "health": "200",
@@ -23,7 +24,9 @@
   "join": "400",
   "billpay": "404",
   "billnotify": "400",
-  "billcheckout": "401"
+  "billcheckout": "401",
+  "billplans": "400",
+  "billstart": "400"
  },
- "running_commit": "254dcef99199949b0ec7e54158afcbfb5ff247b5"
+ "running_commit": "9395913d739e277156ae00604c9f7319bf204165"
 }
