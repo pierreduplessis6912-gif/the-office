@@ -849,6 +849,8 @@ async function expect(role, method, path, want) {
   await require('./plans-page.test.js')({ check, srcDir });
   // PayFast's subscription API: signing, what is sent, what is shown, and the operator routes
   await require('./payfast-api.test.js')({ check, srcDir });
+  // The reply envelope: additive, four explicit parts, nothing invented, never an authorization mechanism
+  await require('./experience.test.js')({ check, srcDir });
   // The notes store, the file storage and the memory index are shared by every business: each business sees only its own.
   await require('./scoped-bindings.test.js')({ check, srcDir });
   // Moving a business's data in, and proving it arrived.

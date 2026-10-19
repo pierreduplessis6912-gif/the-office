@@ -2196,7 +2196,41 @@
     },
     "pendingCandidates": null,
     "pendingActionType": "payment",
-    "pendingChanges": null
+    "pendingChanges": null,
+    "experience": {
+     "version": 1,
+     "established": {
+      "from": [
+       "pendingActions",
+       "message"
+      ],
+      "heldActions": [
+       {
+        "id": 1,
+        "type": "payment"
+       }
+      ],
+      "candidates": null,
+      "changes": null
+     },
+     "recommendation": {
+      "mode": "confirm",
+      "speak": "Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded."
+     },
+     "unknown": [
+      "intent_class",
+      "room",
+      "workspace",
+      "evidence",
+      "certainty",
+      "refusal_reason"
+     ],
+     "mustStillPass": {
+      "confirmationRequired": true,
+      "through": "Only the existing pending-action routes (confirm, reject, edit-field), which re-check authorization and validation on every call.",
+      "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+     }
+    }
    }
   },
   "threw": null,
@@ -2313,7 +2347,45 @@
     },
     "pendingCandidates": null,
     "pendingActionType": "payment",
-    "pendingChanges": null
+    "pendingChanges": null,
+    "experience": {
+     "version": 1,
+     "established": {
+      "from": [
+       "pendingActions",
+       "message"
+      ],
+      "heldActions": [
+       {
+        "id": 1,
+        "type": "payment"
+       },
+       {
+        "id": 2,
+        "type": "expense"
+       }
+      ],
+      "candidates": null,
+      "changes": null
+     },
+     "recommendation": {
+      "mode": "confirm",
+      "speak": "- Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.\n- Expense noted of R650 — needs your confirmation (action #2) before it's recorded."
+     },
+     "unknown": [
+      "intent_class",
+      "room",
+      "workspace",
+      "evidence",
+      "certainty",
+      "refusal_reason"
+     ],
+     "mustStillPass": {
+      "confirmationRequired": true,
+      "through": "Only the existing pending-action routes (confirm, reject, edit-field), which re-check authorization and validation on every call.",
+      "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+     }
+    }
    }
   },
   "threw": null,
@@ -2426,7 +2498,35 @@
     },
     "pendingCandidates": null,
     "pendingActionType": null,
-    "pendingChanges": null
+    "pendingChanges": null,
+    "experience": {
+     "version": 1,
+     "established": {
+      "from": [
+       "message"
+      ],
+      "heldActions": [],
+      "candidates": null,
+      "changes": null
+     },
+     "recommendation": {
+      "mode": "speak",
+      "speak": "- Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.\n- Snag #1 noted for Jenny Smith: loose seam."
+     },
+     "unknown": [
+      "intent_class",
+      "room",
+      "workspace",
+      "evidence",
+      "certainty",
+      "refusal_reason"
+     ],
+     "mustStillPass": {
+      "confirmationRequired": false,
+      "through": null,
+      "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+     }
+    }
    }
   },
   "threw": null,
@@ -2497,7 +2597,35 @@
     "pendingActionId": null,
     "factPendingActionId": null,
     "message": "Voice note received (transcription unavailable).",
-    "rewrittenQuery": ""
+    "rewrittenQuery": "",
+    "experience": {
+     "version": 1,
+     "established": {
+      "from": [
+       "message"
+      ],
+      "heldActions": [],
+      "candidates": null,
+      "changes": null
+     },
+     "recommendation": {
+      "mode": "speak",
+      "speak": "Voice note received (transcription unavailable)."
+     },
+     "unknown": [
+      "intent_class",
+      "room",
+      "workspace",
+      "evidence",
+      "certainty",
+      "refusal_reason"
+     ],
+     "mustStillPass": {
+      "confirmationRequired": false,
+      "through": null,
+      "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+     }
+    }
    }
   },
   "threw": null,
@@ -2545,7 +2673,35 @@
     "pendingActionId": null,
     "factPendingActionId": null,
     "message": "Voice note received (transcription unavailable).",
-    "rewrittenQuery": ""
+    "rewrittenQuery": "",
+    "experience": {
+     "version": 1,
+     "established": {
+      "from": [
+       "message"
+      ],
+      "heldActions": [],
+      "candidates": null,
+      "changes": null
+     },
+     "recommendation": {
+      "mode": "speak",
+      "speak": "Voice note received (transcription unavailable)."
+     },
+     "unknown": [
+      "intent_class",
+      "room",
+      "workspace",
+      "evidence",
+      "certainty",
+      "refusal_reason"
+     ],
+     "mustStillPass": {
+      "confirmationRequired": false,
+      "through": null,
+      "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+     }
+    }
    }
   },
   "threw": null,
@@ -2627,7 +2783,35 @@
     },
     "pendingCandidates": null,
     "pendingActionType": null,
-    "pendingChanges": null
+    "pendingChanges": null,
+    "experience": {
+     "version": 1,
+     "established": {
+      "from": [
+       "message"
+      ],
+      "heldActions": [],
+      "candidates": null,
+      "changes": null
+     },
+     "recommendation": {
+      "mode": "speak",
+      "speak": "ANSWER FROM FACTS:\n- Jenny Smith is a known customer."
+     },
+     "unknown": [
+      "intent_class",
+      "room",
+      "workspace",
+      "evidence",
+      "certainty",
+      "refusal_reason"
+     ],
+     "mustStillPass": {
+      "confirmationRequired": false,
+      "through": null,
+      "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+     }
+    }
    }
   },
   "threw": null,
@@ -2743,7 +2927,41 @@
     },
     "pendingCandidates": null,
     "pendingActionType": "payment",
-    "pendingChanges": null
+    "pendingChanges": null,
+    "experience": {
+     "version": 1,
+     "established": {
+      "from": [
+       "pendingActions",
+       "message"
+      ],
+      "heldActions": [
+       {
+        "id": 1,
+        "type": "payment"
+       }
+      ],
+      "candidates": null,
+      "changes": null
+     },
+     "recommendation": {
+      "mode": "confirm",
+      "speak": "Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded."
+     },
+     "unknown": [
+      "intent_class",
+      "room",
+      "workspace",
+      "evidence",
+      "certainty",
+      "refusal_reason"
+     ],
+     "mustStillPass": {
+      "confirmationRequired": true,
+      "through": "Only the existing pending-action routes (confirm, reject, edit-field), which re-check authorization and validation on every call.",
+      "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+     }
+    }
    }
   },
   "threw": null,
