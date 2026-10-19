@@ -50,7 +50,7 @@ jobs:
           flutter analyze lib --no-fatal-infos --no-fatal-warnings 2>&1 | tee /tmp/analyze.txt
           echo "ERROR_COUNT=$(grep -c '^ *error •' /tmp/analyze.txt || true)"
 
-      - name: Tests (flutter test: the app's automated tests)
+      - name: Tests (flutter test, the app's automated tests)
         id: tests
         shell: bash
         run: |
