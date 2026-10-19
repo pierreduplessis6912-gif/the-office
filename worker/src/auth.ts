@@ -736,6 +736,8 @@ export function intentCreationRefusal(intent: string | null | undefined, capabil
 // checked, by type, below.
 const MEMBER_OPEN_ROUTES: Array<{ method: string; path: RegExp }> = [
   { method: "POST", path: /^\/messages\/text$/ },
+  // The history of what the person said and what The Office did (history.ts): open to every member exactly like the message routes, because a member only ever receives their OWN turns; the owner's "everyone" view is checked inside the handler (can_manage_settings).
+  { method: "GET", path: /^\/history$/ },
   // Voice is the same input as text, and the message path already checks
   // capabilities per write, so it is open to every member exactly as text is.
   { method: "POST", path: /^\/files\/(audio|photo|document)$/ },

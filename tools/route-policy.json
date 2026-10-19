@@ -444,6 +444,18 @@
   "class": "public"
  },
  {
+  "route": "GET /history",
+  "pattern": "/history",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "sales": "A",
+  "admin": "A",
+  "class": "any member"
+ },
+ {
   "route": "GET /invoices/:id/pdf",
   "pattern": "/invoices/:id/pdf",
   "how": "id in path",
