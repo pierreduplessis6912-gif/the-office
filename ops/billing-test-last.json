@@ -1,0 +1,13 @@
+{
+ "when": "2026-10-19T00:14:32.997265+00:00",
+ "action": "create",
+ "business": "ballz-enterprizes-392739",
+ "http": "201",
+ "answer": {
+  "orderId": "574a0ef3-aeda-4c12-a9f9-a7ebef74eb48",
+  "amountCents": 89700,
+  "itemName": "The Office Team (3 seats)",
+  "payUrl": "https://office.websitehub.co.za/billing/pay?order=574a0ef3-aeda-4c12-a9f9-a7ebef74eb48"
+ },
+ "next": "Open payUrl on your phone, pay with PayFast's sandbox test buyer, then run this workflow again with action = status."
+}
