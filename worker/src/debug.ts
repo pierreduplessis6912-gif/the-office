@@ -27,7 +27,7 @@ import { businessIsEmpty } from "./emptiness";
 import { recordSignIn, recordTeamEvent } from "./team-log";
 import { ensureTeamPerson, validFullName } from "./team-people";
 import { checkSeat } from "./seats";
-import { billingStatus, createOrder } from "./billing";
+import { billingStatus, createOrder, setBillingState } from "./billing";
 import { callBusiness } from "./routing";
 import { applyIndexes } from "./indexes";
 import { trialAi, trialD1, trialDo, trialTx } from "./trial";
@@ -126,6 +126,12 @@ if (url.pathname === "/debug/timings" && request.method === "GET") {
       return made.ok
         ? Response.json({ orderId: made.order.id, amountCents: made.order.amountCents, itemName: made.order.itemName, payUrl: `${url.origin}/billing/pay?order=${made.order.id}` }, { status: 201 })
         : Response.json({ error: made.error }, { status: made.status });
+    }
+    // Set a business's subscription state (to correct one, grant a free month, or rehearse a lapse): privileged, strictly validated in billing.ts, and it touches nothing but those three fields.
+    if (url.pathname === "/debug/directory/billing-state" && request.method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { business?: unknown; billingStatus?: unknown; periodEnd?: unknown; graceUntil?: unknown };
+      const done = await setBillingState(env, { business: body.business, billingStatus: body.billingStatus, periodEnd: body.periodEnd, graceUntil: body.graceUntil });
+      return done.ok ? Response.json(done.status) : Response.json({ error: done.error }, { status: done.status });
     }
     if (url.pathname === "/debug/directory/billing" && request.method === "GET") {
       const found = await billingStatus(env, url.searchParams.get("business") ?? "");

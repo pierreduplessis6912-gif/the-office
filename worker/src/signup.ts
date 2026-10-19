@@ -9,7 +9,7 @@
 // Safe enough because: only a Google-verified address, proven by a short-lived signed token the page carries; one email can belong to one business (enforced by the directory); a cap on new businesses per day (everyone) and per
 // network address; a small trial limit (limits.ts TRIAL_PLAN); and a session that dies when the trial does. Not solved here: billing after the trial (a business stays inactive until an operator moves it to a paid plan).
 import { readSignupToken, signSignupToken } from "./auth";
-import { acceptInvitation, addDirectoryMember, closeBusiness, countDirectoryMembers, createBusiness, declineInvitation, ensureDirectory, findDirectoryConflicts, findEndedTrialForEmail, lookupAccessForEmail, normaliseEmail, pendingInvitationsForEmail } from "./directory";
+import { acceptInvitation, addDirectoryMember, closeBusiness, countDirectoryMembers, createBusiness, declineInvitation, ensureDirectory, findDirectoryConflicts, findEndedAccessForEmail, lookupAccessForEmail, normaliseEmail, pendingInvitationsForEmail } from "./directory";
 import { ensureTrialPlan, TRIAL_PLAN } from "./limits";
 import { callBusiness } from "./routing";
 import { signedInRedirect } from "./signin";
@@ -104,6 +104,14 @@ ${invitationsSection(token, options.invites ?? [])}
 
 const trialEndedPage = (name: string, contact: string | undefined): Response =>
   page("Your trial has ended", `<h1>Your free trial has ended</h1><p>The ${TRIAL_DAYS}-day trial for <strong>${escapeHtml(name)}</strong> is over. Your information is safe and has not been deleted.</p><p>${contact ? `To keep using The Office, ${escapeHtml(contact)}.` : "To keep using The Office, please contact us."}</p>`, 403);
+// Why a business can no longer be signed into: its trial ended, a payment failed and the grace period is over, or its subscription was cancelled and the period it paid for is over. Same contact line as the trial page; nothing is deleted.
+const endedPage = (ended: { name: string; reason: "trial" | "payment" | "cancelled" }, contact: string | undefined): Response => {
+  if (ended.reason === "trial") return trialEndedPage(ended.name, contact);
+  const how = contact ? `To get back in, ${escapeHtml(contact)}.` : "To get back in, please contact us.";
+  return ended.reason === "payment"
+    ? page("Payment overdue", `<h1>Payment overdue</h1><p>The latest payment for <strong>${escapeHtml(ended.name)}</strong> did not go through, and the grace period has ended. Your information is safe and has not been deleted.</p><p>${how}</p>`, 403)
+    : page("Subscription ended", `<h1>Your subscription has ended</h1><p>The subscription for <strong>${escapeHtml(ended.name)}</strong> has ended. Your information is safe and has not been deleted.</p><p>${how}</p>`, 403);
+};
 const notActivePage = (email: string): Response =>
   page("Not active", `<h1>This account is not active</h1><p><strong>${escapeHtml(email)}</strong> belongs to a business, but its membership is not active. Ask the owner of the business to check it.</p>`, 403);
 const fullPage = (): Response => page("Try again tomorrow", "<h1>We are full for today</h1><p>We can only open so many new businesses a day. Please try again tomorrow.</p>", 429);
@@ -115,8 +123,8 @@ const errorPage = (): Response => page("Something went wrong", "<h1>Something we
 // What a browser sees when Google has verified an address that is not (or no longer) a member of any business. Called from the callback, for requests that ask for a web page; anything else keeps the JSON refusal.
 export async function handleUnknownAccount(request: Request, env: Env, email: string): Promise<Response> {
   const address = normaliseEmail(email);
-  const ended = await findEndedTrialForEmail(env, address);
-  if (ended) return trialEndedPage(ended.name, env.SUPPORT_CONTACT);
+  const ended = await findEndedAccessForEmail(env, address);
+  if (ended) return endedPage(ended, env.SUPPORT_CONTACT);
   if (await lookupAccessForEmail(env, address)) return notActivePage(address);
   const invites = await pendingInvitationsForEmail(env, address).catch(() => []);   // an invitation that cannot be looked up must never block the page
   return startBusinessPage(address, await signSignupToken(env, address), { invites });
@@ -156,8 +164,8 @@ export async function handleSignupPost(request: Request, env: Env): Promise<Resp
     if (!role) return notActivePage(email);
     return signedInRedirect(request, env, { sessionEmail: email, displayEmail: email, role, businessId: existing.businessId, notAfterMs: existing.trialEndsAt ? fromSqlTime(existing.trialEndsAt) : undefined }, 303);
   }
-  const ended = await findEndedTrialForEmail(env, email);
-  if (ended) return trialEndedPage(ended.name, env.SUPPORT_CONTACT);
+  const ended = await findEndedAccessForEmail(env, email);
+  if (ended) return endedPage(ended, env.SUPPORT_CONTACT);
 
   const named = validateBusinessName(form.get("business_name"));
   const typed = typeof form.get("business_name") === "string" ? String(form.get("business_name")) : "";
@@ -225,8 +233,8 @@ export async function handleJoinPost(request: Request, env: Env): Promise<Respon
     if (!role) return notActivePage(email);
     return signedInRedirect(request, env, { sessionEmail: email, displayEmail: email, role, businessId: existing.businessId, notAfterMs: existing.trialEndsAt ? fromSqlTime(existing.trialEndsAt) : undefined }, 303);
   }
-  const ended = await findEndedTrialForEmail(env, email);
-  if (ended) return trialEndedPage(ended.name, env.SUPPORT_CONTACT);
+  const ended = await findEndedAccessForEmail(env, email);
+  if (ended) return endedPage(ended, env.SUPPORT_CONTACT);
 
   const rawId = String(form.get("invitation") ?? "");
   if (!/^\d{1,9}$/.test(rawId)) return invitationGonePage();
