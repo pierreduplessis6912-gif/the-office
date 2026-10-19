@@ -1,43 +1,13 @@
 {
- "when": "2026-10-19T05:13:09.055025+00:00",
- "action": "status",
+ "when": "2026-10-19T05:47:16.608480+00:00",
+ "action": "create",
  "business": "ballz-enterprizes-392739",
- "http": "200",
+ "http": "201",
  "answer": {
-  "business": {
-   "id": "ballz-enterprizes-392739",
-   "name": "Ballz Enterprizes",
-   "plan": "trial",
-   "status": "active",
-   "seats": null,
-   "billingStatus": null,
-   "billingInterval": null,
-   "periodEnd": null,
-   "graceUntil": null,
-   "hasSubscription": false
-  },
-  "orders": [
-   {
-    "id": "9c4b8d2b-0eb5-438e-9c2a-5b2c8921e39d",
-    "plan": "team",
-    "interval": "monthly",
-    "seats": 3,
-    "amountCents": 89700,
-    "status": "pending",
-    "createdAt": "2026-10-19 04:39:20",
-    "completedAt": null
-   },
-   {
-    "id": "574a0ef3-aeda-4c12-a9f9-a7ebef74eb48",
-    "plan": "team",
-    "interval": "monthly",
-    "seats": 3,
-    "amountCents": 89700,
-    "status": "pending",
-    "createdAt": "2026-10-19 00:14:32",
-    "completedAt": null
-   }
-  ],
-  "payments": []
- }
+  "orderId": "e8064fa7-79ef-49c9-959e-51dc19550e36",
+  "amountCents": 89700,
+  "itemName": "The Office Team (3 seats)",
+  "payUrl": "https://office.websitehub.co.za/billing/pay?order=e8064fa7-79ef-49c9-959e-51dc19550e36"
+ },
+ "next": "Open payUrl on your phone, pay with PayFast's sandbox test buyer, then run this workflow again with action = status."
 }
