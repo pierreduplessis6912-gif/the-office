@@ -738,6 +738,8 @@ const MEMBER_OPEN_ROUTES: Array<{ method: string; path: RegExp }> = [
   { method: "POST", path: /^\/messages\/text$/ },
   // The history of what the person said and what The Office did (history.ts): open to every member exactly like the message routes, because a member only ever receives their OWN turns; the owner's "everyone" view is checked inside the handler (can_manage_settings).
   { method: "GET", path: /^\/history$/ },
+  // The dry run for workspace context (context.ts): it only echoes what it WOULD accept, reads nothing and changes nothing.
+  { method: "POST", path: /^\/context\/check$/ },
   // Voice is the same input as text, and the message path already checks
   // capabilities per write, so it is open to every member exactly as text is.
   { method: "POST", path: /^\/files\/(audio|photo|document)$/ },
@@ -1132,7 +1134,7 @@ const ALLOWED_ORIGINS = ["https://the-office-preview.pages.dev"];
 
 const CORS_STATIC_HEADERS = {
   "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Office-Context",
 };
 
 // A request with no Origin header at all (the native app, curl, a

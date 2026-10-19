@@ -2265,7 +2265,8 @@
       "interpreted": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
       "proposed": "[{\"id\":1,\"type\":\"payment\"}]",
       "replied": "Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.",
-      "mode": "confirm"
+      "mode": "confirm",
+      "viewing": null
      }
     ]
    },
@@ -2435,7 +2436,8 @@
       "interpreted": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
       "proposed": "[{\"id\":1,\"type\":\"payment\"},{\"id\":2,\"type\":\"expense\"}]",
       "replied": "- Payment noted for Jenny Smith of R500 — needs your confirmation (action #1) before it's recorded.\n- Expense noted of R650 — needs your confirmation (action #2) before it's recorded.",
-      "mode": "confirm"
+      "mode": "confirm",
+      "viewing": null
      }
     ]
    },
@@ -2591,7 +2593,8 @@
       "interpreted": "{\"customer_name\":\"Jenny Smith\",\"character_name\":null,\"character_relationship\":null,\"intent\":\"payment\",\"amount\":500,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":null,\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
       "proposed": "[]",
       "replied": "- Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.\n- Snag #1 noted for Jenny Smith: loose seam.",
-      "mode": "speak"
+      "mode": "speak",
+      "viewing": null
      }
     ]
    },
@@ -2702,7 +2705,8 @@
       "interpreted": null,
       "proposed": "[]",
       "replied": "Voice note received (transcription unavailable).",
-      "mode": "speak"
+      "mode": "speak",
+      "viewing": null
      }
     ]
    }
@@ -2790,7 +2794,8 @@
       "interpreted": null,
       "proposed": "[]",
       "replied": "Voice note received (transcription unavailable).",
-      "mode": "speak"
+      "mode": "speak",
+      "viewing": null
      }
     ]
    }
@@ -2918,7 +2923,8 @@
       "interpreted": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"lookup\",\"amount\":null,\"fact_key\":null,\"fact_value\":null,\"personal_note\":null,\"query_scope\":\"customer\",\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
       "proposed": "[]",
       "replied": "ANSWER FROM FACTS:\n- Jenny Smith is a known customer.",
-      "mode": "speak"
+      "mode": "speak",
+      "viewing": null
      }
     ]
    },
