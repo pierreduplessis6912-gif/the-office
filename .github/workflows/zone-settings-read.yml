@@ -1,0 +1,57 @@
+name: Read the Cloudflare zone settings that can block an outside caller (read only)
+
+# A diagnostic: PayFast's server could not connect to our notification address (a cURL error). This reads a handful of the zone's settings (TLS versions, IPv6, bot and challenge protection, HTTPS redirects) and records them. It only READS, prints
+# no secret, and changes nothing.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read the zone settings
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request, datetime
+          tok = os.environ["CF_API_TOKEN"]
+          def get(path):
+              req = urllib.request.Request("https://api.cloudflare.com/client/v4" + path, headers={"Authorization": "Bearer " + tok})
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as r: return json.load(r)
+              except urllib.error.HTTPError as e:
+                  try: return json.load(e)
+                  except Exception: return {"success": False, "errors": [{"message": "HTTP " + str(e.code)}]}
+          out = {"when": datetime.datetime.now(datetime.timezone.utc).isoformat()}
+          z = get("/zones?name=websitehub.co.za")
+          out["zone_lookup_ok"] = bool(z.get("success"))
+          zid = ((z.get("result") or [{}])[0]).get("id")
+          wanted = ["ssl", "min_tls_version", "tls_1_3", "ciphers", "ipv6", "always_use_https", "security_level", "browser_check", "challenge_ttl", "opportunistic_encryption", "http2", "http3", "automatic_https_rewrites", "waf", "ssl_recommender"]
+          if zid:
+              s = get(f"/zones/{zid}/settings")
+              out["settings_ok"] = bool(s.get("success"))
+              out["settings"] = {x["id"]: x.get("value") for x in (s.get("result") or []) if x.get("id") in wanted}
+              out["settings_errors"] = [e.get("message") for e in (s.get("errors") or [])][:3]
+              b = get(f"/zones/{zid}/bot_management")
+              out["bot_management_ok"] = bool(b.get("success"))
+              out["bot_management"] = {k: v for k, v in (b.get("result") or {}).items() if k in ("fight_mode", "enable_js", "sbfm_definitely_automated", "sbfm_likely_automated", "sbfm_verified_bots", "optimize_wordpress", "suppress_session_score")}
+              out["bot_errors"] = [e.get("message") for e in (b.get("errors") or [])][:3]
+              d = get(f"/zones/{zid}/dns_records?name=office.websitehub.co.za")
+              out["office_dns"] = [{"type": r.get("type"), "proxied": r.get("proxied")} for r in (d.get("result") or [])]
+          os.makedirs("ops", exist_ok=True)
+          json.dump(out, open("ops/zone-settings-last.json", "w"), indent=1)
+          print(json.dumps(out, indent=1))
+          PY
+      - name: Commit the record
+        if: always()
+        run: |
+          git config user.name "Claude"; git config user.email "noreply@anthropic.com"
+          git add ops/zone-settings-last.json || true
+          git commit -m "Zone settings read (a diagnostic; settings only, no secrets)" || echo "nothing to record"
+          git pull --rebase origin "$GITHUB_REF_NAME" || true
+          git push origin HEAD:"$GITHUB_REF_NAME" || echo "could not push the record"
