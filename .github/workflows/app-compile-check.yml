@@ -36,6 +36,11 @@ jobs:
           fi
           cp auth-callback-template.html web/auth-callback.html
 
+      - name: Remove the stock counter test that flutter create generates (it refers to a MyApp class this app does not have, so it can never load)
+        run: |
+          cd app
+          if [ -f test/widget_test.dart ] && grep -q "MyApp" test/widget_test.dart; then rm test/widget_test.dart; echo "removed the generated stock test"; fi
+
       - name: Get packages
         run: |
           cd app
