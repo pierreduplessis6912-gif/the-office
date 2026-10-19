@@ -845,6 +845,8 @@ async function expect(role, method, path, want) {
   await require('./billing.test.js')({ check, srcDir });
   // When a business stops paying its access ends: the date rule, sign-in, and the gate on every request
   await require('./access.test.js')({ check, srcDir });
+  // A customer starts a payment on their own: the plans page, the order, and how the owner gets there
+  await require('./plans-page.test.js')({ check, srcDir });
   // The notes store, the file storage and the memory index are shared by every business: each business sees only its own.
   await require('./scoped-bindings.test.js')({ check, srcDir });
   // Moving a business's data in, and proving it arrived.

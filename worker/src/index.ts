@@ -12,6 +12,7 @@ import { adminTargetBusiness, callBusiness, forwardToBusiness, routeRequest } fr
 import { lookupAccessForEmail, normaliseEmail } from "./directory";
 import { handleJoinPost, handleSignupPost, handleUnknownAccount, maybeHandoverPage } from "./signup";
 import { cancelledPage, createOrder, handleNotification, payPage, returnPage } from "./billing";
+import { plansPage, startPost } from "./plans";
 import { addTeamMember, changeTeamRole, inviteTeamMember, listTeam, revokeTeamInvitation, setTeamMemberStatus, updateTeamProfile } from "./team";
 import { signedInRedirect } from "./signin";
 import { makeBusinessObject } from "./business-object";
@@ -68,7 +69,7 @@ import {
   ACTION_TYPE_CAPABILITY,
   ROUTE_RULES,
   SIGNABLE_DOCUMENT_PATHS,
-  intentCreationRefusal, isAdminPath, CUSTOMER_LINK_TTL_MS } from "./auth";
+  intentCreationRefusal, isAdminPath, CUSTOMER_LINK_TTL_MS, signBillingToken } from "./auth";
 import {
   buildDocumentResponse,
   checkForJobScopeAmendment,
@@ -874,6 +875,14 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       const added = await addTeamMember(env, actor ?? "", body?.email, body?.role, body);
       return added.ok ? Response.json({ member: added.member, healed: added.healed ?? false }, { status: added.status }) : Response.json({ error: added.error }, { status: added.status });
     }
+    // The link to the plans page for an owner signed in to the app: made for THEIR address and THIS business, short-lived. Owner only (can_manage_settings).
+    if (url.pathname === "/billing/plans-link" && request.method === "POST") {
+      const { email: who } = await resolveCapabilities(request, env);
+      if (!who) return Response.json({ error: "sign in required" }, { status: 401 });
+      if (!env.BUSINESS_ID) return Response.json({ error: "not available" }, { status: 404 });   // the original single-business mode has no directory to pay for
+      return Response.json({ url: `${url.origin}/billing/plans?t=${encodeURIComponent(await signBillingToken(env, who, env.BUSINESS_ID))}` });
+    }
+
     // Choosing a plan: an ORDER whose amount comes from our own price table, and the address of the page that sends the owner to PayFast. Owner only (can_manage_settings). Nothing changes until PayFast's notification is confirmed.
     if (url.pathname === "/billing/checkout" && request.method === "POST") {
       const body = (await request.json().catch(() => null)) as { plan?: unknown; interval?: unknown; seats?: unknown } | null;
@@ -1735,6 +1744,9 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       const result = await handleNotification(env, await request.text(), request.headers.get("CF-Connecting-IP"), (u, init) => fetch(u, init));
       return new Response(result.outcome, { status: result.status });   // PayFast wants a 200; a 400 or 503 tells it the notification was not accepted
     }
+    // The plans page and the form that starts an order (plans.ts): public, because the person arrives from the sign-in or the app with a signed link; the page and the form both re-check that the address is STILL the owner of that business.
+    if (url.pathname === "/billing/plans" && request.method === "GET") return await plansPage(request, env);
+    if (url.pathname === "/billing/start" && request.method === "POST") return await startPost(request, env);
     if (url.pathname === "/billing/return" && request.method === "GET") return returnPage();
     if (url.pathname === "/billing/cancelled" && request.method === "GET") return cancelledPage();
 

@@ -132,8 +132,32 @@
   "class": "public"
  },
  {
+  "route": "GET /billing/plans",
+  "pattern": "/billing/plans",
+  "how": "public list",
+  "none": "A",
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "sales": "A",
+  "admin": "A",
+  "class": "public"
+ },
+ {
   "route": "GET /billing/return",
   "pattern": "/billing/return",
+  "how": "public list",
+  "none": "A",
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "sales": "A",
+  "admin": "A",
+  "class": "public"
+ },
+ {
+  "route": "GET /billing/start",
+  "pattern": "/billing/start",
   "how": "public list",
   "none": "A",
   "owner": "A",
@@ -806,6 +830,30 @@
  {
   "route": "POST /billing/payfast/notify",
   "pattern": "/billing/payfast/notify",
+  "how": "exact path",
+  "none": "A",
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "sales": "A",
+  "admin": "A",
+  "class": "public"
+ },
+ {
+  "route": "POST /billing/plans-link",
+  "pattern": "/billing/plans-link",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "sales": 403,
+  "admin": 403,
+  "class": "owner only"
+ },
+ {
+  "route": "POST /billing/start",
+  "pattern": "/billing/start",
   "how": "exact path",
   "none": "A",
   "owner": "A",
