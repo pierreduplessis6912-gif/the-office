@@ -34,3 +34,5 @@
 * Never throws and never changes the reply: a malformed, partial or hostile reply still yields a valid envelope (or a minimal fallback naming `envelope_error`), and the original fields are returned untouched.
 * Bounded: at most 50 items per list and 200 characters per copied string.
 * If a reply already contains an `experience` field, it is left exactly as it is.
+
+**Update, 2026-10-19:** workspace context (the app saying what is on screen) now exists as its own contract, `CONTEXT.md`: it is accepted, validated and recorded with the turn, and is NOT used to interpret speech yet. It is deliberately NOT part of this envelope's version 1.
