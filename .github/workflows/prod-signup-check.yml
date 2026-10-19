@@ -36,6 +36,8 @@ jobs:
           curl -s -o /dev/null -w '%{http_code}' "$PROD_URL/billing/pay?order=not-a-real-order" > "$RESULTS/billpay.s"
           curl -s -o "$RESULTS/billnotify.b" -w '%{http_code}' -X POST --data-urlencode "payment_status=COMPLETE" --data-urlencode "signature=00000000000000000000000000000000" "$PROD_URL/billing/payfast/notify" > "$RESULTS/billnotify.s"
           curl -s -o /dev/null -w '%{http_code}' -X POST -H "Content-Type: application/json" -d '{"plan":"team","interval":"monthly","seats":3}' "$PROD_URL/billing/checkout" > "$RESULTS/billcheckout.s"
+          curl -s -o /dev/null -w '%{http_code}' "$PROD_URL/billing/plans" > "$RESULTS/billplans.s"
+          curl -s -o /dev/null -w '%{http_code}' -X POST --data-urlencode "t=garbage" --data-urlencode "plan=team" --data-urlencode "interval=monthly" --data-urlencode "seats=3" "$PROD_URL/billing/start" > "$RESULTS/billstart.s"
           python3 - <<'PY'
           import json, os, re, sys
           r = os.environ["RESULTS"]
@@ -51,9 +53,10 @@ jobs:
               "a_stranger_is_still_refused_the_data": rd("anon.s").strip() == "401",
               "a_stranger_is_refused_the_team_list_and_cannot_add_a_person": rd("team.s").strip() == "401" and rd("teampost.s").strip() == "401",
               "the_payment_routes_refuse_a_stranger_a_forged_notification_and_an_unknown_order": rd("billpay.s").strip() in ("404", "503") and rd("billnotify.s").strip() in ("400", "503") and rd("billcheckout.s").strip() == "401" and "applied" not in rd("billnotify.b"),
+              "nobody_can_open_the_plans_page_or_start_an_order_without_a_signed_link": rd("billplans.s").strip() == "400" and rd("billstart.s").strip() == "400",
               "a_stranger_cannot_send_an_invitation_and_a_garbage_join_is_refused_with_a_page": rd("teaminvite.s").strip() == "401" and rd("join.s").strip() == "400" and "took too long" in rd("join.b"),
           }
-          out["answers"] = {k: rd(k + ".s").strip() for k in ("health", "garbage", "callback", "login", "anon", "team", "teampost", "teaminvite", "join", "billpay", "billnotify", "billcheckout")}
+          out["answers"] = {k: rd(k + ".s").strip() for k in ("health", "garbage", "callback", "login", "anon", "team", "teampost", "teaminvite", "join", "billpay", "billnotify", "billcheckout", "billplans", "billstart")}
           out["running_commit"] = (json.loads(rd("health.b")).get("commit") if rd("health.b").strip().startswith("{") else None)
           json.dump(out, open(os.path.join(r, "check.json"), "w"), indent=1)
           bad = [k for k, v in out.items() if v is False]
