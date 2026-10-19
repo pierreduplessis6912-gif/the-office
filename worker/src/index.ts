@@ -12,7 +12,7 @@ import { adminTargetBusiness, callBusiness, forwardToBusiness, routeRequest } fr
 import { lookupAccessForEmail, normaliseEmail } from "./directory";
 import { handleJoinPost, handleSignupPost, handleUnknownAccount, maybeHandoverPage } from "./signup";
 import { cancelledPage, createOrder, handleNotification, payPage, returnPage } from "./billing";
-import { plansPage, startPost } from "./plans";
+import { cardUpdatedPage, cardUpdatePage, plansPage, startPost } from "./plans";
 import { addTeamMember, changeTeamRole, inviteTeamMember, listTeam, revokeTeamInvitation, setTeamMemberStatus, updateTeamProfile } from "./team";
 import { signedInRedirect } from "./signin";
 import { makeBusinessObject } from "./business-object";
@@ -1747,6 +1747,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
     // The plans page and the form that starts an order (plans.ts): public, because the person arrives from the sign-in or the app with a signed link; the page and the form both re-check that the address is STILL the owner of that business.
     if (url.pathname === "/billing/plans" && request.method === "GET") return await plansPage(request, env);
     if (url.pathname === "/billing/start" && request.method === "POST") return await startPost(request, env);
+    if (url.pathname === "/billing/update-card" && request.method === "GET") return await cardUpdatePage(request, env);   // the owner of a past-due business, to PayFast's own card page (live only)
+    if (url.pathname === "/billing/card-updated" && request.method === "GET") return cardUpdatedPage();
     if (url.pathname === "/billing/return" && request.method === "GET") return returnPage();
     if (url.pathname === "/billing/cancelled" && request.method === "GET") return cancelledPage();
 

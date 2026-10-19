@@ -102,13 +102,14 @@ ${invitationsSection(token, options.invites ?? [])}
   );
 }
 
+const cardButton = (link: string | undefined): string => (link ? `<p><a href="${escapeHtml(link)}" style="display:inline-block;padding:.8rem 1.2rem;background:#111;color:#fff;border-radius:.4rem;text-decoration:none">Update card</a></p>` : "");
 const planButton = (link: string | undefined): string => (link ? `<p><a href="${escapeHtml(link)}" style="display:inline-block;padding:.8rem 1.2rem;background:#111;color:#fff;border-radius:.4rem;text-decoration:none">Choose a plan</a></p>` : "");
 const trialEndedPage = (name: string, contact: string | undefined, link?: string): Response =>
   page("Your trial has ended", `<h1>Your free trial has ended</h1><p>The ${TRIAL_DAYS}-day trial for <strong>${escapeHtml(name)}</strong> is over. Your information is safe and has not been deleted.</p><p>${contact ? `To keep using The Office, ${escapeHtml(contact)}.` : "To keep using The Office, please contact us."}</p>${planButton(link)}`, 403);
 // The plans link for an ended business, made for THIS address (just verified) and business. Only a trial or a cancelled subscription can start a new subscription; an overdue payment already has one, so it gets no link.
 async function planLinkFor(env: Env, ended: { businessId: string; reason: "trial" | "payment" | "cancelled" }, email: string): Promise<string | undefined> {
-  if (ended.reason === "payment") return undefined;
-  try { return `/billing/plans?t=${encodeURIComponent(await signBillingToken(env, email, ended.businessId))}`; } catch { return undefined; }
+  // A failed payment already has a subscription, so it is offered the chance to update its CARD (PayFast's own page), never a new plan.
+  try { return `${ended.reason === "payment" ? "/billing/update-card" : "/billing/plans"}?t=${encodeURIComponent(await signBillingToken(env, email, ended.businessId))}`; } catch { return undefined; }
 }
 
 // Why a business can no longer be signed into: its trial ended, a payment failed and the grace period is over, or its subscription was cancelled and the period it paid for is over. Same contact line as the trial page; nothing is deleted.
@@ -116,7 +117,7 @@ const endedPage = (ended: { name: string; reason: "trial" | "payment" | "cancell
   if (ended.reason === "trial") return trialEndedPage(ended.name, contact, link);
   const how = contact ? `To get back in, ${escapeHtml(contact)}.` : "To get back in, please contact us.";
   return ended.reason === "payment"
-    ? page("Payment overdue", `<h1>Payment overdue</h1><p>The latest payment for <strong>${escapeHtml(ended.name)}</strong> did not go through, and the grace period has ended. Your information is safe and has not been deleted.</p><p>${how}</p>`, 403)
+    ? page("Payment overdue", `<h1>Payment overdue</h1><p>The latest payment for <strong>${escapeHtml(ended.name)}</strong> did not go through, and the grace period has ended. Your information is safe and has not been deleted.</p>${cardButton(link)}<p>${how}</p>`, 403)
     : page("Subscription ended", `<h1>Your subscription has ended</h1><p>The subscription for <strong>${escapeHtml(ended.name)}</strong> has ended. Your information is safe and has not been deleted.</p>${planButton(link)}<p>${how}</p>`, 403);
 };
 const notActivePage = (email: string): Response =>

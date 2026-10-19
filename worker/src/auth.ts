@@ -437,6 +437,8 @@ const PUBLIC_ROUTES = new Set([
   "/billing/cancelled",
   "/billing/plans",
   "/billing/start",
+  "/billing/update-card",
+  "/billing/card-updated",
   "/auth/logout",
   "/auth/me",
 ]);
