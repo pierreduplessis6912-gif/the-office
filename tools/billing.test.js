@@ -115,6 +115,19 @@ async function billingTests({ check, srcDir }) {
     const unknown = await bl.payPage(w.env, 'ffffffff-ffff-ffff-ffff-ffffffffffff', 'https://x.co', NOW), junk = await bl.payPage(w.env, "x'; DROP TABLE billing_orders;--", 'https://x.co', NOW); check(unknown.status === 404 && junk.status === 404 && w.shared.db.prepare('SELECT COUNT(*) n FROM billing_orders').get().n === 1, 'an unknown or hostile order id is a 404 and touches nothing');
     await notify(w, itn(o)); const done = await bl.payPage(w.env, o.id, 'https://x.co', NOW); check(done.status === 200 && !/<form/.test(await done.text()), 'an order that is already paid shows no form (it cannot be paid twice)');
     const nc = await bl.payPage({ ...w.env, PAYFAST_SANDBOX_MERCHANT_ID: '' }, (await order(w)).order.id, 'https://x.co', NOW); check(nc.status === 503, 'and when payments are not configured the page says so'); }
+  // ---- the payment step must not depend on columns that only the directory's own setup creates ------------------------------------------------------------------------------------------------------------------------------------------------------
+  // The first real PayFast notification on production answered 500: the update needs businesses.seats and trial_ends_at, which ensureDirectory creates, and the notification path never runs it (staging always had them).
+  { const w = await world(); await business(w, 'acme-co', 'trial', null); const o = (await order(w)).order;
+    w.shared.db.exec('ALTER TABLE businesses DROP COLUMN seats; ALTER TABLE businesses DROP COLUMN trial_ends_at;');
+    const r = await notify(w, itn(o)), b = bizRow(w);
+    check(r.status === 200 && r.outcome === 'applied' && b.plan === 'team' && b.seats === 3 && b.billing_status === 'active' && 'trial_ends_at' in b && b.trial_ends_at === null, 'a confirmed payment still applies on a shared layer that has never had the seats or trial columns (the payment step makes what it needs)');
+    const again = await notify(w, itn(o, { pf: '1000099' })); check(again.status === 200 && again.outcome === 'renewed', 'and the next payment on it renews as usual'); }
+  { const mk = async (extra) => { const w = await world(extra); await business(w); const o = (await order(w)).order; const real = w.env.OFFICE_DB; const broken = { prepare: (sql) => { if (/^UPDATE businesses SET plan/.test(sql)) throw new Error('D1_ERROR: no such column: seats'); return real.prepare(sql); }, batch: (x) => real.batch(x), exec: (x) => real.exec(x) }; return { w, o, env: { ...w.env, OFFICE_DB: broken } }; };
+    const sandbox = await mk(), s = await notify(sandbox.w, itn(sandbox.o), { env: sandbox.env });
+    check(s.status === 500 && /^error: .*no such column: seats/.test(s.outcome) && bizRow(sandbox.w).plan === 'trial', 'when applying a confirmed payment fails in SANDBOX mode, the answer says why (it is only reachable after the signature and PayFast\'s own confirmation), and nothing is half-applied');
+    const live = await mk({ PAYFAST_MODE: 'live', PAYFAST_MERCHANT_ID: '555', PAYFAST_MERCHANT_KEY: 'k', PAYFAST_PASSPHRASE: PASS }), l = await notify(live.w, itn(live.o), { env: live.env });
+    check(l.status === 500 && l.outcome === 'error' && !/column|D1_ERROR/.test(l.outcome), 'in LIVE mode the same failure answers just "error": no detail leaves the server'); }
+
   // ---- the operator's view of a business's billing (read-only) and the operator's way to start an order -------------------------------------------------------------------------------------------------------------------------------------
   { const w = await world(); await business(w);
     const before = await bl.billingStatus(w.env, 'acme-co');

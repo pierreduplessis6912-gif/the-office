@@ -24,7 +24,9 @@ const DDL = [
   "CREATE INDEX IF NOT EXISTS idx_billing_orders_business ON billing_orders (business_id, status)",
   "CREATE TABLE IF NOT EXISTS billing_payments (id INTEGER PRIMARY KEY AUTOINCREMENT, pf_payment_id TEXT NOT NULL UNIQUE, order_id TEXT, business_id TEXT, token TEXT, status TEXT NOT NULL, amount_gross_cents INTEGER, amount_fee_cents INTEGER, confirmed INTEGER NOT NULL DEFAULT 0, ip_ok INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')))",
 ];
-const BUSINESS_COLUMNS: Array<[string, string]> = [["billing_status", "TEXT"], ["billing_interval", "TEXT"], ["pf_token", "TEXT"], ["period_end", "TEXT"], ["grace_until", "TEXT"]];
+// Everything the payment step reads or writes on a business. seats and trial_ends_at are ALSO made by the directory's own setup, but the notification path never runs that, so a shared layer that had not yet been through it made the first real
+// notification on production fail with a 500 (staging always had them). The payment step makes what it needs itself.
+const BUSINESS_COLUMNS: Array<[string, string]> = [["trial_ends_at", "TEXT"], ["seats", "INTEGER"], ["billing_status", "TEXT"], ["billing_interval", "TEXT"], ["pf_token", "TEXT"], ["period_end", "TEXT"], ["grace_until", "TEXT"]];
 export async function ensureBilling(env: Env): Promise<void> {
   for (const sql of DDL) await env.OFFICE_DB.prepare(sql).run();
   const { results } = await env.OFFICE_DB.prepare("PRAGMA table_info(businesses)").all<{ name: string }>();
@@ -119,8 +121,9 @@ export async function handleNotification(env: Env, rawBody: string, ip: string |
     await ensureBilling(env);
     return await decide(env, config, field, pfPaymentId, ip, ymd(now));
   } catch (error) {
-    // PayFast retries a non-200: nothing was half-applied that a retry cannot finish. The reason is given ONLY where the confirmation skip is on (the staging test seam, which live mode ignores), so a real failure can be read there.
-    return { status: 500, outcome: config.skipConfirm ? `error: ${error instanceof Error ? error.message : String(error)}`.slice(0, 200) : "error" };
+    // PayFast retries a non-200: nothing was half-applied that a retry cannot finish. This is only reachable AFTER the signature and PayFast's own confirmation, so only PayFast (and the merchant, on PayFast's dashboard) ever sees the answer. In SANDBOX the
+    // reason is given, because "error" alone cost a round trip to find out what had failed; live says just "error".
+    return { status: 500, outcome: config.sandbox ? `error: ${error instanceof Error ? error.message : String(error)}`.slice(0, 200) : "error" };
   }
 }
 
