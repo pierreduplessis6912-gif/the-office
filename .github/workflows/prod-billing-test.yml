@@ -6,12 +6,17 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "create = start an order and get the pay link; status = look at what the business has bought and paid"
+        description: "create = start an order and get the pay link; status = what the business has bought and paid; payfast-ping = check PayFast accepts our signing; payfast-fetch = look at its subscription AT PayFast; payfast-pause, -unpause, -cancel = act on it (type the business id again in confirm)"
         type: choice
         required: true
         options:
           - create
           - status
+          - payfast-ping
+          - payfast-fetch
+          - payfast-pause
+          - payfast-unpause
+          - payfast-cancel
         default: create
       business_id:
         description: "The business's id (see the directory). The Ballz test business is ballz-enterprizes-392739"
@@ -88,6 +93,13 @@ jobs:
             python3 -c "import json, os; print(json.dumps({'business': os.environ['BUSINESS_ID'], 'plan': os.environ['PLAN'], 'interval': os.environ['INTERVAL'], 'seats': int(os.environ['SEATS'] or 3), 'email': os.environ['PAYER']}))" > results/body.json
             CODE=$(curl -s -o results/answer.json -w '%{http_code}' -X POST "$PROD_URL/debug/directory/billing-order" -H "X-Admin-Key: $ADMIN" -H "X-Admin-Confirm: $CONFIRM_KEY" -H "Content-Type: application/json" --data-binary @results/body.json)
             rm -f results/body.json
+          elif [ "$ACTION" = "payfast-ping" ]; then
+            CODE=$(curl -s -o results/answer.json -w '%{http_code}' "$PROD_URL/debug/directory/payfast-ping" -H "X-Admin-Key: $ADMIN")
+          elif [ "$ACTION" = "payfast-fetch" ]; then
+            CODE=$(curl -s -o results/answer.json -w '%{http_code}' "$PROD_URL/debug/directory/payfast-subscription?business=$BUSINESS_ID" -H "X-Admin-Key: $ADMIN")
+          elif [ "$ACTION" = "payfast-pause" ] || [ "$ACTION" = "payfast-unpause" ] || [ "$ACTION" = "payfast-cancel" ]; then
+            if [ "$CONFIRM" != "$BUSINESS_ID" ]; then echo "::error::To act on a subscription, type the business id again in the confirm box, exactly."; exit 1; fi
+            CODE=$(curl -s -o results/answer.json -w '%{http_code}' -X POST "$PROD_URL/debug/directory/payfast-subscription" -H "X-Admin-Key: $ADMIN" -H "X-Admin-Confirm: $CONFIRM_KEY" -H "Content-Type: application/json" -d "{\"business\":\"$BUSINESS_ID\",\"action\":\"${ACTION#payfast-}\"}")
           else
             CODE=$(curl -s -o results/answer.json -w '%{http_code}' "$PROD_URL/debug/directory/billing?business=$BUSINESS_ID" -H "X-Admin-Key: $ADMIN")
           fi
