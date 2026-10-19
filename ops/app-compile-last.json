@@ -1,22 +1,18 @@
 {
- "commit": "8201b73",
- "when": "2026-10-19T21:05:16.335128+00:00",
+ "commit": "4dd50f8",
+ "when": "2026-10-19T21:07:37.861204+00:00",
  "analyze": "success",
  "analyze_errors": 0,
  "analyze_error_lines": [],
- "tests": "failure",
- "failing_lines": [
-  "::group::\u274c loading /home/runner/work/the-office/the-office/app/test/widget_test.dart (failed)",
-  "Failed to load \"/home/runner/work/the-office/the-office/app/test/widget_test.dart\":",
-  "::group::\u274c loading /home/runner/work/the-office/the-office/app/test/widget_test.dart (failed after test completion)"
- ],
+ "tests": "success",
+ "failing_lines": [],
  "test_tail": [
-  "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: the gate shows the app normally, replaces it when access ends, and \"Sign in\" brings it back",
-  "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: anything open on top (a dialog, a pushed page) is closed when access ends",
-  "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: the screen is announced to a screen reader (live region) and has no way to continue except signing in",
+  "\u2705 the gate shows the app normally, replaces it when access ends, and \"Sign in\" brings it back",
+  "\u2705 anything open on top (a dialog, a pushed page) is closed when access ends",
+  "\u2705 the screen is announced to a screen reader (live region) and has no way to continue except signing in",
   "::endgroup::",
   "",
-  "::error::21 tests passed, 1 failed."
+  "\ud83c\udf89 21 tests passed."
  ],
- "build": "skipped"
+ "build": "success"
 }
