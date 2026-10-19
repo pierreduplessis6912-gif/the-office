@@ -853,6 +853,8 @@ async function expect(role, method, path, want) {
   await require('./experience.test.js')({ check, srcDir });
   // The analysis layer: why a figure changed, from the report's own numbers, with the records behind it and no invented causes
   await require('./analysis.test.js')({ check, srcDir });
+  // The history and audit record: heard, interpreted, proposed, decided, replied, and the records written
+  await require('./history.test.js')({ check, srcDir });
   // Operations: the billing health check (money that may be stuck) and its scheduled alert
   await require('./billing-health.test.js')({ check, srcDir });
   // Reports as data: the PDFs' figures as JSON, with a period and a comparison, authorised exactly like the PDFs

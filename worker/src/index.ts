@@ -1,4 +1,5 @@
 export { TrialObject } from "./trial";
+import { decisionOf, parseHistoryParams, readHistory, recordDecision, recordInteraction, resolveScope } from "./history";
 import { agedCreditorsData, agedDebtorsData, parsePeriodParams, profitAndLossData } from "./reports-data";
 import { withExperience } from "./experience";
 import { analysisData, parseAnalysisParams } from "./analysis";
@@ -303,9 +304,11 @@ async function processTranscript(
   source: string = "text",
   r2Key: string | null = null,
   capabilities: string[] = ROLE_CAPABILITIES.owner,
-  recordingUserEmail: string | null = null
+  recordingUserEmail: string | null = null,
+  onCapture?: (id: number | null) => void
 ): Promise<ProcessResult> {
   const captureId = await logCapture(env, transcript, source, r2Key);
+  onCapture?.(captureId);   // lets a caller learn the capture id WITHOUT it being added to the reply
 
   const items = await extractMultipleIntents(env, transcript);
 
@@ -1329,6 +1332,15 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       } catch {
         return Response.json({ error: "The report could not be built." }, { status: 500 });
       }
+    }
+    // The history of what the person said and what The Office did (history.ts). A member reads only their OWN turns; everyone's needs can_manage_settings. Read-only.
+    if (url.pathname === "/history" && request.method === "GET") {
+      const parsed = parseHistoryParams(url.searchParams);
+      if (!parsed.ok) return Response.json({ error: parsed.error }, { status: 400 });
+      const { email: viewer, capabilities: held } = await resolveCapabilities(request, env);
+      const scope = resolveScope(parsed.who, held);
+      if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+      return Response.json(await readHistory(env, { scope: scope.scope, viewer, limit: parsed.limit, before: parsed.before }));
     }
     // WHY a figure changed (analysis.ts): from the report's own figures, with the records behind them and no invented cause. Stateless and read-only, so the open report is never touched; authorised exactly like the profit and loss.
     if (url.pathname === "/reports/analysis" && request.method === "GET") {
@@ -3278,8 +3290,9 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       // retried, while the person was told it had been received. Documents and photos have always logged a capture before
       // anything else; audio only did so inside a successful transcription.
       if (!transcript) await logCapture(env, "[voice note — transcription unavailable]", "voice", key);
+      let captured: number | null = null;
       const processed = transcript
-        ? await processTranscript(env, transcript, ctx, history, "voice", key, voiceCapabilities, voiceEmail)
+        ? await processTranscript(env, transcript, ctx, history, "voice", key, voiceCapabilities, voiceEmail, (id) => { captured = id; })
         : {
             extraction: null,
             extractionRaw: null,
@@ -3291,6 +3304,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             rewrittenQuery: "",
           };
 
+      await recordInteraction(env, { actorEmail: voiceEmail, source: "voice", captureId: captured, processed });   // swallowed on failure: it can never change a reply
       const audioResponseBody = JSON.stringify({ status: "stored", key, transcript, transcriptionError, ...withExperience(processed) });
       await completeIdempotencyKey(env, idempotencyKey, audioResponseBody);
       return new Response(audioResponseBody, { headers: { "Content-Type": "application/json" } });
@@ -3821,7 +3835,9 @@ let created = 0;
       if (idempotencyResult) return idempotencyResult;
 
       const { capabilities, email: textEmail } = await resolveCapabilities(request, env);
-      const processed = await processTranscript(env, text, ctx, history, "text", null, capabilities, textEmail);
+      let captured: number | null = null;
+      const processed = await processTranscript(env, text, ctx, history, "text", null, capabilities, textEmail, (id) => { captured = id; });
+      await recordInteraction(env, { actorEmail: textEmail, source: "text", captureId: captured, processed });   // swallowed on failure: it can never change a reply
       const responseBody = JSON.stringify({ status: "processed", transcript: text, ...withExperience(processed) });
 
       await completeIdempotencyKey(env, idempotencyKey, responseBody);
@@ -3866,6 +3882,10 @@ export async function serveRequest(request: Request, env: Env, ctx: ExecutionCon
   const response = cap.block ?? (await runGuarded(request, requestId, () => handleRequest(request, timingOn ? instrumentEnv(env, tally) : meterOn ? instrumentEnv(env, tally, "ai") : env, ctx, requestId), log));
   if (cap.countable && cap.over && !cap.block) response.headers.set("X-Usage-Warning", cap.over === "messages" ? "daily-message-limit" : "daily-spend-limit");
   if (cap.countable && !cap.block && isCountable(response)) ctx.waitUntil(capAfter(env, cap).catch(() => undefined));
+    // A decision on a held action (confirm, reject, edit-field) is recorded with who and the outcome, from the response STATUS alone; swallowed, so it can never change a response.
+    if (decisionOf(request.method, new URL(request.url).pathname)) {
+      try { const { email } = await resolveCapabilities(request, env); await recordDecision(env, { method: request.method, pathname: new URL(request.url).pathname, status: response.status, actorEmail: email }); } catch { /* never changes a response */ }
+    }
   const totalMs = Date.now() - startedAt;
   log("info", requestId, "request end", { status: response.status, durationMs: totalMs, ...(timingOn ? breakdown(tally) : {}) });
   // Every admin call is recorded (route, tier, outcome, hashed source; never the key), after the response has gone. A call refused only because the source
