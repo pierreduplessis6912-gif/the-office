@@ -855,7 +855,10 @@ jobs:
           PLURL=$(python3 -c "import json; print(json.load(open('$RESULTS/pl-link.json')).get('url',''))")
           PLTOK=$(python3 -c "import sys, urllib.parse as u; print(u.parse_qs(u.urlparse(sys.argv[1]).query).get('t', [''])[0])" "$PLURL")
           curl -s -o "$RESULTS/pl-page.html" -w '%{http_code}' "$PLURL" > "$RESULTS/pl-page.status"
-          curl -s -o "$RESULTS/pl-page-bad.html" -w '%{http_code}' "${PLURL%?}x" > "$RESULTS/pl-page-bad.status"
+          # Tamper with a character INSIDE the signed payload, which always changes real bits. (Replacing the LAST character of the signature does not always: a 32-byte signature is 43 base64url characters and the last carries only 4 meaningful bits, so
+          # replacing it with 'x' decodes to the same bytes one time in sixteen and the "tampered" link is genuinely valid. That made this check pass by luck.)
+          PLBAD=$(python3 -c "import sys; u = sys.argv[1]; i = u.index('t=') + 12; print(u[:i] + ('x' if u[i] != 'x' else 'y') + u[i + 1:])" "$PLURL")
+          curl -s -o "$RESULTS/pl-page-bad.html" -w '%{http_code}' "$PLBAD" > "$RESULTS/pl-page-bad.status"
           curl -s -o "$RESULTS/pl-start.html" -w '%{http_code} %{redirect_url}' -X POST --data-urlencode "t=$PLTOK" --data-urlencode "plan=solo" --data-urlencode "interval=monthly" --data-urlencode "business=someone-else" --data-urlencode "amount=1" "$BASE/billing/start" > "$RESULTS/pl-start.status"
           PLPAY=$(cut -d' ' -f2 "$RESULTS/pl-start.status")
           curl -s -o "$RESULTS/pl-pay.html" -w '%{http_code}' "$PLPAY" > "$RESULTS/pl-pay.status"
