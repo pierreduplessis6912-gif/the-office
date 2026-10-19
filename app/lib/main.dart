@@ -15,6 +15,8 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_native_calendar/native_calendar.dart';
 import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
+
+import 'access_guard.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:url_launcher/url_launcher.dart';
@@ -150,7 +152,16 @@ const _emberSage = Color(0xFF5C7A5C); // Pending
 const _statusPaid = Color(0xFF5C8A6B);
 const _statusPending = Color(0xFFB8935A);
 
-void main() => runApp(const OfficeApp());
+// Every request the app makes goes through ONE shared client that notices when the server says this business's access has ended (lib/access_guard.dart). It is installed with runWithClient, so none of the call sites changed.
+final GlobalKey<NavigatorState> _rootNavigator = GlobalKey<NavigatorState>();
+
+void main() {
+  final shared = http.Client(); // the platform's own client, made once and kept for the life of the app
+  accessSignal.onEnded = () {
+    const FlutterSecureStorage().delete(key: 'session_token'); // the session the server has refused is not kept
+  };
+  http.runWithClient(() => runApp(const OfficeApp()), () => AccessAwareClient(shared, accessSignal));
+}
 
 class OfficeApp extends StatelessWidget {
   const OfficeApp({super.key});
@@ -189,7 +200,8 @@ class OfficeApp extends StatelessWidget {
           textStyle: GoogleFonts.workSans(color: _paper, fontSize: 14),
         ),
       ),
-      home: const OfficeHome(),
+      navigatorKey: _rootNavigator,
+      home: AccessGate(signal: accessSignal, navigatorKey: _rootNavigator, child: const OfficeHome()),
     );
   }
 }
