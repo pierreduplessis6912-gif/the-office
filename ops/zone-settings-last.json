@@ -1,5 +1,5 @@
 {
- "when": "2026-10-19T00:25:29.346508+00:00",
+ "when": "2026-10-19T00:29:07.459808+00:00",
  "zone_lookup_ok": true,
  "settings_ok": true,
  "settings": {
@@ -29,5 +29,13 @@
    "type": "CNAME",
    "proxied": true
   }
+ ],
+ "edge_requests_for_notify_path": null,
+ "edge_requests_errors": [
+  "Actor 'com.cloudflare.api.token.90096d5d43b6febdeab9247550d4856a' does not have permission 'com.cloudflare.api.account.zone.analytics.read' for zone e6b58b08eb80ea03a46d010455f6b25d"
+ ],
+ "security_events_for_notify_path": null,
+ "security_events_errors": [
+  "Actor 'com.cloudflare.api.token.90096d5d43b6febdeab9247550d4856a' does not have permission 'com.cloudflare.api.account.zone.analytics.read' for zone e6b58b08eb80ea03a46d010455f6b25d"
  ]
 }
