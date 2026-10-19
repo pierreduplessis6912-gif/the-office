@@ -26,3 +26,8 @@ Session C (point 2) will touch: a NEW `worker/src/analysis.ts` and its test, the
 Session C (point 3) will touch: a new `worker/src/history.ts` and its test, ONE new table created lazily in the business database, the text and voice-note handlers in `worker/src/index.ts` only to RECORD (a write after the reply is built, swallowed on failure so it can never change a reply), one read route for the history, the route-policy pins, and the golden recordings ONLY if a recorded reply changes (it should not). It will NOT touch billing, the email module, the reports or analysis modules, the envelope's code, or the Flutter app. Point 4 is not claimed yet.
 
 **Status of the five backend wrap-up points (2026-10-19): 1 reports as data DONE; 2 analysis layer DONE; 3 history and audit record DONE; 4 workspace context DONE; 5 operations: 5a the billing health check and alert DONE, 5b customer emails for a failed payment or a coming lapse NOT built (it needs an email provider key from Pierre).** The front-end contracts are ENVELOPE.md (the reply envelope), CONTEXT.md (workspace context), and the routes `/reports/profit-and-loss|aged-debtors|aged-creditors`, `/reports/analysis`, `/history` and `/context/check`.
+
+## Front end (Flutter app)
+
+Front-end work is claimed with the same create-only call (`claim/frontend-N-<name>`). Slice 1 (`claim/frontend-1-audit`): audit against the doctrine, and handling a lapsed business with a shared client and a gate, DONE and merged; the app has tests and CI records `ops/app-compile-last.json`. **Nothing here is verified on a device.** Candidate next slices, none claimed: the owner's plans button; sending workspace context; reduced motion and accessibility; reading the reply envelope; a history view; an analysis view.
+
