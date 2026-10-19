@@ -15,3 +15,23 @@ very short timeout (2s)            HTTP 400 | server: server: cloudflare | cf-mi
 172.67.171.87
 2606:4700:3030::ac43:ab57
 2606:4700:3036::6815:27c6
+--- What the server offers, asked with openssl (client-side limits switched off):
+tls1 -> New, TLSv1.0, Cipher is ECDHE-ECDSA-AES128-SHA     Protocol  : TLSv1 
+tls1_1 -> New, TLSv1.0, Cipher is ECDHE-ECDSA-AES128-SHA     Protocol  : TLSv1.1 
+tls1_2 -> New, TLSv1.2, Cipher is ECDHE-ECDSA-CHACHA20-POLY1305     Protocol  : TLSv1.2 
+tls1_3 -> New, TLSv1.3, Cipher is TLS_AES_256_GCM_SHA384 
+--- Certificate chain presented:
+ 0 s:CN = websitehub.co.za
+   i:C = US, O = Let's Encrypt, CN = YE1
+   a:PKEY: id-ecPublicKey, 256 (bit); sigalg: ecdsa-with-SHA384
+ 1 s:C = US, O = Let's Encrypt, CN = YE1
+   i:C = US, O = ISRG, CN = Root YE
+   a:PKEY: id-ecPublicKey, 384 (bit); sigalg: ecdsa-with-SHA384
+ 2 s:C = US, O = ISRG, CN = Root YE
+   i:C = US, O = Internet Security Research Group, CN = ISRG Root X2
+   a:PKEY: id-ecPublicKey, 384 (bit); sigalg: ecdsa-with-SHA384
+ 3 s:C = US, O = Internet Security Research Group, CN = ISRG Root X2
+   i:C = US, O = Internet Security Research Group, CN = ISRG Root X1
+   a:PKEY: id-ecPublicKey, 384 (bit); sigalg: RSA-SHA256
+Verification: OK
+Verify return code: 0 (ok)
