@@ -811,8 +811,12 @@ export const SIGNABLE_DOCUMENT_PATHS: Array<{ pattern: RegExp; anyOf: string[] }
   { pattern: /^\/quotations\/\d+\/pdf$/, anyOf: ["can_make_quotes"] },
   { pattern: /^\/customers\/\d+\/statement\/pdf$/, anyOf: ["can_manage_invoices", "can_know_profit"] },
   { pattern: /^\/reports\/aged-debtors\/pdf$/, anyOf: ["can_know_debtors", "can_know_profit"] },
+  // The same reports as DATA (reports-data.ts): each is gated by EXACTLY the capabilities of its PDF (a test compares them).
+  { pattern: /^\/reports\/aged-debtors$/, anyOf: ["can_know_debtors", "can_know_profit"] },
   { pattern: /^\/reports\/aged-creditors\/pdf$/, anyOf: ["can_know_supplier_balances"] },
+  { pattern: /^\/reports\/aged-creditors$/, anyOf: ["can_know_supplier_balances"] },
   { pattern: /^\/reports\/profit-and-loss\/pdf$/, anyOf: ["can_know_profit"] },
+  { pattern: /^\/reports\/profit-and-loss$/, anyOf: ["can_know_profit"] },
 ];
 
 export function denyForRole(): Response {

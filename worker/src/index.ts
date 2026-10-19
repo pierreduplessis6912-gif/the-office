@@ -1,4 +1,5 @@
 export { TrialObject } from "./trial";
+import { agedCreditorsData, agedDebtorsData, parsePeriodParams, profitAndLossData } from "./reports-data";
 import { withExperience } from "./experience";
 import { businessLapsed } from "./access";
 import { bulkImportRoute, similarNameTracker } from "./imports";
@@ -1316,6 +1317,23 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       } catch (err) {
         return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
       }
+    }
+
+    // The three reports as DATA (reports-data.ts): the same figures the PDFs use, with a period and a comparison, authorised exactly like the PDFs.
+    if (url.pathname === "/reports/profit-and-loss" && request.method === "GET") {
+      const parsed = parsePeriodParams(url.searchParams);
+      if (!parsed.ok) return Response.json({ error: parsed.error }, { status: 400 });
+      try {
+        return Response.json(await profitAndLossData(env, parsed));
+      } catch {
+        return Response.json({ error: "The report could not be built." }, { status: 500 });
+      }
+    }
+    if (url.pathname === "/reports/aged-debtors" && request.method === "GET") {
+      try { return Response.json(await agedDebtorsData(env)); } catch { return Response.json({ error: "The report could not be built." }, { status: 500 }); }
+    }
+    if (url.pathname === "/reports/aged-creditors" && request.method === "GET") {
+      try { return Response.json(await agedCreditorsData(env)); } catch { return Response.json({ error: "The report could not be built." }, { status: 500 }); }
     }
 
     // Real feature 2026-07-12 — the final report of the accounting-
