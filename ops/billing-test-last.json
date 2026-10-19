@@ -1,65 +1,9 @@
 {
- "when": "2026-10-19T07:08:00.073944+00:00",
- "action": "status",
+ "when": "2026-10-19T10:42:29.071236+00:00",
+ "action": "payfast-ping",
  "business": "ballz-enterprizes-392739",
  "http": "200",
  "answer": {
-  "business": {
-   "id": "ballz-enterprizes-392739",
-   "name": "Ballz Enterprizes",
-   "plan": "team",
-   "status": "active",
-   "seats": 3,
-   "billingStatus": "active",
-   "billingInterval": "monthly",
-   "periodEnd": "2026-11-19",
-   "graceUntil": null,
-   "hasSubscription": true
-  },
-  "orders": [
-   {
-    "id": "e8064fa7-79ef-49c9-959e-51dc19550e36",
-    "plan": "team",
-    "interval": "monthly",
-    "seats": 3,
-    "amountCents": 89700,
-    "status": "completed",
-    "createdAt": "2026-10-19 05:47:16",
-    "completedAt": "2026-10-19 05:50:14",
-    "notices": []
-   },
-   {
-    "id": "9c4b8d2b-0eb5-438e-9c2a-5b2c8921e39d",
-    "plan": "team",
-    "interval": "monthly",
-    "seats": 3,
-    "amountCents": 89700,
-    "status": "pending",
-    "createdAt": "2026-10-19 04:39:20",
-    "completedAt": null,
-    "notices": []
-   },
-   {
-    "id": "574a0ef3-aeda-4c12-a9f9-a7ebef74eb48",
-    "plan": "team",
-    "interval": "monthly",
-    "seats": 3,
-    "amountCents": 89700,
-    "status": "pending",
-    "createdAt": "2026-10-19 00:14:32",
-    "completedAt": null,
-    "notices": []
-   }
-  ],
-  "payments": [
-   {
-    "pfPaymentId": "3459040",
-    "status": "complete",
-    "amountCents": 89700,
-    "confirmed": true,
-    "ipKnown": true,
-    "createdAt": "2026-10-19 05:50:14"
-   }
-  ]
+  "ok": true
  }
 }
