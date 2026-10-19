@@ -73,12 +73,24 @@ export async function createOrder(env: Env, input: { businessId: unknown; payerE
   const business = await env.OFFICE_DB.prepare("SELECT status FROM businesses WHERE id = ?").bind(input.businessId).first<{ status: string }>();
   if (!business) return { ok: false, status: 404, error: "There is no such business." };
   if (business.status !== "active") return { ok: false, status: 409, error: "This business cannot be changed right now." };
+  if (await isSubscribed(env, input.businessId)) return { ok: false, status: 409, error: "This business already has a subscription. Ask us to change or cancel it." };
   await ensureBilling(env);
   const id = crypto.randomUUID();
   const amountCents = price * seats;
   const itemName = `The Office ${offer.label}${offer.perSeat ? ` (${seats} seat${seats === 1 ? "" : "s"})` : ""}`;
   await env.OFFICE_DB.prepare("INSERT INTO billing_orders (id, business_id, plan, interval, seats, amount_cents, item_name, payer_email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").bind(id, input.businessId, offer.name, input.interval, seats, amountCents, itemName, email).run();
   return { ok: true, order: { id, businessId: input.businessId, plan: offer.name, interval: input.interval, seats, amountCents, itemName, payerEmail: email } };
+}
+
+// A business SUBSCRIBES while its subscription is active or past due (a cancelled one has ended, so it may subscribe again). A shared layer from before the billing columns has nothing to be subscribed to. One subscription per business: otherwise a
+// second payment would overwrite the first subscription's token and leave the first billing with nothing pointing at it.
+async function isSubscribed(env: Env, businessId: string): Promise<boolean> {
+  try {
+    const row = await env.OFFICE_DB.prepare("SELECT billing_status, pf_token FROM businesses WHERE id = ?").bind(businessId).first<{ billing_status: string | null; pf_token: string | null }>();
+    return !!row && !!row.pf_token && (row.billing_status === "active" || row.billing_status === "past_due");
+  } catch {
+    return false;
+  }
 }
 
 // ---- the signed checkout and the page that sends the payer to PayFast ----------------------------------------------------------------------------------------------------------------------------------------
@@ -101,6 +113,7 @@ export async function payPage(env: Env, orderId: string, origin: string, now: Da
   const row = await env.OFFICE_DB.prepare("SELECT id, business_id, plan, interval, seats, amount_cents, item_name, payer_email, status FROM billing_orders WHERE id = ?").bind(orderId).first<OrderRow>();
   if (!row) return html("<h1>Not found</h1>", 404);
   if (row.status === "completed") return html("<h1>Already paid</h1><p>This order has been paid. You can return to the app.</p>");
+  if (row.status !== "pending") return html("<h1>This order cannot be paid</h1><p>It is no longer available. You can return to the app.</p>", 409);
   if (!payfastConfig(env)) return html("<h1>Payments are not set up yet</h1><p>Please try again later.</p>", 503);
   const checkout = checkoutFor(env, toOrder(row), origin, ymd(now));
   const inputs = checkout.fields.map(([k, v]) => `<input type="hidden" name="${escapeHtml(k)}" value="${escapeHtml(v)}">`).join("\n");
@@ -200,6 +213,12 @@ async function decide(env: Env, _config: PayFastConfig, field: (n: string) => st
   const months = order.interval === "annual" ? 12 : 1;
   if (!subscribed) {
     if (order.status !== "pending") { await record("rejected", order, 1); return { status: 200, outcome: "order_closed" }; }
+    // Money has been taken for a SECOND subscription. Do not apply it over the first (that would orphan the first subscription's token); record it as needing REVIEW so an operator can refund it and cancel that subscription.
+    if (await isSubscribed(env, order.business_id)) {
+      await db.prepare("UPDATE billing_orders SET status = 'review' WHERE id = ?").bind(order.id).run();
+      await record("review", order, 1);
+      return { status: 200, outcome: "already_subscribed" };
+    }
     await db.prepare("UPDATE businesses SET plan = ?, seats = ?, billing_status = 'active', billing_interval = ?, pf_token = ?, period_end = ?, grace_until = NULL, trial_ends_at = NULL WHERE id = ?")
       .bind(order.plan, order.seats, order.interval, token, addMonths(today, months), order.business_id).run();
     await db.prepare("UPDATE billing_orders SET status = 'completed', completed_at = datetime('now') WHERE id = ?").bind(order.id).run();
