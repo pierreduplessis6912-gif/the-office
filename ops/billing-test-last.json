@@ -1,9 +1,14 @@
 {
- "when": "2026-10-19T10:46:56.730223+00:00",
- "action": "payfast-unpause",
+ "when": "2026-10-19T10:47:58.518912+00:00",
+ "action": "payfast-fetch",
  "business": "ballz-enterprizes-392739",
  "http": "200",
  "answer": {
-  "done": true
+  "status": 1,
+  "amount": 89700,
+  "cycles": 0,
+  "cycles_complete": 1,
+  "frequency": 3,
+  "run_date": "2026-11-19T00:00:00+02:00"
  }
 }
