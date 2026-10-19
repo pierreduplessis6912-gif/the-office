@@ -108,6 +108,18 @@
   "class": "public"
  },
  {
+  "route": "GET /billing/card-updated",
+  "pattern": "/billing/card-updated",
+  "how": "public list",
+  "none": "A",
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "sales": "A",
+  "admin": "A",
+  "class": "public"
+ },
+ {
   "route": "GET /billing/pay",
   "pattern": "/billing/pay",
   "how": "public list",
@@ -158,6 +170,18 @@
  {
   "route": "GET /billing/start",
   "pattern": "/billing/start",
+  "how": "public list",
+  "none": "A",
+  "owner": "A",
+  "accountant": "A",
+  "installer": "A",
+  "sales": "A",
+  "admin": "A",
+  "class": "public"
+ },
+ {
+  "route": "GET /billing/update-card",
+  "pattern": "/billing/update-card",
   "how": "public list",
   "none": "A",
   "owner": "A",

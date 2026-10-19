@@ -71,3 +71,23 @@ export async function startPost(request: Request, env: Env, deps: Deps = {}): Pr
 }
 
 export const paymentsConfigured = (env: Env): boolean => payfastConfig(env) !== null;
+
+// ---- updating the card on a failed subscription -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// PayFast hosts this page itself: {live host}/eng/recurring/update/{subscription token}?return={our page} (the address comes from PayFast's own SDK source, which also refuses to build it in SANDBOX, so it cannot be tested against the sandbox and is UNPROVEN until
+// a real card is used live). Only the verified OWNER of a PAST-DUE business is sent there; the subscription token is used only if it is exactly the shape of a PayFast subscription token and appears nowhere except in that one redirect.
+export async function cardUpdatePage(request: Request, env: Env, deps: Deps = {}): Promise<Response> {
+  const url = new URL(request.url);
+  const who = await resolve(request, env, url.searchParams.get("t"), deps);
+  if (!who.ok) return who.response;
+  const row = await env.OFFICE_DB.prepare("SELECT billing_status, pf_token FROM businesses WHERE id = ?").bind(who.businessId).first<{ billing_status: string | null; pf_token: string | null }>().catch(() => null);
+  if (!row || row.billing_status !== "past_due") return page("Nothing to update", "<h1>There is no card to update here</h1><p>Your payments are up to date, or there is no failed payment. If something looks wrong, please contact us.</p>", 409);
+  if (!row.pf_token || !/^[0-9a-f-]{36}$/i.test(row.pf_token)) return page("Please contact us", "<h1>Please contact us</h1><p>We could not find the subscription to update. Please contact us and we will sort it out.</p>", 409);
+  const config = payfastConfig(env);
+  if (!config) return page("Not set up", "<h1>Payments are not set up yet</h1><p>Please try again later.</p>", 503);
+  if (config.sandbox) return page("Test mode", "<h1>Card updates are not available in test mode</h1><p>PayFast only offers this on the live account.</p>");
+  return Response.redirect(`https://www.payfast.co.za/eng/recurring/update/${row.pf_token}?return=${url.origin}/billing/card-updated`, 303);
+}
+
+export const cardUpdatedPage = (): Response =>
+  page("Card updated", "<h1>Thank you</h1><p>Your card details were sent to PayFast. We will try the payment again. If your access does not come back within a day, please contact us.</p>");
+
