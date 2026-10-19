@@ -61,6 +61,28 @@ jobs:
           json.dump(out, open("ops/zone-settings-last.json", "w"), indent=1)
           print(json.dumps(out, indent=1))
           PY
+      - name: Imitate an outside server calling the notification address (harmless garbage body, refused by our own checks)
+        run: |
+          U=https://office.websitehub.co.za/billing/payfast/notify
+          BODY='payment_status=COMPLETE&signature=00000000000000000000000000000000'
+          probe() { # label, then the extra curl options
+            L="$1"; shift
+            curl -s -D /tmp/h.txt -o /tmp/b.txt -w '%{http_code}' --max-time 20 -X POST "$@" --data "$BODY" "$U" > /tmp/c.txt 2>/tmp/e.txt || true
+            echo "$(printf '%-34s' "$L") HTTP $(cat /tmp/c.txt) | server: $(grep -i '^server:' /tmp/h.txt | tr -d '\r' | head -1) | cf-mitigated: $(grep -i '^cf-mitigated:' /tmp/h.txt | tr -d '\r' | head -1) | body: $(head -c 60 /tmp/b.txt | tr '\n' ' ')"
+          }
+          probe "default curl"
+          probe "no User-Agent" -H "User-Agent:"
+          probe "User-Agent PayFast" -A "PayFast ITN"
+          probe "PHP-style User-Agent" -A "PHP-Curl-Class"
+          probe "HTTP/1.1 explicitly" --http1.1
+          probe "TLS 1.2 only" --tlsv1.2 --tls-max 1.2
+          probe "TLS 1.1 only" --tlsv1.1 --tls-max 1.1
+          probe "IPv4 only" -4
+          probe "IPv6 only" -6
+          probe "with Expect header (PHP default)" -H "Expect: 100-continue"
+          probe "form content type, no charset" -H "Content-Type: application/x-www-form-urlencoded"
+          probe "very short timeout (2s)" --max-time 2
+          echo "--- DNS the zone publishes for the host:"; getent ahosts office.websitehub.co.za | awk '{print $1}' | sort -u | head -6
       - name: Commit the record
         if: always()
         run: |
