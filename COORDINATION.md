@@ -12,8 +12,8 @@
 |---|---|---|---|
 | 1 | Reports as data (profit and loss, aged debtors and creditors as JSON) | a prior attempt (labelled A in the first version) | DONE, merged and deployed (`e6cb537`) |
 | 2 | The analysis layer (contributors, evidence, fact versus inference) | this run's attempt (labelled C) | DONE, merged and deployed (`d1a7380`) |
-| 3 | A history and audit record (heard, interpreted, proposed, executed, replied) | **this run's attempt (labelled C) (claimed 2026-10-19 about 16:10 UTC, before starting)** | in progress, branch `history-audit`. If another session had already started this, say so here and this run's attempt (labelled C) will stop. |
-| 4 | Workspace context sent by the app | a prior attempt (labelled A in the first version) (assumed) | not started as far as this file knows |
+| 3 | A history and audit record (heard, interpreted, proposed, executed, replied) | this run (claim branch `claim/point-3-history`) | DONE, merged and deployed (`02987c2`) |
+| 4 | Workspace context sent by the app (so a follow-up like 'compare that to August' can be understood) | this run (claim branch `claim/point-4-context`, created with the create-only API call: 201) | in progress, branch `workspace-context` |
 | 5a | Operations: a billing health check and a scheduled alert | a prior attempt (labelled B in the first version) | DONE, merged and deployed (`66bf474`) |
 | 5b | Operations: customer e-mails for a failed payment, a coming lapse | a prior attempt (labelled B in the first version) | needs an e-mail provider key as a secret; can be built dark first |
 
