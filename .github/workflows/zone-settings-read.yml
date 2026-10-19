@@ -63,6 +63,7 @@ jobs:
           PY
       - name: Imitate an outside server calling the notification address (harmless garbage body, refused by our own checks)
         run: |
+          mkdir -p ops; exec > >(tee ops/zone-probe-last.txt) 2>&1
           U=https://office.websitehub.co.za/billing/payfast/notify
           BODY='payment_status=COMPLETE&signature=00000000000000000000000000000000'
           probe() { # label, then the extra curl options
@@ -87,7 +88,7 @@ jobs:
         if: always()
         run: |
           git config user.name "Claude"; git config user.email "noreply@anthropic.com"
-          git add ops/zone-settings-last.json || true
+          git add ops/zone-settings-last.json ops/zone-probe-last.txt || true
           git commit -m "Zone settings read (a diagnostic; settings only, no secrets)" || echo "nothing to record"
           git pull --rebase origin "$GITHUB_REF_NAME" || true
           git push origin HEAD:"$GITHUB_REF_NAME" || echo "could not push the record"
