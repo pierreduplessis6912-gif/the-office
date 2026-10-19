@@ -81,7 +81,8 @@ jobs:
               except Exception: return []
           analyze, tests = read("/tmp/analyze.txt"), read("/tmp/test.txt")
           errors = [l.strip()[:200] for l in analyze if re.match(r"^\s*error •", l)]
-          out = {"commit": os.environ["GITHUB_SHA"][:7], "when": datetime.datetime.now(datetime.timezone.utc).isoformat(), "analyze": os.environ["ANALYZE"], "analyze_errors": len(errors), "analyze_error_lines": errors[:8], "tests": os.environ["TESTS"], "test_tail": [l.strip()[:200] for l in tests[-14:]], "build": os.environ["BUILD"]}
+          failing = [l.strip()[:240] for l in tests if re.search(r"❌|\[E\]|Expected:|Actual:|Which is|Which:|Exception|Failed", l)]
+          out = {"commit": os.environ["GITHUB_SHA"][:7], "when": datetime.datetime.now(datetime.timezone.utc).isoformat(), "analyze": os.environ["ANALYZE"], "analyze_errors": len(errors), "analyze_error_lines": errors[:8], "tests": os.environ["TESTS"], "failing_lines": failing[:30], "test_tail": [l.strip()[:200] for l in tests[-6:]], "build": os.environ["BUILD"]}
           json.dump(out, open("ops/app-compile-last.json", "w"), indent=1)
           print(json.dumps(out, indent=1))
           PY
