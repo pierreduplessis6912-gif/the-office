@@ -122,13 +122,20 @@ export function ipAllowed(ip: string | null | undefined, ranges: string[] = PAYF
 }
 
 // ---- asking PayFast itself: anything but exactly "VALID" is NOT confirmed -------------------------------------------------------------------------------------------------------------------------------------
-export async function confirmWithPayFast(fetchFn: (url: string, init: RequestInit) => Promise<Response>, sandbox: boolean, pairs: Pair[]): Promise<boolean> {
+// The same check, but saying WHY when it fails (PayFast's verdict, its status, or that it could not be reached), so a refusal can be understood instead of guessed. Nothing it returns contains our data.
+export async function confirmWithPayFastDetailed(fetchFn: (url: string, init: RequestInit) => Promise<Response>, sandbox: boolean, pairs: Pair[]): Promise<{ ok: boolean; detail: string }> {
   try {
     const response = await fetchFn(`https://${sandbox ? "sandbox.payfast.co.za" : "www.payfast.co.za"}/eng/query/validate`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: itnParamString(pairs) });
-    return response.ok && (await response.text()).trim() === "VALID";
+    const text = (await response.text()).trim();
+    if (response.ok && text === "VALID") return { ok: true, detail: "VALID" };
+    return { ok: false, detail: `PayFast answered HTTP ${response.status}: ${text.replace(/[^\x20-\x7e]/g, "?").slice(0, 24)}` };
   } catch {
-    return false;
+    return { ok: false, detail: "PayFast unreachable" };
   }
+}
+
+export async function confirmWithPayFast(fetchFn: (url: string, init: RequestInit) => Promise<Response>, sandbox: boolean, pairs: Pair[]): Promise<boolean> {
+  return (await confirmWithPayFastDetailed(fetchFn, sandbox, pairs)).ok;
 }
 
 // ---- the signed subscription we send the payer to ---------------------------------------------------------------------------------------------------------------------------------------------------------------------

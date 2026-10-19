@@ -4,7 +4,7 @@
 // rejected and changes nothing (and still answers 200, so PayFast stops retrying). The source address is recorded but advisory (PayFast can change its ranges, and a wrong list would silently reject real payments). The ledger holds no names or
 // email addresses. A fault here must never touch a business that has not paid. Pinned in tools/billing.test.js; what it cannot prove is that PayFast's own sandbox accepts our signature (a real sandbox payment does).
 import { clearPlanCache, listOffers } from "./limits";
-import { buildCheckout, confirmWithPayFast, ipAllowed, parseItnBody, randToCents, verifyItnSignature, type Pair } from "./payfast";
+import { buildCheckout, confirmWithPayFastDetailed, ipAllowed, parseItnBody, randToCents, verifyItnSignature, type Pair } from "./payfast";
 import type { Env } from "./types";
 
 // ---- configuration ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -32,6 +32,9 @@ export async function ensureBilling(env: Env): Promise<void> {
   const { results } = await env.OFFICE_DB.prepare("PRAGMA table_info(businesses)").all<{ name: string }>();
   const have = new Set((results ?? []).map((r) => r.name));
   for (const [name, type] of BUSINESS_COLUMNS) if (!have.has(name)) await env.OFFICE_DB.prepare(`ALTER TABLE businesses ADD COLUMN ${name} ${type}`).run();
+  const orders = await env.OFFICE_DB.prepare("PRAGMA table_info(billing_orders)").all<{ name: string }>();
+  const haveOrder = new Set((orders.results ?? []).map((r) => r.name));
+  for (const name of ["last_notice", "last_notice_at"]) if (!haveOrder.has(name)) await env.OFFICE_DB.prepare(`ALTER TABLE billing_orders ADD COLUMN ${name} TEXT`).run();
 }
 
 // ---- dates (UTC, whole days; a month that is shorter clamps: 31 January plus a month is 28 February) ---------------------------------------------------------------------------------------------------
@@ -108,19 +111,45 @@ export async function payPage(env: Env, orderId: string, origin: string, now: Da
 export interface NotifyResult { status: number; outcome: string }
 type Fetch = (url: string, init: RequestInit) => Promise<Response>;
 
+// What happened to a notification is kept on the order it NAMES, newest first, the latest five (an operator reads it in the billing view): the outcome, and for a refusal why. Only names and PayFast's own verdict are ever written, never a value,
+// a signature, an address or a token. It is written ONLY when the notification looks like PayFast's (it has a payment id) and names an order that exists, so a stranger cannot fill the table; any failure to write is swallowed (a note must never
+// change what a notification does).
+const NOTICES_KEPT = 5;
+async function noteNotice(env: Env, orderId: string, now: Date, notice: string): Promise<void> {
+  if (!/^[0-9a-f-]{36}$/i.test(orderId)) return;
+  try {
+    await ensureBilling(env);
+    const row = await env.OFFICE_DB.prepare("SELECT last_notice FROM billing_orders WHERE id = ?").bind(orderId).first<{ last_notice: string | null }>();
+    if (!row) return;
+    const line = `${now.toISOString().slice(0, 19).replace("T", " ")} ${notice.replace(/[\r\n]+/g, " ").slice(0, 300)}`;
+    const kept = [line, ...(row.last_notice ? row.last_notice.split("\n") : [])].slice(0, NOTICES_KEPT).join("\n");
+    await env.OFFICE_DB.prepare("UPDATE billing_orders SET last_notice = ?, last_notice_at = datetime('now') WHERE id = ?").bind(kept, orderId).run();
+  } catch { /* a note is never allowed to change the outcome */ }
+}
+
 export async function handleNotification(env: Env, rawBody: string, ip: string | null, fetchFn: Fetch, now: Date = new Date()): Promise<NotifyResult> {
   const config = payfastConfig(env);
   if (!config) return { status: 503, outcome: "not_configured" };
   const pairs = parseItnBody(rawBody);
-  if (pairs.length === 0 || !verifyItnSignature(pairs, config.passphrase)) return { status: 400, outcome: "bad_signature" };
-  if (!config.skipConfirm && !(await confirmWithPayFast(fetchFn, config.sandbox, pairs))) return { status: 400, outcome: "not_confirmed" };
   const field = (name: string): string => [...pairs].reverse().find(([k]) => k === name)?.[1] ?? "";
   const pfPaymentId = field("pf_payment_id");
+  const note = async (notice: string): Promise<void> => { if (pfPaymentId) await noteNotice(env, field("m_payment_id"), now, notice); };
+  if (pairs.length === 0 || !verifyItnSignature(pairs, config.passphrase)) {
+    await note(`bad_signature; fields: ${pairs.map(([k]) => k).join(",")}`);
+    return { status: 400, outcome: "bad_signature" };
+  }
+  if (!config.skipConfirm) {
+    const confirmed = await confirmWithPayFastDetailed(fetchFn, config.sandbox, pairs);
+    if (!confirmed.ok) { await note(`not_confirmed: ${confirmed.detail}`); return { status: 400, outcome: "not_confirmed" }; }
+  }
   if (!pfPaymentId) return { status: 400, outcome: "bad_body" };
   try {
     await ensureBilling(env);
-    return await decide(env, config, field, pfPaymentId, ip, ymd(now));
+    const result = await decide(env, config, field, pfPaymentId, ip, ymd(now));
+    await note(result.outcome);
+    return result;
   } catch (error) {
+    await note(`error: ${error instanceof Error ? error.message : String(error)}`);
     // PayFast retries a non-200: nothing was half-applied that a retry cannot finish. This is only reachable AFTER the signature and PayFast's own confirmation, so only PayFast (and the merchant, on PayFast's dashboard) ever sees the answer. In SANDBOX the
     // reason is given, because "error" alone cost a round trip to find out what had failed; live says just "error".
     return { status: 500, outcome: config.sandbox ? `error: ${error instanceof Error ? error.message : String(error)}`.slice(0, 200) : "error" };
@@ -193,7 +222,7 @@ export const cancelledPage = (): Response => html("<h1>Payment cancelled</h1><p>
 // It only reads, and it works on a shared layer from before the billing tables and columns existed: a read never needs them.
 export interface BillingStatus {
   business: { id: string; name: string; plan: string; status: string; seats: number | null; billingStatus: string | null; billingInterval: string | null; periodEnd: string | null; graceUntil: string | null; hasSubscription: boolean };
-  orders: Array<{ id: string; plan: string; interval: string; seats: number; amountCents: number; status: string; createdAt: string; completedAt: string | null }>;
+  orders: Array<{ id: string; plan: string; interval: string; seats: number; amountCents: number; status: string; createdAt: string; completedAt: string | null; notices: string[] }>;
   payments: Array<{ pfPaymentId: string; status: string; amountCents: number | null; confirmed: boolean; ipKnown: boolean; createdAt: string }>;
 }
 export async function billingStatus(env: Env, businessId: string): Promise<BillingStatus | null> {
@@ -209,11 +238,13 @@ export async function billingStatus(env: Env, businessId: string): Promise<Billi
   const rows = async <T,>(sql: string): Promise<T[]> => {
     try { return ((await db.prepare(sql).bind(businessId).all<T>()).results ?? []) as T[]; } catch { return []; }   // no billing tables yet: nothing ordered
   };
-  const orders = await rows<{ id: string; plan: string; interval: string; seats: number; amount_cents: number; status: string; created_at: string; completed_at: string | null }>("SELECT id, plan, interval, seats, amount_cents, status, created_at, completed_at FROM billing_orders WHERE business_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 5");
+  type OrderOut = { id: string; plan: string; interval: string; seats: number; amount_cents: number; status: string; created_at: string; completed_at: string | null; last_notice?: string | null };
+  let orders = await rows<OrderOut>("SELECT id, plan, interval, seats, amount_cents, status, created_at, completed_at, last_notice FROM billing_orders WHERE business_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 5");
+  if (orders.length === 0) orders = await rows<OrderOut>("SELECT id, plan, interval, seats, amount_cents, status, created_at, completed_at FROM billing_orders WHERE business_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 5");   // a table from before the trail existed
   const payments = await rows<{ pf_payment_id: string; status: string; amount_gross_cents: number | null; confirmed: number; ip_ok: number; created_at: string }>("SELECT pf_payment_id, status, amount_gross_cents, confirmed, ip_ok, created_at FROM billing_payments WHERE business_id = ? ORDER BY id DESC LIMIT 10");
   return {
     business: { id: row.id, name: row.name, plan: row.plan, status: row.status, seats: row.seats ?? null, billingStatus: row.billing_status ?? null, billingInterval: row.billing_interval ?? null, periodEnd: row.period_end ?? null, graceUntil: row.grace_until ?? null, hasSubscription: row.has_token === 1 },
-    orders: orders.map((o) => ({ id: o.id, plan: o.plan, interval: o.interval, seats: o.seats, amountCents: o.amount_cents, status: o.status, createdAt: o.created_at, completedAt: o.completed_at })),
+    orders: orders.map((o) => ({ id: o.id, plan: o.plan, interval: o.interval, seats: o.seats, amountCents: o.amount_cents, status: o.status, createdAt: o.created_at, completedAt: o.completed_at, notices: o.last_notice ? o.last_notice.split("\n") : [] })),
     payments: payments.map((p) => ({ pfPaymentId: p.pf_payment_id, status: p.status, amountCents: p.amount_gross_cents, confirmed: p.confirmed === 1, ipKnown: p.ip_ok === 1, createdAt: p.created_at })),
   };
 }
