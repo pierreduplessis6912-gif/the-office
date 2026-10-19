@@ -1,0 +1,18 @@
+{
+ "commit": "4dd50f8",
+ "when": "2026-10-19T21:07:37.861204+00:00",
+ "analyze": "success",
+ "analyze_errors": 0,
+ "analyze_error_lines": [],
+ "tests": "success",
+ "failing_lines": [],
+ "test_tail": [
+  "\u2705 the gate shows the app normally, replaces it when access ends, and \"Sign in\" brings it back",
+  "\u2705 anything open on top (a dialog, a pushed page) is closed when access ends",
+  "\u2705 the screen is announced to a screen reader (live region) and has no way to continue except signing in",
+  "::endgroup::",
+  "",
+  "\ud83c\udf89 21 tests passed."
+ ],
+ "build": "success"
+}
