@@ -1987,7 +1987,35 @@
     },
     "pendingCandidates": null,
     "pendingActionType": null,
-    "pendingChanges": null
+    "pendingChanges": null,
+    "experience": {
+     "version": 1,
+     "established": {
+      "from": [
+       "message"
+      ],
+      "heldActions": [],
+      "candidates": null,
+      "changes": null
+     },
+     "recommendation": {
+      "mode": "speak",
+      "speak": "ANSWER FROM FACTS:\n- Jenny Smith owes R3000 (invoiced R5000, paid R2000).\n- No quotations on file.\n- No expenses on file.\n- Total invoiced to date: R5000.\n- Total actually received: R2000.\n- Total spent on expenses: R0.\n- Rough cash position (received minus spent): R2000. This is a cash-basis snapshot, not the formal profit and loss — see getProfitAndLoss for that.\n- Revenue: R5000.\n- Cost of Sales (materials, subcontractor): R0.\n- Gross Profit: R5000.\n- Operating Expenses (fuel, tools, other): R0.\n- Net Profit: R5000.\n- Expense breakdown by category: .\n- Revenue here is accrual-based (real invoiced amounts), not cash received — a different measure from the cash-position snapshot.\n- Aged debtors: current R0, 30-60 days R0, 60-90 days R3000, 90+ days R0. Payments are allocated oldest-invoice-first (FIFO), since payments aren't linked to a specific invoice.\n- Jenny Smith: R3000 total overdue (current R0, 30-60d R0, 60-90d R3000, 90+d R0).\n- No outstanding creditors on file.\n\nA more detailed aged breakdown is also available if useful."
+     },
+     "unknown": [
+      "intent_class",
+      "room",
+      "workspace",
+      "evidence",
+      "certainty",
+      "refusal_reason"
+     ],
+     "mustStillPass": {
+      "confirmationRequired": false,
+      "through": null,
+      "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+     }
+    }
    }
   },
   "threw": null,
@@ -2064,7 +2092,35 @@
     },
     "pendingCandidates": null,
     "pendingActionType": null,
-    "pendingChanges": null
+    "pendingChanges": null,
+    "experience": {
+     "version": 1,
+     "established": {
+      "from": [
+       "message"
+      ],
+      "heldActions": [],
+      "candidates": null,
+      "changes": null
+     },
+     "recommendation": {
+      "mode": "speak",
+      "speak": "ANSWER FROM FACTS:\n- Jenny Smith owes R3000 (invoiced R5000, paid R2000).\n- No quotations on file.\n- No expenses on file.\n- Financial performance data exists for this business but is restricted for your role.\n- Aged debtors: current R0, 30-60 days R0, 60-90 days R3000, 90+ days R0. Payments are allocated oldest-invoice-first (FIFO), since payments aren't linked to a specific invoice.\n- Jenny Smith: R3000 total overdue (current R0, 30-60d R0, 60-90d R3000, 90+d R0).\n- No outstanding creditors on file.\n\nA more detailed aged breakdown is also available if useful."
+     },
+     "unknown": [
+      "intent_class",
+      "room",
+      "workspace",
+      "evidence",
+      "certainty",
+      "refusal_reason"
+     ],
+     "mustStillPass": {
+      "confirmationRequired": false,
+      "through": null,
+      "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+     }
+    }
    }
   },
   "threw": null,
@@ -2141,7 +2197,35 @@
     },
     "pendingCandidates": null,
     "pendingActionType": null,
-    "pendingChanges": null
+    "pendingChanges": null,
+    "experience": {
+     "version": 1,
+     "established": {
+      "from": [
+       "message"
+      ],
+      "heldActions": [],
+      "candidates": null,
+      "changes": null
+     },
+     "recommendation": {
+      "mode": "speak",
+      "speak": "ANSWER FROM FACTS:\n- Outstanding balances exist for this business but are restricted for your role.\n- Quotation activity exists for this business but is restricted for your role.\n- Expense activity exists for this business but is restricted for your role.\n- Financial performance data exists for this business but is restricted for your role.\n- Outstanding balances exist for this business but are restricted for your role.\n- Outstanding supplier balances exist for this business but are restricted for your role."
+     },
+     "unknown": [
+      "intent_class",
+      "room",
+      "workspace",
+      "evidence",
+      "certainty",
+      "refusal_reason"
+     ],
+     "mustStillPass": {
+      "confirmationRequired": false,
+      "through": null,
+      "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+     }
+    }
    }
   },
   "threw": null,
@@ -2218,7 +2302,35 @@
     },
     "pendingCandidates": null,
     "pendingActionType": null,
-    "pendingChanges": null
+    "pendingChanges": null,
+    "experience": {
+     "version": 1,
+     "established": {
+      "from": [
+       "message"
+      ],
+      "heldActions": [],
+      "candidates": null,
+      "changes": null
+     },
+     "recommendation": {
+      "mode": "speak",
+      "speak": "ANSWER FROM FACTS:\n- Outstanding balances exist for this business but are restricted for your role.\n- No quotations on file.\n- No expenses on file.\n- Financial performance data exists for this business but is restricted for your role.\n- Outstanding balances exist for this business but are restricted for your role.\n- No outstanding creditors on file."
+     },
+     "unknown": [
+      "intent_class",
+      "room",
+      "workspace",
+      "evidence",
+      "certainty",
+      "refusal_reason"
+     ],
+     "mustStillPass": {
+      "confirmationRequired": false,
+      "through": null,
+      "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+     }
+    }
    }
   },
   "threw": null,
@@ -2295,7 +2407,35 @@
     },
     "pendingCandidates": null,
     "pendingActionType": null,
-    "pendingChanges": null
+    "pendingChanges": null,
+    "experience": {
+     "version": 1,
+     "established": {
+      "from": [
+       "message"
+      ],
+      "heldActions": [],
+      "candidates": null,
+      "changes": null
+     },
+     "recommendation": {
+      "mode": "speak",
+      "speak": "ANSWER FROM FACTS:\n- Jenny Smith owes R3000 (invoiced R5000, paid R2000).\n- No quotations on file.\n- Expense activity exists for this business but is restricted for your role.\n- Total invoiced to date: R5000.\n- Total actually received: R2000.\n- Total spent on expenses: R0.\n- Rough cash position (received minus spent): R2000. This is a cash-basis snapshot, not the formal profit and loss — see getProfitAndLoss for that.\n- Revenue: R5000.\n- Cost of Sales (materials, subcontractor): R0.\n- Gross Profit: R5000.\n- Operating Expenses (fuel, tools, other): R0.\n- Net Profit: R5000.\n- Expense breakdown by category: .\n- Revenue here is accrual-based (real invoiced amounts), not cash received — a different measure from the cash-position snapshot.\n- Aged debtors: current R0, 30-60 days R0, 60-90 days R3000, 90+ days R0. Payments are allocated oldest-invoice-first (FIFO), since payments aren't linked to a specific invoice.\n- Jenny Smith: R3000 total overdue (current R0, 30-60d R0, 60-90d R3000, 90+d R0).\n- No outstanding creditors on file.\n\nA more detailed aged breakdown is also available if useful."
+     },
+     "unknown": [
+      "intent_class",
+      "room",
+      "workspace",
+      "evidence",
+      "certainty",
+      "refusal_reason"
+     ],
+     "mustStillPass": {
+      "confirmationRequired": false,
+      "through": null,
+      "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+     }
+    }
    }
   },
   "threw": null,
@@ -2372,7 +2512,35 @@
     },
     "pendingCandidates": null,
     "pendingActionType": null,
-    "pendingChanges": null
+    "pendingChanges": null,
+    "experience": {
+     "version": 1,
+     "established": {
+      "from": [
+       "message"
+      ],
+      "heldActions": [],
+      "candidates": null,
+      "changes": null
+     },
+     "recommendation": {
+      "mode": "speak",
+      "speak": "ANSWER FROM FACTS:\n- Jenny Smith owes R3000 (invoiced R5000, paid R2000).\n- No quotations on file.\n- No expenses on file.\n- Total invoiced to date: R5000.\n- Total actually received: R2000.\n- Total spent on expenses: R0.\n- Rough cash position (received minus spent): R2000. This is a cash-basis snapshot, not the formal profit and loss — see getProfitAndLoss for that.\n- Revenue: R5000.\n- Cost of Sales (materials, subcontractor): R0.\n- Gross Profit: R5000.\n- Operating Expenses (fuel, tools, other): R0.\n- Net Profit: R5000.\n- Expense breakdown by category: .\n- Revenue here is accrual-based (real invoiced amounts), not cash received — a different measure from the cash-position snapshot.\n- Aged debtors: current R0, 30-60 days R0, 60-90 days R3000, 90+ days R0. Payments are allocated oldest-invoice-first (FIFO), since payments aren't linked to a specific invoice.\n- Jenny Smith: R3000 total overdue (current R0, 30-60d R0, 60-90d R3000, 90+d R0).\n- Outstanding supplier balances exist for this business but are restricted for your role.\n\nA more detailed aged breakdown is also available if useful."
+     },
+     "unknown": [
+      "intent_class",
+      "room",
+      "workspace",
+      "evidence",
+      "certainty",
+      "refusal_reason"
+     ],
+     "mustStillPass": {
+      "confirmationRequired": false,
+      "through": null,
+      "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+     }
+    }
    }
   },
   "threw": null,
@@ -2449,7 +2617,35 @@
     },
     "pendingCandidates": null,
     "pendingActionType": null,
-    "pendingChanges": null
+    "pendingChanges": null,
+    "experience": {
+     "version": 1,
+     "established": {
+      "from": [
+       "message"
+      ],
+      "heldActions": [],
+      "candidates": null,
+      "changes": null
+     },
+     "recommendation": {
+      "mode": "speak",
+      "speak": "ANSWER FROM FACTS:\n- Jenny Smith owes R3000 (invoiced R5000, paid R2000).\n- Quotation activity exists for this business but is restricted for your role.\n- Expense activity exists for this business but is restricted for your role.\n- Total invoiced to date: R5000.\n- Total actually received: R2000.\n- Total spent on expenses: R0.\n- Rough cash position (received minus spent): R2000. This is a cash-basis snapshot, not the formal profit and loss — see getProfitAndLoss for that.\n- Revenue: R5000.\n- Cost of Sales (materials, subcontractor): R0.\n- Gross Profit: R5000.\n- Operating Expenses (fuel, tools, other): R0.\n- Net Profit: R5000.\n- Expense breakdown by category: .\n- Revenue here is accrual-based (real invoiced amounts), not cash received — a different measure from the cash-position snapshot.\n- Aged debtors: current R0, 30-60 days R0, 60-90 days R3000, 90+ days R0. Payments are allocated oldest-invoice-first (FIFO), since payments aren't linked to a specific invoice.\n- Jenny Smith: R3000 total overdue (current R0, 30-60d R0, 60-90d R3000, 90+d R0).\n- Outstanding supplier balances exist for this business but are restricted for your role.\n\nA more detailed aged breakdown is also available if useful."
+     },
+     "unknown": [
+      "intent_class",
+      "room",
+      "workspace",
+      "evidence",
+      "certainty",
+      "refusal_reason"
+     ],
+     "mustStillPass": {
+      "confirmationRequired": false,
+      "through": null,
+      "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+     }
+    }
    }
   },
   "threw": null,
@@ -2526,7 +2722,35 @@
     },
     "pendingCandidates": null,
     "pendingActionType": null,
-    "pendingChanges": null
+    "pendingChanges": null,
+    "experience": {
+     "version": 1,
+     "established": {
+      "from": [
+       "message"
+      ],
+      "heldActions": [],
+      "candidates": null,
+      "changes": null
+     },
+     "recommendation": {
+      "mode": "speak",
+      "speak": "ANSWER FROM FACTS:\n- Jenny Smith owes R3000 (invoiced R5000, paid R2000).\n- Quotation activity exists for this business but is restricted for your role.\n- No expenses on file.\n- Total invoiced to date: R5000.\n- Total actually received: R2000.\n- Total spent on expenses: R0.\n- Rough cash position (received minus spent): R2000. This is a cash-basis snapshot, not the formal profit and loss — see getProfitAndLoss for that.\n- Revenue: R5000.\n- Cost of Sales (materials, subcontractor): R0.\n- Gross Profit: R5000.\n- Operating Expenses (fuel, tools, other): R0.\n- Net Profit: R5000.\n- Expense breakdown by category: .\n- Revenue here is accrual-based (real invoiced amounts), not cash received — a different measure from the cash-position snapshot.\n- Aged debtors: current R0, 30-60 days R0, 60-90 days R3000, 90+ days R0. Payments are allocated oldest-invoice-first (FIFO), since payments aren't linked to a specific invoice.\n- Jenny Smith: R3000 total overdue (current R0, 30-60d R0, 60-90d R3000, 90+d R0).\n- Outstanding supplier balances exist for this business but are restricted for your role.\n\nA more detailed aged breakdown is also available if useful."
+     },
+     "unknown": [
+      "intent_class",
+      "room",
+      "workspace",
+      "evidence",
+      "certainty",
+      "refusal_reason"
+     ],
+     "mustStillPass": {
+      "confirmationRequired": false,
+      "through": null,
+      "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+     }
+    }
    }
   },
   "threw": null,
@@ -2603,7 +2827,35 @@
     },
     "pendingCandidates": null,
     "pendingActionType": null,
-    "pendingChanges": null
+    "pendingChanges": null,
+    "experience": {
+     "version": 1,
+     "established": {
+      "from": [
+       "message"
+      ],
+      "heldActions": [],
+      "candidates": null,
+      "changes": null
+     },
+     "recommendation": {
+      "mode": "speak",
+      "speak": "ANSWER FROM FACTS:\n- Outstanding balances exist for this business but are restricted for your role.\n- Quotation activity exists for this business but is restricted for your role.\n- No expenses on file.\n- Financial performance data exists for this business but is restricted for your role.\n- Outstanding balances exist for this business but are restricted for your role.\n- Outstanding supplier balances exist for this business but are restricted for your role."
+     },
+     "unknown": [
+      "intent_class",
+      "room",
+      "workspace",
+      "evidence",
+      "certainty",
+      "refusal_reason"
+     ],
+     "mustStillPass": {
+      "confirmationRequired": false,
+      "through": null,
+      "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+     }
+    }
    }
   },
   "threw": null,
@@ -2812,7 +3064,35 @@
     },
     "pendingCandidates": null,
     "pendingActionType": null,
-    "pendingChanges": null
+    "pendingChanges": null,
+    "experience": {
+     "version": 1,
+     "established": {
+      "from": [
+       "message"
+      ],
+      "heldActions": [],
+      "candidates": null,
+      "changes": null
+     },
+     "recommendation": {
+      "mode": "speak",
+      "speak": "No real supplier invoice on file yet mentions \"vinyl\" — nothing to base a price on."
+     },
+     "unknown": [
+      "intent_class",
+      "room",
+      "workspace",
+      "evidence",
+      "certainty",
+      "refusal_reason"
+     ],
+     "mustStillPass": {
+      "confirmationRequired": false,
+      "through": null,
+      "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+     }
+    }
    }
   },
   "threw": null,
@@ -2884,7 +3164,35 @@
     },
     "pendingCandidates": null,
     "pendingActionType": null,
-    "pendingChanges": null
+    "pendingChanges": null,
+    "experience": {
+     "version": 1,
+     "established": {
+      "from": [
+       "message"
+      ],
+      "heldActions": [],
+      "candidates": null,
+      "changes": null
+     },
+     "recommendation": {
+      "mode": "speak",
+      "speak": "Material prices exist for this business but are restricted for your role."
+     },
+     "unknown": [
+      "intent_class",
+      "room",
+      "workspace",
+      "evidence",
+      "certainty",
+      "refusal_reason"
+     ],
+     "mustStillPass": {
+      "confirmationRequired": false,
+      "through": null,
+      "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+     }
+    }
    }
   },
   "threw": null,
@@ -2956,7 +3264,35 @@
     },
     "pendingCandidates": null,
     "pendingActionType": null,
-    "pendingChanges": null
+    "pendingChanges": null,
+    "experience": {
+     "version": 1,
+     "established": {
+      "from": [
+       "message"
+      ],
+      "heldActions": [],
+      "candidates": null,
+      "changes": null
+     },
+     "recommendation": {
+      "mode": "speak",
+      "speak": "Material prices exist for this business but are restricted for your role."
+     },
+     "unknown": [
+      "intent_class",
+      "room",
+      "workspace",
+      "evidence",
+      "certainty",
+      "refusal_reason"
+     ],
+     "mustStillPass": {
+      "confirmationRequired": false,
+      "through": null,
+      "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+     }
+    }
    }
   },
   "threw": null,

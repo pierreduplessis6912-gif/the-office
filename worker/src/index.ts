@@ -1,4 +1,5 @@
 export { TrialObject } from "./trial";
+import { withExperience } from "./experience";
 import { businessLapsed } from "./access";
 import { bulkImportRoute, similarNameTracker } from "./imports";
 import { INVOICE_COLUMNS, matchColumns, parseMoney, readCsv } from "./csv-import";
@@ -3261,7 +3262,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             rewrittenQuery: "",
           };
 
-      const audioResponseBody = JSON.stringify({ status: "stored", key, transcript, transcriptionError, ...processed });
+      const audioResponseBody = JSON.stringify({ status: "stored", key, transcript, transcriptionError, ...withExperience(processed) });
       await completeIdempotencyKey(env, idempotencyKey, audioResponseBody);
       return new Response(audioResponseBody, { headers: { "Content-Type": "application/json" } });
     }
@@ -3792,7 +3793,7 @@ let created = 0;
 
       const { capabilities, email: textEmail } = await resolveCapabilities(request, env);
       const processed = await processTranscript(env, text, ctx, history, "text", null, capabilities, textEmail);
-      const responseBody = JSON.stringify({ status: "processed", transcript: text, ...processed });
+      const responseBody = JSON.stringify({ status: "processed", transcript: text, ...withExperience(processed) });
 
       await completeIdempotencyKey(env, idempotencyKey, responseBody);
       return new Response(responseBody, { headers: { "Content-Type": "application/json" } });
