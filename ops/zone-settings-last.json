@@ -1,0 +1,33 @@
+{
+ "when": "2026-10-19T00:25:29.346508+00:00",
+ "zone_lookup_ok": true,
+ "settings_ok": true,
+ "settings": {
+  "always_use_https": "off",
+  "automatic_https_rewrites": "on",
+  "browser_check": "on",
+  "challenge_ttl": 1800,
+  "ciphers": [],
+  "http2": "on",
+  "http3": "on",
+  "ipv6": "on",
+  "min_tls_version": "1.0",
+  "opportunistic_encryption": "on",
+  "security_level": "medium",
+  "ssl": "full",
+  "tls_1_3": "on",
+  "waf": "off"
+ },
+ "settings_errors": [],
+ "bot_management_ok": false,
+ "bot_management": {},
+ "bot_errors": [
+  "Authentication error"
+ ],
+ "office_dns": [
+  {
+   "type": "CNAME",
+   "proxied": true
+  }
+ ]
+}
