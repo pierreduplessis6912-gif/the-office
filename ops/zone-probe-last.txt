@@ -1,0 +1,17 @@
+default curl                       HTTP 400 | server: server: cloudflare | cf-mitigated:  | body: bad_signature
+no User-Agent                      HTTP 400 | server: server: cloudflare | cf-mitigated:  | body: bad_signature
+User-Agent PayFast                 HTTP 400 | server: server: cloudflare | cf-mitigated:  | body: bad_signature
+PHP-style User-Agent               HTTP 400 | server: server: cloudflare | cf-mitigated:  | body: bad_signature
+HTTP/1.1 explicitly                HTTP 400 | server: Server: cloudflare | cf-mitigated:  | body: bad_signature
+TLS 1.2 only                       HTTP 400 | server: server: cloudflare | cf-mitigated:  | body: bad_signature
+TLS 1.1 only                       HTTP 000 | server:  | cf-mitigated:  | body: bad_signature
+IPv4 only                          HTTP 400 | server: server: cloudflare | cf-mitigated:  | body: bad_signature
+IPv6 only                          HTTP 000 | server:  | cf-mitigated:  | body: bad_signature
+with Expect header (PHP default)   HTTP 400 | server: server: cloudflare | cf-mitigated:  | body: bad_signature
+form content type, no charset      HTTP 400 | server: server: cloudflare | cf-mitigated:  | body: bad_signature
+very short timeout (2s)            HTTP 400 | server: server: cloudflare | cf-mitigated:  | body: bad_signature
+--- DNS the zone publishes for the host:
+104.21.39.198
+172.67.171.87
+2606:4700:3030::ac43:ab57
+2606:4700:3036::6815:27c6
