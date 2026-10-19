@@ -27,6 +27,7 @@ import { businessIsEmpty } from "./emptiness";
 import { recordSignIn, recordTeamEvent } from "./team-log";
 import { ensureTeamPerson, validFullName } from "./team-people";
 import { checkSeat } from "./seats";
+import { billingStatus, createOrder } from "./billing";
 import { callBusiness } from "./routing";
 import { applyIndexes } from "./indexes";
 import { trialAi, trialD1, trialDo, trialTx } from "./trial";
@@ -116,6 +117,19 @@ if (url.pathname === "/debug/timings" && request.method === "GET") {
       const body = (await request.json().catch(() => ({}))) as { business?: unknown; action?: unknown; plan?: unknown; days?: unknown };
       const result = body.action === "convert" ? await convertTrial(env, body.business, body.plan) : body.action === "extend" ? await extendTrial(env, body.business, body.days) : ({ ok: false, error: 'action is "convert" or "extend"', status: 400 } as const);
       return result.ok ? Response.json(result) : Response.json({ error: result.error }, { status: result.status });
+    }
+    // BILLING for an operator (billing.ts). Start an ORDER for a business and get the link that sends its owner to PayFast (used for the real sandbox test, and for taking a payment on a customer's behalf): privileged, and like the owner's own checkout
+    // it accepts NO money field, because the amount comes from our price table. And a read-only view of what a business has bought and paid.
+    if (url.pathname === "/debug/directory/billing-order" && request.method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { business?: unknown; plan?: unknown; interval?: unknown; seats?: unknown; email?: unknown };
+      const made = await createOrder(env, { businessId: body.business, payerEmail: body.email, plan: body.plan, interval: body.interval, seats: body.seats });
+      return made.ok
+        ? Response.json({ orderId: made.order.id, amountCents: made.order.amountCents, itemName: made.order.itemName, payUrl: `${url.origin}/billing/pay?order=${made.order.id}` }, { status: 201 })
+        : Response.json({ error: made.error }, { status: made.status });
+    }
+    if (url.pathname === "/debug/directory/billing" && request.method === "GET") {
+      const found = await billingStatus(env, url.searchParams.get("business") ?? "");
+      return found ? Response.json(found) : Response.json({ error: "no such business" }, { status: 404 });
     }
     if (url.pathname === "/debug/directory/set-plan" && request.method === "POST") {
       const body = (await request.json()) as { business?: unknown; plan?: unknown; seats?: unknown };

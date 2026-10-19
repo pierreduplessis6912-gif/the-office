@@ -185,3 +185,33 @@ async function decide(env: Env, _config: PayFastConfig, field: (n: string) => st
 export const returnPage = (): Response => html("<h1>Thank you</h1><p>Your payment is being confirmed. You can return to the app now: your plan will be active in a moment.</p>");
 export const cancelledPage = (): Response => html("<h1>Payment cancelled</h1><p>Nothing was charged. You can return to the app and choose a plan whenever you are ready.</p>");
 
+// ---- the operator's view of a business's billing (read-only) ---------------------------------------------------------------------------------------------------------------------------------------------------------------
+// What an operator needs to see after a payment: the plan and seats, the subscription state and paid-until date, whether a subscription EXISTS (never its token), and the latest orders and payments (amounts, ids and states, no names or addresses).
+// It only reads, and it works on a shared layer from before the billing tables and columns existed: a read never needs them.
+export interface BillingStatus {
+  business: { id: string; name: string; plan: string; status: string; seats: number | null; billingStatus: string | null; billingInterval: string | null; periodEnd: string | null; graceUntil: string | null; hasSubscription: boolean };
+  orders: Array<{ id: string; plan: string; interval: string; seats: number; amountCents: number; status: string; createdAt: string; completedAt: string | null }>;
+  payments: Array<{ pfPaymentId: string; status: string; amountCents: number | null; confirmed: boolean; ipKnown: boolean; createdAt: string }>;
+}
+export async function billingStatus(env: Env, businessId: string): Promise<BillingStatus | null> {
+  const db = env.OFFICE_DB;
+  type Row = { id: string; name: string; plan: string; status: string; seats?: number | null; billing_status?: string | null; billing_interval?: string | null; period_end?: string | null; grace_until?: string | null; has_token?: number };
+  let row: Row | null;
+  try {
+    row = await db.prepare("SELECT id, name, plan, status, seats, billing_status, billing_interval, period_end, grace_until, (pf_token IS NOT NULL) AS has_token FROM businesses WHERE id = ?").bind(businessId).first<Row>();
+  } catch {
+    row = await db.prepare("SELECT id, name, plan, status FROM businesses WHERE id = ?").bind(businessId).first<Row>();   // from before the billing (and seats) columns
+  }
+  if (!row) return null;
+  const rows = async <T,>(sql: string): Promise<T[]> => {
+    try { return ((await db.prepare(sql).bind(businessId).all<T>()).results ?? []) as T[]; } catch { return []; }   // no billing tables yet: nothing ordered
+  };
+  const orders = await rows<{ id: string; plan: string; interval: string; seats: number; amount_cents: number; status: string; created_at: string; completed_at: string | null }>("SELECT id, plan, interval, seats, amount_cents, status, created_at, completed_at FROM billing_orders WHERE business_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 5");
+  const payments = await rows<{ pf_payment_id: string; status: string; amount_gross_cents: number | null; confirmed: number; ip_ok: number; created_at: string }>("SELECT pf_payment_id, status, amount_gross_cents, confirmed, ip_ok, created_at FROM billing_payments WHERE business_id = ? ORDER BY id DESC LIMIT 10");
+  return {
+    business: { id: row.id, name: row.name, plan: row.plan, status: row.status, seats: row.seats ?? null, billingStatus: row.billing_status ?? null, billingInterval: row.billing_interval ?? null, periodEnd: row.period_end ?? null, graceUntil: row.grace_until ?? null, hasSubscription: row.has_token === 1 },
+    orders: orders.map((o) => ({ id: o.id, plan: o.plan, interval: o.interval, seats: o.seats, amountCents: o.amount_cents, status: o.status, createdAt: o.created_at, completedAt: o.completed_at })),
+    payments: payments.map((p) => ({ pfPaymentId: p.pf_payment_id, status: p.status, amountCents: p.amount_gross_cents, confirmed: p.confirmed === 1, ipKnown: p.ip_ok === 1, createdAt: p.created_at })),
+  };
+}
+

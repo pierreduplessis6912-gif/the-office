@@ -1,7 +1,7 @@
 {
- "when": "2026-10-18T22:24:52.358153Z",
- "run": "39171679688",
- "commit": "8fce7c8",
+ "when": "2026-10-19T00:05:54.566604Z",
+ "run": "39178672836",
+ "commit": "4fc3164",
  "resources": {
   "database_id": "527785b0-2ca7-4d18-a3b0-0a1d6d0d671a",
   "kv_namespace_id": "5cb9a972eeef4e6b95fea4f6ed95e28a",
@@ -115,23 +115,23 @@
   "sharedTrips": 0,
   "sharedMs": null,
   "objectColo": null,
-  "rowsInThisObjectsOwnTable": 1372,
+  "rowsInThisObjectsOwnTable": 1428,
   "object": "staging-a",
   "hint": "weur",
   "callsMs": [
-   482,
-   98,
-   99,
-   97
+   524,
+   134,
+   134,
+   133
   ],
-  "firstCallMs": 482,
-  "warmCallsMedianMs": 98,
-  "workerToObjectAndBackMs": 97
+  "firstCallMs": 524,
+  "warmCallsMedianMs": 134,
+  "workerToObjectAndBackMs": 133
  },
  "trial_d1": {
   "statements": 10,
-  "totalMs": 1032,
-  "perStatementMs": 103.2,
+  "totalMs": 1379,
+  "perStatementMs": 137.9,
   "note": "SELECT 1 against the production database: reads no data"
  },
  "businesses": {
@@ -164,11 +164,11 @@
    "admin_call_naming_no_business": "400"
   },
   "five_list_calls_seconds_from_a_US_runner": [
-   0.161445,
-   0.144682,
-   0.158548,
-   0.348736,
-   0.141312
+   0.269451,
+   0.285858,
+   0.267287,
+   0.25094,
+   0.281056
   ]
  },
  "memory_index_probe": {
@@ -176,18 +176,18 @@
    "first_business": "200",
    "second_business": "200"
   },
-  "seconds_waited_for_cloudflare_to_process_the_writes": 70,
+  "seconds_waited_for_cloudflare_to_process_the_writes": 130,
   "index_info_before_waiting": {
    "dimensions": 768,
    "vectorCount": 229,
-   "processedUpToDatetime": "2026-10-18T21:45:28.076Z",
-   "processedUpToMutation": "91eb27b2-8e78-48b4-8a91-f1399dd2026d"
+   "processedUpToDatetime": "2026-10-18T23:56:06.761Z",
+   "processedUpToMutation": "f22d2f02-6a1a-4d65-8fed-7c5329ca1786"
   },
   "index_info_after_waiting": {
    "dimensions": 768,
    "vectorCount": 229,
-   "processedUpToDatetime": "2026-10-18T22:22:43.891Z",
-   "processedUpToMutation": "f69b5f2f-b08c-4a1b-a27c-0265e803fbb4"
+   "processedUpToDatetime": "2026-10-19T00:02:27.251Z",
+   "processedUpToMutation": "757b1047-42fa-4b9e-9488-9134f6b044ab"
   },
   "search_in_first_business_returns": [
    "FIRST probe",
@@ -230,8 +230,8 @@
   ],
   "raw_first_search_answer": "{\"matches\":[{\"id\":\"staging-co:probe-1\",\"score\":1,\"metadata\":{\"customerId\":\"1\",\"text\":\"FIRST probe\"}},{\"id\":\"probe-1\",\"score\":1,\"metadata\":{\"customerId\":\"1\",\"text\":\"FIRST probe\"}}]}",
   "raw_first_by_id_answer": "{\"vectors\":[{\"id\":\"probe-1\",\"values\":[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,",
-  "raw_first_upsert_answer": "{\"written\":1,\"mutationId\":\"23114412-0b69-4861-8a58-866480711703\"}",
-  "raw_second_upsert_answer": "{\"written\":1,\"mutationId\":\"f69b5f2f-b08c-4a1b-a27c-0265e803fbb4\"}",
+  "raw_first_upsert_answer": "{\"written\":1,\"mutationId\":\"6d10425a-1db0-4d88-86d3-a95bdefc5c54\"}",
+  "raw_second_upsert_answer": "{\"written\":1,\"mutationId\":\"757b1047-42fa-4b9e-9488-9134f6b044ab\"}",
   "raw_direct_query_staging_two": "{\"result\":{\"count\":2,\"matches\":[{\"id\":\"staging-two:probe-1\",\"score\":1.0,\"namespace\":\"staging-two\",\"metadata\":{\"customerId\":\"1\",\"text\":\"SECOND probe\"}},{\"id\":\"2e7af795~probe-1\",\"score\":1.0,\"namespace\":\"staging-two\",\"metadata\":{\"customerId\":\"1\",\"text\":\"SECOND probe\"}}]},\"result_info\":null,\"success\":true,\"errors\":[],\"messages\":[]}"
  },
  "model_probe": {
@@ -239,12 +239,12 @@
    "padding_chars": 500,
    "affinity_sent": false,
    "calls_ms": [
-    924,
-    336,
-    294
+    338,
+    283,
+    428
    ],
-   "first_ms": 924,
-   "later_calls_median_ms": 336,
+   "first_ms": 338,
+   "later_calls_median_ms": 428,
    "first_usage": {
     "prompt_tokens": 114,
     "completion_tokens": 2,
@@ -259,21 +259,21 @@
     "completion_tokens": 2,
     "total_tokens": 116,
     "prompt_tokens_details": {
-     "cached_tokens": 64
+     "cached_tokens": 0
     },
-    "neurons": 5.9763641357421875
+    "neurons": 10.57272720336914
    }
   },
   "medium": {
    "padding_chars": 8000,
    "affinity_sent": false,
    "calls_ms": [
-    3562,
-    398,
-    320
+    1776,
+    370,
+    390
    ],
-   "first_ms": 3562,
-   "later_calls_median_ms": 398,
+   "first_ms": 1776,
+   "later_calls_median_ms": 390,
    "first_usage": {
     "prompt_tokens": 1412,
     "completion_tokens": 2,
@@ -297,12 +297,12 @@
    "padding_chars": 40000,
    "affinity_sent": false,
    "calls_ms": [
-    679,
-    489,
-    317
+    1688,
+    997,
+    2124
    ],
-   "first_ms": 679,
-   "later_calls_median_ms": 489,
+   "first_ms": 1688,
+   "later_calls_median_ms": 2124,
    "first_usage": {
     "prompt_tokens": 6949,
     "completion_tokens": 2,
@@ -326,14 +326,14 @@
    "padding_chars": 40000,
    "affinity_sent": true,
    "calls_ms": [
-    568,
-    410,
-    474,
-    345,
-    394
+    1179,
+    3600,
+    2106,
+    2876,
+    358
    ],
-   "first_ms": 568,
-   "later_calls_median_ms": 410,
+   "first_ms": 1179,
+   "later_calls_median_ms": 2876,
    "first_usage": {
     "prompt_tokens": 6950,
     "completion_tokens": 2,
@@ -357,14 +357,14 @@
    "padding_chars": 40000,
    "affinity_sent": false,
    "calls_ms": [
-    1303,
-    444,
-    1396,
-    683,
-    300
+    621,
+    394,
+    1758,
+    1014,
+    788
    ],
-   "first_ms": 1303,
-   "later_calls_median_ms": 683,
+   "first_ms": 621,
+   "later_calls_median_ms": 1014,
    "first_usage": {
     "prompt_tokens": 6950,
     "completion_tokens": 2,
@@ -386,14 +386,14 @@
   }
  },
  "backup_restore": {
-  "snapshot": "20261018T222122Z",
+  "snapshot": "20261019T000107Z",
   "snapshot_took": {
    "tables": 43,
-   "rows": 40809,
+   "rows": 40853,
    "notes": 1,
    "files": 0,
    "filesMirroredNow": 0,
-   "ms": 23357
+   "ms": 24356
   },
   "status_after_the_snapshot": {
    "backupBucketConfigured": true,
@@ -407,9 +407,9 @@
    "restored": 50
   },
   "customers_in_the_fingerprints": {
-   "original": 26241,
-   "damaged": 26244,
-   "restored": 26241
+   "original": 26251,
+   "damaged": 26254,
+   "restored": 26251
   },
   "the_import_answered": "{\"status\": \"ok\", \"totalRows\": 3, \"created\": 3, \"matched\": 0, \"skipped\": 0, \"skippedRows\": [], \"possibleDuplicateCount\": 0, \"possibleDuplicates\": []}",
   "damage_1_customers_were_added": true,
@@ -419,7 +419,7 @@
   "restore_report": {
    "ok": true,
    "tablesRestored": 43,
-   "rowsRestored": 40809,
+   "rowsRestored": 40853,
    "notesRestored": 1,
    "filesRestoredFromMirror": 0,
    "filesMissingEverywhere": [],
@@ -431,8 +431,8 @@
   "no_damage_left": true,
   "linked_import_answered": "{\"status\": \"ok\", \"totalRows\": 2, \"imported\": 0, \"heldForConfirmation\": 0, \"skipped\": 0, \"skippedRows\": [], \"alreadyImported\": 2, \"possibleDuplicateCount\": 0, \"p",
   "payments_before_and_after": {
-   "original": 32,
-   "restored": 32
+   "original": 34,
+   "restored": 34
   },
   "linked_rows_exist_before": true,
   "the_linked_rows_are_back": true,
@@ -630,6 +630,8 @@
   "the_pay_page_is_a_signed_form_to_the_sandbox_and_an_unknown_order_is_a_404": true,
   "a_notification_with_a_bad_signature_or_the_wrong_amount_converts_nothing": true,
   "a_confirmed_payment_for_the_exact_amount_converts_the_business_and_the_same_payment_is_never_applied_twice": true,
+  "the_operator_view_shows_the_converted_plan_subscription_and_payment_without_a_token_or_email": true,
+  "an_operator_can_start_an_order_for_a_business_and_gets_a_working_pay_link": true,
   "health_reports_the_running_commit": true,
   "the_directory_columns_exist_on_the_real_database": true,
   "answers": {
@@ -691,27 +693,27 @@
  "health_report": {
   "business": "staging-co",
   "model_today": {
-   "day": "2026-10-18",
-   "requests": 30,
-   "modelCalls": 104,
+   "day": "2026-10-19",
+   "requests": 1,
+   "modelCalls": 3,
    "failures": 0,
-   "promptTokens": 342424,
-   "completionTokens": 3608,
-   "cachedTokens": 288704,
-   "neurons": 10150.8,
-   "estimatedUsd": 0.1117
+   "promptTokens": 11724,
+   "completionTokens": 150,
+   "cachedTokens": 11648,
+   "neurons": 230.5,
+   "estimatedUsd": 0.0025
   },
-  "estimated_usd_today": 0.1117,
+  "estimated_usd_today": 0.0025,
   "usage_was_recorded": true,
-  "cached_tokens_seen": 288704,
+  "cached_tokens_seen": 11648,
   "the_other_business_was_not_charged": true,
   "hourly_job": {
-   "lastRunAt": "2026-10-18T21:41:04.000Z",
-   "minutesSinceLastRun": 43,
+   "lastRunAt": "2026-10-18T23:41:04.402Z",
+   "minutesSinceLastRun": 24,
    "lastOk": true,
    "lastError": null,
    "lastMs": null,
-   "nextAlarmAt": "2026-10-18T22:41:04.000Z"
+   "nextAlarmAt": "2026-10-19T00:41:04.402Z"
   },
   "next_alarm_is_recorded": true,
   "memory_queue": {
@@ -719,10 +721,10 @@
    "oldestPendingMinutes": null
   },
   "backup": {
-   "lastSuccessAt": "2026-10-18T22:21:46.324Z",
+   "lastSuccessAt": "2026-10-19T00:01:32.154Z",
    "lastAttemptOk": true,
    "lastError": null,
-   "newestAgeHours": 0,
+   "newestAgeHours": 0.1,
    "skipped": null
   },
   "requests": {
@@ -738,8 +740,8 @@
    "capped": true,
    "reason": "messages",
    "limit": 1,
-   "used": 30,
-   "resetsInSeconds": 5724
+   "used": 1,
+   "resetsInSeconds": 86063
   },
   "enforce_blocked_with_429": true,
   "retry_after_header_present": true,
@@ -757,42 +759,42 @@
     "mode": "warn"
    },
    "activeMembers": 1,
-   "messages": 31,
-   "topMemberMessages": 31,
+   "messages": 2,
+   "topMemberMessages": 2,
    "membersAtOrOverLimit": 1
   },
   "plan_restored": true
  },
  "schema_migration": {
-  "step_added_to_the_build_only": "1054_staging_probe",
-  "column": "probe_54",
+  "step_added_to_the_build_only": "1056_staging_probe",
+  "column": "probe_56",
   "businesses": {
    "staging-co": {
     "migrated_by_this_deploy": true,
     "last_migration_applied": [
-     "1054_staging_probe"
+     "1056_staging_probe"
     ],
     "nothing_pending": true,
     "no_error": true,
-    "steps_applied": 36,
-    "steps_this_code_knows": 1054,
-    "steps_from_earlier_runs_this_code_does_not_know": 33,
+    "steps_applied": 38,
+    "steps_this_code_knows": 1056,
+    "steps_from_earlier_runs_this_code_does_not_know": 35,
     "column_is_there": true,
     "column_was_not_there_before": true,
-    "customers_before": 26236,
-    "customers_after": 26236,
+    "customers_before": 26246,
+    "customers_after": 26246,
     "data_kept": true
    },
    "staging-two": {
     "migrated_by_this_deploy": true,
     "last_migration_applied": [
-     "1054_staging_probe"
+     "1056_staging_probe"
     ],
     "nothing_pending": true,
     "no_error": true,
-    "steps_applied": 36,
-    "steps_this_code_knows": 1054,
-    "steps_from_earlier_runs_this_code_does_not_know": 33,
+    "steps_applied": 38,
+    "steps_this_code_knows": 1056,
+    "steps_from_earlier_runs_this_code_does_not_know": 35,
     "column_is_there": true,
     "column_was_not_there_before": true,
     "customers_before": 101,
@@ -829,12 +831,12 @@
    },
    "6_a_child_can_use_the_parent_id_from_RETURNING_inside_transactionSync": {
     "ran": true,
-    "parentId": 313,
+    "parentId": 333,
     "childrenFound": 2
    },
    "7_last_insert_rowid_moves_after_every_insert_so_it_cannot_serve_several_children": {
     "ran": true,
-    "parentId": 316,
+    "parentId": 336,
     "firstChildPointsAtTheParent": true,
     "secondChildPointsAtTheParent": false
    },
@@ -852,29 +854,29 @@
  },
  "real_sentence": {
   "sentence": "Invoice Staging Customer One R1500 for repairing the bathroom floor",
-  "message_status_and_seconds_from_a_US_runner": "200 6.701481",
-  "reply": "Invoice noted for Staging Customer One of R1500 \u2014 needs your confirmation (action #86) before it's recorded. Job scope #44 also recorded \u2014 1 component measured, 1 task noted.",
+  "message_status_and_seconds_from_a_US_runner": "200 9.058192",
+  "reply": "Invoice noted for Staging Customer One of R1500 \u2014 needs your confirmation (action #90) before it's recorded. Job scope #46 also recorded \u2014 1 component measured, 1 task noted.",
   "held_action": {
-   "id": 86,
+   "id": 90,
    "type": "invoice"
   },
   "customer_matched": "Staging Customer One",
-  "confirm_status_and_seconds": "200 0.344453",
+  "confirm_status_and_seconds": "200 0.276893",
   "confirm_reply": "confirmed",
   "inside_the_object_model_versus_database": {
    "POST /admin/backup/restore": {
     "n": 5,
-    "p50Ms": 44315,
-    "p95Ms": 46770,
+    "p50Ms": 40987,
+    "p95Ms": 44315,
     "meanAiMs": 0,
     "meanAiCalls": 0,
     "meanDbMs": 0,
-    "meanDbCalls": 42378
+    "meanDbCalls": 42422
    },
    "POST /admin/backup/run": {
     "n": 5,
-    "p50Ms": 23724,
-    "p95Ms": 26346,
+    "p50Ms": 24356,
+    "p95Ms": 24941,
     "meanAiMs": 0,
     "meanAiCalls": 0,
     "meanDbMs": 0,
@@ -882,17 +884,17 @@
    },
    "POST /messages/text": {
     "n": 13,
-    "p50Ms": 5359,
-    "p95Ms": 11395,
-    "meanAiMs": 5127.6,
+    "p50Ms": 3980,
+    "p95Ms": 8700,
+    "meanAiMs": 3759.3,
     "meanAiCalls": 2.4,
     "meanDbMs": 0,
     "meanDbCalls": 14.5
    },
    "POST /admin/migration/vectors": {
     "n": 5,
-    "p50Ms": 967,
-    "p95Ms": 1522,
+    "p50Ms": 1141,
+    "p95Ms": 1270,
     "meanAiMs": 0,
     "meanAiCalls": 0,
     "meanDbMs": 0,
@@ -900,7 +902,7 @@
    },
    "POST /admin/migration/vectors-by-ids": {
     "n": 5,
-    "p50Ms": 450,
+    "p50Ms": 470,
     "p95Ms": 626,
     "meanAiMs": 0,
     "meanAiCalls": 0,
@@ -909,8 +911,8 @@
    },
    "POST /admin/migration/vectors-query": {
     "n": 5,
-    "p50Ms": 464,
-    "p95Ms": 488,
+    "p50Ms": 488,
+    "p95Ms": 575,
     "meanAiMs": 0,
     "meanAiCalls": 0,
     "meanDbMs": 0,
@@ -918,7 +920,7 @@
    },
    "POST /debug/kv-set": {
     "n": 9,
-    "p50Ms": 49,
+    "p50Ms": 47,
     "p95Ms": 58,
     "meanAiMs": 0,
     "meanAiCalls": 0,
