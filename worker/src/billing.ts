@@ -54,6 +54,7 @@ export type OrderResult = { ok: true; order: Order } | { ok: false; status: numb
 type OrderRow = { id: string; business_id: string; plan: string; interval: "monthly" | "annual"; seats: number; amount_cents: number; item_name: string; payer_email: string; status: string };
 const toOrder = (r: OrderRow): Order => ({ id: r.id, businessId: r.business_id, plan: r.plan, interval: r.interval, seats: r.seats, amountCents: r.amount_cents, itemName: r.item_name, payerEmail: r.payer_email });
 const MAX_SEATS = 1000;
+const OPEN_ORDERS_PER_DAY = 20;
 
 // The amount is the plan's price in OUR table, per seat for a per-seat plan, times the seats: the payer never supplies it. A plan that is not public, has no price for that interval, or is the trial cannot be bought online.
 export async function createOrder(env: Env, input: { businessId: unknown; payerEmail: unknown; plan: unknown; interval: unknown; seats: unknown }): Promise<OrderResult> {
@@ -75,6 +76,9 @@ export async function createOrder(env: Env, input: { businessId: unknown; payerE
   if (business.status !== "active") return { ok: false, status: 409, error: "This business cannot be changed right now." };
   if (await isSubscribed(env, input.businessId)) return { ok: false, status: 409, error: "This business already has a subscription. Ask us to change or cancel it." };
   await ensureBilling(env);
+  // A link that leaked (or a script) must not be able to open orders without limit: at most OPEN_ORDERS_PER_DAY pending orders for a business in a day, after which it is told to use one it already has.
+  const open = await env.OFFICE_DB.prepare("SELECT COUNT(*) AS n FROM billing_orders WHERE business_id = ? AND status = 'pending' AND created_at > datetime('now', '-1 day')").bind(input.businessId).first<{ n: number }>();
+  if ((open?.n ?? 0) >= OPEN_ORDERS_PER_DAY) return { ok: false, status: 429, error: "This business already has several open orders. Please use one of those, or try again tomorrow." };
   const id = crypto.randomUUID();
   const amountCents = price * seats;
   const itemName = `The Office ${offer.label}${offer.perSeat ? ` (${seats} seat${seats === 1 ? "" : "s"})` : ""}`;
@@ -84,7 +88,7 @@ export async function createOrder(env: Env, input: { businessId: unknown; payerE
 
 // A business SUBSCRIBES while its subscription is active or past due (a cancelled one has ended, so it may subscribe again). A shared layer from before the billing columns has nothing to be subscribed to. One subscription per business: otherwise a
 // second payment would overwrite the first subscription's token and leave the first billing with nothing pointing at it.
-async function isSubscribed(env: Env, businessId: string): Promise<boolean> {
+export async function isSubscribed(env: Env, businessId: string): Promise<boolean> {
   try {
     const row = await env.OFFICE_DB.prepare("SELECT billing_status, pf_token FROM businesses WHERE id = ?").bind(businessId).first<{ billing_status: string | null; pf_token: string | null }>();
     return !!row && !!row.pf_token && (row.billing_status === "active" || row.billing_status === "past_due");

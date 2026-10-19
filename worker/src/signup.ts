@@ -8,7 +8,7 @@
 //
 // Safe enough because: only a Google-verified address, proven by a short-lived signed token the page carries; one email can belong to one business (enforced by the directory); a cap on new businesses per day (everyone) and per
 // network address; a small trial limit (limits.ts TRIAL_PLAN); and a session that dies when the trial does. Not solved here: billing after the trial (a business stays inactive until an operator moves it to a paid plan).
-import { readSignupToken, signSignupToken } from "./auth";
+import { readSignupToken, signBillingToken, signSignupToken } from "./auth";
 import { acceptInvitation, addDirectoryMember, closeBusiness, countDirectoryMembers, createBusiness, declineInvitation, ensureDirectory, findDirectoryConflicts, findEndedAccessForEmail, lookupAccessForEmail, normaliseEmail, pendingInvitationsForEmail } from "./directory";
 import { ensureTrialPlan, TRIAL_PLAN } from "./limits";
 import { callBusiness } from "./routing";
@@ -57,7 +57,7 @@ const STYLE =
   ".small{color:#555;font-size:.9rem}.error{background:#fde8e8;border:1px solid #d33;padding:.7rem .9rem;border-radius:.5rem}details{margin-top:1.75rem;padding:.9rem;background:#fff;border-radius:.6rem}summary{font-weight:700}";
 
 // No `form-action` in the policy on purpose: Chrome applies it to the redirect a form POST ends in, and this form's POST ends in a redirect to the app's own address (theoffice://), which `form-action 'self'` would refuse.
-function page(title: string, body: string, status = 200): Response {
+export function page(title: string, body: string, status = 200): Response {
   return new Response(
     `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)}</title><style>${STYLE}</style></head><body><main>${body}</main></body></html>`,
     { status, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'" } }
@@ -102,15 +102,22 @@ ${invitationsSection(token, options.invites ?? [])}
   );
 }
 
-const trialEndedPage = (name: string, contact: string | undefined): Response =>
-  page("Your trial has ended", `<h1>Your free trial has ended</h1><p>The ${TRIAL_DAYS}-day trial for <strong>${escapeHtml(name)}</strong> is over. Your information is safe and has not been deleted.</p><p>${contact ? `To keep using The Office, ${escapeHtml(contact)}.` : "To keep using The Office, please contact us."}</p>`, 403);
+const planButton = (link: string | undefined): string => (link ? `<p><a href="${escapeHtml(link)}" style="display:inline-block;padding:.8rem 1.2rem;background:#111;color:#fff;border-radius:.4rem;text-decoration:none">Choose a plan</a></p>` : "");
+const trialEndedPage = (name: string, contact: string | undefined, link?: string): Response =>
+  page("Your trial has ended", `<h1>Your free trial has ended</h1><p>The ${TRIAL_DAYS}-day trial for <strong>${escapeHtml(name)}</strong> is over. Your information is safe and has not been deleted.</p><p>${contact ? `To keep using The Office, ${escapeHtml(contact)}.` : "To keep using The Office, please contact us."}</p>${planButton(link)}`, 403);
+// The plans link for an ended business, made for THIS address (just verified) and business. Only a trial or a cancelled subscription can start a new subscription; an overdue payment already has one, so it gets no link.
+async function planLinkFor(env: Env, ended: { businessId: string; reason: "trial" | "payment" | "cancelled" }, email: string): Promise<string | undefined> {
+  if (ended.reason === "payment") return undefined;
+  try { return `/billing/plans?t=${encodeURIComponent(await signBillingToken(env, email, ended.businessId))}`; } catch { return undefined; }
+}
+
 // Why a business can no longer be signed into: its trial ended, a payment failed and the grace period is over, or its subscription was cancelled and the period it paid for is over. Same contact line as the trial page; nothing is deleted.
-const endedPage = (ended: { name: string; reason: "trial" | "payment" | "cancelled" }, contact: string | undefined): Response => {
-  if (ended.reason === "trial") return trialEndedPage(ended.name, contact);
+const endedPage = (ended: { name: string; reason: "trial" | "payment" | "cancelled" }, contact: string | undefined, link?: string): Response => {
+  if (ended.reason === "trial") return trialEndedPage(ended.name, contact, link);
   const how = contact ? `To get back in, ${escapeHtml(contact)}.` : "To get back in, please contact us.";
   return ended.reason === "payment"
     ? page("Payment overdue", `<h1>Payment overdue</h1><p>The latest payment for <strong>${escapeHtml(ended.name)}</strong> did not go through, and the grace period has ended. Your information is safe and has not been deleted.</p><p>${how}</p>`, 403)
-    : page("Subscription ended", `<h1>Your subscription has ended</h1><p>The subscription for <strong>${escapeHtml(ended.name)}</strong> has ended. Your information is safe and has not been deleted.</p><p>${how}</p>`, 403);
+    : page("Subscription ended", `<h1>Your subscription has ended</h1><p>The subscription for <strong>${escapeHtml(ended.name)}</strong> has ended. Your information is safe and has not been deleted.</p>${planButton(link)}<p>${how}</p>`, 403);
 };
 const notActivePage = (email: string): Response =>
   page("Not active", `<h1>This account is not active</h1><p><strong>${escapeHtml(email)}</strong> belongs to a business, but its membership is not active. Ask the owner of the business to check it.</p>`, 403);
@@ -124,7 +131,7 @@ const errorPage = (): Response => page("Something went wrong", "<h1>Something we
 export async function handleUnknownAccount(request: Request, env: Env, email: string): Promise<Response> {
   const address = normaliseEmail(email);
   const ended = await findEndedAccessForEmail(env, address);
-  if (ended) return endedPage(ended, env.SUPPORT_CONTACT);
+  if (ended) return endedPage(ended, env.SUPPORT_CONTACT, await planLinkFor(env, ended, address));
   if (await lookupAccessForEmail(env, address)) return notActivePage(address);
   const invites = await pendingInvitationsForEmail(env, address).catch(() => []);   // an invitation that cannot be looked up must never block the page
   return startBusinessPage(address, await signSignupToken(env, address), { invites });
@@ -165,7 +172,7 @@ export async function handleSignupPost(request: Request, env: Env): Promise<Resp
     return signedInRedirect(request, env, { sessionEmail: email, displayEmail: email, role, businessId: existing.businessId, notAfterMs: existing.trialEndsAt ? fromSqlTime(existing.trialEndsAt) : undefined }, 303);
   }
   const ended = await findEndedAccessForEmail(env, email);
-  if (ended) return endedPage(ended, env.SUPPORT_CONTACT);
+  if (ended) return endedPage(ended, env.SUPPORT_CONTACT, await planLinkFor(env, ended, email));
 
   const named = validateBusinessName(form.get("business_name"));
   const typed = typeof form.get("business_name") === "string" ? String(form.get("business_name")) : "";
@@ -198,7 +205,7 @@ export async function handleSignupPost(request: Request, env: Env): Promise<Resp
   }
 }
 
-async function memberRole(env: Env, businessId: string, email: string): Promise<string | null> {
+export async function memberRole(env: Env, businessId: string, email: string): Promise<string | null> {
   try {
     const reply = await callBusiness(env, businessId, "GET", `/debug/membership-check?email=${encodeURIComponent(email)}`);
     if (!reply.ok) return null;
@@ -234,7 +241,7 @@ export async function handleJoinPost(request: Request, env: Env): Promise<Respon
     return signedInRedirect(request, env, { sessionEmail: email, displayEmail: email, role, businessId: existing.businessId, notAfterMs: existing.trialEndsAt ? fromSqlTime(existing.trialEndsAt) : undefined }, 303);
   }
   const ended = await findEndedAccessForEmail(env, email);
-  if (ended) return endedPage(ended, env.SUPPORT_CONTACT);
+  if (ended) return endedPage(ended, env.SUPPORT_CONTACT, await planLinkFor(env, ended, email));
 
   const rawId = String(form.get("invitation") ?? "");
   if (!/^\d{1,9}$/.test(rawId)) return invitationGonePage();

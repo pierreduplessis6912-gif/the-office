@@ -435,6 +435,8 @@ const PUBLIC_ROUTES = new Set([
   "/billing/payfast/notify",
   "/billing/return",
   "/billing/cancelled",
+  "/billing/plans",
+  "/billing/start",
   "/auth/logout",
   "/auth/me",
 ]);
@@ -788,6 +790,7 @@ export const ROUTE_RULES: Array<{ method: string; path: RegExp; anyOf: string[] 
   { method: "POST", path: /^\/team\/invite$/, anyOf: ["can_invite_members"] },
   // Choosing a plan and paying for it is the OWNER's: settings is an owner-only capability that no override can grant.
   { method: "POST", path: /^\/billing\/checkout$/, anyOf: ["can_manage_settings"] },
+  { method: "POST", path: /^\/billing\/plans-link$/, anyOf: ["can_manage_settings"] },
   { method: "PATCH", path: /^\/team\/\d+\/profile$/, anyOf: ["can_invite_members"] },
   { method: "POST", path: /^\/team\/invitations\/\d+\/revoke$/, anyOf: ["can_invite_members"] },
   { method: "POST", path: /^\/business-profile\/logo$/, anyOf: ["can_manage_settings"] },
@@ -1047,6 +1050,30 @@ export async function readSignupToken(env: Env, token: string | null): Promise<{
     const payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(parts[0]))) as { purpose?: unknown; email?: unknown; exp?: unknown };
     if (payload.purpose !== "signup" || typeof payload.email !== "string" || typeof payload.exp !== "number" || Date.now() > payload.exp) return null;
     return { email: payload.email };
+  } catch {
+    return null;
+  }
+}
+
+// The link that takes an OWNER to the plans page: bound to one address and one business, signed over its own string ("billing." + payload) so it can never pass as a session or a sign-up proof (and neither can pass as it), and short-lived. It proves only
+// that this address was verified (by Google at sign-in, or by an owner's own session) a moment ago; the page and the form both re-check that the address is STILL the owner of that business before doing anything (plans.ts).
+export async function signBillingToken(env: Env, email: string, businessId: string, ttlMs = 30 * 60 * 1000): Promise<string> {
+  const payloadB64 = base64UrlEncode(new TextEncoder().encode(JSON.stringify({ purpose: "billing", email, businessId, exp: Date.now() + ttlMs })));
+  const key = await hmacKey(env.SESSION_SECRET);
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`billing.${payloadB64}`));
+  return `${payloadB64}.${base64UrlEncode(signature)}`;
+}
+
+export async function readBillingToken(env: Env, token: string | null): Promise<{ email: string; businessId: string } | null> {
+  if (!token) return null;
+  const parts = token.split(".");
+  if (parts.length !== 2) return null;
+  try {
+    const key = await hmacKey(env.SESSION_SECRET);
+    if (!(await crypto.subtle.verify("HMAC", key, base64UrlDecode(parts[1]), new TextEncoder().encode(`billing.${parts[0]}`)))) return null;
+    const payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(parts[0]))) as { purpose?: unknown; email?: unknown; businessId?: unknown; exp?: unknown };
+    if (payload.purpose !== "billing" || typeof payload.email !== "string" || typeof payload.businessId !== "string" || typeof payload.exp !== "number" || Date.now() > payload.exp) return null;
+    return { email: payload.email, businessId: payload.businessId };
   } catch {
     return null;
   }
