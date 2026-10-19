@@ -504,6 +504,18 @@
   "class": "signed link"
  },
  {
+  "route": "GET /reports/aged-creditors",
+  "pattern": "/reports/aged-creditors",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "sales": 403,
+  "admin": 403,
+  "class": "owner only"
+ },
+ {
   "route": "GET /reports/aged-creditors/pdf",
   "pattern": "/reports/aged-creditors/pdf",
   "how": "exact path",
@@ -516,6 +528,18 @@
   "class": "signed link"
  },
  {
+  "route": "GET /reports/aged-debtors",
+  "pattern": "/reports/aged-debtors",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "sales": 403,
+  "admin": 403,
+  "class": "owner only"
+ },
+ {
   "route": "GET /reports/aged-debtors/pdf",
   "pattern": "/reports/aged-debtors/pdf",
   "how": "exact path",
@@ -526,6 +550,18 @@
   "sales": 403,
   "admin": 403,
   "class": "signed link"
+ },
+ {
+  "route": "GET /reports/profit-and-loss",
+  "pattern": "/reports/profit-and-loss",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "sales": 403,
+  "admin": 403,
+  "class": "owner only"
  },
  {
   "route": "GET /reports/profit-and-loss/pdf",
