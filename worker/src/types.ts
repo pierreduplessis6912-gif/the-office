@@ -68,6 +68,8 @@ export interface Env {
   PAYFAST_SANDBOX_MERCHANT_KEY?: string;
   PAYFAST_SANDBOX_PASSPHRASE?: string;
   PAYFAST_SKIP_CONFIRM?: string;
+  // How long (seconds) the per-request "has this business stopped paying" answer is remembered. Default 60; 0 turns the memory off (the staging rehearsal does, so a change is seen at once).
+  ACCESS_CACHE_SECONDS?: string;
   // "0" switches off the per-business model usage metering (usage.ts). On by default.
   METER_USAGE?: string;
   // "1" freezes every request that changes something (for the final copy of a migration). See freeze.ts.

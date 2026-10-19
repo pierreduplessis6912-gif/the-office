@@ -268,3 +268,28 @@ export async function billingStatus(env: Env, businessId: string): Promise<Billi
   };
 }
 
+// ---- an operator sets a business's subscription state ------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// To correct a state, grant a free month, or rehearse a lapse without waiting weeks. Strict: the state is one of three words, a date is a real calendar date (YYYY-MM-DD) or null to clear it, only the fields GIVEN change, and nothing else about the
+// business (plan, seats, subscription token) is touched. Setting 'active' with a date in the future is how a business is let back in; access.ts decides what a state means.
+const STATES = new Set(["active", "past_due", "cancelled"]);
+const realDate = (value: unknown): value is string => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+export async function setBillingState(env: Env, input: { business: unknown; billingStatus?: unknown; periodEnd?: unknown; graceUntil?: unknown }): Promise<{ ok: true; status: BillingStatus } | { ok: false; status: number; error: string }> {
+  const sets: string[] = [], binds: Array<string | null> = [];
+  if (input.billingStatus !== undefined) {
+    if (typeof input.billingStatus !== "string" || !STATES.has(input.billingStatus)) return { ok: false, status: 400, error: "billingStatus must be exactly one of: active, past_due, cancelled." };
+    sets.push("billing_status = ?"); binds.push(input.billingStatus);
+  }
+  for (const [key, column] of [["periodEnd", "period_end"], ["graceUntil", "grace_until"]] as const) {
+    const value = input[key];
+    if (value === undefined) continue;
+    if (value !== null && !realDate(value)) return { ok: false, status: 400, error: `${key} must be a real date written YYYY-MM-DD, or null to clear it.` };
+    sets.push(`${column} = ?`); binds.push(value);
+  }
+  if (sets.length === 0) return { ok: false, status: 400, error: "Give at least one of billingStatus, periodEnd, graceUntil." };
+  if (typeof input.business !== "string" || !(await env.OFFICE_DB.prepare("SELECT id FROM businesses WHERE id = ?").bind(input.business).first())) return { ok: false, status: 404, error: "There is no such business." };
+  await ensureBilling(env);
+  await env.OFFICE_DB.prepare(`UPDATE businesses SET ${sets.join(", ")} WHERE id = ?`).bind(...binds, input.business).run();
+  const status = await billingStatus(env, input.business);
+  return status ? { ok: true, status } : { ok: false, status: 404, error: "There is no such business." };
+}
+

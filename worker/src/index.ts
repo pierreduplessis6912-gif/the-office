@@ -1,4 +1,5 @@
 export { TrialObject } from "./trial";
+import { businessLapsed } from "./access";
 import { bulkImportRoute, similarNameTracker } from "./imports";
 import { INVOICE_COLUMNS, matchColumns, parseMoney, readCsv } from "./csv-import";
 import { onboardingRoute } from "./onboarding";
@@ -1740,6 +1741,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
     if (url.pathname === "/auth/me" && request.method === "GET") {
       const session = await verifySession(env, getSessionToken(request));
       if (!session) return Response.json({ signedIn: false });
+      if (await businessLapsed(env)) return Response.json({ signedIn: false, code: "access_ended" });   // a business that has stopped paying (access.ts) is not signed in, and the app can say why
       const membership = await env.OFFICE_DB.prepare("SELECT * FROM memberships WHERE google_email = ?")
         .bind(session.email)
         .first<{ role: string; status: string }>();

@@ -11,6 +11,7 @@
 // test suite (the 165-case role matrix, the PDF-signing round-trip,
 // the CORS allowlist test, and the live-bug regression test) all
 // re-extract from this file now and still pass.
+import { businessLapsed } from "./access";
 import { isBusinessId } from "./directory";
 import { authorizeAdmin } from "./admin-gate";
 import { Env, Extraction } from "./types";
@@ -993,6 +994,9 @@ export async function authGate(request: Request, env: Env, url: URL): Promise<Re
   if (!membership || membership.status !== "active") {
     return Response.json({ error: "no active membership" }, { status: 403 });
   }
+  // A business that has stopped paying (a failed payment past its grace period, or a cancelled subscription past the period it paid for) is refused on EVERY request, the owner too, so a session issued weeks ago cannot outlive the lapse. 401 is what the
+  // app already treats as "sign in again", and the sign-in then says why (access.ts). It fails open.
+  if (await businessLapsed(env)) return Response.json({ error: "This business's subscription has ended or its payment is overdue.", code: "access_ended" }, { status: 401 });
   return authorizeRestrictedMember(request, env, url, membership.role);
 }
 

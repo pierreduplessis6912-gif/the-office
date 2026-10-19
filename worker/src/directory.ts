@@ -4,6 +4,7 @@
 // directory, held in the Worker's own D1 database (in object mode that database holds NO business data, so it is free to be the shared layer). It maps an email address to the business
 // that member signs in to, so a sign-in can find the right object, and nothing else: roles, memberships and everything else about a member stay inside the business's object.
 // It is read once per SIGN-IN (not per request: the session carries the business id), and written by admin routes only.
+import { LAPSED_SQL } from "./access";
 import type { Env } from "./types";
 
 // A business id is a short, lower-case, URL-safe name. It becomes part of an object's name, so it is validated everywhere it is read.
@@ -63,11 +64,17 @@ export async function lookupAccessForEmail(env: Env, email: string): Promise<{ b
   const run = (sql: string) => env.OFFICE_DB.prepare(sql).bind(normaliseEmail(email)).first<{ business_id: string; trial_ends_at?: string | null; source?: string }>();
   try {
     let row: { business_id: string; trial_ends_at?: string | null; source?: string } | null;
+    const trialRule = "AND (b.trial_ends_at IS NULL OR b.trial_ends_at > datetime('now'))";
     try {
-      row = await run(`${base}, b.trial_ends_at AS trial_ends_at, b.source AS source${from} AND (b.trial_ends_at IS NULL OR b.trial_ends_at > datetime('now'))`);
+      row = await run(`${base}, b.trial_ends_at AS trial_ends_at, b.source AS source${from} ${trialRule} AND NOT ${LAPSED_SQL}`);   // a business that has stopped paying (access.ts) is not let in
     } catch (error) {
       if (!missingColumn(error)) throw error;
-      row = await run(`${base}${from}`);   // the directory predates trials: no business has one
+      try {
+        row = await run(`${base}, b.trial_ends_at AS trial_ends_at, b.source AS source${from} ${trialRule}`);   // from before the billing columns: only the trial rule can apply, and it MUST still apply
+      } catch (again) {
+        if (!missingColumn(again)) throw again;
+        row = await run(`${base}${from}`);   // the directory predates trials: no business has one
+      }
     }
     return row && isBusinessId(row.business_id) ? { businessId: row.business_id, trialEndsAt: row.trial_ends_at ?? null, selfStarted: row.source === "signup" } : null;
   } catch (error) {
@@ -85,6 +92,25 @@ export async function findEndedTrialForEmail(env: Env, email: string): Promise<{
       .bind(normaliseEmail(email))
       .first<{ id: string; name: string; ended: string }>();
     return row && isBusinessId(row.id) ? { businessId: row.id, name: row.name, endedAt: row.ended } : null;
+  } catch (error) {
+    if (missingTable(error) || missingColumn(error)) return null;
+    throw error;
+  }
+}
+
+// An email whose business can no longer be signed into, and why: its trial ended, a payment failed and its grace period is over, or its subscription was cancelled and the period it paid for is over. So a sign-in can say so.
+export async function findEndedAccessForEmail(env: Env, email: string): Promise<{ businessId: string; name: string; endedAt: string; reason: "trial" | "payment" | "cancelled" } | null> {
+  const trial = await findEndedTrialForEmail(env, email);
+  if (trial) return { ...trial, reason: "trial" };
+  try {
+    const row = await env.OFFICE_DB.prepare(
+      `SELECT b.id AS id, b.name AS name, b.billing_status AS billing_status, b.grace_until AS grace_until, b.period_end AS period_end FROM directory_members m JOIN businesses b ON b.id = m.business_id WHERE m.email = ? AND b.status = 'active' AND ${LAPSED_SQL} LIMIT 1`,
+    )
+      .bind(normaliseEmail(email))
+      .first<{ id: string; name: string; billing_status: string; grace_until: string | null; period_end: string | null }>();
+    if (!row || !isBusinessId(row.id)) return null;
+    const payment = row.billing_status === "past_due";
+    return { businessId: row.id, name: row.name, endedAt: (payment ? row.grace_until : row.period_end) ?? "", reason: payment ? "payment" : "cancelled" };
   } catch (error) {
     if (missingTable(error) || missingColumn(error)) return null;
     throw error;
