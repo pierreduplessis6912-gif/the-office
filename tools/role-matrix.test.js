@@ -851,6 +851,8 @@ async function expect(role, method, path, want) {
   await require('./payfast-api.test.js')({ check, srcDir });
   // The reply envelope: additive, four explicit parts, nothing invented, never an authorization mechanism
   await require('./experience.test.js')({ check, srcDir });
+  // Operations: the billing health check (money that may be stuck) and its scheduled alert
+  await require('./billing-health.test.js')({ check, srcDir });
   // Reports as data: the PDFs' figures as JSON, with a period and a comparison, authorised exactly like the PDFs
   await require('./reports-data.test.js')({ check, srcDir });
   // The notes store, the file storage and the memory index are shared by every business: each business sees only its own.

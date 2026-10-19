@@ -27,7 +27,7 @@ import { businessIsEmpty } from "./emptiness";
 import { recordSignIn, recordTeamEvent } from "./team-log";
 import { ensureTeamPerson, validFullName } from "./team-people";
 import { checkSeat } from "./seats";
-import { billingStatus, createOrder, pingPayFast, setBillingState, subscriptionAction } from "./billing";
+import { billingHealth, billingStatus, createOrder, pingPayFast, setBillingState, subscriptionAction } from "./billing";
 import { callBusiness } from "./routing";
 import { applyIndexes } from "./indexes";
 import { trialAi, trialD1, trialDo, trialTx } from "./trial";
@@ -128,6 +128,10 @@ if (url.pathname === "/debug/timings" && request.method === "GET") {
         : Response.json({ error: made.error }, { status: made.status });
     }
     // A business's subscription AT PayFast (billing.ts): look at it, pause, resume or cancel it, and check that our signing and merchant account are accepted. Nothing here changes OUR record of the business.
+    // Is money stuck? (billing.ts billingHealth): read-only, called every half hour by a scheduled workflow that goes red on a problem.
+    if (url.pathname === "/debug/directory/billing-health" && request.method === "GET") {
+      return Response.json(await billingHealth(env));
+    }
     if (url.pathname === "/debug/directory/payfast-ping" && request.method === "GET") {
       const pinged = await pingPayFast(env, (u, init) => fetch(u, init));
       return pinged.ok ? Response.json({ ok: true }) : Response.json({ ok: false, error: pinged.error }, { status: pinged.status });
