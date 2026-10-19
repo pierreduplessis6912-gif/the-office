@@ -1,44 +1,36 @@
-# The reply envelope (design contract, version 1) — DRAFT FOR PIERRE'S REVIEW, nothing built yet
+# The reply envelope — contract version 1 (Phase 1)
 
-**Why.** The backend answers in sentences; the design doctrine needs it to answer in *intentions*, so the front end can decide how to present each one (speak, open a room, update the open report, show analysis, ask to confirm, ask a question, or refuse). This envelope is that contract. **It is additive**: every field the app reads today (`message`, `pendingActions`, `pendingCandidates`, `pendingChanges`, `embers`, ...) stays exactly as it is, so the current app keeps working unchanged; the new part is one extra object, `experience`.
+**The principle.** The intelligence thinks. The envelope projects. The Office becomes the experience. The envelope **communicates what the backend has already established** and **recommends how the front end might present it**. It is not an intent engine, not a business-logic layer and **not an authorization mechanism**: it grants nothing, decides nothing and executes nothing.
 
-**Where.** Added to the reply of `POST /messages/text` (and the audio route, which shares `processTranscript`), next to the existing fields.
+**Additive and versioned.** One new object, `experience`, is added to the reply of the two app-facing routes (`POST /messages/text` and the voice-note route). **Every existing reply field keeps its name, value and meaning, and `message` is always still there**, so a client that ignores `experience` (including today's app) behaves exactly as before. A breaking change needs a new `version`. Nothing is added to the debug transcription route.
 
-## What a reply gains
+## The four parts (they are kept apart on purpose)
 
 ```json
-{
-  "status": "processed", "transcript": "...", "message": "...", "...every existing field unchanged...",
-  "experience": {
-    "version": 1,
-    "intent":  { "class": "A|B|C|D|E|F|unknown", "clear": true, "summary": "what was understood, in a few plain words" },
-    "present": { "mode": "speak|open_room|update_workspace|analysis|confirm|clarify|refuse",
-                 "speak": "short text to say aloud or flash and fade, or null",
-                 "room": "finance|jobs|people|customers|suppliers|documents|stock|reports|settings|null",
-                 "workspace": { "report": "...", "period": {"from":"...","to":"..."}, "compare": {"from":"...","to":"..."}, "filters": {}, "sort": "..." } },
-    "confirm": { "required": true, "actionIds": [12], "stakes": "low|medium|high", "changes": [ {"field":"...","from":"...","to":"..."} ] },
-    "clarify": { "question": "one concise question", "options": [ {"id":"...","label":"..."} ] },
-    "evidence": [ { "kind": "record", "ref": {"type":"invoice","id":42}, "label": "..." } ],
-    "certainty": "fact|calculated|inferred|unknown",
-    "refusal": { "reason": "permission|unavailable", "message": "one concise sentence" }
-  }
+"experience": {
+  "version": 1,
+  "established":    { "from": ["message","pendingActions"], "heldActions": [{"id":12,"type":"invoice"}], "candidates": null, "changes": null },
+  "recommendation": { "mode": "speak|confirm|clarify", "speak": "the existing message, or null" },
+  "unknown":        ["intent_class","room","workspace","evidence","certainty","refusal_reason"],
+  "mustStillPass":  { "confirmationRequired": true, "through": "…", "authorization": "…" }
 }
 ```
 
-Only the parts that apply are filled; the rest are `null` or empty. `class` is the doctrine's A to F: **A** information retrieval, **B** open a room or report, **C** change what is already open, **D** deeper analysis, **E** operational action, **F** ambiguous.
+1. **Established** — facts copied (bounded, validated) from fields the reply already carries: `pendingActions` (`{id, type}`), `pendingCandidates` (`{id, name}`), `pendingChanges` (`{field, label, displayValue}`). `from` names which reply fields were read, so every statement is traceable to the reply. Nothing is inferred.
+2. **Recommendation** — a *suggestion* about presentation, never an instruction. `clarify` when the reply carries candidates to choose between; else `confirm` when there are held actions awaiting the existing confirm/reject flow; else `speak` (the existing `message`). `speak` repeats the message verbatim, or is `null` if it is empty or too long (the `message` field is always the full text).
+3. **Unknown** — an explicit list of what the envelope does NOT establish. In Phase 1 this always includes `intent_class`, `room`, `workspace`, `evidence`, `certainty` and `refusal_reason`, and it names any reply field that was malformed (`reply_field_malformed:<field>`) or cut short (`reply_field_truncated:<field>`).
+4. **Must still go through trusted mechanisms** — `confirmationRequired` is true exactly when there are held actions. Executing, rejecting or editing a held action is done ONLY through the existing pending-action routes (confirm, reject, edit-field), which re-check authorization and validation on every call. The envelope carries no address, token, permission or capability and grants nothing.
 
-## What it is built from, honestly
+## What Phase 1 deliberately does NOT do
 
-* **Phase 1 (this change): derived, no new intelligence.** From signals the reply already has. A held action (`pendingActionIds`, `pendingActionType`, `pendingChanges`) is **E** with `mode: confirm`, and its stakes come from the action type. A candidate list (`pendingCandidates`) is **F** with `mode: clarify` and the options. A request refused for permission is `mode: refuse`. Everything else is `unknown` with `mode: speak` and the existing `message`, **so nothing is guessed**. Pure function, unit-tested, no behaviour change.
-* **Phase 2: reports as data**, so `B` and `C` have something real to open and update (profit and loss, aged debtors and creditors as JSON with a period and a comparison period).
-* **Phase 3: analysis (`D`)**, with contributors, evidence links and `certainty` that says plainly whether a statement is fact, calculation or inference, and never invents a cause.
-* **Phase 4: a history and audit record** of heard, interpreted, proposed, executed and replied, so history can show what The Office actually said.
-* **Phase 5: workspace context.** The app may send `context: { room, report, period, filters, selection }` with a request so "compare that to August" can be understood. Phase 1 only accepts and validates it (never trusts it for permissions: authorisation stays server-side).
+* **No intent classes** (A to F). The current reply does not establish one, so none is invented; `intent_class` is listed as unknown.
+* **No rooms, workspaces, reports, evidence or certainty.** Nothing in today's reply supports them; they arrive with the later phases (reports as data, analysis, history and audit record, workspace context).
+* **No `refuse` mode.** A permission refusal reaches the app today only as words inside `message`; there is no structured signal, and guessing from text is not allowed. It stays listed as unknown (`refusal_reason`).
+* **No stakes grading.** The reply gives the action `type`; the app already grades its confirm gesture from it. The envelope passes the type through and asserts nothing about stakes.
 
-## Rules the envelope must never break
+## Safety rules the code and tests enforce
 
-1. **Authorisation is not in the envelope.** A `confirm`, `open_room` or `workspace` is a *suggestion about presentation*. Every action and every record is still checked server-side, on every route, as today.
-2. **Never present an inference as a fact.** `certainty` is set by the code that made the claim, not defaulted upward.
-3. **Additive and versioned.** Existing fields never change meaning; a new `version` is required for any breaking change.
-4. **No room or report is named that does not exist.** An unknown room is `null`, never invented.
-5. **The `message` always remains**, so a client that ignores `experience` (including today's app) still gets a complete answer.
+* Built only from an allowlist of fields; nothing else in the reply (capabilities, e-mail addresses, tokens) is ever copied.
+* Never throws and never changes the reply: a malformed, partial or hostile reply still yields a valid envelope (or a minimal fallback naming `envelope_error`), and the original fields are returned untouched.
+* Bounded: at most 50 items per list and 200 characters per copied string.
+* If a reply already contains an `experience` field, it is left exactly as it is.
