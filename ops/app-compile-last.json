@@ -1,19 +1,16 @@
 {
- "commit": "d4aae93",
- "when": "2026-10-19T21:03:06.037060+00:00",
+ "commit": "8201b73",
+ "when": "2026-10-19T21:05:16.335128+00:00",
  "analyze": "success",
  "analyze_errors": 0,
  "analyze_error_lines": [],
  "tests": "failure",
+ "failing_lines": [
+  "::group::\u274c loading /home/runner/work/the-office/the-office/app/test/widget_test.dart (failed)",
+  "Failed to load \"/home/runner/work/the-office/the-office/app/test/widget_test.dart\":",
+  "::group::\u274c loading /home/runner/work/the-office/the-office/app/test/widget_test.dart (failed after test completion)"
+ ],
  "test_tail": [
-  "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: which answers raise the signal a 500",
-  "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: which answers raise the signal an ordinary 200",
-  "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: the caller still sees the original 401, its body and its headers",
-  "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: a body that is not touched streams through (a 200 is not buffered by the wrapper)",
-  "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: many refused requests raise the signal ONCE",
-  "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: a failing side effect (clearing the session) never stops the signal",
-  "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: closing the wrapper does NOT close the shared client (package:http closes a client after every top-level call)",
-  "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: http.runWithClient wraps the TOP-LEVEL calls main.dart makes (get, post, and a multipart upload)",
   "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: the gate shows the app normally, replaces it when access ends, and \"Sign in\" brings it back",
   "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: anything open on top (a dialog, a pushed page) is closed when access ends",
   "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: the screen is announced to a screen reader (live region) and has no way to continue except signing in",
