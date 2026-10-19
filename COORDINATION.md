@@ -4,8 +4,8 @@
 
 **The protocol (every run, every time).**
 1. **Check on arrival:** before building anything, compare the repository (`git log`, remote branches, queued workflow runs) with what you yourself did. On any commit you do not recognise, STOP, read it, and reconcile before building.
-2. **Claim atomically:** before starting a point, create the branch `claim/point-N` (`git push origin HEAD:refs/heads/claim/point-N`). Git refuses to create a branch twice, so only ONE run can claim a point; if the push is refused, someone already has it: do not start it. Then update the table below.
-3. **Mark your commits:** every commit message ends with a line `Run: <id>`, an id made at the start of the run, so that if two runs ever commit in the same window the ids prove it.
+2. **Claim atomically, with the API (NOT a plain git push):** before starting a point, create the branch `claim/point-N` with GitHub's create-only call: `curl -X POST https://api.github.com/repos/pierreduplessis6912-gif/the-office/git/refs -d '{"ref":"refs/heads/claim/point-N","sha":"<current main sha>"}'` (with the token). It answers **201** the first time and **422 "Reference already exists"** to every later attempt, so only ONE run can claim a point; on a 422, someone already has it: do not start it. (A plain `git push` is NOT safe for this: pushing the same commit to an existing branch is a silent no-op, and a later commit can fast-forward it.) Then update the table below.
+3. **Mark your commits:** every commit message ends with a line `Run: <id>`, an 8-character id made at the start of the run with `python3 -c "import uuid; print(uuid.uuid4().hex[:8])"` (the shell's `$RANDOM` is not available), so that if two runs ever commit in the same window the ids prove it.
 4. **Trust the repository, not the status:** a workflow run's status can stay "queued" after it has finished; read the record it wrote (`ops/`) and what production reports it is running (the probe).
 
 | Point | What | Claimed by | Status |
