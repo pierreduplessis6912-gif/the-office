@@ -851,6 +851,8 @@ async function expect(role, method, path, want) {
   await require('./payfast-api.test.js')({ check, srcDir });
   // The reply envelope: additive, four explicit parts, nothing invented, never an authorization mechanism
   await require('./experience.test.js')({ check, srcDir });
+  // The same envelope as a contract with the app: one shared fixture, proven on both sides (the app's half is app/test/envelope_contract_test.dart)
+  await require('./experience-contract.test.js')({ check, srcDir });
   // The analysis layer: why a figure changed, from the report's own numbers, with the records behind it and no invented causes
   await require('./analysis.test.js')({ check, srcDir });
   // The history and audit record: heard, interpreted, proposed, decided, replied, and the records written

@@ -82,6 +82,15 @@ void main() {
     }
   });
 
+  test('ids follow the server\'s rule: positive whole numbers (zero, negative and fractional ids are dropped)', () {
+    final e = ReplyEnvelope.fromReply(_reply(experience: _envelope(
+      held: [{'id': 0}, {'id': -1}, {'id': 2.5}, {'id': 3}],
+      candidates: [{'id': 0, 'name': 'Zero'}, {'id': -2, 'name': 'Neg'}, {'id': 4, 'name': 'Four'}],
+    )))!;
+    expect(e.heldActions.map((h) => h.id), [3]);
+    expect(e.candidates.map((c) => c.id), [4]);
+  });
+
   test('only a literal true means confirmation is required', () {
     for (final v in <Object?>[false, null, 'true', 1, 'yes']) {
       expect(ReplyEnvelope.fromReply(_reply(experience: _envelope(confirmationRequired: v)))!.confirmationRequired, isFalse, reason: '$v');

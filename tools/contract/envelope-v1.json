@@ -1,0 +1,1264 @@
+{
+  "contract": "ENVELOPE.md, version 1",
+  "regenerate": "CONTRACT_UPDATE=1 node tools/role-matrix.test.js",
+  "cases": [
+    {
+      "name": "a plain reply",
+      "reply": {
+        "message": "Done."
+      },
+      "experience": {
+        "version": 1,
+        "established": {
+          "from": [
+            "message"
+          ],
+          "heldActions": [],
+          "candidates": null,
+          "changes": null
+        },
+        "recommendation": {
+          "mode": "speak",
+          "speak": "Done."
+        },
+        "unknown": [
+          "intent_class",
+          "room",
+          "workspace",
+          "evidence",
+          "certainty",
+          "refusal_reason"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": false,
+          "through": null,
+          "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+        }
+      }
+    },
+    {
+      "name": "one held invoice",
+      "reply": {
+        "message": "I've drafted an invoice for Jenny.",
+        "pendingActionId": 12,
+        "pendingActionIds": [
+          12
+        ],
+        "pendingActions": [
+          {
+            "id": 12,
+            "type": "invoice"
+          }
+        ],
+        "pendingActionType": "invoice"
+      },
+      "experience": {
+        "version": 1,
+        "established": {
+          "from": [
+            "pendingActions",
+            "message"
+          ],
+          "heldActions": [
+            {
+              "id": 12,
+              "type": "invoice"
+            }
+          ],
+          "candidates": null,
+          "changes": null
+        },
+        "recommendation": {
+          "mode": "confirm",
+          "speak": "I've drafted an invoice for Jenny."
+        },
+        "unknown": [
+          "intent_class",
+          "room",
+          "workspace",
+          "evidence",
+          "certainty",
+          "refusal_reason"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": true,
+          "through": "Only the existing pending-action routes (confirm, reject, edit-field), which re-check authorization and validation on every call.",
+          "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+        }
+      }
+    },
+    {
+      "name": "an ambiguous person with candidates",
+      "reply": {
+        "message": "Which Jenny?",
+        "pendingActionId": 5,
+        "pendingActions": [
+          {
+            "id": 5,
+            "type": "ambiguous_person"
+          }
+        ],
+        "pendingCandidates": [
+          {
+            "id": 1,
+            "name": "Jenny Adams"
+          },
+          {
+            "id": 2,
+            "name": "Jenny Botha"
+          }
+        ]
+      },
+      "experience": {
+        "version": 1,
+        "established": {
+          "from": [
+            "pendingActions",
+            "pendingCandidates",
+            "message"
+          ],
+          "heldActions": [
+            {
+              "id": 5,
+              "type": "ambiguous_person"
+            }
+          ],
+          "candidates": [
+            {
+              "id": 1,
+              "name": "Jenny Adams"
+            },
+            {
+              "id": 2,
+              "name": "Jenny Botha"
+            }
+          ],
+          "changes": null
+        },
+        "recommendation": {
+          "mode": "clarify",
+          "speak": "Which Jenny?"
+        },
+        "unknown": [
+          "intent_class",
+          "room",
+          "workspace",
+          "evidence",
+          "certainty",
+          "refusal_reason"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": true,
+          "through": "Only the existing pending-action routes (confirm, reject, edit-field), which re-check authorization and validation on every call.",
+          "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+        }
+      }
+    },
+    {
+      "name": "several held actions, one a choice",
+      "reply": {
+        "message": "Three things are waiting.",
+        "pendingActions": [
+          {
+            "id": 7,
+            "type": "stock_add"
+          },
+          {
+            "id": 8,
+            "type": "invoice"
+          },
+          {
+            "id": 9,
+            "type": "project_ambiguity"
+          }
+        ]
+      },
+      "experience": {
+        "version": 1,
+        "established": {
+          "from": [
+            "pendingActions",
+            "message"
+          ],
+          "heldActions": [
+            {
+              "id": 7,
+              "type": "stock_add"
+            },
+            {
+              "id": 8,
+              "type": "invoice"
+            },
+            {
+              "id": 9,
+              "type": "project_ambiguity"
+            }
+          ],
+          "candidates": null,
+          "changes": null
+        },
+        "recommendation": {
+          "mode": "confirm",
+          "speak": "Three things are waiting."
+        },
+        "unknown": [
+          "intent_class",
+          "room",
+          "workspace",
+          "evidence",
+          "certainty",
+          "refusal_reason"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": true,
+          "through": "Only the existing pending-action routes (confirm, reject, edit-field), which re-check authorization and validation on every call.",
+          "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+        }
+      }
+    },
+    {
+      "name": "a held action with proposed changes",
+      "reply": {
+        "message": "Review the amount.",
+        "pendingActionId": 20,
+        "pendingActions": [
+          {
+            "id": 20,
+            "type": "job_scope_amendment"
+          }
+        ],
+        "pendingChanges": [
+          {
+            "field": "amount",
+            "label": "Amount",
+            "displayValue": "R1,200.00"
+          }
+        ]
+      },
+      "experience": {
+        "version": 1,
+        "established": {
+          "from": [
+            "pendingActions",
+            "pendingChanges",
+            "message"
+          ],
+          "heldActions": [
+            {
+              "id": 20,
+              "type": "job_scope_amendment"
+            }
+          ],
+          "candidates": null,
+          "changes": [
+            {
+              "field": "amount",
+              "label": "Amount",
+              "displayValue": "R1,200.00"
+            }
+          ]
+        },
+        "recommendation": {
+          "mode": "confirm",
+          "speak": "Review the amount."
+        },
+        "unknown": [
+          "intent_class",
+          "room",
+          "workspace",
+          "evidence",
+          "certainty",
+          "refusal_reason"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": true,
+          "through": "Only the existing pending-action routes (confirm, reject, edit-field), which re-check authorization and validation on every call.",
+          "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+        }
+      }
+    },
+    {
+      "name": "a held action with no type",
+      "reply": {
+        "message": "Waiting.",
+        "pendingActions": [
+          {
+            "id": 3,
+            "type": null
+          }
+        ]
+      },
+      "experience": {
+        "version": 1,
+        "established": {
+          "from": [
+            "pendingActions",
+            "message"
+          ],
+          "heldActions": [
+            {
+              "id": 3,
+              "type": null
+            }
+          ],
+          "candidates": null,
+          "changes": null
+        },
+        "recommendation": {
+          "mode": "confirm",
+          "speak": "Waiting."
+        },
+        "unknown": [
+          "intent_class",
+          "room",
+          "workspace",
+          "evidence",
+          "certainty",
+          "refusal_reason"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": true,
+          "through": "Only the existing pending-action routes (confirm, reject, edit-field), which re-check authorization and validation on every call.",
+          "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+        }
+      }
+    },
+    {
+      "name": "malformed fields",
+      "reply": {
+        "message": 12,
+        "pendingActions": "nope",
+        "pendingCandidates": [
+          {
+            "id": "x",
+            "name": 5
+          },
+          {
+            "id": 4,
+            "name": "Kept"
+          }
+        ]
+      },
+      "experience": {
+        "version": 1,
+        "established": {
+          "from": [
+            "pendingCandidates"
+          ],
+          "heldActions": [],
+          "candidates": [
+            {
+              "id": 4,
+              "name": "Kept"
+            }
+          ],
+          "changes": null
+        },
+        "recommendation": {
+          "mode": "clarify",
+          "speak": null
+        },
+        "unknown": [
+          "intent_class",
+          "room",
+          "workspace",
+          "evidence",
+          "certainty",
+          "refusal_reason",
+          "reply_field_malformed:pendingActions",
+          "reply_field_malformed:pendingCandidates",
+          "reply_field_malformed:message"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": false,
+          "through": null,
+          "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+        }
+      }
+    },
+    {
+      "name": "a list longer than the cap",
+      "reply": {
+        "message": "Many.",
+        "pendingActions": [
+          {
+            "id": 1,
+            "type": "invoice"
+          },
+          {
+            "id": 2,
+            "type": "invoice"
+          },
+          {
+            "id": 3,
+            "type": "invoice"
+          },
+          {
+            "id": 4,
+            "type": "invoice"
+          },
+          {
+            "id": 5,
+            "type": "invoice"
+          },
+          {
+            "id": 6,
+            "type": "invoice"
+          },
+          {
+            "id": 7,
+            "type": "invoice"
+          },
+          {
+            "id": 8,
+            "type": "invoice"
+          },
+          {
+            "id": 9,
+            "type": "invoice"
+          },
+          {
+            "id": 10,
+            "type": "invoice"
+          },
+          {
+            "id": 11,
+            "type": "invoice"
+          },
+          {
+            "id": 12,
+            "type": "invoice"
+          },
+          {
+            "id": 13,
+            "type": "invoice"
+          },
+          {
+            "id": 14,
+            "type": "invoice"
+          },
+          {
+            "id": 15,
+            "type": "invoice"
+          },
+          {
+            "id": 16,
+            "type": "invoice"
+          },
+          {
+            "id": 17,
+            "type": "invoice"
+          },
+          {
+            "id": 18,
+            "type": "invoice"
+          },
+          {
+            "id": 19,
+            "type": "invoice"
+          },
+          {
+            "id": 20,
+            "type": "invoice"
+          },
+          {
+            "id": 21,
+            "type": "invoice"
+          },
+          {
+            "id": 22,
+            "type": "invoice"
+          },
+          {
+            "id": 23,
+            "type": "invoice"
+          },
+          {
+            "id": 24,
+            "type": "invoice"
+          },
+          {
+            "id": 25,
+            "type": "invoice"
+          },
+          {
+            "id": 26,
+            "type": "invoice"
+          },
+          {
+            "id": 27,
+            "type": "invoice"
+          },
+          {
+            "id": 28,
+            "type": "invoice"
+          },
+          {
+            "id": 29,
+            "type": "invoice"
+          },
+          {
+            "id": 30,
+            "type": "invoice"
+          },
+          {
+            "id": 31,
+            "type": "invoice"
+          },
+          {
+            "id": 32,
+            "type": "invoice"
+          },
+          {
+            "id": 33,
+            "type": "invoice"
+          },
+          {
+            "id": 34,
+            "type": "invoice"
+          },
+          {
+            "id": 35,
+            "type": "invoice"
+          },
+          {
+            "id": 36,
+            "type": "invoice"
+          },
+          {
+            "id": 37,
+            "type": "invoice"
+          },
+          {
+            "id": 38,
+            "type": "invoice"
+          },
+          {
+            "id": 39,
+            "type": "invoice"
+          },
+          {
+            "id": 40,
+            "type": "invoice"
+          },
+          {
+            "id": 41,
+            "type": "invoice"
+          },
+          {
+            "id": 42,
+            "type": "invoice"
+          },
+          {
+            "id": 43,
+            "type": "invoice"
+          },
+          {
+            "id": 44,
+            "type": "invoice"
+          },
+          {
+            "id": 45,
+            "type": "invoice"
+          },
+          {
+            "id": 46,
+            "type": "invoice"
+          },
+          {
+            "id": 47,
+            "type": "invoice"
+          },
+          {
+            "id": 48,
+            "type": "invoice"
+          },
+          {
+            "id": 49,
+            "type": "invoice"
+          },
+          {
+            "id": 50,
+            "type": "invoice"
+          },
+          {
+            "id": 51,
+            "type": "invoice"
+          },
+          {
+            "id": 52,
+            "type": "invoice"
+          },
+          {
+            "id": 53,
+            "type": "invoice"
+          },
+          {
+            "id": 54,
+            "type": "invoice"
+          },
+          {
+            "id": 55,
+            "type": "invoice"
+          },
+          {
+            "id": 56,
+            "type": "invoice"
+          },
+          {
+            "id": 57,
+            "type": "invoice"
+          },
+          {
+            "id": 58,
+            "type": "invoice"
+          },
+          {
+            "id": 59,
+            "type": "invoice"
+          },
+          {
+            "id": 60,
+            "type": "invoice"
+          }
+        ]
+      },
+      "experience": {
+        "version": 1,
+        "established": {
+          "from": [
+            "pendingActions",
+            "message"
+          ],
+          "heldActions": [
+            {
+              "id": 1,
+              "type": "invoice"
+            },
+            {
+              "id": 2,
+              "type": "invoice"
+            },
+            {
+              "id": 3,
+              "type": "invoice"
+            },
+            {
+              "id": 4,
+              "type": "invoice"
+            },
+            {
+              "id": 5,
+              "type": "invoice"
+            },
+            {
+              "id": 6,
+              "type": "invoice"
+            },
+            {
+              "id": 7,
+              "type": "invoice"
+            },
+            {
+              "id": 8,
+              "type": "invoice"
+            },
+            {
+              "id": 9,
+              "type": "invoice"
+            },
+            {
+              "id": 10,
+              "type": "invoice"
+            },
+            {
+              "id": 11,
+              "type": "invoice"
+            },
+            {
+              "id": 12,
+              "type": "invoice"
+            },
+            {
+              "id": 13,
+              "type": "invoice"
+            },
+            {
+              "id": 14,
+              "type": "invoice"
+            },
+            {
+              "id": 15,
+              "type": "invoice"
+            },
+            {
+              "id": 16,
+              "type": "invoice"
+            },
+            {
+              "id": 17,
+              "type": "invoice"
+            },
+            {
+              "id": 18,
+              "type": "invoice"
+            },
+            {
+              "id": 19,
+              "type": "invoice"
+            },
+            {
+              "id": 20,
+              "type": "invoice"
+            },
+            {
+              "id": 21,
+              "type": "invoice"
+            },
+            {
+              "id": 22,
+              "type": "invoice"
+            },
+            {
+              "id": 23,
+              "type": "invoice"
+            },
+            {
+              "id": 24,
+              "type": "invoice"
+            },
+            {
+              "id": 25,
+              "type": "invoice"
+            },
+            {
+              "id": 26,
+              "type": "invoice"
+            },
+            {
+              "id": 27,
+              "type": "invoice"
+            },
+            {
+              "id": 28,
+              "type": "invoice"
+            },
+            {
+              "id": 29,
+              "type": "invoice"
+            },
+            {
+              "id": 30,
+              "type": "invoice"
+            },
+            {
+              "id": 31,
+              "type": "invoice"
+            },
+            {
+              "id": 32,
+              "type": "invoice"
+            },
+            {
+              "id": 33,
+              "type": "invoice"
+            },
+            {
+              "id": 34,
+              "type": "invoice"
+            },
+            {
+              "id": 35,
+              "type": "invoice"
+            },
+            {
+              "id": 36,
+              "type": "invoice"
+            },
+            {
+              "id": 37,
+              "type": "invoice"
+            },
+            {
+              "id": 38,
+              "type": "invoice"
+            },
+            {
+              "id": 39,
+              "type": "invoice"
+            },
+            {
+              "id": 40,
+              "type": "invoice"
+            },
+            {
+              "id": 41,
+              "type": "invoice"
+            },
+            {
+              "id": 42,
+              "type": "invoice"
+            },
+            {
+              "id": 43,
+              "type": "invoice"
+            },
+            {
+              "id": 44,
+              "type": "invoice"
+            },
+            {
+              "id": 45,
+              "type": "invoice"
+            },
+            {
+              "id": 46,
+              "type": "invoice"
+            },
+            {
+              "id": 47,
+              "type": "invoice"
+            },
+            {
+              "id": 48,
+              "type": "invoice"
+            },
+            {
+              "id": 49,
+              "type": "invoice"
+            },
+            {
+              "id": 50,
+              "type": "invoice"
+            }
+          ],
+          "candidates": null,
+          "changes": null
+        },
+        "recommendation": {
+          "mode": "confirm",
+          "speak": "Many."
+        },
+        "unknown": [
+          "intent_class",
+          "room",
+          "workspace",
+          "evidence",
+          "certainty",
+          "refusal_reason",
+          "reply_field_truncated:pendingActions"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": true,
+          "through": "Only the existing pending-action routes (confirm, reject, edit-field), which re-check authorization and validation on every call.",
+          "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+        }
+      }
+    },
+    {
+      "name": "a message too long to repeat",
+      "reply": {
+        "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      },
+      "experience": {
+        "version": 1,
+        "established": {
+          "from": [],
+          "heldActions": [],
+          "candidates": null,
+          "changes": null
+        },
+        "recommendation": {
+          "mode": "speak",
+          "speak": null
+        },
+        "unknown": [
+          "intent_class",
+          "room",
+          "workspace",
+          "evidence",
+          "certainty",
+          "refusal_reason",
+          "message_not_repeated"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": false,
+          "through": null,
+          "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+        }
+      }
+    },
+    {
+      "name": "long strings are cut",
+      "reply": {
+        "message": "ok",
+        "pendingActions": [
+          {
+            "id": 2,
+            "type": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+          }
+        ],
+        "pendingCandidates": [
+          {
+            "id": 6,
+            "name": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn"
+          }
+        ]
+      },
+      "experience": {
+        "version": 1,
+        "established": {
+          "from": [
+            "pendingActions",
+            "pendingCandidates",
+            "message"
+          ],
+          "heldActions": [
+            {
+              "id": 2,
+              "type": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+            }
+          ],
+          "candidates": [
+            {
+              "id": 6,
+              "name": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn"
+            }
+          ],
+          "changes": null
+        },
+        "recommendation": {
+          "mode": "clarify",
+          "speak": "ok"
+        },
+        "unknown": [
+          "intent_class",
+          "room",
+          "workspace",
+          "evidence",
+          "certainty",
+          "refusal_reason"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": true,
+          "through": "Only the existing pending-action routes (confirm, reject, edit-field), which re-check authorization and validation on every call.",
+          "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+        }
+      }
+    },
+    {
+      "name": "fields outside the allowlist are never copied",
+      "reply": {
+        "message": "ok",
+        "token": "secret",
+        "email": "a@b.co",
+        "capabilities": [
+          "all"
+        ],
+        "pendingActions": [
+          {
+            "id": 4,
+            "type": "invoice",
+            "token": "secret",
+            "url": "https://evil.example"
+          }
+        ]
+      },
+      "experience": {
+        "version": 1,
+        "established": {
+          "from": [
+            "pendingActions",
+            "message"
+          ],
+          "heldActions": [
+            {
+              "id": 4,
+              "type": "invoice"
+            }
+          ],
+          "candidates": null,
+          "changes": null
+        },
+        "recommendation": {
+          "mode": "confirm",
+          "speak": "ok"
+        },
+        "unknown": [
+          "intent_class",
+          "room",
+          "workspace",
+          "evidence",
+          "certainty",
+          "refusal_reason"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": true,
+          "through": "Only the existing pending-action routes (confirm, reject, edit-field), which re-check authorization and validation on every call.",
+          "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+        }
+      }
+    },
+    {
+      "name": "not an object",
+      "reply": null,
+      "experience": {
+        "version": 1,
+        "established": {
+          "from": [],
+          "heldActions": [],
+          "candidates": null,
+          "changes": null
+        },
+        "recommendation": {
+          "mode": "speak",
+          "speak": null
+        },
+        "unknown": [
+          "intent_class",
+          "room",
+          "workspace",
+          "evidence",
+          "certainty",
+          "refusal_reason",
+          "reply_malformed"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": false,
+          "through": null,
+          "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+        }
+      }
+    }
+  ],
+  "compatibility": [
+    {
+      "name": "future additive fields beside a version 1 envelope are ignored",
+      "experience": {
+        "version": 1,
+        "established": {
+          "from": [
+            "message"
+          ],
+          "heldActions": [
+            {
+              "id": 12,
+              "type": "invoice",
+              "label": "Review payment",
+              "status": "awaiting_authorization"
+            }
+          ],
+          "candidates": null,
+          "changes": null,
+          "references": [
+            {
+              "type": "customer",
+              "id": "customer_123"
+            }
+          ]
+        },
+        "recommendation": {
+          "mode": "confirm",
+          "speak": "Done.",
+          "intent": {
+            "room": "finance"
+          }
+        },
+        "unknown": [
+          "room"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": true,
+          "through": "x",
+          "authorization": "y"
+        },
+        "replyId": "reply_123",
+        "content": [
+          {
+            "type": "metric",
+            "value": {
+              "amountMinor": 1250000,
+              "currency": "ZAR"
+            }
+          }
+        ],
+        "provenance": {
+          "status": "verified"
+        }
+      },
+      "expect": {
+        "read": true,
+        "mode": "confirm",
+        "heldActionIds": [
+          12
+        ],
+        "confirmationRequired": true
+      }
+    },
+    {
+      "name": "a version 2 envelope is not read at all (the app behaves as before)",
+      "experience": {
+        "version": 2,
+        "established": {
+          "from": [],
+          "heldActions": [
+            {
+              "id": 1,
+              "type": "invoice"
+            }
+          ],
+          "candidates": null,
+          "changes": null
+        },
+        "recommendation": {
+          "mode": "confirm",
+          "speak": null
+        },
+        "unknown": [],
+        "mustStillPass": {
+          "confirmationRequired": true,
+          "through": null,
+          "authorization": "y"
+        }
+      },
+      "expect": {
+        "read": false
+      }
+    },
+    {
+      "name": "the vision's own illustrative shape (schemaVersion 1.0) is not version 1 and is not read",
+      "experience": {
+        "schemaVersion": "1.0",
+        "replyId": "reply_123",
+        "intent": {
+          "mode": "open_room",
+          "room": "finance"
+        },
+        "message": {
+          "text": "Jenny has an outstanding balance."
+        },
+        "content": [],
+        "references": [],
+        "actions": [],
+        "warnings": [],
+        "provenance": {
+          "status": "verified"
+        }
+      },
+      "expect": {
+        "read": false
+      }
+    },
+    {
+      "name": "a mode the app does not know (open_room) reads as speak",
+      "experience": {
+        "version": 1,
+        "established": {
+          "from": [],
+          "heldActions": [],
+          "candidates": null,
+          "changes": null
+        },
+        "recommendation": {
+          "mode": "open_room",
+          "speak": "Opening finance."
+        },
+        "unknown": [],
+        "mustStillPass": {
+          "confirmationRequired": false,
+          "through": null,
+          "authorization": "y"
+        }
+      },
+      "expect": {
+        "read": true,
+        "mode": "speak",
+        "heldActionIds": [],
+        "confirmationRequired": false
+      }
+    },
+    {
+      "name": "a mode the app does not know (refuse) reads as speak",
+      "experience": {
+        "version": 1,
+        "established": {
+          "from": [],
+          "heldActions": [],
+          "candidates": null,
+          "changes": null
+        },
+        "recommendation": {
+          "mode": "refuse",
+          "speak": null
+        },
+        "unknown": [
+          "refusal_reason"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": false,
+          "through": null,
+          "authorization": "y"
+        }
+      },
+      "expect": {
+        "read": true,
+        "mode": "speak",
+        "heldActionIds": [],
+        "confirmationRequired": false
+      }
+    },
+    {
+      "name": "held actions with a non-positive or non-integer id are dropped",
+      "experience": {
+        "version": 1,
+        "established": {
+          "from": [
+            "pendingActions"
+          ],
+          "heldActions": [
+            {
+              "id": 0,
+              "type": "invoice"
+            },
+            {
+              "id": -3,
+              "type": "invoice"
+            },
+            {
+              "id": 1.5,
+              "type": "invoice"
+            },
+            {
+              "id": "7",
+              "type": "invoice"
+            },
+            {
+              "id": 8,
+              "type": "invoice"
+            }
+          ],
+          "candidates": null,
+          "changes": null
+        },
+        "recommendation": {
+          "mode": "confirm",
+          "speak": null
+        },
+        "unknown": [],
+        "mustStillPass": {
+          "confirmationRequired": true,
+          "through": "x",
+          "authorization": "y"
+        }
+      },
+      "expect": {
+        "read": true,
+        "mode": "confirm",
+        "heldActionIds": [
+          8
+        ],
+        "confirmationRequired": true
+      }
+    }
+  ]
+}

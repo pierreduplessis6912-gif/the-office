@@ -84,11 +84,11 @@ class ReplyEnvelope {
         from: _strings(est['from']),
         heldActions: [
           for (final e in _items(est['heldActions']))
-            if (e is Map && e['id'] is int) HeldAction(id: e['id'] as int, type: _text(e['type'])),
+            if (e is Map && _wholeId(e['id'])) HeldAction(id: e['id'] as int, type: _text(e['type'])),
         ],
         candidates: [
           for (final e in _items(est['candidates']))
-            if (e is Map && e['id'] is int && _text(e['name']) != null) EnvelopeCandidate(id: e['id'] as int, name: _text(e['name'])!),
+            if (e is Map && _wholeId(e['id']) && _text(e['name']) != null) EnvelopeCandidate(id: e['id'] as int, name: _text(e['name'])!),
         ],
         changes: [
           for (final e in _items(est['changes']))
@@ -105,6 +105,9 @@ class ReplyEnvelope {
     }
   }
 }
+
+/// The server's own rule for an id: a positive whole number.
+bool _wholeId(Object? v) => v is int && v > 0;
 
 List<Object?> _items(Object? v) => v is List ? v.take(_maxItems).toList() : const <Object?>[];
 
