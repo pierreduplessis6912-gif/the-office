@@ -36,3 +36,5 @@ Slice 2 (`claim/frontend-2-plans-button`): the owner's Subscription drawer item,
 Ops (`claim/ops-lapse-check`): `prod-billing-state.yml` (test businesses only) sets and restores a subscription state; DONE and merged. Slices 1 and 2 verified on a device (2026-10-20). Ballz restored to active.
 
 Slice 3 (`claim/frontend-3-motion-a11y`): reduced motion and screen-reader labels, DONE and merged (not verified on a device). Still unclaimed: sending workspace context; reading the reply envelope; a history view; an analysis view; tests for the rest of the app.
+
+Slice 4 (`claim/frontend-4-envelope`): reading the reply envelope, DONE and merged (reader plus a gap-filling safety net; not verified on a device). Still unclaimed: sending workspace context; a history view; an analysis view; tests for the rest of the app.
