@@ -1,0 +1,31 @@
+{
+ "when": "2026-10-20T06:27:21.950882Z",
+ "run": "39380431984",
+ "business": "ballz-enterprizes-392739",
+ "requested": {
+  "billingStatus": "cancelled",
+  "periodEnd": "2026-10-19",
+  "graceUntil": "keep"
+ },
+ "before": {
+  "id": "ballz-enterprizes-392739",
+  "plan": "team",
+  "seats": 3,
+  "status": "active",
+  "billingStatus": "active",
+  "billingInterval": "monthly",
+  "periodEnd": "2026-11-19",
+  "graceUntil": null
+ },
+ "after": {
+  "id": "ballz-enterprizes-392739",
+  "plan": "team",
+  "seats": 3,
+  "status": "active",
+  "billingStatus": "cancelled",
+  "billingInterval": "monthly",
+  "periodEnd": "2026-10-19",
+  "graceUntil": null
+ },
+ "set_status": "200"
+}
