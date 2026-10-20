@@ -115,7 +115,8 @@ async function planLinkFor(env: Env, ended: { businessId: string; reason: "trial
 // Why a business can no longer be signed into: its trial ended, a payment failed and the grace period is over, or its subscription was cancelled and the period it paid for is over. Same contact line as the trial page; nothing is deleted.
 const endedPage = (ended: { name: string; reason: "trial" | "payment" | "cancelled" }, contact: string | undefined, link?: string): Response => {
   if (ended.reason === "trial") return trialEndedPage(ended.name, contact, link);
-  const how = contact ? `To get back in, ${escapeHtml(contact)}.` : "To get back in, please contact us.";
+  const lead = link ? "Or, to get back in," : "To get back in,";   // with a button above it, the line is the other way back; without one it is the only way
+  const how = contact ? `${lead} ${escapeHtml(contact)}.` : `${lead} please contact us.`;
   return ended.reason === "payment"
     ? page("Payment overdue", `<h1>Payment overdue</h1><p>The latest payment for <strong>${escapeHtml(ended.name)}</strong> did not go through, and the grace period has ended. Your information is safe and has not been deleted.</p>${cardButton(link)}<p>${how}</p>`, 403)
     : page("Subscription ended", `<h1>Your subscription has ended</h1><p>The subscription for <strong>${escapeHtml(ended.name)}</strong> has ended. Your information is safe and has not been deleted.</p>${planButton(link)}<p>${how}</p>`, 403);
