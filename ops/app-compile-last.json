@@ -1,18 +1,22 @@
 {
- "commit": "75c5655",
- "when": "2026-10-20T15:11:33.134584+00:00",
+ "commit": "22203ba",
+ "when": "2026-10-20T18:33:08.183279+00:00",
  "analyze": "success",
  "analyze_errors": 0,
  "analyze_error_lines": [],
- "tests": "success",
- "failing_lines": [],
+ "tests": "failure",
+ "failing_lines": [
+  "::group::\u274c /home/runner/work/the-office/the-office/app/test/analysis_model_test.dart: anything unusable is null: not v1, wrong topic, bad period, no summary (failed)",
+  "Expected: null",
+  "Actual: <Instance of 'Analysis'>"
+ ],
  "test_tail": [
-  "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: the gate shows the app normally, replaces it when access ends, and \"Sign in\" brings it back",
-  "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: anything open on top (a dialog, a pushed page) is closed when access ends",
-  "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: the screen is announced to a screen reader (live region) and has no way to continue except signing in",
+  "\u2705 /home/runner/work/the-office/the-office/app/test/envelope_contract_test.dart: compatibility: a mode the app does not know (open_room) reads as speak",
+  "\u2705 /home/runner/work/the-office/the-office/app/test/envelope_contract_test.dart: compatibility: a mode the app does not know (refuse) reads as speak",
+  "\u2705 /home/runner/work/the-office/the-office/app/test/envelope_contract_test.dart: compatibility: held actions with a non-positive or non-integer id are dropped",
   "::endgroup::",
   "",
-  "\ud83c\udf89 127 tests passed."
+  "::error::134 tests passed, 1 failed."
  ],
- "build": "success"
+ "build": "skipped"
 }
