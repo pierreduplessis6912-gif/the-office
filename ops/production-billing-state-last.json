@@ -1,10 +1,10 @@
 {
- "when": "2026-10-20T06:37:06.718278Z",
- "run": "39381407310",
+ "when": "2026-10-20T06:38:37.191689Z",
+ "run": "39381554133",
  "business": "ballz-enterprizes-392739",
  "requested": {
-  "billingStatus": "cancelled",
-  "periodEnd": "2026-10-19",
+  "billingStatus": "active",
+  "periodEnd": "2026-11-19",
   "graceUntil": "keep"
  },
  "before": {
@@ -12,9 +12,9 @@
   "plan": "team",
   "seats": 3,
   "status": "active",
-  "billingStatus": "active",
+  "billingStatus": "cancelled",
   "billingInterval": "monthly",
-  "periodEnd": "2026-11-19",
+  "periodEnd": "2026-10-19",
   "graceUntil": null
  },
  "after": {
@@ -22,9 +22,9 @@
   "plan": "team",
   "seats": 3,
   "status": "active",
-  "billingStatus": "cancelled",
+  "billingStatus": "active",
   "billingInterval": "monthly",
-  "periodEnd": "2026-10-19",
+  "periodEnd": "2026-11-19",
   "graceUntil": null
  },
  "set_status": "200"
