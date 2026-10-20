@@ -50,3 +50,5 @@ Slice 8 (`claim/frontend-8-context`): workspace context, DONE and merged (not ve
 Docs (2026-10-20): `PROJECTION_VISION.md` saved and `VISION.md` now maps vision against build. Open, unclaimed, in suggested order: shared backend/app envelope contract fixture; envelope and history for photo and document uploads; structured `refuse` mode and `replyId`; content blocks and renderer registry; tests for the rest of the app; nothing for `DESIGN_DOCTRINE.md`: the doctrine was replaced by `PROJECTION_VISION.md` (Pierre, 2026-10-20).
 
 Direction recorded in VISION.md (Pierre, 2026-10-20): ERP and BI backend, conversational input at rest, adapters. Step 1, client-neutral replies (the app command is kept out of speech and history): built. Next in order: one BI drill-down (revenue by customer for a period, then their outstanding invoices); then a read-only MCP adapter. Unclaimed.
+
+BI slice 1 (`claim/bi-1-revenue-by-customer`): the revenue-by-customer analysis is built on the backend (`topic=revenue`), awaiting its staging rehearsal and deploy. Next: slice 2, a customer's outstanding invoices (calculated); slice 3, the app's Revenue chip and customer drill-down.

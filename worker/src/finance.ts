@@ -2922,6 +2922,25 @@ export async function getInvoiceEvidence(env: Env, range: DateRange | undefined,
   return { count: totals?.n ?? 0, total: totals?.total ?? 0, records: results.map((r) => ({ id: r.id, date: localDate(r.created_at), amount: r.amount, description: r.description, customerId: r.customer_id })) };
 }
 
+export interface CustomerRevenueRow { customerId: number | null; name: string | null; total: number; count: number }
+
+// Revenue by customer for a period: the SAME invoices through the SAME date filter as the profit and loss revenue figure, so the rows add up to it. An invoice with no customer is its own row (customerId null); a customer who no longer exists has a null name.
+export async function getRevenueByCustomer(env: Env, range: DateRange | undefined): Promise<CustomerRevenueRow[]> {
+  const filter = dateFilter(range, "i.created_at", "WHERE");
+  const { results } = await withBinds(env.OFFICE_DB.prepare(`SELECT i.customer_id AS customer_id, c.name AS name, COALESCE(SUM(i.amount), 0) AS total, COUNT(*) AS n FROM invoices i LEFT JOIN customers c ON c.id = i.customer_id${filter.sql} GROUP BY i.customer_id`), filter.binds).all<{ customer_id: number | null; name: string | null; total: number; n: number }>();
+  return results.map((r) => ({ customerId: r.customer_id, name: r.name, total: r.total, count: r.n }));
+}
+
+// One customer's invoices (or those with no customer, when customerId is null) in a period, largest first, through the report's own date filter.
+export async function getCustomerInvoiceEvidence(env: Env, range: DateRange | undefined, customerId: number | null, limit: number): Promise<EvidenceSet> {
+  const filter = dateFilter(range, "created_at", "AND");
+  const who = customerId === null ? "customer_id IS NULL" : "customer_id = ?";
+  const binds: Array<string | number> = [...(customerId === null ? [] : [customerId]), ...filter.binds];
+  const totals = await env.OFFICE_DB.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(amount), 0) AS total FROM invoices WHERE ${who}${filter.sql}`).bind(...binds).first<{ n: number; total: number }>();
+  const { results } = await env.OFFICE_DB.prepare(`SELECT id, amount, description, created_at, customer_id FROM invoices WHERE ${who}${filter.sql} ORDER BY amount DESC, id DESC LIMIT ?`).bind(...binds, limit).all<{ id: number; amount: number; description: string; created_at: string; customer_id: number | null }>();
+  return { count: totals?.n ?? 0, total: totals?.total ?? 0, records: results.map((r) => ({ id: r.id, date: localDate(r.created_at), amount: r.amount, description: r.description, customerId: r.customer_id })) };
+}
+
 export async function getProfitAndLossSummary(env: Env, range?: DateRange): Promise<string[]> {
   const report = await getProfitAndLoss(env, range);
   const period = describeRange(range);

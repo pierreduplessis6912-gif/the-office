@@ -3,15 +3,15 @@
 // CALCULATED (arithmetic on report figures); it is NEVER a cause: nothing here says why a change happened. (3) What it cannot know is listed in `notEstablished`, not guessed: expense records carry no supplier, so no supplier is ever named, and the cause
 // of a change and whether it is one-off are not established. (4) Evidence records come through the same date filter as the report and carry a `reconciled` flag saying whether they add up to the report's own figure. (5) It is stateless and read-only, so
 // the open report is never touched. (6) It is authorised exactly like the profit and loss (can_know_profit).
-import { getExpenseEvidence, getInvoiceEvidence, type DateRange, type EvidenceSet } from "./finance";
+import { getCustomerInvoiceEvidence, getExpenseEvidence, getInvoiceEvidence, getRevenueByCustomer, type CustomerRevenueRow, type DateRange, type EvidenceSet } from "./finance";
 import { change, parsePeriodParams, previousPeriod, profitAndLossData } from "./reports-data";
 import type { Env } from "./types";
 
-export type Topic = "expenses" | "profit";
+export type Topic = "expenses" | "profit" | "revenue";
 type Range = { from: string; to: string };
 type Change = { amount: number; percent: number | null };
 type ReportData = Awaited<ReturnType<typeof profitAndLossData>>;
-export type EvidenceSpec = { source: "expenses" | "invoices"; which: "current" | "compare"; category?: string; range: DateRange | null; limit: number };
+export type EvidenceSpec = { source: "expenses" | "invoices"; which: "current" | "compare"; category?: string; customerId?: number | null; range: DateRange | null; limit: number };
 export type EvidenceProvider = (spec: EvidenceSpec) => Promise<EvidenceSet & { source: string }>;
 
 const EVIDENCE_PER_CONTRIBUTOR = 5, CONTRIBUTORS_WITH_EVIDENCE = 3, MAX_DESCRIPTION = 200;
@@ -32,7 +32,7 @@ const quote = (text: string): string => text.replace(/"/g, "'");
 
 export function parseAnalysisParams(search: URLSearchParams): { ok: true; topic: Topic; period: Range; compare: Range } | { ok: false; error: string } {
   const topic = search.get("topic");
-  if (topic !== "expenses" && topic !== "profit") return { ok: false, error: "topic must be exactly expenses or profit." };
+  if (topic !== "expenses" && topic !== "profit" && topic !== "revenue") return { ok: false, error: "topic must be exactly expenses, profit or revenue." };
   const parsed = parsePeriodParams(search);
   if (!parsed.ok) return parsed;
   if (parsed.period === null) return { ok: false, error: "An analysis needs a period (from and to, YYYY-MM-DD)." };
@@ -83,6 +83,62 @@ async function expensesAnalysis(data: ReportData & { compare: NonNullable<Report
   };
 }
 
+// ---- why revenue changed: by customer -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Revenue is the report's own figure (the sum of invoices entered in the period). The contributors are the customers on those invoices, read through the same date filter, so they add up to the report's figure; an invoice with no customer is its own line. The result is calculated, never a cause.
+export type RevenueProvider = (range: DateRange | null) => Promise<CustomerRevenueRow[]>;
+async function revenueAnalysis(data: ReportData & { compare: NonNullable<ReportData["compare"]> }, evidence: EvidenceProvider, revenueByCustomer: RevenueProvider) {
+  const current = data.figures.revenue, previous = data.compare.figures.revenue, total = data.compare.change.revenue, way = direction(total.amount);
+  const nowRows = await revenueByCustomer(data.period), beforeRows = await revenueByCustomer(data.compare.period);
+  const key = (id: number | null): string => (id === null ? "none" : String(id));
+  const merged = new Map<string, { customerId: number | null; name: string | null; cur: number; prev: number }>();
+  for (const r of nowRows) merged.set(key(r.customerId), { customerId: r.customerId, name: r.name, cur: round2(r.total), prev: 0 });
+  for (const r of beforeRows) { const m = merged.get(key(r.customerId)); if (m) { m.prev = round2(r.total); m.name = m.name ?? r.name; } else merged.set(key(r.customerId), { customerId: r.customerId, name: r.name, cur: 0, prev: round2(r.total) }); }
+  const titled = [...merged.values()].map((m) => ({ ...m, title: m.customerId === null ? "No customer recorded" : m.name ?? `Customer ${m.customerId}` }));
+  const sameName = (title: string): number => titled.filter((t) => t.title === title).length;
+  const rank = { driver: 0, offset: 1, none: 2 } as const;
+  const contributors = titled.map((m) => {
+    const c = change(m.cur, m.prev);
+    const part = c.amount === 0 ? "none" : way !== "unchanged" && Math.sign(c.amount) === (way === "up" ? 1 : -1) ? "driver" : "offset";
+    const flags: string[] = [];
+    if (m.prev === 0 && m.cur > 0) flags.push("new_in_period");
+    if (m.cur === 0 && m.prev > 0) flags.push("absent_in_period");
+    if (m.customerId === null) flags.push("no_customer_recorded");
+    const duplicate = m.customerId !== null && sameName(m.title) > 1;
+    if (duplicate) flags.push("duplicate_name");
+    return { name: duplicate ? `${m.title} (customer ${m.customerId})` : m.title, kind: "customer" as const, customerId: m.customerId, current: m.cur, previous: m.prev, change: c, shareOfChange: total.amount === 0 ? null : round2((c.amount / total.amount) * 100), part: part as "driver" | "offset" | "none", flags, evidence: null as Evidence | null };
+  }).sort((a, b) => rank[a.part] - rank[b.part] || Math.abs(b.change.amount) - Math.abs(a.change.amount) || a.name.localeCompare(b.name));
+  const sumNow = round2(contributors.reduce((t, c) => t + c.current, 0)), sumBefore = round2(contributors.reduce((t, c) => t + c.previous, 0));
+  const reconciles = cents(sumNow) === cents(current) && cents(sumBefore) === cents(previous);
+
+  const which = way === "down" ? "compare" : "current";   // when revenue fell, the drivers are what was there BEFORE
+  const findings: Finding[] = [];
+  findings.push(way === "unchanged"
+    ? { statement: `There is no net change in revenue between the two periods (${rand(current)} in each).`, certainty: "calculated", basis: ["profit_and_loss.figures.revenue"] }
+    : { statement: `Revenue ${way === "up" ? "rose" : "fell"} by ${rand(total.amount)}${percentText(total)}, from ${rand(previous)} to ${rand(current)}.${total.percent === null ? " There is no percentage because the comparison period has no recorded revenue." : ""}`, certainty: "calculated", basis: ["profit_and_loss.compare.change.revenue"] });
+  if (!reconciles) findings.push({ statement: `The revenue by customer does not add up to the report's figure (${rand(sumNow)} against ${rand(current)} in the period, ${rand(sumBefore)} against ${rand(previous)} in the comparison period), so treat this breakdown as incomplete.`, certainty: "calculated", basis: ["profit_and_loss.figures.revenue"] });
+  for (const c of contributors.filter((x) => x.part === "driver").slice(0, CONTRIBUTORS_WITH_EVIDENCE)) {
+    const figure = which === "current" ? c.current : c.previous;
+    const set = await evidence({ source: "invoices", which, customerId: c.customerId, range: which === "current" ? data.period : data.compare.period, limit: EVIDENCE_PER_CONTRIBUTOR });
+    c.evidence = shapeEvidence(set, which, figure);
+    findings.push({ statement: `${c.name} accounts for ${rand(c.change.amount)} of the change${c.shareOfChange === null ? "" : ` (${c.shareOfChange}% of it)`}.`, certainty: "calculated", basis: [`invoices:customer:${c.customerId ?? "none"}`] });
+    const top = c.evidence.records[0];
+    if (top) findings.push({ statement: `The largest invoice for ${c.name} ${which === "current" ? "in the period" : "in the comparison period"} is ${rand(top.amount)} on ${top.date}: "${quote(top.description)}".`, certainty: "fact", basis: [`invoices:${top.id}`] });
+    if (!c.evidence.reconciled) findings.push(reconciliationFinding(c.name, c.evidence, figure));
+  }
+  for (const c of contributors) {
+    if (c.flags.includes("no_customer_recorded") && c.current > 0) findings.push({ statement: `${rand(c.current)} of revenue in this period is on invoices with no customer recorded.`, certainty: "calculated", basis: ["invoices:customer:none"] });
+    if (c.flags.includes("new_in_period") && c.customerId !== null) findings.push({ statement: `${c.name} had no invoices in the comparison period.`, certainty: "calculated", basis: [`invoices:customer:${c.customerId}`] });
+    if (c.flags.includes("absent_in_period") && c.customerId !== null) findings.push({ statement: `${c.name} has no invoices in this period.`, certainty: "calculated", basis: [`invoices:customer:${c.customerId}`] });
+  }
+  return {
+    analysis: "revenue" as const, version: 1 as const, certainty: "calculated" as const, currency: "ZAR", period: data.period, compare: data.compare.period, basis: data.basis,
+    summary: { metric: "total_revenue", current, previous, change: total, direction: way, reconciles },
+    contributors, findings,
+    notEstablished: ["cause_of_the_change", "recurring_or_one_off", "business_date", "cash_received"],
+    limits: { evidenceRecordsPerContributor: EVIDENCE_PER_CONTRIBUTOR, contributorsWithEvidence: CONTRIBUTORS_WITH_EVIDENCE },
+  };
+}
+
 // ---- why profit changed ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 async function profitAnalysis(data: ReportData & { compare: NonNullable<ReportData["compare"]> }, evidence: EvidenceProvider) {
   const c = data.compare.change, net = c.netProfit, way = direction(net.amount);
@@ -122,10 +178,14 @@ async function profitAnalysis(data: ReportData & { compare: NonNullable<ReportDa
 }
 
 // The pure part: builds an analysis from report data and an evidence provider. A report with no comparison gives null (nothing to analyse, never a guess); an unsupported topic is refused.
-export async function buildAnalysis(topic: string, data: ReportData, evidence: EvidenceProvider) {
-  if (topic !== "expenses" && topic !== "profit") throw new Error("unsupported analysis topic");
+export async function buildAnalysis(topic: string, data: ReportData, evidence: EvidenceProvider, revenueByCustomer?: RevenueProvider) {
+  if (topic !== "expenses" && topic !== "profit" && topic !== "revenue") throw new Error("unsupported analysis topic");
   if (!data.compare) return null;
   const withCompare = data as ReportData & { compare: NonNullable<ReportData["compare"]> };
+  if (topic === "revenue") {
+    if (!revenueByCustomer) throw new Error("the revenue analysis needs a revenue-by-customer provider");
+    return revenueAnalysis(withCompare, evidence, revenueByCustomer);
+  }
   return topic === "expenses" ? expensesAnalysis(withCompare, evidence) : profitAnalysis(withCompare, evidence);
 }
 
@@ -135,7 +195,7 @@ export async function analysisData(env: Env, topic: Topic, params: { period: Ran
   const data = await profitAndLossData(env, params);
   return buildAnalysis(topic, data, async (spec) => {
     const range = spec.range ?? undefined;
-    const set = spec.source === "expenses" ? await getExpenseEvidence(env, range, spec.category ?? "other", spec.limit) : await getInvoiceEvidence(env, range, spec.limit);
+    const set = spec.source === "expenses" ? await getExpenseEvidence(env, range, spec.category ?? "other", spec.limit) : spec.customerId !== undefined ? await getCustomerInvoiceEvidence(env, range, spec.customerId, spec.limit) : await getInvoiceEvidence(env, range, spec.limit);
     return { ...set, source: spec.source };
-  });
+  }, async (range) => getRevenueByCustomer(env, range ?? undefined));
 }

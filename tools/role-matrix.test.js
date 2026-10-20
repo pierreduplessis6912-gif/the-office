@@ -855,6 +855,8 @@ async function expect(role, method, path, want) {
   await require('./experience-contract.test.js')({ check, srcDir });
   // The analysis layer: why a figure changed, from the report's own numbers, with the records behind it and no invented causes
   await require('./analysis.test.js')({ check, srcDir });
+  // Why revenue changed, by customer: the same invoices and date filter as the report, with each driver's invoices
+  await require('./analysis-revenue.test.js')({ check, srcDir });
   // The history and audit record: heard, interpreted, proposed, decided, replied, and the records written
   await require('./history.test.js')({ check, srcDir });
   // Workspace context: an untrusted, validated hint recorded with the turn; never a permission, not yet used to interpret speech
