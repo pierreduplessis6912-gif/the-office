@@ -13,6 +13,7 @@ const Set<String> contextReports = {'profit_and_loss', 'aged_debtors', 'aged_cre
 final RegExp _slug = RegExp(r'^[a-z][a-z0-9_]{0,31}$');
 final RegExp _plain = RegExp(r"^[A-Za-z0-9 _.,'\-]{1,40}$");
 const int _maxFilters = 10;
+const int _maxSelection = 5;
 const int _maxSpanDays = 3660;
 
 bool isSlug(String s) => _slug.hasMatch(s);
@@ -30,13 +31,21 @@ DateTime? _realDate(String s) {
   return d != null && isoDate(d) == s && s.length == 10 ? DateTime.utc(d.year, d.month, d.day) : null;
 }
 
+/// Something the person has picked on screen, e.g. a customer: a slug type and a positive whole id (the contract's `selection`).
+class ContextSelection {
+  final String type;
+  final int id;
+  const ContextSelection(this.type, this.id);
+}
+
 class WorkspaceContext {
   final String? room;
   final String? report;
   final DateSpan? period;
   final DateSpan? compare;
   final Map<String, Object> filters; // values: a short plain String, a finite number or a bool
-  const WorkspaceContext({this.room, this.report, this.period, this.compare, this.filters = const {}});
+  final List<ContextSelection> selection; // at most 5
+  const WorkspaceContext({this.room, this.report, this.period, this.compare, this.filters = const {}, this.selection = const []});
 
   /// The `context` object for POST /messages/text, holding only parts the server would keep. Null when there is nothing valid to say.
   Map<String, Object?>? toJson() {
@@ -59,6 +68,8 @@ class WorkspaceContext {
       if (ok) kept[e.key] = v;
     }
     if (kept.isNotEmpty) out['filters'] = kept;
+    final picked = [for (final s in selection) if (isSlug(s.type) && s.id > 0) {'type': s.type, 'id': s.id}].take(_maxSelection).toList();
+    if (picked.isNotEmpty) out['selection'] = picked;
     return out.length > 1 ? out : null;
   }
 }

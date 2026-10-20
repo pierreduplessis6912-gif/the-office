@@ -101,4 +101,27 @@ void main() {
     expect(page.turns[0].heard, 'why did expenses go up');
     expect(page.turns[1].viewing, isNull);
   });
+
+  test('a selected customer is sent in the contract\'s shape, beside the report (the aged debtors view)', () {
+    final json = const WorkspaceContext(room: 'analysis', report: 'aged_debtors', selection: [ContextSelection('customer', 12)]).toJson()!;
+    expect(json, {
+      'version': 1,
+      'room': 'analysis',
+      'report': 'aged_debtors',
+      'selection': [{'type': 'customer', 'id': 12}],
+    });
+  });
+
+  test('a selection alone is something to say; invalid entries are dropped; at most 5 are kept', () {
+    expect(const WorkspaceContext(selection: [ContextSelection('customer', 3)]).toJson(), {'version': 1, 'selection': [{'type': 'customer', 'id': 3}]});
+    expect(const WorkspaceContext(room: 'x', selection: [ContextSelection('Bad Type', 3), ContextSelection('customer', 0), ContextSelection('customer', -4), ContextSelection('9lives', 2)]).toJson(), {'version': 1, 'room': 'x'});
+    final many = [for (var i = 1; i <= 9; i++) ContextSelection('customer', i)];
+    expect((WorkspaceContext(selection: many).toJson()!['selection']! as List).length, 5);
+  });
+
+  test('the Activity room says what customer was selected', () {
+    expect(describeViewing({'room': 'analysis', 'report': 'aged_debtors', 'selection': [{'type': 'customer', 'id': 12}]}), 'analysis, aged debtors, selected customer 12');
+    expect(describeViewing({'selection': [{'type': 'customer', 'id': 'x'}, {'type': 5, 'id': 1}, 'y', null]}), isNull);
+    expect(describeViewing({'room': 'a', 'selection': 'nope'}), 'a');
+  });
 }

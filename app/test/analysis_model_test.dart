@@ -142,4 +142,93 @@ void main() {
     expect(metricLabel('net_profit'), 'Net profit');
     expect(metricLabel('total_expenses'), 'Total expenses');
   });
+
+  Map<String, Object?> recv({Object? version = 1, Object? invoices, Object? unapplied = 0, bool truncated = false}) => {
+        'report': 'customer_receivables', 'version': version, 'certainty': 'calculated', 'currency': 'ZAR', 'asAt': '2026-10-20',
+        'customer': {'id': 12, 'name': 'Jenny'},
+        'basis': {'aging': 'Age counts from the date each invoice was entered.', 'allocation': 'Payments are applied to the oldest invoices first, so which invoice a payment settled is a calculation, not a record.'},
+        'facts': ['id', 'date', 'description', 'amount'], 'calculated': ['applied', 'outstanding', 'ageDays', 'bucket'],
+        'buckets': {'current': 500.5, 'days30': 1500, 'days60': 0, 'days90Plus': 0, 'total': 2000.5}, 'payments': {'total': 1500, 'count': 1}, 'unappliedPayments': unapplied,
+        'invoiceCount': 3, 'outstandingCount': 2, 'truncated': truncated, 'reconciles': true,
+        'invoices': invoices ?? [
+          {'id': 2, 'date': '2026-09-05', 'description': 'Mid floor', 'amount': 2000, 'applied': 500, 'outstanding': 1500, 'ageDays': 45, 'bucket': 'days30'},
+          {'id': 3, 'date': '2026-10-10', 'description': 'New skirting', 'amount': 500.5, 'applied': 0, 'outstanding': 500.5, 'ageDays': 10, 'bucket': 'current'},
+        ],
+        'notEstablished': ['payment_to_invoice_match', 'business_date'],
+      };
+
+  test('a revenue analysis is read, with the customer on each line (a bad id is dropped, never guessed)', () {
+    final a = parseAnalysis({
+      'analysis': 'revenue', 'version': 1, 'certainty': 'calculated', 'currency': 'ZAR',
+      'period': {'from': '2026-10-01', 'to': '2026-10-31'}, 'compare': {'from': '2026-08-31', 'to': '2026-09-30'}, 'basis': {},
+      'summary': {'metric': 'total_revenue', 'current': 13500, 'previous': 9000, 'change': {'amount': 4500, 'percent': 50}, 'direction': 'up', 'reconciles': true},
+      'contributors': [
+        {'name': 'Jenny', 'kind': 'customer', 'customerId': 1, 'current': 8000, 'previous': 5000, 'change': {'amount': 3000, 'percent': 60}, 'shareOfChange': 66.67, 'part': 'driver', 'flags': [], 'evidence': _evidence()},
+        {'name': 'Customer 9', 'kind': 'customer', 'customerId': 9, 'current': 500, 'previous': 0, 'change': {'amount': 500}, 'part': 'driver'},
+        {'name': 'Zero', 'customerId': 0, 'current': 1, 'previous': 1, 'change': {'amount': 0}},
+        {'name': 'Text id', 'customerId': '3', 'current': 1, 'previous': 1, 'change': {'amount': 0}},
+      ],
+      'findings': [], 'notEstablished': ['cause_of_the_change', 'cash_received'], 'limits': {},
+    })!;
+    expect(a.topic, 'revenue');
+    expect(a.metric, 'total_revenue');
+    expect(metricLabel(a.metric), 'Total revenue');
+    expect(a.contributors.map((c) => c.customerId), [1, 9, null, null]);
+    expect(a.contributors.first.evidence!.reconciled, isTrue);
+  });
+
+  test('a customer\'s receivables are read: outstanding invoices, buckets, payments, and what is calculated', () {
+    final r = parseReceivables(recv())!;
+    expect(r.customerId, 12);
+    expect(r.customerName, 'Jenny');
+    expect(r.asAt, '2026-10-20');
+    expect(r.buckets.total, 2000.5);
+    expect(r.buckets.days30, 1500);
+    expect(r.paymentsTotal, 1500);
+    expect(r.paymentsCount, 1);
+    expect(r.invoiceCount, 3);
+    expect(r.outstandingCount, 2);
+    expect(r.reconciles, isTrue);
+    expect(r.truncated, isFalse);
+    expect(r.invoices.map((i) => i.description), ['Mid floor', 'New skirting']);
+    expect(r.invoices.first.applied, 500);
+    expect(r.invoices.first.outstanding, 1500);
+    expect(r.invoices.first.ageDays, 45);
+    expect(r.invoices.first.bucket, 'days30');
+    expect(r.notEstablished, ['payment_to_invoice_match', 'business_date']);
+    expect(r.allocationNote, contains('not a record'));
+  });
+
+  test('receivables: an unapplied payment and a cut list are carried, and anything unusable is null', () {
+    final r = parseReceivables(recv(unapplied: 500, truncated: true))!;
+    expect(r.unapplied, 500);
+    expect(r.truncated, isTrue);
+    for (final b in <Object?>[null, 'x', 5, <Object?>[], <String, Object?>{}, recv(version: 2), {...recv(), 'report': 'aged_debtors'}, {...recv(), 'customer': {'id': 0, 'name': 'x'}}, {...recv(), 'customer': {'id': 'a', 'name': 'x'}}, {...recv(), 'asAt': 'yesterday'}, {...recv(), 'buckets': {'current': 'x'}}, {...recv(), 'payments': 'no'}]) {
+      expect(parseReceivables(b), isNull, reason: '$b');
+    }
+  });
+
+  test('receivables: hostile invoices never throw and are skipped; a missing note gets the plain default', () {
+    final r = parseReceivables({...recv(invoices: [null, 5, 'x', {'id': 'a'}, {'id': 1}, {'id': 2, 'date': '2026-10-01', 'amount': 'x', 'outstanding': 1}, {'id': 3, 'date': '2026-10-02', 'description': 5, 'amount': 10, 'outstanding': 10}]), 'basis': 'x', 'notEstablished': [1, null, 'business_date']})!;
+    expect(r.invoices.map((i) => i.id), [3]);
+    expect(r.invoices.single.description, '');
+    expect(r.invoices.single.bucket, 'current');
+    expect(r.notEstablished, ['business_date']);
+    expect(r.allocationNote, contains('oldest invoices first'));
+    final many = [for (var i = 1; i <= 80; i++) {'id': i, 'date': '2026-10-01', 'description': 'x', 'amount': 1, 'outstanding': 1}];
+    expect(parseReceivables(recv(invoices: many))!.invoices, hasLength(50));
+  });
+
+  test('receivables wording: age buckets in plain words, ages, the non-zero buckets on one line, and what is not matched', () {
+    expect(bucketLabel('current'), 'up to 30 days');
+    expect(bucketLabel('days30'), '31 to 60 days');
+    expect(bucketLabel('days60'), '61 to 90 days');
+    expect(bucketLabel('days90Plus'), 'over 90 days');
+    expect(bucketLabel('odd'), 'odd');
+    expect(ageText(1), '1 day');
+    expect(ageText(45), '45 days');
+    expect(bucketsLine(const ReceivableBuckets(current: 500.5, days30: 1500, days60: 0, days90Plus: 0, total: 2000.5)), 'up to 30 days R500.50, 31 to 60 days R1,500.00');
+    expect(bucketsLine(const ReceivableBuckets(current: 0, days30: 0, days60: 0, days90Plus: 0, total: 0)), '');
+    expect(notEstablishedLine('payment_to_invoice_match'), contains('oldest'));
+  });
 }

@@ -170,6 +170,12 @@ String? describeViewing(Object? v) {
         if (e.key is String && (e.value is String || e.value is num || e.value is bool)) parts.add('${(e.key as String).replaceAll('_', ' ')} ${e.value}');
       }
     }
+    final selection = v['selection'];
+    if (selection is List) {
+      for (final s in selection.take(5)) {
+        if (s is Map && s['type'] is String && s['id'] is int) parts.add('selected ${(s['type'] as String).replaceAll('_', ' ')} ${s['id']}');
+      }
+    }
     if (parts.isEmpty) return null;
     final line = parts.join(', ');
     return line.length > 300 ? line.substring(0, 300) : line;

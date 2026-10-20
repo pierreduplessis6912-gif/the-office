@@ -9199,6 +9199,12 @@ class _AnalysisSheetState extends State<_AnalysisSheet> {
   String? _error;
   int _seq = 0;
   final Set<String> _open = {};
+  // Front-end slice 9: the drill-down from a customer on the revenue analysis to THAT customer's outstanding invoices.
+  ({int id, String name})? _drill;
+  CustomerReceivables? _recv;
+  bool _drillLoading = false;
+  String? _drillError;
+  int _drillSeq = 0;
 
   @override
   void initState() {
@@ -9215,6 +9221,10 @@ class _AnalysisSheetState extends State<_AnalysisSheet> {
       _loading = true;
       _error = null;
       _open.clear();
+      _drill = null;
+      _recv = null;
+      _drillError = null;
+      _drillLoading = false;
     });
     try {
       final uri = Uri.parse('$officeApiBase/reports/analysis?topic=$_topic&from=${span.from}&to=${span.to}');
@@ -9266,6 +9276,145 @@ class _AnalysisSheetState extends State<_AnalysisSheet> {
     super.dispose();
   }
 
+  // What the analysis itself shows (used when coming back from a customer's view).
+  WorkspaceContext? _analysisViewing() {
+    final a = _analysis;
+    return a == null ? null : WorkspaceContext(room: 'analysis', report: 'profit_and_loss', period: a.period, compare: a.compare, filters: {'topic': a.topic});
+  }
+
+  Future<void> _openCustomer(int id, String name) async {
+    final seq = ++_drillSeq;
+    widget.onViewing(null); // nothing is on screen until the customer's view has loaded
+    setState(() {
+      _drill = (id: id, name: name);
+      _recv = null;
+      _drillError = null;
+      _drillLoading = true;
+    });
+    try {
+      final response = await http.get(Uri.parse('$officeApiBase/reports/aged-debtors?customer=$id'), headers: widget.authHeaders);
+      if (!mounted || seq != _drillSeq) return;
+      if (response.statusCode == 200) {
+        final parsed = parseReceivables(jsonDecode(response.body));
+        // What is now on screen: the aged debtors view with this customer selected (only if the server answered for this customer).
+        widget.onViewing(parsed == null || parsed.customerId != id ? null : WorkspaceContext(room: 'analysis', report: 'aged_debtors', selection: [ContextSelection('customer', id)]));
+        setState(() {
+          _drillLoading = false;
+          _recv = parsed;
+          _drillError = parsed == null ? 'This view is in a format this version of the app cannot read yet.' : null;
+        });
+      } else {
+        setState(() {
+          _drillLoading = false;
+          _recv = null;
+          _drillError = response.statusCode == 403 ? 'Only the owner can see who owes what.' : response.statusCode == 404 ? 'That customer was not found.' : 'Could not load their invoices right now.';
+        });
+      }
+    } catch (_) {
+      if (!mounted || seq != _drillSeq) return;
+      setState(() {
+        _drillLoading = false;
+        _recv = null;
+        _drillError = 'Could not load their invoices right now.';
+      });
+    }
+  }
+
+  void _closeCustomer() {
+    _drillSeq++;
+    setState(() {
+      _drill = null;
+      _recv = null;
+      _drillError = null;
+      _drillLoading = false;
+    });
+    widget.onViewing(_analysisViewing()); // back to what the analysis shows
+  }
+
+  Widget _breadcrumb() {
+    return A11yButton(
+      label: 'Back to the revenue analysis',
+      onTap: _closeCustomer,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _closeCustomer,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.arrow_back, size: 16, color: _muted),
+            const SizedBox(width: 6),
+            Text('REVENUE', style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 11, letterSpacing: 1.2)),
+            Text('  \u203a  ', style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 11)),
+            Flexible(child: Text(_drill!.name.toUpperCase(), overflow: TextOverflow.ellipsis, style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _drillButton(AnalysisContributor c) {
+    return A11yButton(
+      label: 'Show ${c.label}\'s outstanding invoices',
+      onTap: () => _openCustomer(c.customerId!, c.label),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _openCustomer(c.customerId!, c.label),
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Text('OUTSTANDING INVOICES \u203a', style: GoogleFonts.ibmPlexMono(color: _emberBlue, fontSize: 10.5, letterSpacing: 1)),
+        ),
+      ),
+    );
+  }
+
+  Widget _drillBody() {
+    if (_drillLoading) return const Center(child: SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)));
+    if (_drillError != null) return Padding(padding: const EdgeInsets.all(16), child: Text(_drillError!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)));
+    final r = _recv;
+    if (r == null) return const SizedBox.shrink();
+    return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), children: _receivablesBody(r));
+  }
+
+  List<Widget> _receivablesBody(CustomerReceivables r) {
+    final line = bucketsLine(r.buckets);
+    return [
+      Text('AS AT ${r.asAt}', style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 0.6)),
+      const SizedBox(height: 8),
+      Text('OUTSTANDING', style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 1.2)),
+      Text(formatRand(r.buckets.total), style: GoogleFonts.workSans(color: _paper, fontSize: 24, fontWeight: FontWeight.w600)),
+      if (line.isNotEmpty) Text(line, style: GoogleFonts.workSans(color: _muted, fontSize: 13)),
+      const SizedBox(height: 8),
+      _tag('CALCULATED'),
+      const SizedBox(height: 2),
+      Text(r.allocationNote, style: GoogleFonts.workSans(color: _muted, fontSize: 13, height: 1.35)),
+      if (r.unapplied > 0) Padding(padding: const EdgeInsets.only(top: 6), child: Text('${formatRand(r.unapplied)} of payments is not applied to any invoice.', style: GoogleFonts.workSans(color: _paper, fontSize: 13, height: 1.35))),
+      Padding(padding: const EdgeInsets.only(top: 6), child: Text('Payments received: ${formatRand(r.paymentsTotal)} (${r.paymentsCount}).', style: GoogleFonts.workSans(color: _muted, fontSize: 13))),
+      if (!r.reconciles) Padding(padding: const EdgeInsets.only(top: 6), child: Text('These invoices do not add up to the total shown, so treat them as incomplete.', style: GoogleFonts.workSans(color: _stampRed, fontSize: 13, height: 1.35))),
+      _heading('OUTSTANDING INVOICES'),
+      if (r.invoices.isEmpty)
+        Text('Nothing is outstanding for ${r.customerName}.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic))
+      else ...[
+        Text('${r.outstandingCount} outstanding of ${r.invoiceCount} invoices, oldest first.', style: GoogleFonts.workSans(color: _muted, fontSize: 13)),
+        for (final i in r.invoices)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${i.date}  \u00b7  ${i.description}', style: GoogleFonts.workSans(color: _paper, fontSize: 14, height: 1.3)),
+                Text('Invoice ${formatRand(i.amount)}${i.applied > 0 ? '  \u00b7  applied ${formatRand(i.applied)}' : ''}  \u00b7  outstanding ${formatRand(i.outstanding)}', style: GoogleFonts.workSans(color: _muted, fontSize: 13)),
+                Text('${ageText(i.ageDays)}  \u00b7  ${bucketLabel(i.bucket)}', style: GoogleFonts.workSans(color: _muted, fontSize: 12.5)),
+              ],
+            ),
+          ),
+        if (r.truncated) Padding(padding: const EdgeInsets.only(top: 10), child: Text('Showing ${r.invoices.length} of ${r.outstandingCount}.', style: GoogleFonts.workSans(color: _muted, fontSize: 13))),
+      ],
+      if (r.notEstablished.isNotEmpty) _heading('WHAT THIS CANNOT TELL YOU'),
+      for (final k in r.notEstablished) Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(notEstablishedLine(k), style: GoogleFonts.workSans(color: _muted, fontSize: 13, height: 1.35))),
+      const SizedBox(height: 16),
+    ];
+  }
+
   Widget _tag(String text) => Text(text, style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 9.5, letterSpacing: 1));
 
   Widget _heading(String text) => Padding(
@@ -9313,16 +9462,16 @@ class _AnalysisSheetState extends State<_AnalysisSheet> {
         ],
       ),
     );
-    if (!hasEvidence) return row;
-    return A11yButton(
-      label: '${c.label}, ${changeText(c.change)}. ${isOpen ? 'Hide' : 'Show'} the records.',
-      onTap: () => setState(() => isOpen ? _open.remove(c.label) : _open.add(c.label)),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => setState(() => isOpen ? _open.remove(c.label) : _open.add(c.label)),
-        child: row,
-      ),
-    );
+    void toggle() => setState(() => isOpen ? _open.remove(c.label) : _open.add(c.label));
+    final Widget main = hasEvidence
+        ? A11yButton(
+            label: '${c.label}, ${changeText(c.change)}. ${isOpen ? 'Hide' : 'Show'} the records.',
+            onTap: toggle,
+            child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: toggle, child: row),
+          )
+        : row;
+    if (_analysis?.topic != 'revenue' || c.customerId == null) return main;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [main, _drillButton(c)]);
   }
 
   List<Widget> _body(Analysis a) {
@@ -9374,7 +9523,7 @@ class _AnalysisSheetState extends State<_AnalysisSheet> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('ANALYSIS', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                      Flexible(child: _drill == null ? Text('ANALYSIS', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 1.6)) : _breadcrumb()),
                       IconButton(tooltip: 'Close analysis', icon: const Icon(Icons.close, size: 18), color: _muted, onPressed: widget.onClose),
                     ],
                   ),
@@ -9382,6 +9531,7 @@ class _AnalysisSheetState extends State<_AnalysisSheet> {
               ),
             ),
           ),
+          if (_drill == null)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Wrap(
@@ -9390,6 +9540,7 @@ class _AnalysisSheetState extends State<_AnalysisSheet> {
               children: [
                 _FilterChip(label: 'EXPENSES', selected: _topic == 'expenses', onTap: () => _choose(topic: 'expenses')),
                 _FilterChip(label: 'PROFIT', selected: _topic == 'profit', onTap: () => _choose(topic: 'profit')),
+                _FilterChip(label: 'REVENUE', selected: _topic == 'revenue', onTap: () => _choose(topic: 'revenue')),
                 _FilterChip(label: 'THIS MONTH', selected: _preset == 'this_month', onTap: () => _choose(preset: 'this_month')),
                 _FilterChip(label: 'LAST MONTH', selected: _preset == 'last_month', onTap: () => _choose(preset: 'last_month')),
                 _FilterChip(label: 'LAST 90 DAYS', selected: _preset == 'last_90', onTap: () => _choose(preset: 'last_90')),
@@ -9397,7 +9548,9 @@ class _AnalysisSheetState extends State<_AnalysisSheet> {
             ),
           ),
           Expanded(
-            child: _loading
+            child: _drill != null
+                ? _drillBody()
+                : _loading
                 ? const Center(child: SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)))
                 : _error != null
                     ? Padding(padding: const EdgeInsets.all(16), child: Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))

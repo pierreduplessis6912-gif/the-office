@@ -45,7 +45,8 @@ class AnalysisContributor {
   final AnalysisChange change;
   final double? shareOfChange;
   final AnalysisEvidence? evidence;
-  const AnalysisContributor({required this.label, required this.part, required this.current, required this.previous, required this.change, this.shareOfChange, this.evidence});
+  final int? customerId; // only on the revenue analysis: the customer this line is about
+  const AnalysisContributor({required this.label, required this.part, required this.current, required this.previous, required this.change, this.shareOfChange, this.evidence, this.customerId});
 }
 
 class AnalysisFinding {
@@ -73,7 +74,7 @@ Analysis? parseAnalysis(Object? body) {
   try {
     if (body is! Map || body['version'] != 1) return null;
     final topic = body['analysis'];
-    if (topic != 'expenses' && topic != 'profit') return null;
+    if (topic != 'expenses' && topic != 'profit' && topic != 'revenue') return null;
     final period = _span(body['period']);
     final compare = _span(body['compare']);
     final summary = body['summary'];
@@ -122,6 +123,7 @@ AnalysisContributor? _contributor(Object? raw) {
     change: change,
     shareOfChange: _n(raw['shareOfChange']),
     evidence: _evidence(raw['evidence']),
+    customerId: raw['customerId'] is int && (raw['customerId'] as int) > 0 ? raw['customerId'] as int : null,
   );
 }
 
@@ -238,9 +240,133 @@ String notEstablishedLine(String key) {
       return 'Which supplier: expense records do not carry one.';
     case 'cash_received':
       return 'Cash received: revenue counts invoices, not payments.';
+    case 'payment_to_invoice_match':
+      return 'Which invoice each payment settled: payments are applied to the oldest invoices first, not matched.';
   }
   return '${key.replaceAll('_', ' ')}: not established.';
 }
 
 /// "Total expenses" or "Net profit".
-String metricLabel(String metric) => metric == 'net_profit' ? 'Net profit' : metric == 'total_expenses' ? 'Total expenses' : metric.replaceAll('_', ' ');
+String metricLabel(String metric) => metric == 'net_profit' ? 'Net profit' : metric == 'total_expenses' ? 'Total expenses' : metric == 'total_revenue' ? 'Total revenue' : metric.replaceAll('_', ' ');
+
+// ---- a customer's receivables (GET /reports/aged-debtors?customer=<id>) --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// The drill-down from "who owes us" to ONE customer's outstanding invoices. Amount, date and description are facts read from the invoice; what was applied, what is outstanding and the age are CALCULATED, because payments are recorded per customer and applied to the oldest invoices first, never matched to an invoice. The reader is defensive like the others: it never throws and returns null for anything that is not a usable version 1 answer.
+class ReceivableInvoice {
+  final int id;
+  final String date;
+  final String description;
+  final double amount;
+  final double applied;
+  final double outstanding;
+  final int ageDays;
+  final String bucket; // current, days30, days60 or days90Plus
+  const ReceivableInvoice({required this.id, required this.date, required this.description, required this.amount, required this.applied, required this.outstanding, required this.ageDays, required this.bucket});
+}
+
+class ReceivableBuckets {
+  final double current;
+  final double days30;
+  final double days60;
+  final double days90Plus;
+  final double total;
+  const ReceivableBuckets({required this.current, required this.days30, required this.days60, required this.days90Plus, required this.total});
+}
+
+class CustomerReceivables {
+  final int customerId;
+  final String customerName;
+  final String asAt;
+  final ReceivableBuckets buckets;
+  final double paymentsTotal;
+  final int paymentsCount;
+  final double unapplied; // payments larger than what is owed: shown, never hidden
+  final int invoiceCount;
+  final int outstandingCount;
+  final bool truncated;
+  final bool reconciles;
+  final List<ReceivableInvoice> invoices;
+  final List<String> notEstablished;
+  final String allocationNote;
+  const CustomerReceivables({required this.customerId, required this.customerName, required this.asAt, required this.buckets, required this.paymentsTotal, required this.paymentsCount, required this.unapplied, required this.invoiceCount, required this.outstandingCount, required this.truncated, required this.reconciles, required this.invoices, required this.notEstablished, required this.allocationNote});
+}
+
+const String _defaultAllocationNote = 'Payments are recorded per customer and applied to the oldest invoices first, so which invoice a payment settled is a calculation, not a record.';
+
+/// Reads a decoded customer receivables body. Null when it is not a usable version 1 answer. Never throws.
+CustomerReceivables? parseReceivables(Object? body) {
+  try {
+    if (body is! Map || body['version'] != 1 || body['report'] != 'customer_receivables') return null;
+    final customer = body['customer'];
+    final buckets = body['buckets'];
+    final payments = body['payments'];
+    if (customer is! Map || buckets is! Map || payments is! Map) return null;
+    final id = customer['id'];
+    final name = _t(customer['name']);
+    final asAt = body['asAt'];
+    final b = [_n(buckets['current']), _n(buckets['days30']), _n(buckets['days60']), _n(buckets['days90Plus']), _n(buckets['total'])];
+    if (id is! int || id <= 0 || name == null || asAt is! String || !_isoDate.hasMatch(asAt) || b.any((v) => v == null)) return null;
+    final basis = body['basis'];
+    final note = basis is Map ? _t(basis['allocation']) : null;
+    return CustomerReceivables(
+      customerId: id,
+      customerName: name,
+      asAt: asAt,
+      buckets: ReceivableBuckets(current: b[0]!, days30: b[1]!, days60: b[2]!, days90Plus: b[3]!, total: b[4]!),
+      paymentsTotal: _n(payments['total']) ?? 0,
+      paymentsCount: payments['count'] is int ? payments['count'] as int : 0,
+      unapplied: _n(body['unappliedPayments']) ?? 0,
+      invoiceCount: body['invoiceCount'] is int ? body['invoiceCount'] as int : 0,
+      outstandingCount: body['outstandingCount'] is int ? body['outstandingCount'] as int : 0,
+      truncated: body['truncated'] == true,
+      reconciles: body['reconciles'] == true,
+      invoices: [
+        for (final i in _list(body['invoices']))
+          if (i is Map && i['id'] is int && _t(i['date']) != null && _n(i['amount']) != null && _n(i['outstanding']) != null)
+            ReceivableInvoice(
+              id: i['id'] as int,
+              date: _t(i['date'])!,
+              description: _t(i['description']) ?? '',
+              amount: _n(i['amount'])!,
+              applied: _n(i['applied']) ?? 0,
+              outstanding: _n(i['outstanding'])!,
+              ageDays: i['ageDays'] is int ? i['ageDays'] as int : 0,
+              bucket: i['bucket'] is String ? i['bucket'] as String : 'current',
+            ),
+      ],
+      notEstablished: [for (final k in _list(body['notEstablished'])) if (_t(k) != null) _t(k)!],
+      allocationNote: note ?? _defaultAllocationNote,
+    );
+  } catch (_) {
+    return null;
+  }
+}
+
+/// "up to 30 days", "31 to 60 days", "61 to 90 days" or "over 90 days": the age bucket in plain words.
+String bucketLabel(String bucket) {
+  switch (bucket) {
+    case 'current':
+      return 'up to 30 days';
+    case 'days30':
+      return '31 to 60 days';
+    case 'days60':
+      return '61 to 90 days';
+    case 'days90Plus':
+      return 'over 90 days';
+  }
+  return bucket;
+}
+
+/// "1 day", "45 days".
+String ageText(int days) => days == 1 ? '1 day' : '$days days';
+
+/// The non-zero buckets on one line: "up to 30 days R500.00, 31 to 60 days R1,500.00". Empty when nothing is outstanding.
+String bucketsLine(ReceivableBuckets b) {
+  final parts = <String>[
+    if (b.current != 0) '${bucketLabel('current')} ${formatRand(b.current)}',
+    if (b.days30 != 0) '${bucketLabel('days30')} ${formatRand(b.days30)}',
+    if (b.days60 != 0) '${bucketLabel('days60')} ${formatRand(b.days60)}',
+    if (b.days90Plus != 0) '${bucketLabel('days90Plus')} ${formatRand(b.days90Plus)}',
+  ];
+  return parts.join(', ');
+}
+
