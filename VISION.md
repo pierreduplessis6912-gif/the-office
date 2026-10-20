@@ -16,3 +16,18 @@ Reply envelope (Phase 1). Reports as data (profit and loss, aged debtors, aged c
 
 ## What is NOT covered, said plainly
 **Photo and document uploads are not wrapped in the envelope and are not recorded in history** (only the text and voice-note routes are). Extending the envelope or the history record to them would be NEW scope, not unfinished work. The app (Flutter) is built in small slices, each in RUNBOOK.md and DECISIONS.md. As of main `8d3a1f6`, per the commit log: slice 1 lapsed-business handling, slice 2 the owner's Subscription item, slice 3 reduced motion and labels, slice 4 reading the reply envelope, slice 6 an Activity room reading `GET /history`, slice 7 the analysis workspace, slice 8 sending workspace context (slice 5 was parked, with the reason in DECISIONS.md). **Nothing in the app has been verified on a device.** Check RUNBOOK.md for each slice's exact scope before assuming anything is finished.
+
+## The projection layer vision, and where the build stands (added 2026-10-20)
+`PROJECTION_VISION.md` is the full design Pierre called "the vision" (written by an AI assistant in another chat; its own envelope is illustrative). It is the AIM; `ENVELOPE.md` and `CONTEXT.md` are what is BUILT. It is NOT the design doctrine (that is still unsaved, see above). Map, as of main `8d3a1f6`:
+
+| Vision | Built | Gap |
+| --- | --- | --- |
+| Contract A, the reply envelope | `experience` on `POST /messages/text` and the voice-note route (`ENVELOPE.md`): established, recommendation, unknown, mustStillPass | No `replyId`, typed `references`, `content` blocks, `warnings` or `provenance.status`. `unknown` is a different idea from `warnings` |
+| Modes (7) | 3: `speak`, `confirm`, `clarify` | No `open_room`, `update_workspace`, `analysis` or `refuse`. A refusal reaches the app only as words |
+| Contract B, presentation model, policy, renderer registry | A defensive envelope reader (`app/lib/reply_envelope.dart`), used only to fill a gap in held actions. Rooms and the analysis sheet each fetch and draw their own data | No presentation policy, controller, content blocks (metric, table, record list, evidence, document) or registry |
+| Contract C, the action boundary | Built and strong: confirm, reject and edit-field re-check authorization on every call; `mustStillPass`; decisions are recorded in history | Stale-action and replay behaviour not separately pinned |
+| "Must never" list | Held: the server owns every figure; the analysis lists what it cannot establish; no widget is built from model output | none known |
+| Orb state machine | `OfficeState` exists (idle, listening, thinking, a response state, room opening) | No explicit awaiting-input or error state; not driven by projection events |
+| Typed money (`amountMinor` and currency) | Backend reports decimals (ZAR implied); the app holds doubles and only formats them | A representation difference to decide before the app handles more figures |
+| Observability and contract tests | History and audit record (heard, interpreted, proposed, decided, written); backend and Dart each test the envelope | No shared fixture proving the backend and the app agree; no validation-outcome or renderer-failure logging |
+| Scope: results of the intelligence | Text and voice go through the envelope and history | **Photo and document uploads feed the intelligence but have no envelope and no history record.** Room list fetches (snags, stock and so on) are not intelligence results and need none |

@@ -46,3 +46,5 @@ Slice 6 (`claim/frontend-6-history-view`): the Activity room, DONE and merged (n
 Slice 7 (`claim/frontend-7-analysis-workspace`): the analysis workspace (layout B), DONE and merged (not verified on a device). Still unclaimed: workspace context (b), now buildable under a NEW claim, first step exposing the sheet's topic and period; tests for the rest of the app (f).
 
 Slice 8 (`claim/frontend-8-context`): workspace context, DONE and merged (not verified on a device). The measured front-end gaps are now all built; the one still open is tests for the rest of the app (f).
+
+Docs (2026-10-20): `PROJECTION_VISION.md` saved and `VISION.md` now maps vision against build. Open, unclaimed, in suggested order: shared backend/app envelope contract fixture; envelope and history for photo and document uploads; structured `refuse` mode and `replyId`; content blocks and renderer registry; tests for the rest of the app; `DESIGN_DOCTRINE.md` (waiting for Pierre's original text).
