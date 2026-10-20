@@ -119,10 +119,18 @@ void main() {
     expect(ReplyEnvelope.fromReply(_reply(experience: _envelope(unknown: ['reply_field_truncated:pendingCandidates'])))!.mayBeIncomplete, isTrue);
   });
 
-  test('the envelope carries nothing to act on: its types have no address, token or permission to read', () {
-    // A guard against someone later adding such a field: the reader exposes exactly these members.
-    final e = ReplyEnvelope.fromReply(_reply(experience: {..._envelope(), 'token': 'secret', 'url': 'https://evil.example', 'permissions': ['all']}))!;
-    expect(e.toString(), isNot(contains('secret')));
-    expect(e.heldActions.single.id, 12);
+  test('fields the contract does not define (an address, a token, a permission) are ignored, not carried', () {
+    final noisy = ReplyEnvelope.fromReply(_reply(experience: {
+      ..._envelope(),
+      'token': 'secret',
+      'url': 'https://evil.example',
+      'permissions': ['all'],
+      'established': {'heldActions': [{'id': 12, 'type': 'invoice', 'url': 'https://evil.example', 'token': 'secret'}], 'extra': 'x'},
+    }))!;
+    final plain = ReplyEnvelope.fromReply(_reply(experience: {..._envelope(), 'established': {'heldActions': [{'id': 12, 'type': 'invoice'}]}}))!;
+    expect(noisy.heldActions.single.id, plain.heldActions.single.id);
+    expect(noisy.heldActions.single.type, plain.heldActions.single.type);
+    expect(noisy.unknown, plain.unknown);
+    expect(noisy.confirmationRequired, plain.confirmationRequired);
   });
 }
