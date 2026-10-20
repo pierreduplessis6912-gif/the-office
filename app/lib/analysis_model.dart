@@ -146,6 +146,9 @@ AnalysisEvidence? _evidence(Object? raw) {
 
 final RegExp _isoDate = RegExp(r'^\d{4}-\d{2}-\d{2}$');
 
+/// Reads a {from, to} object of YYYY-MM-DD strings. Null when it is not one.
+DateSpan? parseSpan(Object? raw) => _span(raw);
+
 DateSpan? _span(Object? raw) {
   if (raw is! Map) return null;
   final from = raw['from'];

@@ -4,6 +4,8 @@
 // written are different things, so they are kept as different things here (the contract keeps them apart on purpose). This reader is
 // defensive: parseHistory never throws; anything that is not a version 1 answer is null (the room then says it cannot read it), a turn
 // without an integer id is skipped, and lists and strings are bounded so a hostile or very large answer cannot make the app do unbounded work.
+import 'analysis_model.dart';
+
 const int _maxTurns = 100;
 const int _maxList = 50;
 const int _maxLong = 4000;
@@ -40,6 +42,7 @@ class HistoryTurn {
   final List<HistoryDecision> decisions;
   final List<HistoryWritten> recordsWritten;
   final String? actor; // only in the owner's "everyone" view
+  final String? viewing; // what the APP said was on screen when this was said (a hint it sent, not something the server established)
   const HistoryTurn({
     required this.id,
     this.at,
@@ -51,6 +54,7 @@ class HistoryTurn {
     this.decisions = const [],
     this.recordsWritten = const [],
     this.actor,
+    this.viewing,
   });
 }
 
@@ -106,6 +110,7 @@ HistoryTurn? _turn(Object? raw) {
         if (w is Map && _s(w['table'], _maxShort) != null && w['id'] is int) HistoryWritten(table: _s(w['table'], _maxShort)!, id: w['id'] as int),
     ],
     actor: _s(raw['actor'], _maxShort),
+    viewing: describeViewing(raw['viewing']),
   );
 }
 
@@ -144,3 +149,31 @@ const List<String> _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', '
 
 /// "20 Oct 11:24" (the caller decides which zone the DateTime is in).
 String formatShort(DateTime d) => '${d.day} ${_months[d.month - 1]} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+
+/// A plain line for what the app said was on screen: "analysis, profit and loss, 1 Sep to 30 Sep 2026, compared with 2 Aug to 31 Aug 2026,
+/// topic expenses". Null when there is nothing readable. Never throws.
+String? describeViewing(Object? v) {
+  try {
+    if (v is! Map) return null;
+    final parts = <String>[];
+    final room = v['room'];
+    if (room is String && room.isNotEmpty) parts.add(room.replaceAll('_', ' '));
+    final report = v['report'];
+    if (report is String && report.isNotEmpty) parts.add(report.replaceAll('_', ' '));
+    final period = parseSpan(v['period']);
+    if (period != null) parts.add(spanText(period));
+    final compare = parseSpan(v['compare']);
+    if (period != null && compare != null) parts.add('compared with ${spanText(compare)}');
+    final filters = v['filters'];
+    if (filters is Map) {
+      for (final e in filters.entries.take(10)) {
+        if (e.key is String && (e.value is String || e.value is num || e.value is bool)) parts.add('${(e.key as String).replaceAll('_', ' ')} ${e.value}');
+      }
+    }
+    if (parts.isEmpty) return null;
+    final line = parts.join(', ');
+    return line.length > 300 ? line.substring(0, 300) : line;
+  } catch (_) {
+    return null;
+  }
+}

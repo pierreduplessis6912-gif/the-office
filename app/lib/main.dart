@@ -19,6 +19,7 @@ import 'package:image_picker/image_picker.dart';
 import 'access_guard.dart';
 import 'accessibility.dart';
 import 'analysis_model.dart';
+import 'workspace_context.dart';
 import 'history_model.dart';
 import 'plans_link.dart';
 import 'reply_envelope.dart';
@@ -360,6 +361,8 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   late final OfficeClock _clock;
   // Front-end slice 7: the analysis workspace is a sheet on the home screen itself (not a modal room), so the orb stays on screen and usable.
   bool _analysisOpen = false;
+  // Front-end slice 8: what the app can truthfully say is on screen right now (set by the analysis sheet only while it shows a loaded analysis).
+  WorkspaceContext? _viewing;
 
   // Phase 1 of the Word Field System (see runtime/word_field.dart) —
   // built against _officeState.events, the real, first thing to
@@ -984,7 +987,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       final response = await http.post(
         uri,
         headers: _authHeaders({'Content-Type': 'application/json'}),
-        body: jsonEncode({'text': text, 'history': history, 'idempotency_key': _idempotencyKey(text)}),
+        body: jsonEncode({'text': text, 'history': history, 'idempotency_key': _idempotencyKey(text), ..._contextEntry()}),
       );
       _stopThinking();
 
@@ -1148,7 +1151,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
       final response = await http.post(
         uri,
         headers: _authHeaders({'Content-Type': 'application/json'}),
-        body: jsonEncode({'text': text, 'history': history, 'idempotency_key': _idempotencyKey(text)}),
+        body: jsonEncode({'text': text, 'history': history, 'idempotency_key': _idempotencyKey(text), ..._contextEntry()}),
       );
       _stopThinking();
 
@@ -1599,7 +1602,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
                 right: 0,
                 bottom: 0,
                 height: _analysisSheetHeight(context),
-                child: _AnalysisSheet(authHeaders: _authHeaders(), onClose: _closeAnalysis),
+                child: _AnalysisSheet(authHeaders: _authHeaders(), onClose: _closeAnalysis, onViewing: (c) => _viewing = c),
               ),
             Positioned.fill(child: WordField(controller: _wordField, clock: _clock)),
             // Real feature 2026-07-28 — the one-time entrance moment.
@@ -1633,6 +1636,12 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   // rather than inventing a new one. Account is now wired to the
   // real sign-in flow; Settings and Help remain named destinations
   // in UI_MAP.md, not yet built.
+  // The `context` part of a message body (CONTEXT.md): only while something is really on screen, and only parts the server would keep.
+  Map<String, Object?> _contextEntry() {
+    final json = _viewing?.toJson();
+    return json == null ? const <String, Object?>{} : <String, Object?>{'context': json};
+  }
+
   double _analysisSheetHeight(BuildContext context) => MediaQuery.of(context).size.height * 0.52;
 
   void _openAnalysis() => setState(() {
@@ -9080,6 +9089,7 @@ class _ActivityRoomContentState extends State<_ActivityRoomContent> {
         children: [
           if (heading.isNotEmpty) Text(heading.toUpperCase(), style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 1)),
           _line('HEARD', t.heard ?? '(the recording is no longer on file)', _paper),
+          if (t.viewing != null) _line('ON SCREEN (WHAT THE APP SAID)', t.viewing!, _muted),
           if (t.replied != null && t.replied!.isNotEmpty) _line('THE OFFICE SAID', t.replied!, _muted),
           for (final p in t.proposed) _line('HELD', '${p.type ?? 'action'}  \u00b7  ${p.status ?? 'unknown'}', _muted),
           for (final d in t.decisions) _line('DECISION', decisionLine(d), _muted),
@@ -9174,7 +9184,8 @@ class _ActivityRoomContentState extends State<_ActivityRoomContent> {
 class _AnalysisSheet extends StatefulWidget {
   final Map<String, String> authHeaders;
   final VoidCallback onClose;
-  const _AnalysisSheet({required this.authHeaders, required this.onClose});
+  final void Function(WorkspaceContext?) onViewing;
+  const _AnalysisSheet({required this.authHeaders, required this.onClose, required this.onViewing});
 
   @override
   State<_AnalysisSheet> createState() => _AnalysisSheetState();
@@ -9199,6 +9210,7 @@ class _AnalysisSheetState extends State<_AnalysisSheet> {
     final seq = ++_seq;
     final span = presetPeriod(_preset, DateTime.now());
     if (span == null) return;
+    widget.onViewing(null); // nothing is on screen until the new analysis has loaded
     setState(() {
       _loading = true;
       _error = null;
@@ -9210,6 +9222,8 @@ class _AnalysisSheetState extends State<_AnalysisSheet> {
       if (!mounted || seq != _seq) return;
       if (response.statusCode == 200) {
         final parsed = parseAnalysis(jsonDecode(response.body));
+        // What is now on screen, as the server built it (its own period and comparison, not the preset asked for).
+        widget.onViewing(parsed == null ? null : WorkspaceContext(room: 'analysis', report: 'profit_and_loss', period: parsed.period, compare: parsed.compare, filters: {'topic': parsed.topic}));
         setState(() {
           _loading = false;
           _analysis = parsed;
@@ -9244,6 +9258,12 @@ class _AnalysisSheetState extends State<_AnalysisSheet> {
       _preset = preset ?? _preset;
     });
     _fetch();
+  }
+
+  @override
+  void dispose() {
+    widget.onViewing(null); // the sheet is closing: nothing is on screen any more
+    super.dispose();
   }
 
   Widget _tag(String text) => Text(text, style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 9.5, letterSpacing: 1));
