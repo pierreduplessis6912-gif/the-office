@@ -1,15 +1,15 @@
 {
- "commit": "2cfc22d",
- "when": "2026-10-20T11:14:20.843336+00:00",
+ "commit": "333fad5",
+ "when": "2026-10-20T11:18:06.909376+00:00",
  "analyze": "success",
  "analyze_errors": 0,
  "analyze_error_lines": [],
  "tests": "success",
  "failing_lines": [],
  "test_tail": [
-  "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: the gate shows the app normally, replaces it when access ends, and \"Sign in\" brings it back",
-  "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: anything open on top (a dialog, a pushed page) is closed when access ends",
-  "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: the screen is announced to a screen reader (live region) and has no way to continue except signing in",
+  "\u2705 /home/runner/work/the-office/the-office/app/test/reply_envelope_test.dart: confirmable leaves out the actions shown as a choice between candidates",
+  "\u2705 /home/runner/work/the-office/the-office/app/test/reply_envelope_test.dart: mayBeIncomplete is true only when the server names a malformed or cut-short reply field",
+  "\u2705 /home/runner/work/the-office/the-office/app/test/reply_envelope_test.dart: fields the contract does not define (an address, a token, a permission) are ignored, not carried",
   "::endgroup::",
   "",
   "\ud83c\udf89 77 tests passed."
