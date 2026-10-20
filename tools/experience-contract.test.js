@@ -21,6 +21,8 @@ const REPLIES = {
   'a message too long to repeat': { message: 'x'.repeat(2500) },
   'long strings are cut': { message: 'ok', pendingActions: [{ id: 2, type: 'y'.repeat(300) }], pendingCandidates: [{ id: 6, name: 'n'.repeat(300) }] },
   'fields outside the allowlist are never copied': { message: 'ok', token: 'secret', email: 'a@b.co', capabilities: ['all'], pendingActions: [{ id: 4, type: 'invoice', token: 'secret', url: 'https://evil.example' }] },
+  'a message that is an app command': { message: '__OPEN_DASHBOARD__:financial_snapshot' },
+  'a message that only mentions a command is still speech': { message: 'Say __OPEN_DASHBOARD__:aged_debtors to open it.' },
   'not an object': null,
 };
 

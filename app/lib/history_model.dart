@@ -95,7 +95,7 @@ HistoryTurn? _turn(Object? raw) {
     at: _s(raw['at'], _maxShort),
     source: _s(raw['source'], _maxShort),
     heard: recorded is Map ? _s(recorded['heard'], _maxLong) : null,
-    replied: generated is Map ? _s(generated['replied'], _maxLong) : null,
+    replied: generated is Map ? humanReply(_s(generated['replied'], _maxLong)) : null,
     mode: generated is Map ? _s(generated['mode'], _maxShort) : null,
     proposed: [
       for (final p in _list(raw['proposed']))
@@ -176,4 +176,16 @@ String? describeViewing(Object? v) {
   } catch (_) {
     return null;
   }
+}
+
+final RegExp _appCommand = RegExp(r'^__([A-Z][A-Z_]{0,39})__:([a-z0-9_]{0,40})$');
+
+/// An older history row may hold an in-band app command ("__OPEN_DASHBOARD__:financial_snapshot") as what The Office said, because the backend
+/// used to store the message as it was. A command is for the app, not words to show, so it is read as plain text: "Opened financial snapshot".
+/// The backend now stores that text itself (the same rule); anything that is not exactly a command is returned as it is.
+String? humanReply(String? raw) {
+  if (raw == null) return null;
+  final m = _appCommand.firstMatch(raw);
+  if (m == null) return raw;
+  return m.group(1) == 'OPEN_DASHBOARD' && m.group(2)!.isNotEmpty ? 'Opened ${m.group(2)!.replaceAll('_', ' ')}' : '(an instruction to the app)';
 }

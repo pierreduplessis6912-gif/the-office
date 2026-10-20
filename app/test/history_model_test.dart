@@ -120,4 +120,20 @@ void main() {
     expect(formatShort(DateTime.utc(2026, 1, 5, 9, 4)), '5 Jan 09:04');
     expect(formatShort(DateTime.utc(2026, 10, 20, 23, 59)), '20 Oct 23:59');
   });
+
+  test('an app command stored as what The Office said is read as plain text; real speech is untouched', () {
+    expect(humanReply('__OPEN_DASHBOARD__:financial_snapshot'), 'Opened financial snapshot');
+    expect(humanReply('__OPEN_DASHBOARD__:aged_debtors'), 'Opened aged debtors');
+    expect(humanReply('__SOMETHING_NEW__:x'), '(an instruction to the app)');
+    expect(humanReply('__OPEN_DASHBOARD__:'), '(an instruction to the app)');
+    expect(humanReply('Open __OPEN_DASHBOARD__:aged_debtors now'), 'Open __OPEN_DASHBOARD__:aged_debtors now');
+    expect(humanReply('Invoice drafted.'), 'Invoice drafted.');
+    expect(humanReply(''), '');
+    expect(humanReply(null), isNull);
+    final t = parseHistory({'version': 1, 'scope': 'me', 'next': null, 'items': [
+      {'id': 1, 'at': '2026-10-20 11:24:13', 'source': 'voice', 'recorded': {'heard': 'what is our financial position'}, 'generated': {'replied': '__OPEN_DASHBOARD__:financial_snapshot', 'mode': 'speak'}, 'proposed': [], 'decisions': [], 'recordsWritten': []},
+    ]})!.turns.single;
+    expect(t.replied, 'Opened financial snapshot');
+  });
 }
+

@@ -48,3 +48,5 @@ Slice 7 (`claim/frontend-7-analysis-workspace`): the analysis workspace (layout 
 Slice 8 (`claim/frontend-8-context`): workspace context, DONE and merged (not verified on a device). The measured front-end gaps are now all built; the one still open is tests for the rest of the app (f).
 
 Docs (2026-10-20): `PROJECTION_VISION.md` saved and `VISION.md` now maps vision against build. Open, unclaimed, in suggested order: shared backend/app envelope contract fixture; envelope and history for photo and document uploads; structured `refuse` mode and `replyId`; content blocks and renderer registry; tests for the rest of the app; nothing for `DESIGN_DOCTRINE.md`: the doctrine was replaced by `PROJECTION_VISION.md` (Pierre, 2026-10-20).
+
+Direction recorded in VISION.md (Pierre, 2026-10-20): ERP and BI backend, conversational input at rest, adapters. Step 1, client-neutral replies (the app command is kept out of speech and history): built. Next in order: one BI drill-down (revenue by customer for a period, then their outstanding invoices); then a read-only MCP adapter. Unclaimed.

@@ -4,7 +4,7 @@
 // carry, not guessed. (4) A decision on a held action (confirm, reject, edit-field) is recorded with who and the outcome, including refused attempts, from the response STATUS alone (the body is never read). (5) A member reads only their OWN turns; only an owner
 // (can_manage_settings) may ask for everyone's. (6) Only an allowlist of the reply is stored: no capabilities, tokens or addresses beyond the actor. (7) Reading is read-only and bounded; the record is append-only. Nothing here deletes anything.
 import { parseContext } from "./context";
-import { buildExperience } from "./experience";
+import { appCommandText, buildExperience } from "./experience";
 import type { Env } from "./types";
 
 const MAX_REPLY = 4000, MAX_INTERPRETED = 2000, MAX_EMAIL = 254, MAX_LIMIT = 100, DEFAULT_LIMIT = 20;
@@ -41,7 +41,7 @@ export async function recordInteraction(env: Env, turn: { actorEmail: unknown; s
         const extraction = turn.processed.extraction;
         if (extraction !== undefined && extraction !== null) { const json = JSON.stringify(extraction); interpreted = json.length > MAX_INTERPRETED ? JSON.stringify({ truncated: true, text: json.slice(0, MAX_INTERPRETED - 100) }) : json; }
       } catch { interpreted = null; }
-      try { const message = turn.processed.message; if (typeof message === "string") replied = message.slice(0, MAX_REPLY); } catch { replied = null; }
+      try { const message = turn.processed.message; if (typeof message === "string") replied = appCommandText(message) ?? message.slice(0, MAX_REPLY); } catch { replied = null; }
     }
     const source = typeof turn.source === "string" && turn.source.length <= 20 ? turn.source : "text";
     const captureId = typeof turn.captureId === "number" && Number.isSafeInteger(turn.captureId) && turn.captureId > 0 ? turn.captureId : null;

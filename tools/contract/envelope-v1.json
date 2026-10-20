@@ -1000,6 +1000,73 @@
       }
     },
     {
+      "name": "a message that is an app command",
+      "reply": {
+        "message": "__OPEN_DASHBOARD__:financial_snapshot"
+      },
+      "experience": {
+        "version": 1,
+        "established": {
+          "from": [],
+          "heldActions": [],
+          "candidates": null,
+          "changes": null
+        },
+        "recommendation": {
+          "mode": "speak",
+          "speak": null
+        },
+        "unknown": [
+          "intent_class",
+          "room",
+          "workspace",
+          "evidence",
+          "certainty",
+          "refusal_reason",
+          "message_is_an_app_command"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": false,
+          "through": null,
+          "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+        }
+      }
+    },
+    {
+      "name": "a message that only mentions a command is still speech",
+      "reply": {
+        "message": "Say __OPEN_DASHBOARD__:aged_debtors to open it."
+      },
+      "experience": {
+        "version": 1,
+        "established": {
+          "from": [
+            "message"
+          ],
+          "heldActions": [],
+          "candidates": null,
+          "changes": null
+        },
+        "recommendation": {
+          "mode": "speak",
+          "speak": "Say __OPEN_DASHBOARD__:aged_debtors to open it."
+        },
+        "unknown": [
+          "intent_class",
+          "room",
+          "workspace",
+          "evidence",
+          "certainty",
+          "refusal_reason"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": false,
+          "through": null,
+          "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+        }
+      }
+    },
+    {
       "name": "not an object",
       "reply": null,
       "experience": {

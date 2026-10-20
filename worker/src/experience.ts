@@ -23,6 +23,17 @@ const THROUGH = "Only the existing pending-action routes (confirm, reject, edit-
 // What Phase 1 never establishes: nothing in today's reply supports any of these, so none is invented.
 const NOT_ESTABLISHED = ["intent_class", "room", "workspace", "evidence", "certainty", "refusal_reason"];
 
+// An in-band instruction to the app that rides inside `message` (today: "__OPEN_DASHBOARD__:financial_snapshot"). It is a command for one client, not words to say or show, so it is never offered as speech and is never stored as what The Office said. The reply itself is untouched: today's app still reads the marker from `message`.
+const APP_COMMAND = /^__([A-Z][A-Z_]{0,39})__:([a-z0-9_]{0,40})$/;
+export const isAppCommand = (message: unknown): boolean => typeof message === "string" && APP_COMMAND.test(message);
+// A plain description of an app command for a record, e.g. "Opened financial snapshot"; null when the message is not a command.
+export function appCommandText(message: unknown): string | null {
+  if (typeof message !== "string") return null;
+  const match = APP_COMMAND.exec(message);
+  if (match === null) return null;
+  return match[1] === "OPEN_DASHBOARD" && match[2] !== "" ? `Opened ${match[2].replace(/_/g, " ")}` : "(an instruction to the app)";
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 const wholeId = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 const cut = (value: string): string => (value.length > MAX_TEXT ? value.slice(0, MAX_TEXT) : value);
@@ -60,7 +71,8 @@ export function buildExperience(reply: unknown): Experience {
     let speak: string | null = null;
     const message = reply.message;
     if (typeof message === "string") {
-      if (message.length > MAX_SPEAK) unknown.push("message_not_repeated");   // the message field is always the full text
+      if (isAppCommand(message)) unknown.push("message_is_an_app_command");   // a command for the app, not speech: speak stays null
+      else if (message.length > MAX_SPEAK) unknown.push("message_not_repeated");   // the message field is always the full text
       else if (message !== "") { speak = message; from.push("message"); }
     } else if (message !== undefined && message !== null) unknown.push("reply_field_malformed:message");
     const mode = candidates && candidates.length > 0 ? "clarify" : heldActions.length > 0 ? "confirm" : "speak";
