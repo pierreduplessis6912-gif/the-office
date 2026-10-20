@@ -105,7 +105,7 @@ void main() {
   });
 
   test('lists are cut to 50 items and strings to 200 characters', () {
-    final many = [for (var i = 0; i < 80; i++) {'id': i, 'type': 'invoice'}];
+    final many = [for (var i = 1; i <= 80; i++) {'id': i, 'type': 'invoice'}];
     expect(ReplyEnvelope.fromReply(_reply(experience: _envelope(held: many)))!.heldActions, hasLength(50));
     final long = 'x' * 500;
     final e = ReplyEnvelope.fromReply(_reply(experience: _envelope(speak: long, unknown: [long], held: [{'id': 1, 'type': long}])))!;
