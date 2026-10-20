@@ -21,6 +21,7 @@ import 'accessibility.dart';
 import 'analysis_model.dart';
 import 'workspace_context.dart';
 import 'history_model.dart';
+import 'mcp_keys_model.dart';
 import 'plans_link.dart';
 import 'reply_envelope.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
@@ -1480,6 +1481,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         onHistoryTap: (_) => _showHistorySheet(),
         onActivityTap: _showActivitySheet,
         onAnalysisTap: _openAnalysis,
+        onAssistantsTap: _showAssistantsSheet,
         onBusinessProfileTap: (_) => _showBusinessProfileSheet(),
         onSnagsTap: _showSnagsSheet,
         onLeadsTap: _showLeadsSheet,
@@ -2211,6 +2213,19 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     );
   }
 
+  // Front-end slice 10: the owner's keys for outside assistants (create, see once, revoke). A key lets an assistant READ the figures; it can change nothing.
+  Future<void> _showAssistantsSheet(Offset origin) async {
+    await _igniteEmber(origin, _emberBlue);
+    if (!mounted) return;
+    await showOfficeRoom(
+      context: context,
+      officeState: _officeState,
+      origin: origin,
+      accentColor: _emberBlue,
+      builder: (context) => _AssistantsRoomContent(authHeaders: _authHeaders()),
+    );
+  }
+
   Future<void> _showPeopleSheet(Offset origin) async {
     await _igniteEmber(origin, _breathe);
     if (!mounted) return;
@@ -2461,6 +2476,7 @@ class _OfficeDrawer extends StatelessWidget {
   final void Function(Offset) onHistoryTap;
   final void Function(Offset) onActivityTap;
   final VoidCallback onAnalysisTap;
+  final void Function(Offset) onAssistantsTap;
   final void Function(Offset) onBusinessProfileTap;
   final void Function(Offset) onSnagsTap;
   final void Function(Offset) onLeadsTap;
@@ -2477,6 +2493,7 @@ class _OfficeDrawer extends StatelessWidget {
     required this.onHistoryTap,
     required this.onActivityTap,
     required this.onAnalysisTap,
+    required this.onAssistantsTap,
     required this.onBusinessProfileTap,
     required this.onSnagsTap,
     required this.onLeadsTap,
@@ -2533,6 +2550,8 @@ class _OfficeDrawer extends StatelessWidget {
             _drawerItem(Icons.group_add_outlined, 'Team', onTeamTap, context),
             // The owner's subscription (2026-10-20): opens the plans page in the browser through a short-lived signed link (lib/plans_link.dart). Shown to the owner only; the server refuses anyone else as well.
             // Why a profit and loss figure changed (2026-10-20). Owner only for now: the server allows anyone with the profit capability, and refuses the rest.
+            // Read-only keys for outside assistants such as Claude or Cursor (2026-10-21). Owner only: the server refuses anyone else.
+            if (isOwner) _drawerItem(Icons.vpn_key_outlined, 'Assistants', onAssistantsTap, context),
             if (isOwner) _drawerItem(Icons.insights_outlined, 'Analysis', (_) => onAnalysisTap(), context),
             if (isOwner) _drawerItem(Icons.credit_card_outlined, 'Subscription', (_) => onSubscriptionTap(), context),
           ],
@@ -9560,6 +9579,319 @@ class _AnalysisSheetState extends State<_AnalysisSheet> {
           ),
         ],
       ),
+    );
+  }
+}
+
+
+class _AssistantsRoomContent extends StatefulWidget {
+  final Map<String, String> authHeaders;
+  const _AssistantsRoomContent({required this.authHeaders});
+
+  @override
+  State<_AssistantsRoomContent> createState() => _AssistantsRoomContentState();
+}
+
+class _AssistantsRoomContentState extends State<_AssistantsRoomContent> {
+  List<McpKey> _keys = [];
+  bool _loading = true;
+  bool _busy = false;
+  String? _error;
+  String? _notice;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Map<String, String> get _json => {...widget.authHeaders, 'Content-Type': 'application/json'};
+
+  String _reasonFor(http.Response response, String fallback) {
+    if (response.statusCode == 403) return 'Only the owner can manage keys.';
+    try {
+      final body = jsonDecode(response.body);
+      if (body is Map && body['error'] is String) return body['error'] as String;
+    } catch (_) {}
+    return fallback;
+  }
+
+  Future<void> _fetch() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final response = await http.get(Uri.parse('$officeApiBase/mcp-keys'), headers: widget.authHeaders);
+      if (!mounted) return;
+      final keys = response.statusCode == 200 ? parseKeyList(jsonDecode(response.body)) : null;
+      setState(() {
+        _loading = false;
+        if (keys == null) {
+          _error = response.statusCode == 200 ? 'This list is in a format this version of the app cannot read yet.' : _reasonFor(response, 'Could not load your keys right now.');
+        } else {
+          _keys = keys;
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Could not load your keys right now.';
+      });
+    }
+  }
+
+  Future<void> _create() async {
+    final typed = await showDialog<String>(context: context, builder: (_) => const _NameKeyDialog());
+    final label = typed == null ? null : tidyLabel(typed);
+    if (label == null || !mounted) return;
+    setState(() {
+      _busy = true;
+      _notice = null;
+    });
+    try {
+      final response = await http.post(Uri.parse('$officeApiBase/mcp-keys'), headers: _json, body: jsonEncode({'label': label}));
+      if (!mounted) return;
+      final issued = response.statusCode == 201 ? parseIssued(jsonDecode(response.body)) : null;
+      setState(() => _busy = false);
+      if (issued == null) {
+        setState(() => _notice = response.statusCode == 201 ? 'The key could not be read. Revoke it below and make another.' : _reasonFor(response, 'Could not make a key right now.'));
+      } else {
+        await showDialog<void>(context: context, barrierDismissible: false, builder: (_) => _KeyShownDialog(issued: issued));
+      }
+      if (mounted) await _fetch();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _notice = 'Could not make a key right now.';
+      });
+    }
+  }
+
+  Future<void> _revoke(McpKey k) async {
+    final sure = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: _charcoal,
+        title: Text('Revoke "${k.label}"?', style: GoogleFonts.workSans(color: _paper, fontSize: 16, fontWeight: FontWeight.w600)),
+        content: Text('Anything using this key stops working at once. This cannot be undone: you would make a new key.', style: GoogleFonts.workSans(color: _muted, fontSize: 14, height: 1.4)),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text('KEEP IT', style: GoogleFonts.ibmPlexMono(color: _muted, fontSize: 12, letterSpacing: 1))),
+          TextButton(onPressed: () => Navigator.of(context).pop(true), child: Text('REVOKE', style: GoogleFonts.ibmPlexMono(color: _stampRed, fontSize: 12, letterSpacing: 1))),
+        ],
+      ),
+    );
+    if (sure != true || !mounted) return;
+    setState(() {
+      _busy = true;
+      _notice = null;
+    });
+    try {
+      final response = await http.post(Uri.parse('$officeApiBase/mcp-keys/revoke'), headers: _json, body: jsonEncode({'id': k.id}));
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        if (response.statusCode != 200) _notice = _reasonFor(response, 'Could not revoke that key right now.');
+      });
+      await _fetch();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _notice = 'Could not revoke that key right now.';
+      });
+    }
+  }
+
+  Widget _keyRow(McpKey k) {
+    final lines = [if (createdLine(k).isNotEmpty) createdLine(k), useLine(k)];
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(k.label, style: GoogleFonts.workSans(color: k.active ? _paper : _muted, fontSize: 14, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(lines.join('  \u00b7  '), style: GoogleFonts.workSans(color: _muted, fontSize: 12.5, height: 1.35)),
+                if (!k.active) Text('REVOKED ${(parseTurnTime(k.revokedAt) != null) ? formatShort(parseTurnTime(k.revokedAt)!.toLocal()) : ''}', style: GoogleFonts.ibmPlexMono(color: _stampRed, fontSize: 10, letterSpacing: 1)),
+              ],
+            ),
+          ),
+          if (k.active)
+            A11yButton(
+              label: 'Revoke ${k.label}',
+              onTap: _busy ? null : () => _revoke(k),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _busy ? null : () => _revoke(k),
+                child: Padding(padding: const EdgeInsets.all(8), child: Text('REVOKE', style: GoogleFonts.ibmPlexMono(color: _stampRed, fontSize: 11, letterSpacing: 1))),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final address = mcpAddress(officeApiBase);
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: _void,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('ASSISTANTS', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                  IconButton(tooltip: 'Close', icon: const Icon(Icons.close, size: 18), color: _muted, onPressed: () => Navigator.of(context).pop()),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Let an AI assistant such as Claude or Cursor read your figures. A key lets it READ only: it cannot change, send or confirm anything. Anyone who holds a key can read your figures until you revoke it, so keep keys private.',
+                style: GoogleFonts.workSans(color: _muted, fontSize: 13, height: 1.4),
+              ),
+              const SizedBox(height: 10),
+              Text('ADDRESS TO GIVE THE ASSISTANT', style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10, letterSpacing: 1)),
+              Row(
+                children: [
+                  Expanded(child: SelectableText(address, style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 12))),
+                  IconButton(
+                    tooltip: 'Copy the address',
+                    icon: const Icon(Icons.copy, size: 16),
+                    color: _muted,
+                    onPressed: () async {
+                      await Clipboard.setData(ClipboardData(text: address));
+                      if (mounted) setState(() => _notice = 'Address copied.');
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              A11yButton(
+                label: 'Make a new key',
+                onTap: _busy ? null : _create,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _busy ? null : _create,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(border: Border.all(color: _emberBlue.withOpacity(_busy ? 0.25 : 0.7)), borderRadius: BorderRadius.circular(20)),
+                    child: Text(_busy ? 'ONE MOMENT\u2026' : 'MAKE A NEW KEY', style: GoogleFonts.ibmPlexMono(color: _emberBlue, fontSize: 11, letterSpacing: 1.2)),
+                  ),
+                ),
+              ),
+              if (_notice != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_notice!, style: GoogleFonts.workSans(color: _paper, fontSize: 13))),
+              const SizedBox(height: 8),
+              if (_loading)
+                const Padding(padding: EdgeInsets.only(top: 24), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+              else if (_error != null)
+                Padding(padding: const EdgeInsets.only(top: 16), child: Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else if (_keys.isEmpty)
+                Padding(padding: const EdgeInsets.only(top: 16), child: Text('No keys yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.only(top: 4),
+                    itemCount: _keys.length,
+                    separatorBuilder: (_, __) => Divider(height: 1, color: _textTertiary.withOpacity(0.1)),
+                    itemBuilder: (context, index) => _keyRow(_keys[index]),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NameKeyDialog extends StatefulWidget {
+  const _NameKeyDialog();
+
+  @override
+  State<_NameKeyDialog> createState() => _NameKeyDialogState();
+}
+
+class _NameKeyDialogState extends State<_NameKeyDialog> {
+  final TextEditingController _controller = TextEditingController(text: 'My assistant');
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: _charcoal,
+      title: Text('Name this key', style: GoogleFonts.workSans(color: _paper, fontSize: 16, fontWeight: FontWeight.w600)),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        maxLength: 60,
+        style: GoogleFonts.workSans(color: _paper, fontSize: 15),
+        decoration: const InputDecoration(hintText: 'Claude on my phone'),
+        onSubmitted: (v) => Navigator.of(context).pop(v),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: Text('CANCEL', style: GoogleFonts.ibmPlexMono(color: _muted, fontSize: 12, letterSpacing: 1))),
+        TextButton(onPressed: () => Navigator.of(context).pop(_controller.text), child: Text('MAKE KEY', style: GoogleFonts.ibmPlexMono(color: _emberBlue, fontSize: 12, letterSpacing: 1))),
+      ],
+    );
+  }
+}
+
+class _KeyShownDialog extends StatefulWidget {
+  final IssuedKey issued;
+  const _KeyShownDialog({required this.issued});
+
+  @override
+  State<_KeyShownDialog> createState() => _KeyShownDialogState();
+}
+
+class _KeyShownDialogState extends State<_KeyShownDialog> {
+  bool _copied = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: _charcoal,
+      title: Text('Your key for "${widget.issued.label}"', style: GoogleFonts.workSans(color: _paper, fontSize: 16, fontWeight: FontWeight.w600)),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Copy it now. It is shown ONCE and cannot be shown again: if you lose it, revoke it and make another. Give it only to the assistant you trust.', style: GoogleFonts.workSans(color: _muted, fontSize: 13, height: 1.4)),
+            const SizedBox(height: 12),
+            SelectableText(widget.issued.key, style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 11.5, height: 1.4)),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: widget.issued.key));
+            if (mounted) setState(() => _copied = true);
+          },
+          child: Text(_copied ? 'COPIED' : 'COPY KEY', style: GoogleFonts.ibmPlexMono(color: _emberBlue, fontSize: 12, letterSpacing: 1)),
+        ),
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: Text('DONE', style: GoogleFonts.ibmPlexMono(color: _muted, fontSize: 12, letterSpacing: 1))),
+      ],
     );
   }
 }
