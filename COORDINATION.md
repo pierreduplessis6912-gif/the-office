@@ -42,3 +42,5 @@ Slice 4 (`claim/frontend-4-envelope`): reading the reply envelope, DONE and merg
 Slice 5 (`claim/frontend-5-context`): PARKED, nothing built; reason in DECISIONS.md (no screen is on screen while a message is sent). Next in order: (c) history view, (d) analysis view, then context (b) under a new claim.
 
 Slice 6 (`claim/frontend-6-history-view`): the Activity room, DONE and merged (not verified on a device). Still unclaimed: an analysis view (d), then workspace context (b) under a new claim, then tests for the rest of the app (f).
+
+Slice 7 (`claim/frontend-7-analysis-workspace`): the analysis workspace (layout B), DONE and merged (not verified on a device). Still unclaimed: workspace context (b), now buildable under a NEW claim, first step exposing the sheet's topic and period; tests for the rest of the app (f).
