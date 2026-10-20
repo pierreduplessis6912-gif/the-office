@@ -78,7 +78,7 @@ void main() {
   test('anything unusable is null: not v1, wrong topic, bad period, no summary', () {
     final bad = <Object?>[
       null, 'x', 5, <Object?>[], <String, Object?>{}, _expenses(version: 2), _expenses(version: '1'),
-      {..._expenses(), 'analysis': 'revenue'}, {..._expenses(), 'period': {'from': '2026-9-1', 'to': '2026-09-30'}},
+      {..._expenses(), 'analysis': 'weather'}, {..._expenses(), 'period': {'from': '2026-9-1', 'to': '2026-09-30'}},
       {..._expenses(), 'compare': null}, {..._expenses(), 'summary': 'x'},
       {..._expenses(), 'summary': {'metric': 'total_expenses', 'current': 'lots', 'previous': 1, 'change': {'amount': 1}}},
     ];
