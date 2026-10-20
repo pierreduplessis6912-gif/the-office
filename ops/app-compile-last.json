@@ -1,22 +1,18 @@
 {
- "commit": "22203ba",
- "when": "2026-10-20T18:33:08.183279+00:00",
+ "commit": "539200a",
+ "when": "2026-10-20T18:36:56.121625+00:00",
  "analyze": "success",
  "analyze_errors": 0,
  "analyze_error_lines": [],
- "tests": "failure",
- "failing_lines": [
-  "::group::\u274c /home/runner/work/the-office/the-office/app/test/analysis_model_test.dart: anything unusable is null: not v1, wrong topic, bad period, no summary (failed)",
-  "Expected: null",
-  "Actual: <Instance of 'Analysis'>"
- ],
+ "tests": "success",
+ "failing_lines": [],
  "test_tail": [
   "\u2705 /home/runner/work/the-office/the-office/app/test/envelope_contract_test.dart: compatibility: a mode the app does not know (open_room) reads as speak",
   "\u2705 /home/runner/work/the-office/the-office/app/test/envelope_contract_test.dart: compatibility: a mode the app does not know (refuse) reads as speak",
   "\u2705 /home/runner/work/the-office/the-office/app/test/envelope_contract_test.dart: compatibility: held actions with a non-positive or non-integer id are dropped",
   "::endgroup::",
   "",
-  "::error::134 tests passed, 1 failed."
+  "\ud83c\udf89 135 tests passed."
  ],
- "build": "skipped"
+ "build": "success"
 }
