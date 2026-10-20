@@ -66,3 +66,6 @@ MCP slice A (`claim/mcp-a-key-core`): the credential core is built and tested on
 MCP slice B (`claim/mcp-b-key-routes`): the owner-only key routes are built and tested on the branch `feat/mcp-key-routes` (on top of slice A) and are NOT merged: Pierre reviews first. Next: slice C, the `/mcp` endpoint and the five read-only tools.
 
 MCP slice C (`claim/mcp-c-endpoint`): the `/mcp` endpoint and the five read-only tools are built and tested on the branch `feat/mcp-endpoint` and are NOT merged: Pierre reviews first (the first place a key reads data). Next: slice D, the app screen for keys.
+
+MCP slice D (`claim/mcp-d-app-keys`): the app's Assistants screen, DONE and merged (not verified on a device). MCP slices A to D are complete and live (production `e4a18cf`, probe 11/11). Open: connect ONE real MCP client to verify it end to end; per-key kill switch beyond revoking; OAuth for hosts that need it; writes (a separate decision).
+
