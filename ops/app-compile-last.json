@@ -1,23 +1,18 @@
 {
- "commit": "b84fa56",
- "when": "2026-10-20T14:18:10.691028+00:00",
+ "commit": "078a866",
+ "when": "2026-10-20T14:21:49.107374+00:00",
  "analyze": "success",
  "analyze_errors": 0,
  "analyze_error_lines": [],
- "tests": "failure",
- "failing_lines": [
-  "::group::\u274c /home/runner/work/the-office/the-office/app/test/reply_envelope_test.dart: lists are cut to 50 items and strings to 200 characters (failed)",
-  "Expected: an object with length of <50>",
-  "Actual: [",
-  "Which: has length of <49>"
- ],
+ "tests": "success",
+ "failing_lines": [],
  "test_tail": [
   "\u2705 /home/runner/work/the-office/the-office/app/test/envelope_contract_test.dart: compatibility: a mode the app does not know (open_room) reads as speak",
   "\u2705 /home/runner/work/the-office/the-office/app/test/envelope_contract_test.dart: compatibility: a mode the app does not know (refuse) reads as speak",
   "\u2705 /home/runner/work/the-office/the-office/app/test/envelope_contract_test.dart: compatibility: held actions with a non-positive or non-integer id are dropped",
   "::endgroup::",
   "",
-  "::error::123 tests passed, 1 failed."
+  "\ud83c\udf89 124 tests passed."
  ],
- "build": "skipped"
+ "build": "success"
 }
