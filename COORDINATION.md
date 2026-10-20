@@ -44,3 +44,5 @@ Slice 5 (`claim/frontend-5-context`): PARKED, nothing built; reason in DECISIONS
 Slice 6 (`claim/frontend-6-history-view`): the Activity room, DONE and merged (not verified on a device). Still unclaimed: an analysis view (d), then workspace context (b) under a new claim, then tests for the rest of the app (f).
 
 Slice 7 (`claim/frontend-7-analysis-workspace`): the analysis workspace (layout B), DONE and merged (not verified on a device). Still unclaimed: workspace context (b), now buildable under a NEW claim, first step exposing the sheet's topic and period; tests for the rest of the app (f).
+
+Slice 8 (`claim/frontend-8-context`): workspace context, DONE and merged (not verified on a device). The measured front-end gaps are now all built; the one still open is tests for the rest of the app (f).
