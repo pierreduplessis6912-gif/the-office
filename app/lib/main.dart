@@ -19,6 +19,7 @@ import 'package:image_picker/image_picker.dart';
 import 'access_guard.dart';
 import 'accessibility.dart';
 import 'plans_link.dart';
+import 'reply_envelope.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:url_launcher/url_launcher.dart';
@@ -881,7 +882,26 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         .toList();
   }
 
+  // Front-end slice 4: the reply envelope (ENVELOPE.md) is read, but only to fill a gap. The fields the app has always read decide what is
+  // shown; the envelope's held actions are used ONLY when those fields gave nothing (or had a shape the app could not read), so a held action
+  // is never silently dropped. It never replaces or adds to what the fields gave, and it grants nothing: confirming and rejecting still go
+  // through the pending-action routes, which re-check on every call.
   List<PendingItem> _extractPendingItems(Map<String, dynamic> data) {
+    var items = <PendingItem>[];
+    try {
+      items = _pendingItemsFromFields(data);
+    } catch (_) {
+      items = <PendingItem>[];
+    }
+    if (items.isEmpty) {
+      final held = ReplyEnvelope.fromReply(data)?.confirmable ?? const <HeldAction>[];
+      items = [for (final h in held) PendingItem(id: h.id, type: h.type)];
+      if (items.isNotEmpty) _reactToEmberTap('pending');
+    }
+    return items;
+  }
+
+  List<PendingItem> _pendingItemsFromFields(Map<String, dynamic> data) {
     final items = <PendingItem>[];
     final pendingActionId = data['pendingActionId'];
     if (pendingActionId is int) {
