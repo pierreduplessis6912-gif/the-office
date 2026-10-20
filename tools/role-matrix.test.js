@@ -861,6 +861,8 @@ async function expect(role, method, path, want) {
   await require('./customer-receivables.test.js')({ check, srcDir });
   // Spoken follow-ups on an open analysis: the recorded-phrase gate, and the behaviour against real SQL (permissions, never guessing a customer, never writing)
   await require('./followup.test.js')({ check, srcDir });
+  // The read-only MCP adapter, slice A: the credential core (issue, list, revoke, authenticate). Security-sensitive: each guard is also proven by tools/mcp-keys-breakage.js
+  await require('./mcp-keys.test.js')({ check, srcDir });
   // The history and audit record: heard, interpreted, proposed, decided, replied, and the records written
   await require('./history.test.js')({ check, srcDir });
   // Workspace context: an untrusted, validated hint recorded with the turn; never a permission, not yet used to interpret speech
