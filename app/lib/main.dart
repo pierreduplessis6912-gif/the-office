@@ -17,6 +17,7 @@ import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'access_guard.dart';
+import 'accessibility.dart';
 import 'plans_link.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -447,6 +448,13 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     // Real migration: the orb's breathe cycle now reads _clock.elapsedSeconds
     // directly (see _TalkArea below) rather than driving its own,
     // independent AnimationController here.
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reduced motion: the opening fade is skipped (it ends at fully clear), now or if the setting is turned on while it runs.
+    if (reducedMotion(context) && _entranceController.isAnimating) _entranceController.value = 1.0;
   }
 
   @override
@@ -1424,6 +1432,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         elevation: 0,
         leading: Builder(
           builder: (context) => IconButton(
+            tooltip: 'Open menu',
             icon: const Icon(Icons.menu),
             color: _textTertiary.withOpacity(0.15),
             onPressed: () => Scaffold.of(context).openDrawer(),
@@ -1431,6 +1440,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         ),
         actions: [
           IconButton(
+            tooltip: 'More options',
             icon: const Icon(Icons.more_vert),
             color: _textTertiary.withOpacity(0.15),
             onPressed: () => _showMoreMenu(context),
@@ -1463,7 +1473,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
             // separate from the 5 real, functional embers: purely
             // ambient, non-interactive, not tied to any real data —
             // atmosphere, not information.
-            Positioned.fill(child: _AmbientSparkField(clock: _clock)),
+            if (!reducedMotion(context)) Positioned.fill(child: _AmbientSparkField(clock: _clock)),
             Column(
               children: [
                 Expanded(
@@ -1859,6 +1869,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
                   children: [
                     Text(title, style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
                     IconButton(
+                      tooltip: 'Close',
                       icon: const Icon(Icons.close, size: 18),
                       color: _muted,
                       onPressed: () => Navigator.of(context).pop(),
@@ -2570,7 +2581,7 @@ class _EmberTearState extends State<_EmberTear> {
       child: AnimatedBuilder(
         animation: widget.clock,
         builder: (context, child) {
-          final progress = (widget.clock.elapsedSeconds / _driftDurationSeconds) % 1.0;
+          final progress = (motionSeconds(context, widget.clock.elapsedSeconds) / _driftDurationSeconds) % 1.0;
           final t = progress * 2 * math.pi + _phaseOffset;
           final dx = math.sin(t) * _driftRadiusX;
           final dy = math.cos(t * 0.8) * _driftRadiusY;
@@ -2584,7 +2595,7 @@ class _EmberTearState extends State<_EmberTear> {
                 child: CustomPaint(
                   painter: _EmberTearPainter(
                     shader: _shader,
-                    time: widget.clock.elapsedSeconds,
+                    time: motionSeconds(context, widget.clock.elapsedSeconds),
                     seed: widget.seedOffset,
                     color: effectiveColor,
                   ),
@@ -2757,7 +2768,7 @@ class _EmberState extends State<_Ember> {
           // _driftDurationSeconds still gives this ember its own,
           // randomized period, exactly as the controller's own
           // duration did.
-          final progress = (widget.clock.elapsedSeconds / _driftDurationSeconds) % 1.0;
+          final progress = (motionSeconds(context, widget.clock.elapsedSeconds) / _driftDurationSeconds) % 1.0;
           final t = progress * 2 * math.pi + _phaseOffset;
           final dx = math.sin(t) * _driftRadiusX;
           final dy = math.cos(t * 0.8) * _driftRadiusY;
@@ -3334,6 +3345,7 @@ class _FinanceRoomContentState extends State<_FinanceRoomContent> {
                             onPressed: _importingInvoicesCsv ? null : () => _importInvoicesCsv(context),
                           ),
                           IconButton(
+                            tooltip: 'Close',
                             icon: const Icon(Icons.close, size: 18),
                             color: _muted,
                             onPressed: () => Navigator.of(context).pop(),
@@ -3789,6 +3801,7 @@ class _PendingRoomContentState extends State<_PendingRoomContent> {
                 children: [
                   Text('PENDING', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
                   IconButton(
+                    tooltip: 'Close',
                     icon: const Icon(Icons.close, size: 18),
                     color: _muted,
                     onPressed: () => Navigator.of(context).pop(),
@@ -4032,6 +4045,7 @@ class _SuppliersRoomContentState extends State<_SuppliersRoomContent> {
                 children: [
                   Text('SUPPLIERS', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
                   IconButton(
+                    tooltip: 'Close',
                     icon: const Icon(Icons.close, size: 18),
                     color: _muted,
                     onPressed: () => Navigator.of(context).pop(),
@@ -4428,6 +4442,7 @@ class _TasksRoomContentState extends State<_TasksRoomContent> {
                 children: [
                   Text('TASKS', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
                   IconButton(
+                    tooltip: 'Close',
                     icon: const Icon(Icons.close, size: 18),
                     color: _muted,
                     onPressed: () => Navigator.of(context).pop(),
@@ -4629,6 +4644,7 @@ class _SchedulerRoomContentState extends State<_SchedulerRoomContent> {
                 children: [
                   Text('SCHEDULER', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
                   IconButton(
+                    tooltip: 'Close',
                     icon: const Icon(Icons.close, size: 18),
                     color: _muted,
                     onPressed: () => Navigator.of(context).pop(),
@@ -4840,6 +4856,7 @@ class _PeopleRoomContentState extends State<_PeopleRoomContent> {
                 children: [
                   Text('PEOPLE', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
                   IconButton(
+                    tooltip: 'Close',
                     icon: const Icon(Icons.close, size: 18),
                     color: _muted,
                     onPressed: () => Navigator.of(context).pop(),
@@ -5009,6 +5026,7 @@ class _CustomersRoomContentState extends State<_CustomersRoomContent> {
                 children: [
                   Text('CUSTOMERS', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
                   IconButton(
+                    tooltip: 'Close',
                     icon: const Icon(Icons.close, size: 18),
                     color: _muted,
                     onPressed: () => Navigator.of(context).pop(),
@@ -5310,6 +5328,7 @@ class _SnagsRoomContentState extends State<_SnagsRoomContent> {
                 children: [
                   Text('SNAGS', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
                   IconButton(
+                    tooltip: 'Close',
                     icon: const Icon(Icons.close, size: 18),
                     color: _muted,
                     onPressed: () => Navigator.of(context).pop(),
@@ -5503,6 +5522,7 @@ class _LeadsRoomContentState extends State<_LeadsRoomContent> {
                 children: [
                   Text('LEADS', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
                   IconButton(
+                    tooltip: 'Close',
                     icon: const Icon(Icons.close, size: 18),
                     color: _muted,
                     onPressed: () => Navigator.of(context).pop(),
@@ -6268,6 +6288,7 @@ class _TeamRoomContentState extends State<_TeamRoomContent> {
                 children: [
                   Text('TEAM', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
                   IconButton(
+                    tooltip: 'Close',
                     icon: const Icon(Icons.close, size: 18),
                     color: _muted,
                     onPressed: () => Navigator.of(context).pop(),
@@ -6562,6 +6583,7 @@ class _PermissionsRoomContentState extends State<_PermissionsRoomContent> {
                 children: [
                   Text('PERMISSIONS', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
                   IconButton(
+                    tooltip: 'Close',
                     icon: const Icon(Icons.close, size: 18),
                     color: _muted,
                     onPressed: () => Navigator.of(context).pop(),
@@ -6710,6 +6732,7 @@ class _ProjectsRoomContentState extends State<_ProjectsRoomContent> {
                 children: [
                   Text('PROJECTS', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
                   IconButton(
+                    tooltip: 'Close',
                     icon: const Icon(Icons.close, size: 18),
                     color: _muted,
                     onPressed: () => Navigator.of(context).pop(),
@@ -6857,6 +6880,7 @@ class _StockRoomContentState extends State<_StockRoomContent> {
                 children: [
                   Text('STOCK', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
                   IconButton(
+                    tooltip: 'Close',
                     icon: const Icon(Icons.close, size: 18),
                     color: _muted,
                     onPressed: () => Navigator.of(context).pop(),
@@ -6978,6 +7002,7 @@ class _FinancialSnapshotRoomContentState extends State<_FinancialSnapshotRoomCon
                 children: [
                   Text('FINANCIAL SNAPSHOT', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
                   IconButton(
+                    tooltip: 'Close',
                     icon: const Icon(Icons.close, size: 18),
                     color: _muted,
                     onPressed: () => Navigator.of(context).pop(),
@@ -7120,6 +7145,7 @@ class _AgedDebtorsRoomContentState extends State<_AgedDebtorsRoomContent> {
                 children: [
                   Text('AGED DEBTORS', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
                   IconButton(
+                    tooltip: 'Close',
                     icon: const Icon(Icons.close, size: 18),
                     color: _muted,
                     onPressed: () => Navigator.of(context).pop(),
@@ -7174,7 +7200,7 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return A11yButton(label: label, selected: selected, onTap: onTap, child: GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -7188,7 +7214,7 @@ class _FilterChip extends StatelessWidget {
           style: GoogleFonts.ibmPlexMono(color: selected ? _emberRed : _textTertiary, fontSize: 10.5, fontWeight: FontWeight.w600, letterSpacing: 0.5),
         ),
       ),
-    );
+    ));
   }
 }
 
@@ -7241,6 +7267,17 @@ class _FilamentOrbState extends State<FilamentOrb> with SingleTickerProviderStat
     }
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reduced motion: the shader's own clock stops, so nothing here repaints on its own.
+    if (reducedMotion(context)) {
+      _ticker.stop();
+    } else if (!_ticker.isAnimating) {
+      _ticker.repeat();
+    }
+  }
+
   Future<void> _loadShader() async {
     final program = await ui.FragmentProgram.fromAsset('shaders/filament_orb.frag');
     if (!mounted) return;
@@ -7250,6 +7287,7 @@ class _FilamentOrbState extends State<FilamentOrb> with SingleTickerProviderStat
   @override
   Widget build(BuildContext context) {
     final program = _program;
+    final still = reducedMotion(context);
     if (program == null) return const SizedBox.shrink();
 
     return AnimatedBuilder(
@@ -7260,9 +7298,9 @@ class _FilamentOrbState extends State<FilamentOrb> with SingleTickerProviderStat
           painter: _FilamentOrbPainter(
             program: program,
             energy: widget.isRecording ? 1.0 : 0.0,
-            time: DateTime.now().difference(_start).inMilliseconds / 1000.0,
-            tapTime: _tapTime,
-            ignitionTime: _ignitionTime,
+            time: still ? 4.0 : DateTime.now().difference(_start).inMilliseconds / 1000.0,
+            tapTime: still ? -1 : _tapTime,
+            ignitionTime: still ? -1 : _ignitionTime,
             reactColor: _reactColor,
           ),
         );
@@ -7343,6 +7381,17 @@ class _VoidLakeState extends State<VoidLake> with SingleTickerProviderStateMixin
     _loadShader();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reduced motion: the shader's own clock stops, so nothing here repaints on its own.
+    if (reducedMotion(context)) {
+      _ticker.stop();
+    } else if (!_ticker.isAnimating) {
+      _ticker.repeat();
+    }
+  }
+
   Future<void> _loadShader() async {
     final program = await ui.FragmentProgram.fromAsset('shaders/void_lake.frag');
     if (!mounted) return;
@@ -7352,6 +7401,7 @@ class _VoidLakeState extends State<VoidLake> with SingleTickerProviderStateMixin
   @override
   Widget build(BuildContext context) {
     final program = _program;
+    final still = reducedMotion(context);
     // Deliberate, honest fallback - the exact, real _void color, so
     // there's never a flash of an unstyled background while the
     // shader loads.
@@ -7363,7 +7413,7 @@ class _VoidLakeState extends State<VoidLake> with SingleTickerProviderStateMixin
         size: Size.infinite,
         painter: _VoidLakePainter(
           program: program,
-          time: DateTime.now().difference(_start).inMilliseconds / 1000.0,
+          time: still ? 4.0 : DateTime.now().difference(_start).inMilliseconds / 1000.0,
         ),
       ),
     );
@@ -7773,12 +7823,12 @@ class _TalkArea extends StatelessWidget {
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  Positioned(left: 12, top: 0, child: _EmberTear(key: tasksTestEmberKey, program: emberTearProgram!, color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), clock: clock, isThinking: thinkingEmberId == 'tasks', seedOffset: 0.0)),
-                  Positioned(left: 4, top: 55, child: _EmberTear(key: schedulerEmberKey, program: emberTearProgram!, color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), clock: clock, isThinking: thinkingEmberId == 'scheduler', seedOffset: 1.0)),
-                  Positioned(left: 16, top: 110, child: _EmberTear(key: financeEmberKey, program: emberTearProgram!, color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), clock: clock, isThinking: thinkingEmberId == 'finance', seedOffset: 2.0)),
-                  Positioned(left: 2, top: 165, child: _EmberTear(key: suppliersEmberKey, program: emberTearProgram!, color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), clock: clock, isThinking: thinkingEmberId == 'suppliers', seedOffset: 3.0)),
-                  Positioned(left: 14, top: 220, child: _EmberTear(key: pendingEmberKey, program: emberTearProgram!, color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'), clock: clock, isThinking: thinkingEmberId == 'pending', seedOffset: 4.0)),
-                  Positioned(left: 26, top: 275, child: _EmberTear(key: peopleEmberKey, program: emberTearProgram!, color: _breathe, count: 0, onTap: () => onEmberTap('people'), clock: clock, isThinking: thinkingEmberId == 'people', seedOffset: 5.0)),
+                  Positioned(left: 12, top: 0, child: A11yButton(label: emberLabel('Tasks', embers.tasks), replaceChild: false, child: _EmberTear(key: tasksTestEmberKey, program: emberTearProgram!, color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), clock: clock, isThinking: thinkingEmberId == 'tasks', seedOffset: 0.0))),
+                  Positioned(left: 4, top: 55, child: A11yButton(label: emberLabel('Schedule', embers.scheduler), replaceChild: false, child: _EmberTear(key: schedulerEmberKey, program: emberTearProgram!, color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), clock: clock, isThinking: thinkingEmberId == 'scheduler', seedOffset: 1.0))),
+                  Positioned(left: 16, top: 110, child: A11yButton(label: emberLabel('Finance', embers.finance), replaceChild: false, child: _EmberTear(key: financeEmberKey, program: emberTearProgram!, color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), clock: clock, isThinking: thinkingEmberId == 'finance', seedOffset: 2.0))),
+                  Positioned(left: 2, top: 165, child: A11yButton(label: emberLabel('Suppliers', embers.suppliers), replaceChild: false, child: _EmberTear(key: suppliersEmberKey, program: emberTearProgram!, color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), clock: clock, isThinking: thinkingEmberId == 'suppliers', seedOffset: 3.0))),
+                  Positioned(left: 14, top: 220, child: A11yButton(label: emberLabel('Pending', embers.pending), replaceChild: false, child: _EmberTear(key: pendingEmberKey, program: emberTearProgram!, color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'), clock: clock, isThinking: thinkingEmberId == 'pending', seedOffset: 4.0))),
+                  Positioned(left: 26, top: 275, child: A11yButton(label: emberLabel('People', 0), replaceChild: false, child: _EmberTear(key: peopleEmberKey, program: emberTearProgram!, color: _breathe, count: 0, onTap: () => onEmberTap('people'), clock: clock, isThinking: thinkingEmberId == 'people', seedOffset: 5.0))),
                 ],
               ),
             ),
@@ -7802,12 +7852,12 @@ class _TalkArea extends StatelessWidget {
                 // would cut it off right at that boundary.
                 clipBehavior: Clip.none,
                 children: [
-                  Positioned(left: 10, top: 18, child: _Ember(key: tasksTestEmberKey, color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), clock: clock, isThinking: thinkingEmberId == 'tasks', tapPulse: () => tapPulseFor('tasks'))),
-                  Positioned(left: 46, top: 2, child: _Ember(key: schedulerEmberKey, color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), clock: clock, isThinking: thinkingEmberId == 'scheduler', tapPulse: () => tapPulseFor('scheduler'))),
-                  Positioned(left: 74, top: 24, child: _Ember(key: financeEmberKey, color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), clock: clock, isThinking: thinkingEmberId == 'finance', tapPulse: () => tapPulseFor('finance'))),
-                  Positioned(left: 104, top: 6, child: _Ember(key: suppliersEmberKey, color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), clock: clock, isThinking: thinkingEmberId == 'suppliers', tapPulse: () => tapPulseFor('suppliers'))),
-                  Positioned(left: 132, top: 20, child: _Ember(key: pendingEmberKey, color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'), clock: clock, isThinking: thinkingEmberId == 'pending', tapPulse: () => tapPulseFor('pending'))),
-                  Positioned(left: 160, top: 34, child: _Ember(key: peopleEmberKey, color: _breathe, count: 0, onTap: () => onEmberTap('people'), clock: clock, isThinking: thinkingEmberId == 'people', tapPulse: () => tapPulseFor('people'))),
+                  Positioned(left: 10, top: 18, child: A11yButton(label: emberLabel('Tasks', embers.tasks), replaceChild: false, child: _Ember(key: tasksTestEmberKey, color: _emberAmber, count: embers.tasks, onTap: () => onEmberTap('tasks'), clock: clock, isThinking: thinkingEmberId == 'tasks', tapPulse: () => tapPulseFor('tasks')))),
+                  Positioned(left: 46, top: 2, child: A11yButton(label: emberLabel('Schedule', embers.scheduler), replaceChild: false, child: _Ember(key: schedulerEmberKey, color: _emberBlue, count: embers.scheduler, onTap: () => onEmberTap('scheduler'), clock: clock, isThinking: thinkingEmberId == 'scheduler', tapPulse: () => tapPulseFor('scheduler')))),
+                  Positioned(left: 74, top: 24, child: A11yButton(label: emberLabel('Finance', embers.finance), replaceChild: false, child: _Ember(key: financeEmberKey, color: _emberRed, count: embers.finance, onTap: () => onEmberTap('finance'), clock: clock, isThinking: thinkingEmberId == 'finance', tapPulse: () => tapPulseFor('finance')))),
+                  Positioned(left: 104, top: 6, child: A11yButton(label: emberLabel('Suppliers', embers.suppliers), replaceChild: false, child: _Ember(key: suppliersEmberKey, color: _emberPurple, count: embers.suppliers, onTap: () => onEmberTap('suppliers'), clock: clock, isThinking: thinkingEmberId == 'suppliers', tapPulse: () => tapPulseFor('suppliers')))),
+                  Positioned(left: 132, top: 20, child: A11yButton(label: emberLabel('Pending', embers.pending), replaceChild: false, child: _Ember(key: pendingEmberKey, color: _emberSage, count: embers.pending, onTap: () => onEmberTap('pending'), clock: clock, isThinking: thinkingEmberId == 'pending', tapPulse: () => tapPulseFor('pending')))),
+                  Positioned(left: 160, top: 34, child: A11yButton(label: emberLabel('People', 0), replaceChild: false, child: _Ember(key: peopleEmberKey, color: _breathe, count: 0, onTap: () => onEmberTap('people'), clock: clock, isThinking: thinkingEmberId == 'people', tapPulse: () => tapPulseFor('people')))),
                 ],
               ),
             ),
@@ -7836,14 +7886,14 @@ class _TalkArea extends StatelessWidget {
                 // smoother than the original's linear triangle wave
                 // (0..1..0 via reverse:true), and a better match for
                 // "breathe" as a metaphor.
-                final breatheValue = (math.sin(clock.elapsedSeconds * (2 * math.pi / 8)) + 1) / 2;
+                final breatheValue = (math.sin(motionSeconds(context, clock.elapsedSeconds) * (2 * math.pi / 8)) + 1) / 2;
                 final baseColor = isRecording ? _pulse : (isAllClear ? _breathe : _pulse);
                 // Real, genuine performance fix: replaces the previous
                 // BoxShadow blur with a CustomPainter glow halo layered
                 // behind the solid circle - same rationale as the
                 // embers' _EmberGlowPainter, no blur kernel recomputed
                 // every tick.
-                return GestureDetector(
+                return A11yButton(label: isRecording ? 'Stop listening' : 'Talk to The Office', onTap: onMicTap, child: GestureDetector(
                   onTap: onMicTap,
                   child: SizedBox(
                     width: 160,
@@ -7939,7 +7989,7 @@ class _TalkArea extends StatelessWidget {
                       ],
                     ),
                   ),
-                );
+                ));
               },
                 ),
               ),
@@ -7964,18 +8014,21 @@ class _TalkArea extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               IconButton(
+                tooltip: 'Take a photo',
                 iconSize: 18,
                 icon: const Icon(Icons.camera_alt_outlined),
                 color: _textTertiary.withOpacity(0.08),
                 onPressed: onCameraTap,
               ),
               IconButton(
+                tooltip: 'Attach a document',
                 iconSize: 18,
                 icon: const Icon(Icons.attach_file),
                 color: _textTertiary.withOpacity(0.08),
                 onPressed: onDocumentTap,
               ),
               IconButton(
+                tooltip: 'Type instead',
                 iconSize: 18,
                 icon: const Icon(Icons.edit_outlined),
                 color: _textTertiary.withOpacity(0.08),
@@ -8113,9 +8166,13 @@ class _ActiveResponseState extends State<_ActiveResponse> with SingleTickerProvi
       _particles = _seedParticles(msg.id);
       _dissolveTimer?.cancel();
       _dissolveTimer = null;
-      _controller
-        ..reset()
-        ..forward();
+      if (reducedMotionNow()) {
+        _controller.value = 1.0;   // reduced motion: the reply is simply there, no gathering light
+      } else {
+        _controller
+          ..reset()
+          ..forward();
+      }
     }
     _maybeArmDissolve();
   }
@@ -8157,7 +8214,7 @@ class _ActiveResponseState extends State<_ActiveResponse> with SingleTickerProvi
       // scatters back outward as the response leaves — order
       // returning to chaos on the way out, the same real system
       // playing backward, not a second effect built to match.
-      await _controller.reverse();
+      if (!reducedMotionNow()) await _controller.reverse();
       if (mounted) widget.onDismissed();
     });
   }
@@ -8228,7 +8285,7 @@ class _ActiveResponseState extends State<_ActiveResponse> with SingleTickerProvi
                     child: SingleChildScrollView(
                       child: hasPending
                   ? _MessageLine(message: msg, onConfirm: widget.onConfirm, onReject: widget.onReject, onEditField: widget.onEditField)
-                  : Text(
+                  : A11yLive(child: Text(
                       msg.text,
                       textAlign: TextAlign.center,
                       style: GoogleFonts.workSans(
@@ -8240,7 +8297,7 @@ class _ActiveResponseState extends State<_ActiveResponse> with SingleTickerProvi
                           Shadow(color: _pulse.withOpacity(0.22), blurRadius: 54),
                         ],
                       ),
-                    ),
+                    )),
                     ),
                   );
                 },
@@ -8811,6 +8868,7 @@ class _EditableChangesListState extends State<_EditableChangesList> {
                         ),
                       ),
                       IconButton(
+                        tooltip: 'Save',
                         icon: const Icon(Icons.check, size: 16, color: _confirmedGreen),
                         onPressed: () => _submit(change.field, value: _editController.text),
                       ),
