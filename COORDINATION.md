@@ -38,3 +38,5 @@ Ops (`claim/ops-lapse-check`): `prod-billing-state.yml` (test businesses only) s
 Slice 3 (`claim/frontend-3-motion-a11y`): reduced motion and screen-reader labels, DONE and merged (not verified on a device). Still unclaimed: sending workspace context; reading the reply envelope; a history view; an analysis view; tests for the rest of the app.
 
 Slice 4 (`claim/frontend-4-envelope`): reading the reply envelope, DONE and merged (reader plus a gap-filling safety net; not verified on a device). Still unclaimed: sending workspace context; a history view; an analysis view; tests for the rest of the app.
+
+Slice 5 (`claim/frontend-5-context`): PARKED, nothing built; reason in DECISIONS.md (no screen is on screen while a message is sent). Next in order: (c) history view, (d) analysis view, then context (b) under a new claim.
