@@ -18,6 +18,7 @@ import 'package:image_picker/image_picker.dart';
 
 import 'access_guard.dart';
 import 'accessibility.dart';
+import 'history_model.dart';
 import 'plans_link.dart';
 import 'reply_envelope.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
@@ -1471,6 +1472,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         onReportsTap: (_) => _showReportsSheet(),
         onPeopleTap: _showPeopleSheet,
         onHistoryTap: (_) => _showHistorySheet(),
+        onActivityTap: _showActivitySheet,
         onBusinessProfileTap: (_) => _showBusinessProfileSheet(),
         onSnagsTap: _showSnagsSheet,
         onLeadsTap: _showLeadsSheet,
@@ -2137,6 +2139,20 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   // becomes a real, searchable/indexed room, the same pattern as
   // everything else - no more bubbles/orbs. Same proven doorway as
   // every other room.
+  // Front-end slice 6: the activity record (GET /history). A separate room beside History, which still shows the older captures list:
+  // history here is a record of turns (heard, generated, held, decided, written), not the main experience.
+  Future<void> _showActivitySheet(Offset origin) async {
+    await _igniteEmber(origin, _emberBlue);
+    if (!mounted) return;
+    await showOfficeRoom(
+      context: context,
+      officeState: _officeState,
+      origin: origin,
+      accentColor: _emberBlue,
+      builder: (context) => _ActivityRoomContent(authHeaders: _authHeaders(), isOwner: _userRole == 'owner'),
+    );
+  }
+
   Future<void> _showPeopleSheet(Offset origin) async {
     await _igniteEmber(origin, _breathe);
     if (!mounted) return;
@@ -2385,6 +2401,7 @@ class _OfficeDrawer extends StatelessWidget {
   final void Function(Offset) onReportsTap;
   final void Function(Offset) onPeopleTap;
   final void Function(Offset) onHistoryTap;
+  final void Function(Offset) onActivityTap;
   final void Function(Offset) onBusinessProfileTap;
   final void Function(Offset) onSnagsTap;
   final void Function(Offset) onLeadsTap;
@@ -2399,6 +2416,7 @@ class _OfficeDrawer extends StatelessWidget {
     required this.onReportsTap,
     required this.onPeopleTap,
     required this.onHistoryTap,
+    required this.onActivityTap,
     required this.onBusinessProfileTap,
     required this.onSnagsTap,
     required this.onLeadsTap,
@@ -2428,6 +2446,7 @@ class _OfficeDrawer extends StatelessWidget {
             ),
             _drawerItem(Icons.description_outlined, 'Reports & Documents', onReportsTap, context),
             _drawerItem(Icons.history, 'History', onHistoryTap, context),
+            _drawerItem(Icons.receipt_long_outlined, 'Activity', onActivityTap, context),
             // Real, new item, per direct instruction after a real,
             // confirmed gap: the logo could be stored and served back
             // correctly, but there was never a real, discoverable way
@@ -8900,3 +8919,201 @@ class _EditableChangesListState extends State<_EditableChangesList> {
     );
   }
 }
+
+
+class _ActivityRoomContent extends StatefulWidget {
+  final Map<String, String> authHeaders;
+  final bool isOwner;
+  const _ActivityRoomContent({required this.authHeaders, required this.isOwner});
+
+  @override
+  State<_ActivityRoomContent> createState() => _ActivityRoomContentState();
+}
+
+class _ActivityRoomContentState extends State<_ActivityRoomContent> {
+  String _scope = 'me'; // 'all' is the owner's view of everyone; the server refuses it for anyone else
+  List<HistoryTurn> _turns = [];
+  int? _next;
+  bool _loading = true;
+  bool _loadingMore = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch({bool more = false}) async {
+    final scopeAtStart = _scope;
+    if (more) {
+      if (_next == null || _loadingMore) return;
+      setState(() => _loadingMore = true);
+    } else {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
+    try {
+      final before = more ? '&before=$_next' : '';
+      final response = await http.get(Uri.parse('$officeApiBase/history?who=$scopeAtStart&limit=20$before'), headers: widget.authHeaders);
+      if (!mounted || _scope != scopeAtStart) return;
+      if (response.statusCode == 200) {
+        final page = parseHistory(jsonDecode(response.body));
+        setState(() {
+          _loading = false;
+          _loadingMore = false;
+          if (page == null) {
+            _error = 'This record is in a format this version of the app cannot read yet.';
+          } else {
+            _error = null;
+            _turns = more ? [..._turns, ...page.turns] : page.turns;
+            _next = page.next;
+          }
+        });
+      } else {
+        setState(() {
+          _loading = false;
+          _loadingMore = false;
+          _error = response.statusCode == 403 ? 'Only the owner can see everyone\'s activity.' : 'Could not load the activity record right now.';
+        });
+      }
+    } catch (_) {
+      if (!mounted || _scope != scopeAtStart) return;
+      setState(() {
+        _loading = false;
+        _loadingMore = false;
+        _error = 'Could not load the activity record right now.';
+      });
+    }
+  }
+
+  void _setScope(String scope) {
+    if (_scope == scope) return;
+    setState(() {
+      _scope = scope;
+      _turns = [];
+      _next = null;
+    });
+    _fetch();
+  }
+
+  Widget _line(String tag, String text, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(tag, style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 9.5, letterSpacing: 1)),
+          const SizedBox(height: 2),
+          Text(text, style: GoogleFonts.workSans(color: color, fontSize: 14, height: 1.35)),
+        ],
+      ),
+    );
+  }
+
+  Widget _turnCard(HistoryTurn t) {
+    final when = parseTurnTime(t.at);
+    final heading = [
+      if (when != null) formatShort(when.toLocal()),
+      if (t.source != null) t.source!,
+      if (_scope == 'all' && t.actor != null) t.actor!,
+    ].join('  \u00b7  ');
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (heading.isNotEmpty) Text(heading.toUpperCase(), style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 1)),
+          _line('HEARD', t.heard ?? '(the recording is no longer on file)', _paper),
+          if (t.replied != null && t.replied!.isNotEmpty) _line('THE OFFICE SAID', t.replied!, _muted),
+          for (final p in t.proposed) _line('HELD', '${p.type ?? 'action'}  \u00b7  ${p.status ?? 'unknown'}', _muted),
+          for (final d in t.decisions) _line('DECISION', decisionLine(d), _muted),
+          if (t.recordsWritten.isNotEmpty) _line('CREATED', recordsLine(t.recordsWritten), _muted),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: _void,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('ACTIVITY', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                  IconButton(
+                    tooltip: 'Close',
+                    icon: const Icon(Icons.close, size: 18),
+                    color: _muted,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              if (widget.isOwner) ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    _FilterChip(label: 'MINE', selected: _scope == 'me', onTap: () => _setScope('me')),
+                    const SizedBox(width: 8),
+                    _FilterChip(label: 'EVERYONE', selected: _scope == 'all', onTap: () => _setScope('all')),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 8),
+              if (_loading)
+                const Padding(padding: EdgeInsets.only(top: 24), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+              else if (_error != null)
+                Padding(padding: const EdgeInsets.only(top: 24), child: Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else if (_turns.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 24),
+                  child: Text(
+                    _scope == 'all' ? 'Nothing has been recorded yet.' : 'Nothing recorded yet. Each time you talk to The Office, the turn appears here.',
+                    style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic),
+                  ),
+                )
+              else
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.only(top: 4),
+                    itemCount: _turns.length + (_next != null ? 1 : 0),
+                    separatorBuilder: (_, __) => Divider(height: 1, color: _textTertiary.withOpacity(0.1)),
+                    itemBuilder: (context, index) {
+                      if (index >= _turns.length) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          child: _loadingMore
+                              ? const Center(child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2)))
+                              : A11yButton(
+                                  label: 'Show older activity',
+                                  onTap: () => _fetch(more: true),
+                                  child: GestureDetector(
+                                    onTap: () => _fetch(more: true),
+                                    child: Text('SHOW OLDER', style: GoogleFonts.ibmPlexMono(color: _emberBlue, fontSize: 11, letterSpacing: 1.2)),
+                                  ),
+                                ),
+                        );
+                      }
+                      return _turnCard(_turns[index]);
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
