@@ -7923,3 +7923,5 @@ Pierre shared a note arguing for "one coordinator per business, add more objects
 
 **Not done, said plainly.** Sending workspace context; reduced motion and accessible labels (the largest gap against the doctrine); reading the reply envelope; a history view; an analysis view; and tests for the rest of the app.
 
+
+**Front-end slice 3 (2026-10-20).** (1) Reduced motion holds things still, it does not remove them: state is still shown (the orb still tells listening from idle, the ember still shows its count). (2) I did NOT pause the shared clock, although it would have stilled everything at once: the dissolving words are driven by it and would never have gone away. Each moving thing is stilled where it is drawn instead. (3) A reply under reduced motion is simply shown and removed, with no fade, so it is never left half visible. (4) Touch feedback (the ember flash, tap pulse, hold-to-confirm) is left as is: it answers the person's own touch and the hold is how a change is confirmed. Not verified on a device.
