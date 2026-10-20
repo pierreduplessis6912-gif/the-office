@@ -11,6 +11,7 @@
 // test suite (the 165-case role matrix, the PDF-signing round-trip,
 // the CORS allowlist test, and the live-bug regression test) all
 // re-extract from this file now and still pass.
+import { bearerKey, parseKey } from "./mcp-key-format";
 import { businessLapsed } from "./access";
 import { isBusinessId } from "./directory";
 import { authorizeAdmin } from "./admin-gate";
@@ -994,6 +995,9 @@ export async function authGate(request: Request, env: Env, url: URL): Promise<Re
   // this exact path, is required instead of a blanket exemption — a
   // customer link and the owner's own in-app tap (via launchUrl, which
   // carries no session at all) both rely on this, not on being signed in.
+  // The read-only MCP endpoint (mcp.ts) is opened by its OWN key and by nothing else: a session is neither needed nor accepted there. A request without a well-formed key is refused here (independent of ENFORCE_APP_AUTH, like the signed-link routes above); the key itself is verified against the business's keys, and the member checked, on every call in the handler.
+  if (path === "/mcp") return parseKey(bearerKey(request)) === null ? Response.json({ error: "unauthorized" }, { status: 401, headers: { "WWW-Authenticate": "Bearer" } }) : null;
+
   if (path.endsWith("/pdf")) {
     const sig = url.searchParams.get("sig");
     const ok = await verifyDocumentToken(env, path, sig);

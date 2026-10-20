@@ -64,3 +64,5 @@ MCP adapter (Pierre, 2026-10-20): shape decided and recorded in `MCP_ARCHITECTUR
 MCP slice A (`claim/mcp-a-key-core`): the credential core is built and tested on the branch `feat/mcp-key-core` and is NOT merged: Pierre reviews the diff first (security-sensitive). Next: slice B (owner-only routes to issue, list and revoke keys).
 
 MCP slice B (`claim/mcp-b-key-routes`): the owner-only key routes are built and tested on the branch `feat/mcp-key-routes` (on top of slice A) and are NOT merged: Pierre reviews first. Next: slice C, the `/mcp` endpoint and the five read-only tools.
+
+MCP slice C (`claim/mcp-c-endpoint`): the `/mcp` endpoint and the five read-only tools are built and tested on the branch `feat/mcp-endpoint` and are NOT merged: Pierre reviews first (the first place a key reads data). Next: slice D, the app screen for keys.

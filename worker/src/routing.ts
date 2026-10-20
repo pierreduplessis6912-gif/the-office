@@ -3,6 +3,7 @@
 // Architecture stage 2b, 2026-10-12. A request is routed with NO database lookup: a signed-in member's session carries the business id (`b`), a customer's signed link carries it, and an
 // administrator names it in a header. The router verifies the signature before it trusts a session, and what it finds is only a ROUTING hint: every object independently refuses a session
 // or a link made for another business (auth.ts), so a mistake here can send a request to the wrong object but can never show it another business's data.
+import { bearerKey, peekBusinessFromKey } from "./mcp-key-format";
 import { getSessionToken, isAdminPath, peekBusinessFromToken, peekIsLegacyLink, readSessionPayload } from "./auth";
 import { safeEqual } from "./admin-gate";
 import { isBusinessId, objectNameFor } from "./directory";
@@ -31,6 +32,11 @@ export async function routeRequest(request: Request, env: Env): Promise<Route> {
       return { kind: "business", businessId: target };
     }
     return { kind: "worker" };
+  }
+  if (path === "/mcp") {
+    // The read-only MCP endpoint is opened by a key that names its business: hand the request to that business's object, which verifies the key. A missing or malformed key wakes nothing: the Worker's own gate refuses it.
+    const business = peekBusinessFromKey(bearerKey(request));
+    return business ? { kind: "business", businessId: business } : { kind: "worker" };
   }
   if (path.endsWith("/pdf")) {
     const business = peekBusinessFromToken(url.searchParams.get("sig"));

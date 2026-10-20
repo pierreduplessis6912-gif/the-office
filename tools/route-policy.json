@@ -480,6 +480,18 @@
   "class": "owner only"
  },
  {
+  "route": "GET /mcp",
+  "pattern": "/mcp",
+  "how": "exact path, any method",
+  "none": 401,
+  "owner": 401,
+  "accountant": 401,
+  "installer": 401,
+  "sales": 401,
+  "admin": 401,
+  "class": "own key"
+ },
+ {
   "route": "GET /mcp-keys",
   "pattern": "/mcp-keys",
   "how": "exact path",
@@ -1102,6 +1114,18 @@
   "sales": 403,
   "admin": 403,
   "class": "owner only"
+ },
+ {
+  "route": "POST /mcp",
+  "pattern": "/mcp",
+  "how": "exact path, any method",
+  "none": 401,
+  "owner": 401,
+  "accountant": 401,
+  "installer": 401,
+  "sales": 401,
+  "admin": 401,
+  "class": "own key"
  },
  {
   "route": "POST /mcp-keys",

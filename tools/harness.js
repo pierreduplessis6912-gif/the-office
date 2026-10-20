@@ -339,6 +339,7 @@ async function __runRouteCase(fns, workerDir, spec) {
   Object.assign(env, spec.env || {});   // a case may add environment (for example BUSINESS_ID, as inside a business's own object)
   const call = async (step) => {
     const headers = step.form ? {} : { 'content-type': 'application/json' };   // a form sets its own boundary
+    if (step.headers) Object.assign(headers, step.headers);   // extra request headers, for a route with its own credential (the MCP endpoint's bearer key)
     if (step.admin) headers['X-Admin-Key'] = env.ADMIN_KEY;
     if (step.admin && !step.adminNoConfirm && env.ADMIN_CONFIRM_KEY) headers['X-Admin-Confirm'] = env.ADMIN_CONFIRM_KEY;   // privileged admin routes also need the second secret   // /debug and /admin routes are opened by the admin key, never by a session
     else if (!step.noSession) headers.cookie = `office_session=${await auth.signSession(env, `${step.role || 'owner'}@example.com`)}`;

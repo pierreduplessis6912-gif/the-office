@@ -4,6 +4,7 @@ import { decisionOf, parseHistoryParams, readHistory, recordDecision, recordInte
 import { agedCreditorsData, agedDebtorsData, customerReceivablesData, parseCustomerParam, parsePeriodParams, profitAndLossData } from "./reports-data";
 import { withExperience } from "./experience";
 import { followUpReply, tryFollowUp } from "./followup";
+import { handleMcp } from "./mcp";
 import { issueKey, listKeys, revokeKey } from "./mcp-keys";
 import { analysisData, parseAnalysisParams } from "./analysis";
 import { businessLapsed } from "./access";
@@ -876,6 +877,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
     // The owner's own team (team.ts): list, add, change a role, deactivate, reactivate. Owner only: every route needs can_invite_members (ROUTE_RULES in auth.ts), which no other role can ever hold. The handlers learn who is acting from the
     // session, so "yourself" and "who added them" are real.
     // The owner's read-only keys for outside assistants (mcp-keys.ts; MCP_ARCHITECTURE.md). Owner only (can_invite_members, which can never be granted to another role). A key is in the answer to POST ONCE and nowhere else: only its hash is stored, and the list never shows it.
+    // The read-only MCP endpoint (mcp.ts): opened by its own key, never by a session. The gate has already refused a request with no well-formed key; the handler verifies the key on every call.
+    if (url.pathname === "/mcp") return handleMcp(request, env);
     if (url.pathname === "/mcp-keys" && request.method === "GET") {
       return Response.json({ keys: await listKeys(env) });
     }

@@ -4,12 +4,9 @@
 import { safeEqual } from "./admin-gate";
 import { getRoleCapabilities } from "./auth";
 import { isBusinessId } from "./directory";
+import { KEY_ID_PATTERN, KEY_PREFIX, parseKey } from "./mcp-key-format";
 import type { Env } from "./types";
 
-const PREFIX = "omk";
-const MAX_KEY_CHARS = 200;
-const KEY_ID = /^[0-9a-f]{16}$/;
-const SECRET = /^[A-Za-z0-9_-]{43}$/;
 const MAX_LABEL = 60;
 export const MAX_ACTIVE_KEYS = 10;
 const NO_HASH = "0".repeat(64);   // what a missing key is compared against, so it costs the same as a wrong secret
@@ -18,31 +15,8 @@ const hex = (bytes: Uint8Array): string => [...bytes].map((b) => b.toString(16).
 const base64Url = (bytes: Uint8Array): string => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 async function sha256Hex(text: string): Promise<string> { return hex(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)))); }
 
-export interface ParsedKey { businessId: string; keyId: string; secret: string }
-
-/** Reads a key string. Null unless it is EXACTLY the format: a malformed string never goes further. */
-export function parseKey(raw: unknown): ParsedKey | null {
-  if (typeof raw !== "string" || raw.length === 0 || raw.length > MAX_KEY_CHARS) return null;
-  const parts = raw.split(".");
-  if (parts.length !== 4 || parts[0] !== PREFIX) return null;
-  const [, businessId, keyId, secret] = parts;
-  if (!isBusinessId(businessId) || !KEY_ID.test(keyId) || !SECRET.test(secret)) return null;
-  return { businessId, keyId, secret };
-}
-
-/** The business a key names, read WITHOUT verifying it, only so the Worker can hand the request to that business's object (which verifies). Null for anything malformed. */
-export function peekBusinessFromKey(raw: unknown): string | null {
-  const parsed = parseKey(raw);
-  return parsed === null ? null : parsed.businessId;
-}
-
-/** The key from an `Authorization: Bearer <key>` header, or null. */
-export function bearerKey(request: Request): string | null {
-  const header = request.headers.get("Authorization");
-  if (header === null) return null;
-  const match = /^Bearer ([^\s]+)$/i.exec(header.trim());
-  return match === null ? null : match[1];
-}
+// The key FORMAT (parseKey, peekBusinessFromKey, bearerKey) lives in mcp-key-format.ts so the gate and the router can use it without this module; it is re-exported here.
+export { bearerKey, parseKey, peekBusinessFromKey, type ParsedKey } from "./mcp-key-format";
 
 async function ensureTable(env: Env): Promise<void> {
   await env.OFFICE_DB.prepare("CREATE TABLE IF NOT EXISTS mcp_keys (id TEXT PRIMARY KEY, label TEXT NOT NULL, email TEXT NOT NULL, hash TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), created_by TEXT NOT NULL, last_used_at TEXT, revoked_at TEXT, uses INTEGER NOT NULL DEFAULT 0)").run();
@@ -71,7 +45,7 @@ export async function issueKey(env: Env, input: { businessId: string; email: unk
   const id = hex(crypto.getRandomValues(new Uint8Array(8)));
   const secret = base64Url(crypto.getRandomValues(new Uint8Array(32)));
   await env.OFFICE_DB.prepare("INSERT INTO mcp_keys (id, label, email, hash, created_by) VALUES (?, ?, ?, ?, ?)").bind(id, label, email, await sha256Hex(secret), createdBy).run();
-  return { ok: true, id, key: `${PREFIX}.${input.businessId}.${id}.${secret}`, label, email };
+  return { ok: true, id, key: `${KEY_PREFIX}.${input.businessId}.${id}.${secret}`, label, email };
 }
 
 export interface KeySummary { id: string; label: string; email: string; created_at: string; created_by: string; last_used_at: string | null; revoked_at: string | null; uses: number }
@@ -85,7 +59,7 @@ export async function listKeys(env: Env): Promise<KeySummary[]> {
 
 /** Revokes a key at once. Idempotent. `found` is false only for an id that does not exist. */
 export async function revokeKey(env: Env, id: unknown): Promise<{ found: boolean }> {
-  if (typeof id !== "string" || !KEY_ID.test(id)) return { found: false };
+  if (typeof id !== "string" || !KEY_ID_PATTERN.test(id)) return { found: false };
   await ensureTable(env);
   const row = await env.OFFICE_DB.prepare("SELECT id FROM mcp_keys WHERE id = ?").bind(id).first<{ id: string }>();
   if (!row) return { found: false };

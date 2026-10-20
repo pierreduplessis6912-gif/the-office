@@ -24,7 +24,7 @@ async function routePolicyTests({ check, srcDir, path, fs }) {
   const missing = [...obs.keys()].filter((k) => !exp.has(k)), stale = [...exp.keys()].filter((k) => !obs.has(k));
   check(missing.length === 0, `every route must be in tools/route-policy.json (run node tools/route-policy-gen.js and review the diff). Not in it: ${missing.join(', ')}`);
   check(stale.length === 0, `tools/route-policy.json must list only routes that exist. Listed but not found: ${stale.join(', ')}`);
-  check(observed.length === 105, 'there are 105 route rows (101 routes, with confirm, reject and edit-field each shown for a money, a stock and a job action)');
+  check(observed.length === 107, 'there are 107 route rows (103 routes, with confirm, reject and edit-field each shown for a money, a stock and a job action)');
 
   // ---- the real gate behaves exactly as the file says, for each kind of caller ------------------------------------------------------------
   const changed = [];
@@ -48,13 +48,14 @@ async function routePolicyTests({ check, srcDir, path, fs }) {
   check(rows.filter((r) => r.class === 'owner only' && (r.admin === 'A' || r.sales === 'A')).length === 0 && rows.filter((r) => r.owner === 'A' && r.accountant !== 'A' && r.installer !== 'A' && (r.admin === 'A' || r.sales === 'A')).length === 0, 'a route only the owner can reach is NEVER reachable by an admin or a sales role');
   check(rows.filter((r) => /^(GET|POST|PATCH) \/(team|settings)/.test(r.route) && r.class !== 'public').every((r) => r.owner === 'A' && r.admin !== 'A' && r.sales !== 'A' && r.accountant !== 'A' && r.installer !== 'A') && rows.some((r) => r.route === 'POST /team/invite'), 'the team and settings routes are owner only: never an admin, never sales (so an admin cannot add people or change permissions)');
   check(rows.filter((r) => r.none === 'A').every((r) => r.admin === 'A' && r.sales === 'A'), 'a public route is public to every role too');
-  check(rows.every((r) => r.none !== 401 || r.admin === 'A' || r.admin === 403 || r.admin === 401) && rows.filter((r) => r.owner === 401).length === 0, 'no route answers 401 to a signed-in role');
+  check(rows.every((r) => r.none !== 401 || r.admin === 'A' || r.admin === 403 || r.admin === 401) && rows.filter((r) => r.owner === 401 && r.class !== 'own key').length === 0, 'no route answers 401 to a signed-in role (except the own-key route, which is opened by its key and by nothing else, so a session alone is refused there on purpose)');
   const reachableWithoutLogin = rows.filter((r) => r.none === 'A').map((r) => r.route).sort();
   const expectedPublic = ['GET /', 'GET /auth/google/callback', 'GET /auth/google/login', 'GET /auth/logout', 'GET /auth/me', 'GET /auth/signup', 'GET /auth/join', 'GET /billing/cancelled', 'GET /billing/card-updated', 'GET /billing/pay', 'GET /billing/payfast/notify', 'GET /billing/plans', 'GET /billing/return', 'GET /billing/start', 'GET /billing/update-card', 'GET /health', 'POST /', 'POST /auth/join', 'POST /auth/logout', 'POST /auth/signup', 'POST /billing/payfast/notify', 'POST /billing/start'].sort();
   check(JSON.stringify(reachableWithoutLogin) === JSON.stringify(expectedPublic), `without signing in, ONLY the sign-in routes, the health check and the root may be reached (found: ${reachableWithoutLogin.join(', ')})`);
   check(rows.filter((r) => r.class === 'signed link').every((r) => [r.none, r.owner, r.accountant, r.installer].every((v) => v === 403)) && rows.filter((r) => r.class === 'signed link').length === 6, 'the six document routes are opened ONLY by a signed link: a person who is signed in, owner included, is refused without one');
   check(rows.filter((r) => r.class !== 'public' && r.class !== 'signed link').every((r) => r.none === 401), 'every route that is not public or a signed link asks for a sign-in (401), never serves a stranger');
-  check(rows.filter((r) => r.class !== 'signed link').every((r) => r.owner === 'A'), 'the owner can reach every route that is not a signed link (no route locks the owner out)');
+  check(rows.filter((r) => r.class !== 'signed link' && r.class !== 'own key').every((r) => r.owner === 'A'), 'the owner can reach every route that is not a signed link or an own-key route (no route locks the owner out)');
+  check(rows.filter((r) => r.class === 'own key').map((r) => r.route).sort().join() === 'GET /mcp,POST /mcp' && rows.filter((r) => r.class === 'own key').every((r) => r.none === 401 && ['owner', 'accountant', 'installer', 'sales', 'admin'].every((x) => r[x] === 401)), 'the ONLY own-key routes are the MCP endpoint, and a session is refused there for every role (a key is the only way in)');
 
   const moneyRoutes = rows.filter((r) => /\/invoices\/:id|\/quotations\/:id|profitability|finance|financial-snapshot|suppliers|delivery-exceptions|embers\/(expenses|finance|suppliers)|^PATCH \/customers\/:id|\[invoice\]/.test(r.route));
   check(moneyRoutes.length >= 16 && moneyRoutes.every((r) => r.installer !== 'A'), `an installer must be refused on every money route (checked ${moneyRoutes.length}; allowed: ${moneyRoutes.filter((r) => r.installer === 'A').map((r) => r.route).join(', ') || 'none'})`);
