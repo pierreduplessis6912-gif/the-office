@@ -52,3 +52,5 @@ Docs (2026-10-20): `PROJECTION_VISION.md` saved and `VISION.md` now maps vision 
 Direction recorded in VISION.md (Pierre, 2026-10-20): ERP and BI backend, conversational input at rest, adapters. Step 1, client-neutral replies (the app command is kept out of speech and history): built. Next in order: one BI drill-down (revenue by customer for a period, then their outstanding invoices); then a read-only MCP adapter. Unclaimed.
 
 BI slice 1 (`claim/bi-1-revenue-by-customer`): the revenue-by-customer analysis is built on the backend (`topic=revenue`), awaiting its staging rehearsal and deploy. Next: slice 2, a customer's outstanding invoices (calculated); slice 3, the app's Revenue chip and customer drill-down.
+
+BI slice 2 (`claim/bi-2-customer-receivables`): a customer's receivables (`GET /reports/aged-debtors?customer=<id>`) built on the backend, awaiting its staging rehearsal and deploy. Next: BI slice 3, the app's Revenue chip and customer drill-down (it will read both).

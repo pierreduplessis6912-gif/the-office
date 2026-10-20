@@ -857,6 +857,8 @@ async function expect(role, method, path, want) {
   await require('./analysis.test.js')({ check, srcDir });
   // Why revenue changed, by customer: the same invoices and date filter as the report, with each driver's invoices
   await require('./analysis-revenue.test.js')({ check, srcDir });
+  // A customer's receivables: the drill-down from the aged debtors report to that customer's outstanding invoices (calculated, payments applied oldest first)
+  await require('./customer-receivables.test.js')({ check, srcDir });
   // The history and audit record: heard, interpreted, proposed, decided, replied, and the records written
   await require('./history.test.js')({ check, srcDir });
   // Workspace context: an untrusted, validated hint recorded with the turn; never a permission, not yet used to interpret speech

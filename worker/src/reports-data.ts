@@ -1,7 +1,7 @@
 // Reports as data: profit and loss, aged debtors and aged creditors as JSON, so a workspace can show them and update them in place (a period, a comparison, a re-sort) without a PDF. Pinned in tools/reports-data.test.js.
 // THE RULES: (1) the figures are EXACTLY the ones the PDFs use: this module contains no SQL and no calculation of its own beyond rounding, a comparison and sums; it calls the same finance functions the PDFs call. (2) Every report states its basis, its
 // currency and that its figures are calculated, including the existing caveat that periods are by the date a record was ENTERED, not a business date. (3) The routes are authorised exactly like their PDFs (auth.ts). (4) It only reads.
-import { getAgedCreditorsReport, getAgedDebtorsReport, getProfitAndLoss, type DateRange } from "./finance";
+import { getAgedCreditorsReport, getAgedDebtorsReport, getCustomerReceivables, getProfitAndLoss, type DateRange } from "./finance";
 import type { Env } from "./types";
 
 const DAY_MS = 86_400_000;
@@ -101,6 +101,30 @@ function agedReport(report: "aged_debtors" | "aged_creditors", rawRows: Array<Re
 }
 export async function agedDebtorsData(env: Env, now: Date = new Date()) {
   return agedReport("aged_debtors", (await getAgedDebtorsReport(env)) as unknown as Array<Record<string, number | string>>, "Payments are applied to the oldest invoices first, not matched to specific invoices.", now);
+}
+// One customer's receivables, the drill-down from the aged debtors report (GET /reports/aged-debtors?customer=<id>): their OUTSTANDING invoices, oldest first, and how their payments were applied. Authorised exactly like the aged debtors report (same route). Amount, date and description are read from the invoice; `applied`, `outstanding`, `ageDays` and `bucket` are CALCULATED, because payments are recorded per customer and applied to the oldest invoices first, never matched to an invoice. The buckets are the SAME derivation as the report's row for this customer (one function), so they add up to it.
+const RECEIVABLE_INVOICES_CAP = 100;
+export function parseCustomerParam(raw: string | null): { ok: true; id: number } | { ok: false; error: string } {
+  if (raw === null || !/^[1-9]\d{0,9}$/.test(raw)) return { ok: false, error: "customer must be a positive whole number." };
+  return { ok: true, id: Number(raw) };
+}
+export async function customerReceivablesData(env: Env, customerId: number, now: Date = new Date()) {
+  const found = await getCustomerReceivables(env, customerId, now.getTime());
+  if (found === null) return null;
+  const a = found.allocation;
+  const invoices = a.invoices.slice(0, RECEIVABLE_INVOICES_CAP).map((i) => ({ id: i.id, date: i.date, description: i.description.slice(0, 200), amount: round2(i.amount), applied: round2(i.applied), outstanding: round2(i.outstanding), ageDays: i.ageDays, bucket: i.bucket }));
+  const buckets = { current: round2(a.current), days30: round2(a.days30), days60: round2(a.days60), days90Plus: round2(a.days90Plus), total: round2(a.total) };
+  return {
+    report: "customer_receivables" as const, version: 1 as const, certainty: "calculated" as const, currency: "ZAR", asAt: now.toISOString().slice(0, 10),
+    customer: { id: found.customer.id, name: found.customer.name },
+    basis: { aging: "Age counts from the date each invoice was entered into the system; buckets are current (up to 30 days), 30-60, 60-90 and 90+ days.", allocation: "Payments are recorded per customer and applied to the oldest invoices first, so which invoice a payment settled is a calculation, not a record." },
+    facts: ["id", "date", "description", "amount"], calculated: ["applied", "outstanding", "ageDays", "bucket"],
+    buckets, payments: { total: round2(found.payments.total), count: found.payments.count }, unappliedPayments: round2(a.unapplied),
+    invoiceCount: found.invoiceCount, outstandingCount: a.invoices.length, truncated: a.invoices.length > RECEIVABLE_INVOICES_CAP,
+    reconciles: round2(a.invoices.reduce((t, i) => t + i.outstanding, 0)) === buckets.total,
+    invoices,
+    notEstablished: ["payment_to_invoice_match", "business_date"],
+  };
 }
 export async function agedCreditorsData(env: Env, now: Date = new Date()) {
   return agedReport("aged_creditors", (await getAgedCreditorsReport(env)) as unknown as Array<Record<string, number | string>>, "Payments and credits are applied to the oldest expenses first, not matched to specific expenses.", now);

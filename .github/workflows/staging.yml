@@ -883,6 +883,14 @@ jobs:
           # The revenue analysis by customer: the same route and authorization, a new topic. Whatever invoices the staging business holds, the customer rows must add up to the profit and loss revenue figure.
           api an-revenue GET "$SESSION" "/reports/analysis?topic=revenue&from=2026-10-01&to=2026-10-31"
           api an-revenue-sales GET "$SSESS" "/reports/analysis?topic=revenue&from=2026-10-01&to=2026-10-31"
+          # A customer's own receivables (the drill-down from aged debtors): the SAME route, so the same authorization (owner only). An unknown customer is a 404, a malformed id a 400, a second member a 403, a stranger a 401; and if the staging business has a debtor, their view must reconcile.
+          api cr-aged GET "$SESSION" "/reports/aged-debtors"
+          CRID=$(python3 -c "import json; d=json.load(open('$RESULTS/cr-aged.json')); r=d.get('rows') or []; print(r[0].get('customerId','') if r else '')" 2>/dev/null || true)
+          api cr-unknown GET "$SESSION" "/reports/aged-debtors?customer=999999"
+          api cr-bad GET "$SESSION" "/reports/aged-debtors?customer=abc"
+          api cr-sales GET "$SSESS" "/reports/aged-debtors?customer=1"
+          curl -s -o /dev/null -w '%{http_code}' "$BASE/reports/aged-debtors?customer=1" > "$RESULTS/cr-stranger.status"
+          if [ -n "$CRID" ]; then api cr-detail GET "$SESSION" "/reports/aged-debtors?customer=$CRID"; fi
           api an-bad-topic GET "$SESSION" "/reports/analysis?topic=weather&from=2026-10-01&to=2026-10-31"
           api an-no-compare GET "$SESSION" "/reports/analysis?topic=expenses&from=2026-10-01&to=2026-10-31&compare=none"
           api an-no-period GET "$SESSION" "/reports/analysis?topic=expenses"
@@ -1013,6 +1021,7 @@ jobs:
           an_exp = rd("an-expenses.json") or {}
           an_prof = rd("an-profit.json") or {}
           an_rev = rd("an-revenue.json") or {}
+          cr_detail = rd("cr-detail.json") or {}
           hs_send = rd("hs-send.json") or {}
           hs_mine = rd("hs-mine.json") or {}
           hs_all = rd("hs-all.json") or {}
@@ -1113,6 +1122,7 @@ jobs:
               "the_billing_health_check_runs_on_the_real_objects_and_reports_the_rejected_payment_without_leaking": status("hl-health") == "200" and (rd("hl-health.json") or {}).get("ok") is False and any(p.get("code") == "payment_needs_review" for p in ((rd("hl-health.json") or {}).get("problems") or [])) and not any(p.get("code") == "health_check_failed" for p in ((rd("hl-health.json") or {}).get("problems") or [])) and "tok-" not in (rd("hl-health.json", False) or "") and "example.com" not in (rd("hl-health.json", False) or "") and "rehearsal-passphrase" not in (rd("hl-health.json", False) or ""),
               "the_owner_gets_an_analysis_of_expenses_and_profit_and_everyone_else_is_refused": status("an-expenses") == "200" and an_exp.get("analysis") == "expenses" and an_exp.get("version") == 1 and an_exp.get("certainty") == "calculated" and "supplier" in (an_exp.get("notEstablished") or []) and "cause_of_the_change" in (an_exp.get("notEstablished") or []) and (an_exp.get("compare") or {}).get("from") == "2026-08-31" and status("an-profit") == "200" and an_prof.get("analysis") == "profit" and (an_prof.get("compare") or {}).get("from") == "2025-10-01" and (an_prof.get("summary") or {}).get("reconciles") is True and status("an-sales") == "403" and status("an-stranger") == "401",
               "the_owner_gets_a_revenue_analysis_by_customer_that_adds_up_to_the_report_and_everyone_else_is_refused": status("an-revenue") == "200" and an_rev.get("analysis") == "revenue" and an_rev.get("version") == 1 and an_rev.get("certainty") == "calculated" and (an_rev.get("summary") or {}).get("metric") == "total_revenue" and (an_rev.get("summary") or {}).get("reconciles") is True and "cash_received" in (an_rev.get("notEstablished") or []) and "supplier" not in (an_rev.get("notEstablished") or []) and isinstance(an_rev.get("contributors"), list) and status("an-revenue-sales") == "403",
+              "a_customers_own_receivables_are_owner_only_refuse_unknown_and_malformed_ids_and_reconcile_when_a_debtor_exists": status("cr-unknown") == "404" and status("cr-bad") == "400" and "positive whole number" in (rd("cr-bad.json", False) or "") and status("cr-sales") == "403" and status("cr-stranger") == "401" and (not cr_detail or (cr_detail.get("report") == "customer_receivables" and cr_detail.get("reconciles") is True and cr_detail.get("certainty") == "calculated" and "payment_to_invoice_match" in (cr_detail.get("notEstablished") or []))),
               "a_malformed_analysis_request_is_a_400_and_says_why": status("an-bad-topic") == "400" and status("an-no-compare") == "400" and status("an-no-period") == "400" and "topic" in (rd("an-bad-topic.json", False) or "") and "comparison" in (rd("an-no-compare.json", False) or "") and "period" in (rd("an-no-period.json", False) or ""),
               "a_real_message_turn_is_recorded_and_read_back_with_speech_kept_apart_from_what_was_generated": status("hs-send") == "200" and status("hs-mine") == "200" and hs_mine.get("version") == 1 and hs_mine.get("scope") == "own" and any((i.get("recorded") or {}).get("heard") == "what is on my list today" and (i.get("generated") or {}).get("replied") == hs_send.get("message") and (i.get("generated") or {}).get("mode") in ("speak", "confirm", "clarify") and "actor" not in i and sorted(i.keys()) == ["at", "decisions", "generated", "id", "proposed", "recorded", "recordsWritten", "source", "viewing"] and sorted((i.get("recorded") or {}).keys()) == ["heard"] for i in (hs_mine.get("items") or [])),
               "a_member_sees_only_their_own_history_everyones_needs_the_owner_and_a_stranger_gets_401": status("hs-all") == "200" and hs_all.get("scope") == "all" and any("actor" in i for i in (hs_all.get("items") or [])) and status("hs-sales") == "200" and not any((i.get("recorded") or {}).get("heard") == "what is on my list today" for i in ((rd("hs-sales.json") or {}).get("items") or [])) and status("hs-sales-all") == "403" and status("hs-stranger") == "401",

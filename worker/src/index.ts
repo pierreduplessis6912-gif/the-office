@@ -1,7 +1,7 @@
 export { TrialObject } from "./trial";
 import { checkContextRequest, contextFromHeader, parseContext } from "./context";
 import { decisionOf, parseHistoryParams, readHistory, recordDecision, recordInteraction, resolveScope } from "./history";
-import { agedCreditorsData, agedDebtorsData, parsePeriodParams, profitAndLossData } from "./reports-data";
+import { agedCreditorsData, agedDebtorsData, customerReceivablesData, parseCustomerParam, parsePeriodParams, profitAndLossData } from "./reports-data";
 import { withExperience } from "./experience";
 import { analysisData, parseAnalysisParams } from "./analysis";
 import { businessLapsed } from "./access";
@@ -1357,6 +1357,15 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       } catch {
         return Response.json({ error: "The analysis could not be built." }, { status: 500 });
       }
+    }
+    // The drill-down from a debtor to their own invoices: the same route (so the same authorization as the report), taken first when a customer is named. The report's own handler below is unchanged.
+    if (url.pathname === "/reports/aged-debtors" && request.method === "GET" && url.searchParams.get("customer") !== null) {
+      const parsed = parseCustomerParam(url.searchParams.get("customer"));
+      if (!parsed.ok) return Response.json({ error: parsed.error }, { status: 400 });
+      try {
+        const detail = await customerReceivablesData(env, parsed.id);
+        return detail === null ? Response.json({ error: "That customer was not found." }, { status: 404 }) : Response.json(detail);
+      } catch { return Response.json({ error: "The report could not be built." }, { status: 500 }); }
     }
     if (url.pathname === "/reports/aged-debtors" && request.method === "GET") {
       try { return Response.json(await agedDebtorsData(env)); } catch { return Response.json({ error: "The report could not be built." }, { status: 500 }); }

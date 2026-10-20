@@ -2979,6 +2979,42 @@ export interface AgedDebtorRow {
 // code, deterministically, never left to the model to estimate.
 // Bucketed by real invoice age in days: current (0-30), 30-60, 60-90,
 // 90+.
+export type AgeBucket = "current" | "days30" | "days60" | "days90Plus";
+export interface ReceivableInvoice { id: number; date: string; description: string; amount: number; applied: number; outstanding: number; ageDays: number; bucket: AgeBucket }
+export interface ReceivableAllocation { invoices: ReceivableInvoice[]; current: number; days30: number; days60: number; days90Plus: number; total: number; unapplied: number }
+
+// ONE derivation of "what is outstanding", used by the aged debtors report AND by a single customer's own view, so the two cannot disagree. Payments are recorded per customer, never matched to an invoice, so they are applied to the OLDEST invoices first: which invoice a payment settled is a calculation, not a record. `invoices` must be oldest first. Age counts from the day the invoice was entered: current is up to 30 days, then 30-60, 60-90 and 90+.
+export function allocatePayments(invoices: Array<{ id: number; amount: number; description: string; created_at: string }>, paid: number, nowMs: number): ReceivableAllocation {
+  let remaining = paid, current = 0, days30 = 0, days60 = 0, days90Plus = 0;
+  const outstanding: ReceivableInvoice[] = [];
+  for (const inv of invoices) {
+    let owed = inv.amount;
+    if (remaining > 0) {
+      const applied = Math.min(remaining, owed);
+      owed -= applied;
+      remaining -= applied;
+    }
+    if (owed <= 0) continue;
+    const ageDays = Math.floor((nowMs - new Date(inv.created_at).getTime()) / 86400000);
+    const bucket: AgeBucket = ageDays <= 30 ? "current" : ageDays <= 60 ? "days30" : ageDays <= 90 ? "days60" : "days90Plus";
+    if (bucket === "current") current += owed;
+    else if (bucket === "days30") days30 += owed;
+    else if (bucket === "days60") days60 += owed;
+    else days90Plus += owed;
+    outstanding.push({ id: inv.id, date: localDate(inv.created_at), description: inv.description, amount: inv.amount, applied: inv.amount - owed, outstanding: owed, ageDays, bucket });
+  }
+  return { invoices: outstanding, current, days30, days60, days90Plus, total: current + days30 + days60 + days90Plus, unapplied: remaining };
+}
+
+// One customer's receivables: their outstanding invoices (oldest first) and their payments, through the same allocation as the aged debtors report. Null when there is no such customer.
+export async function getCustomerReceivables(env: Env, customerId: number, nowMs: number = Date.now()): Promise<{ customer: { id: number; name: string }; allocation: ReceivableAllocation; invoiceCount: number; payments: { total: number; count: number } } | null> {
+  const customer = await env.OFFICE_DB.prepare("SELECT id, name FROM customers WHERE id = ?").bind(customerId).first<{ id: number; name: string }>();
+  if (!customer) return null;
+  const { results: invoices } = await env.OFFICE_DB.prepare("SELECT id, amount, description, created_at FROM invoices WHERE customer_id = ? ORDER BY created_at ASC, id ASC").bind(customerId).all<{ id: number; amount: number; description: string; created_at: string }>();
+  const paid = await env.OFFICE_DB.prepare("SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS n FROM payments WHERE customer_id = ?").bind(customerId).first<{ total: number; n: number }>();
+  return { customer, allocation: allocatePayments(invoices, paid?.total ?? 0, nowMs), invoiceCount: invoices.length, payments: { total: paid?.total ?? 0, count: paid?.n ?? 0 } };
+}
+
 export async function getAgedDebtorsReport(env: Env): Promise<AgedDebtorRow[]> {
   const { results: customers } = await env.OFFICE_DB.prepare(
     "SELECT DISTINCT c.id, c.name FROM customers c JOIN invoices i ON i.customer_id = c.id"
@@ -2989,40 +3025,18 @@ export async function getAgedDebtorsReport(env: Env): Promise<AgedDebtorRow[]> {
 
   for (const customer of customers) {
     const { results: invoices } = await env.OFFICE_DB.prepare(
-      "SELECT amount, created_at FROM invoices WHERE customer_id = ? ORDER BY created_at ASC"
+      "SELECT id, amount, description, created_at FROM invoices WHERE customer_id = ? ORDER BY created_at ASC, id ASC"
     )
       .bind(customer.id)
-      .all<{ amount: number; created_at: string }>();
+      .all<{ id: number; amount: number; description: string; created_at: string }>();
 
     const paidRow = await env.OFFICE_DB.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE customer_id = ?")
       .bind(customer.id)
       .first<{ total: number }>();
 
-    let remainingPayment = paidRow?.total ?? 0;
-    let current = 0;
-    let days30 = 0;
-    let days60 = 0;
-    let days90Plus = 0;
-
-    for (const inv of invoices) {
-      let owed = inv.amount;
-      if (remainingPayment > 0) {
-        const applied = Math.min(remainingPayment, owed);
-        owed -= applied;
-        remainingPayment -= applied;
-      }
-      if (owed <= 0) continue;
-
-      const ageDays = Math.floor((now - new Date(inv.created_at).getTime()) / 86400000);
-      if (ageDays <= 30) current += owed;
-      else if (ageDays <= 60) days30 += owed;
-      else if (ageDays <= 90) days60 += owed;
-      else days90Plus += owed;
-    }
-
-    const total = current + days30 + days60 + days90Plus;
-    if (total > 0) {
-      rows.push({ customerId: customer.id, customerName: customer.name, current, days30, days60, days90Plus, total });
+    const a = allocatePayments(invoices, paidRow?.total ?? 0, now);
+    if (a.total > 0) {
+      rows.push({ customerId: customer.id, customerName: customer.name, current: a.current, days30: a.days30, days60: a.days60, days90Plus: a.days90Plus, total: a.total });
     }
   }
 
