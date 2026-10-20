@@ -18,6 +18,7 @@ import 'package:image_picker/image_picker.dart';
 
 import 'access_guard.dart';
 import 'accessibility.dart';
+import 'analysis_model.dart';
 import 'history_model.dart';
 import 'plans_link.dart';
 import 'reply_envelope.dart';
@@ -357,6 +358,8 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   // not the full migration.
   final _officeState = OfficeStateMachine();
   late final OfficeClock _clock;
+  // Front-end slice 7: the analysis workspace is a sheet on the home screen itself (not a modal room), so the orb stays on screen and usable.
+  bool _analysisOpen = false;
 
   // Phase 1 of the Word Field System (see runtime/word_field.dart) —
   // built against _officeState.events, the real, first thing to
@@ -1473,6 +1476,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         onPeopleTap: _showPeopleSheet,
         onHistoryTap: (_) => _showHistorySheet(),
         onActivityTap: _showActivitySheet,
+        onAnalysisTap: _openAnalysis,
         onBusinessProfileTap: (_) => _showBusinessProfileSheet(),
         onSnagsTap: _showSnagsSheet,
         onLeadsTap: _showLeadsSheet,
@@ -1533,6 +1537,10 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
                               ),
                             ),
                 ),
+                if (_analysisOpen) ...[
+                  _compactTalk(),
+                  SizedBox(height: _analysisSheetHeight(context)),
+                ] else
                 _TalkArea(
                   embers: _embers,
                   onEmberTap: _showEmberSheet,
@@ -1585,6 +1593,14 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
             // same transcript permanently at the same time — Rule 3's
             // larger "no permanent ledger at all" question is
             // deliberately not decided in this pass.
+            if (_analysisOpen)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: _analysisSheetHeight(context),
+                child: _AnalysisSheet(authHeaders: _authHeaders(), onClose: _closeAnalysis),
+              ),
             Positioned.fill(child: WordField(controller: _wordField, clock: _clock)),
             // Real feature 2026-07-28 — the one-time entrance moment.
             // Positioned above everything else, but ignoring pointer
@@ -1617,6 +1633,39 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   // rather than inventing a new one. Account is now wired to the
   // real sign-in flow; Settings and Help remain named destinations
   // in UI_MAP.md, not yet built.
+  double _analysisSheetHeight(BuildContext context) => MediaQuery.of(context).size.height * 0.52;
+
+  void _openAnalysis() => setState(() {
+        _analysisOpen = true;
+        _isWriteMode = false;
+      });
+
+  void _closeAnalysis() => setState(() => _analysisOpen = false);
+
+  // While the analysis sheet is open the talk area (embers, hint, write mode) gives way to just the orb, smaller, above the sheet: it still
+  // listens when tapped, and replies still appear above it. Closing the sheet brings the ordinary talk area back exactly as it was.
+  Widget _compactTalk() {
+    return SizedBox(
+      height: 110,
+      child: Center(
+        child: A11yButton(
+          label: _isRecording ? 'Stop listening' : 'Talk to The Office',
+          onTap: _toggleRecording,
+          child: GestureDetector(
+            onTap: _toggleRecording,
+            child: SizedBox(
+              width: 72,
+              height: 72,
+              child: _useShaderOrb
+                  ? FilamentOrb(isRecording: _isRecording, size: 72, ignitionSeq: _ignitionSeq, reactColor: _ignitionEmberId != null ? _emberColors[_ignitionEmberId] : null)
+                  : Container(decoration: BoxDecoration(shape: BoxShape.circle, color: _pulse)),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _showMoreMenu(BuildContext context) async {
     final selected = await showMenu<String>(
       context: context,
@@ -2402,6 +2451,7 @@ class _OfficeDrawer extends StatelessWidget {
   final void Function(Offset) onPeopleTap;
   final void Function(Offset) onHistoryTap;
   final void Function(Offset) onActivityTap;
+  final VoidCallback onAnalysisTap;
   final void Function(Offset) onBusinessProfileTap;
   final void Function(Offset) onSnagsTap;
   final void Function(Offset) onLeadsTap;
@@ -2417,6 +2467,7 @@ class _OfficeDrawer extends StatelessWidget {
     required this.onPeopleTap,
     required this.onHistoryTap,
     required this.onActivityTap,
+    required this.onAnalysisTap,
     required this.onBusinessProfileTap,
     required this.onSnagsTap,
     required this.onLeadsTap,
@@ -2472,6 +2523,8 @@ class _OfficeDrawer extends StatelessWidget {
             // The team (2026-10-18): the owner adds people, invites them, changes roles and deactivates. Owner only: the server refuses anyone else and the room says so.
             _drawerItem(Icons.group_add_outlined, 'Team', onTeamTap, context),
             // The owner's subscription (2026-10-20): opens the plans page in the browser through a short-lived signed link (lib/plans_link.dart). Shown to the owner only; the server refuses anyone else as well.
+            // Why a profit and loss figure changed (2026-10-20). Owner only for now: the server allows anyone with the profit capability, and refuses the rest.
+            if (isOwner) _drawerItem(Icons.insights_outlined, 'Analysis', (_) => onAnalysisTap(), context),
             if (isOwner) _drawerItem(Icons.credit_card_outlined, 'Subscription', (_) => onSubscriptionTap(), context),
           ],
         ),
@@ -9112,6 +9165,227 @@ class _ActivityRoomContentState extends State<_ActivityRoomContent> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+
+class _AnalysisSheet extends StatefulWidget {
+  final Map<String, String> authHeaders;
+  final VoidCallback onClose;
+  const _AnalysisSheet({required this.authHeaders, required this.onClose});
+
+  @override
+  State<_AnalysisSheet> createState() => _AnalysisSheetState();
+}
+
+class _AnalysisSheetState extends State<_AnalysisSheet> {
+  String _topic = 'expenses';
+  String _preset = 'last_month';
+  Analysis? _analysis;
+  bool _loading = true;
+  String? _error;
+  int _seq = 0;
+  final Set<String> _open = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    final seq = ++_seq;
+    final span = presetPeriod(_preset, DateTime.now());
+    if (span == null) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+      _open.clear();
+    });
+    try {
+      final uri = Uri.parse('$officeApiBase/reports/analysis?topic=$_topic&from=${span.from}&to=${span.to}');
+      final response = await http.get(uri, headers: widget.authHeaders);
+      if (!mounted || seq != _seq) return;
+      if (response.statusCode == 200) {
+        final parsed = parseAnalysis(jsonDecode(response.body));
+        setState(() {
+          _loading = false;
+          _analysis = parsed;
+          _error = parsed == null ? 'This analysis is in a format this version of the app cannot read yet.' : null;
+        });
+      } else {
+        String? reason;
+        try {
+          final body = jsonDecode(response.body);
+          if (body is Map && body['error'] is String) reason = body['error'] as String;
+        } catch (_) {}
+        setState(() {
+          _loading = false;
+          _analysis = null;
+          _error = response.statusCode == 403 ? 'Your role cannot see profit figures.' : (reason ?? 'Could not build the analysis right now.');
+        });
+      }
+    } catch (_) {
+      if (!mounted || seq != _seq) return;
+      setState(() {
+        _loading = false;
+        _analysis = null;
+        _error = 'Could not build the analysis right now.';
+      });
+    }
+  }
+
+  void _choose({String? topic, String? preset}) {
+    if ((topic == null || topic == _topic) && (preset == null || preset == _preset)) return;
+    setState(() {
+      _topic = topic ?? _topic;
+      _preset = preset ?? _preset;
+    });
+    _fetch();
+  }
+
+  Widget _tag(String text) => Text(text, style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 9.5, letterSpacing: 1));
+
+  Widget _heading(String text) => Padding(
+        padding: const EdgeInsets.only(top: 18, bottom: 6),
+        child: Text(text, style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 1.2)),
+      );
+
+  Widget _evidenceBlock(AnalysisEvidence e) {
+    final addsUp = e.reconciled ? 'adds up to the report' : 'does NOT add up to the report, so treat it as incomplete';
+    return Padding(
+      padding: const EdgeInsets.only(top: 6, left: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('${e.count} records, ${formatRand(e.total)}, $addsUp', style: GoogleFonts.workSans(color: e.reconciled ? _muted : _stampRed, fontSize: 12.5)),
+          if (e.truncated) Text('Showing ${e.records.length} of ${e.count}.', style: GoogleFonts.workSans(color: _muted, fontSize: 12.5)),
+          for (final r in e.records)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text('${r.date}  \u00b7  ${formatRand(r.amount)}  \u00b7  ${r.description}', style: GoogleFonts.workSans(color: _paper, fontSize: 13)),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _contributor(AnalysisContributor c) {
+    final hasEvidence = c.evidence != null;
+    final isOpen = _open.contains(c.label);
+    final share = c.shareOfChange == null ? '' : '  \u00b7  ${c.shareOfChange!.toStringAsFixed(1)}% of the change';
+    final row = Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text(c.label, style: GoogleFonts.workSans(color: _paper, fontSize: 14, fontWeight: FontWeight.w600))),
+              if (c.part != 'none') _tag(c.part.toUpperCase()),
+              if (hasEvidence) Icon(isOpen ? Icons.expand_less : Icons.expand_more, size: 18, color: _muted),
+            ],
+          ),
+          Text('${changeText(c.change)}$share', style: GoogleFonts.workSans(color: _muted, fontSize: 13)),
+          if (isOpen && hasEvidence) _evidenceBlock(c.evidence!),
+        ],
+      ),
+    );
+    if (!hasEvidence) return row;
+    return A11yButton(
+      label: '${c.label}, ${changeText(c.change)}. ${isOpen ? 'Hide' : 'Show'} the records.',
+      onTap: () => setState(() => isOpen ? _open.remove(c.label) : _open.add(c.label)),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => setState(() => isOpen ? _open.remove(c.label) : _open.add(c.label)),
+        child: row,
+      ),
+    );
+  }
+
+  List<Widget> _body(Analysis a) {
+    return [
+      Text('${spanText(a.period)}  vs  ${spanText(a.compare)}', style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 0.6)),
+      const SizedBox(height: 8),
+      Text(metricLabel(a.metric).toUpperCase(), style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10.5, letterSpacing: 1.2)),
+      Text(formatRand(a.current), style: GoogleFonts.workSans(color: _paper, fontSize: 24, fontWeight: FontWeight.w600)),
+      Text('${changeText(a.change)} on ${formatRand(a.previous)} before', style: GoogleFonts.workSans(color: _muted, fontSize: 13)),
+      if (a.findings.isNotEmpty) _heading('WHAT THE FIGURES SHOW'),
+      for (final f in a.findings)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [_tag(f.certainty == 'fact' ? 'FACT' : 'CALCULATED'), const SizedBox(height: 2), Text(f.statement, style: GoogleFonts.workSans(color: _paper, fontSize: 14, height: 1.35))],
+          ),
+        ),
+      if (a.contributors.isNotEmpty) _heading('WHERE IT CAME FROM'),
+      for (final c in a.contributors) _contributor(c),
+      if (a.notEstablished.isNotEmpty) _heading('WHAT THIS CANNOT TELL YOU'),
+      for (final k in a.notEstablished)
+        Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(notEstablishedLine(k), style: GoogleFonts.workSans(color: _muted, fontSize: 13, height: 1.35))),
+      const SizedBox(height: 16),
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _charcoal,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        border: Border(top: BorderSide(color: _textTertiary.withOpacity(0.2))),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onVerticalDragEnd: (d) {
+              if ((d.primaryVelocity ?? 0) > 300) widget.onClose();
+            },
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 4, 0),
+              child: Column(
+                children: [
+                  Container(width: 32, height: 3, decoration: BoxDecoration(color: _textTertiary.withOpacity(0.35), borderRadius: BorderRadius.circular(2))),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('ANALYSIS', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                      IconButton(tooltip: 'Close analysis', icon: const Icon(Icons.close, size: 18), color: _muted, onPressed: widget.onClose),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                _FilterChip(label: 'EXPENSES', selected: _topic == 'expenses', onTap: () => _choose(topic: 'expenses')),
+                _FilterChip(label: 'PROFIT', selected: _topic == 'profit', onTap: () => _choose(topic: 'profit')),
+                _FilterChip(label: 'THIS MONTH', selected: _preset == 'this_month', onTap: () => _choose(preset: 'this_month')),
+                _FilterChip(label: 'LAST MONTH', selected: _preset == 'last_month', onTap: () => _choose(preset: 'last_month')),
+                _FilterChip(label: 'LAST 90 DAYS', selected: _preset == 'last_90', onTap: () => _choose(preset: 'last_90')),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _loading
+                ? const Center(child: SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)))
+                : _error != null
+                    ? Padding(padding: const EdgeInsets.all(16), child: Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+                    : _analysis == null
+                        ? const SizedBox.shrink()
+                        : ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), children: _body(_analysis!)),
+          ),
+        ],
       ),
     );
   }
