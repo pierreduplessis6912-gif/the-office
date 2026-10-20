@@ -63,14 +63,14 @@ void main() {
   });
 
   test('filters: slug keys; plain short strings, finite numbers or booleans; at most 10', () {
-    final json = const WorkspaceContext(room: 'x', filters: {
+    final json = WorkspaceContext(room: 'x', filters: {
       'status': 'outstanding', 'min_amount': 500, 'include_vat': true, 'note': "Bob's, Co. - 2", 'ratio': 0.25,
       'Bad Key': 'x', '9starts': 'x', 'script': '<script>', 'long': 'x' * 41, 'empty': '', 'nan': double.nan, 'inf': double.infinity,
     }).toJson()!['filters']! as Map;
     expect(json.keys, ['status', 'min_amount', 'include_vat', 'note', 'ratio']);
     final eleven = {for (var i = 0; i < 15; i++) 'k$i': 'v'};
     expect((WorkspaceContext(room: 'x', filters: eleven).toJson()!['filters']! as Map).length, 10);
-    expect(const WorkspaceContext(room: 'x', filters: {'a': 'x' * 40}).toJson()!['filters'], {'a': 'x' * 40});
+    expect(WorkspaceContext(room: 'x', filters: {'a': 'x' * 40}).toJson()!['filters'], {'a': 'x' * 40});
   });
 
   test('only contract fields are ever emitted', () {
