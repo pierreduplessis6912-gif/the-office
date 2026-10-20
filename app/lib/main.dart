@@ -17,6 +17,7 @@ import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'access_guard.dart';
+import 'plans_link.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:url_launcher/url_launcher.dart';
@@ -650,6 +651,24 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   // duplicated or forgotten at a new call site.
   Map<String, String> _authHeaders([Map<String, String>? extra]) {
     return {if (_sessionToken != null) 'Authorization': 'Bearer $_sessionToken', ...?extra};
+  }
+
+  // The owner's subscription (2026-10-20): asks the server for a short-lived signed link to the plans page and opens it in the phone's browser. Every outcome is told to the person in plain words (lib/plans_link.dart).
+  Future<void> _openPlans() async {
+    final result = await requestPlansLink(apiBase: officeApiBase, headers: _authHeaders());
+    if (!mounted) return;
+    final url = result.url;
+    var message = result.message;
+    if (result.outcome == PlansLinkOutcome.ready && url != null) {
+      try {
+        if (await launchUrl(url, mode: LaunchMode.externalApplication, webOnlyWindowName: '_blank')) return;
+      } catch (_) {
+        // fall through to the message below
+      }
+      message = plansCouldNotOpenMessage;
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   String _newId() => 'msg-${_idCounter++}';
@@ -1430,6 +1449,8 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         onCustomersTap: _showCustomersSheet,
         onPermissionsTap: _showPermissionsSheet,
         onTeamTap: _showTeamSheet,
+        isOwner: _userRole == 'owner',
+        onSubscriptionTap: _openPlans,
       ),
       body: SafeArea(
         child: Stack(
@@ -2341,6 +2362,8 @@ class _OfficeDrawer extends StatelessWidget {
   final void Function(Offset) onCustomersTap;
   final void Function(Offset) onPermissionsTap;
   final void Function(Offset) onTeamTap;
+  final bool isOwner;
+  final VoidCallback onSubscriptionTap;
   const _OfficeDrawer({
     required this.onReportsTap,
     required this.onPeopleTap,
@@ -2353,6 +2376,8 @@ class _OfficeDrawer extends StatelessWidget {
     required this.onCustomersTap,
     required this.onPermissionsTap,
     required this.onTeamTap,
+    required this.isOwner,
+    required this.onSubscriptionTap,
   });
 
   @override
@@ -2396,6 +2421,8 @@ class _OfficeDrawer extends StatelessWidget {
             _drawerItem(Icons.lock_outline, 'Permissions', onPermissionsTap, context),
             // The team (2026-10-18): the owner adds people, invites them, changes roles and deactivates. Owner only: the server refuses anyone else and the room says so.
             _drawerItem(Icons.group_add_outlined, 'Team', onTeamTap, context),
+            // The owner's subscription (2026-10-20): opens the plans page in the browser through a short-lived signed link (lib/plans_link.dart). Shown to the owner only; the server refuses anyone else as well.
+            if (isOwner) _drawerItem(Icons.credit_card_outlined, 'Subscription', (_) => onSubscriptionTap(), context),
           ],
         ),
       ),
