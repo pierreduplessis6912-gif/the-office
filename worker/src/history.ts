@@ -30,7 +30,7 @@ const tidyEmail = (value: unknown): string | null => (typeof value === "string" 
 
 // ---- recording -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Records one turn. Returns whether it was written; NEVER throws.
-export async function recordInteraction(env: Env, turn: { actorEmail: unknown; source: unknown; captureId: number | null; processed: unknown; viewing?: unknown }): Promise<boolean> {
+export async function recordInteraction(env: Env, turn: { actorEmail: unknown; source: unknown; captureId: number | null; processed: unknown; viewing?: unknown; interpreted?: unknown }): Promise<boolean> {
   try {
     await ensureTables(env);
     const experience = buildExperience(turn.processed);   // the held actions and the recommended mode come from the envelope's own function: one derivation
@@ -38,7 +38,7 @@ export async function recordInteraction(env: Env, turn: { actorEmail: unknown; s
     let replied: string | null = null;
     if (isRecord(turn.processed)) {
       try {
-        const extraction = turn.processed.extraction;
+        const extraction = turn.interpreted !== undefined ? turn.interpreted : turn.processed.extraction;   // a follow-up answered without the model supplies its own interpretation
         if (extraction !== undefined && extraction !== null) { const json = JSON.stringify(extraction); interpreted = json.length > MAX_INTERPRETED ? JSON.stringify({ truncated: true, text: json.slice(0, MAX_INTERPRETED - 100) }) : json; }
       } catch { interpreted = null; }
       try { const message = turn.processed.message; if (typeof message === "string") replied = appCommandText(message) ?? message.slice(0, MAX_REPLY); } catch { replied = null; }

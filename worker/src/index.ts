@@ -3,6 +3,7 @@ import { checkContextRequest, contextFromHeader, parseContext } from "./context"
 import { decisionOf, parseHistoryParams, readHistory, recordDecision, recordInteraction, resolveScope } from "./history";
 import { agedCreditorsData, agedDebtorsData, customerReceivablesData, parseCustomerParam, parsePeriodParams, profitAndLossData } from "./reports-data";
 import { withExperience } from "./experience";
+import { followUpReply, tryFollowUp } from "./followup";
 import { analysisData, parseAnalysisParams } from "./analysis";
 import { businessLapsed } from "./access";
 import { bulkImportRoute, similarNameTracker } from "./imports";
@@ -3851,8 +3852,12 @@ let created = 0;
 
       const { capabilities, email: textEmail } = await resolveCapabilities(request, env);
       let captured: number | null = null;
-      const processed = await processTranscript(env, text, ctx, history, "text", null, capabilities, textEmail, (id) => { captured = id; });
-      await recordInteraction(env, { actorEmail: textEmail, source: "text", captureId: captured, processed, viewing: parseContext(body.context).context });   // swallowed on failure: it can never change a reply
+      const onScreen = parseContext(body.context).context;
+      // A follow-up on the analysis the app says is open ("why did it drop?", "which customers caused that?", "show me their outstanding invoices") is answered from the analysis itself, in words, and never goes near the model or writes anything. Anything else (or no analysis on screen) is null here and goes down the ordinary pipeline exactly as before.
+      const followUp = await tryFollowUp(env, text, onScreen, capabilities);
+      if (followUp) captured = await logCapture(env, text, "text", null);
+      const processed = followUp ? followUpReply(text, followUp.message) : await processTranscript(env, text, ctx, history, "text", null, capabilities, textEmail, (id) => { captured = id; });
+      await recordInteraction(env, { actorEmail: textEmail, source: "text", captureId: captured, processed, viewing: parseContext(body.context).context, ...(followUp ? { interpreted: followUp.interpreted } : {}) });   // swallowed on failure: it can never change a reply
       const responseBody = JSON.stringify({ status: "processed", transcript: text, ...withExperience(processed) });
 
       await completeIdempotencyKey(env, idempotencyKey, responseBody);
