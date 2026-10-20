@@ -4,6 +4,7 @@ import { decisionOf, parseHistoryParams, readHistory, recordDecision, recordInte
 import { agedCreditorsData, agedDebtorsData, customerReceivablesData, parseCustomerParam, parsePeriodParams, profitAndLossData } from "./reports-data";
 import { withExperience } from "./experience";
 import { followUpReply, tryFollowUp } from "./followup";
+import { issueKey, listKeys, revokeKey } from "./mcp-keys";
 import { analysisData, parseAnalysisParams } from "./analysis";
 import { businessLapsed } from "./access";
 import { bulkImportRoute, similarNameTracker } from "./imports";
@@ -15,7 +16,7 @@ import { recordModelUsage } from "./usage";
 import { takeSnapshot } from "./backup";
 import { readOnlyRefusal } from "./freeze";
 import { adminTargetBusiness, callBusiness, forwardToBusiness, routeRequest } from "./routing";
-import { lookupAccessForEmail, normaliseEmail } from "./directory";
+import { isBusinessId, lookupAccessForEmail, normaliseEmail } from "./directory";
 import { handleJoinPost, handleSignupPost, handleUnknownAccount, maybeHandoverPage } from "./signup";
 import { cancelledPage, createOrder, handleNotification, payPage, returnPage } from "./billing";
 import { cardUpdatedPage, cardUpdatePage, plansPage, startPost } from "./plans";
@@ -874,6 +875,25 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
     // to match every other update here and the allowed methods in the CORS headers.
     // The owner's own team (team.ts): list, add, change a role, deactivate, reactivate. Owner only: every route needs can_invite_members (ROUTE_RULES in auth.ts), which no other role can ever hold. The handlers learn who is acting from the
     // session, so "yourself" and "who added them" are real.
+    // The owner's read-only keys for outside assistants (mcp-keys.ts; MCP_ARCHITECTURE.md). Owner only (can_invite_members, which can never be granted to another role). A key is in the answer to POST ONCE and nowhere else: only its hash is stored, and the list never shows it.
+    if (url.pathname === "/mcp-keys" && request.method === "GET") {
+      return Response.json({ keys: await listKeys(env) });
+    }
+    if (url.pathname === "/mcp-keys" && request.method === "POST") {
+      if (env.MCP === "off") return Response.json({ error: "Keys for outside assistants are switched off." }, { status: 409 });
+      if (!isBusinessId(env.BUSINESS_ID)) return Response.json({ error: "Keys need a business of their own." }, { status: 409 });
+      const asked = (await request.json().catch(() => null)) as { label?: unknown; email?: unknown } | null;
+      const { email: issuer } = await resolveCapabilities(request, env);
+      const made = await issueKey(env, { businessId: env.BUSINESS_ID, email: asked?.email ?? issuer, label: asked?.label, createdBy: issuer });
+      if (!made.ok) return Response.json({ error: made.error }, { status: 400 });
+      return Response.json({ id: made.id, key: made.key, label: made.label, email: made.email, shownOnce: true, note: "Copy this key now. It cannot be shown again: if it is lost, revoke it and issue another." }, { status: 201, headers: { "Cache-Control": "no-store" } });
+    }
+    if (url.pathname === "/mcp-keys/revoke" && request.method === "POST") {
+      const asked = (await request.json().catch(() => null)) as { id?: unknown } | null;
+      if (typeof asked?.id !== "string" || !/^[0-9a-f]{16}$/.test(asked.id)) return Response.json({ error: "id must be the 16-character key id." }, { status: 400 });
+      const done = await revokeKey(env, asked.id);
+      return done.found ? Response.json({ revoked: true, id: asked.id }) : Response.json({ error: "No such key." }, { status: 404 });
+    }
     if (url.pathname === "/team" && request.method === "GET") {
       return Response.json(await listTeam(env));
     }

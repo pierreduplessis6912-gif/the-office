@@ -480,6 +480,18 @@
   "class": "owner only"
  },
  {
+  "route": "GET /mcp-keys",
+  "pattern": "/mcp-keys",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "sales": 403,
+  "admin": 403,
+  "class": "owner only"
+ },
+ {
   "route": "GET /onboarding",
   "pattern": "/onboarding",
   "how": "exact path",
@@ -1083,6 +1095,30 @@
   "route": "POST /leads/:id/mark-lost",
   "pattern": "/leads/:id/mark-lost",
   "how": "id in path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "sales": 403,
+  "admin": 403,
+  "class": "owner only"
+ },
+ {
+  "route": "POST /mcp-keys",
+  "pattern": "/mcp-keys",
+  "how": "exact path",
+  "none": 401,
+  "owner": "A",
+  "accountant": 403,
+  "installer": 403,
+  "sales": 403,
+  "admin": 403,
+  "class": "owner only"
+ },
+ {
+  "route": "POST /mcp-keys/revoke",
+  "pattern": "/mcp-keys/revoke",
+  "how": "exact path",
   "none": 401,
   "owner": "A",
   "accountant": 403,

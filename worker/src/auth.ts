@@ -799,6 +799,10 @@ export const ROUTE_RULES: Array<{ method: string; path: RegExp; anyOf: string[] 
   { method: "POST", path: /^\/billing\/plans-link$/, anyOf: ["can_manage_settings"] },
   { method: "PATCH", path: /^\/team\/\d+\/profile$/, anyOf: ["can_invite_members"] },
   { method: "POST", path: /^\/team\/invitations\/\d+\/revoke$/, anyOf: ["can_invite_members"] },
+  // The owner's read-only keys for outside assistants (mcp-keys.ts, MCP_ARCHITECTURE.md): issue, list, revoke. Owner only: can_invite_members is owner-only and can never be granted to another role. The revoke id is in the body, not the path.
+  { method: "GET", path: /^\/mcp-keys$/, anyOf: ["can_invite_members"] },
+  { method: "POST", path: /^\/mcp-keys$/, anyOf: ["can_invite_members"] },
+  { method: "POST", path: /^\/mcp-keys\/revoke$/, anyOf: ["can_invite_members"] },
   { method: "POST", path: /^\/business-profile\/logo$/, anyOf: ["can_manage_settings"] },
   { method: "POST", path: /^\/files\/(customers|invoices)-csv-import$/, anyOf: ["can_manage_settings"] },
 ];

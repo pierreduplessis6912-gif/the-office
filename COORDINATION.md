@@ -62,3 +62,5 @@ BI slice 4 (`claim/bi-4-spoken-followups`): spoken follow-ups (why did it drop, 
 MCP adapter (Pierre, 2026-10-20): shape decided and recorded in `MCP_ARCHITECTURE.md` and DECISIONS.md. Slices, unclaimed, in order: A the credential core and tests; B owner-only routes to issue, list and revoke keys; C the `/mcp` endpoint and five read-only tools; D the app screen for keys. Security-sensitive: deliberate-breakage tests, staging rehearsal and Pierre's review of the diff before deploy. Spoken follow-ups are live and confirmed in production (`767ba08`, probe 11/11); the app following a spoken answer still needs a deliberate envelope version.
 
 MCP slice A (`claim/mcp-a-key-core`): the credential core is built and tested on the branch `feat/mcp-key-core` and is NOT merged: Pierre reviews the diff first (security-sensitive). Next: slice B (owner-only routes to issue, list and revoke keys).
+
+MCP slice B (`claim/mcp-b-key-routes`): the owner-only key routes are built and tested on the branch `feat/mcp-key-routes` (on top of slice A) and are NOT merged: Pierre reviews first. Next: slice C, the `/mcp` endpoint and the five read-only tools.
