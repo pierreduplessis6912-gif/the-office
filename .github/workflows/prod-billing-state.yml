@@ -1,0 +1,136 @@
+name: Production billing state (rehearse a lapse, then restore)
+
+# Sets the subscription state of ONE test business in production with the privileged operator route, reads it back, and records the state before and after.
+# Test businesses only (the list below). Started by hand only. To restore, run it again with the values the record shows under before.
+# A field set to keep is not sent; a date field set to clear is sent as null. The record holds states and dates only, no keys.
+on:
+  workflow_dispatch:
+    inputs:
+      business:
+        description: "Business id (a test business only)"
+        type: string
+        default: "ballz-enterprizes-392739"
+      billing_status:
+        description: "active, past_due, cancelled, or keep"
+        type: choice
+        options:
+          - keep
+          - active
+          - past_due
+          - cancelled
+        default: keep
+      period_end:
+        description: "YYYY-MM-DD, or keep, or clear"
+        type: string
+        default: "keep"
+      grace_until:
+        description: "YYYY-MM-DD, or keep, or clear"
+        type: string
+        default: "keep"
+
+concurrency:
+  group: prod-billing-state
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  state:
+    runs-on: ubuntu-latest
+    env:
+      PROD_URL: https://office.websitehub.co.za
+      RESULTS: ${{ github.workspace }}/results
+      BUSINESS: ${{ github.event.inputs.business }}
+      STATUS: ${{ github.event.inputs.billing_status }}
+      PERIOD_END: ${{ github.event.inputs.period_end }}
+      GRACE_UNTIL: ${{ github.event.inputs.grace_until }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the request and read the state before (read only)
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+        run: |
+          mkdir -p "$RESULTS"
+          case "$BUSINESS" in zululand-flooring-and-blinds|tender-hub|ballz-enterprizes-392739) ;; *) echo "only the three test businesses may be changed here"; exit 1 ;; esac
+          curl -s -o "$RESULTS/before.json" -w '%{http_code}' "$PROD_URL/debug/directory/billing?business=$BUSINESS" -H "X-Admin-Key: $ADMIN" > "$RESULTS/before.status"
+          cat "$RESULTS/before.status"; echo
+          test "$(cat "$RESULTS/before.status")" = "200"
+
+      - name: Set the state (the only write)
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+          CONFIRM: ${{ secrets.PROD_CONFIRM_KEY }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re
+          body = {"business": os.environ["BUSINESS"]}
+          if os.environ["STATUS"] != "keep":
+              body["billingStatus"] = os.environ["STATUS"]
+          for field, name in (("periodEnd", "PERIOD_END"), ("graceUntil", "GRACE_UNTIL")):
+              v = os.environ[name]
+              if v == "keep":
+                  continue
+              if v == "clear":
+                  body[field] = None
+              elif re.fullmatch(r"\d{4}-\d{2}-\d{2}", v):
+                  body[field] = v
+              else:
+                  raise SystemExit(name + " must be YYYY-MM-DD, keep or clear")
+          assert len(body) > 1, "nothing to change"
+          json.dump(body, open(os.path.join(os.environ["RESULTS"], "body.json"), "w"))
+          PY
+          CODE=000
+          for attempt in 1 2 3; do
+            CODE=$(curl -s -o "$RESULTS/set.json" -w '%{http_code}' -X POST "$PROD_URL/debug/directory/billing-state" -H "X-Admin-Key: $ADMIN" -H "X-Admin-Confirm: $CONFIRM" -H "Content-Type: application/json" --data @"$RESULTS/body.json")
+            if [ "$CODE" = "200" ]; then break; fi
+            sleep 8
+          done
+          echo "$CODE" > "$RESULTS/set.status"
+          echo "billing-state answered $CODE"
+          test "$CODE" = "200"
+
+      - name: Read it back (read only)
+        env:
+          ADMIN: ${{ secrets.PROD_ADMIN_KEY }}
+        run: |
+          curl -s -o "$RESULTS/after.json" "$PROD_URL/debug/directory/billing?business=$BUSINESS" -H "X-Admin-Key: $ADMIN"
+          python3 - <<'PY'
+          import json, os
+          r = os.environ["RESULTS"]
+          after = json.load(open(os.path.join(r, "after.json")))["business"]
+          body = json.load(open(os.path.join(r, "body.json")))
+          for field, key in (("billingStatus", "billingStatus"), ("periodEnd", "periodEnd"), ("graceUntil", "graceUntil")):
+              if field in body:
+                  assert after.get(key) == body[field], field + " did not read back as set"
+          print("read back as set")
+          PY
+
+      - name: Record what was found
+        if: always()
+        run: |
+          mkdir -p ops
+          python3 - <<'PY'
+          import json, os, datetime
+          r = os.environ["RESULTS"]
+          def biz(n):
+              try:
+                  b = json.load(open(os.path.join(r, n)))["business"]
+                  return {k: b.get(k) for k in ("id", "plan", "seats", "status", "billingStatus", "billingInterval", "periodEnd", "graceUntil")}
+              except Exception:
+                  return None
+          def status(n):
+              try:
+                  return open(os.path.join(r, n)).read().strip()
+              except Exception:
+                  return None
+          out = {"when": datetime.datetime.utcnow().isoformat() + "Z", "run": os.environ.get("GITHUB_RUN_ID"), "business": os.environ.get("BUSINESS"), "requested": {"billingStatus": os.environ.get("STATUS"), "periodEnd": os.environ.get("PERIOD_END"), "graceUntil": os.environ.get("GRACE_UNTIL")}, "before": biz("before.json"), "after": biz("after.json"), "set_status": status("set.status")}
+          json.dump(out, open("ops/production-billing-state-last.json", "w"), indent=1)
+          PY
+          git config user.name "production-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/production-billing-state-last.json
+          git commit -m "Production billing state record (states and dates only)" || echo "nothing to record"
+          git pull --rebase origin "${{ github.ref_name }}"
+          git push origin "HEAD:${{ github.ref_name }}"
