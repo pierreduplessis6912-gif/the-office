@@ -54,3 +54,5 @@ Direction recorded in VISION.md (Pierre, 2026-10-20): ERP and BI backend, conver
 BI slice 1 (`claim/bi-1-revenue-by-customer`): the revenue-by-customer analysis is built on the backend (`topic=revenue`), awaiting its staging rehearsal and deploy. Next: slice 2, a customer's outstanding invoices (calculated); slice 3, the app's Revenue chip and customer drill-down.
 
 BI slice 2 (`claim/bi-2-customer-receivables`): a customer's receivables (`GET /reports/aged-debtors?customer=<id>`) built on the backend, awaiting its staging rehearsal and deploy. Next: BI slice 3, the app's Revenue chip and customer drill-down (it will read both).
+
+BI slice 3 (`claim/bi-3-app-revenue-drill`): the app's Revenue chip and customer drill-down, DONE and merged (not verified on a device). The three-step path (why revenue moved, which customers, their outstanding invoices) now exists by tapping. Open and unclaimed: spoken follow-ups behind the recorded-phrase gate; a read-only MCP adapter; photo and document uploads in the envelope and history; a structured `open_room` and `refuse`.
