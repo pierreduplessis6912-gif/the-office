@@ -30,4 +30,5 @@ Session C (point 3) will touch: a new `worker/src/history.ts` and its test, ONE 
 ## Front end (Flutter app)
 
 Front-end work is claimed with the same create-only call (`claim/frontend-N-<name>`). Slice 1 (`claim/frontend-1-audit`): audit against the doctrine, and handling a lapsed business with a shared client and a gate, DONE and merged; the app has tests and CI records `ops/app-compile-last.json`. **Nothing here is verified on a device.** Candidate next slices, none claimed: the owner's plans button; sending workspace context; reduced motion and accessibility; reading the reply envelope; a history view; an analysis view.
+Slice 2 (`claim/frontend-2-plans-button`): the owner's Subscription drawer item, DONE and merged (not verified on a device). Still unclaimed: sending workspace context; reduced motion and accessibility; reading the reply envelope; a history view; an analysis view.
 

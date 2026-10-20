@@ -7909,3 +7909,17 @@ Pierre shared a note arguing for "one coordinator per business, add more objects
 
 **Not done, said plainly.** The plans button, sending context, reduced motion and accessible labels (the largest gap against the doctrine), reading the envelope, a history view, an analysis view, and tests for the rest of the app.
 
+---
+
+## Front end, slice 2: the owner's Subscription item, 2026-10-20
+
+**Why this next.** Pierre said "Continue". Slice 1 made the app cope when a business lapses; this slice closes the commercial loop from inside the app: an owner can reach the plans page without being told to find an e-mail or a web address. The backend route (`POST /billing/plans-link`) already existed and is owner-only, so the slice is small, testable without a device and carries no visual risk beyond one drawer item. I again deliberately left the orb, motion and any redesign for slices that can be checked on a device.
+
+**Choices and why.** (1) **Open the link only if it is exactly what the server makes.** The page opens in the phone's browser with no session, so the signature in the link is the whole credential; if a wrong or tampered answer ever arrived, opening it blindly would hand an owner to another site. So `trustedPlansUrl` demands https, our own host (not a look-alike or sub-domain), the exact path, a token, and no credentials, odd port or fragment, and eighteen refusals are tested. (2) **Hide the item from non-owners** instead of showing it and refusing: the other owner-only items (Permissions, Team) are shown to everyone and their rooms explain, but a "Subscription" item that only ever says "only the owner" is noise; the server still refuses non-owners, so hiding is presentation, not security. (3) **Pure logic in its own file** (no plugins) so it can be tested in Flutter's harness without a device; `main.dart` only wires it. (4) **Never throw; tell the person in plain words,** and reuse slice 1's client so a lapsed business that taps it is taken to the "subscription ended" screen rather than shown a vague failure.
+
+**Mistakes and near-misses of mine.** My first edit placed the new method directly under the comment that describes `_signOut`, which would have made the next reader believe the comment described my method; I noticed on reading the diff and moved it after `_authHeaders` before pushing. CI was green first time (analyzer 0 errors, 58 tests, web build), which is the first slice where the workflow's readable record made a first-try pass visible rather than assumed.
+
+**What I could not verify.** Nothing has run on a device: how the item looks and sits, that the phone's browser opens, and the whole path from a tap to PayFast.
+
+**Not done, said plainly.** Sending workspace context; reduced motion and accessible labels (the largest gap against the doctrine); reading the reply envelope; a history view; an analysis view; and tests for the rest of the app.
+
