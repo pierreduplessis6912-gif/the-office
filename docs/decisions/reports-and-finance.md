@@ -152,3 +152,11 @@ checking with an independent method before concluding.
 **Not done, said plainly.** A retention or purge policy and an erase-on-request path: the record is append-only and nothing expires it, which is a POPIA question that needs Pierre and a qualified person. Direct executions inside the pipeline are not recorded as events (they are traced through capture ids). Workspace context (point 4, claimed).
 
 ---
+
+## Uploads join the envelope and the history, 2026-10-24
+
+**Decision.** `POST /files/photo` and `POST /files/document` now record one history row per upload (`source` `photo` or `document`; `recordUpload` in `history.ts`) and add the same `experience` object to their reply; no existing reply field changed. The held action's type is read from `pending_actions`; `interpreted` holds only the kind and subject; `heard` is null for an upload (its capture holds a placeholder, not speech). The row is written before the reply is stored for retry, so a retried upload is never recorded twice.
+**Proof.** 8 new checks in `tools/history.test.js` (5 breakages caught); the 74 upload recordings differ from the old goldens ONLY by the added `experience` and the added `interaction_log` rows (checked structurally); 7,944/7,944 on both backends.
+**Not done.** The app does not yet show an upload in its Activity room as such: it shows "(the recording is no longer on file)" for `heard`.
+
+---

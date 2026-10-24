@@ -274,3 +274,4 @@ Split on 2026-10-24 from the 7958-line original, which is `git show 95bf743:DECI
 - [Quoting as its own capability, 2026-10-18 (step 3 of the sequence)](docs/decisions/reports-and-finance.md) (was line 7664)
 - [The analysis layer (backend wrap-up point 2), 2026-10-19](docs/decisions/reports-and-finance.md) (was line 7854)
 - [The history and audit record (backend wrap-up point 3), 2026-10-19](docs/decisions/reports-and-finance.md) (was line 7870)
+- [Uploads join the envelope and the history, 2026-10-24](docs/decisions/reports-and-finance.md) (new)

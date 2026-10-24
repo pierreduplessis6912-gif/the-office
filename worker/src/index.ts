@@ -1,6 +1,6 @@
 export { TrialObject } from "./trial";
 import { checkContextRequest, contextFromHeader, parseContext } from "./context";
-import { decisionOf, parseHistoryParams, readHistory, recordDecision, recordInteraction, resolveScope } from "./history";
+import { decisionOf, parseHistoryParams, readHistory, recordDecision, recordInteraction, recordUpload, resolveScope } from "./history";
 import { agedCreditorsData, agedDebtorsData, customerReceivablesData, parseCustomerParam, parsePeriodParams, profitAndLossData } from "./reports-data";
 import { withExperience } from "./experience";
 import { followUpReply, tryFollowUp } from "./followup";
@@ -3677,7 +3677,9 @@ let created = 0;
       ({ subjectCharacterId, subjectHint, rawText, captionIntent } = documentDecision);
       let { uploadRefusal, uploadMessage, uploadHeldActionId, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction, inferredFromDocument, documentKindLabel, documentKind } = documentDecision;
 
-      const docResponseBody = JSON.stringify({ status: "stored", refusal: uploadRefusal, message: uploadRefusal ?? uploadMessage, pendingActionId: uploadHeldActionId, key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction });
+      const documentEmail = (await resolveCapabilities(request, env)).email;
+      const documentExperience = await recordUpload(env, { source: "document", actorEmail: documentEmail, captureId, message: uploadRefusal ?? uploadMessage, heldActionId: uploadHeldActionId, kind: documentKind, subjectHint, viewing: contextFromHeader(request.headers.get("X-Office-Context")).context });   // swallowed on failure: it can never change a reply
+      const docResponseBody = JSON.stringify({ status: "stored", refusal: uploadRefusal, message: uploadRefusal ?? uploadMessage, pendingActionId: uploadHeldActionId, key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction, ...(documentExperience ? { experience: documentExperience } : {}) });
       await completeIdempotencyKey(env, idempotencyKey, docResponseBody);
       return new Response(docResponseBody, { headers: { "Content-Type": "application/json" } });
     }
@@ -3728,7 +3730,9 @@ let created = 0;
       ({ subjectCharacterId, subjectHint, rawText, captionIntent } = photoDecision);
       let { uploadRefusal, uploadMessage, uploadHeldActionId, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction, inferredFromDocument, documentKindLabel, documentKind } = photoDecision;
 
-      const photoResponseBody = JSON.stringify({ status: "stored", refusal: uploadRefusal, message: uploadRefusal ?? uploadMessage, pendingActionId: uploadHeldActionId, key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction });
+      const photoEmail = (await resolveCapabilities(request, env)).email;
+      const photoExperience = await recordUpload(env, { source: "photo", actorEmail: photoEmail, captureId, message: uploadRefusal ?? uploadMessage, heldActionId: uploadHeldActionId, kind: documentKind, subjectHint, viewing: contextFromHeader(request.headers.get("X-Office-Context")).context });   // swallowed on failure: it can never change a reply
+      const photoResponseBody = JSON.stringify({ status: "stored", refusal: uploadRefusal, message: uploadRefusal ?? uploadMessage, pendingActionId: uploadHeldActionId, key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction, ...(photoExperience ? { experience: photoExperience } : {}) });
       await completeIdempotencyKey(env, idempotencyKey, photoResponseBody);
       return new Response(photoResponseBody, { headers: { "Content-Type": "application/json" } });
     }

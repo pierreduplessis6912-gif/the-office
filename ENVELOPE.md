@@ -6,6 +6,8 @@
 
 **Additive and versioned.** One new object, `experience`, is added to the reply of the two app-facing routes (`POST /messages/text` and the voice-note route). **Every existing reply field keeps its name, value and meaning, and `message` is always still there**, so a client that ignores `experience` (including today's app) behaves exactly as before. A breaking change needs a new `version`. Nothing is added to the debug transcription route.
 
+**Uploads (2026-10-24).** `POST /files/photo` and `POST /files/document` carry the same `experience` object, built from the reply's `message` and its held action (`pendingActionId`, with its real type read from `pending_actions`). Each upload is also recorded in the history (`source` `photo` or `document`, `heard` always null). Nothing else in those replies changed.
+
 ## The four parts (they are kept apart on purpose)
 
 ```json

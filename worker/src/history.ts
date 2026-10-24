@@ -4,7 +4,7 @@
 // carry, not guessed. (4) A decision on a held action (confirm, reject, edit-field) is recorded with who and the outcome, including refused attempts, from the response STATUS alone (the body is never read). (5) A member reads only their OWN turns; only an owner
 // (can_manage_settings) may ask for everyone's. (6) Only an allowlist of the reply is stored: no capabilities, tokens or addresses beyond the actor. (7) Reading is read-only and bounded; the record is append-only. Nothing here deletes anything.
 import { parseContext } from "./context";
-import { appCommandText, buildExperience } from "./experience";
+import { appCommandText, buildExperience, type Experience } from "./experience";
 import type { Env } from "./types";
 
 const MAX_REPLY = 4000, MAX_INTERPRETED = 2000, MAX_EMAIL = 254, MAX_LIMIT = 100, DEFAULT_LIMIT = 20;
@@ -53,6 +53,24 @@ export async function recordInteraction(env: Env, turn: { actorEmail: unknown; s
     return true;
   } catch {
     return false;
+  }
+}
+
+// A photo or a document upload is a turn too: it feeds the intelligence (it can hold an invoice, a delivery or a statement for confirmation) so it gets the same record and the same envelope as speech. Returns the envelope for the reply, or null if it could not be built. NEVER throws and never changes the reply.
+export async function recordUpload(env: Env, upload: { source: "photo" | "document"; actorEmail: unknown; captureId: unknown; message: unknown; heldActionId: unknown; kind: unknown; subjectHint: unknown; viewing?: unknown }): Promise<Experience | null> {
+  try {
+    const id = typeof upload.heldActionId === "number" && Number.isSafeInteger(upload.heldActionId) && upload.heldActionId > 0 ? upload.heldActionId : null;
+    let type: string | null = null;
+    if (id !== null) {
+      try { const row = await env.OFFICE_DB.prepare("SELECT type FROM pending_actions WHERE id = ?").bind(id).first<{ type: string }>(); type = typeof row?.type === "string" ? row.type : null; } catch { type = null; }
+    }
+    const processed = { message: typeof upload.message === "string" ? upload.message : null, pendingActions: id !== null ? [{ id, type }] : [] };
+    const interpreted = { upload: upload.source, kind: typeof upload.kind === "string" ? upload.kind.slice(0, 40) : null, subject: typeof upload.subjectHint === "string" ? upload.subjectHint.slice(0, 120) : null };
+    const captureId = typeof upload.captureId === "number" && Number.isSafeInteger(upload.captureId) ? upload.captureId : null;
+    await recordInteraction(env, { actorEmail: upload.actorEmail, source: upload.source, captureId, processed, interpreted, viewing: upload.viewing });
+    return buildExperience(processed);
+  } catch {
+    return null;
   }
 }
 
@@ -161,7 +179,7 @@ export async function readHistory(env: Env, query: { scope: "own" | "all"; viewe
     const item = {
       id: row.id, at: row.at, source: row.source,
       viewing: row.viewing ? parseJson(row.viewing) : null,   // what the APP said was on screen (untrusted, validated): neither recorded speech nor generated
-      recorded: { heard: row.heard },   // what was actually said or typed: recorded speech
+      recorded: { heard: row.source === "photo" || row.source === "document" ? null : row.heard },   // an upload says nothing: its capture holds only a placeholder, which is not recorded speech   // what was actually said or typed: recorded speech
       generated: { interpreted: parseJson(row.interpreted), replied: row.replied, mode: row.mode },   // what The Office produced: system-generated
       proposed: mine.map((a) => ({ id: a.id, type: a.type, status: status.get(a.id) ?? null })),
       decisions: mine.flatMap((a) => decisions.get(a.id) ?? []),
