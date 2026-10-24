@@ -1,3 +1,5 @@
+> **Status:** partly built. **Verified:** not yet. **Owns:** `worker/src/onboarding.ts`.
+
 # Onboarding Journey — Welcome, Guided Setup, and Showing Off What's Real
 
 Pinned the same way `WHATSAPP_CHANNEL_ARCHITECTURE.md` and

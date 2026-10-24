@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # The Office — Features, by Department (a lens, not a wall)
 
 This document exists for one purpose: to make the whole system legible

@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # Security & Operational Readiness — Working Doc
 
 Pinned as a real, working checklist, not an architecture document — meant to

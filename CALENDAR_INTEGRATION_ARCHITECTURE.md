@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # Calendar Integration — Architecture
 
 Pinned before building, per direct instruction: this is a well-scoped

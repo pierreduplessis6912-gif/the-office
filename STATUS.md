@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # The Office — Current State
 
 **Last verified: 2026-07-17 for the backend below.** This is the

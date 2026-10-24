@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # ERP Mode — Architecture
 
 Pinned before moving to design. Builds directly on

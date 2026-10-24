@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # Atlas
 
 A real, structured, per-concept register — not of code, of *truth*.

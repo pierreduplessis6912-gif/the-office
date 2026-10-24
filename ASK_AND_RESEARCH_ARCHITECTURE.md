@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # Ask & Research Architecture — Answering What Isn't in the Database
 
 Pinned before building, per direct instruction — the same treatment

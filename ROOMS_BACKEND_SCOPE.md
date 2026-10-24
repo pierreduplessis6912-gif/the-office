@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # Rooms — Backend Scope
 
 Pinned so this doesn't need re-investigating or re-deciding later.

@@ -1,3 +1,5 @@
+> **Status:** principle. **Verified:** not yet. **Owns:** none.
+
 # The Office — Experience Brief
 
 Not a UI spec. A product philosophy — the thing every subsequent

@@ -1,3 +1,5 @@
+> **Status:** partly built. **Verified:** not yet. **Owns:** `worker/src/analysis.ts`, `tools/analysis.test.js`.
+
 # Conversational BI Architecture — A Persistent Analytical Relationship, Not Voice-Controlled Reporting
 
 Pinned the same way `WHATSAPP_CHANNEL_ARCHITECTURE.md`, `ONBOARDING_JOURNEY.md`,

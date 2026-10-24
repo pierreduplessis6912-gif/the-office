@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # The Office
 
 The API is the Office. Everything else — this Flutter app, a future PWA,

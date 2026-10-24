@@ -1,3 +1,5 @@
+> **Status:** real. **Verified:** not yet. **Owns:** none.
+
 # RUNBOOK: running The Office when something happens
 
 Written 2026-10-14 for Pierre. Every command and route here was read from the code or run; the last section says, for each part, whether it has been **executed** or only written. Nothing here is a guess about how the system behaves unless it says so.

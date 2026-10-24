@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # Core Substrate Architecture — What Belongs to the Platform, and What Belongs to a Vertical
 
 Pinned before anything is built on it, same treatment every real architecture

@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # The Office Runtime — v1 Milestone Brief
 
 The real, converged architecture direction for the next session,

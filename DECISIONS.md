@@ -1,3 +1,5 @@
+> **Status:** real. **Verified:** not yet. **Owns:** none.
+
 # The Office — Decisions, Rationale & Philosophy
 
 This file holds the *why* — architectural rationale, rejected

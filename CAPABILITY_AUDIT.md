@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # Capability Audit — What's Actually Real
 
 Written in direct response to a real, honest admission: the gap

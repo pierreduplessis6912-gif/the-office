@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # The Office — UI Capability Map
 
 Every real backend capability, paired with where it lives (or should

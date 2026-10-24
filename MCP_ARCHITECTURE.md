@@ -1,6 +1,8 @@
-# An MCP server for The Office: PROPOSED, pinned 2026-10-04, not built
+> **Status:** partly built. **Verified:** not yet. **Owns:** `worker/src/mcp.ts`, `worker/src/mcp-keys.ts`, `worker/src/mcp-key-format.ts`.
 
-**Status: an idea, pinned for later. Nothing here is built, and nothing here is decided.** It came from a design proposal pasted in by Pierre (the full text is in the appendix, unedited). This page keeps the proposal together with what was checked against the code the day it was pinned, so the next person does not have to rediscover it.
+# An MCP server for The Office: the read-only adapter is BUILT (slices A to D); anything beyond it is not
+
+**Status (corrected 2026-10-24): the read-only adapter is built and live; see "Status (2026-10-21)" at the end. The text from here to the appendix is the original 2026-10-04 proposal, kept as written.** It came from a design proposal pasted in by Pierre (the full text is in the appendix, unedited). This page keeps the proposal together with what was checked against the code the day it was pinned, so the next person does not have to rediscover it.
 
 **The idea in one line.** Make The Office a standard MCP server, so any LLM host that speaks MCP (Claude, Cursor, ChatGPT, custom agents) can drive it, as just another client of the same API the Flutter app uses.
 

@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # Ship checklist: what stands between The Office and production
 
 Written 2026-10-11 from a third outside review, **with every claim checked against the code first** (`DECISIONS.md`, "Two outside reviews"). It replaces section F of `OPEN_QUESTIONS.md` as the working list. Status is what the code shows today, not what any review said.

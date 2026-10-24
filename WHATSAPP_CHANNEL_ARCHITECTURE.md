@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # WhatsApp Channel Architecture — A Real Vehicle, Not a Speculative One
 
 Pinned the same way `CORE_SUBSTRATE_ARCHITECTURE.md` was: before anything gets built

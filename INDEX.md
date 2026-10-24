@@ -1,0 +1,33 @@
+> **Status:** real. **Verified:** 2026-10-24. **Owns:** `tools/analysis.test.js`, `tools/onboarding.test.js`, `tools/billing.test.js`, `tools/context.test.js`, `tools/experience.test.js`, `tools/followup.test.js`, `tools/history.test.js`, `tools/mcp-keys-breakage.js`, `tools/route-policy-gen.js`, `tools/route-policy.test.js`, `worker/src/analysis.ts`, `worker/src/billing.ts`, `worker/src/context.ts`, `worker/src/experience.ts`, `worker/src/followup.ts`, `worker/src/history.ts`, `worker/src/identity.ts`, `worker/src/intents/lookup.ts`, `worker/src/mcp.ts`, `worker/src/onboarding.ts`.
+
+# INDEX: feature to document, code and tests
+
+Start at [HANDOVER.md](HANDOVER.md). Links here are checked by `tools/docs-check.js`. "Verified: not yet" on a document means its claims have not been checked line by line: only its banner and paths have.
+
+| Feature | Document | Code | Tests |
+|---|---|---|---|
+| Reply envelope | [ENVELOPE.md](ENVELOPE.md) | [`worker/src/experience.ts`](worker/src/experience.ts) | [`tools/experience.test.js`](tools/experience.test.js) |
+| Workspace context | [CONTEXT.md](CONTEXT.md) | [`worker/src/context.ts`](worker/src/context.ts) | [`tools/context.test.js`](tools/context.test.js) |
+| Who can call what | [ROUTE_POLICY.md](ROUTE_POLICY.md) | [`tools/route-policy-gen.js`](tools/route-policy-gen.js) | [`tools/route-policy.test.js`](tools/route-policy.test.js) |
+| Read-only MCP adapter | [MCP_ARCHITECTURE.md](MCP_ARCHITECTURE.md) | [`worker/src/mcp.ts`](worker/src/mcp.ts) | [`tools/mcp-keys-breakage.js`](tools/mcp-keys-breakage.js) |
+| Analysis and reports | [CONVERSATIONAL_BI_ARCHITECTURE.md](CONVERSATIONAL_BI_ARCHITECTURE.md) | [`worker/src/analysis.ts`](worker/src/analysis.ts) | [`tools/analysis.test.js`](tools/analysis.test.js) |
+| Spoken follow-ups | [CONVERSATIONAL_BI_ARCHITECTURE.md](CONVERSATIONAL_BI_ARCHITECTURE.md) | [`worker/src/followup.ts`](worker/src/followup.ts) | [`tools/followup.test.js`](tools/followup.test.js) |
+| History and audit | [DECISIONS.md](DECISIONS.md) | [`worker/src/history.ts`](worker/src/history.ts) | [`tools/history.test.js`](tools/history.test.js) |
+| Billing (PayFast sandbox) | [SHIP_CHECKLIST.md](SHIP_CHECKLIST.md) | [`worker/src/billing.ts`](worker/src/billing.ts) | [`tools/billing.test.js`](tools/billing.test.js) |
+| Onboarding | [ONBOARDING_JOURNEY.md](ONBOARDING_JOURNEY.md) | [`worker/src/onboarding.ts`](worker/src/onboarding.ts) | [`tools/onboarding.test.js`](tools/onboarding.test.js) |
+| Identity | [IDENTITY_ARCHITECTURE.md](IDENTITY_ARCHITECTURE.md) | [`worker/src/identity.ts`](worker/src/identity.ts) | no dedicated test file |
+| Lookup routing | [LOOKUP_ROUTING_ARCHITECTURE.md](LOOKUP_ROUTING_ARCHITECTURE.md) | [`worker/src/intents/lookup.ts`](worker/src/intents/lookup.ts) | no dedicated test file |
+
+## Every document, by status
+
+**real:** [CONTEXT.md](CONTEXT.md), [COORDINATION.md](COORDINATION.md), [DECISIONS.md](DECISIONS.md), [ENVELOPE.md](ENVELOPE.md), [HANDOVER.md](HANDOVER.md), [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md), [ROUTE_POLICY.md](ROUTE_POLICY.md), [RUNBOOK.md](RUNBOOK.md)
+
+**partly built:** [CONVERSATIONAL_BI_ARCHITECTURE.md](CONVERSATIONAL_BI_ARCHITECTURE.md), [IDENTITY_ARCHITECTURE.md](IDENTITY_ARCHITECTURE.md), [LOOKUP_ROUTING_ARCHITECTURE.md](LOOKUP_ROUTING_ARCHITECTURE.md), [MCP_ARCHITECTURE.md](MCP_ARCHITECTURE.md), [ONBOARDING_JOURNEY.md](ONBOARDING_JOURNEY.md)
+
+**proposed:** [JOB_CARDS_ARCHITECTURE.md](JOB_CARDS_ARCHITECTURE.md), [PROCESS_ONE_EXTRACTION_REWRITE.md](PROCESS_ONE_EXTRACTION_REWRITE.md), [PROJECTION_VISION.md](PROJECTION_VISION.md), [SELF_HELP_ARCHITECTURE.md](SELF_HELP_ARCHITECTURE.md)
+
+**principle:** [DESIGN_CONSTITUTION_V2.md](DESIGN_CONSTITUTION_V2.md), [EXPERIENCE_BRIEF.md](EXPERIENCE_BRIEF.md), [OFFICE_CONSTITUTION.md](OFFICE_CONSTITUTION.md), [OFFICE_MOODBOARD.md](OFFICE_MOODBOARD.md), [VISION.md](VISION.md)
+
+**unaudited:** [ASK_AND_RESEARCH_ARCHITECTURE.md](ASK_AND_RESEARCH_ARCHITECTURE.md), [ATLAS.md](ATLAS.md), [BACKEND_CAPABILITY_MAP.md](BACKEND_CAPABILITY_MAP.md), [BUILD_SEQUENCE.md](BUILD_SEQUENCE.md), [CALENDAR_INTEGRATION_ARCHITECTURE.md](CALENDAR_INTEGRATION_ARCHITECTURE.md), [CAPABILITY_AUDIT.md](CAPABILITY_AUDIT.md), [CORE_SUBSTRATE_ARCHITECTURE.md](CORE_SUBSTRATE_ARCHITECTURE.md), [ERP_MODE_ARCHITECTURE.md](ERP_MODE_ARCHITECTURE.md), [FEATURES.md](FEATURES.md), [FEATURE_STATUS_MATRIX.md](FEATURE_STATUS_MATRIX.md), [NATIVE_TRANSITION_BRIEF.md](NATIVE_TRANSITION_BRIEF.md), [OFFICE_RUNTIME_V1.md](OFFICE_RUNTIME_V1.md), [README.md](README.md), [RELATIONAL_IDENTITY_ARCHITECTURE.md](RELATIONAL_IDENTITY_ARCHITECTURE.md), [ROOMS_BACKEND_SCOPE.md](ROOMS_BACKEND_SCOPE.md), [SECURITY_AND_OPERATIONAL_READINESS.md](SECURITY_AND_OPERATIONAL_READINESS.md), [SHIP_CHECKLIST.md](SHIP_CHECKLIST.md), [STATUS.md](STATUS.md), [UI_MAP.md](UI_MAP.md), [WHATSAPP_CHANNEL_ARCHITECTURE.md](WHATSAPP_CHANNEL_ARCHITECTURE.md)
+
+Logs, never read whole, search by heading: [DECISIONS.md](DECISIONS.md) (919 KB) and [RUNBOOK.md](RUNBOOK.md) (150 KB). Splitting them by area is still to do.

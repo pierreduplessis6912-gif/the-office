@@ -1,4 +1,6 @@
-> **Status:** real, verified 2026-10-24 against `main` c220b26. Replaces the August handover. Keep this file CURRENT: it is the first thing a new chat reads. Nothing in this repo is untouchable; the only rule is that it stays true.
+> **Status:** real. **Verified:** 2026-10-24. **Owns:** `tools/docs-check.js`.
+
+> Verified against `main` c220b26. Replaces the August handover. Keep this file CURRENT: it is the first thing a new chat reads. Nothing in this repo is untouchable; the only rule is that it stays true.
 
 # The Office: handover for a fresh chat
 
@@ -31,4 +33,4 @@ Pierre, solo founder in South Africa, works ONLY from a phone. Direct, outcome-f
 One slice per chat. Do not paste big documents: upload a file or name a section. Final reports about 6 lines. Docs entries 5 lines at most. One wait and one read for builds, no polling loops. Do not re-read what is already known. Docs-only merges skip the local suites (CI runs them). Measured 2026-10-24: 44 markdown files, 1.6 MB, of which `DECISIONS.md` is 919 KB (7,955 lines) and `RUNBOOK.md` 150 KB: both are append-only logs, never read whole, search them by heading.
 
 ## Next session plan (agreed with Pierre)
-Audit every document against the code (status banner on each: real, partly built, proposed, principle or archived, verified date, owning code paths); archive only what is no longer our reality (`git mv` to `docs/archive/`, nothing deleted); one `INDEX.md` mapping feature to document, code and tests with links; split RUNBOOK and DECISIONS by area with a table of contents; add `tools/docs-check.js` (broken link, missing banner, missing path fails CI; stale after 30 days is flagged); then resume building at open item 1.
+Done 2026-10-24 (branch `docs-audit`): a status banner on every document, `tools/docs-check.js` (a CI step in `deploy.yml`, with a breakage proof), `INDEX.md`, and the stale MCP header corrected. NOT done: 20 documents are still `unaudited` and every `Verified` reads `not yet` (check each document's claims against the code, one at a time, and set the date); archive only what is no longer our reality (`git mv` to `docs/archive/`); split `RUNBOOK.md` and `DECISIONS.md` by area with a table of contents. Then resume building at open item 1.

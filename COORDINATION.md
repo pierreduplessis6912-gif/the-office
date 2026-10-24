@@ -1,3 +1,5 @@
+> **Status:** real. **Verified:** not yet. **Owns:** none.
+
 # Who is working on what (read this first, and READ THE CORRECTION BELOW)
 
 **Correction, 2026-10-19 (Pierre).** This file was first written as if "two Claude sessions" were working here at once. **That is not established.** The repository's only collaborator is Pierre, who confirms he uses ONE chat on ONE device. Commits authored "Claude" appeared (14:22 to 15:00 UTC on 2026-10-19, and 06:05 to 06:19 earlier) that the visible chat did not make; all of them carry the identical identity `Claude <noreply@anthropic.com>`, so the author line cannot say which run made them. **The best-fitting (unverified) explanation is that the same instruction was executed in more than one ATTEMPT before the visible one, one after another: each attempt did one slice of the plan and left it in the repository for the next to find.** Whatever the cause, the protocol below prevents duplicated or colliding work.

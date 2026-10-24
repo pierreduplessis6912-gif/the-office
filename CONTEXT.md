@@ -1,3 +1,5 @@
+> **Status:** real. **Verified:** not yet. **Owns:** `worker/src/context.ts`, `tools/context.test.js`.
+
 # Workspace context — the contract for the front end (version 1, Phase 5)
 
 **What it is.** The app MAY tell The Office what the user is looking at, so a follow-up such as "compare that to August" can later be understood without the user repeating the report. **In this phase the context is accepted, validated and recorded with the turn, but it is NOT used to interpret speech** (nothing in the backend can use it yet; the first consumer will be the intelligence layer). So sending it changes no reply today. It is safe to start sending now.

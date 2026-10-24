@@ -1,3 +1,5 @@
+> **Status:** principle. **Verified:** not yet. **Owns:** none.
+
 # The Office v2 — Design Constitution
 
 The most architecturally authoritative of the three real design

@@ -1,3 +1,5 @@
+> **Status:** partly built. **Verified:** not yet. **Owns:** `worker/src/intents/lookup.ts`.
+
 # Lookup Routing Architecture — AI Determines Intent, Never Composes the Answer
 
 Pinned before building, per direct instruction — the same treatment

@@ -1,3 +1,5 @@
+> **Status:** principle. **Verified:** not yet. **Owns:** none.
+
 # The Office: where the vision lives (start here)
 
 **Read in this order.** 1) this file, 2) `ENVELOPE.md` (the reply contract), 3) `CONTEXT.md` (what the app may tell the server), 4) `EXPERIENCE_BRIEF.md`, `DESIGN_CONSTITUTION_V2.md`, `OFFICE_CONSTITUTION.md`, `UI_MAP.md` (the older design documents), 5) the newest entries of `DECISIONS.md` (why things were built the way they were) and `RUNBOOK.md` (how they work).

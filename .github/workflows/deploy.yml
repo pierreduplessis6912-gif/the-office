@@ -46,6 +46,9 @@ jobs:
         working-directory: worker
         run: npm ci
 
+      - name: Documentation check
+        run: node tools/docs-check.js
+
       - name: Typecheck
         working-directory: worker
         run: npm run typecheck

@@ -1,3 +1,5 @@
+> **Status:** proposed. **Verified:** not yet. **Owns:** none.
+
 # Job Cards — Architecture
 
 Pinned while still reasoning this out, per direct instruction — not a

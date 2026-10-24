@@ -1,3 +1,5 @@
+> **Status:** proposed. **Verified:** not yet. **Owns:** none.
+
 # processOneExtraction Rewrite — A Real, Staged Plan, Not a Blank-Page Rewrite
 
 Pinned the same way `WHATSAPP_CHANNEL_ARCHITECTURE.md`, `ONBOARDING_JOURNEY.md`,

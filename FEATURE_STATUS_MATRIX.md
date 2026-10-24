@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # Feature Status Matrix
 
 A real, current snapshot — not a claim about architecture, a lens for a

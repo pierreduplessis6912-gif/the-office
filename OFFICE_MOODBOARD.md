@@ -1,3 +1,5 @@
+> **Status:** principle. **Verified:** not yet. **Owns:** none.
+
 # The Office — Mood Board
 
 A shared visual language reference, so Claude, Kimi, ChatGPT, and

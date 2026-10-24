@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # Backend Capability Map — Ingest / Store / Relay
 
 Pinned for planning the "ERP mode" behind the void, per direct

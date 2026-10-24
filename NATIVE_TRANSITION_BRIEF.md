@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # The Office — Native Flutter Transition Brief
 
 The fourth real design/governance document, alongside `EXPERIENCE_BRIEF.md`,

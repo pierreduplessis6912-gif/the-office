@@ -1,3 +1,5 @@
+> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+
 # Relational Identity Architecture — Identity as Position, Not Record
 
 Pinned before building, per direct instruction — the same treatment

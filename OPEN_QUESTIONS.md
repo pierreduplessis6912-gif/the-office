@@ -1,3 +1,5 @@
+> **Status:** real. **Verified:** not yet. **Owns:** none.
+
 # Open questions
 
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on

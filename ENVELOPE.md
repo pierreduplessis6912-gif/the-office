@@ -1,3 +1,5 @@
+> **Status:** real. **Verified:** not yet. **Owns:** `worker/src/experience.ts`, `tools/experience.test.js`, `tools/experience-contract.test.js`.
+
 # The reply envelope — contract version 1 (Phase 1)
 
 **The principle.** The intelligence thinks. The envelope projects. The Office becomes the experience. The envelope **communicates what the backend has already established** and **recommends how the front end might present it**. It is not an intent engine, not a business-logic layer and **not an authorization mechanism**: it grants nothing, decides nothing and executes nothing.

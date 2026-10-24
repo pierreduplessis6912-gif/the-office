@@ -1,3 +1,5 @@
+> **Status:** partly built. **Verified:** not yet. **Owns:** `worker/src/identity.ts`.
+
 # Identity Architecture — A Real, Canonical Person
 
 Pinned before building, per direct instruction — the same treatment

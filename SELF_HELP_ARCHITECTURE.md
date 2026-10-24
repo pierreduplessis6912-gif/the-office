@@ -1,3 +1,5 @@
+> **Status:** proposed. **Verified:** not yet. **Owns:** none.
+
 # Self-Help Architecture — Teaching From Real Decisions, Without Guessing
 
 Pinned the same way `WHATSAPP_CHANNEL_ARCHITECTURE.md` and
