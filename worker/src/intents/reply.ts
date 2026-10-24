@@ -7,6 +7,7 @@
 // it. Its inputs are the results the other steps produced, grouped as they were produced (the handlers' results, the four facts-and-notes values, the ten
 // job-pricing values), and destructured back to their ORIGINAL names so the chain itself did not change. The function that called it is now only an
 // orchestrator: it opens the sentence, runs each step, asks this module what to say, and returns.
+import type { Refusal } from "../refusals";
 import type { Env } from "../types";
 import type { Extraction, HistoryTurn } from "../types";
 import { answerLookup } from "./lookup";
@@ -35,6 +36,7 @@ export interface ReplyInput {
   stockResult: Awaited<ReturnType<typeof handleStock>>;
   orderRecordsResult: Awaited<ReturnType<typeof handleOrderRecords>>;
   snagsLeadsResult: Awaited<ReturnType<typeof handleSnagsAndLeads>>;
+  refusals: Refusal[];
 }
 
 export async function composeReply(env: Env, input: ReplyInput): Promise<string> {
@@ -235,7 +237,7 @@ export async function composeReply(env: Env, input: ReplyInput): Promise<string>
     // same-breath assembly has had its full, complete chance to run.
   } else if (extraction?.intent === "lookup") {
     // Rewrite Phase 3, step 10: answering a question (every lookup scope) lives in intents/lookup.ts. The condition stays here, so the chain's order is unchanged.
-    message = await answerLookup(env, { extraction, transcript, history, capabilities, customer, character });
+    message = await answerLookup(env, { extraction, transcript, history, capabilities, customer, character, refusals: input.refusals });
   } else if (customer) {
     message = customer.matched ? `Found existing customer: ${customer.name}.` : `New customer noted: ${customer.name}.`;
     if (extraction?.personal_note) {

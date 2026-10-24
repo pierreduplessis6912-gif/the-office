@@ -1,18 +1,23 @@
 // The reply envelope, contract version 1 (written up in ENVELOPE.md at the repository root; pinned in tools/experience.test.js).
 // THE PRINCIPLE: the intelligence thinks, the envelope projects. It reports what the reply has ALREADY established and recommends how a front end might present it. It is NOT an intent engine, NOT business logic and NOT an authorization mechanism: it
-// grants nothing, decides nothing and executes nothing. This module is a pure function: it imports nothing, reads no database and calls nothing. The four parts are kept apart on purpose:
+// grants nothing, decides nothing and executes nothing. This module is a pure function: it imports only the refusal vocabulary (types and a validator from refusals.ts), reads no database and calls nothing. The four parts are kept apart on purpose:
 //   established     facts copied (validated, bounded) from fields the reply already carries; nothing is inferred
 //   recommendation  a suggestion about presentation, never an instruction
 //   unknown         an explicit list of what is NOT established
 //   mustStillPass   what must still go through the existing trusted routes (confirmation, authorization, validation)
 
+import { isRefusal, type Refusal } from "./refusals";
+
 export interface HeldAction { id: number; type: string | null }
 export interface Candidate { id: number; name: string }
 export interface Change { field: string; label: string; displayValue: string }
+// Contract version 2 (2026-10-24) adds two things, and ONLY a reply that uses one of them is stamped version 2 (every other reply is exactly as in version 1, so a client that reads only version 1 loses nothing):
+//   open_room  the reply carries a recognised open-this-screen command naming one of ROOMS (established.room; recommendation.mode "open_room")
+//   refuse     the reply carries structured refusals from refusals.ts (established.refusals); mode "refuse" only when EVERY part of the reply was refused ("whole")
 export interface Experience {
-  version: 1;
-  established: { from: string[]; heldActions: HeldAction[]; candidates: Candidate[] | null; changes: Change[] | null };
-  recommendation: { mode: "speak" | "confirm" | "clarify"; speak: string | null };
+  version: 1 | 2;
+  established: { from: string[]; heldActions: HeldAction[]; candidates: Candidate[] | null; changes: Change[] | null; room?: string; refusals?: { scope: "whole" | "part"; items: Refusal[] } };
+  recommendation: { mode: "speak" | "confirm" | "clarify" | "open_room" | "refuse"; speak: string | null; room?: string };
   unknown: string[];
   mustStillPass: { confirmationRequired: boolean; through: string | null; authorization: string };
 }
@@ -21,6 +26,9 @@ const MAX_ITEMS = 50, MAX_TEXT = 200, MAX_SPEAK = 2000;
 const AUTHORIZATION = "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing.";
 const THROUGH = "Only the existing pending-action routes (confirm, reject, edit-field), which re-check authorization and validation on every call.";
 // What Phase 1 never establishes: nothing in today's reply supports any of these, so none is invented.
+// The screens an app command may name (what lookup.ts can ask the app to open). Anything else stays an unrecognised command, as in version 1.
+const ROOMS = ["financial_snapshot", "aged_debtors"];
+const MAX_REFUSALS = 10;
 const NOT_ESTABLISHED = ["intent_class", "room", "workspace", "evidence", "certainty", "refusal_reason"];
 
 // An in-band instruction to the app that rides inside `message` (today: "__OPEN_DASHBOARD__:financial_snapshot"). It is a command for one client, not words to say or show, so it is never offered as speech and is never stored as what The Office said. The reply itself is untouched: today's app still reads the marker from `message`.
@@ -75,13 +83,30 @@ export function buildExperience(reply: unknown): Experience {
       else if (message.length > MAX_SPEAK) unknown.push("message_not_repeated");   // the message field is always the full text
       else if (message !== "") { speak = message; from.push("message"); }
     } else if (message !== undefined && message !== null) unknown.push("reply_field_malformed:message");
-    const mode = candidates && candidates.length > 0 ? "clarify" : heldActions.length > 0 ? "confirm" : "speak";
-    const confirmationRequired = heldActions.length > 0;
+    // Version 2 parts. A room is established only from a command that names a screen in ROOMS; refusals only from items that pass the closed vocabulary.
+    const command = typeof message === "string" ? APP_COMMAND.exec(message) : null;
+    const room = command !== null && command[1] === "OPEN_DASHBOARD" && ROOMS.includes(command[2]) ? command[2] : null;
+    let refusals: { scope: "whole" | "part"; items: Refusal[] } | null = null;
+    if (reply.refusals !== undefined && reply.refusals !== null) {
+      if (!Array.isArray(reply.refusals)) unknown.push("reply_field_malformed:refusals");
+      else {
+        const items = reply.refusals.filter(isRefusal).slice(0, MAX_REFUSALS).map((r) => ({ reason: r.reason, topic: r.topic }) as Refusal);   // only the two vocabulary fields are copied, whatever else an item carries
+        if (items.length !== reply.refusals.length) unknown.push("reply_field_malformed:refusals");
+        if (items.length > 0) { refusals = { scope: reply.refusalScope === "whole" ? "whole" : "part", items }; from.push("refusals"); }
+      }
+    }
+    const held = heldActions.length > 0;
+    const mode = candidates && candidates.length > 0 ? "clarify" : held ? "confirm" : room !== null ? "open_room" : refusals !== null && refusals.scope === "whole" ? "refuse" : "speak";
+    const confirmationRequired = held;
+    const version = room !== null || refusals !== null ? 2 : 1;
+    const known = new Set<string>();
+    if (room !== null) known.add("room");
+    if (refusals !== null) known.add("refusal_reason");
     return {
-      version: 1,
-      established: { from, heldActions, candidates, changes },
-      recommendation: { mode, speak },
-      unknown,
+      version,
+      established: { from, heldActions, candidates, changes, ...(room !== null ? { room } : {}), ...(refusals !== null ? { refusals } : {}) },
+      recommendation: { mode, speak, ...(mode === "open_room" && room !== null ? { room } : {}) },
+      unknown: unknown.filter((u) => !known.has(u)),
       mustStillPass: { confirmationRequired, through: confirmationRequired ? THROUGH : null, authorization: AUTHORIZATION },
     };
   } catch {

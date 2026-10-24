@@ -25,7 +25,7 @@ Reply envelope (Phase 1). Reports as data (profit and loss, aged debtors, aged c
 | Vision | Built | Gap |
 | --- | --- | --- |
 | Contract A, the reply envelope | `experience` on `POST /messages/text` and the voice-note route (`ENVELOPE.md`): established, recommendation, unknown, mustStillPass | No `replyId`, typed `references`, `content` blocks, `warnings` or `provenance.status`. `unknown` is a different idea from `warnings` |
-| Modes (7) | 3: `speak`, `confirm`, `clarify` | No `open_room`, `update_workspace`, `analysis` or `refuse`. A refusal reaches the app only as words |
+| Modes (7) | 3: `speak`, `confirm`, `clarify` | `open_room` and `refuse` exist in envelope version 2 (ENVELOPE.md, partly covered); no `update_workspace` or `analysis`. Where a refusal is not yet structured it reaches the app only as words |
 | Contract B, presentation model, policy, renderer registry | A defensive envelope reader (`app/lib/reply_envelope.dart`), used only to fill a gap in held actions. Rooms and the analysis sheet each fetch and draw their own data | No presentation policy, controller, content blocks (metric, table, record list, evidence, document) or registry |
 | Contract C, the action boundary | Built and strong: confirm, reject and edit-field re-check authorization on every call; `mustStillPass`; decisions are recorded in history | Stale-action and replay behaviour not separately pinned |
 | "Must never" list | Held: the server owns every figure; the analysis lists what it cannot establish; no widget is built from model output | none known |

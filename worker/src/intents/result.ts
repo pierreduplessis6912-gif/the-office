@@ -8,6 +8,7 @@
 // "pending" fields obey strict rules at every one of those returns (below). The adapter is lossless
 // over that real domain and refuses, loudly, anything outside it, so a drift in the real function
 // shows up as an error instead of a plausible wrong answer.
+import type { Refusal } from "../refusals";
 import type { Extraction } from "../types";
 
 export type Intent = Extraction["intent"];
@@ -44,6 +45,8 @@ export interface LegacyProcessResult {
   pendingChanges: PendingChange[] | null;
   // Present only where one segment creates two holds (an invoice held, then an amendment asked): the earlier one.
   alsoPending?: Array<{ id: number; type: string }>;
+  // Present only where this segment refused the person because of their role (refusals.ts); absent everywhere else, so no other result is touched.
+  refusals?: Refusal[];
 }
 
 // A confirmation the person is being asked for. The id and the type always travel together; candidates

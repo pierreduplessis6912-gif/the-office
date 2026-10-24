@@ -17,6 +17,17 @@ Map<String, dynamic> _fixture() {
   throw StateError('envelope-v1.json not found from ${Directory.current.path}');
 }
 
+// Version 2 (open_room and refuse, ENVELOPE.md): the backend now stamps a reply that uses either one as version 2. This app reads only version 1, so it must
+// ignore these envelopes entirely and keep working from `message` exactly as before (the screen-opening command and the words are unchanged). When the app
+// learns version 2 this expectation changes with it, deliberately.
+Map<String, dynamic> _fixtureV2() {
+  for (final p in ['../tools/contract/envelope-v2.json', 'tools/contract/envelope-v2.json']) {
+    final f = File(p);
+    if (f.existsSync()) return jsonDecode(f.readAsStringSync()) as Map<String, dynamic>;
+  }
+  throw StateError('envelope-v2.json not found from ${Directory.current.path}');
+}
+
 void main() {
   final fx = _fixture();
   final cases = (fx['cases'] as List).cast<Map<String, dynamic>>();
@@ -47,6 +58,18 @@ void main() {
       expect(e.changes.map((x) => [x.field, x.label, x.displayValue]).toList(), changes.map((x) => [x['field'], x['label'], x['displayValue']]).toList());
       expect(e.unknown, (xp['unknown'] as List).cast<String>());
       expect(e.confirmationRequired, must['confirmationRequired']);
+    });
+  }
+
+  final v2cases = (_fixtureV2()['cases'] as List).cast<Map<String, dynamic>>();
+  test('the version 2 fixture is found and has cases', () {
+    expect(v2cases.length, greaterThanOrEqualTo(5));
+  });
+  for (final c in v2cases) {
+    test('a version 2 envelope ("${c['name']}") is not read by this app', () {
+      final xp = c['experience'] as Map<String, dynamic>;
+      expect(xp['version'], 2);
+      expect(ReplyEnvelope.fromReply({'message': 'x', 'experience': xp}), isNull);
     });
   }
 

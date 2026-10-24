@@ -4198,15 +4198,32 @@
     "pendingCandidates": null,
     "pendingActionType": null,
     "pendingChanges": null,
+    "refusals": [
+     {
+      "reason": "role_cannot_record",
+      "topic": "money"
+     }
+    ],
+    "refusalScope": "part",
     "experience": {
-     "version": 1,
+     "version": 2,
      "established": {
       "from": [
-       "message"
+       "message",
+       "refusals"
       ],
       "heldActions": [],
       "candidates": null,
-      "changes": null
+      "changes": null,
+      "refusals": {
+       "scope": "part",
+       "items": [
+        {
+         "reason": "role_cannot_record",
+         "topic": "money"
+        }
+       ]
+      }
      },
      "recommendation": {
       "mode": "speak",
@@ -4217,8 +4234,7 @@
       "room",
       "workspace",
       "evidence",
-      "certainty",
-      "refusal_reason"
+      "certainty"
      ],
      "mustStillPass": {
       "confirmationRequired": false,

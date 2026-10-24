@@ -1000,9 +1000,9 @@
       }
     },
     {
-      "name": "a message that is an app command",
+      "name": "an app command naming no known screen",
       "reply": {
-        "message": "__OPEN_DASHBOARD__:financial_snapshot"
+        "message": "__OPEN_DASHBOARD__:payroll"
       },
       "experience": {
         "version": 1,

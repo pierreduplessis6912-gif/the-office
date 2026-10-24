@@ -1,4 +1,5 @@
 export { TrialObject } from "./trial";
+import type { Refusal } from "./refusals";
 import { checkContextRequest, contextFromHeader, parseContext } from "./context";
 import { decisionOf, parseHistoryParams, readHistory, recordDecision, recordInteraction, recordUpload, resolveScope } from "./history";
 import { agedCreditorsData, agedDebtorsData, customerReceivablesData, parseCustomerParam, parsePeriodParams, profitAndLossData } from "./reports-data";
@@ -199,6 +200,7 @@ async function processOneExtraction(
   // Present only where a segment creates TWO holds (an invoice held, then an amendment question returned instead): the
   // earlier one, which has no field of its own above. Absent everywhere else, so no other result is touched.
   alsoPending?: Array<{ id: number; type: string }>;
+  refusals?: Refusal[];
 }> {
   // Rewrite Phase 3, step 9: the opening step (who the sentence is about, and what may be done about them) lives in intents/opening.ts. It either
   // finishes the whole result (a refusal, an identity question, forget-last) or hands back the five values and the extraction the rest needs.
@@ -251,7 +253,9 @@ async function processOneExtraction(
   const { factPendingActionId, sensitiveKind, sensitiveFactRefused, sensitiveNoteKeptOut } = await handleFactsAndNotes(env, ctx, { extraction, transcript, capabilities, customer, character });
 
   // Rewrite Phase 3, step 13: what the person is told lives in intents/reply.ts. Everything the steps above decided goes in; one message comes out.
+  const refusals: Refusal[] = [];
   const message = await composeReply(env, {
+    refusals,
     extraction, transcript, history, capabilities, customer, character, pendingActionId, pendingActionType, supplierPaymentNoSupplier,
     facts: { factPendingActionId, sensitiveKind, sensitiveFactRefused, sensitiveNoteKeptOut },
     jobPricing: jobState,
@@ -268,6 +272,7 @@ async function processOneExtraction(
     pendingCandidates: null,
     pendingActionType: pendingActionType,
     pendingChanges: null,
+    ...(refusals.length > 0 ? { refusals } : {}),
   };
 }
 // through processOneExtraction, same result. The only real difference
@@ -327,6 +332,7 @@ async function processTranscript(
     pendingActionType: string | null;
     pendingChanges: Array<{ field: string; label: string; displayValue: string }> | null;
     alsoPending?: Array<{ id: number; type: string }>;
+    refusals?: Refusal[];
   }> = [];
 
   for (const item of items) {
@@ -389,6 +395,9 @@ async function processTranscript(
   const pendingActionIds = pendingActions.map((a) => a.id);
   const factPendingActionIds = results.map((r) => r.factPendingActionId).filter((id): id is number => id !== null);
   const primary = results[0];
+  // Structured role refusals (refusals.ts), kept only where some segment refused. "whole" when EVERY segment refused and nothing else was added to the message; otherwise "part".
+  const allRefusals: Refusal[] = results.flatMap((r) => r.refusals ?? []).slice(0, 10);
+  const refusalScope: "whole" | "part" = results.every((r) => (r.refusals ?? []).length > 0) && projectResolutionMessages.length === 0 ? "whole" : "part";
 
   const embers = await getEmberCounts(env);
   return {
@@ -418,6 +427,7 @@ async function processTranscript(
     // changed-field list for a job_scope_amendment hold, same
     // "primary result" pattern as everything else above.
     pendingChanges: primary?.pendingChanges ?? null,
+    ...(allRefusals.length > 0 ? { refusals: allRefusals, refusalScope } : {}),
   };
 }
 

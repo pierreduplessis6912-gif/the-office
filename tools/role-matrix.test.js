@@ -276,7 +276,7 @@ async function expect(role, method, path, want) {
   for (const must of ['await reconcileCustomer(', 'await reconcileCharacter(', 'reconcilePerson(', 'intentCreationRefusal(', 'ctx.waitUntil(setSelection(', 'ctx.waitUntil(updateCaptureHint(', 'canResolveActionType(']) check(openingSrc.includes(must), `intents/opening.ts must do: ${must}`);
   // Rewrite Phase 3, step 10: answering a question (every lookup scope) lives in intents/lookup.ts. The branch CONDITION stays in the reply chain.
   check((replySrc.match(/answerLookup\(env,/g) || []).length === 1 && !/answerLookup\(/.test(indexSrc.replace(/^import[^\n]*\n/gm, '')), 'the reply (intents/reply.ts) must call answerLookup exactly once, and the orchestrator not at all');
-  check(/else if \(extraction\?\.intent === "lookup"\) \{\s*(\/\/[^\n]*\n\s*)*message = await answerLookup\(env, \{ extraction, transcript, history, capabilities, customer, character \}\);/.test(replySrc), 'the lookup branch must stay in the reply chain, and its answer must be the message');
+  check(/else if \(extraction\?\.intent === "lookup"\) \{\s*(\/\/[^\n]*\n\s*)*message = await answerLookup\(env, \{ extraction, transcript, history, capabilities, customer, character, refusals: input\.refusals \}\);/.test(replySrc), 'the lookup branch must stay in the reply chain, and its answer must be the message');
   const poeStart10 = indexSrc.indexOf('async function processOneExtraction(');
   const poeSrc10 = indexSrc.slice(poeStart10, indexSrc.indexOf('\n}\n', poeStart10));
   for (const gone of ['answerFromMemory(', 'deliveryExceptionAnswer(', 'asksAboutDeliveryExceptions(', 'openOrdersAnswer(', 'supplierStatementsAnswer(', '__OPEN_DASHBOARD__', 'query_scope === "business"', 'query_scope === "open_orders"']) check(!poeSrc10.includes(gone), `processOneExtraction must not carry its own copy of the lookup logic (found: ${gone})`);
@@ -313,7 +313,7 @@ async function expect(role, method, path, want) {
   const replyCall = (indexSrc.match(/const message = await composeReply\(env, \{([\s\S]*?)\n  \}\);/) || [, ''])[1];
   const callKeys = replyCall.replace(/facts: \{[^}]*\}/, 'facts').replace(/jobPricing: jobState/, 'jobPricing').split(',').map((s) => s.trim()).filter(Boolean).sort();
   const replyKeys = (replySrc.match(/export interface ReplyInput \{([\s\S]*?)\n\}/)[1].match(/^\s{2}(\w+):/gm) || []).map((s) => s.trim().replace(':', '')).sort();
-  check(callKeys.length === 16 && JSON.stringify(callKeys) === JSON.stringify(replyKeys), `everything the reply reads must be passed to it, and nothing else (passed: ${callKeys.join(', ')}; read: ${replyKeys.join(', ')})`);
+  check(callKeys.length === 17 && JSON.stringify(callKeys) === JSON.stringify(replyKeys), `everything the reply reads must be passed to it, and nothing else (passed: ${callKeys.join(', ')}; read: ${replyKeys.join(', ')})`);
   check(/facts: \{ factPendingActionId, sensitiveKind, sensitiveFactRefused, sensitiveNoteKeptOut \},/.test(indexSrc), 'the four facts-and-notes values must all be passed to the reply');
   const poeStart13 = indexSrc.indexOf('async function processOneExtraction(');
   const poeSrc13 = indexSrc.slice(poeStart13, indexSrc.indexOf('\n}\n', poeStart13));

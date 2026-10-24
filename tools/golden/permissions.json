@@ -3315,18 +3315,35 @@
     "pendingCandidates": null,
     "pendingActionType": null,
     "pendingChanges": null,
+    "refusals": [
+     {
+      "reason": "role_cannot_see",
+      "topic": "material_prices"
+     }
+    ],
+    "refusalScope": "whole",
     "experience": {
-     "version": 1,
+     "version": 2,
      "established": {
       "from": [
-       "message"
+       "message",
+       "refusals"
       ],
       "heldActions": [],
       "candidates": null,
-      "changes": null
+      "changes": null,
+      "refusals": {
+       "scope": "whole",
+       "items": [
+        {
+         "reason": "role_cannot_see",
+         "topic": "material_prices"
+        }
+       ]
+      }
      },
      "recommendation": {
-      "mode": "speak",
+      "mode": "refuse",
       "speak": "Material prices exist for this business but are restricted for your role."
      },
      "unknown": [
@@ -3334,8 +3351,7 @@
       "room",
       "workspace",
       "evidence",
-      "certainty",
-      "refusal_reason"
+      "certainty"
      ],
      "mustStillPass": {
       "confirmationRequired": false,
@@ -3376,7 +3392,7 @@
       "interpreted": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"lookup\",\"amount\":null,\"fact_key\":null,\"fact_value\":\"vinyl\",\"personal_note\":null,\"query_scope\":\"material_price\",\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
       "proposed": "[]",
       "replied": "Material prices exist for this business but are restricted for your role.",
-      "mode": "speak",
+      "mode": "refuse",
       "viewing": null
      }
     ]
@@ -3430,18 +3446,35 @@
     "pendingCandidates": null,
     "pendingActionType": null,
     "pendingChanges": null,
+    "refusals": [
+     {
+      "reason": "role_cannot_see",
+      "topic": "material_prices"
+     }
+    ],
+    "refusalScope": "whole",
     "experience": {
-     "version": 1,
+     "version": 2,
      "established": {
       "from": [
-       "message"
+       "message",
+       "refusals"
       ],
       "heldActions": [],
       "candidates": null,
-      "changes": null
+      "changes": null,
+      "refusals": {
+       "scope": "whole",
+       "items": [
+        {
+         "reason": "role_cannot_see",
+         "topic": "material_prices"
+        }
+       ]
+      }
      },
      "recommendation": {
-      "mode": "speak",
+      "mode": "refuse",
       "speak": "Material prices exist for this business but are restricted for your role."
      },
      "unknown": [
@@ -3449,8 +3482,7 @@
       "room",
       "workspace",
       "evidence",
-      "certainty",
-      "refusal_reason"
+      "certainty"
      ],
      "mustStillPass": {
       "confirmationRequired": false,
@@ -3491,7 +3523,7 @@
       "interpreted": "{\"customer_name\":null,\"character_name\":null,\"character_relationship\":null,\"intent\":\"lookup\",\"amount\":null,\"fact_key\":null,\"fact_value\":\"vinyl\",\"personal_note\":null,\"query_scope\":\"material_price\",\"deposit_percent\":null,\"scope_document_type\":null,\"due_date_raw\":null}",
       "proposed": "[]",
       "replied": "Material prices exist for this business but are restricted for your role.",
-      "mode": "speak",
+      "mode": "refuse",
       "viewing": null
      }
     ]

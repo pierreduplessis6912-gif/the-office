@@ -10,11 +10,12 @@
 // of the function needs: the possibly-updated extraction, the customer and supplier it found, any held action, and whether this member may write
 // invoices. Checked before the move: of the ten variables declared in this stretch, exactly those five are used afterwards, and the only parameter it
 // reassigns is the extraction.
+import type { Refusal } from "../refusals";
 import type { Env } from "../types";
 import type { Extraction } from "../types";
 import type { LegacyProcessResult } from "./result";
 import { containsBackwardReference, resolveFollowUpEntity, splitIntoTopics } from "../ai";
-import { canResolveActionType, intentCreationRefusal, intentOnlyFindsCharacters, intentOnlyFindsCustomers } from "../auth";
+import { canResolveActionType, intentCreationRefusal, intentCreationRefusalInfo, intentOnlyFindsCharacters, intentOnlyFindsCustomers } from "../auth";
 import { holdForConfirmation } from "../finance";
 import { checkCrossRoleCollision, clearSelections, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, logInteractionEdge, reconcileCharacter, reconcileCustomer, reconcilePerson, setSelection, withArticle } from "../identity";
 import { updateCaptureHint } from "../memory";
@@ -129,6 +130,7 @@ export async function handleOpeningStep(
       pendingCandidates: null,
       pendingActionType: null,
       pendingChanges: null,
+      refusals: [intentCreationRefusalInfo(extraction?.intent, capabilities) as Refusal],
     };
   }
 

@@ -6,6 +6,7 @@
 // the member's permissions, and the customer and the supplier), assigns back exactly ONE (the message), has no early return and
 // no background work, and declares nothing that the code after it uses. So this is a plain function that returns the answer, and the branch's CONDITION
 // stays in the reply chain where it was, which means nothing about which reply wins can have changed.
+import { cannotSee, type Refusal } from "../refusals";
 import type { Env } from "../types";
 import type { Extraction } from "../types";
 import { answerFromMemory, classifyBusinessTopic, classifyDashboardIntent, resolveFollowUpEntity } from "../ai";
@@ -25,6 +26,8 @@ export async function answerLookup(
     capabilities: string[];
     customer: { id: number; name: string; matched: boolean } | null;
     character: { id: number; name: string; matched: boolean } | null;
+    // Out-parameter: a whole-answer role refusal is pushed here (refusals.ts), so the reply can say so in structure and not only in words.
+    refusals?: Refusal[];
   }
 ): Promise<string> {
   const { extraction, transcript, history, capabilities, customer, character } = input;
@@ -36,6 +39,7 @@ export async function answerLookup(
   if (extraction?.query_scope === "material_price" && extraction.fact_value && !capabilities.includes("can_know_material_prices")) {
     // Decided by Pierre 2026-10-04: the last price paid for a material is a switch of its own (it was open to every role).
     message = "Material prices exist for this business but are restricted for your role.";
+    input.refusals?.push(cannotSee("material_prices"));
   } else if (extraction?.query_scope === "material_price" && extraction.fact_value) {
     const priceInfo = await getLastPricePaid(env, extraction.fact_value);
     if (priceInfo) {
@@ -45,18 +49,21 @@ export async function answerLookup(
     }
   } else if (extraction?.query_scope === "open_orders") {
     // Answered in code, from the same data as the Suppliers screen, and with the same permission (invoicing).
+    if (!capabilities.includes("can_manage_invoices")) input.refusals?.push(cannotSee("open_orders"));
     message = capabilities.includes("can_manage_invoices")
       ? openOrdersAnswer(await getOpenOrdersAcrossSuppliers(env, character?.id ?? null), character?.name ?? null)
       : "Open orders exist for this business but are restricted for your role.";
   } else if (extraction?.query_scope === "supplier_statements") {
     // Decided by Pierre 2026-10-04: the recorded statements can be asked for ("what did Floornet claim we owe"). Answered in code. Needs the
     // same permission as checking a statement in the first place.
+    if (intentCreationRefusal("supplier_statement", capabilities)) input.refusals?.push(cannotSee("supplier_statements"));
     message = intentCreationRefusal("supplier_statement", capabilities)
       ? "Supplier statements exist for this business but are restricted for your role."
       : supplierStatementsAnswer(await listSupplierStatements(env, character?.id ?? null), character?.name ?? null);
   } else if (extraction?.query_scope === "unit_conversions") {
     // Decided by Pierre 2026-10-04: the saved unit conversions can be asked for in words. Answered in code, not paraphrased by a model, so
     // the list is always exact. Materials access, like saving one.
+    if (!capabilities.includes("can_know_materials")) input.refusals?.push(cannotSee("unit_conversions"));
     message = capabilities.includes("can_know_materials")
       ? unitConversionsAnswer(await listUnitConversions(env, extraction.fact_value), extraction.fact_value?.trim() || null)
       : "Unit conversions exist for this business but are restricted for your role.";
@@ -67,6 +74,7 @@ export async function answerLookup(
     // paraphrased by a model, so the list is always complete and exact. Deliberately ahead of the
     // general business branch, which would otherwise spend a classification call and answer from
     // unrelated financial facts.
+    if (!capabilities.includes("can_manage_invoices")) input.refusals?.push(cannotSee("delivery_exceptions"));
     message = capabilities.includes("can_manage_invoices")
       ? deliveryExceptionAnswer(await getDeliveryExceptions(env, "open"))
       : "Delivery exception details exist for this business but are restricted for your role.";
@@ -97,6 +105,7 @@ export async function answerLookup(
     const canSeeFinancialScreens = capabilities.includes("can_know_profit") || capabilities.includes("can_know_debtors");
     if ((dashboardRoute === "financial_snapshot" || dashboardRoute === "aged_debtors" || dashboardRoute === "unsure") && !canSeeFinancialScreens) {
       message = "The financial overview exists for this business but is restricted for your role.";
+      input.refusals?.push(cannotSee("financial_overview"));
     } else if (dashboardRoute === "financial_snapshot" || dashboardRoute === "aged_debtors") {
       message = `__OPEN_DASHBOARD__:${dashboardRoute}`;
     } else if (dashboardRoute === "unsure") {

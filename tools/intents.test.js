@@ -128,7 +128,7 @@ module.exports = async function runIntentTests({ check, bundleTo, srcDir, fs, pa
   const blockBody = (src, marker) => { const open = src.indexOf(marker) + marker.length; let depth = 1, i = open; while (depth > 0 && i < src.length) { if (src[i] === '{') depth++; if (src[i] === '}') depth--; i++; } return src.slice(open, i - 1); };
   const legBlock = blockBody(resSrc, 'export interface LegacyProcessResult {');
   const legFields = [...flatten(legBlock).matchAll(/^\s+(\w+)(\??):\s*([^;]*);/gm)].map((m) => [m[1] + m[2], /\|\s*null\s*$/.test(m[3].trim())]);
-  check(liveFields.length === 10 && sameJson(liveFields, legFields), `LegacyProcessResult must have exactly processOneExtraction's return fields, in order, with the same nullability (live ${liveFields.map((f) => f[0]).join(',')}; scaffold ${legFields.map((f) => f[0]).join(',')})`);
+  check(liveFields.length === 11 && sameJson(liveFields, legFields), `LegacyProcessResult must have exactly processOneExtraction's return fields, in order, with the same nullability (live ${liveFields.map((f) => f[0]).join(',')}; scaffold ${legFields.map((f) => f[0]).join(',')})`);
 
   // The NESTED shapes, not just the field names (the first scaffold copied a wrong declaration for pendingChanges and
   // this guard could not tell, because it only compared top-level names). Compared three ways: the scaffold, the

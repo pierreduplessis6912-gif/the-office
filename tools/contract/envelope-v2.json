@@ -1,0 +1,291 @@
+{
+  "contract": "ENVELOPE.md, version 2",
+  "regenerate": "CONTRACT_UPDATE=1 node tools/role-matrix.test.js",
+  "cases": [
+    {
+      "name": "a recognised app command opens a room",
+      "reply": {
+        "message": "__OPEN_DASHBOARD__:financial_snapshot"
+      },
+      "experience": {
+        "version": 2,
+        "established": {
+          "from": [],
+          "heldActions": [],
+          "candidates": null,
+          "changes": null,
+          "room": "financial_snapshot"
+        },
+        "recommendation": {
+          "mode": "open_room",
+          "speak": null,
+          "room": "financial_snapshot"
+        },
+        "unknown": [
+          "intent_class",
+          "workspace",
+          "evidence",
+          "certainty",
+          "refusal_reason",
+          "message_is_an_app_command"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": false,
+          "through": null,
+          "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+        }
+      }
+    },
+    {
+      "name": "the aged debtors room",
+      "reply": {
+        "message": "__OPEN_DASHBOARD__:aged_debtors"
+      },
+      "experience": {
+        "version": 2,
+        "established": {
+          "from": [],
+          "heldActions": [],
+          "candidates": null,
+          "changes": null,
+          "room": "aged_debtors"
+        },
+        "recommendation": {
+          "mode": "open_room",
+          "speak": null,
+          "room": "aged_debtors"
+        },
+        "unknown": [
+          "intent_class",
+          "workspace",
+          "evidence",
+          "certainty",
+          "refusal_reason",
+          "message_is_an_app_command"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": false,
+          "through": null,
+          "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+        }
+      }
+    },
+    {
+      "name": "a whole refusal",
+      "reply": {
+        "message": "The financial overview exists for this business but is restricted for your role.",
+        "refusals": [
+          {
+            "reason": "role_cannot_see",
+            "topic": "financial_overview"
+          }
+        ],
+        "refusalScope": "whole"
+      },
+      "experience": {
+        "version": 2,
+        "established": {
+          "from": [
+            "message",
+            "refusals"
+          ],
+          "heldActions": [],
+          "candidates": null,
+          "changes": null,
+          "refusals": {
+            "scope": "whole",
+            "items": [
+              {
+                "reason": "role_cannot_see",
+                "topic": "financial_overview"
+              }
+            ]
+          }
+        },
+        "recommendation": {
+          "mode": "refuse",
+          "speak": "The financial overview exists for this business but is restricted for your role."
+        },
+        "unknown": [
+          "intent_class",
+          "room",
+          "workspace",
+          "evidence",
+          "certainty"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": false,
+          "through": null,
+          "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+        }
+      }
+    },
+    {
+      "name": "a refusal to record",
+      "reply": {
+        "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
+        "refusals": [
+          {
+            "reason": "role_cannot_record",
+            "topic": "money"
+          }
+        ],
+        "refusalScope": "whole"
+      },
+      "experience": {
+        "version": 2,
+        "established": {
+          "from": [
+            "message",
+            "refusals"
+          ],
+          "heldActions": [],
+          "candidates": null,
+          "changes": null,
+          "refusals": {
+            "scope": "whole",
+            "items": [
+              {
+                "reason": "role_cannot_record",
+                "topic": "money"
+              }
+            ]
+          }
+        },
+        "recommendation": {
+          "mode": "refuse",
+          "speak": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know."
+        },
+        "unknown": [
+          "intent_class",
+          "room",
+          "workspace",
+          "evidence",
+          "certainty"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": false,
+          "through": null,
+          "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+        }
+      }
+    },
+    {
+      "name": "a refusal in part of the message",
+      "reply": {
+        "message": "- Done.\n- Stock recording is restricted.",
+        "refusals": [
+          {
+            "reason": "role_cannot_record",
+            "topic": "stock"
+          }
+        ],
+        "refusalScope": "part"
+      },
+      "experience": {
+        "version": 2,
+        "established": {
+          "from": [
+            "message",
+            "refusals"
+          ],
+          "heldActions": [],
+          "candidates": null,
+          "changes": null,
+          "refusals": {
+            "scope": "part",
+            "items": [
+              {
+                "reason": "role_cannot_record",
+                "topic": "stock"
+              }
+            ]
+          }
+        },
+        "recommendation": {
+          "mode": "speak",
+          "speak": "- Done.\n- Stock recording is restricted."
+        },
+        "unknown": [
+          "intent_class",
+          "room",
+          "workspace",
+          "evidence",
+          "certainty"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": false,
+          "through": null,
+          "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+        }
+      }
+    },
+    {
+      "name": "a refusal beside a held action",
+      "reply": {
+        "message": "Drafted. One part was refused.",
+        "pendingActionId": 12,
+        "pendingActionIds": [
+          12
+        ],
+        "pendingActions": [
+          {
+            "id": 12,
+            "type": "invoice"
+          }
+        ],
+        "pendingActionType": "invoice",
+        "refusals": [
+          {
+            "reason": "role_cannot_record",
+            "topic": "leads"
+          }
+        ],
+        "refusalScope": "part"
+      },
+      "experience": {
+        "version": 2,
+        "established": {
+          "from": [
+            "pendingActions",
+            "message",
+            "refusals"
+          ],
+          "heldActions": [
+            {
+              "id": 12,
+              "type": "invoice"
+            }
+          ],
+          "candidates": null,
+          "changes": null,
+          "refusals": {
+            "scope": "part",
+            "items": [
+              {
+                "reason": "role_cannot_record",
+                "topic": "leads"
+              }
+            ]
+          }
+        },
+        "recommendation": {
+          "mode": "confirm",
+          "speak": "Drafted. One part was refused."
+        },
+        "unknown": [
+          "intent_class",
+          "room",
+          "workspace",
+          "evidence",
+          "certainty"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": true,
+          "through": "Only the existing pending-action routes (confirm, reject, edit-field), which re-check authorization and validation on every call.",
+          "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+        }
+      }
+    }
+  ]
+}

@@ -625,7 +625,13 @@
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
-   "pendingChanges": null
+   "pendingChanges": null,
+   "refusals": [
+    {
+     "reason": "role_cannot_see",
+     "topic": "open_orders"
+    }
+   ]
   },
   "threw": null,
   "aiCalls": [],
@@ -986,7 +992,13 @@
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
-   "pendingChanges": null
+   "pendingChanges": null,
+   "refusals": [
+    {
+     "reason": "role_cannot_see",
+     "topic": "supplier_statements"
+    }
+   ]
   },
   "threw": null,
   "aiCalls": [],
@@ -1266,7 +1278,13 @@
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
-   "pendingChanges": null
+   "pendingChanges": null,
+   "refusals": [
+    {
+     "reason": "role_cannot_see",
+     "topic": "unit_conversions"
+    }
+   ]
   },
   "threw": null,
   "aiCalls": [],
@@ -1491,7 +1509,13 @@
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
-   "pendingChanges": null
+   "pendingChanges": null,
+   "refusals": [
+    {
+     "reason": "role_cannot_see",
+     "topic": "delivery_exceptions"
+    }
+   ]
   },
   "threw": null,
   "aiCalls": [],
@@ -1686,7 +1710,13 @@
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
-   "pendingChanges": null
+   "pendingChanges": null,
+   "refusals": [
+    {
+     "reason": "role_cannot_see",
+     "topic": "financial_overview"
+    }
+   ]
   },
   "threw": null,
   "aiCalls": [
@@ -1736,7 +1766,13 @@
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
-   "pendingChanges": null
+   "pendingChanges": null,
+   "refusals": [
+    {
+     "reason": "role_cannot_see",
+     "topic": "financial_overview"
+    }
+   ]
   },
   "threw": null,
   "aiCalls": [
@@ -1786,7 +1822,13 @@
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
-   "pendingChanges": null
+   "pendingChanges": null,
+   "refusals": [
+    {
+     "reason": "role_cannot_see",
+     "topic": "financial_overview"
+    }
+   ]
   },
   "threw": null,
   "aiCalls": [
@@ -1936,7 +1978,13 @@
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
-   "pendingChanges": null
+   "pendingChanges": null,
+   "refusals": [
+    {
+     "reason": "role_cannot_see",
+     "topic": "financial_overview"
+    }
+   ]
   },
   "threw": null,
   "aiCalls": [

@@ -1708,7 +1708,13 @@
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
-   "pendingChanges": null
+   "pendingChanges": null,
+   "refusals": [
+    {
+     "reason": "role_cannot_record",
+     "topic": "leads"
+    }
+   ]
   },
   "threw": null,
   "aiCalls": [],
@@ -1726,7 +1732,13 @@
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
-   "pendingChanges": null
+   "pendingChanges": null,
+   "refusals": [
+    {
+     "reason": "role_cannot_record",
+     "topic": "leads"
+    }
+   ]
   },
   "threw": null,
   "aiCalls": [],

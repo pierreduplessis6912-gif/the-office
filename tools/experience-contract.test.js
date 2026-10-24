@@ -6,6 +6,7 @@
 const path = require('path'), fs = require('fs'), os = require('os'), assert = require('assert'), esbuild = require('esbuild');
 
 const FIXTURE = path.join(__dirname, 'contract', 'envelope-v1.json');
+const FIXTURE2 = path.join(__dirname, 'contract', 'envelope-v2.json');
 const many = (n) => Array.from({ length: n }, (_, i) => ({ id: i + 1, type: 'invoice' }));
 
 // The replies the backend is asked to wrap. Inputs only; the expected envelopes live in the fixture.
@@ -21,9 +22,19 @@ const REPLIES = {
   'a message too long to repeat': { message: 'x'.repeat(2500) },
   'long strings are cut': { message: 'ok', pendingActions: [{ id: 2, type: 'y'.repeat(300) }], pendingCandidates: [{ id: 6, name: 'n'.repeat(300) }] },
   'fields outside the allowlist are never copied': { message: 'ok', token: 'secret', email: 'a@b.co', capabilities: ['all'], pendingActions: [{ id: 4, type: 'invoice', token: 'secret', url: 'https://evil.example' }] },
-  'a message that is an app command': { message: '__OPEN_DASHBOARD__:financial_snapshot' },
+  'an app command naming no known screen': { message: '__OPEN_DASHBOARD__:payroll' },
   'a message that only mentions a command is still speech': { message: 'Say __OPEN_DASHBOARD__:aged_debtors to open it.' },
   'not an object': null,
+};
+
+// Version 2 (open_room and refuse). The app reads only version 1 today and must IGNORE these envelopes (app/test/envelope_contract_test.dart pins that), so they live in their own fixture.
+const REPLIES_V2 = {
+  'a recognised app command opens a room': { message: '__OPEN_DASHBOARD__:financial_snapshot' },
+  'the aged debtors room': { message: '__OPEN_DASHBOARD__:aged_debtors' },
+  'a whole refusal': { message: 'The financial overview exists for this business but is restricted for your role.', refusals: [{ reason: 'role_cannot_see', topic: 'financial_overview' }], refusalScope: 'whole' },
+  'a refusal to record': { message: "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.", refusals: [{ reason: 'role_cannot_record', topic: 'money' }], refusalScope: 'whole' },
+  'a refusal in part of the message': { message: '- Done.\n- Stock recording is restricted.', refusals: [{ reason: 'role_cannot_record', topic: 'stock' }], refusalScope: 'part' },
+  'a refusal beside a held action': { message: 'Drafted. One part was refused.', pendingActionId: 12, pendingActionIds: [12], pendingActions: [{ id: 12, type: 'invoice' }], pendingActionType: 'invoice', refusals: [{ reason: 'role_cannot_record', topic: 'leads' }], refusalScope: 'part' },
 };
 
 module.exports = async function runExperienceContractTests({ check, srcDir }) {
@@ -44,6 +55,18 @@ module.exports = async function runExperienceContractTests({ check, srcDir }) {
     check(recorded !== undefined && same(recorded.reply, JSON.parse(JSON.stringify(p.reply))), `fixture "${p.name}": the recorded reply is the one defined here`);
     check(recorded !== undefined && same(recorded.experience, JSON.parse(JSON.stringify(p.experience))), `fixture "${p.name}": the backend produces exactly the recorded envelope`);
   }
+  // version 2: the same record-and-compare, in its own fixture
+  const produced2 = Object.entries(REPLIES_V2).map(([name, reply]) => ({ name, reply, experience: ex.buildExperience(reply) }));
+  if (process.env.CONTRACT_UPDATE === '1') fs.writeFileSync(FIXTURE2, JSON.stringify({ contract: 'ENVELOPE.md, version 2', regenerate: 'CONTRACT_UPDATE=1 node tools/role-matrix.test.js', cases: produced2 }, null, 2) + '\n');
+  { let fx2 = null; try { fx2 = JSON.parse(fs.readFileSync(FIXTURE2, 'utf8')); } catch { /* checked below */ }
+    check(fx2 !== null && Array.isArray(fx2.cases) && same(fx2.cases.map((c) => c.name), produced2.map((c) => c.name)), 'the version 2 fixture exists and records exactly the replies this test defines (re-record with CONTRACT_UPDATE=1)');
+    if (fx2 !== null && Array.isArray(fx2.cases)) for (const p of produced2) {
+      const recorded = fx2.cases.find((c) => c.name === p.name);
+      check(recorded !== undefined && same(recorded.reply, JSON.parse(JSON.stringify(p.reply))) && same(recorded.experience, JSON.parse(JSON.stringify(p.experience))), `version 2 fixture "${p.name}": the recorded reply is the one defined here and the backend produces exactly the recorded envelope`);
+      const e = p.experience;
+      check(e.version === 2 && ['open_room', 'refuse', 'speak', 'confirm'].includes(e.recommendation.mode), `version 2 fixture "${p.name}": stamped version 2, with a mode this contract defines`);
+      check(e.mustStillPass.confirmationRequired === (e.established.heldActions.length > 0), `version 2 fixture "${p.name}": confirmation is required exactly when something is held`);
+    } }
   // the app relies on these facts about every recorded envelope
   for (const c of fx.cases) {
     const e = c.experience, keys = Object.keys(e).sort().join();

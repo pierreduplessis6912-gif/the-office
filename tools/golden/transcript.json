@@ -3908,7 +3908,14 @@
    },
    "pendingCandidates": null,
    "pendingActionType": null,
-   "pendingChanges": null
+   "pendingChanges": null,
+   "refusals": [
+    {
+     "reason": "role_cannot_record",
+     "topic": "money"
+    }
+   ],
+   "refusalScope": "part"
   },
   "threw": null,
   "aiCalls": [
@@ -3998,7 +4005,14 @@
    },
    "pendingCandidates": null,
    "pendingActionType": null,
-   "pendingChanges": null
+   "pendingChanges": null,
+   "refusals": [
+    {
+     "reason": "role_cannot_record",
+     "topic": "money"
+    }
+   ],
+   "refusalScope": "whole"
   },
   "threw": null,
   "aiCalls": [

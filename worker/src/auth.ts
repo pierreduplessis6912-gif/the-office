@@ -11,6 +11,7 @@
 // test suite (the 165-case role matrix, the PDF-signing round-trip,
 // the CORS allowlist test, and the live-bug regression test) all
 // re-extract from this file now and still pass.
+import { cannotRecord, type Refusal } from "./refusals";
 import { bearerKey, parseKey } from "./mcp-key-format";
 import { businessLapsed } from "./access";
 import { isBusinessId } from "./directory";
@@ -730,6 +731,13 @@ export function intentCreationRefusal(intent: string | null | undefined, capabil
   if (rule.create === "open") return null;
   if (rule.create.some((c) => capabilities.includes(c))) return null;
   return rule.refusal ?? MONEY_REFUSAL;
+}
+
+// The structured twin of intentCreationRefusal: the same decision, in the closed vocabulary of refusals.ts. null when the role may create the intent.
+export function intentCreationRefusalInfo(intent: string | null | undefined, capabilities: string[]): Refusal | null {
+  const message = intentCreationRefusal(intent, capabilities);
+  if (message === null) return null;
+  return cannotRecord(message === LEADS_REFUSAL ? "leads" : message === STATEMENT_REFUSAL ? "statements" : message === STOCK_REFUSAL ? "stock" : "money");
 }
 
 // Any active member, whatever their role. Uploads are safe here because
