@@ -1,219 +1,34 @@
-# The Office — New Session Handover Brief
+> **Status:** real, verified 2026-10-24 against `main` c220b26. Replaces the August handover. Keep this file CURRENT: it is the first thing a new chat reads. Nothing in this repo is untouchable; the only rule is that it stays true.
 
-Written because a real, practical problem came up: context window limits
-being hit even without substantial new builds happening in a session.
-This is meant to let a fresh chat pick up and operate exactly as this
-one has, without re-deriving the working method from scratch.
+# The Office: handover for a fresh chat
 
-Paste this whole file's content, or a link to it, as the first message
-in a new session, along with the GitHub token (deliberately **not**
-included here — this repo is public, and a token permanently in a
-public repo's file history is real exposure. Get the token from
-Pierre directly at session start).
+**Start a chat with:** "Read HANDOVER.md in pierreduplessis6912-gif/the-office and continue." Then paste the GitHub classic token (scopes repo + workflow, expires 2026-11-19). The repo is PUBLIC: never print, commit or store the token. Save it to `/home/claude/.office_gh_token` (chmod 600); git over HTTPS as `x-access-token`; commit identity `Claude <noreply@anthropic.com>`. Containers do not persist: the repo is the source of truth.
 
----
+## Who and what
+Pierre, solo founder in South Africa, works ONLY from a phone. Direct, outcome-focused, zero manual steps, no AI branding on anything client-facing, one priority at a time. The Office: a voice-first mobile ERP/BI assistant for tradespeople. Backend Cloudflare Workers + Durable Objects (`office.websitehub.co.za`); Flutter app (Codemagic builds Android from `main`; Pierre installs it); deploys through GitHub Actions. Direction (his words, `VISION.md`): a full-stack ERP and BI backend, a conversational input at rest, actionable queryable reporting, real documents, adapters to other tools. Aim: `PROJECTION_VISION.md`. What is BUILT: `ENVELOPE.md`, `CONTEXT.md`, `MCP_ARCHITECTURE.md` (status section).
 
-## What this project is
+## State (2026-10-24)
+- Production Worker runs `e4a18cf` (probe 11/11); `main` is c220b26 (later commits are app and docs only). Backend 7,936/7,936 on BOTH backends; typecheck 43 known, 0 new; app CI 142 tests; staging rehearsal 81/81 on real objects.
+- Backend live: billing (PayFast sandbox only; live secrets NOT set); reply envelope on `POST /messages/text` (+ voice-note route); history and audit; reports as data (P&L, aged debtors, aged creditors); analysis (expenses, profit, revenue by customer); a customer's receivables (`GET /reports/aged-debtors?customer=`); spoken follow-ups (rules, only with an analysis on screen; kill switch Worker var `FOLLOWUPS=off`); workspace context; read-only MCP (keys, `/mcp`, five tools; kill switch `MCP=off`).
+- App built (the app is NOT verified on a device for slices 3 to 10): access gate, Subscription, reduced motion and labels, envelope reader, Activity room, Analysis sheet (+ Revenue, customer drill-down, context), Assistants (keys).
+- Test businesses: zululand-flooring-and-blinds, tender-hub, ballz-enterprizes-392739.
 
-The Office — a voice-first AI business assistant for tradespeople,
-built for Pierre's own flooring/blinds business first, with
-"Peter" (a plumber, working in noisy, hands-on environments) as the
-named persona representing the eventual "million Peters" who might
-use this. Cloudflare Workers/D1/KV/Vectorize/R2 backend, Flutter
-mobile app (Android native + web preview for fast iteration).
+## Open items, in order
+0. **Document audit** (below). 1. Photo and document uploads into the envelope and history (backend, deploy; they feed the intelligence but have no envelope or history record). 2. A deliberate envelope version 2 (`open_room`, structured `refuse`) so the app can follow a spoken answer. 3. Connect ONE real MCP client end to end (untested; OAuth-only hosts will not work with a static key). 4. An unexplained one-off PayFast rehearsal check failure ("operator view shows what happened to each notification"): passed on rerun, cause unknown. 5. Sandbox PayFast passphrase appeared in a screenshot: change it. 6. Device checks Pierre owes for slices 3 to 10. 7. History-table upgrade (viewing column) still unverified on production. 8. Remove the red "BUILD v5" debug label. 9. Needs Pierre: email provider key (customer emails), terms and privacy, live PayFast, Google ID-token hardening, POPIA retention.
 
-Repo: `pierreduplessis6912-gif/the-office` (public).
-Worker API: `https://office.websitehub.co.za`
-Web preview: `https://the-office-preview.pages.dev`
-A/B experiment preview (separate, isolated): `https://the-office-ab-experiment.pages.dev`
+## Rules (keep exactly)
+1. ON ARRIVAL: `git fetch`; list commits on main you did not make (workflows' own record commits are fine); stop and reconcile anything unfamiliar. 2. CLAIM atomically: `POST /git/refs {"ref":"refs/heads/claim/<name>","sha":<main>}`; 201 mine, 422 taken. 3. Every commit message ends `Run: <8 hex>` (one per run). 4. Branch, never main directly; tests first; merge only on green evidence, as a fast-forward. 5. Validate workflow YAML as a hard gate (`python3 -c "import yaml; yaml.safe_load(open(f))" && git commit`); a step name containing ": " breaks YAML. 6. Trust RECORD files, not run status: `ops/app-compile-last.json`, `ops/staging-last-run.json`, `ops/production-signup-check-last.json`. 7. Never claim anything verified that was not; say what you could not verify. 8. Security-sensitive code (credentials, auth, money): deliberate-breakage proof, real-object rehearsal, Pierre sees the diff before deploy. 9. **Documentation: one SHORT entry per change in the area's log, and update the document that owns the changed code in the SAME commit. Stale is a bug.**
 
-## Access needed at session start
+## How to run things (and what they cost)
+- Backend suites: `NODE_PATH=worker/node_modules node --no-warnings tools/role-matrix.test.js` (~145 s) and with `HARNESS_BACKEND=do HARNESS_INDEXES=1` (~145 s). ONE per tool call (a call dies at 300 s). Typecheck: `cd worker && node scripts/check-types.js`. New route: `node tools/route-policy-gen.js` then the row-count pin in `tools/route-policy.test.js`. New lazy table: classify it in `tools/emptiness.test.js`. New role-name comparison: `tools/roles.test.js`. Goldens: `GOLDEN_UPDATE=1`, then prove structurally.
+- App CI runs on every branch except main: push, wait ~170 s, read `ops/app-compile-last.json` (analyze, tests, build). `git pull --rebase` ONLY after committing (CI adds a record commit to the branch). Flutter cannot run locally.
+- Real-object rehearsal: dispatch `staging.yml` on the branch (`{"mode":"rehearsal","owner_email":""}`), ~10 min, read `signup_on_cloudflare` N/N. Raw answers never leave the runner; record only booleans.
+- Deploy: pushing to main deploys the Worker when worker files changed (~9 to 10 min); then dispatch `prod-signup-check.yml` on main and read `running_commit`. Docs-only and app-only pushes do not deploy; CI still runs the suites.
+- Breakage scripts: `tools/mcp-keys-breakage.js`, `mcp-keys-routes-breakage.js`, `mcp-endpoint-breakage.js` (the last two clear the harness's build cache: without that every mutation silently reuses the first build).
+- The sandbox cannot reach `office.websitehub.co.za` (network allowlist): production checks go through workflows.
 
-- **GitHub personal access token** — for reading/writing repo files
-  via the GitHub Contents API and polling GitHub Actions run status.
-  Ask Pierre for this directly; do not expect it to be anywhere in
-  the repo itself.
-- Cloudflare deploy credentials are **already configured** as GitHub
-  Actions secrets (`CF_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`) — no
-  direct Cloudflare access needed, deploys happen through the
-  existing workflows.
+## Spend tokens carefully (Pierre's weekly allowance runs out)
+One slice per chat. Do not paste big documents: upload a file or name a section. Final reports about 6 lines. Docs entries 5 lines at most. One wait and one read for builds, no polling loops. Do not re-read what is already known. Docs-only merges skip the local suites (CI runs them). Measured 2026-10-24: 44 markdown files, 1.6 MB, of which `DECISIONS.md` is 919 KB (7,955 lines) and `RUNBOOK.md` 150 KB: both are append-only logs, never read whole, search them by heading.
 
-## Read these first, in this order
-
-1. **`OFFICE_CONSTITUTION.md`** — the backend's governing doctrine:
-   named principles, the Execution Ladder, the Patient Prospector
-   pattern, the five-domain lens (Communication/Knowledge/Activity/
-   Commerce/Governance).
-2. **`STATUS.md`** — authoritative backend "where things actually
-   stand." Trust this over any memory of past conversations if they
-   conflict. Its own header is honest that frontend/app state is
-   tracked separately (see next).
-3. **`DECISIONS.md`** — the full, real narrative history: every
-   notable bug, every architectural decision, why. ~4,200+ lines.
-   Read the most recent entries first for immediate context; older
-   entries for deep history on a specific area if needed.
-4. **The four Flutter/design governance docs, in this order**:
-   `EXPERIENCE_BRIEF.md` (the emotional core — "relief, not
-   productivity"), `ether-manifesto.html` (voice-first design
-   manifesto), `DESIGN_CONSTITUTION_V2.md` (real, numbered rules —
-   the void is sacred, embers are subconscious, motion is weather not
-   theatre, drawers are rooms), `NATIVE_TRANSITION_BRIEF.md` (native
-   Android first, Impeller, judge feel on the real device not the web
-   preview).
-5. **`OFFICE_RUNTIME_V1.md`** — the current architecture direction.
-   Status: **built and verified**, not just planned — real clock,
-   state machine, event bus, three visual systems migrated onto it,
-   one real capability (People) proven against the room pattern.
-6. **`OFFICE_MOODBOARD.md`** — shared visual-language reference,
-   real links with original rationale, not embedded images. **Has an
-   unfinished edit in progress** — see "Immediate next step" below.
-
-## Current state, honestly
-
-**Solid, proven, not touched recently:** the backend — invoicing
-chain, Snags, GRN routing, Leads, Supplier Statement Reconciliation,
-`characters`/`customers` separation as a structural safety guarantee.
-
-**Proven this session, hard-won:** full auth (bearer tokens, real
-Google OAuth verified live), the native Android build pipeline after
-three real, distinct debugging rounds (see `DECISIONS.md` for the
-`path_provider_android` pin, Kotlin plugin version bump, `compileSdk`
-subprojects-block fix — don't re-derive these from scratch, they're
-already solved).
-
-**Built and verified this session:** the Office Runtime — real,
-shared `Ticker`-based clock (`lib/runtime/office_clock.dart`), real
-state machine with all seven states genuinely wired to real moments
-(`lib/runtime/office_state.dart`), real room materialization pattern
-(`lib/runtime/office_room.dart`). Orb, all 5 embers, and the
-decorative spark field all migrated onto the one shared clock — zero
-independent `AnimationController`s left among them. People rebuilt as
-the first real capability against "Current Capability." Verified on
-the real native device, not just web preview — confirmed smoother,
-animations deliberately unchanged (this was a migration, not a
-redesign).
-
-**Explored, not adopted:** `experiment/kimi-ab-test` branch — a
-fragment-shader "Heat Orb" (turbulent noise field, no hard edge).
-Real, working, deployed to its own isolated Cloudflare Pages project.
-Never merged into `main`. Worth knowing it exists if the shader
-approach is ever revisited.
-
-**Explicitly deferred, on purpose, not forgotten:** words dissolving
-into the void (Rule 3) — messages still permanently log via a plain
-`ListView`. Only one real capability/room exists (People) — Quotes,
-Invoices, Camera, Stock, Jobs are still the drawer's placeholder
-items. The render pipeline as formally distinct, ordered layers is
-still implicit in widget order. TTS/"Speaking" state — actively
-considered and set aside (see `DECISIONS.md` — Voicebox repo
-evaluated and rejected as architecturally mismatched, desktop vs.
-mobile). Sound design — not started.
-
-## Immediate next step (was mid-task when this session ended)
-
-`OFFICE_MOODBOARD.md` was being updated with real, highly-relevant
-finds from a designer's Dribbble portfolio
-(`dribbble.com/madebylalit_`) — an entire body of work specifically
-on AI-assistant motion design. Real shot links already identified,
-not yet written into the document:
-
-- `dribbble.com/shots/27621953-Ai-assistant-Thinking` — directly
-  matches the existing Thinking state.
-- `dribbble.com/shots/27477302-AI-Assistant` — tagged orb/sphere,
-  matches Orb behaviour.
-- `dribbble.com/shots/27473346-Ai-assistant-visual` — tagged
-  orb/sphere/thinking.
-- `dribbble.com/shots/27453999-AI-Assistant` — tagged
-  speaking/thinking, possibly relevant to the still-empty Speech
-  visualisation category.
-- `dribbble.com/shots/27417571-Thinking` — dither animation, glyph,
-  searching/thinking.
-- `dribbble.com/shots/27407822-Interactive-ai-assistant-wip`.
-- `dribbble.com/shots/27558235-Pixel-Motion`,
-  `dribbble.com/shots/27494382-Apple-Pixel-Motion` — possibly
-  relevant to Particles or Thinking-state visualization.
-- `dribbble.com/shots/27571940-Loaders`,
-  `dribbble.com/shots/27554718-Preloader` — worth including carefully
-  if at all; DESIGN_CONSTITUTION_V2.md's Rule against spinners means
-  these may be more useful as a "what to avoid" reference than a
-  "steal this" one — worth deciding deliberately, not just adding by
-  default.
-
-Fetch the current `OFFICE_MOODBOARD.md` via the GitHub Contents API,
-add these under the appropriate categories with original one-sentence
-rationale each (what to steal, not a restatement of the shot's own
-description), and push.
-
-## The established working method — follow this exactly
-
-**Every file edit follows this loop, no exceptions:**
-1. Fetch the current file via GitHub Contents API (get its real,
-   current SHA — never assume a stale local copy is current).
-2. Edit locally (view/str_replace/create_file tools).
-3. **Verify before pushing** — balance-check braces/parens/brackets
-   for Dart edits at minimum; for anything with real logic risk
-   (regex-based file patching, non-trivial control flow), actually
-   test it locally against a realistic simulated input first. This
-   caught real bugs before they ever reached a build, repeatedly.
-4. Push via the Contents API with the real SHA and a real, honest
-   commit message explaining *why*, not just *what*.
-5. **Watch the actual build result** — poll
-   `GET /repos/{owner}/{repo}/actions/runs?per_page=1` (filter by
-   `&branch=X` for non-main branches), wait for `completed`, check
-   `conclusion`. Never report success without having watched this.
-6. **On failure**, get the actual failing step via
-   `GET .../actions/runs/{id}/jobs` before guessing at a fix — raw
-   logs aren't reachable from this sandbox (Azure blob storage host
-   is blocked), so step names/conclusions plus direct reasoning about
-   the actual diff is the real diagnostic method, not speculation.
-
-**Real, hard-won gotchas already solved — don't rediscover these:**
-- `ChangeNotifier` lives in `package:flutter/foundation.dart`, not
-  `scheduler.dart`.
-- Flutter's `Stack` defaults to `Clip.hardEdge` — silently clips
-  `OverflowBox`'s larger paint area unless `clipBehavior: Clip.none`
-  is set explicitly, at every nesting level involved.
-- `canvas.saveLayer()`'s `bounds` parameter should be generously
-  sized — Flutter's own docs call it a compositor hint, not a
-  strictly enforced clip, but it's safer to size it generously anyway.
-- `path_provider_android` must stay pinned to `2.2.22` in
-  `pubspec.yaml` (`dependency_overrides`) — newer versions introduced
-  a `jni` dependency that breaks the native Android build.
-- `compileSdk` override for third-party modules (file_picker, etc.)
-  needs a root-level `subprojects { afterEvaluate { ... } }` block,
-  not just an app-level override.
-- Cloudflare Pages: a fresh project's real, Cloudflare-side
-  production-branch setting doesn't get changed by re-running
-  `wrangler pages project create` on an already-existing project
-  (fails silently under `continue-on-error`) — pin `--branch`
-  explicitly on the deploy step itself instead of relying on
-  automatic git-branch detection, which can pick up "detached HEAD"
-  in CI.
-- `--web-renderer` was removed in Flutter 3.29 — CanvasKit is simply
-  the default now; don't try to pass this flag.
-
-**Principles that shape every decision, not just style rules:**
-- Build only what's earned by real evidence — no speculative fields,
-  no generic interfaces designed ahead of real examples to generalize
-  from (see: why the capability layer is a single "Current
-  Capability" slot, not a plugin framework, until several real
-  capabilities exist).
-- Real bugs come from real data — six real bugs this project has
-  caught all came from dense, real-world input; synthetic test cases
-  have been insufficient before.
-- When multiple AI conversations (Kimi, ChatGPT, this one) each
-  propose something, evaluate critically and specifically — adopt
-  what's genuinely good, name what's disproportionate or conflicts
-  with an existing decision, and say so plainly rather than agreeing
-  by default. This project's real, best moments came from honest
-  disagreement converging into something better than any single
-  proposal, not from deference.
-- Never claim a build succeeded without having watched the real
-  result. Never guess at a bug's cause when the actual diff or a
-  local test can confirm it directly.
-- Write real decisions down as they happen (`DECISIONS.md`,
-  `STATUS.md`, the relevant governance doc) — don't let real
-  architectural or design decisions live only in chat history that a
-  future session won't have access to. This document exists because
-  that discipline was followed, and should keep being followed by
-  whichever session reads it next.
+## Next session plan (agreed with Pierre)
+Audit every document against the code (status banner on each: real, partly built, proposed, principle or archived, verified date, owning code paths); archive only what is no longer our reality (`git mv` to `docs/archive/`, nothing deleted); one `INDEX.md` mapping feature to document, code and tests with links; split RUNBOOK and DECISIONS by area with a table of contents; add `tools/docs-check.js` (broken link, missing banner, missing path fails CI; stale after 30 days is flagged); then resume building at open item 1.
