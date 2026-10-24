@@ -36,7 +36,7 @@ for (const f of files) {
       if (!fs.existsSync(path.join(root, p))) errors.push(`${rel}: Owns path missing: ${p}`);
     }
   }
-  const stripped = text.replace(/```[\s\S]*?```/g, '');
+  const stripped = text.replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
   for (const l of stripped.matchAll(/\]\(([^)#\s]+\.md)(#[^)]*)?\)/g)) {
     if (/^https?:/.test(l[1])) continue;
     if (!fs.existsSync(path.resolve(path.dirname(f), l[1]))) errors.push(`${rel}: broken link ${l[1]}`);
