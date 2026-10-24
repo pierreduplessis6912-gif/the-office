@@ -1,4 +1,4 @@
-> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+> **Status:** proposed. **Verified:** 2026-10-24. **Owns:** none.
 
 # WhatsApp Channel Architecture — A Real Vehicle, Not a Speculative One
 

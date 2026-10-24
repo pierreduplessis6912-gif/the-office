@@ -1,4 +1,4 @@
-> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+> **Status:** partly built. **Verified:** 2026-10-24. **Owns:** `app/lib/runtime/office_clock.dart`, `app/lib/runtime/office_state.dart`, `app/lib/runtime/office_room.dart`.
 
 # ERP Mode — Architecture
 

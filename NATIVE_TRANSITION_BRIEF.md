@@ -1,4 +1,4 @@
-> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+> **Status:** principle. **Verified:** 2026-10-24. **Owns:** none.
 
 # The Office — Native Flutter Transition Brief
 

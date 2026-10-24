@@ -1,5 +1,7 @@
-> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+> **Status:** real. **Verified:** 2026-10-24. **Owns:** none.
 
+
+**Start at [`HANDOVER.md`](./HANDOVER.md) (the first read for a new chat), then [`INDEX.md`](./INDEX.md) (feature to document, code and tests). The pointers below are older: `STATUS.md` in particular was last verified in July.**
 # The Office
 
 The API is the Office. Everything else — this Flutter app, a future PWA,

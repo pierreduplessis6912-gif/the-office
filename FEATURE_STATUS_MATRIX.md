@@ -1,5 +1,7 @@
-> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+> **Status:** partly built. **Verified:** 2026-10-24. **Owns:** none.
 
+
+> **Snapshot, undated, checked 2026-10-24 only for age:** it predates billing, history, analysis, spoken follow-ups and MCP, which have no rows, and no row was re-verified. Treat it as a July view of the backend.
 # Feature Status Matrix
 
 A real, current snapshot — not a claim about architecture, a lens for a

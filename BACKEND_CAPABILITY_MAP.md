@@ -1,4 +1,4 @@
-> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+> **Status:** real. **Verified:** 2026-10-24. **Owns:** none.
 
 # Backend Capability Map — Ingest / Store / Relay
 
@@ -41,8 +41,7 @@ every module, not just people.
 - **Store:** `characters` (id, name, relationship, created_at — no
   visible `CREATE TABLE`, an original/foundational table). Real,
   separate `character_facts` table (structured key/value, sourced
-  from transcripts). Real, separate `character_notes` (via
-  `appendCharacterNote`).
+  from transcripts). Notes are not a table: `appendCharacterNote` (`worker/src/memory.ts`) appends to the `CUSTOMER_NOTES` KV namespace under `character:<id>` (corrected 2026-10-24; the first version named a `character_notes` table that does not exist).
 - **Relay:** `/debug/characters` (list, includes notes),
   `/debug/character-facts?characterId=X`,
   `/debug/find-character`, `/debug/captures?characterId=X`.
@@ -54,7 +53,7 @@ every module, not just people.
 ## 3. Customers / Sales
 
 - **Store:** `customers` (no visible `CREATE TABLE` — foundational).
-  Real, separate `customer_notes`. Quotations and invoices exist as
+  Notes are not a table: `appendCustomerNote` appends to the `CUSTOMER_NOTES` KV namespace under `customer:<id>` and queues a row in `pending_memory_flush` (corrected 2026-10-24; the first version named a `customer_notes` table that does not exist). Quotations and invoices exist as
   real, distinct concepts (see below) — not stored on the customer
   row itself.
 - **Relay:** `/debug/find-customer`, `/debug/customer-notes`,

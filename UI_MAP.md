@@ -1,5 +1,7 @@
-> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+> **Status:** partly built. **Verified:** 2026-10-24. **Owns:** none.
 
+
+> **Dated, checked 2026-10-24 only for age:** its "Built (manifesto)" rows describe the old web manifesto (`ether-manifesto.html`), not the Flutter app, and none was re-verified. For what the Flutter app has, read `HANDOVER.md` (State) and `INDEX.md`.
 # The Office — UI Capability Map
 
 Every real backend capability, paired with where it lives (or should

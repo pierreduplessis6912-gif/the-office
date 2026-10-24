@@ -1,5 +1,7 @@
-> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+> **Status:** archived. **Verified:** 2026-10-24. **Owns:** none.
 
+
+> Archived 2026-10-24, kept unchanged below: it describes itself as a one-time snapshot that drifts; `INDEX.md` and `HANDOVER.md` now carry the current picture.
 # Capability Audit — What's Actually Real
 
 Written in direct response to a real, honest admission: the gap

@@ -1,5 +1,7 @@
-> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+> **Status:** archived. **Verified:** 2026-10-24. **Owns:** none.
 
+
+> Archived 2026-10-24, kept unchanged below: its July to-do list is about the old web manifesto and the first Flutter build (item A1, the CAMERA permission, is done in `patch_android_manifest.py`); `HANDOVER.md` open items replace it.
 # The Office — App Build Sequence
 
 Everything still needed to take the app from where it stands tonight

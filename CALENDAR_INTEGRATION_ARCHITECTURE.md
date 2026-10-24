@@ -1,5 +1,7 @@
-> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+> **Status:** partly built. **Verified:** 2026-10-24. **Owns:** `app/pubspec.yaml`.
 
+
+> **Built (checked 2026-10-24):** the app hands an event to the phone's own calendar with `NativeCalendar.openCalendarWithEvent` (package `flutter_native_calendar`, `app/pubspec.yaml`; `WRITE_CALENDAR` in `patch_android_manifest.py`). The package this page names, `device_calendar_plus`, is NOT used, and although `patch_android_manifest.py` grants `READ_CALENDAR`, nothing in `app/lib/main.dart` reads events back. Reading the calendar is not built.
 # Calendar Integration — Architecture
 
 Pinned before building, per direct instruction: this is a well-scoped

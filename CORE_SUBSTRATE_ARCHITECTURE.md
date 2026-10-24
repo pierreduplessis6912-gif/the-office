@@ -1,4 +1,4 @@
-> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+> **Status:** real. **Verified:** 2026-10-24. **Owns:** `worker/src/identity.ts`.
 
 # Core Substrate Architecture — What Belongs to the Platform, and What Belongs to a Vertical
 

@@ -1,4 +1,4 @@
-> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+> **Status:** real. **Verified:** not yet. **Owns:** none.
 
 # Atlas
 
@@ -61,7 +61,7 @@ whenever something must be true of every invoice):
   computed purely by summing real line items with no fallback to the
   invoice's own stored amount (2026-07-21).
 
-**Test/verification coverage**: no automated test suite for invoice
+**Test/verification coverage** (corrected 2026-10-24: automated tests now exist, e.g. `tools/invoicepool.test.js`, `tools/quotes.test.js`, `tools/atomic.test.js`; the sentence below is the July position): no automated test suite for invoice
 creation logic. Verified each time via live, real-data testing against
 the deployed Worker — see DECISIONS.md's bug archive for the specific,
 real scenarios each fix was proven against.
@@ -112,7 +112,7 @@ of this producing a wrong quotation.
   *linked component* has one. Fixed across all three real call sites,
   not just the one the bug was found on (2026-07-22).
 
-**Test/verification coverage**: no automated test suite. Verified live
+**Test/verification coverage** (corrected 2026-10-24: automated tests now exist, e.g. `tools/samework.test.js`, `tools/atomic.test.js`; the sentence below is the July position): no automated test suite. Verified live
 each time — see DECISIONS.md's Layer 2 write-ups for the specific,
 real scenarios (including three consecutive real failures on one test
 before the correct fix landed).

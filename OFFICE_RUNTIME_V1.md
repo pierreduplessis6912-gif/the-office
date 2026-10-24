@@ -1,5 +1,7 @@
-> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+> **Status:** partly built. **Verified:** 2026-10-24. **Owns:** `app/lib/runtime/office_clock.dart`, `app/lib/runtime/office_state.dart`, `app/lib/runtime/office_room.dart`, `app/lib/runtime/word_field.dart`.
 
+
+> **Checked 2026-10-24:** the runtime exists (state machine, clock, rooms, word field). The rule "nothing calls an `AnimationController` directly again" is NOT true of the app today: `app/lib/main.dart` still creates 16, `app/lib/runtime/office_clock.dart` 3 and `office_state.dart` 1.
 # The Office Runtime — v1 Milestone Brief
 
 The real, converged architecture direction for the next session,
