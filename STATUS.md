@@ -1,5 +1,7 @@
-> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+> **Status:** partly built. **Verified:** not yet. **Owns:** none.
 
+
+> **Audit 2026-10-24 (partial).** Checked against the code: all 35 routes named in "Debug and diagnostic routes" exist in `worker/src`; the model list is right except that `@cf/openai/whisper-large-v3-turbo` is also used; the schema section is partial by design (it defers to `/debug/table-schema`); "No weather integration" is still true. STALE, corrected where it appears: "Tasks have no due/scheduled time" (the `tasks` table has `due_date` and `due_date_raw`). SUPERSEDED: the WhatsApp channel plan (see `WHATSAPP_CHANNEL_ARCHITECTURE.md`). NOT checked: the rest of "Known gaps". Everything since July (billing, history, reports, analysis, the envelope, MCP, the app slices) is not in this file: read `HANDOVER.md`.
 # The Office — Current State
 
 **Last verified: 2026-07-17 for the backend below.** This is the
@@ -680,7 +682,7 @@ Codemagic — still only proven on the web preview.**
   `[Call]` action exists to actually *use* the link that's already
   there. The backend prerequisite this action needs has existed since
   2026-07-11; only the UI action itself was ever missing.
-- **Tasks have no due/scheduled time at all**, only open/done. A
+- **Tasks have no due/scheduled time at all**, only open/done. (CORRECTED 2026-10-24: the `tasks` table has `due_date_raw` and `due_date`, and extraction sets `due_date_raw` for reminders; this paragraph is the July position.) A
   `[Reschedule]` action on a task needs exactly the due-time concept
   the full scheduler (pinned, not built — see DECISIONS.md) would add.
   Deliberately not smuggled in early just to make one ember-bar button

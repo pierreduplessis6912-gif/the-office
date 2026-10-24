@@ -1,5 +1,7 @@
-> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+> **Status:** real. **Verified:** not yet. **Owns:** none.
 
+
+> **Audit 2026-10-24 (partial).** This is the July working log. Its urgent tier is ticked and closed (see "Both roles live-verified" and "Every real endpoint audited by name"), so the heading "exposed right now" describes July before those fixes, not today. `ADMIN_SECRET` is now `ADMIN_KEY` (plus `ADMIN_CONFIRM_KEY` for privileged routes; see `SHIP_CHECKLIST.md` item 2). `FINANCIAL_WRITE_INTENTS` appears only in a "Found" entry that was fixed. The live list is `SHIP_CHECKLIST.md`. The closings were not re-verified in code.
 # Security & Operational Readiness — Working Doc
 
 Pinned as a real, working checklist, not an architecture document — meant to

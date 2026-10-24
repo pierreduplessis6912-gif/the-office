@@ -1,5 +1,7 @@
 > **Status:** proposed. **Verified:** 2026-10-24. **Owns:** none.
 
+
+> **Parked (checked 2026-10-24):** `STATUS.md` records that on 2026-07-11 the plan changed from a WhatsApp Business API channel to Android Share Sheet in/out (Constitution Principle 20). The code has no WhatsApp channel: only a copy-then-paste share in `app/lib/main.dart`. Read the text below as a proposal that is not being pursued.
 # WhatsApp Channel Architecture — A Real Vehicle, Not a Speculative One
 
 Pinned the same way `CORE_SUBSTRATE_ARCHITECTURE.md` was: before anything gets built

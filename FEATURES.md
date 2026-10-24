@@ -1,5 +1,7 @@
-> **Status:** unaudited. **Verified:** not yet. **Owns:** none.
+> **Status:** real. **Verified:** not yet. **Owns:** none.
 
+
+> **Audit 2026-10-24 (partial).** It names almost nothing that can be checked mechanically (the two routes and two identifiers it names exist). It is the July view by department: billing, history, reports as data, analysis, spoken follow-ups, the envelope and MCP are not in it, and its examples were not re-run.
 # The Office — Features, by Department (a lens, not a wall)
 
 This document exists for one purpose: to make the whole system legible
