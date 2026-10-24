@@ -57,7 +57,7 @@ void main() {
     for (final reply in <Object?>[
       null, 'text', 42, <Object?>[], <String, Object?>{},
       _reply(), _reply(experience: 'x'), _reply(experience: <Object?>[]),
-      _reply(experience: _envelope(version: 2)), _reply(experience: _envelope(version: '1')), _reply(experience: _envelope(version: null)),
+      _reply(experience: _envelope(version: 3)), _reply(experience: _envelope(version: '1')), _reply(experience: _envelope(version: null)),
     ]) {
       expect(ReplyEnvelope.fromReply(reply), isNull, reason: '$reply');
     }
@@ -141,5 +141,93 @@ void main() {
     expect(noisy.heldActions.single.type, plain.heldActions.single.type);
     expect(noisy.unknown, plain.unknown);
     expect(noisy.confirmationRequired, plain.confirmationRequired);
+  });
+
+  // ---- Slice 11: envelope version 2 (open_room and refuse) ------------------------------------------------------------------------------------------------------
+  Map<String, Object?> v2({
+    Object? mode = 'speak',
+    Object? room,
+    Object? refusals,
+    Object? speak = 'Done.',
+    Object? held = const <Object?>[],
+  }) =>
+      {
+        'version': 2,
+        'established': {
+          'from': ['message'],
+          'heldActions': held,
+          'candidates': null,
+          'changes': null,
+          if (refusals != null) 'refusals': refusals,
+          if (room != null) 'room': room,
+        },
+        'recommendation': {'mode': mode, 'speak': speak, if (room != null) 'room': room},
+        'unknown': ['intent_class'],
+        'mustStillPass': {'confirmationRequired': false, 'through': null, 'authorization': 'checked again on every call'},
+      };
+  Map<String, Object?> refusalOf(String reason, String topic) => {'reason': reason, 'topic': topic};
+
+  test('a version 2 open_room envelope names a known room', () {
+    final e = ReplyEnvelope.fromReply(_reply(experience: v2(mode: 'open_room', room: 'financial_snapshot', speak: null)))!;
+    expect(e.version, 2);
+    expect(e.mode, EnvelopeMode.openRoom);
+    expect(e.room, 'financial_snapshot');
+    expect(ReplyEnvelope.fromReply(_reply(experience: v2(mode: 'open_room', room: 'aged_debtors', speak: null)))!.room, 'aged_debtors');
+  });
+
+  test('open_room with an unknown or missing room reads as speak and opens nothing', () {
+    for (final room in <Object?>['payroll', '', 7, null]) {
+      final e = ReplyEnvelope.fromReply(_reply(experience: v2(mode: 'open_room', room: room)))!;
+      expect(e.mode, EnvelopeMode.speak);
+      expect(e.room, isNull);
+    }
+  });
+
+  test('a whole refusal is mode refuse, with its reason and topic', () {
+    final e = ReplyEnvelope.fromReply(_reply(experience: v2(
+      mode: 'refuse',
+      speak: 'Who owes what is restricted for your role.',
+      refusals: {'scope': 'whole', 'items': [refusalOf('role_cannot_see', 'debtors')]},
+    )))!;
+    expect(e.mode, EnvelopeMode.refuse);
+    expect(e.isRefusal, isTrue);
+    expect(e.refusalIsWhole, isTrue);
+    expect(e.refusals.single.reason, 'role_cannot_see');
+    expect(e.refusals.single.topic, 'debtors');
+    expect(e.speak, 'Who owes what is restricted for your role.');
+  });
+
+  test('a refusal in part of a reply is read but is not a refusal reply; refuse without a whole, valid refusal reads as speak', () {
+    final part = ReplyEnvelope.fromReply(_reply(experience: v2(
+      mode: 'speak',
+      refusals: {'scope': 'part', 'items': [refusalOf('role_cannot_see_part', 'outstanding_balances')]},
+    )))!;
+    expect(part.mode, EnvelopeMode.speak);
+    expect(part.isRefusal, isFalse);
+    expect(part.refusals.single.topic, 'outstanding_balances');
+    expect(part.refusalIsWhole, isFalse);
+    for (final refusals in <Object?>[
+      {'scope': 'part', 'items': [refusalOf('role_cannot_see', 'debtors')]},
+      {'scope': 'whole', 'items': <Object?>[]},
+      {'scope': 'whole', 'items': [refusalOf('nope', 'debtors')]},
+      {'scope': 'whole', 'items': [refusalOf('role_cannot_see', 'Not A Topic!')]},
+      'text',
+      null,
+    ]) {
+      final e = ReplyEnvelope.fromReply(_reply(experience: v2(mode: 'refuse', refusals: refusals)))!;
+      expect(e.mode, EnvelopeMode.speak, reason: '$refusals');
+      expect(e.isRefusal, isFalse);
+    }
+  });
+
+  test('the version 2 modes are honoured only in a version 2 envelope', () {
+    expect(ReplyEnvelope.fromReply(_reply(experience: _envelope(mode: 'open_room')))!.mode, EnvelopeMode.speak);
+    expect(ReplyEnvelope.fromReply(_reply(experience: _envelope(mode: 'refuse')))!.mode, EnvelopeMode.speak);
+  });
+
+  test('a held action outside the version 2 parts is read the same way as in version 1', () {
+    final e = ReplyEnvelope.fromReply(_reply(experience: v2(mode: 'confirm', held: [{'id': 4, 'type': 'invoice'}])))!;
+    expect(e.mode, EnvelopeMode.confirm);
+    expect(e.confirmable.single.id, 4);
   });
 }

@@ -998,7 +998,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         _updateMessage(
           statusId,
           role: MessageRole.office,
-          text: _handlePossibleDashboardMarker(rawMessage),
+          text: _handlePossibleDashboardMarker(rawMessage, envelope: ReplyEnvelope.fromReply(data)),
           pendingItems: _extractPendingItems(data),
         );
         _loadEmberCounts();
@@ -1162,7 +1162,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
         _updateMessage(
           statusId,
           role: MessageRole.office,
-          text: _handlePossibleDashboardMarker(rawMessage),
+          text: _handlePossibleDashboardMarker(rawMessage, envelope: ReplyEnvelope.fromReply(data)),
           pendingItems: _extractPendingItems(data),
         );
         _loadEmberCounts();
@@ -2008,8 +2008,11 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
   // a spoken question rather than a tap. No real tap origin exists to
   // anchor the ignition to, so screen center is used as an honest,
   // reasonable default - not pretending this came from a real ember.
-  String _handlePossibleDashboardMarker(String rawMessage) {
+  String _handlePossibleDashboardMarker(String rawMessage, {ReplyEnvelope? envelope}) {
     const marker = '__OPEN_DASHBOARD__:';
+    // Envelope version 2 names the screen in structure; the in-band marker in `message` says the same and is still sent, so either opens it.
+    final namedRoom = envelope != null && envelope.mode == EnvelopeMode.openRoom ? envelope.room : null;
+    if (namedRoom != null && !rawMessage.startsWith(marker)) rawMessage = '$marker$namedRoom';
     if (!rawMessage.startsWith(marker)) return rawMessage;
     final route = rawMessage.substring(marker.length);
     final size = MediaQuery.of(context).size;

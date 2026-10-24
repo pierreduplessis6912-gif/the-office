@@ -1163,9 +1163,9 @@
       }
     },
     {
-      "name": "a version 2 envelope is not read at all (the app behaves as before)",
+      "name": "a version 3 envelope (a version this app does not know) is not read at all (the app behaves as before)",
       "experience": {
-        "version": 2,
+        "version": 3,
         "established": {
           "from": [],
           "heldActions": [

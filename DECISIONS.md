@@ -186,7 +186,7 @@ Split on 2026-10-24 from the 7958-line original, which is `git show 95bf743:DECI
 - [Reading an outside architecture note on one versus several Durable Objects per business, 2026-10-17](docs/decisions/platform-and-operations.md) (was line 7598)
 - [Operations, part 1: the billing health check, 2026-10-19](docs/decisions/platform-and-operations.md) (was line 7842)
 
-### [app-and-experience](docs/decisions/app-and-experience.md): the Flutter app, the runtime, the orb and the void, speech, front-end slices, workspace context (16 sections)
+### [app-and-experience](docs/decisions/app-and-experience.md): the Flutter app, the runtime, the orb and the void, speech, front-end slices, workspace context (17 sections)
 
 - [UX vision — the Ether, and what it does / doesn't change (2026-07-10)](docs/decisions/app-and-experience.md) (was line 1030)
 - [Room visualizers — a real, evidence-based answer, not a speculative one (2026-07-19)](docs/decisions/app-and-experience.md) (was line 2314)
@@ -204,6 +204,7 @@ Split on 2026-10-24 from the 7958-line original, which is `git show 95bf743:DECI
 - [Front end, slice 1: the app handles a lapsed business, 2026-10-19](docs/decisions/app-and-experience.md) (was line 7900)
 - [Front end, slice 2: the owner's Subscription item, 2026-10-20](docs/decisions/app-and-experience.md) (was line 7916)
 - [Envelope version 2: open_room and structured refusals (2026-10-24, Pierre chose the full scope)](docs/decisions/app-and-experience.md) (new)
+- [Front-end slice 11: the app reads envelope version 2 (2026-10-24)](docs/decisions/app-and-experience.md) (new)
 
 ### [projects-and-jobs](docs/decisions/projects-and-jobs.md): Layer 2 (project), job scopes and completion, snags, leads, room visualizers (16 sections)
 

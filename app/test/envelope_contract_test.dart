@@ -17,9 +17,8 @@ Map<String, dynamic> _fixture() {
   throw StateError('envelope-v1.json not found from ${Directory.current.path}');
 }
 
-// Version 2 (open_room and refuse, ENVELOPE.md): the backend now stamps a reply that uses either one as version 2. This app reads only version 1, so it must
-// ignore these envelopes entirely and keep working from `message` exactly as before (the screen-opening command and the words are unchanged). When the app
-// learns version 2 this expectation changes with it, deliberately.
+// Version 2 (open_room and refuse, ENVELOPE.md): the backend stamps a reply that uses either one as version 2, and since slice 11 this app reads it. The fixture's
+// recorded envelopes are read exactly as the contract says: the mode, the named room, and the refusals with their scope.
 Map<String, dynamic> _fixtureV2() {
   for (final p in ['../tools/contract/envelope-v2.json', 'tools/contract/envelope-v2.json']) {
     final f = File(p);
@@ -65,11 +64,25 @@ void main() {
   test('the version 2 fixture is found and has cases', () {
     expect(v2cases.length, greaterThanOrEqualTo(5));
   });
+  const modeNames = {'speak': EnvelopeMode.speak, 'confirm': EnvelopeMode.confirm, 'clarify': EnvelopeMode.clarify, 'open_room': EnvelopeMode.openRoom, 'refuse': EnvelopeMode.refuse};
   for (final c in v2cases) {
-    test('a version 2 envelope ("${c['name']}") is not read by this app', () {
+    test('a version 2 envelope ("${c['name']}") is read as the contract says', () {
       final xp = c['experience'] as Map<String, dynamic>;
       expect(xp['version'], 2);
-      expect(ReplyEnvelope.fromReply({'message': 'x', 'experience': xp}), isNull);
+      final e = ReplyEnvelope.fromReply({'message': 'x', 'experience': xp});
+      expect(e, isNotNull);
+      final est = xp['established'] as Map<String, dynamic>;
+      final rec = xp['recommendation'] as Map<String, dynamic>;
+      expect(e!.version, 2);
+      expect(e.mode, modeNames[rec['mode']]);
+      expect(e.speak, rec['speak']);
+      expect(e.room, rec['mode'] == 'open_room' ? rec['room'] : null);
+      final ref = est['refusals'] as Map<String, dynamic>?;
+      final items = ((ref?['items'] as List?) ?? const []).cast<Map<String, dynamic>>();
+      expect(e.refusals.map((r) => [r.reason, r.topic]).toList(), items.map((r) => [r['reason'], r['topic']]).toList());
+      expect(e.refusalIsWhole, ref != null && ref['scope'] == 'whole' && items.isNotEmpty);
+      expect(e.isRefusal, rec['mode'] == 'refuse');
+      expect(e.confirmationRequired, (xp['mustStillPass'] as Map<String, dynamic>)['confirmationRequired']);
     });
   }
 
