@@ -32,4 +32,4 @@ Start at [HANDOVER.md](HANDOVER.md). Links here are checked by `tools/docs-check
 
 **unaudited:** none
 
-Logs, never read whole, search by heading: [DECISIONS.md](DECISIONS.md) (919 KB) and [RUNBOOK.md](RUNBOOK.md) (150 KB). Splitting them by area is still to do.
+Logs, never read whole, search by heading: [DECISIONS.md](DECISIONS.md) (split into `docs/decisions/`, one part per area) and [RUNBOOK.md](RUNBOOK.md) (split into `docs/runbook/`). Each is an index over part files; the index lists every heading with the part that holds it.

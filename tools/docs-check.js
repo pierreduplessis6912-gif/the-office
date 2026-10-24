@@ -42,6 +42,18 @@ for (const f of files) {
     if (!fs.existsSync(path.resolve(path.dirname(f), l[1]))) errors.push(`${rel}: broken link ${l[1]}`);
   }
 }
+// The two logs are indexes over part files: every "## " heading in a part must be listed in the index, under that part's own file.
+for (const [idxName, dir] of [['DECISIONS.md', 'docs/decisions'], ['RUNBOOK.md', 'docs/runbook']]) {
+  const idxPath = path.join(root, idxName), dirPath = path.join(root, dir);
+  if (!fs.existsSync(idxPath) || !fs.existsSync(dirPath)) continue;
+  const idxText = fs.readFileSync(idxPath, 'utf8');
+  for (const pf of fs.readdirSync(dirPath).filter(n => n.endsWith('.md'))) {
+    for (const line of fs.readFileSync(path.join(dirPath, pf), 'utf8').split('\n')) {
+      if (!line.startsWith('## ')) continue;
+      if (!idxText.includes(`- [${line.slice(3)}](${dir}/${pf})`)) errors.push(`${idxName}: heading not listed under ${dir}/${pf}: ${line.slice(3, 70)}`);
+    }
+  }
+}
 for (const w of warnings) console.log('warn  ' + w);
 console.log(`docs: ${files.length} checked, ${unaudited} unaudited, ${notYet} not yet verified, ${warnings.length} stale, ${errors.length} errors`);
 for (const e of errors) console.log('ERROR ' + e);
