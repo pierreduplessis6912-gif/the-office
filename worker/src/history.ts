@@ -57,14 +57,14 @@ export async function recordInteraction(env: Env, turn: { actorEmail: unknown; s
 }
 
 // A photo or a document upload is a turn too: it feeds the intelligence (it can hold an invoice, a delivery or a statement for confirmation) so it gets the same record and the same envelope as speech. Returns the envelope for the reply, or null if it could not be built. NEVER throws and never changes the reply.
-export async function recordUpload(env: Env, upload: { source: "photo" | "document"; actorEmail: unknown; captureId: unknown; message: unknown; heldActionId: unknown; kind: unknown; subjectHint: unknown; viewing?: unknown }): Promise<Experience | null> {
+export async function recordUpload(env: Env, upload: { source: "photo" | "document"; actorEmail: unknown; captureId: unknown; message: unknown; heldActionId: unknown; kind: unknown; subjectHint: unknown; viewing?: unknown; refusals?: unknown }): Promise<Experience | null> {
   try {
     const id = typeof upload.heldActionId === "number" && Number.isSafeInteger(upload.heldActionId) && upload.heldActionId > 0 ? upload.heldActionId : null;
     let type: string | null = null;
     if (id !== null) {
       try { const row = await env.OFFICE_DB.prepare("SELECT type FROM pending_actions WHERE id = ?").bind(id).first<{ type: string }>(); type = typeof row?.type === "string" ? row.type : null; } catch { type = null; }
     }
-    const processed = { message: typeof upload.message === "string" ? upload.message : null, pendingActions: id !== null ? [{ id, type }] : [] };
+    const processed = { message: typeof upload.message === "string" ? upload.message : null, pendingActions: id !== null ? [{ id, type }] : [], ...(Array.isArray(upload.refusals) && upload.refusals.length > 0 ? { refusals: upload.refusals, refusalScope: "whole" } : {}) };
     const interpreted = { upload: upload.source, kind: typeof upload.kind === "string" ? upload.kind.slice(0, 40) : null, subject: typeof upload.subjectHint === "string" ? upload.subjectHint.slice(0, 120) : null };
     const captureId = typeof upload.captureId === "number" && Number.isSafeInteger(upload.captureId) ? upload.captureId : null;
     await recordInteraction(env, { actorEmail: upload.actorEmail, source: upload.source, captureId, processed, interpreted, viewing: upload.viewing });

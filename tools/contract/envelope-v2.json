@@ -221,6 +221,206 @@
       }
     },
     {
+      "name": "a withheld part of a composed answer",
+      "reply": {
+        "message": "Quotations are up this month. Balances are restricted for your role.",
+        "refusals": [
+          {
+            "reason": "role_cannot_see_part",
+            "topic": "outstanding_balances"
+          }
+        ],
+        "refusalScope": "part"
+      },
+      "experience": {
+        "version": 2,
+        "established": {
+          "from": [
+            "message",
+            "refusals"
+          ],
+          "heldActions": [],
+          "candidates": null,
+          "changes": null,
+          "refusals": {
+            "scope": "part",
+            "items": [
+              {
+                "reason": "role_cannot_see_part",
+                "topic": "outstanding_balances"
+              }
+            ]
+          }
+        },
+        "recommendation": {
+          "mode": "speak",
+          "speak": "Quotations are up this month. Balances are restricted for your role."
+        },
+        "unknown": [
+          "intent_class",
+          "room",
+          "workspace",
+          "evidence",
+          "certainty"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": false,
+          "through": null,
+          "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+        }
+      }
+    },
+    {
+      "name": "a spoken follow-up refused",
+      "reply": {
+        "message": "Who owes what is restricted for your role.",
+        "refusals": [
+          {
+            "reason": "role_cannot_see",
+            "topic": "debtors"
+          }
+        ],
+        "refusalScope": "whole"
+      },
+      "experience": {
+        "version": 2,
+        "established": {
+          "from": [
+            "message",
+            "refusals"
+          ],
+          "heldActions": [],
+          "candidates": null,
+          "changes": null,
+          "refusals": {
+            "scope": "whole",
+            "items": [
+              {
+                "reason": "role_cannot_see",
+                "topic": "debtors"
+              }
+            ]
+          }
+        },
+        "recommendation": {
+          "mode": "refuse",
+          "speak": "Who owes what is restricted for your role."
+        },
+        "unknown": [
+          "intent_class",
+          "room",
+          "workspace",
+          "evidence",
+          "certainty"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": false,
+          "through": null,
+          "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+        }
+      }
+    },
+    {
+      "name": "an upload refused",
+      "reply": {
+        "message": "Checking supplier statements isn't available for your role — let someone with that permission know.",
+        "refusals": [
+          {
+            "reason": "role_cannot_record",
+            "topic": "statements"
+          }
+        ],
+        "refusalScope": "whole"
+      },
+      "experience": {
+        "version": 2,
+        "established": {
+          "from": [
+            "message",
+            "refusals"
+          ],
+          "heldActions": [],
+          "candidates": null,
+          "changes": null,
+          "refusals": {
+            "scope": "whole",
+            "items": [
+              {
+                "reason": "role_cannot_record",
+                "topic": "statements"
+              }
+            ]
+          }
+        },
+        "recommendation": {
+          "mode": "refuse",
+          "speak": "Checking supplier statements isn't available for your role — let someone with that permission know."
+        },
+        "unknown": [
+          "intent_class",
+          "room",
+          "workspace",
+          "evidence",
+          "certainty"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": false,
+          "through": null,
+          "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+        }
+      }
+    },
+    {
+      "name": "a sensitive detail not saved",
+      "reply": {
+        "message": "Found existing: Sipho. Nothing was saved: pay details can only be saved by someone with payroll access.",
+        "refusals": [
+          {
+            "reason": "role_cannot_record_part",
+            "topic": "sensitive_details"
+          }
+        ],
+        "refusalScope": "part"
+      },
+      "experience": {
+        "version": 2,
+        "established": {
+          "from": [
+            "message",
+            "refusals"
+          ],
+          "heldActions": [],
+          "candidates": null,
+          "changes": null,
+          "refusals": {
+            "scope": "part",
+            "items": [
+              {
+                "reason": "role_cannot_record_part",
+                "topic": "sensitive_details"
+              }
+            ]
+          }
+        },
+        "recommendation": {
+          "mode": "speak",
+          "speak": "Found existing: Sipho. Nothing was saved: pay details can only be saved by someone with payroll access."
+        },
+        "unknown": [
+          "intent_class",
+          "room",
+          "workspace",
+          "evidence",
+          "certainty"
+        ],
+        "mustStillPass": {
+          "confirmationRequired": false,
+          "through": null,
+          "authorization": "Authorization is enforced server-side on every action; this envelope grants nothing and decides nothing."
+        }
+      }
+    },
+    {
       "name": "a refusal beside a held action",
       "reply": {
         "message": "Drafted. One part was refused.",

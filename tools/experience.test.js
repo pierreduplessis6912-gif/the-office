@@ -102,6 +102,13 @@ module.exports = async function runExperienceTests({ check, srcDir }) {
     const v2 = ex.buildExperience({ ...R.plain, refusals: [REF('debtors')], refusalScope: 'whole' }); check(same(Object.keys(v2).sort(), [...KEYS].sort()) && v2.recommendation.mode === 'refuse', 'a version 2 envelope has the same four parts');
     check(ex.buildExperience({ ...R.plain, message: 'You are not allowed to see profit.' }).recommendation.mode === 'speak', 'words that sound like a refusal are still never read as one: only structure counts'); }
 
+  // ---- the part refusals: something withheld INSIDE a real answer never makes the whole reply a refusal -------------------------------------------------------------------------------------------------
+  { const w = ex.buildExperience({ ...R.plain, message: 'Quotations are up. Balances are restricted.', refusals: [{ reason: 'role_cannot_see_part', topic: 'outstanding_balances' }], refusalScope: 'part' });
+    check(w.version === 2 && w.recommendation.mode === 'speak' && w.established.refusals.items[0].reason === 'role_cannot_see_part' && !w.unknown.includes('refusal_reason'), 'a withheld part is reported (version 2) but the mode stays speak');
+    const forced = ex.buildExperience({ ...R.plain, refusals: [{ reason: 'role_cannot_record_part', topic: 'sensitive_details' }], refusalScope: 'whole' });
+    check(forced.recommendation.mode === 'refuse', 'the scope on the reply is what decides refuse (the backend never says whole for a part refusal: see index.ts and the goldens)');
+    for (const [reason, topic] of [['role_cannot_see_part', 'debtors'], ['role_cannot_see', 'outstanding_balances'], ['role_cannot_record_part', 'money'], ['role_cannot_record', 'sensitive_details']]) check(ex.buildExperience({ ...R.plain, refusals: [{ reason, topic }] }).version === 1, `a topic outside its reason's vocabulary is not a refusal: ${reason} / ${topic}`); }
+
   // ---- wiring and the contract document -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   { const idx = fs.readFileSync(path.join(srcDir, 'index.ts'), 'utf8'), doc = fs.readFileSync([path.join(srcDir, '..', '..', 'ENVELOPE.md'), path.join(process.cwd(), 'ENVELOPE.md')].find((f) => fs.existsSync(f)), 'utf8');
     check(/import \{ withExperience \} from "\.\/experience"/.test(idx), 'the Worker imports the envelope');

@@ -1,5 +1,5 @@
 export { TrialObject } from "./trial";
-import type { Refusal } from "./refusals";
+import { isWholeRefusal, type Refusal } from "./refusals";
 import { checkContextRequest, contextFromHeader, parseContext } from "./context";
 import { decisionOf, parseHistoryParams, readHistory, recordDecision, recordInteraction, recordUpload, resolveScope } from "./history";
 import { agedCreditorsData, agedDebtorsData, customerReceivablesData, parseCustomerParam, parsePeriodParams, profitAndLossData } from "./reports-data";
@@ -78,7 +78,7 @@ import {
   ACTION_TYPE_CAPABILITY,
   ROUTE_RULES,
   SIGNABLE_DOCUMENT_PATHS,
-  intentCreationRefusal, isAdminPath, CUSTOMER_LINK_TTL_MS, signBillingToken } from "./auth";
+  intentCreationRefusal, refusalFromCreationMessage, isAdminPath, CUSTOMER_LINK_TTL_MS, signBillingToken } from "./auth";
 import {
   buildDocumentResponse,
   checkForJobScopeAmendment,
@@ -397,7 +397,7 @@ async function processTranscript(
   const primary = results[0];
   // Structured role refusals (refusals.ts), kept only where some segment refused. "whole" when EVERY segment refused and nothing else was added to the message; otherwise "part".
   const allRefusals: Refusal[] = results.flatMap((r) => r.refusals ?? []).slice(0, 10);
-  const refusalScope: "whole" | "part" = results.every((r) => (r.refusals ?? []).length > 0) && projectResolutionMessages.length === 0 ? "whole" : "part";
+  const refusalScope: "whole" | "part" = results.every((r) => (r.refusals ?? []).some(isWholeRefusal)) && projectResolutionMessages.length === 0 ? "whole" : "part";
 
   const embers = await getEmberCounts(env);
   return {
@@ -3688,8 +3688,8 @@ let created = 0;
       let { uploadRefusal, uploadMessage, uploadHeldActionId, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction, inferredFromDocument, documentKindLabel, documentKind } = documentDecision;
 
       const documentEmail = (await resolveCapabilities(request, env)).email;
-      const documentExperience = await recordUpload(env, { source: "document", actorEmail: documentEmail, captureId, message: uploadRefusal ?? uploadMessage, heldActionId: uploadHeldActionId, kind: documentKind, subjectHint, viewing: contextFromHeader(request.headers.get("X-Office-Context")).context });   // swallowed on failure: it can never change a reply
-      const docResponseBody = JSON.stringify({ status: "stored", refusal: uploadRefusal, message: uploadRefusal ?? uploadMessage, pendingActionId: uploadHeldActionId, key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction, ...(documentExperience ? { experience: documentExperience } : {}) });
+      const documentExperience = await recordUpload(env, { source: "document", actorEmail: documentEmail, captureId, message: uploadRefusal ?? uploadMessage, refusals: uploadRefusal !== null ? [refusalFromCreationMessage(uploadRefusal) as Refusal] : undefined, heldActionId: uploadHeldActionId, kind: documentKind, subjectHint, viewing: contextFromHeader(request.headers.get("X-Office-Context")).context });   // swallowed on failure: it can never change a reply
+      const docResponseBody = JSON.stringify({ status: "stored", refusal: uploadRefusal, message: uploadRefusal ?? uploadMessage, pendingActionId: uploadHeldActionId, ...(uploadRefusal !== null ? { refusals: [refusalFromCreationMessage(uploadRefusal)], refusalScope: "whole" } : {}), key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction, ...(documentExperience ? { experience: documentExperience } : {}) });
       await completeIdempotencyKey(env, idempotencyKey, docResponseBody);
       return new Response(docResponseBody, { headers: { "Content-Type": "application/json" } });
     }
@@ -3741,8 +3741,8 @@ let created = 0;
       let { uploadRefusal, uploadMessage, uploadHeldActionId, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction, inferredFromDocument, documentKindLabel, documentKind } = photoDecision;
 
       const photoEmail = (await resolveCapabilities(request, env)).email;
-      const photoExperience = await recordUpload(env, { source: "photo", actorEmail: photoEmail, captureId, message: uploadRefusal ?? uploadMessage, heldActionId: uploadHeldActionId, kind: documentKind, subjectHint, viewing: contextFromHeader(request.headers.get("X-Office-Context")).context });   // swallowed on failure: it can never change a reply
-      const photoResponseBody = JSON.stringify({ status: "stored", refusal: uploadRefusal, message: uploadRefusal ?? uploadMessage, pendingActionId: uploadHeldActionId, key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction, ...(photoExperience ? { experience: photoExperience } : {}) });
+      const photoExperience = await recordUpload(env, { source: "photo", actorEmail: photoEmail, captureId, message: uploadRefusal ?? uploadMessage, refusals: uploadRefusal !== null ? [refusalFromCreationMessage(uploadRefusal) as Refusal] : undefined, heldActionId: uploadHeldActionId, kind: documentKind, subjectHint, viewing: contextFromHeader(request.headers.get("X-Office-Context")).context });   // swallowed on failure: it can never change a reply
+      const photoResponseBody = JSON.stringify({ status: "stored", refusal: uploadRefusal, message: uploadRefusal ?? uploadMessage, pendingActionId: uploadHeldActionId, ...(uploadRefusal !== null ? { refusals: [refusalFromCreationMessage(uploadRefusal)], refusalScope: "whole" } : {}), key, captureId, description, subjectHint, supplierInvoiceAction, goodsReceivedAction, supplierStatementAction, ...(photoExperience ? { experience: photoExperience } : {}) });
       await completeIdempotencyKey(env, idempotencyKey, photoResponseBody);
       return new Response(photoResponseBody, { headers: { "Content-Type": "application/json" } });
     }
@@ -3893,7 +3893,7 @@ let created = 0;
       // A follow-up on the analysis the app says is open ("why did it drop?", "which customers caused that?", "show me their outstanding invoices") is answered from the analysis itself, in words, and never goes near the model or writes anything. Anything else (or no analysis on screen) is null here and goes down the ordinary pipeline exactly as before.
       const followUp = await tryFollowUp(env, text, onScreen, capabilities);
       if (followUp) captured = await logCapture(env, text, "text", null);
-      const processed = followUp ? followUpReply(text, followUp.message) : await processTranscript(env, text, ctx, history, "text", null, capabilities, textEmail, (id) => { captured = id; });
+      const processed = followUp ? followUpReply(text, followUp.message, followUp.refusals) : await processTranscript(env, text, ctx, history, "text", null, capabilities, textEmail, (id) => { captured = id; });
       await recordInteraction(env, { actorEmail: textEmail, source: "text", captureId: captured, processed, viewing: parseContext(body.context).context, ...(followUp ? { interpreted: followUp.interpreted } : {}) });   // swallowed on failure: it can never change a reply
       const responseBody = JSON.stringify({ status: "processed", transcript: text, ...withExperience(processed) });
 

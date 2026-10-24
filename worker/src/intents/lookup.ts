@@ -6,7 +6,7 @@
 // the member's permissions, and the customer and the supplier), assigns back exactly ONE (the message), has no early return and
 // no background work, and declares nothing that the code after it uses. So this is a plain function that returns the answer, and the branch's CONDITION
 // stays in the reply chain where it was, which means nothing about which reply wins can have changed.
-import { cannotSee, type Refusal } from "../refusals";
+import { cannotSee, cannotSeePart, WITHHELD_SEE_TOPICS, type Refusal } from "../refusals";
 import type { Env } from "../types";
 import type { Extraction } from "../types";
 import { answerFromMemory, classifyBusinessTopic, classifyDashboardIntent, resolveFollowUpEntity } from "../ai";
@@ -31,6 +31,11 @@ export async function answerLookup(
   }
 ): Promise<string> {
   const { extraction, transcript, history, capabilities, customer, character } = input;
+  // Wraps a restricted fact that is only PART of a composed answer: records that something was withheld (once per topic) and returns the facts unchanged.
+  const withheld = <T,>(topic: (typeof WITHHELD_SEE_TOPICS)[number], facts: T): T => {
+    if (input.refusals && !input.refusals.some((r) => r.topic === topic)) input.refusals.push(cannotSeePart(topic));
+    return facts;
+  };
   let message: string;
   // Real feature 2026-07-25 — GRN-informed pricing. A real,
   // historical fact, answered directly from real supplier invoice
@@ -154,29 +159,29 @@ export async function answerLookup(
           ? []
           : canKnowDebtors
             ? getOutstandingInvoices(env)
-            : ["Outstanding balances exist for this business but are restricted for your role."],
+            : withheld("outstanding_balances", ["Outstanding balances exist for this business but are restricted for your role."]),
         topic === "invoices" || topic === "expenses"
           ? []
           : canManageInvoicesHere
             ? getQuotationsSummary(env)
-            : ["Quotation activity exists for this business but is restricted for your role."],
+            : withheld("quotation_activity", ["Quotation activity exists for this business but is restricted for your role."]),
         topic === "quotations" || topic === "invoices"
           ? []
           : canKnowExpenseTotals
             ? getExpenseSummary(env)
-            : ["Expense activity exists for this business but is restricted for your role."],
-        topic !== "general" ? [] : canKnowProfit ? getFinancialSnapshot(env) : ["Financial performance data exists for this business but is restricted for your role."],
+            : withheld("expense_activity", ["Expense activity exists for this business but is restricted for your role."]),
+        topic !== "general" ? [] : canKnowProfit ? getFinancialSnapshot(env) : withheld("financial_performance", ["Financial performance data exists for this business but is restricted for your role."]),
         topic === "general" && canKnowProfit ? getProfitAndLossSummary(env) : [],
         topic === "quotations" || topic === "expenses"
           ? []
           : canKnowDebtors
             ? getAgedDebtorsSummary(env)
-            : ["Outstanding balances exist for this business but are restricted for your role."],
+            : withheld("outstanding_balances", ["Outstanding balances exist for this business but are restricted for your role."]),
         topic === "quotations" || topic === "invoices"
           ? []
           : canKnowSupplierBalances
             ? getAgedCreditorsSummary(env)
-            : ["Outstanding supplier balances exist for this business but are restricted for your role."],
+            : withheld("supplier_balances", ["Outstanding supplier balances exist for this business but are restricted for your role."]),
       ]);
       message = await answerFromMemory(env, transcript, [...outstandingFacts, ...quotationFacts, ...expenseFacts, ...snapshotFacts, ...pnlFacts, ...agedFacts, ...creditorFacts]);
     }
@@ -241,7 +246,7 @@ export async function answerLookup(
       `${character.name} is a known contact.`,
       ...characterFacts,
       ...(hasRealInstallerActivity ? installerActivity : []),
-      ...(!canKnowJobsHere ? [`${character.name}'s job activity exists but is restricted for your role.`] : []),
+      ...(!canKnowJobsHere ? withheld("job_activity", [`${character.name}'s job activity exists but is restricted for your role.`]) : []),
     ];
     message = await answerFromMemory(env, transcript, facts);
     if (hrFacts.length > 0) {
@@ -280,9 +285,9 @@ export async function answerLookup(
     const facts = [
       `${customer.name} is a known customer.`,
       ...(financialSummary ? [`${customer.name}: ${financialSummary}`] : []),
-      ...(!canKnowDebtorsHere ? [`${customer.name}'s financial balance exists but is restricted for your role.`] : []),
+      ...(!canKnowDebtorsHere ? withheld("customer_balance", [`${customer.name}'s financial balance exists but is restricted for your role.`]) : []),
       ...(profitability ? [`Job profitability for ${customer.name}: ${profitability.fact}`] : []),
-      ...(!canKnowProfitHere ? [`Job profitability for ${customer.name} exists but is restricted for your role.`] : []),
+      ...(!canKnowProfitHere ? withheld("job_profitability", [`Job profitability for ${customer.name} exists but is restricted for your role.`]) : []),
       ...projectFacts,
       ...memoryFacts,
     ];

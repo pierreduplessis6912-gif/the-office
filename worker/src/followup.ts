@@ -3,6 +3,7 @@
 //   top_drivers        "which customers caused most of that?" -> the biggest movers by customer (or category), from the same analysis
 //   customer_invoices  "show me their outstanding invoices" / "what does Jenny owe?" -> that customer's receivables (CALCULATED: payments are applied oldest first)
 // Anything else is NOT a follow-up and returns null, so the existing pipeline handles the message exactly as before. A customer is never guessed: a name that fits more than one customer, or "their" with nothing selected, is ASKED about. Every answer is built from the existing analysis and receivables functions, authorised by the same capabilities as their routes, and says plainly that the records show what changed, not why. It never writes anything.
+import { cannotSee, type Refusal } from "./refusals";
 import { analysisData, type Topic } from "./analysis";
 import type { Context } from "./context";
 import { customerReceivablesData, previousPeriod } from "./reports-data";
@@ -10,7 +11,7 @@ import type { Env, ProcessResult } from "./types";
 
 export type FollowUpClass = "why_changed" | "top_drivers" | "customer_invoices";
 export interface Classified { cls: FollowUpClass; topic: Topic | null; pronoun: boolean }
-export interface FollowUpOutcome { message: string; interpreted: Record<string, unknown> }
+export interface FollowUpOutcome { message: string; interpreted: Record<string, unknown>; refusals?: Refusal[] }
 
 const MAX_TEXT = 200;
 
@@ -151,8 +152,8 @@ function receivablesMessage(d: NonNullable<Awaited<ReturnType<typeof customerRec
 
 // ---- the reply -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 /** A reply in the shape every message route returns, carrying only words: nothing is held, nothing is written. */
-export function followUpReply(text: string, message: string): ProcessResult {
-  return { extraction: null, extractionRaw: null, extractionRawText: null, customer: null, pendingActionId: null, pendingActionIds: [], factPendingActionId: null, message, rewrittenQuery: text, embers: { tasks: 0, scheduler: 0, finance: 0, expenses: 0 }, pendingCandidates: null, pendingActionType: null, pendingChanges: null, pendingActions: [] };
+export function followUpReply(text: string, message: string, refusals?: Refusal[]): ProcessResult {
+  return { extraction: null, extractionRaw: null, extractionRawText: null, customer: null, pendingActionId: null, pendingActionIds: [], factPendingActionId: null, message, rewrittenQuery: text, embers: { tasks: 0, scheduler: 0, finance: 0, expenses: 0 }, pendingCandidates: null, pendingActionType: null, pendingChanges: null, pendingActions: [], ...(refusals && refusals.length > 0 ? { refusals, refusalScope: "whole" as const } : {}) };
 }
 
 /** Tries to answer a message as a follow-up on the open analysis. Null when it is not one (no analysis on screen, a different phrase, or switched off): then nothing here has had any effect. Never throws. */
@@ -176,7 +177,7 @@ export async function tryFollowUp(env: Env, text: string, context: Context | nul
       }
       // No customer named and nobody to mean by "their": a general question about unpaid invoices, which the existing routes already answer. Not a follow-up.
       if (target.kind === "none" && !asked.pronoun) return null;
-      if (!capabilities.includes("can_know_debtors")) return { message: "Who owes what is restricted for your role.", interpreted: note("restricted") };
+      if (!capabilities.includes("can_know_debtors")) return { message: "Who owes what is restricted for your role.", interpreted: note("restricted"), refusals: [cannotSee("debtors")] };
       if (target.kind === "none") {
         // "their" with nothing selected: ask, naming the biggest movers when an analysis is open
         let names: string[] = [];
@@ -193,7 +194,7 @@ export async function tryFollowUp(env: Env, text: string, context: Context | nul
     }
 
     // why_changed and top_drivers need the analysis the person is looking at: its topic and its period
-    if (!capabilities.includes("can_know_profit")) return { message: "The financial analysis is restricted for your role.", interpreted: note("restricted") };
+    if (!capabilities.includes("can_know_profit")) return { message: "The financial analysis is restricted for your role.", interpreted: note("restricted"), refusals: [cannotSee("financial_analysis")] };
     const topic = asked.topic ?? topicFromContext(context);
     if (topic === null) return { message: "Which would you like to look at: revenue, expenses or profit?", interpreted: note("asked", { reason: "no_topic" }) };
     if (!context.period) return { message: "Open the analysis and pick a period first, then ask again.", interpreted: note("asked", { reason: "no_period" }) };

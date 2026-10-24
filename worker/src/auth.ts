@@ -734,10 +734,12 @@ export function intentCreationRefusal(intent: string | null | undefined, capabil
 }
 
 // The structured twin of intentCreationRefusal: the same decision, in the closed vocabulary of refusals.ts. null when the role may create the intent.
-export function intentCreationRefusalInfo(intent: string | null | undefined, capabilities: string[]): Refusal | null {
-  const message = intentCreationRefusal(intent, capabilities);
+export function refusalFromCreationMessage(message: string | null): Refusal | null {
   if (message === null) return null;
   return cannotRecord(message === LEADS_REFUSAL ? "leads" : message === STATEMENT_REFUSAL ? "statements" : message === STOCK_REFUSAL ? "stock" : "money");
+}
+export function intentCreationRefusalInfo(intent: string | null | undefined, capabilities: string[]): Refusal | null {
+  return refusalFromCreationMessage(intentCreationRefusal(intent, capabilities));
 }
 
 // Any active member, whatever their role. Uploads are safe here because

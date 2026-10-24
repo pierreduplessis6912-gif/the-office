@@ -1600,6 +1600,13 @@
     "refusal": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
     "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
     "pendingActionId": null,
+    "refusals": [
+     {
+      "reason": "role_cannot_record",
+      "topic": "money"
+     }
+    ],
+    "refusalScope": "whole",
     "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
     "captureId": 1,
     "description": "Floornet (Pty) Ltd TAX INVOICE INV-7731 Vinyl 50 sqm at R185 Underlay 100 sqm at R40",
@@ -1608,17 +1615,27 @@
     "goodsReceivedAction": null,
     "supplierStatementAction": null,
     "experience": {
-     "version": 1,
+     "version": 2,
      "established": {
       "from": [
-       "message"
+       "message",
+       "refusals"
       ],
       "heldActions": [],
       "candidates": null,
-      "changes": null
+      "changes": null,
+      "refusals": {
+       "scope": "whole",
+       "items": [
+        {
+         "reason": "role_cannot_record",
+         "topic": "money"
+        }
+       ]
+      }
      },
      "recommendation": {
-      "mode": "speak",
+      "mode": "refuse",
       "speak": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know."
      },
      "unknown": [
@@ -1626,8 +1643,7 @@
       "room",
       "workspace",
       "evidence",
-      "certainty",
-      "refusal_reason"
+      "certainty"
      ],
      "mustStillPass": {
       "confirmationRequired": false,
@@ -1668,7 +1684,7 @@
       "interpreted": "{\"upload\":\"document\",\"kind\":\"other\",\"subject\":\"Floornet\"}",
       "proposed": "[]",
       "replied": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
-      "mode": "speak",
+      "mode": "refuse",
       "viewing": null
      }
     ]
@@ -2103,6 +2119,13 @@
     "refusal": "Checking supplier statements isn't available for your role — let someone with that permission know.",
     "message": "Checking supplier statements isn't available for your role — let someone with that permission know.",
     "pendingActionId": null,
+    "refusals": [
+     {
+      "reason": "role_cannot_record",
+      "topic": "statements"
+     }
+    ],
+    "refusalScope": "whole",
     "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
     "captureId": 1,
     "description": "Floornet (Pty) Ltd STATEMENT OF ACCOUNT Closing Balance: R20,000.00",
@@ -2111,17 +2134,27 @@
     "goodsReceivedAction": null,
     "supplierStatementAction": null,
     "experience": {
-     "version": 1,
+     "version": 2,
      "established": {
       "from": [
-       "message"
+       "message",
+       "refusals"
       ],
       "heldActions": [],
       "candidates": null,
-      "changes": null
+      "changes": null,
+      "refusals": {
+       "scope": "whole",
+       "items": [
+        {
+         "reason": "role_cannot_record",
+         "topic": "statements"
+        }
+       ]
+      }
      },
      "recommendation": {
-      "mode": "speak",
+      "mode": "refuse",
       "speak": "Checking supplier statements isn't available for your role — let someone with that permission know."
      },
      "unknown": [
@@ -2129,8 +2162,7 @@
       "room",
       "workspace",
       "evidence",
-      "certainty",
-      "refusal_reason"
+      "certainty"
      ],
      "mustStillPass": {
       "confirmationRequired": false,
@@ -2170,7 +2202,7 @@
       "interpreted": "{\"upload\":\"document\",\"kind\":\"other\",\"subject\":\"Floornet\"}",
       "proposed": "[]",
       "replied": "Checking supplier statements isn't available for your role — let someone with that permission know.",
-      "mode": "speak",
+      "mode": "refuse",
       "viewing": null
      }
     ]
@@ -2578,6 +2610,13 @@
     "refusal": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
     "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
     "pendingActionId": null,
+    "refusals": [
+     {
+      "reason": "role_cannot_record",
+      "topic": "money"
+     }
+    ],
+    "refusalScope": "whole",
     "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
     "captureId": 1,
     "description": "Quote for the lounge",
@@ -2586,17 +2625,27 @@
     "goodsReceivedAction": null,
     "supplierStatementAction": null,
     "experience": {
-     "version": 1,
+     "version": 2,
      "established": {
       "from": [
-       "message"
+       "message",
+       "refusals"
       ],
       "heldActions": [],
       "candidates": null,
-      "changes": null
+      "changes": null,
+      "refusals": {
+       "scope": "whole",
+       "items": [
+        {
+         "reason": "role_cannot_record",
+         "topic": "money"
+        }
+       ]
+      }
      },
      "recommendation": {
-      "mode": "speak",
+      "mode": "refuse",
       "speak": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know."
      },
      "unknown": [
@@ -2604,8 +2653,7 @@
       "room",
       "workspace",
       "evidence",
-      "certainty",
-      "refusal_reason"
+      "certainty"
      ],
      "mustStillPass": {
       "confirmationRequired": false,
@@ -2648,7 +2696,7 @@
       "interpreted": "{\"upload\":\"document\",\"kind\":\"other\",\"subject\":null}",
       "proposed": "[]",
       "replied": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
-      "mode": "speak",
+      "mode": "refuse",
       "viewing": null
      }
     ]
@@ -2867,6 +2915,13 @@
     "refusal": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
     "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
     "pendingActionId": null,
+    "refusals": [
+     {
+      "reason": "role_cannot_record",
+      "topic": "money"
+     }
+    ],
+    "refusalScope": "whole",
     "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
     "captureId": 1,
     "description": "Quote for the lounge",
@@ -2875,17 +2930,27 @@
     "goodsReceivedAction": null,
     "supplierStatementAction": null,
     "experience": {
-     "version": 1,
+     "version": 2,
      "established": {
       "from": [
-       "message"
+       "message",
+       "refusals"
       ],
       "heldActions": [],
       "candidates": null,
-      "changes": null
+      "changes": null,
+      "refusals": {
+       "scope": "whole",
+       "items": [
+        {
+         "reason": "role_cannot_record",
+         "topic": "money"
+        }
+       ]
+      }
      },
      "recommendation": {
-      "mode": "speak",
+      "mode": "refuse",
       "speak": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know."
      },
      "unknown": [
@@ -2893,8 +2958,7 @@
       "room",
       "workspace",
       "evidence",
-      "certainty",
-      "refusal_reason"
+      "certainty"
      ],
      "mustStillPass": {
       "confirmationRequired": false,
@@ -2934,7 +2998,7 @@
       "interpreted": "{\"upload\":\"document\",\"kind\":\"other\",\"subject\":\"Jenny Smith\"}",
       "proposed": "[]",
       "replied": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
-      "mode": "speak",
+      "mode": "refuse",
       "viewing": null
      }
     ]
@@ -2955,6 +3019,13 @@
     "refusal": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
     "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
     "pendingActionId": null,
+    "refusals": [
+     {
+      "reason": "role_cannot_record",
+      "topic": "money"
+     }
+    ],
+    "refusalScope": "whole",
     "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.pdf",
     "captureId": 1,
     "description": "Newco Supplies TAX INVOICE",
@@ -2963,17 +3034,27 @@
     "goodsReceivedAction": null,
     "supplierStatementAction": null,
     "experience": {
-     "version": 1,
+     "version": 2,
      "established": {
       "from": [
-       "message"
+       "message",
+       "refusals"
       ],
       "heldActions": [],
       "candidates": null,
-      "changes": null
+      "changes": null,
+      "refusals": {
+       "scope": "whole",
+       "items": [
+        {
+         "reason": "role_cannot_record",
+         "topic": "money"
+        }
+       ]
+      }
      },
      "recommendation": {
-      "mode": "speak",
+      "mode": "refuse",
       "speak": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know."
      },
      "unknown": [
@@ -2981,8 +3062,7 @@
       "room",
       "workspace",
       "evidence",
-      "certainty",
-      "refusal_reason"
+      "certainty"
      ],
      "mustStillPass": {
       "confirmationRequired": false,
@@ -3025,7 +3105,7 @@
       "interpreted": "{\"upload\":\"document\",\"kind\":\"other\",\"subject\":null}",
       "proposed": "[]",
       "replied": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
-      "mode": "speak",
+      "mode": "refuse",
       "viewing": null
      }
     ]
@@ -3449,6 +3529,13 @@
     "refusal": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
     "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
     "pendingActionId": null,
+    "refusals": [
+     {
+      "reason": "role_cannot_record",
+      "topic": "money"
+     }
+    ],
+    "refusalScope": "whole",
     "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
     "captureId": 1,
     "description": "Floornet TAX INVOICE Vinyl 50 sqm at R185",
@@ -3457,17 +3544,27 @@
     "goodsReceivedAction": null,
     "supplierStatementAction": null,
     "experience": {
-     "version": 1,
+     "version": 2,
      "established": {
       "from": [
-       "message"
+       "message",
+       "refusals"
       ],
       "heldActions": [],
       "candidates": null,
-      "changes": null
+      "changes": null,
+      "refusals": {
+       "scope": "whole",
+       "items": [
+        {
+         "reason": "role_cannot_record",
+         "topic": "money"
+        }
+       ]
+      }
      },
      "recommendation": {
-      "mode": "speak",
+      "mode": "refuse",
       "speak": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know."
      },
      "unknown": [
@@ -3475,8 +3572,7 @@
       "room",
       "workspace",
       "evidence",
-      "certainty",
-      "refusal_reason"
+      "certainty"
      ],
      "mustStillPass": {
       "confirmationRequired": false,
@@ -3518,7 +3614,7 @@
       "interpreted": "{\"upload\":\"photo\",\"kind\":\"other\",\"subject\":\"Floornet\"}",
       "proposed": "[]",
       "replied": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
-      "mode": "speak",
+      "mode": "refuse",
       "viewing": null
      }
     ]
@@ -5097,6 +5193,13 @@
     "refusal": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
     "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
     "pendingActionId": null,
+    "refusals": [
+     {
+      "reason": "role_cannot_record",
+      "topic": "money"
+     }
+    ],
+    "refusalScope": "whole",
     "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
     "captureId": 1,
     "description": "Floornet TAX INVOICE Vinyl 50 sqm at R185",
@@ -5105,17 +5208,27 @@
     "goodsReceivedAction": null,
     "supplierStatementAction": null,
     "experience": {
-     "version": 1,
+     "version": 2,
      "established": {
       "from": [
-       "message"
+       "message",
+       "refusals"
       ],
       "heldActions": [],
       "candidates": null,
-      "changes": null
+      "changes": null,
+      "refusals": {
+       "scope": "whole",
+       "items": [
+        {
+         "reason": "role_cannot_record",
+         "topic": "money"
+        }
+       ]
+      }
      },
      "recommendation": {
-      "mode": "speak",
+      "mode": "refuse",
       "speak": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know."
      },
      "unknown": [
@@ -5123,8 +5236,7 @@
       "room",
       "workspace",
       "evidence",
-      "certainty",
-      "refusal_reason"
+      "certainty"
      ],
      "mustStillPass": {
       "confirmationRequired": false,
@@ -5166,7 +5278,7 @@
       "interpreted": "{\"upload\":\"document\",\"kind\":\"other\",\"subject\":\"Floornet\"}",
       "proposed": "[]",
       "replied": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
-      "mode": "speak",
+      "mode": "refuse",
       "viewing": null
      }
     ]
@@ -5187,6 +5299,13 @@
     "refusal": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
     "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
     "pendingActionId": null,
+    "refusals": [
+     {
+      "reason": "role_cannot_record",
+      "topic": "money"
+     }
+    ],
+    "refusalScope": "whole",
     "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
     "captureId": 1,
     "description": "A quote sheet for a lounge",
@@ -5195,17 +5314,27 @@
     "goodsReceivedAction": null,
     "supplierStatementAction": null,
     "experience": {
-     "version": 1,
+     "version": 2,
      "established": {
       "from": [
-       "message"
+       "message",
+       "refusals"
       ],
       "heldActions": [],
       "candidates": null,
-      "changes": null
+      "changes": null,
+      "refusals": {
+       "scope": "whole",
+       "items": [
+        {
+         "reason": "role_cannot_record",
+         "topic": "money"
+        }
+       ]
+      }
      },
      "recommendation": {
-      "mode": "speak",
+      "mode": "refuse",
       "speak": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know."
      },
      "unknown": [
@@ -5213,8 +5342,7 @@
       "room",
       "workspace",
       "evidence",
-      "certainty",
-      "refusal_reason"
+      "certainty"
      ],
      "mustStillPass": {
       "confirmationRequired": false,
@@ -5258,7 +5386,7 @@
       "interpreted": "{\"upload\":\"document\",\"kind\":\"other\",\"subject\":null}",
       "proposed": "[]",
       "replied": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
-      "mode": "speak",
+      "mode": "refuse",
       "viewing": null
      }
     ]
@@ -5279,6 +5407,13 @@
     "refusal": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
     "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
     "pendingActionId": null,
+    "refusals": [
+     {
+      "reason": "role_cannot_record",
+      "topic": "money"
+     }
+    ],
+    "refusalScope": "whole",
     "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
     "captureId": 1,
     "description": "A quote sheet for a lounge",
@@ -5287,17 +5422,27 @@
     "goodsReceivedAction": null,
     "supplierStatementAction": null,
     "experience": {
-     "version": 1,
+     "version": 2,
      "established": {
       "from": [
-       "message"
+       "message",
+       "refusals"
       ],
       "heldActions": [],
       "candidates": null,
-      "changes": null
+      "changes": null,
+      "refusals": {
+       "scope": "whole",
+       "items": [
+        {
+         "reason": "role_cannot_record",
+         "topic": "money"
+        }
+       ]
+      }
      },
      "recommendation": {
-      "mode": "speak",
+      "mode": "refuse",
       "speak": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know."
      },
      "unknown": [
@@ -5305,8 +5450,7 @@
       "room",
       "workspace",
       "evidence",
-      "certainty",
-      "refusal_reason"
+      "certainty"
      ],
      "mustStillPass": {
       "confirmationRequired": false,
@@ -5350,7 +5494,7 @@
       "interpreted": "{\"upload\":\"photo\",\"kind\":\"other\",\"subject\":null}",
       "proposed": "[]",
       "replied": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
-      "mode": "speak",
+      "mode": "refuse",
       "viewing": null
      }
     ]
@@ -5571,6 +5715,13 @@
     "refusal": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
     "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
     "pendingActionId": null,
+    "refusals": [
+     {
+      "reason": "role_cannot_record",
+      "topic": "money"
+     }
+    ],
+    "refusalScope": "whole",
     "key": "documents/1791028800000-00000000-0000-4000-8000-000000000001.png",
     "captureId": 1,
     "description": "Newco Supplies TAX INVOICE",
@@ -5579,17 +5730,27 @@
     "goodsReceivedAction": null,
     "supplierStatementAction": null,
     "experience": {
-     "version": 1,
+     "version": 2,
      "established": {
       "from": [
-       "message"
+       "message",
+       "refusals"
       ],
       "heldActions": [],
       "candidates": null,
-      "changes": null
+      "changes": null,
+      "refusals": {
+       "scope": "whole",
+       "items": [
+        {
+         "reason": "role_cannot_record",
+         "topic": "money"
+        }
+       ]
+      }
      },
      "recommendation": {
-      "mode": "speak",
+      "mode": "refuse",
       "speak": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know."
      },
      "unknown": [
@@ -5597,8 +5758,7 @@
       "room",
       "workspace",
       "evidence",
-      "certainty",
-      "refusal_reason"
+      "certainty"
      ],
      "mustStillPass": {
       "confirmationRequired": false,
@@ -5642,7 +5802,7 @@
       "interpreted": "{\"upload\":\"document\",\"kind\":\"other\",\"subject\":null}",
       "proposed": "[]",
       "replied": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
-      "mode": "speak",
+      "mode": "refuse",
       "viewing": null
      }
     ]
@@ -5663,6 +5823,13 @@
     "refusal": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
     "message": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
     "pendingActionId": null,
+    "refusals": [
+     {
+      "reason": "role_cannot_record",
+      "topic": "money"
+     }
+    ],
+    "refusalScope": "whole",
     "key": "photos/1791028800000-00000000-0000-4000-8000-000000000001.png",
     "captureId": 1,
     "description": "Newco Supplies TAX INVOICE",
@@ -5671,17 +5838,27 @@
     "goodsReceivedAction": null,
     "supplierStatementAction": null,
     "experience": {
-     "version": 1,
+     "version": 2,
      "established": {
       "from": [
-       "message"
+       "message",
+       "refusals"
       ],
       "heldActions": [],
       "candidates": null,
-      "changes": null
+      "changes": null,
+      "refusals": {
+       "scope": "whole",
+       "items": [
+        {
+         "reason": "role_cannot_record",
+         "topic": "money"
+        }
+       ]
+      }
      },
      "recommendation": {
-      "mode": "speak",
+      "mode": "refuse",
       "speak": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know."
      },
      "unknown": [
@@ -5689,8 +5866,7 @@
       "room",
       "workspace",
       "evidence",
-      "certainty",
-      "refusal_reason"
+      "certainty"
      ],
      "mustStillPass": {
       "confirmationRequired": false,
@@ -5734,7 +5910,7 @@
       "interpreted": "{\"upload\":\"photo\",\"kind\":\"other\",\"subject\":null}",
       "proposed": "[]",
       "replied": "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.",
-      "mode": "speak",
+      "mode": "refuse",
       "viewing": null
      }
     ]

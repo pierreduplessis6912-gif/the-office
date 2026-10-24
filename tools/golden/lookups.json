@@ -2246,7 +2246,29 @@
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
-   "pendingChanges": null
+   "pendingChanges": null,
+   "refusals": [
+    {
+     "reason": "role_cannot_see_part",
+     "topic": "outstanding_balances"
+    },
+    {
+     "reason": "role_cannot_see_part",
+     "topic": "quotation_activity"
+    },
+    {
+     "reason": "role_cannot_see_part",
+     "topic": "expense_activity"
+    },
+    {
+     "reason": "role_cannot_see_part",
+     "topic": "financial_performance"
+    },
+    {
+     "reason": "role_cannot_see_part",
+     "topic": "supplier_balances"
+    }
+   ]
   },
   "threw": null,
   "aiCalls": [
@@ -2297,7 +2319,29 @@
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
-   "pendingChanges": null
+   "pendingChanges": null,
+   "refusals": [
+    {
+     "reason": "role_cannot_see_part",
+     "topic": "outstanding_balances"
+    },
+    {
+     "reason": "role_cannot_see_part",
+     "topic": "quotation_activity"
+    },
+    {
+     "reason": "role_cannot_see_part",
+     "topic": "expense_activity"
+    },
+    {
+     "reason": "role_cannot_see_part",
+     "topic": "financial_performance"
+    },
+    {
+     "reason": "role_cannot_see_part",
+     "topic": "supplier_balances"
+    }
+   ]
   },
   "threw": null,
   "aiCalls": [
@@ -2513,7 +2557,13 @@
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
-   "pendingChanges": null
+   "pendingChanges": null,
+   "refusals": [
+    {
+     "reason": "role_cannot_see_part",
+     "topic": "outstanding_balances"
+    }
+   ]
   },
   "threw": null,
   "aiCalls": [
@@ -2568,7 +2618,17 @@
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
-   "pendingChanges": null
+   "pendingChanges": null,
+   "refusals": [
+    {
+     "reason": "role_cannot_see_part",
+     "topic": "expense_activity"
+    },
+    {
+     "reason": "role_cannot_see_part",
+     "topic": "supplier_balances"
+    }
+   ]
   },
   "threw": null,
   "aiCalls": [
@@ -3022,7 +3082,13 @@
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
-   "pendingChanges": null
+   "pendingChanges": null,
+   "refusals": [
+    {
+     "reason": "role_cannot_see_part",
+     "topic": "job_activity"
+    }
+   ]
   },
   "threw": null,
   "aiCalls": [
@@ -3144,7 +3210,13 @@
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
-   "pendingChanges": null
+   "pendingChanges": null,
+   "refusals": [
+    {
+     "reason": "role_cannot_see_part",
+     "topic": "job_activity"
+    }
+   ]
   },
   "threw": null,
   "aiCalls": [
@@ -3266,7 +3338,13 @@
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
-   "pendingChanges": null
+   "pendingChanges": null,
+   "refusals": [
+    {
+     "reason": "role_cannot_see_part",
+     "topic": "job_activity"
+    }
+   ]
   },
   "threw": null,
   "aiCalls": [
@@ -3327,7 +3405,13 @@
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
-   "pendingChanges": null
+   "pendingChanges": null,
+   "refusals": [
+    {
+     "reason": "role_cannot_see_part",
+     "topic": "job_activity"
+    }
+   ]
   },
   "threw": null,
   "aiCalls": [
@@ -3557,7 +3641,17 @@
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
-   "pendingChanges": null
+   "pendingChanges": null,
+   "refusals": [
+    {
+     "reason": "role_cannot_see_part",
+     "topic": "customer_balance"
+    },
+    {
+     "reason": "role_cannot_see_part",
+     "topic": "job_profitability"
+    }
+   ]
   },
   "threw": null,
   "aiCalls": [
@@ -3618,7 +3712,17 @@
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
-   "pendingChanges": null
+   "pendingChanges": null,
+   "refusals": [
+    {
+     "reason": "role_cannot_see_part",
+     "topic": "customer_balance"
+    },
+    {
+     "reason": "role_cannot_see_part",
+     "topic": "job_profitability"
+    }
+   ]
   },
   "threw": null,
   "aiCalls": [

@@ -7,7 +7,7 @@
 // it. Its inputs are the results the other steps produced, grouped as they were produced (the handlers' results, the four facts-and-notes values, the ten
 // job-pricing values), and destructured back to their ORIGINAL names so the chain itself did not change. The function that called it is now only an
 // orchestrator: it opens the sentence, runs each step, asks this module what to say, and returns.
-import type { Refusal } from "../refusals";
+import { cannotRecordPart, type Refusal } from "../refusals";
 import type { Env } from "../types";
 import type { Extraction, HistoryTurn } from "../types";
 import { answerLookup } from "./lookup";
@@ -271,6 +271,7 @@ export async function composeReply(env: Env, input: ReplyInput): Promise<string>
     message += ` It looks like a pay or bank detail, so it was not kept in the notes. To save it, say it as a detail (for example "Sipho's day rate is R600 a day").`;
   }
   if (sensitiveFactRefused) {
+    input.refusals.push(cannotRecordPart("sensitive_details"));
     message += ` Nothing was saved: ${sensitiveKind === "payroll" ? "pay details like a day rate or salary can only be saved by someone with payroll access" : "bank details can only be saved by someone with banking access"}.`;
   }
   if (factPendingActionId) {

@@ -34,6 +34,10 @@ const REPLIES_V2 = {
   'a whole refusal': { message: 'The financial overview exists for this business but is restricted for your role.', refusals: [{ reason: 'role_cannot_see', topic: 'financial_overview' }], refusalScope: 'whole' },
   'a refusal to record': { message: "Recording payments, invoices, quotations, or supplier transactions isn't available for your role — let someone with that permission know.", refusals: [{ reason: 'role_cannot_record', topic: 'money' }], refusalScope: 'whole' },
   'a refusal in part of the message': { message: '- Done.\n- Stock recording is restricted.', refusals: [{ reason: 'role_cannot_record', topic: 'stock' }], refusalScope: 'part' },
+  'a withheld part of a composed answer': { message: 'Quotations are up this month. Balances are restricted for your role.', refusals: [{ reason: 'role_cannot_see_part', topic: 'outstanding_balances' }], refusalScope: 'part' },
+  'a spoken follow-up refused': { message: 'Who owes what is restricted for your role.', refusals: [{ reason: 'role_cannot_see', topic: 'debtors' }], refusalScope: 'whole' },
+  'an upload refused': { message: "Checking supplier statements isn't available for your role — let someone with that permission know.", refusals: [{ reason: 'role_cannot_record', topic: 'statements' }], refusalScope: 'whole' },
+  'a sensitive detail not saved': { message: 'Found existing: Sipho. Nothing was saved: pay details can only be saved by someone with payroll access.', refusals: [{ reason: 'role_cannot_record_part', topic: 'sensitive_details' }], refusalScope: 'part' },
   'a refusal beside a held action': { message: 'Drafted. One part was refused.', pendingActionId: 12, pendingActionIds: [12], pendingActions: [{ id: 12, type: 'invoice' }], pendingActionType: 'invoice', refusals: [{ reason: 'role_cannot_record', topic: 'leads' }], refusalScope: 'part' },
 };
 

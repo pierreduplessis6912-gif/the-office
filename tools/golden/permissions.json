@@ -2108,15 +2108,32 @@
     "pendingCandidates": null,
     "pendingActionType": null,
     "pendingChanges": null,
+    "refusals": [
+     {
+      "reason": "role_cannot_see_part",
+      "topic": "financial_performance"
+     }
+    ],
+    "refusalScope": "part",
     "experience": {
-     "version": 1,
+     "version": 2,
      "established": {
       "from": [
-       "message"
+       "message",
+       "refusals"
       ],
       "heldActions": [],
       "candidates": null,
-      "changes": null
+      "changes": null,
+      "refusals": {
+       "scope": "part",
+       "items": [
+        {
+         "reason": "role_cannot_see_part",
+         "topic": "financial_performance"
+        }
+       ]
+      }
      },
      "recommendation": {
       "mode": "speak",
@@ -2127,8 +2144,7 @@
       "room",
       "workspace",
       "evidence",
-      "certainty",
-      "refusal_reason"
+      "certainty"
      ],
      "mustStillPass": {
       "confirmationRequired": false,
@@ -2228,15 +2244,64 @@
     "pendingCandidates": null,
     "pendingActionType": null,
     "pendingChanges": null,
+    "refusals": [
+     {
+      "reason": "role_cannot_see_part",
+      "topic": "outstanding_balances"
+     },
+     {
+      "reason": "role_cannot_see_part",
+      "topic": "quotation_activity"
+     },
+     {
+      "reason": "role_cannot_see_part",
+      "topic": "expense_activity"
+     },
+     {
+      "reason": "role_cannot_see_part",
+      "topic": "financial_performance"
+     },
+     {
+      "reason": "role_cannot_see_part",
+      "topic": "supplier_balances"
+     }
+    ],
+    "refusalScope": "part",
     "experience": {
-     "version": 1,
+     "version": 2,
      "established": {
       "from": [
-       "message"
+       "message",
+       "refusals"
       ],
       "heldActions": [],
       "candidates": null,
-      "changes": null
+      "changes": null,
+      "refusals": {
+       "scope": "part",
+       "items": [
+        {
+         "reason": "role_cannot_see_part",
+         "topic": "outstanding_balances"
+        },
+        {
+         "reason": "role_cannot_see_part",
+         "topic": "quotation_activity"
+        },
+        {
+         "reason": "role_cannot_see_part",
+         "topic": "expense_activity"
+        },
+        {
+         "reason": "role_cannot_see_part",
+         "topic": "financial_performance"
+        },
+        {
+         "reason": "role_cannot_see_part",
+         "topic": "supplier_balances"
+        }
+       ]
+      }
      },
      "recommendation": {
       "mode": "speak",
@@ -2247,8 +2312,7 @@
       "room",
       "workspace",
       "evidence",
-      "certainty",
-      "refusal_reason"
+      "certainty"
      ],
      "mustStillPass": {
       "confirmationRequired": false,
@@ -2348,15 +2412,40 @@
     "pendingCandidates": null,
     "pendingActionType": null,
     "pendingChanges": null,
+    "refusals": [
+     {
+      "reason": "role_cannot_see_part",
+      "topic": "outstanding_balances"
+     },
+     {
+      "reason": "role_cannot_see_part",
+      "topic": "financial_performance"
+     }
+    ],
+    "refusalScope": "part",
     "experience": {
-     "version": 1,
+     "version": 2,
      "established": {
       "from": [
-       "message"
+       "message",
+       "refusals"
       ],
       "heldActions": [],
       "candidates": null,
-      "changes": null
+      "changes": null,
+      "refusals": {
+       "scope": "part",
+       "items": [
+        {
+         "reason": "role_cannot_see_part",
+         "topic": "outstanding_balances"
+        },
+        {
+         "reason": "role_cannot_see_part",
+         "topic": "financial_performance"
+        }
+       ]
+      }
      },
      "recommendation": {
       "mode": "speak",
@@ -2367,8 +2456,7 @@
       "room",
       "workspace",
       "evidence",
-      "certainty",
-      "refusal_reason"
+      "certainty"
      ],
      "mustStillPass": {
       "confirmationRequired": false,
@@ -2468,15 +2556,32 @@
     "pendingCandidates": null,
     "pendingActionType": null,
     "pendingChanges": null,
+    "refusals": [
+     {
+      "reason": "role_cannot_see_part",
+      "topic": "expense_activity"
+     }
+    ],
+    "refusalScope": "part",
     "experience": {
-     "version": 1,
+     "version": 2,
      "established": {
       "from": [
-       "message"
+       "message",
+       "refusals"
       ],
       "heldActions": [],
       "candidates": null,
-      "changes": null
+      "changes": null,
+      "refusals": {
+       "scope": "part",
+       "items": [
+        {
+         "reason": "role_cannot_see_part",
+         "topic": "expense_activity"
+        }
+       ]
+      }
      },
      "recommendation": {
       "mode": "speak",
@@ -2487,8 +2592,7 @@
       "room",
       "workspace",
       "evidence",
-      "certainty",
-      "refusal_reason"
+      "certainty"
      ],
      "mustStillPass": {
       "confirmationRequired": false,
@@ -2588,15 +2692,32 @@
     "pendingCandidates": null,
     "pendingActionType": null,
     "pendingChanges": null,
+    "refusals": [
+     {
+      "reason": "role_cannot_see_part",
+      "topic": "supplier_balances"
+     }
+    ],
+    "refusalScope": "part",
     "experience": {
-     "version": 1,
+     "version": 2,
      "established": {
       "from": [
-       "message"
+       "message",
+       "refusals"
       ],
       "heldActions": [],
       "candidates": null,
-      "changes": null
+      "changes": null,
+      "refusals": {
+       "scope": "part",
+       "items": [
+        {
+         "reason": "role_cannot_see_part",
+         "topic": "supplier_balances"
+        }
+       ]
+      }
      },
      "recommendation": {
       "mode": "speak",
@@ -2607,8 +2728,7 @@
       "room",
       "workspace",
       "evidence",
-      "certainty",
-      "refusal_reason"
+      "certainty"
      ],
      "mustStillPass": {
       "confirmationRequired": false,
@@ -2708,15 +2828,48 @@
     "pendingCandidates": null,
     "pendingActionType": null,
     "pendingChanges": null,
+    "refusals": [
+     {
+      "reason": "role_cannot_see_part",
+      "topic": "quotation_activity"
+     },
+     {
+      "reason": "role_cannot_see_part",
+      "topic": "expense_activity"
+     },
+     {
+      "reason": "role_cannot_see_part",
+      "topic": "supplier_balances"
+     }
+    ],
+    "refusalScope": "part",
     "experience": {
-     "version": 1,
+     "version": 2,
      "established": {
       "from": [
-       "message"
+       "message",
+       "refusals"
       ],
       "heldActions": [],
       "candidates": null,
-      "changes": null
+      "changes": null,
+      "refusals": {
+       "scope": "part",
+       "items": [
+        {
+         "reason": "role_cannot_see_part",
+         "topic": "quotation_activity"
+        },
+        {
+         "reason": "role_cannot_see_part",
+         "topic": "expense_activity"
+        },
+        {
+         "reason": "role_cannot_see_part",
+         "topic": "supplier_balances"
+        }
+       ]
+      }
      },
      "recommendation": {
       "mode": "speak",
@@ -2727,8 +2880,7 @@
       "room",
       "workspace",
       "evidence",
-      "certainty",
-      "refusal_reason"
+      "certainty"
      ],
      "mustStillPass": {
       "confirmationRequired": false,
@@ -2828,15 +2980,40 @@
     "pendingCandidates": null,
     "pendingActionType": null,
     "pendingChanges": null,
+    "refusals": [
+     {
+      "reason": "role_cannot_see_part",
+      "topic": "quotation_activity"
+     },
+     {
+      "reason": "role_cannot_see_part",
+      "topic": "supplier_balances"
+     }
+    ],
+    "refusalScope": "part",
     "experience": {
-     "version": 1,
+     "version": 2,
      "established": {
       "from": [
-       "message"
+       "message",
+       "refusals"
       ],
       "heldActions": [],
       "candidates": null,
-      "changes": null
+      "changes": null,
+      "refusals": {
+       "scope": "part",
+       "items": [
+        {
+         "reason": "role_cannot_see_part",
+         "topic": "quotation_activity"
+        },
+        {
+         "reason": "role_cannot_see_part",
+         "topic": "supplier_balances"
+        }
+       ]
+      }
      },
      "recommendation": {
       "mode": "speak",
@@ -2847,8 +3024,7 @@
       "room",
       "workspace",
       "evidence",
-      "certainty",
-      "refusal_reason"
+      "certainty"
      ],
      "mustStillPass": {
       "confirmationRequired": false,
@@ -2948,15 +3124,56 @@
     "pendingCandidates": null,
     "pendingActionType": null,
     "pendingChanges": null,
+    "refusals": [
+     {
+      "reason": "role_cannot_see_part",
+      "topic": "outstanding_balances"
+     },
+     {
+      "reason": "role_cannot_see_part",
+      "topic": "quotation_activity"
+     },
+     {
+      "reason": "role_cannot_see_part",
+      "topic": "financial_performance"
+     },
+     {
+      "reason": "role_cannot_see_part",
+      "topic": "supplier_balances"
+     }
+    ],
+    "refusalScope": "part",
     "experience": {
-     "version": 1,
+     "version": 2,
      "established": {
       "from": [
-       "message"
+       "message",
+       "refusals"
       ],
       "heldActions": [],
       "candidates": null,
-      "changes": null
+      "changes": null,
+      "refusals": {
+       "scope": "part",
+       "items": [
+        {
+         "reason": "role_cannot_see_part",
+         "topic": "outstanding_balances"
+        },
+        {
+         "reason": "role_cannot_see_part",
+         "topic": "quotation_activity"
+        },
+        {
+         "reason": "role_cannot_see_part",
+         "topic": "financial_performance"
+        },
+        {
+         "reason": "role_cannot_see_part",
+         "topic": "supplier_balances"
+        }
+       ]
+      }
      },
      "recommendation": {
       "mode": "speak",
@@ -2967,8 +3184,7 @@
       "room",
       "workspace",
       "evidence",
-      "certainty",
-      "refusal_reason"
+      "certainty"
      ],
      "mustStillPass": {
       "confirmationRequired": false,
