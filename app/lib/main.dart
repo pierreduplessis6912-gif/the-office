@@ -23,6 +23,7 @@ import 'workspace_context.dart';
 import 'history_model.dart';
 import 'mcp_keys_model.dart';
 import 'plans_link.dart';
+import 'refusal_view.dart';
 import 'reply_envelope.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -276,11 +277,15 @@ class ChatMessage {
   MessageRole role;
   String text;
   List<PendingItem> pendingItems;
+  List<EnvelopeRefusal> refusals; // front-end slice 12: what the server refused because of the person's role, in structure (empty for an ordinary reply)
+  bool refusalWhole; // true when the WHOLE reply is a refusal (otherwise the refusals are parts withheld inside a real answer)
   ChatMessage({
     required this.id,
     required this.role,
     required this.text,
     List<PendingItem>? pendingItems,
+    this.refusals = const <EnvelopeRefusal>[],
+    this.refusalWhole = false,
   }) : pendingItems = pendingItems ?? [];
 }
 
@@ -718,13 +723,17 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
     return id;
   }
 
-  void _updateMessage(String id, {MessageRole? role, required String text, List<PendingItem>? pendingItems}) {
+  void _updateMessage(String id, {MessageRole? role, required String text, List<PendingItem>? pendingItems, ReplyEnvelope? envelope}) {
     final index = _messages.indexWhere((m) => m.id == id);
     if (index == -1) return;
     setState(() {
       if (role != null) _messages[index].role = role;
       _messages[index].text = text;
       if (pendingItems != null) _messages[index].pendingItems = pendingItems;
+      if (envelope != null) {
+        _messages[index].refusals = envelope.refusals;
+        _messages[index].refusalWhole = envelope.isRefusal;
+      }
     });
     _scrollToEnd();
     // Real state machine wiring: every flow's actual response (success
@@ -1000,6 +1009,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
           role: MessageRole.office,
           text: _handlePossibleDashboardMarker(rawMessage, envelope: ReplyEnvelope.fromReply(data)),
           pendingItems: _extractPendingItems(data),
+          envelope: ReplyEnvelope.fromReply(data),
         );
         _loadEmberCounts();
       } else {
@@ -1164,6 +1174,7 @@ class _OfficeHomeState extends State<OfficeHome> with TickerProviderStateMixin {
           role: MessageRole.office,
           text: _handlePossibleDashboardMarker(rawMessage, envelope: ReplyEnvelope.fromReply(data)),
           pendingItems: _extractPendingItems(data),
+          envelope: ReplyEnvelope.fromReply(data),
         );
         _loadEmberCounts();
       } else {
@@ -8408,7 +8419,9 @@ class _ActiveResponseState extends State<_ActiveResponse> with SingleTickerProvi
                     child: SingleChildScrollView(
                       child: hasPending
                   ? _MessageLine(message: msg, onConfirm: widget.onConfirm, onReject: widget.onReject, onEditField: widget.onEditField)
-                  : A11yLive(child: Text(
+                  : msg.refusals.isNotEmpty
+                      ? _RefusalReply(message: msg)
+                      : A11yLive(child: Text(
                       msg.text,
                       textAlign: TextAlign.center,
                       style: GoogleFonts.workSans(
@@ -9895,6 +9908,73 @@ class _KeyShownDialogState extends State<_KeyShownDialog> {
         ),
         TextButton(onPressed: () => Navigator.of(context).pop(), child: Text('DONE', style: GoogleFonts.ibmPlexMono(color: _muted, fontSize: 12, letterSpacing: 1))),
       ],
+    );
+  }
+}
+
+
+// Front-end slice 12: a refusal is a boundary, not an error, so it is never red: a dimmed ember (a hollow ring), a quiet heading, the topic as a small chip, the server's own words, and where there is a way forward one line saying so. A WHOLE refusal replaces the answer; a PART refusal leaves the real answer exactly as it was and adds only the quiet note beneath it. Static: nothing here moves, so reduced motion needs nothing from it.
+class _RefusalReply extends StatelessWidget {
+  final ChatMessage message;
+  const _RefusalReply({required this.message});
+
+  static const Color _amber = Color(0xFFC58A3A);
+
+  Widget _note(BuildContext context) {
+    final topics = refusalTopics(message.refusals);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(width: 9, height: 9, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: _amber, width: 1.5))),
+            const SizedBox(width: 7),
+            Flexible(child: Text(refusalHeading(message.refusals, whole: message.refusalWhole), textAlign: TextAlign.center, style: GoogleFonts.ibmPlexMono(color: _amber, fontSize: 10.5, letterSpacing: 1.1))),
+          ],
+        ),
+        if (topics.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final t in topics)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                    decoration: BoxDecoration(border: Border.all(color: _amber.withOpacity(0.35), width: 0.6), borderRadius: BorderRadius.circular(10)),
+                    child: Text(t, style: GoogleFonts.ibmPlexMono(color: _muted, fontSize: 10, letterSpacing: 1)),
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final whole = message.refusalWhole;
+    final hint = refusalHint(whole: whole);
+    final words = Text(
+      message.text,
+      textAlign: TextAlign.center,
+      // a real answer keeps its ordinary look; the refusal's own words are quieter (no red glow)
+      style: whole ? GoogleFonts.workSans(fontSize: 15, color: _paper.withOpacity(0.85), height: 1.45) : GoogleFonts.workSans(fontSize: 16.5, color: _paper, height: 1.45, shadows: [Shadow(color: _pulse.withOpacity(0.55), blurRadius: 26), Shadow(color: _pulse.withOpacity(0.22), blurRadius: 54)]),
+    );
+    return Semantics(
+      liveRegion: true,
+      container: true,
+      label: refusalSpeech(message.refusals, message.text, whole: whole),
+      excludeSemantics: true,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: whole
+            ? [_note(context), const SizedBox(height: 12), words, if (hint != null) Padding(padding: const EdgeInsets.only(top: 10), child: Text(hint, textAlign: TextAlign.center, style: GoogleFonts.workSans(fontSize: 12.5, color: _muted, height: 1.4)))]
+            : [words, const SizedBox(height: 14), _note(context)],
+      ),
     );
   }
 }
