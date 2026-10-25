@@ -1,6 +1,6 @@
 > **Status:** real. **Verified:** 2026-10-24. **Owns:** `tools/docs-check.js`.
 
-> Verified against `main` c220b26. Replaces the August handover. Keep this file CURRENT: it is the first thing a new chat reads. Nothing in this repo is untouchable; the only rule is that it stays true.
+> The State section below names the commit production runs. Replaces the August handover. Keep this file CURRENT: it is the first thing a new chat reads. Nothing in this repo is untouchable; the only rule is that it stays true.
 
 # The Office: handover for a fresh chat
 
@@ -38,3 +38,6 @@ Done 2026-10-24: a status banner on every document; `tools/docs-check.js` (a CI 
 
 ## Where log entries go (since 2026-10-24)
 `DECISIONS.md` and `RUNBOOK.md` are now indexes. The sections live in `docs/decisions/<area>.md` and `docs/runbook/<group>.md`, unchanged and in their original order (the originals are `git show 95bf743:DECISIONS.md` and `:RUNBOOK.md`). A new entry is a `## ` section appended to the right part, plus one line in the index under that part: `- [Heading](docs/decisions/<area>.md) (was line N)` (for a new one write `(new)`). `tools/docs-check.js` fails the build if a heading is in a part but not in the index. RUNBOOK section numbers are kept: "RUNBOOK.md section 5" is listed in the index with its part.
+
+**Second docs pass (2026-10-24, later):** `docs-check` now ties code to its document: when a push changes an owned file under `worker/src` or `app/lib` without touching the document that owns it, that is a warning, and an ERROR for security-sensitive files (auth, admin gate, routing, access, billing, payfast, mcp, refusals). CI passes the push's base (`DOCS_CHECK_BASE`). Logs (`docs/decisions`, `docs/runbook`) are dated history, exempt from "not yet verified". 12 documents verified against the code with evidence (names checked by `tools/docs-identifiers.js`, built-versus-proposed claims read) and stamped; stale claims corrected (the MCP open question, the admin gate's secret name, "date ranges do not exist"); the July `STATUS.md` archived (it called itself authoritative). STILL "not yet verified" (classified, not proven against the code): `ATLAS.md`, `FEATURES.md`, `IDENTITY_ARCHITECTURE.md`, `ONBOARDING_JOURNEY.md`, `OPEN_QUESTIONS.md`, `SECURITY_AND_OPERATIONAL_READINESS.md`, `SHIP_CHECKLIST.md`, `ROUTE_POLICY.md` (generated, guarded by its own test), `VISION.md` and the principle documents (`OFFICE_CONSTITUTION.md`, `DESIGN_CONSTITUTION_V2.md`, `EXPERIENCE_BRIEF.md`, `OFFICE_MOODBOARD.md`).
+
