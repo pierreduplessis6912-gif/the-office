@@ -4,6 +4,9 @@
 import type { Env } from "./types";
 
 export const SCOPE = "mcp:read";
+export const SCOPE_CREATE = "mcp:write";
+/** What the owner chose on the consent page. Only the exact word "write" grants create; anything else, or nothing, is read only. */
+export const scopeFromChoice = (choice: unknown): string => (choice === "write" ? SCOPE_CREATE : SCOPE);
 /** Every path the OAuth routes answer, public by design (no session exists yet). Lives here, with no imports, so the gate (auth.ts) and the router (routing.ts) can read it without a cycle. */
 export const OAUTH_PUBLIC_PATHS: readonly string[] = ["/oauth/register", "/oauth/authorize", "/oauth/consent", "/oauth/token", "/.well-known/oauth-protected-resource", "/.well-known/oauth-authorization-server", "/.well-known/oauth-protected-resource/mcp", "/.well-known/oauth-authorization-server/mcp"];
 export const TICKET_TTL_MS = 10 * 60 * 1000;
@@ -116,9 +119,9 @@ export const makeTicket = (env: Env, request: AuthorizeRequest, who: Who, nonce:
 export const openTicket = (env: Env, ticket: unknown, now: number) => open<TicketPayload & Record<string, unknown>>(env, "ticket", ticket, now);
 
 /** After the owner says Allow (and only then): where to send the browser, with a code that lasts five minutes and works once. */
-export async function grant(env: Env, ticket: TicketPayload, now: number): Promise<string> {
+export async function grant(env: Env, ticket: TicketPayload, now: number, scope: string = SCOPE): Promise<string> {
   const jti = b64u(crypto.getRandomValues(new Uint8Array(16)));
-  const code = await seal(env, "code", { jti, client_id: ticket.client_id, client_name: ticket.client_name, redirect_uri: ticket.redirect_uri, challenge: ticket.challenge, email: ticket.email, businessId: ticket.businessId }, now, CODE_TTL_MS);
+  const code = await seal(env, "code", { jti, client_id: ticket.client_id, client_name: ticket.client_name, redirect_uri: ticket.redirect_uri, challenge: ticket.challenge, email: ticket.email, businessId: ticket.businessId, scope: scope === SCOPE_CREATE ? SCOPE_CREATE : SCOPE }, now, CODE_TTL_MS);
   return redirectWith(ticket.redirect_uri, { code, state: ticket.state });
 }
 /** Where a refusal goes: back to the assistant, saying no. */
@@ -130,20 +133,21 @@ function redirectWith(base: string, values: Record<string, string | null>): stri
 }
 
 /** Issues the key. Supplied by the caller (it runs in the business's own database, where `jti` is recorded so a code can never be used twice). */
-export type Issue = (who: Who & { label: string; jti: string }) => Promise<{ ok: true; key: string } | { ok: false; reason: "replayed" | "limit" | "not_owner" | "other" }>;
+export type Issue = (who: Who & { label: string; jti: string; scope: string }) => Promise<{ ok: true; key: string } | { ok: false; reason: "replayed" | "limit" | "not_owner" | "other" }>;
 export type TokenResult = { status: 200; body: { access_token: string; token_type: "Bearer"; scope: string } } | { status: 400 | 503; body: { error: string; error_description: string } };
 const bad = (status: 400 | 503, error: string, error_description: string): TokenResult => ({ status, body: { error, error_description } });
 
 /** The token endpoint: a valid, unexpired, unused code, from the same client, to the same address, with the verifier that matches. */
 export async function exchangeCode(env: Env, form: URLSearchParams, issue: Issue, now: number): Promise<TokenResult> {
   if (form.get("grant_type") !== "authorization_code") return bad(400, "unsupported_grant_type", "Only authorization_code is supported.");
-  const c = await open<{ jti: string; client_id: string; client_name: string; redirect_uri: string; challenge: string; email: string; businessId: string } & Record<string, unknown>>(env, "code", form.get("code"), now);
+  const c = await open<{ jti: string; client_id: string; client_name: string; redirect_uri: string; challenge: string; email: string; businessId: string; scope?: string } & Record<string, unknown>>(env, "code", form.get("code"), now);
   if (!c || typeof c.jti !== "string") return bad(400, "invalid_grant", "That code is not valid or has expired.");
   if (form.get("client_id") !== c.client_id || form.get("redirect_uri") !== c.redirect_uri) return bad(400, "invalid_grant", "That code was not issued to this assistant.");
   if (!(await pkceMatches(form.get("code_verifier"), c.challenge))) return bad(400, "invalid_grant", "The code verifier does not match.");
   const label = `Claude connector: ${c.client_name}`.slice(0, MAX_NAME);
-  const made = await issue({ email: c.email, businessId: c.businessId, label, jti: c.jti });
-  if (made.ok) return { status: 200, body: { access_token: made.key, token_type: "Bearer", scope: SCOPE } };
+  const granted = c.scope === SCOPE_CREATE ? SCOPE_CREATE : SCOPE;   // a code with no scope, or any other, is read only
+  const made = await issue({ email: c.email, businessId: c.businessId, label, jti: c.jti, scope: granted });
+  if (made.ok) return { status: 200, body: { access_token: made.key, token_type: "Bearer", scope: granted } };
   if (made.reason === "replayed") return bad(400, "invalid_grant", "That code has already been used.");
   if (made.reason === "limit") return bad(400, "invalid_grant", "There are already too many active keys: revoke one in the app first.");
   if (made.reason === "not_owner") return bad(400, "invalid_grant", "Only the owner can connect an assistant.");
@@ -153,5 +157,5 @@ export async function exchangeCode(env: Env, form: URLSearchParams, issue: Issue
 const esc = (text: string): string => text.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch] as string));
 /** The one screen a person sees. It names the assistant, the business and the account, says what is and is not possible, and has exactly two buttons. */
 export function consentPage(input: { clientName: string; businessId: string; email: string; ticket: string }): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><title>Connect an assistant</title><style>body{font:16px system-ui,sans-serif;margin:0;padding:24px;background:#14110f;color:#f1ebe3}main{max-width:30rem;margin:0 auto}h1{font-size:1.3rem}p,li{line-height:1.5}button{font:inherit;padding:.8rem 1.2rem;border-radius:.6rem;border:0;margin:.4rem .4rem 0 0}.go{background:#d9a05b;color:#14110f}.no{background:#2b2622;color:#f1ebe3}</style></head><body><main><h1>Let ${esc(input.clientName)} read your figures?</h1><p>You are signed in as <b>${esc(input.email)}</b> for <b>${esc(input.businessId)}</b>.</p><p>This assistant will be able to <b>read</b> your reports: profit and loss, who owes you, customer balances, analysis and recent history. It cannot add, change or delete anything.</p><p>You can stop it at any time from the Assistants screen in the app.</p><form method="post" action="/oauth/consent"><input type="hidden" name="ticket" value="${esc(input.ticket)}"><button class="go" name="decision" value="allow">Allow read-only access</button><button class="no" name="decision" value="deny">Cancel</button></form></main></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><title>Connect an assistant</title><style>body{font:16px system-ui,sans-serif;margin:0;padding:24px;background:#14110f;color:#f1ebe3}main{max-width:30rem;margin:0 auto}h1{font-size:1.3rem}p,li{line-height:1.5}button{font:inherit;padding:.8rem 1.2rem;border-radius:.6rem;border:0;margin:.4rem .4rem 0 0}.go{background:#d9a05b;color:#14110f}.no{background:#2b2622;color:#f1ebe3}</style></head><body><main><h1>Let ${esc(input.clientName)} connect to your Office?</h1><p>You are signed in as <b>${esc(input.email)}</b> for <b>${esc(input.businessId)}</b>.</p><p>Either way it can <b>read</b> your reports and records: profit and loss, who owes you, customers, jobs, invoices, quotes, stock and recent history. It can never delete anything, take a payment or change who has access.</p><p><label><input type="radio" name="access" value="read" checked> <b>Read only</b></label><br><label><input type="radio" name="access" value="write"> <b>Read and create</b></label>: it can also record invoices, quotes, jobs, expenses and tasks, as if you had typed them. Each is tagged with this connection, it is limited to 20 an hour and 100 a day, and an invoice or quote over R50,000 is flagged.</p><p>You can stop it at any time from the Assistants screen in the app.</p><form method="post" action="/oauth/consent"><input type="hidden" name="ticket" value="${esc(input.ticket)}"><button class="go" name="decision" value="allow">Allow</button><button class="no" name="decision" value="deny">Cancel</button></form></main></body></html>`;
 }

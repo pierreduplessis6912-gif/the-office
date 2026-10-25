@@ -85,7 +85,7 @@ export async function handleOAuthRoute(request: Request, env: Env, call: Call = 
     if (!ticket || !nonce || typeof ticket.nonce !== "string" || !(await safeEqual(nonce, ticket.nonce)) || !oauth.redirectAllowed(ticket.redirect_uri)) {
       return page(400, notice("This page has expired", "Start again from the assistant."), [clearNonce]);
     }
-    if (form.get("decision") === "allow") return go(await oauth.grant(env, ticket, now), [clearNonce]);
+    if (form.get("decision") === "allow") return go(await oauth.grant(env, ticket, now, oauth.scopeFromChoice(form.get("access"))), [clearNonce]);
     return go(oauth.deny(ticket), [clearNonce]);
   }
 
@@ -93,10 +93,10 @@ export async function handleOAuthRoute(request: Request, env: Env, call: Call = 
   if (request.method !== "POST") return json(405, { error: "method_not_allowed" });
   const text = await readBody(request);
   if (text === null) return json(400, { error: "invalid_request", error_description: "That request is too large." });
-  const issue: oauth.Issue = async ({ email, businessId, label, jti }) => {
+  const issue: oauth.Issue = async ({ email, businessId, label, jti, scope }) => {
     if (!isBusinessId(businessId)) return { ok: false, reason: "other" };
     try {
-      const reply = await call(env, businessId, "POST", "/debug/mcp-oauth-issue", { email, label, jti });
+      const reply = await call(env, businessId, "POST", "/debug/mcp-oauth-issue", { email, label, jti, scope });
       const answer = (await reply.json().catch(() => null)) as { key?: unknown; reason?: unknown } | null;
       if (reply.ok && typeof answer?.key === "string") return { ok: true, key: answer.key };
       return { ok: false, reason: answer?.reason === "replayed" || answer?.reason === "limit" || answer?.reason === "not_owner" ? answer.reason : "other" };

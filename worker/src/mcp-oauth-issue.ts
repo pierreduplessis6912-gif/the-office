@@ -8,7 +8,7 @@ export type IssueOutcome = { ok: true; key: string } | { ok: false; status: 400 
 const JTI = /^[A-Za-z0-9_-]{22}$/;   // 16 random bytes, base64url (mcp-oauth.ts grant)
 const refuse = (status: 400 | 403 | 409, reason: "replayed" | "limit" | "not_owner" | "other"): IssueOutcome => ({ ok: false, status, reason });
 
-export async function issueForCode(env: Env, input: { email?: unknown; label?: unknown; jti?: unknown }): Promise<IssueOutcome> {
+export async function issueForCode(env: Env, input: { email?: unknown; label?: unknown; jti?: unknown; scope?: unknown }): Promise<IssueOutcome> {
   if (env.MCP === "off") return refuse(409, "other");
   if (!isBusinessId(env.BUSINESS_ID) || typeof input.jti !== "string" || !JTI.test(input.jti) || typeof input.email !== "string") return refuse(400, "other");
   const email = input.email.trim().toLowerCase();
@@ -23,7 +23,7 @@ export async function issueForCode(env: Env, input: { email?: unknown; label?: u
   } catch (error) {
     return /unique|constraint|primary/i.test(String((error as Error)?.message ?? error)) ? refuse(400, "replayed") : refuse(409, "other");
   }
-  const made = await issueKey(env, { businessId: env.BUSINESS_ID, email, label: input.label, createdBy: email });
+  const made = await issueKey(env, { businessId: env.BUSINESS_ID, email, label: input.label, createdBy: email, scope: input.scope === "mcp:write" ? "mcp:write" : "mcp:read" });
   if (made.ok) return { ok: true, key: made.key };
   return /already .* active keys/.test(made.error) ? refuse(409, "limit") : refuse(409, "other");
 }

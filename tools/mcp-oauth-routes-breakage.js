@@ -5,13 +5,20 @@ const root = path.join(__dirname, '..'), workerDir = path.join(root, 'worker');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mkx-')), copy = path.join(tmp, 'worker');
 fs.cpSync(workerDir, copy, { recursive: true, filter: (src) => !src.split(path.sep).includes('node_modules') });
 fs.symlinkSync(path.join(workerDir, 'node_modules'), path.join(copy, 'node_modules'));   // the real packages, read only: the copy needs them to build
-const files = { routes: path.join(copy, 'src', 'mcp-oauth-routes.ts'), issue: path.join(copy, 'src', 'mcp-oauth-issue.ts') };
+const files = { routes: path.join(copy, 'src', 'mcp-oauth-routes.ts'), issue: path.join(copy, 'src', 'mcp-oauth-issue.ts'), core: path.join(copy, 'src', 'mcp-oauth.ts') };
 const originals = Object.fromEntries(Object.entries(files).map(([k, f]) => [k, fs.readFileSync(f, 'utf8')]));
 const run = require('./mcp-oauth-routes.test.js');
 // The harness bundles the worker to a fixed file name per process and Node caches what it requires, so the cache is cleared before every run: otherwise each mutated run would silently reuse the first build and test nothing.
 const clearBuildCache = () => { for (const n of ['rm-poe', 'rm-auth']) delete require.cache[path.join(os.tmpdir(), `${n}-${process.pid}.js`)]; };
 
 const MUTATIONS = [
+  ['the consent page grants create whatever the owner ticked', 'routes', 'oauth.scopeFromChoice(form.get("access"))', '"mcp:write"'],
+  ['the owner\'s choice of create is ignored (a connector can only ever be read only)', 'routes', 'oauth.scopeFromChoice(form.get("access"))', '"mcp:read"'],
+  ['any choice text that is not exactly "write" grants create', 'core', 'export const scopeFromChoice = (choice: unknown): string => (choice === "write" ? SCOPE_CREATE : SCOPE);', 'export const scopeFromChoice = (choice: unknown): string => (typeof choice === "string" && choice.toLowerCase().includes("write") ? SCOPE_CREATE : SCOPE);'],
+  ['the token step issues a create key for every code', 'core', 'const granted = c.scope === SCOPE_CREATE ? SCOPE_CREATE : SCOPE;', 'const granted = SCOPE_CREATE;'],
+  ['the token step ignores the chosen scope and always issues read only', 'core', 'const granted = c.scope === SCOPE_CREATE ? SCOPE_CREATE : SCOPE;', 'const granted = SCOPE;'],
+  ['the chosen scope is not carried to the business when the key is asked for', 'routes', '{ email, label, jti, scope });', '{ email, label, jti });'],
+  ['the business makes a create key whatever scope it was sent', 'issue', 'scope: input.scope === "mcp:write" ? "mcp:write" : "mcp:read" });', 'scope: "mcp:write" });'],
   ['a failed authorize request is redirected to the address it named', 'routes', 'if (!parsed.ok) return page(parsed.status, notice("This assistant cannot be connected", parsed.description));', 'if (!parsed.ok) return go(url.searchParams.get("redirect_uri") ?? "/");'],
   ['a member who is not the owner reaches the consent page', 'routes', '|| who.role !== "owner")', ')'],
   ['an inactive member reaches the consent page', 'routes', '|| !who.active', ''],
