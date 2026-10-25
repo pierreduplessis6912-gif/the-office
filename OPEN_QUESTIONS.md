@@ -1,5 +1,7 @@
 > **Status:** real. **Verified:** not yet. **Owns:** none.
 
+> **Audit 2026-10-25.** Read against the code. Section F (items 24 to 30) was a July list of hardening gaps and is now annotated: five are closed (staging and rollback, cost caps, versioned migrations, backups and restore, alerting), one is changed (the admin key: 39 privileged routes now behind a second secret), one is half closed (app tests exist; no `pubspec.lock`). Item 55 (MCP read-only) matches the code; its `confirm_action` is a proposal only (no such name in the code). Item 19 counts 751 recorded cases; the golden files in `tools/golden` now hold 785 entries and the check count was not re-run. NOT verified: the live-check list (section B: it needs a phone), the data-cleanup items (names of test customers and pending actions in production), and the figures in items 19 to 23.
+
 # Open questions
 
 One living list of everything that is undecided, unverified or deliberately left alone, so nothing depends on
@@ -138,13 +140,13 @@ items below is ticked off on that report alone; each stays listed until it is co
 
 ***Superseded by `SHIP_CHECKLIST.md` (2026-10-11), which is the working list: it was written after a third review and every claim was checked against the code.** The items below are kept for the reasoning. The latency work is paused until the checklist is done.*
 
-24. **The one shared admin key protects 8 privileged routes** (erase everything, export, merges, minting a session as any user). The erase route already needs a typed confirmation, but that guards against accidents, not a stolen key (the error message gives the phrase). *Options:* rotate the key and keep it out of scripts; log every admin action with when and what; take the most dangerous routes off the live Worker or put them behind something stronger than a static key.
-25. **Deploys go straight to production.** No staging, no post-deploy smoke test, no rollback step.
-26. **No rate limit or daily cap on model calls.** A stuck or hostile client could run unlimited spend.
-27. **Migrations are not versioned.** Only a baseline file exists; most tables are made lazily or by `/debug/init-*` routes.
-28. **The app has no tests and no `pubspec.lock`**, and the Android scaffold is generated at build time, so builds are not reproducible.
-29. **No written backup-and-restore procedure** (an export route and an hourly job exist). Confirm what Cloudflare's own point-in-time recovery for D1 covers, then do a real restore once.
-30. **No alerting.** Nothing notifies on errors, slow requests or a failing deploy.
+24. **The one shared admin key protects 8 privileged routes** (erase everything, export, merges, minting a session as any user). The erase route already needs a typed confirmation, but that guards against accidents, not a stolen key (the error message gives the phrase). *Options:* rotate the key and keep it out of scripts; log every admin action with when and what; take the most dangerous routes off the live Worker or put them behind something stronger than a static key. **(2026-10-25: changed. Mint-session and erase-everything were removed; the tiers now count 39 privileged admin routes behind `ADMIN_CONFIRM_KEY`; see `SHIP_CHECKLIST.md` item 2.)**
+25. **Deploys go straight to production.** No staging, no post-deploy smoke test, no rollback step. **(2026-10-25: closed. A staging Worker, a post-deploy smoke test and an automatic rollback exist; `SHIP_CHECKLIST.md` items 5 and 5b.)**
+26. **No rate limit or daily cap on model calls.** A stuck or hostile client could run unlimited spend. **(2026-10-25: closed in code. Per-member and per-business caps exist in `limits.ts`; the mode (warn or enforce) is a plan setting; `SHIP_CHECKLIST.md` item 6.)**
+27. **Migrations are not versioned.** Only a baseline file exists; most tables are made lazily or by `/debug/init-*` routes. **(2026-10-25: closed. Versioned steps run once each, in order (`schema-steps.ts`, `worker/migrations`); `SHIP_CHECKLIST.md` item 8.)**
+28. **The app has no tests and no `pubspec.lock`**, and the Android scaffold is generated at build time, so builds are not reproducible. **(2026-10-25: half closed. The app has 9 test files (CI: 153 tests); there is still no `app/pubspec.lock` and the scaffold is still generated at build time.)**
+29. **No written backup-and-restore procedure** (an export route and an hourly job exist). Confirm what Cloudflare's own point-in-time recovery for D1 covers, then do a real restore once. **(2026-10-25: closed. Daily snapshots and a verified restore exist (`backup.ts`); `SHIP_CHECKLIST.md` item 10.)**
+30. **No alerting.** Nothing notifies on errors, slow requests or a failing deploy. **(2026-10-25: closed. A health check runs every 3 hours and goes red on failures (`prod-health.yml`); `SHIP_CHECKLIST.md` item 7.)**
 
 ## Settled (kept so the reasoning is not lost)
 
