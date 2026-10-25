@@ -828,3 +828,5 @@ Pierre shared a note arguing for "one coordinator per business, add more objects
 **Docs pass 5 (2026-10-25).** `SECURITY_AND_OPERATIONAL_READINESS.md` checklist read against the code: auth fails closed, CORS allowlist enforced, lockfile and `npm ci` present; large-file split and documentation consolidation remain open; one stale comment in `auth.ts` noted, not changed.
 
 **Docs pass 10 (2026-10-25).** Finished history moved out of the repo root, verbatim: the dated Progress log of `SECURITY_AND_OPERATIONAL_READINESS.md` to `docs/archive/SECURITY_PROGRESS_LOG.md`, and the executed `PROCESS_ONE_EXTRACTION_REWRITE.md` plan to `docs/archive/`. `INDEX.md` and `FEATURE_STATUS_MATRIX.md` updated.
+
+**MCP real-client check (2026-10-25).** The staging rehearsal now also runs the official MCP SDK client against the read-only endpoint (`tools/mcp-real-client.mjs`, SDK 1.32.1 pinned), so a spec mismatch in the hand-written server shows up before a real assistant meets it. Booleans only.
