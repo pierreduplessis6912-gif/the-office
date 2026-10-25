@@ -77,8 +77,8 @@ Adopt the Phase 1 result contract and delete the unused dispatcher; split the 3,
 
 ## Housekeeping before we finish (do these when the work is done)
 
-1. **Revoke the OLD classic GitHub token** (scopes `repo` and `workflow`, the one that began `ghp_CL9V...`): https://github.com/settings/tokens, "Tokens (classic)". Pierre chose on 2026-10-14 to leave it in play for now and to use it only if the current token ever lacks a permission. It appeared in plain text in many commands in the working conversation: **until it is revoked it gives anyone who saw it full write access to this repository.** Then test that GitHub rejects it (HTTP 401).
-2. **Rotate the current fine-grained GitHub token before 2026-11-12** (it expires then; repository-only, 30 days).
+1. **Revoke the OLD classic GitHub token** (scopes `repo` and `workflow`, the one that began `ghp_CL9V...`): https://github.com/settings/tokens, "Tokens (classic)". Pierre chose on 2026-10-14 to leave it in play for now. Its current state is NOT verified (we do not hold it, so a 401 check is not possible from here). It appeared in plain text in many commands in the working conversation: **until it is revoked it gives anyone who saw it full write access to this repository.** Then test that GitHub rejects it (HTTP 401).
+2. **Rotate the current GitHub token before 2026-11-23** (checked 2026-10-25 against the API: classic token, scopes `repo` and `workflow`, expires 2026-11-23 10:24 UTC). The earlier note here (fine-grained, expires 2026-11-12) was stale. The token was pasted into a chat on 2026-10-25, so revoke it when the work is done.
 3. **Decide whether the repository stays public** (Pierre chose to leave it public for now; see DECISIONS.md "The repository is PUBLIC" for what is exposed).
 4. Rebuild the app in Codemagic to pick up the usage-limit message (`_serverReason`), then check how a 429 looks before switching any plan to enforce.
 
