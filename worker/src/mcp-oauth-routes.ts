@@ -75,9 +75,9 @@ export async function handleOAuthRoute(request: Request, env: Env, call: Call = 
 
   if (path === "/oauth/consent") {
     if (request.method !== "POST") return json(405, { error: "method_not_allowed" });
-    // A form posted from another site is refused outright (a browser that sends no Origin is let through: the nonce cookie below is what really binds this page to this browser).
+    // A form posted from another site is refused outright. A browser may send "Origin: null" for a same-site post (this page sets no-referrer, and Chrome then sends null), so null is not read as another site: the browser's own Sec-Fetch-Site must not say cross-site, and the nonce cookie below (SameSite=Strict) is what really binds this page to this browser.
     const origin = request.headers.get("Origin");
-    if (origin && origin !== url.origin) return page(403, notice("Not allowed", "This page can only be used from here."));
+    if ((origin && origin !== "null" && origin !== url.origin) || request.headers.get("Sec-Fetch-Site") === "cross-site") return page(403, notice("Not allowed", "This page can only be used from here."));
     const text = await readBody(request);
     const form = new URLSearchParams(text ?? "");
     const ticket = await oauth.openTicket(env, form.get("ticket"), now);

@@ -80,12 +80,14 @@ async function routeTests({ check, srcDir }) {
   { const p = await consentOf(await signIn());
     const noNonce = await hit('POST', '/oauth/consent', { body: form({ ticket: p.ticket, decision: 'allow' }), headers: FORM });
     const wrongNonce = await hit('POST', '/oauth/consent', { body: form({ ticket: p.ticket, decision: 'allow' }), headers: { ...FORM, cookie: 'oauth_mcp_nonce=' + b64u(crypto.randomBytes(18)) } });
-    const foreign = await allow(p, { origin: 'https://evil.example' });
+    const foreign = await allow(p, { origin: 'https://evil.example' }), nullCross = await allow(p, { origin: 'null', 'sec-fetch-site': 'cross-site' }), crossOnly = await allow(p, { 'sec-fetch-site': 'cross-site' });
     const forged = await hit('POST', '/oauth/consent', { body: form({ ticket: p.ticket.slice(0, -2) + 'AA', decision: 'allow' }), headers: { ...FORM, cookie: 'oauth_mcp_nonce=' + p.nonce } });
     const code = target(await allow(await consentOf(await signIn()))).searchParams.get('code');
     const asTicket = await hit('POST', '/oauth/consent', { body: form({ ticket: code, decision: 'allow' }), headers: { ...FORM, cookie: 'oauth_mcp_nonce=' + p.nonce } });
     const late = await R.handleOAuthRoute(new Request(ORIGIN + '/oauth/consent', { method: 'POST', body: form({ ticket: p.ticket, decision: 'allow' }), headers: { ...FORM, cookie: 'oauth_mcp_nonce=' + p.nonce } }), ENV, call, NOW + 11 * 60 * 1000);
-    check([noNonce, wrongNonce, forged, asTicket, late].every((r) => r.status === 400 && !r.headers.get('location')) && foreign.status === 403 && !foreign.headers.get('location'), 'Allow without the nonce cookie, with another browser\'s nonce, with a forged, expired or wrong-kind ticket (400), or posted from another site (403), grants nothing and redirects nowhere'); }
+    check([noNonce, wrongNonce, forged, asTicket, late].every((r) => r.status === 400 && !r.headers.get('location')) && [foreign, nullCross, crossOnly].every((r) => r.status === 403 && !r.headers.get('location')), 'Allow without the nonce cookie, with another browser\'s nonce, with a forged, expired or wrong-kind ticket (400), or posted from another site (403: a foreign Origin, or the browser saying cross-site even with Origin null), grants nothing and redirects nowhere'); }
+  { const sameSite = await allow(await consentOf(await signIn()), { origin: 'null', 'sec-fetch-site': 'same-origin' }), t = target(sameSite);
+    check(sameSite.status === 302 && t.origin + t.pathname === CB && !!t.searchParams.get('code'), 'Allow works when the browser sends Origin: null with Sec-Fetch-Site same-origin (what Chrome sends from this page): the real-phone failure of 2026-10-25'); }
   { const p = await consentOf(await signIn()), r = await hit('POST', '/oauth/consent', { body: form({ ticket: p.ticket, decision: 'deny' }), headers: { ...FORM, cookie: 'oauth_mcp_nonce=' + p.nonce } }), t = target(r), other = await hit('POST', '/oauth/consent', { body: form({ ticket: p.ticket }), headers: { ...FORM, cookie: 'oauth_mcp_nonce=' + p.nonce } });
     check(t.searchParams.get('error') === 'access_denied' && !t.searchParams.get('code') && target(other).searchParams.get('error') === 'access_denied', 'Cancel, and anything that is not exactly "allow", is access_denied with no code'); }
 
