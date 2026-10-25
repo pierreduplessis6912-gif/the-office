@@ -9,7 +9,7 @@ import { ROUTE_RULES, signDocumentPath } from "./auth";
 import { MAX_PAGE, customersData, documentExists, invoicesData, jobsData, parseId, parsePage, parseRange, parseSearch, quotesData, stockData } from "./mcp-reads";
 import { parseHistoryParams, readHistory, resolveScope } from "./history";
 import { bearerKey } from "./mcp-key-format";
-import { authenticateKey } from "./mcp-keys";
+import { SCOPE_WRITE, authenticateKey, type McpScope } from "./mcp-keys";
 import { agedDebtorsData, customerReceivablesData, parseCustomerParam, parsePeriodParams, profitAndLossData } from "./reports-data";
 import type { Env } from "./types";
 
@@ -18,17 +18,22 @@ const MAX_BODY_BYTES = 65_536;
 const MAX_RESULT_CHARS = 200_000;
 export const PER_MINUTE = 30;
 export const PER_DAY = 500;
-const INSTRUCTIONS = "Read-only access to one business's figures in The Office, as the member this key was issued for. Amounts are in South African rand. Periods are by the date a record was entered. Figures marked calculated are arithmetic on the records, never a cause. Nothing here can change anything.";
+const INSTRUCTIONS = "Access to one business's figures in The Office, as the member this key was issued for. Amounts are in South African rand. Periods are by the date a record was entered. Figures marked calculated are arithmetic on the records, never a cause. Every tool only reads, except tell_the_office, which is listed only for a key that was given permission to create things: it records what you tell it the way the owner's own typed message would be recorded, and everything it creates is tagged with this key.";
+export const CREATES_PER_HOUR = 20, CREATES_PER_DAY = 100, FLAG_OVER = 50_000;   // stage 2: caps on what a write key may create, and the invoice or quote amount above which a create is FLAGGED (never blocked)
+const MAX_TELL_CHARS = 1000;
 
-type Who = { keyId: string; email: string; role: string; capabilities: string[] };
-type ToolOutput = { ok: true; data: unknown } | { ok: false; message: string; outcome: "invalid" | "not_found" | "error" };
+type Who = { keyId: string; email: string; role: string; capabilities: string[]; scope: McpScope };
+/** What the Worker lends the endpoint: the same pipeline the owner's typed messages go through (index.ts). It is passed in, not imported, so this module never depends on the pipeline. */
+export interface McpHost { tell: (text: string, who: { email: string; capabilities: string[] }) => Promise<{ message: string; pendingActionIds: number[]; captureId: number | null }> }
+type ToolOutput = { ok: true; data: unknown } | { ok: false; message: string; outcome: "invalid" | "not_found" | "error" | "limited" };
 interface Tool {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
+  needsWrite?: boolean;   // stage 2: only a key whose scope is mcp:write may see or call it, owner or not
   ownerOnly?: boolean;   // stage 1 tools: only the owner, whatever the route table says (the installer's own-jobs scoping is not reproduced here)
   route: { method: string; path: string } | null;   // the route whose authorization this tool mirrors; null = open to any active member (own history only)
-  run: (env: Env, args: Record<string, unknown>, who: Who, origin: string) => Promise<ToolOutput>;
+  run: (env: Env, args: Record<string, unknown>, who: Who, origin: string, host: McpHost | null) => Promise<ToolOutput>;
 }
 
 const DATE = { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: "A date, YYYY-MM-DD." };
@@ -165,8 +170,59 @@ const WIDER_TOOLS: Tool[] = [
 ];
 TOOLS.push(...WIDER_TOOLS);
 
+// ---- stage 2: the one tool that creates things ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+async function ensureCreates(env: Env): Promise<void> {
+  await env.OFFICE_DB.prepare("CREATE TABLE IF NOT EXISTS mcp_creates (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL DEFAULT (datetime('now')), key_id TEXT NOT NULL, email TEXT NOT NULL, capture_id INTEGER, created TEXT, flagged INTEGER NOT NULL DEFAULT 0, pending INTEGER NOT NULL DEFAULT 0)").run();
+  await env.OFFICE_DB.prepare("CREATE INDEX IF NOT EXISTS idx_mcp_creates_key ON mcp_creates (key_id, created_at)").run();
+}
+const TAGGED_TABLES = ["invoices", "quotations", "job_scopes", "expenses", "tasks"] as const;
+async function topIds(env: Env): Promise<Record<string, number>> {
+  const out: Record<string, number> = {};
+  for (const t of TAGGED_TABLES) { try { out[t] = (await env.OFFICE_DB.prepare(`SELECT COALESCE(MAX(id), 0) AS m FROM ${t}`).first<{ m: number }>())?.m ?? 0; } catch { out[t] = 0; } }
+  return out;
+}
+async function createdSince(env: Env, before: Record<string, number>): Promise<{ created: Record<string, number[]>; flagged: boolean }> {
+  const created: Record<string, number[]> = {}; let flagged = false;
+  for (const t of TAGGED_TABLES) {
+    try {
+      const amount = t === "invoices" || t === "quotations";
+      const { results } = await env.OFFICE_DB.prepare(`SELECT id${amount ? ", amount" : ""} FROM ${t} WHERE id > ? ORDER BY id LIMIT 50`).bind(before[t] ?? 0).all<{ id: number; amount?: number }>();
+      if (results.length) created[t] = results.map((r) => r.id);
+      if (amount && results.some((r) => typeof r.amount === "number" && r.amount > FLAG_OVER)) flagged = true;
+    } catch { /* a table this business does not have yet creates nothing */ }
+  }
+  return { created, flagged };
+}
+const tellTool: Tool = {
+  name: "tell_the_office",
+  description: "Tell The Office something to record, in plain words, exactly as the owner would type it: an invoice, a quote, a job, an expense, a task. It goes through the same checks as a typed message. It creates only; it deletes nothing and moves no money. If it needs an answer (which customer, which project) it says so and the owner answers in the app. Everything it creates is tagged with this key, and there is a limit on how many times it can be used an hour and a day.",
+  inputSchema: { type: "object", properties: { text: { type: "string", minLength: 1, maxLength: MAX_TELL_CHARS } }, required: ["text"], additionalProperties: false },
+  needsWrite: true, ownerOnly: true, route: null,
+  async run(env, args, who, _origin, host) {
+    for (const key of Object.keys(args)) if (key !== "text") return bad(`unknown argument: ${key.slice(0, 40)}`);
+    const text = typeof args.text === "string" ? args.text.trim() : "";
+    if (text.length < 1 || text.length > MAX_TELL_CHARS || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(text)) return bad(`text must be 1 to ${MAX_TELL_CHARS} characters of plain text.`);
+    if (host === null) return { ok: false, message: "Creating is not available here.", outcome: "error" };
+    await ensureCreates(env);
+    const hour = await env.OFFICE_DB.prepare("SELECT COUNT(*) AS n FROM mcp_creates WHERE key_id = ? AND created_at >= datetime('now', '-1 hour')").bind(who.keyId).first<{ n: number }>();
+    const day = await env.OFFICE_DB.prepare("SELECT COUNT(*) AS n FROM mcp_creates WHERE key_id = ? AND created_at >= datetime('now', '-1 day')").bind(who.keyId).first<{ n: number }>();
+    if ((hour?.n ?? 0) >= CREATES_PER_HOUR || (day?.n ?? 0) >= CREATES_PER_DAY) return { ok: false, message: `This key has reached its limit for creating (${CREATES_PER_HOUR} an hour, ${CREATES_PER_DAY} a day). Nothing was recorded. Try later.`, outcome: "limited" };
+    // The attempt is counted BEFORE it runs, so a call that fails half way still uses up its place.
+    const slot = await env.OFFICE_DB.prepare("INSERT INTO mcp_creates (key_id, email) VALUES (?, ?) RETURNING id").bind(who.keyId, who.email).first<{ id: number }>();
+    const before = await topIds(env);
+    let told: { message: string; pendingActionIds: number[]; captureId: number | null };
+    try { told = await host.tell(text, { email: who.email, capabilities: who.capabilities }); } catch { return { ok: false, message: "That could not be recorded.", outcome: "error" }; }
+    const { created, flagged } = await createdSince(env, before);
+    const pending = told.pendingActionIds.length;
+    try { await env.OFFICE_DB.prepare("UPDATE mcp_creates SET capture_id = ?, created = ?, flagged = ?, pending = ? WHERE id = ?").bind(told.captureId, JSON.stringify(created), flagged ? 1 : 0, pending, slot?.id ?? 0).run(); } catch { /* the tag never undoes the create */ }
+    return { ok: true, data: { message: told.message.slice(0, 2000), created, needsAnswerInApp: pending, flagged, ...(flagged ? { flagNote: `An invoice or quote above R${FLAG_OVER.toLocaleString("en-ZA")} was created. It was recorded, and the owner can see it flagged.` } : {}), taggedWithKey: who.keyId } };
+  },
+};
+TOOLS.push(tellTool);
+
 // A tool may be used only as the gate would let this member use the route it mirrors (auth.ts, authorizeRestrictedMember): the OWNER is always allowed, any other role only through a rule in the very table the gate uses, and no rule is no access (that is how the report routes are "owner only"). The history tool mirrors no route because every active member may read their own turns.
-function permitted(tool: Tool, who: { role: string; capabilities: string[] }): boolean {
+function permitted(tool: Tool, who: { role: string; capabilities: string[]; scope: McpScope }): boolean {
+  if (tool.needsWrite && who.scope !== SCOPE_WRITE) return false;   // a read key never sees or runs a creating tool, whoever the member is
   if (who.role === "owner") return true;
   if (tool.ownerOnly) return false;
   if (tool.route === null) return true;
@@ -200,14 +256,14 @@ const failure = (id: unknown, code: number, message: string, status = 200): Resp
 const unauthorized = (request: Request): Response => Response.json({ error: "unauthorized" }, { status: 401, headers: { "WWW-Authenticate": challengeHeader(new URL(request.url).origin), "Cache-Control": "no-store" } });
 
 /** Answers one MCP request. The key is verified here on EVERY call; the gate in auth.ts has only checked that one was presented. */
-export async function handleMcp(request: Request, env: Env): Promise<Response> {
+export async function handleMcp(request: Request, env: Env, host: McpHost | null = null): Promise<Response> {
   if (env.MCP === "off") return Response.json({ error: "MCP is switched off." }, { status: 503, headers: { "Cache-Control": "no-store" } });
   const auth = await authenticateKey(env, bearerKey(request));
   if (!auth.ok) return unauthorized(request);   // the reason is for the audit: a caller only ever learns "unauthorized"
   if (await businessLapsed(env)) return unauthorized(request);
   if (request.method !== "POST") return new Response(null, { status: 405, headers: { Allow: "POST", "Cache-Control": "no-store" } });
   const origin = new URL(request.url).origin;
-  const who: Who = { keyId: auth.keyId, email: auth.email, role: auth.role, capabilities: auth.capabilities };
+  const who: Who = { keyId: auth.keyId, email: auth.email, role: auth.role, capabilities: auth.capabilities, scope: auth.scope };
 
   const text = await request.text();
   if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) return failure(null, -32600, "The request is too large.", 413);
@@ -228,7 +284,7 @@ export async function handleMcp(request: Request, env: Env): Promise<Response> {
   }
   if (m.method === "ping") return reply(id, {});
   if (m.method === "tools/list") {
-    return reply(id, { tools: TOOLS.filter((t) => permitted(t, who)).map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } })) });
+    return reply(id, { tools: TOOLS.filter((t) => permitted(t, who)).map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema, annotations: { readOnlyHint: !t.needsWrite, destructiveHint: false, idempotentHint: !t.needsWrite, openWorldHint: false } })) });
   }
   if (m.method === "tools/call") {
     const name = typeof params.name === "string" ? params.name : "";
@@ -246,7 +302,7 @@ export async function handleMcp(request: Request, env: Env): Promise<Response> {
       outcome = "denied"; isError = true; content = [{ type: "text", text: "That is restricted for this member's role." }];
     } else {
       let out: ToolOutput;
-      try { out = await tool.run(env, args as Record<string, unknown>, who, origin); } catch { out = { ok: false, message: "That could not be built.", outcome: "error" }; }
+      try { out = await tool.run(env, args as Record<string, unknown>, who, origin, host); } catch { out = { ok: false, message: "That could not be built.", outcome: "error" }; }
       if (out.ok) {
         const body = JSON.stringify(out.data);
         if (body.length > MAX_RESULT_CHARS) { outcome = "error"; isError = true; content = [{ type: "text", text: "That result is too large to return." }]; }

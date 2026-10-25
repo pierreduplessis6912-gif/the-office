@@ -889,16 +889,20 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
     // session, so "yourself" and "who added them" are real.
     // The owner's read-only keys for outside assistants (mcp-keys.ts; MCP_ARCHITECTURE.md). Owner only (can_invite_members, which can never be granted to another role). A key is in the answer to POST ONCE and nowhere else: only its hash is stored, and the list never shows it.
     // The read-only MCP endpoint (mcp.ts): opened by its own key, never by a session. The gate has already refused a request with no well-formed key; the handler verifies the key on every call.
-    if (url.pathname === "/mcp") return handleMcp(request, env);
+    if (url.pathname === "/mcp") {
+      // The one thing an assistant with a write key may do is tell The Office something, through the SAME pipeline as a typed message, with the member's own capabilities (mcp.ts, stage 2).
+      let captureId: number | null = null;
+      return handleMcp(request, env, { tell: async (text, who) => { captureId = null; const r = await processTranscript(env, text, ctx, [], "text", null, who.capabilities, who.email, (id) => { captureId = id; }); return { message: r.message, pendingActionIds: r.pendingActionIds, captureId }; } });
+    }
     if (url.pathname === "/mcp-keys" && request.method === "GET") {
       return Response.json({ keys: await listKeys(env) });
     }
     if (url.pathname === "/mcp-keys" && request.method === "POST") {
       if (env.MCP === "off") return Response.json({ error: "Keys for outside assistants are switched off." }, { status: 409 });
       if (!isBusinessId(env.BUSINESS_ID)) return Response.json({ error: "Keys need a business of their own." }, { status: 409 });
-      const asked = (await request.json().catch(() => null)) as { label?: unknown; email?: unknown } | null;
+      const asked = (await request.json().catch(() => null)) as { label?: unknown; email?: unknown; scope?: unknown } | null;
       const { email: issuer } = await resolveCapabilities(request, env);
-      const made = await issueKey(env, { businessId: env.BUSINESS_ID, email: asked?.email ?? issuer, label: asked?.label, createdBy: issuer });
+      const made = await issueKey(env, { businessId: env.BUSINESS_ID, email: asked?.email ?? issuer, label: asked?.label, createdBy: issuer, ...(asked && "scope" in asked ? { scope: asked.scope } : {}) });
       if (!made.ok) return Response.json({ error: made.error }, { status: 400 });
       return Response.json({ id: made.id, key: made.key, label: made.label, email: made.email, shownOnce: true, note: "Copy this key now. It cannot be shown again: if it is lost, revoke it and issue another." }, { status: 201, headers: { "Cache-Control": "no-store" } });
     }
