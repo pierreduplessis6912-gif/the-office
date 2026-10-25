@@ -824,3 +824,5 @@ Pierre shared a note arguing for "one coordinator per business, add more objects
 **Not done, said plainly.** Customer e-mails (a failed payment, a coming lapse): no provider is configured, so the code can only be built dark and tested with a fake sender until Pierre adds a provider key as a secret. The analysis layer, the history and audit record, and workspace context (points 2 to 4) were left to the other session by the split recorded in `COORDINATION.md`; if it did not take them, they remain undone.
 
 ---
+
+**Docs pass 5 (2026-10-25).** `SECURITY_AND_OPERATIONAL_READINESS.md` checklist read against the code: auth fails closed, CORS allowlist enforced, lockfile and `npm ci` present; large-file split and documentation consolidation remain open; one stale comment in `auth.ts` noted, not changed.
