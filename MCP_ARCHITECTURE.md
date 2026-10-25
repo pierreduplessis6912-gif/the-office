@@ -265,3 +265,5 @@ Slices A to D are built and live: the credential core, the owner's routes to iss
 
 
 **A real client (2026-10-25, open item 3, in progress).** `tools/mcp-real-client.mjs` drives the endpoint with the official MCP SDK (1.32.1, pinned) instead of hand-written requests: connect with the issued key, list the five tools, read aged debtors and profit and loss, be refused an unknown tool and a bad key, close. It runs inside the staging rehearsal (before the key is revoked) and the verdict records only true or false. Proven so far: its mechanics against a stand-in server, and the backend suite (8,008/8,008). NOT yet proven: the real run on the staging objects, and any desktop or phone assistant on production.
+
+**Production proof (2026-10-25).** The same SDK client, run by `prod-mcp-check.yml` with an owner-issued key (held as a temporary repo secret, since deleted), passed all nine checks against production: `ops/prod-mcp-check-last.json`. That key appeared in a chat and should be revoked. NOT proven: any assistant used day to day, claude.ai connectors (they need OAuth), and the Assistants screen on a device.
