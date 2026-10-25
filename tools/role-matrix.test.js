@@ -868,6 +868,8 @@ async function expect(role, method, path, want) {
   await require('./mcp-keys-routes.test.js')({ check, srcDir });
   // The read-only MCP adapter, slice C: the /mcp endpoint and its five read-only tools: the first place a key READS data, so every guard is also proven by tools/mcp-endpoint-breakage.js
   await require('./mcp-endpoint.test.js')({ check, srcDir });
+  // OAuth for assistants that cannot send a static key (worker/src/mcp-oauth.ts): the pure core, before any route uses it.
+  await require('./mcp-oauth.test.js')({ check, srcDir });
   // The history and audit record: heard, interpreted, proposed, decided, replied, and the records written
   await require('./history.test.js')({ check, srcDir });
   // Workspace context: an untrusted, validated hint recorded with the turn; never a permission, not yet used to interpret speech
