@@ -1,7 +1,8 @@
 > **Status:** real. **Verified:** not yet. **Owns:** none.
 
 
-> **Audit 2026-10-24 (partial).** It names almost nothing that can be checked mechanically (the two routes and two identifiers it names exist). It is the July view by department: billing, history, reports as data, analysis, spoken follow-ups, the envelope and MCP are not in it, and its examples were not re-run.
+> **Audit 2026-10-25 (line by line).** The July view by department; it is a description, so its claims were read against the code. Confirmed: the capabilities `can_manage_invoices` and `can_know_jobs` exist; the three PDF routes exist (`/reports/profit-and-loss/pdf`, `/reports/aged-debtors/pdf`, `/customers/{id}/statement/pdf`, the last matched by pattern in `index.ts`); the financial-write refusal exists in `auth.ts` (its wording is now "Recording payments, invoices, quotations, or supplier transactions isn't available for your role"); a sales role and an admin role exist beside owner, installer and accountant (five roles in `ROLE_CAPABILITIES`). Corrected below: the roles, the refusal wording, and the "no session defaults to full access" gap, which is closed (`ENFORCE_APP_AUTH`). NOT verified: the `matched: true/false` field on a customer record (no such field found in the code), the quoted example phrases (not re-run), and the department outputs one by one. NOT in this document at all: billing and plans, history and audit, reports as data, analysis, spoken follow-ups, the reply envelope, workspace context, read-only MCP, onboarding (see `HANDOVER.md` State and `ENVELOPE.md`). It cites `STATUS.md`, which is archived. The list of "not yet built" items was not re-checked against the code.
+
 # The Office — Features, by Department (a lens, not a wall)
 
 This document exists for one purpose: to make the whole system legible
@@ -93,7 +94,7 @@ capability (`can_manage_invoices`) to even attempt.
   invoices), and a ready-to-send message.
 - An Installer or anyone without `can_manage_invoices` gets an honest,
   immediate refusal instead — *"Recording payments, invoices,
-  quotations, or expenses isn't available for your role."*
+  quotations, or supplier transactions isn't available for your role."*
 
 ---
 
@@ -253,15 +254,14 @@ reading and writing.
 carries the real, resolved session behind it.
 
 **Outputs:**
-- Three real roles today — Owner, Installer, Accountant — each with a
+- Five roles today (Owner, Installer, Accountant, Sales, Admin; the owner can change what each may do) — the first three each with a
   genuinely different, correct answer to the same question, proven
   live: *"what does Jenny owe?"* answered fully for Owner and
   Accountant, honestly refused for Installer, never a silent omission
   that reads as ignorance.
 - Financial writes (payment, invoice, quotation, expense) gated the
   same way reads are.
-- **Real, still-open gap:** no session yet defaults to full access —
-  safe only because Peter is currently the sole real user.
+- No session means no access: the July gap ("no session defaults to full access") is closed and fails closed (`ENFORCE_APP_AUTH`, checked 2026-10-25).
 
 ---
 
