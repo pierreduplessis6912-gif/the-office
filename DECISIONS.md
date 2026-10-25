@@ -1,4 +1,4 @@
-> **Status:** real. **Verified:** not yet. **Owns:** none.
+> **Status:** real. **Verified:** 2026-10-24. **Owns:** none.
 
 # The Office — Decisions, Rationale & Philosophy
 

@@ -1,4 +1,4 @@
-> **Status:** partly built. **Verified:** not yet. **Owns:** `worker/src/intents/lookup.ts`.
+> **Status:** partly built. **Verified:** 2026-10-24. **Owns:** `worker/src/intents/lookup.ts`.
 
 # Lookup Routing Architecture — AI Determines Intent, Never Composes the Answer
 

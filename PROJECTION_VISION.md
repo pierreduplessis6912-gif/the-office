@@ -1,4 +1,4 @@
-> **Status:** proposed. **Verified:** not yet. **Owns:** none.
+> **Status:** proposed. **Verified:** 2026-10-24. **Owns:** none.
 
 > **Provenance.** Pasted into chat by Pierre on 2026-10-20 as "the vision". It was written by an AI assistant in another conversation, and it says of itself that its envelope is "an illustrative contract, not a claim that these fields already exist". The external image links and their captions have been removed; everything else is as pasted. **This file is the AIM. What is BUILT is `ENVELOPE.md` (the reply envelope, Phase 1) and `CONTEXT.md`; `VISION.md` has a short map of where the two differ.**
 

@@ -19,7 +19,9 @@ function walk(dir, out) {
 const files = walk(root, []).sort();
 const errors = [], warnings = [];
 const today = new Date(process.env.DOCS_CHECK_TODAY || Date.now());
-let unaudited = 0, notYet = 0;
+let unaudited = 0, notYet = 0, logParts = 0;
+const owners = [];   // [doc, owned code paths] for the code-with-docs check below
+const isLog = (rel) => rel.startsWith('docs/decisions/') || rel.startsWith('docs/runbook/');   // append-only dated history: what was true on the day of each entry; claims about today live in the owning documents
 for (const f of files) {
   const rel = path.relative(root, f);
   const text = fs.readFileSync(f, 'utf8');
@@ -29,12 +31,15 @@ for (const f of files) {
   const [, status, verified, owns] = m;
   if (!STATUSES.includes(status)) errors.push(`${rel}: unknown status "${status}"`);
   if (status === 'unaudited') unaudited++;
-  if (verified === 'not yet') { notYet++; }
+  if (isLog(rel)) logParts++;
+  else if (verified === 'not yet') { notYet++; }
   else if (status !== 'archived' && (today - new Date(verified)) / 864e5 > STALE_DAYS) warnings.push(`${rel}: verified ${verified}, older than ${STALE_DAYS} days`);
   if (owns.trim() !== 'none') {
-    for (const p of [...owns.matchAll(/`([^`]+)`/g)].map(x => x[1])) {
+    const paths = [...owns.matchAll(/`([^`]+)`/g)].map(x => x[1]);
+    for (const p of paths) {
       if (!fs.existsSync(path.join(root, p))) errors.push(`${rel}: Owns path missing: ${p}`);
     }
+    if (status !== 'archived') owners.push([rel, paths]);
   }
   const stripped = text.replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
   for (const l of stripped.matchAll(/\]\(([^)#\s]+\.md)(#[^)]*)?\)/g)) {
@@ -54,7 +59,31 @@ for (const [idxName, dir] of [['DECISIONS.md', 'docs/decisions'], ['RUNBOOK.md',
     }
   }
 }
+// CODE AND DOCS MOVE TOGETHER: a document names the code it owns (Owns:). When a push changes an owned code file (worker/src or app/lib) and does NOT touch the owning document, that is a warning; for the security-sensitive files it is an ERROR. INDEX.md and HANDOVER.md list code but do not describe it, so they are not asked to follow it. The base is DOCS_CHECK_BASE (CI passes the push's "before" commit), else the branch against origin/main, else the last commit; with none of those it says so and skips.
+const SENSITIVE = /^worker\/src\/(auth|admin-gate|routing|access|billing|payfast[\w-]*|mcp|mcp-keys|mcp-key-format|refusals)\.ts$/;
+const NOT_ASKED = new Set(['INDEX.md', 'HANDOVER.md']);
+function changedFiles() {
+  const { execSync } = require('child_process');
+  const base = process.env.DOCS_CHECK_BASE;
+  const tries = base && !/^0+$/.test(base) ? [`git diff --name-only ${base} HEAD`] : ['git diff --name-only origin/main...HEAD', 'git diff --name-only HEAD~1 HEAD'];
+  for (const cmd of tries) { try { const out = execSync(cmd, { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); return out ? out.split('\n') : []; } catch { /* try the next */ } }
+  return null;
+}
+const changed = changedFiles();
+let coupled = 0, uncoupled = 0;
+if (changed === null) console.log('note  code-with-docs check skipped: no base commit to compare with');
+else {
+  const touched = new Set(changed);
+  for (const [rel, paths] of owners) {
+    if (NOT_ASKED.has(rel)) continue;
+    for (const p of paths.filter((x) => /^(worker\/src|app\/lib)\//.test(x) && touched.has(x))) {
+      if (touched.has(rel)) { coupled++; continue; }
+      uncoupled++;
+      (SENSITIVE.test(p) ? errors : warnings).push(`${rel}: owns ${p}, which changed, but the document was not touched in the same push${SENSITIVE.test(p) ? ' (security-sensitive: update it)' : ''}`);
+    }
+  }
+}
 for (const w of warnings) console.log('warn  ' + w);
-console.log(`docs: ${files.length} checked, ${unaudited} unaudited, ${notYet} not yet verified, ${warnings.length} stale, ${errors.length} errors`);
+console.log(`docs: ${files.length} checked (${logParts} are dated logs), ${unaudited} unaudited, ${notYet} not yet verified, ${warnings.length} warnings, ${errors.length} errors; code-with-docs: ${coupled} owned code files changed with their document, ${uncoupled} without`);
 for (const e of errors) console.log('ERROR ' + e);
 process.exit(errors.length ? 1 : 0);

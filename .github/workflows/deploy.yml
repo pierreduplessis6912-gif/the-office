@@ -48,6 +48,8 @@ jobs:
 
       - name: Documentation check
         run: node tools/docs-check.js
+        env:
+          DOCS_CHECK_BASE: ${{ github.event.before }}
 
       - name: Typecheck
         working-directory: worker

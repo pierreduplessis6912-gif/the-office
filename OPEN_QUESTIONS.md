@@ -19,12 +19,7 @@ decision, and say where it was applied. Last updated 2026-10-04 (decisions sessi
 53. **Costing is per customer, not per job within a customer.** An order is linked to the customer it is for, so a customer with
     several jobs has all their orders on one costing, because this system defines a job, for costing, as the customer. *Option:*
     link an order to one of the customer's jobs and cost each separately (a bigger change). (`DECISIONS.md`, "Decision 52".)
-55. **An MCP server, so any LLM can drive The Office (an idea, pinned, not decided).** Pierre pasted a proposal on 2026-10-04; it is
-    kept in full in `MCP_ARCHITECTURE.md`, with what was checked against the code. In short: the shape is right (one natural-language
-    entry through the existing pipeline, plus the confirmation loop), but there are **no member API keys yet** (new, security-sensitive
-    work), and the proposal's `confirm_action` would let a model confirm its own money and identity actions, which defeats the rule
-    that a human confirms them. *Decisions:* whether it is wanted and for whom; where it lives (inside `office-api`, a separate
-    Worker, or a local stdio forwarder); how it is authenticated; how confirming stays human.
+55. **An MCP server, so any LLM can drive The Office (DECIDED and BUILT as READ-ONLY, 2026-10-20 to 21).** Pierre approved the shape: owner first, inside the existing Worker, a read-only key per membership, no writes. Built and live: the key core, the owner's routes, `POST /mcp` with five read-only tools, and the app's Assistants screen (`MCP_ARCHITECTURE.md`, "Status"). *Still open:* writes through MCP (a separate decision: the proposal's `confirm_action` would let a model confirm its own money and identity actions, which defeats the rule that a human confirms them); hosts that only offer OAuth for remote servers; and no real MCP client has been tried against production.
 56. **A near-duplicate supplier name is usually not caught.** A supplier created from an order sentence has no person record, so
     "Floornit" for "Floornet" creates a second supplier instead of asking, and the sound-alike check only sees suppliers that have a
     person record. *Option:* compare a new supplier name directly against the other suppliers' names (a different mechanism from the

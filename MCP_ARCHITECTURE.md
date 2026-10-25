@@ -1,4 +1,4 @@
-> **Status:** partly built. **Verified:** not yet. **Owns:** `worker/src/mcp.ts`, `worker/src/mcp-keys.ts`, `worker/src/mcp-key-format.ts`.
+> **Status:** partly built. **Verified:** 2026-10-24. **Owns:** `worker/src/mcp.ts`, `worker/src/mcp-keys.ts`, `worker/src/mcp-key-format.ts`.
 
 # An MCP server for The Office: the read-only adapter is BUILT (slices A to D); anything beyond it is not
 

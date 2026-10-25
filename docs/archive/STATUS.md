@@ -1,5 +1,7 @@
-> **Status:** partly built. **Verified:** not yet. **Owns:** none.
+> **Status:** archived. **Verified:** not yet. **Owns:** none.
 
+
+> **Archived 2026-10-24.** A snapshot of the backend as of July 2026 that described itself as the authoritative state. It is not current (billing, the envelope, history, analysis, spoken follow-ups and MCP all came after). The current map is `HANDOVER.md` (the state) and `INDEX.md` (feature to document, code and tests). Kept for the record.
 
 > **Audit 2026-10-24 (partial).** Checked against the code: all 35 routes named in "Debug and diagnostic routes" exist in `worker/src`; the model list is right except that `@cf/openai/whisper-large-v3-turbo` is also used; the schema section is partial by design (it defers to `/debug/table-schema`); "No weather integration" is still true. STALE, corrected where it appears: "Tasks have no due/scheduled time" (the `tasks` table has `due_date` and `due_date_raw`). SUPERSEDED: the WhatsApp channel plan (see `WHATSAPP_CHANNEL_ARCHITECTURE.md`). NOT checked: the rest of "Known gaps". Everything since July (billing, history, reports, analysis, the envelope, MCP, the app slices) is not in this file: read `HANDOVER.md`.
 # The Office — Current State

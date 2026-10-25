@@ -10,7 +10,7 @@ backend, `app/` for the first native client.
 
 **For the current, real state of the system — schema, what's built,
 what's deliberately deferred, known bugs and their fixes — see
-[`STATUS.md`](./STATUS.md). Read that before starting any new work;
+[`STATUS.md`](docs/archive/STATUS.md). Read that before starting any new work;
 it's kept current, the section below is historical.**
 
 **For the *why* behind that state — architectural rationale, rejected

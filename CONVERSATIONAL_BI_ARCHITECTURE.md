@@ -1,4 +1,4 @@
-> **Status:** partly built. **Verified:** not yet. **Owns:** `worker/src/analysis.ts`, `tools/analysis.test.js`.
+> **Status:** partly built. **Verified:** 2026-10-24. **Owns:** `worker/src/analysis.ts`, `tools/analysis.test.js`.
 
 # Conversational BI Architecture — A Persistent Analytical Relationship, Not Voice-Controlled Reporting
 
@@ -47,7 +47,7 @@ project.
 ## Two real, concrete gaps this document assumes — found by this exact
 ## project's own earlier audit tonight, not new findings
 
-**Date-ranging doesn't exist yet, anywhere.** Checked directly earlier
+**Date-ranging did not exist when this was written (it does now: `profitAndLossData` and `analysisData` take a period and a comparison, 2026-10).** Checked directly earlier
 tonight: `getProfitAndLoss` and every other report function is all-time
 only — no `WHERE created_at BETWEEN...` anywhere in the codebase. The
 flagship example in this design — "compare April to March" — is literally
@@ -113,7 +113,7 @@ ahead of it.
 ## What this document does not settle
 
 - The exact real schema for a query plan or a standing brief — left for
-  the real implementation pass, once the date-range foundation exists.
+  the real implementation pass, (the date-range foundation now exists).
 - Whether category ever gets populated, and if so how — a real, separate
   decision, not assumed here either way.
 - The real export/print formats — genuinely useful eventually, not

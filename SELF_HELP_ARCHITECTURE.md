@@ -1,4 +1,4 @@
-> **Status:** proposed. **Verified:** not yet. **Owns:** none.
+> **Status:** proposed. **Verified:** 2026-10-24. **Owns:** none.
 
 # Self-Help Architecture — Teaching From Real Decisions, Without Guessing
 

@@ -1,4 +1,4 @@
-> **Status:** real. **Verified:** not yet. **Owns:** none.
+> **Status:** real. **Verified:** not yet. **Owns:** `worker/src/auth.ts`, `worker/src/routing.ts`, `worker/src/access.ts`, `worker/src/admin-gate.ts`.
 
 
 > **Audit 2026-10-24 (partial).** This is the July working log. Its urgent tier is ticked and closed (see "Both roles live-verified" and "Every real endpoint audited by name"), so the heading "exposed right now" describes July before those fixes, not today. `ADMIN_SECRET` is now `ADMIN_KEY` (plus `ADMIN_CONFIRM_KEY` for privileged routes; see `SHIP_CHECKLIST.md` item 2). `FINANCIAL_WRITE_INTENTS` appears only in a "Found" entry that was fixed. The live list is `SHIP_CHECKLIST.md`. The closings were not re-verified in code.
@@ -217,9 +217,9 @@ The app itself calls exactly **7** `/debug` routes (`financial-snapshot`,
 `characters-list`). The server has about 120 debug and admin routes, so
 over 110 are never used by the app. Plan: the 7 get role rules like every
 other route, session plus capability. Everything else requires an owner
-session **or** an `X-Admin-Secret` header matching a Worker secret, and
-fails closed if that secret is not set. Needs one step from the owner:
-setting `ADMIN_SECRET` in the Cloudflare dashboard.
+session **or** an `X-Admin-Key` header matching the Worker secret `ADMIN_KEY`, and
+fails closed if that secret is not set. (Corrected 2026-10-24: the code uses `ADMIN_KEY`, not
+`ADMIN_SECRET`; it, `ADMIN_CONFIRM_KEY` and `SESSION_SECRET` are set in production.)
 
 ### Stage 2 design — PDF links, not yet built
 

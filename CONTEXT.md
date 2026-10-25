@@ -1,4 +1,4 @@
-> **Status:** real. **Verified:** not yet. **Owns:** `worker/src/context.ts`, `tools/context.test.js`.
+> **Status:** real. **Verified:** 2026-10-24. **Owns:** `worker/src/context.ts`, `tools/context.test.js`.
 
 # Workspace context — the contract for the front end (version 1, Phase 5)
 
