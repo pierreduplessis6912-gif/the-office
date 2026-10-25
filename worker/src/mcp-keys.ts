@@ -9,6 +9,10 @@ import type { Env } from "./types";
 
 const MAX_LABEL = 60;
 export const MAX_ACTIVE_KEYS = 10;
+// A key's SCOPE (stage 2): mcp:read is what every key has had so far; mcp:write also lets the assistant create things. Anything that is not exactly "mcp:write" is read, so a missing, empty or unknown value can never grant more.
+export const SCOPE_READ = "mcp:read", SCOPE_WRITE = "mcp:write";
+export type McpScope = typeof SCOPE_READ | typeof SCOPE_WRITE;
+export const scopeOf = (value: unknown): McpScope => (value === SCOPE_WRITE ? SCOPE_WRITE : SCOPE_READ);
 const NO_HASH = "0".repeat(64);   // what a missing key is compared against, so it costs the same as a wrong secret
 
 const hex = (bytes: Uint8Array): string => [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -19,7 +23,8 @@ async function sha256Hex(text: string): Promise<string> { return hex(new Uint8Ar
 export { bearerKey, parseKey, peekBusinessFromKey, type ParsedKey } from "./mcp-key-format";
 
 async function ensureTable(env: Env): Promise<void> {
-  await env.OFFICE_DB.prepare("CREATE TABLE IF NOT EXISTS mcp_keys (id TEXT PRIMARY KEY, label TEXT NOT NULL, email TEXT NOT NULL, hash TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), created_by TEXT NOT NULL, last_used_at TEXT, revoked_at TEXT, uses INTEGER NOT NULL DEFAULT 0)").run();
+  await env.OFFICE_DB.prepare("CREATE TABLE IF NOT EXISTS mcp_keys (id TEXT PRIMARY KEY, label TEXT NOT NULL, email TEXT NOT NULL, hash TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), created_by TEXT NOT NULL, last_used_at TEXT, revoked_at TEXT, uses INTEGER NOT NULL DEFAULT 0, scope TEXT NOT NULL DEFAULT 'mcp:read')").run();
+  try { await env.OFFICE_DB.prepare("ALTER TABLE mcp_keys ADD COLUMN scope TEXT NOT NULL DEFAULT 'mcp:read'").run(); } catch { /* the column is already there */ }   // keys made before stage 2 keep the default: read only
 }
 
 const tidy = (value: unknown): string | null => {
@@ -28,10 +33,11 @@ const tidy = (value: unknown): string | null => {
   return email.length <= 254 && /^[^\s@]+@[^\s@]+$/.test(email) ? email : null;
 };
 
-export type IssueResult = { ok: true; id: string; key: string; label: string; email: string } | { ok: false; error: string };
+export type IssueResult = { ok: true; id: string; key: string; label: string; email: string; scope: McpScope } | { ok: false; error: string };
 
 /** Issues a read-only key for an ACTIVE member. The key is in the result once and nowhere else: only its hash is stored. */
-export async function issueKey(env: Env, input: { businessId: string; email: unknown; label: unknown; createdBy: unknown }): Promise<IssueResult> {
+export async function issueKey(env: Env, input: { businessId: string; email: unknown; label: unknown; createdBy: unknown; scope?: unknown }): Promise<IssueResult> {
+  if (input.scope !== undefined && input.scope !== SCOPE_READ && input.scope !== SCOPE_WRITE) return { ok: false, error: "the scope must be mcp:read or mcp:write." };
   if (!isBusinessId(input.businessId)) return { ok: false, error: "that is not a valid business." };
   const label = typeof input.label === "string" ? input.label.trim() : "";
   if (label.length < 1 || label.length > MAX_LABEL || /[\u0000-\u001f\u007f]/.test(label)) return { ok: false, error: "the label must be 1 to 60 plain characters." };
@@ -44,17 +50,17 @@ export async function issueKey(env: Env, input: { businessId: string; email: unk
   if ((active?.n ?? 0) >= MAX_ACTIVE_KEYS) return { ok: false, error: `there are already ${MAX_ACTIVE_KEYS} active keys: revoke one first.` };
   const id = hex(crypto.getRandomValues(new Uint8Array(8)));
   const secret = base64Url(crypto.getRandomValues(new Uint8Array(32)));
-  await env.OFFICE_DB.prepare("INSERT INTO mcp_keys (id, label, email, hash, created_by) VALUES (?, ?, ?, ?, ?)").bind(id, label, email, await sha256Hex(secret), createdBy).run();
-  return { ok: true, id, key: `${KEY_PREFIX}.${input.businessId}.${id}.${secret}`, label, email };
+  await env.OFFICE_DB.prepare("INSERT INTO mcp_keys (id, label, email, hash, created_by, scope) VALUES (?, ?, ?, ?, ?, ?)").bind(id, label, email, await sha256Hex(secret), createdBy, scopeOf(input.scope)).run();
+  return { ok: true, id, key: `${KEY_PREFIX}.${input.businessId}.${id}.${secret}`, label, email, scope: scopeOf(input.scope) };
 }
 
-export interface KeySummary { id: string; label: string; email: string; created_at: string; created_by: string; last_used_at: string | null; revoked_at: string | null; uses: number }
+export interface KeySummary { id: string; label: string; email: string; created_at: string; created_by: string; last_used_at: string | null; revoked_at: string | null; uses: number; scope: McpScope }
 
 /** The keys, newest first, WITHOUT their hashes: the hash and the secret are never read back out. */
 export async function listKeys(env: Env): Promise<KeySummary[]> {
   await ensureTable(env);
-  const { results } = await env.OFFICE_DB.prepare("SELECT id, label, email, created_at, created_by, last_used_at, revoked_at, uses FROM mcp_keys ORDER BY created_at DESC, id").all<KeySummary>();
-  return results;
+  const { results } = await env.OFFICE_DB.prepare("SELECT id, label, email, created_at, created_by, last_used_at, revoked_at, uses, scope FROM mcp_keys ORDER BY created_at DESC, id").all<KeySummary>();
+  return results.map((k) => ({ ...k, scope: scopeOf(k.scope) }));
 }
 
 /** Revokes a key at once. Idempotent. `found` is false only for an id that does not exist. */
@@ -67,15 +73,17 @@ export async function revokeKey(env: Env, id: unknown): Promise<{ found: boolean
   return { found: true };
 }
 
-export type AuthResult = { ok: true; keyId: string; email: string; role: string; capabilities: string[] } | { ok: false; reason: "malformed" | "wrong_business" | "unknown_or_bad_key" | "revoked" | "member_inactive" };
+export type AuthResult = { ok: true; keyId: string; email: string; role: string; capabilities: string[]; scope: McpScope } | { ok: false; reason: "malformed" | "wrong_business" | "unknown_or_bad_key" | "revoked" | "member_inactive" };
 
 /** Checks a presented key. The reason is for the audit and the tests: a caller is only ever told "unauthorized". On success the capabilities are the member's role's NOW. */
 export async function authenticateKey(env: Env, raw: unknown): Promise<AuthResult> {
   const key = parseKey(raw);
   if (key === null) return { ok: false, reason: "malformed" };
   if (env.BUSINESS_MODE === "object" && (!env.BUSINESS_ID || key.businessId !== env.BUSINESS_ID)) return { ok: false, reason: "wrong_business" };
-  let row: { id: string; email: string; hash: string; revoked_at: string | null } | null = null;
-  try { row = await env.OFFICE_DB.prepare("SELECT id, email, hash, revoked_at FROM mcp_keys WHERE id = ?").bind(key.keyId).first(); } catch { row = null; }   // no table yet: no keys
+  let row: { id: string; email: string; hash: string; revoked_at: string | null; scope?: string } | null = null;
+  try { row = await env.OFFICE_DB.prepare("SELECT id, email, hash, revoked_at, scope FROM mcp_keys WHERE id = ?").bind(key.keyId).first(); } catch {
+    try { row = await env.OFFICE_DB.prepare("SELECT id, email, hash, revoked_at FROM mcp_keys WHERE id = ?").bind(key.keyId).first(); } catch { row = null; }   // a table from before stage 2 has no scope column: those keys are read only; no table at all: no keys
+  }
   const same = await safeEqual(await sha256Hex(key.secret), row?.hash ?? NO_HASH);
   if (row === null || !same) return { ok: false, reason: "unknown_or_bad_key" };
   if (row.revoked_at !== null) return { ok: false, reason: "revoked" };
@@ -83,5 +91,5 @@ export async function authenticateKey(env: Env, raw: unknown): Promise<AuthResul
   if (!member || member.status !== "active") return { ok: false, reason: "member_inactive" };
   const capabilities = await getRoleCapabilities(env, member.role);
   try { await env.OFFICE_DB.prepare("UPDATE mcp_keys SET last_used_at = datetime('now'), uses = uses + 1 WHERE id = ?").bind(row.id).run(); } catch { /* a failed note of use never refuses a valid key */ }
-  return { ok: true, keyId: row.id, email: row.email, role: member.role, capabilities };
+  return { ok: true, keyId: row.id, email: row.email, role: member.role, capabilities, scope: scopeOf(row.scope) };
 }

@@ -65,4 +65,24 @@ module.exports = async function runMcpKeyTests({ check, srcDir }) {
     check(m.every((x) => x.ok === false && x.reason === 'malformed') && touched === 0, 'a malformed key is refused without touching the database at all');
     const fresh = world(); const bare = await mk.authenticateKey(fresh.env, good);
     check(bare.ok === false && bare.reason === 'unknown_or_bad_key', 'before any key was ever issued (no table yet) a well-formed key simply fails'); }
+
+  // ---- scope (stage 2): read is the default and the fallback for everything unclear; write only when it is asked for by name ---------------------------------------------------------------------
+  { const w = world(); const r = await issue(w), wr = await issue(w, { label: 'writer', scope: 'mcp:write' }), rd = await issue(w, { label: 'reader', scope: 'mcp:read' });
+    const rows = Object.fromEntries(w.db.prepare('SELECT id, scope FROM mcp_keys').all().map((x) => [x.id, x.scope]));
+    const ar = await mk.authenticateKey(w.env, r.key), aw = await mk.authenticateKey(w.env, wr.key), ad = await mk.authenticateKey(w.env, rd.key), listed = await mk.listKeys(w.env);
+    check(r.scope === 'mcp:read' && wr.scope === 'mcp:write' && rd.scope === 'mcp:read' && rows[r.id] === 'mcp:read' && rows[wr.id] === 'mcp:write' && ar.scope === 'mcp:read' && aw.scope === 'mcp:write' && ad.scope === 'mcp:read', 'a key with no scope asked for is read only; mcp:write is stored and read back only when it was asked for by name');
+    check(listed.length === 3 && listed.find((k) => k.id === wr.id).scope === 'mcp:write' && listed.find((k) => k.id === r.id).scope === 'mcp:read', 'the key list shows each key\'s scope'); }
+  { const w = world(); const bad = [await issue(w, { scope: 'mcp:admin' }), await issue(w, { scope: 'MCP:WRITE' }), await issue(w, { scope: 'mcp:write ' }), await issue(w, { scope: '' }), await issue(w, { scope: null }), await issue(w, { scope: true }), await issue(w, { scope: ['mcp:write'] })];
+    check(bad.every((x) => x.ok === false && /scope/.test(x.error) && !('key' in x)) && (() => { try { return w.db.prepare('SELECT COUNT(*) n FROM mcp_keys').get().n === 0; } catch (e) { return true; } })(), 'an unknown, differently-cased, padded, empty or non-text scope is refused and nothing is issued: it is never rounded up to write'); }
+  { const w = world(); const a = await issue(w, { scope: 'mcp:write' }); const p = mk.parseKey(a.key);
+    for (const odd of ['', 'mcp:admin', 'MCP:WRITE', 'mcp:write ', 'write', 'mcp:read mcp:write']) { w.db.prepare('UPDATE mcp_keys SET scope = ? WHERE id = ?').run(odd, a.id); const r = await mk.authenticateKey(w.env, a.key); check(r.ok === true && r.scope === 'mcp:read', `a stored scope of ${JSON.stringify(odd)} reads back as read only`); }
+  }
+  { const w = world(); const id = '0123456789abcdef', secret = 'B'.repeat(43);
+    w.db.exec("CREATE TABLE IF NOT EXISTS mcp_keys (id TEXT PRIMARY KEY, label TEXT NOT NULL, email TEXT NOT NULL, hash TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), created_by TEXT NOT NULL, last_used_at TEXT, revoked_at TEXT, uses INTEGER NOT NULL DEFAULT 0)");
+    try { w.db.exec('ALTER TABLE mcp_keys DROP COLUMN scope'); } catch (e) { /* already without it */ }
+    w.db.prepare('INSERT INTO mcp_keys (id, label, email, hash, created_by) VALUES (?, ?, ?, ?, ?)').run(id, 'old key', 'owner@acme.co', sha(secret), 'owner@acme.co');
+    const old = await mk.authenticateKey(w.env, `omk.acme-co.${id}.${secret}`);
+    check(old.ok === true && old.scope === 'mcp:read', 'a key made before stage 2 (a table with no scope column) still works and is read only');
+    const fresh = await issue(w, { scope: 'mcp:write' }), after = await mk.authenticateKey(w.env, `omk.acme-co.${id}.${secret}`), now = await mk.authenticateKey(w.env, fresh.key);
+    check(fresh.ok === true && after.ok === true && after.scope === 'mcp:read' && now.scope === 'mcp:write', 'issuing a key upgrades the old table in place: the old key stays read only, the new one can be write'); }
 };

@@ -14,8 +14,8 @@ const MUTATIONS = [
   ['a deactivated member\'s key still works', 'keys', 'if (!member || member.status !== "active") return { ok: false, reason: "member_inactive" };', 'if (!member) return { ok: false, reason: "member_inactive" };'],
   ['capabilities are the owner\'s whatever the member\'s role is', 'keys', 'const capabilities = await getRoleCapabilities(env, member.role);', 'const capabilities = await getRoleCapabilities(env, "owner");'],
   ['a key for another business is accepted', 'keys', 'if (env.BUSINESS_MODE === "object" && (!env.BUSINESS_ID || key.businessId !== env.BUSINESS_ID)) return { ok: false, reason: "wrong_business" };', ''],
-  ['the secret is stored in the clear instead of its hash', 'keys', '.bind(id, label, email, await sha256Hex(secret), createdBy)', '.bind(id, label, email, secret, createdBy)'],
-  ['listing returns the hash', 'keys', 'SELECT id, label, email, created_at, created_by, last_used_at, revoked_at, uses FROM mcp_keys', 'SELECT id, label, email, hash, created_at, created_by, last_used_at, revoked_at, uses FROM mcp_keys'],
+  ['the secret is stored in the clear instead of its hash', 'keys', '.bind(id, label, email, await sha256Hex(secret), createdBy, scopeOf(input.scope))', '.bind(id, label, email, secret, createdBy, scopeOf(input.scope))'],
+  ['listing returns the hash', 'keys', 'SELECT id, label, email, created_at, created_by, last_used_at, revoked_at, uses, scope FROM mcp_keys', 'SELECT id, label, email, hash, created_at, created_by, last_used_at, revoked_at, uses, scope FROM mcp_keys'],
   ['any secret length or character is accepted', 'format', 'const SECRET = /^[A-Za-z0-9_-]{43}$/;', 'const SECRET = /^.+$/;'],
   ['a key id of any shape is accepted', 'format', 'export const KEY_ID_PATTERN = /^[0-9a-f]{16}$/;', 'export const KEY_ID_PATTERN = /^.+$/;'],
   ['extra parts after the secret are accepted', 'format', 'if (parts.length !== 4 || parts[0] !== KEY_PREFIX) return null;', 'if (parts.length < 4 || parts[0] !== KEY_PREFIX) return null;'],
@@ -25,6 +25,12 @@ const MUTATIONS = [
   ['a malformed key is looked up in the database', 'keys', 'if (key === null) return { ok: false, reason: "malformed" };', 'if (key === null) { try { await env.OFFICE_DB.prepare("SELECT 1").first(); } catch { /* noted */ } return { ok: false, reason: "malformed" }; }'],
   ['a business id of any shape is accepted in a key', 'format', 'if (!isBusinessId(businessId) || !KEY_ID_PATTERN.test(keyId) || !SECRET.test(secret)) return null;', 'if (!KEY_ID_PATTERN.test(keyId) || !SECRET.test(secret)) return null;'],
   ['a label with control characters is accepted', 'keys', '|| /[\\u0000-\\u001f\\u007f]/.test(label)', ''],
+  ['any stored scope value is trusted as it stands (an odd or padded value becomes write-capable)', 'keys', 'export const scopeOf = (value: unknown): McpScope => (value === SCOPE_WRITE ? SCOPE_WRITE : SCOPE_READ);', 'export const scopeOf = (value: unknown): McpScope => (typeof value === "string" && value.trim().toLowerCase().includes("write") ? SCOPE_WRITE : SCOPE_READ);'],
+  ['a key with no scope asked for is issued as write', 'keys', 'export const scopeOf = (value: unknown): McpScope => (value === SCOPE_WRITE ? SCOPE_WRITE : SCOPE_READ);', 'export const scopeOf = (value: unknown): McpScope => (value === SCOPE_READ ? SCOPE_READ : SCOPE_WRITE);'],
+  ['an unknown scope is accepted at issue instead of refused', 'keys', 'if (input.scope !== undefined && input.scope !== SCOPE_READ && input.scope !== SCOPE_WRITE) return { ok: false, error: "the scope must be mcp:read or mcp:write." };', ''],
+  ['authentication does not report the key\'s scope (everything reads as read)', 'keys', 'capabilities, scope: scopeOf(row.scope) };', 'capabilities, scope: SCOPE_READ };'],
+  ['a key from a table without the scope column stops working', 'keys', 'catch {\n    try { row = await env.OFFICE_DB.prepare("SELECT id, email, hash, revoked_at FROM mcp_keys WHERE id = ?").bind(key.keyId).first(); } catch { row = null; }', 'catch {\n    try { row = null; } catch { row = null; }'],
+  ['issuing does not add the scope column to an old table', 'keys', 'try { await env.OFFICE_DB.prepare("ALTER TABLE mcp_keys ADD COLUMN scope TEXT NOT NULL DEFAULT \'mcp:read\'").run(); } catch { /* the column is already there */ }', ''],
 ];
 
 (async () => {
