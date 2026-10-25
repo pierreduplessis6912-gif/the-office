@@ -136,6 +136,12 @@ the list below rather than treated as a separate problem.
 
 ---
 
+## Assistant sign-in (OAuth), branch `mcp-oauth-2`, 2026-10-25 (not deployed)
+
+New PUBLIC paths in the gate (`auth.ts` `PUBLIC_ROUTES`) and the router (`routing.ts` `WORKER_ONLY`): discovery, `/oauth/register`, `/oauth/authorize`, `/oauth/consent`, `/oauth/token`, read from `OAUTH_PUBLIC_PATHS` in `mcp-oauth.ts`. Each step is proven by a signed value, Google sign-in and an owner check, never a session. `/mcp` answers 401 with the discovery header. Proof: `tools/mcp-oauth-routes.test.js` and `tools/mcp-oauth-routes-breakage.js` (17 guards). Not yet proven end to end: the `index.ts` wiring (staging slice 3). Design: `MCP_ARCHITECTURE.md`.
+
+---
+
 ## Progress log
 
 Moved (verbatim) to [docs/archive/SECURITY_PROGRESS_LOG.md](docs/archive/SECURITY_PROGRESS_LOG.md) on 2026-10-25. It holds the dated, live-verified results behind every ticked item above.
