@@ -10,6 +10,7 @@ Start at [HANDOVER.md](HANDOVER.md). Links here are checked by `tools/docs-check
 | Workspace context | [CONTEXT.md](CONTEXT.md) | [`worker/src/context.ts`](worker/src/context.ts) | [`tools/context.test.js`](tools/context.test.js) |
 | Who can call what | [ROUTE_POLICY.md](ROUTE_POLICY.md) | [`tools/route-policy-gen.js`](tools/route-policy-gen.js) | [`tools/route-policy.test.js`](tools/route-policy.test.js) |
 | Read-only MCP adapter | [MCP_ARCHITECTURE.md](MCP_ARCHITECTURE.md) | [`worker/src/mcp.ts`](worker/src/mcp.ts) | [`tools/mcp-keys-breakage.js`](tools/mcp-keys-breakage.js) |
+| MCP testing record | [MCP_TEST_SUMMARY.md](MCP_TEST_SUMMARY.md), [MCP_TEST_LOG.md](MCP_TEST_LOG.md) | none | none yet (proposed in the summary) |
 | Analysis and reports | [CONVERSATIONAL_BI_ARCHITECTURE.md](CONVERSATIONAL_BI_ARCHITECTURE.md) | [`worker/src/analysis.ts`](worker/src/analysis.ts) | [`tools/analysis.test.js`](tools/analysis.test.js) |
 | Spoken follow-ups | [CONVERSATIONAL_BI_ARCHITECTURE.md](CONVERSATIONAL_BI_ARCHITECTURE.md) | [`worker/src/followup.ts`](worker/src/followup.ts) | [`tools/followup.test.js`](tools/followup.test.js) |
 | History and audit | [DECISIONS.md](DECISIONS.md) | [`worker/src/history.ts`](worker/src/history.ts) | [`tools/history.test.js`](tools/history.test.js) |
@@ -20,7 +21,7 @@ Start at [HANDOVER.md](HANDOVER.md). Links here are checked by `tools/docs-check
 
 ## Every document, by status
 
-**real:** [ATLAS.md](ATLAS.md), [BACKEND_CAPABILITY_MAP.md](BACKEND_CAPABILITY_MAP.md), [CONTEXT.md](CONTEXT.md), [COORDINATION.md](COORDINATION.md), [CORE_SUBSTRATE_ARCHITECTURE.md](CORE_SUBSTRATE_ARCHITECTURE.md), [DECISIONS.md](DECISIONS.md), [ENVELOPE.md](ENVELOPE.md), [FEATURES.md](FEATURES.md), [HANDOVER.md](HANDOVER.md), [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md), [README.md](README.md), [ROOMS_BACKEND_SCOPE.md](ROOMS_BACKEND_SCOPE.md), [ROUTE_POLICY.md](ROUTE_POLICY.md), [RUNBOOK.md](RUNBOOK.md), [SECURITY_AND_OPERATIONAL_READINESS.md](SECURITY_AND_OPERATIONAL_READINESS.md), [SHIP_CHECKLIST.md](SHIP_CHECKLIST.md)
+**real:** [ATLAS.md](ATLAS.md), [BACKEND_CAPABILITY_MAP.md](BACKEND_CAPABILITY_MAP.md), [CONTEXT.md](CONTEXT.md), [COORDINATION.md](COORDINATION.md), [CORE_SUBSTRATE_ARCHITECTURE.md](CORE_SUBSTRATE_ARCHITECTURE.md), [DECISIONS.md](DECISIONS.md), [ENVELOPE.md](ENVELOPE.md), [FEATURES.md](FEATURES.md), [HANDOVER.md](HANDOVER.md), [MCP_TEST_LOG.md](MCP_TEST_LOG.md), [MCP_TEST_SUMMARY.md](MCP_TEST_SUMMARY.md), [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md), [README.md](README.md), [ROOMS_BACKEND_SCOPE.md](ROOMS_BACKEND_SCOPE.md), [ROUTE_POLICY.md](ROUTE_POLICY.md), [RUNBOOK.md](RUNBOOK.md), [SECURITY_AND_OPERATIONAL_READINESS.md](SECURITY_AND_OPERATIONAL_READINESS.md), [SHIP_CHECKLIST.md](SHIP_CHECKLIST.md)
 
 **partly built:** [CALENDAR_INTEGRATION_ARCHITECTURE.md](CALENDAR_INTEGRATION_ARCHITECTURE.md), [CONVERSATIONAL_BI_ARCHITECTURE.md](CONVERSATIONAL_BI_ARCHITECTURE.md), [ERP_MODE_ARCHITECTURE.md](ERP_MODE_ARCHITECTURE.md), [FEATURE_STATUS_MATRIX.md](FEATURE_STATUS_MATRIX.md), [IDENTITY_ARCHITECTURE.md](IDENTITY_ARCHITECTURE.md), [LOOKUP_ROUTING_ARCHITECTURE.md](LOOKUP_ROUTING_ARCHITECTURE.md), [MCP_ARCHITECTURE.md](MCP_ARCHITECTURE.md), [OFFICE_RUNTIME_V1.md](OFFICE_RUNTIME_V1.md), [ONBOARDING_JOURNEY.md](ONBOARDING_JOURNEY.md), [UI_MAP.md](UI_MAP.md)
 
