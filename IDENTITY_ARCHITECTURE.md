@@ -1,5 +1,7 @@
 > **Status:** partly built. **Verified:** not yet. **Owns:** `worker/src/identity.ts`.
 
+> **Audit 2026-10-25.** Read against the code. BUILT: the `people` table (in the baseline schema); a nullable `person_id` on `customers`, `characters` and `leads`; `reconcilePerson()` in `identity.ts`, which treats a first name under 8 characters as weak (ambiguous, never matched) and returns matched, ambiguous or new; `reconcileCustomer` calls it; `leads.capture_id`; a backfill (`POST /debug/backfill-people`), a review list (`GET /debug/people-needing-review`), a test route (`GET /debug/person-match-test`) and a merge (`POST /debug/init-people-merge`, `people.merged_into_person_id`). NOT built, as the document says: the `people_links` table (no such table or `link_type` in the code). The names reported missing by the checker (`companyId`, `link_doctype`, `noteTargets` and the like) belong to the outside systems it cites, not to this code. NOT verified: that the backfill was run on production and reviewed, how `reconcileCharacter` uses `people`, the "exact full-name match reconciles automatically" rule line by line, and the capture_id audit of every table. The merge is not described below.
+
 # Identity Architecture — A Real, Canonical Person
 
 Pinned before building, per direct instruction — the same treatment

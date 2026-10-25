@@ -413,3 +413,5 @@ Decided with Pierre ("both and sales and admin"); the capability definitions he 
 **Docs pass 3 (2026-10-25).** `HANDOVER.md` now says slice 12 drew the refusal screen; `SHIP_CHECKLIST.md` Housekeeping 1 and 2 now match the live token (classic, `repo` + `workflow`, expires 2026-11-23; the old classic token's state is unverified).
 
 **Docs pass 4 (2026-10-25).** `SHIP_CHECKLIST.md` checked line by line against the code: route, tier and transaction counts corrected (admin 172, privileged 39, 23 transactional operations); live-run figures left as dated history. Still unverified: the other 13 documents listed in `HANDOVER.md`.
+
+**Docs pass 8 (2026-10-25).** `IDENTITY_ARCHITECTURE.md` and `ONBOARDING_JOURNEY.md` read against the code: both now say what is built (people table, `person_id`, `reconcilePerson`; flexible imports, `onboarding_progress`, server journey) and what is not (`people_links`; app onboarding screens, milestone callouts, scripted demo).

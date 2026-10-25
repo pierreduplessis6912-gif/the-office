@@ -1,5 +1,7 @@
 > **Status:** partly built. **Verified:** not yet. **Owns:** `worker/src/onboarding.ts`.
 
+> **Audit 2026-10-25.** Read against the code. Several "real gaps" below are CLOSED on the server: the invoice import finds its columns by name from alias lists (`csv-import.ts`, so it is no longer fixed to one tool's columns; the Invoice Simple label is still accepted); bulk imports exist for customers, invoices, team, suppliers and products (`/files/customers-csv-import`, `/files/invoices-csv-import`, `/files/team-csv-import`, `/files/suppliers-csv-import`, `/files/products-csv-import`); `onboarding_progress` exists (migration 0002) with seven steps and the owner-only `GET /onboarding` and `POST /onboarding/step` (`SHIP_CHECKLIST.md` item 15). The tenant-isolation prerequisite is built (one Durable Object per business). STILL TRUE: the app has no onboarding screens (welcome, checklist, "try saying"): `app/lib/main.dart` mentions onboarding only for the bulk-import actions, and the first launch still shows the cold "TAP OR HOLD TO SPEAK" text; the milestone callouts and the scripted demo are not built (deferred by Pierre, 2026-10-14). `forget_last` exists as an intent in `ai.ts`. NOT verified: the Category 1 example phrases and the Category 2 triggers (not run). The "tonight" wording below is July.
+
 # Onboarding Journey — Welcome, Guided Setup, and Showing Off What's Real
 
 Pinned the same way `WHATSAPP_CHANNEL_ARCHITECTURE.md` and
