@@ -842,3 +842,7 @@ Pierre shared a note arguing for "one coordinator per business, add more objects
 
 ## MCP stage 1: wider reads and a short-lived document link (2026-10-25)
 Six read-only tools added to `/mcp` (customers, jobs, invoices, quotes, stock, document link). Owner only, because the installer's own-jobs scoping is not rebuilt here. The document link lasts 10 minutes (the app's own `/documents/sign` length), not the 60 days of a customer link: the PDF carries the business's banking details and the key does not expire. Details: `MCP_ARCHITECTURE.md`, end.
+
+## MCP stage 2: a write scope and one creating tool (2026-10-26)
+Keys gain a scope (`mcp:read` default, `mcp:write` only by the owner's choice on the consent page). One tool, `tell_the_office`, owner only and write scope only, goes through the typed-message pipeline; no confirmation step (Pierre, 2026-10-25). Caps 20 an hour and 100 a day per key. An invoice or quote over R50,000 is FLAGGED, not blocked (Pierre, 2026-10-26): an invoice is a voidable record, no customer email goes out automatically yet, and any fixed ceiling would block real jobs (a R40,642 quote exists) or protect nothing; a block would also have meant changing the invoice step in `finance.ts`. Tagging by id range is advisory. Details: `MCP_ARCHITECTURE.md`, end.
+
