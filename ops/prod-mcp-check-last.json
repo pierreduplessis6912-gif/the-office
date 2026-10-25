@@ -1,0 +1,16 @@
+{
+ "when": "2026-10-25T10:46:46.584689Z",
+ "run": "40186155900",
+ "commit": "74e0408",
+ "checks": {
+  "connected": true,
+  "server_named": true,
+  "tools_listed": true,
+  "tool_names_match": true,
+  "debtors_read": true,
+  "profit_and_loss_read": true,
+  "unknown_tool_refused": true,
+  "bad_key_refused": true,
+  "closed_cleanly": true
+ }
+}
