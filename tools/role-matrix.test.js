@@ -870,6 +870,8 @@ async function expect(role, method, path, want) {
   await require('./mcp-endpoint.test.js')({ check, srcDir });
   // OAuth for assistants that cannot send a static key (worker/src/mcp-oauth.ts): the pure core, before any route uses it.
   await require('./mcp-oauth.test.js')({ check, srcDir });
+  // The OAuth routes themselves (register, authorize, the Google hook, consent, token) and the business's single-use issue, through the real pipeline.
+  await require('./mcp-oauth-routes.test.js')({ check, srcDir });
   // The history and audit record: heard, interpreted, proposed, decided, replied, and the records written
   await require('./history.test.js')({ check, srcDir });
   // Workspace context: an untrusted, validated hint recorded with the turn; never a permission, not yet used to interpret speech

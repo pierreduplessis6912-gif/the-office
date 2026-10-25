@@ -15,6 +15,7 @@
 // are NOT imported here beyond what a route genuinely reads directly
 // (like ROLE_CAPABILITIES, to validate a role name) — the actual
 // gating already ran in index.ts before this function is ever called.
+import { issueForCode } from "./mcp-oauth-issue";
 import { atomically } from "./atomic";
 import { assignPlan, listPlans, setPlan } from "./limits";
 import { healthReport } from "./health";
@@ -1142,6 +1143,13 @@ if (url.pathname === "/debug/record-sign-in" && request.method === "POST") {
       if (typeof body.email !== "string" || !body.email) return Response.json({ error: "email is required" }, { status: 400 });
       await recordSignIn(env, body.email);
       return Response.json({ status: "recorded" });
+    }
+
+// An assistant's one-time code traded for a read-only key (mcp-oauth-issue.ts). Called by the Worker's /oauth/token after it verified the signed code; the code works once and only an active owner can be issued a key. Privileged.
+if (url.pathname === "/debug/mcp-oauth-issue" && request.method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { email?: unknown; label?: unknown; jti?: unknown };
+      const made = await issueForCode(env, body);
+      return made.ok ? Response.json({ key: made.key }, { headers: { "Cache-Control": "no-store" } }) : Response.json({ reason: made.reason }, { status: made.status });
     }
 
 // Is this business verifiably empty (emptiness.ts)? Asked by the Worker during the empty-business handover; it only reads.

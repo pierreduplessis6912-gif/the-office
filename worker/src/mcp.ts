@@ -2,6 +2,7 @@
 // THE RULES (each held by a test that fails if it is removed, tools/mcp-endpoint-breakage.js): (1) a key is the only way in: no key, a malformed key, a wrong, revoked or another business's key, an inactive member and a lapsed business are ALL the same 401, and a session alone is refused at the gate; (2) NOTHING here writes business data: the five tools only read, through the same functions the routes use;
 // (3) every tool is authorised by the SAME rule table as the route it mirrors, against the member's role NOW, and a tool the member may not use returns no data; (4) each key has a rate limit (30 a minute, 500 a day) and every tool call is audited ("via MCP, key <id>", the member, the tool, the outcome and the time: never the arguments or the result); (5) the kill switch (the Worker variable MCP set to "off") answers 503 before anything is read;
 // (6) bounded: a request body over 64 KB, a batch, malformed JSON and an oversized result are refused. The protocol surface is: initialize, ping, notifications (202), tools/list and tools/call. Resources, prompts and sessions are not declared, so a client must not call them.
+import { challengeHeader } from "./mcp-oauth";
 import { businessLapsed } from "./access";
 import { analysisData, parseAnalysisParams } from "./analysis";
 import { ROUTE_RULES } from "./auth";
@@ -144,14 +145,14 @@ async function audit(env: Env, who: Who, tool: string, outcome: string, ms: numb
 const JSON_HEADERS = { "Content-Type": "application/json", "Cache-Control": "no-store" };
 const reply = (id: unknown, result: unknown): Response => Response.json({ jsonrpc: "2.0", id, result }, { headers: JSON_HEADERS });
 const failure = (id: unknown, code: number, message: string, status = 200): Response => Response.json({ jsonrpc: "2.0", id, error: { code, message } }, { status, headers: JSON_HEADERS });
-const unauthorized = (): Response => Response.json({ error: "unauthorized" }, { status: 401, headers: { "WWW-Authenticate": "Bearer", "Cache-Control": "no-store" } });
+const unauthorized = (request: Request): Response => Response.json({ error: "unauthorized" }, { status: 401, headers: { "WWW-Authenticate": challengeHeader(new URL(request.url).origin), "Cache-Control": "no-store" } });
 
 /** Answers one MCP request. The key is verified here on EVERY call; the gate in auth.ts has only checked that one was presented. */
 export async function handleMcp(request: Request, env: Env): Promise<Response> {
   if (env.MCP === "off") return Response.json({ error: "MCP is switched off." }, { status: 503, headers: { "Cache-Control": "no-store" } });
   const auth = await authenticateKey(env, bearerKey(request));
-  if (!auth.ok) return unauthorized();   // the reason is for the audit: a caller only ever learns "unauthorized"
-  if (await businessLapsed(env)) return unauthorized();
+  if (!auth.ok) return unauthorized(request);   // the reason is for the audit: a caller only ever learns "unauthorized"
+  if (await businessLapsed(env)) return unauthorized(request);
   if (request.method !== "POST") return new Response(null, { status: 405, headers: { Allow: "POST", "Cache-Control": "no-store" } });
   const who: Who = { keyId: auth.keyId, email: auth.email, role: auth.role, capabilities: auth.capabilities };
 

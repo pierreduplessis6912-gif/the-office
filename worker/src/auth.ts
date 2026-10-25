@@ -13,6 +13,7 @@
 // re-extract from this file now and still pass.
 import { cannotRecord, type Refusal } from "./refusals";
 import { bearerKey, parseKey } from "./mcp-key-format";
+import { challengeHeader, OAUTH_PUBLIC_PATHS } from "./mcp-oauth";
 import { businessLapsed } from "./access";
 import { isBusinessId } from "./directory";
 import { authorizeAdmin } from "./admin-gate";
@@ -444,6 +445,8 @@ const PUBLIC_ROUTES = new Set([
   "/auth/logout",
   "/auth/me",
 ]);
+// Assistant sign-in (mcp-oauth-routes.ts): discovery, registration, authorize, consent and token. Public by design: the person has no session yet, and each step is proven by a signed value, the Google sign-in and the owner check, not by a session.
+for (const p of OAUTH_PUBLIC_PATHS) PUBLIC_ROUTES.add(p);
 
 // Real, new, per direct instruction — stage 3. The app itself depends on
 // exactly these 7 /debug routes (found by grepping main.dart, not
@@ -1006,7 +1009,7 @@ export async function authGate(request: Request, env: Env, url: URL): Promise<Re
   // customer link and the owner's own in-app tap (via launchUrl, which
   // carries no session at all) both rely on this, not on being signed in.
   // The read-only MCP endpoint (mcp.ts) is opened by its OWN key and by nothing else: a session is neither needed nor accepted there. A request without a well-formed key is refused here (independent of ENFORCE_APP_AUTH, like the signed-link routes above); the key itself is verified against the business's keys, and the member checked, on every call in the handler.
-  if (path === "/mcp") return parseKey(bearerKey(request)) === null ? Response.json({ error: "unauthorized" }, { status: 401, headers: { "WWW-Authenticate": "Bearer" } }) : null;
+  if (path === "/mcp") return parseKey(bearerKey(request)) === null ? Response.json({ error: "unauthorized" }, { status: 401, headers: { "WWW-Authenticate": challengeHeader(url.origin) } }) : null;
 
   if (path.endsWith("/pdf")) {
     const sig = url.searchParams.get("sig");

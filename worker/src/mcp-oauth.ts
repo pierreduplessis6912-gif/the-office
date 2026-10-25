@@ -4,6 +4,8 @@
 import type { Env } from "./types";
 
 export const SCOPE = "mcp:read";
+/** Every path the OAuth routes answer, public by design (no session exists yet). Lives here, with no imports, so the gate (auth.ts) and the router (routing.ts) can read it without a cycle. */
+export const OAUTH_PUBLIC_PATHS: readonly string[] = ["/oauth/register", "/oauth/authorize", "/oauth/consent", "/oauth/token", "/.well-known/oauth-protected-resource", "/.well-known/oauth-authorization-server", "/.well-known/oauth-protected-resource/mcp", "/.well-known/oauth-authorization-server/mcp"];
 export const TICKET_TTL_MS = 10 * 60 * 1000;
 export const CODE_TTL_MS = 5 * 60 * 1000;
 const MAX_REDIRECTS = 5;
@@ -14,7 +16,7 @@ const b64u = (bytes: Uint8Array): string => { let s = ""; for (const b of bytes)
 const unb64u = (text: string): Uint8Array => { const s = atob(text.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(text.length / 4) * 4, "=")); return Uint8Array.from(s, (c) => c.charCodeAt(0)); };
 const hmacKey = (env: Env, purpose: string) => crypto.subtle.importKey("raw", enc.encode(`mcp-oauth|${purpose}|${env.SESSION_SECRET}`), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
 
-export type Purpose = "client" | "ticket" | "code";
+export type Purpose = "client" | "ticket" | "code" | "authreq";
 /** A signed, self-describing value. `exp` (ms) is added when a ttl is given. */
 export async function seal(env: Env, purpose: Purpose, payload: Record<string, unknown>, now: number, ttlMs?: number): Promise<string> {
   const body = b64u(enc.encode(JSON.stringify(ttlMs ? { ...payload, exp: now + ttlMs } : payload)));
@@ -95,6 +97,16 @@ export async function parseAuthorize(env: Env, params: URLSearchParams, now: num
   const state = params.get("state");
   if (state !== null && (state.length > 512 || /[\u0000-\u001f\u007f]/.test(state))) return fail(400, "invalid_request", "That state value is not acceptable.");
   return { ok: true, request: { client_id, client_name: client.name, redirect_uri, challenge, state } };
+}
+
+/** The authorize request, kept in a short-lived cookie while the owner signs in with Google. Only the client id and what the client asked for are sealed; the name and the allowed return addresses are read again from the client id when it is opened, so a changed rule or a tampered cookie can never send the browser anywhere new. */
+export const makeAuthRequest = (env: Env, request: AuthorizeRequest, now: number): Promise<string> => seal(env, "authreq", { client_id: request.client_id, redirect_uri: request.redirect_uri, challenge: request.challenge, state: request.state }, now, TICKET_TTL_MS);
+export async function openAuthRequest(env: Env, token: unknown, now: number): Promise<AuthorizeRequest | null> {
+  const p = await open<{ client_id: string; redirect_uri: string; challenge: string; state: string | null } & Record<string, unknown>>(env, "authreq", token, now);
+  if (!p || typeof p.client_id !== "string" || typeof p.redirect_uri !== "string" || typeof p.challenge !== "string" || !CHALLENGE.test(p.challenge) || !(p.state === null || typeof p.state === "string")) return null;
+  const client = await open<Registered & Record<string, unknown>>(env, "client", p.client_id, now);
+  if (!client || typeof client.name !== "string" || !Array.isArray(client.redirect_uris) || !client.redirect_uris.includes(p.redirect_uri) || !redirectAllowed(p.redirect_uri)) return null;
+  return { client_id: p.client_id, client_name: client.name, redirect_uri: p.redirect_uri, challenge: p.challenge, state: p.state };
 }
 
 export interface Who { email: string; businessId: string }

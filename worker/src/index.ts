@@ -6,6 +6,7 @@ import { agedCreditorsData, agedDebtorsData, customerReceivablesData, parseCusto
 import { withExperience } from "./experience";
 import { followUpReply, tryFollowUp } from "./followup";
 import { handleMcp } from "./mcp";
+import { continueOAuthSignIn, handleOAuthRoute } from "./mcp-oauth-routes";
 import { issueKey, listKeys, revokeKey } from "./mcp-keys";
 import { analysisData, parseAnalysisParams } from "./analysis";
 import { businessLapsed } from "./access";
@@ -1703,6 +1704,10 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
     // existing instance. Google verifies who someone is; this Worker
     // only ever trusts an ID token it has independently verified with
     // Google itself, never anything the client claims on its own.
+    // Assistant sign-in (mcp-oauth-routes.ts): discovery, registration, authorize, consent, token. Answered here, never by a business object.
+    const oauthAnswer = await handleOAuthRoute(request, env);
+    if (oauthAnswer) return oauthAnswer;
+
     if (url.pathname === "/auth/google/login" && request.method === "GET") {
       const state = base64UrlEncode(crypto.getRandomValues(new Uint8Array(24)));
       const redirectUri = `${url.origin}/auth/google/callback`;
@@ -1731,6 +1736,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       if (redirectOrigin) {
         headers.append("Set-Cookie", `oauth_redirect_origin=${encodeURIComponent(redirectOrigin)}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=600`);
       }
+      // A normal app sign-in drops any assistant request left over from a half-finished connect (its sealed cookie lives ten minutes), so it can never turn a sign-in into a consent page. /oauth/authorize comes here with mcp=1 and keeps it.
+      if (url.searchParams.get("mcp") !== "1") headers.append("Set-Cookie", "oauth_mcp=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0");
       return new Response(null, { status: 302, headers });
     }
 
@@ -1798,6 +1805,10 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           .bind(claims.email)
           .first<{ id: number; google_email: string; role: string; status: string }>();
       }
+
+      // An assistant asked to connect (a sealed cookie from /oauth/authorize): the owner sees the consent page, anyone else is sent back as access_denied. No session is issued on this path.
+      const assistantStep = await continueOAuthSignIn(request, env, { email: sessionEmail, businessId: sessionBusiness, role: membership?.role ?? null, active: membership?.status === "active" });
+      if (assistantStep) return assistantStep;
 
       if (!membership || membership.status !== "active") {
         // A BROWSER (the tab Google's sign-in opened) gets a page: start a business, or ask the owner to add you (signup.ts). Anything else keeps the JSON refusal.

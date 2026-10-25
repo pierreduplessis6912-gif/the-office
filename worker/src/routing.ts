@@ -7,12 +7,13 @@ import { bearerKey, peekBusinessFromKey } from "./mcp-key-format";
 import { getSessionToken, isAdminPath, peekBusinessFromToken, peekIsLegacyLink, readSessionPayload } from "./auth";
 import { safeEqual } from "./admin-gate";
 import { isBusinessId, objectNameFor } from "./directory";
+import { OAUTH_PUBLIC_PATHS } from "./mcp-oauth";
 import type { Env } from "./types";
 
 export type Route = { kind: "worker" } | { kind: "business"; businessId: string } | { kind: "refuse"; status: number; error: string };
 
 // Public routes that need no business: the Worker answers them itself. (A sign-in finds the business in the directory; it does not need one to start.)
-const WORKER_ONLY = new Set(["/", "/health", "/auth/google/login", "/auth/google/callback", "/auth/signup", "/auth/join", "/auth/logout", "/billing/pay", "/billing/payfast/notify", "/billing/return", "/billing/cancelled", "/billing/plans", "/billing/start", "/billing/update-card", "/billing/card-updated"]);
+const WORKER_ONLY = new Set([...OAUTH_PUBLIC_PATHS, "/", "/health", "/auth/google/login", "/auth/google/callback", "/auth/signup", "/auth/join", "/auth/logout", "/billing/pay", "/billing/payfast/notify", "/billing/return", "/billing/cancelled", "/billing/plans", "/billing/start", "/billing/update-card", "/billing/card-updated"]);
 // Admin routes the Worker answers itself: they work on the shared layer or on the Worker's own bindings, not on a business's data. The two memory routes report on the WHOLE shared index (its total
 // vector count and indexing lag), which belongs to the platform; a business's own scoped view of the index cannot describe it (scoped-bindings.ts).
 const WORKER_ADMIN = new Set(["/debug/trial-d1", "/debug/trial-do", "/debug/trial-tx", "/debug/trial-ai", "/debug/memory-health", "/debug/stress-memory"]);   // /debug/timings is NOT here: the model-versus-database split lives inside each business's object

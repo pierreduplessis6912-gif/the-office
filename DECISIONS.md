@@ -185,6 +185,7 @@ Split on 2026-10-24 from the 7958-line original, which is `git show 95bf743:DECI
 - [Bringing a trial back, a flaky test in the deploy gate, and a pipeline gap, 2026-10-17](docs/decisions/platform-and-operations.md) (was line 7558)
 - [Reading an outside architecture note on one versus several Durable Objects per business, 2026-10-17](docs/decisions/platform-and-operations.md) (was line 7598)
 - [Operations, part 1: the billing health check, 2026-10-19](docs/decisions/platform-and-operations.md) (was line 7842)
+- [MCP OAuth, slice 2: the routes and the single-use issue, 2026-10-25](docs/decisions/platform-and-operations.md) (new)
 
 ### [app-and-experience](docs/decisions/app-and-experience.md): the Flutter app, the runtime, the orb and the void, speech, front-end slices, workspace context (17 sections)
 
