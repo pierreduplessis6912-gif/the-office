@@ -3,7 +3,7 @@ name: Production MCP check (a real client against the live read-only endpoint)
 on:
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -22,3 +22,17 @@ jobs:
           BASE="https://office.websitehub.co.za" OUT=/tmp/mcpc/result.json timeout 120 node mcp-real-client.mjs || true
           echo "RESULT (true or false only):"
           cat /tmp/mcpc/result.json
+      - name: Record the booleans on main
+        run: |
+          mkdir -p ops
+          python3 - <<'PY'
+          import json, os, datetime
+          r = json.load(open("/tmp/mcpc/result.json"))
+          out = {"when": datetime.datetime.utcnow().isoformat() + "Z", "run": os.environ["GITHUB_RUN_ID"], "commit": os.environ["GITHUB_SHA"][:7], "checks": {k: v is True for k, v in r.items()}}
+          open("ops/prod-mcp-check-last.json", "w").write(json.dumps(out, indent=1) + "\n")
+          PY
+          git config user.name "production-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/prod-mcp-check-last.json
+          git commit -q -m "Production MCP check record (booleans only)"
+          git pull -q --rebase origin main && git push -q origin HEAD:main
