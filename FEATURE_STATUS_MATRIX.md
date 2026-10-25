@@ -58,7 +58,7 @@ CI test suite, not "should work."
 - The remaining file-splitting work (`finance.ts`, `ai.ts`, `main.dart`,
   the `processOneExtraction` rewrite) — tracked in
   `SECURITY_AND_OPERATIONAL_READINESS.md` and
-  `PROCESS_ONE_EXTRACTION_REWRITE.md`, not duplicated here.
+  `docs/archive/PROCESS_ONE_EXTRACTION_REWRITE.md`, not duplicated here.
 - Real, pinned architectural designs not yet built (WhatsApp, onboarding,
   self-help, conversational BI) — those are real, upcoming work, not
   features to mark done or not-done in a present-tense table like this

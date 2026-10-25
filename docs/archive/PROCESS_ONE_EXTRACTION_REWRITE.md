@@ -1,4 +1,6 @@
-> **Status:** proposed. **Verified:** 2026-10-24. **Owns:** none.
+> **Status:** archived. **Verified:** not yet. **Owns:** none.
+
+> **Archived 2026-10-25.** The plan was carried out: `processOneExtraction` now lives in the modules under `worker/src/intents/` (dispatcher, result and the handler groups), and `OPEN_QUESTIONS.md` records Phase 3 as complete (2026-10-04). Kept for the reasoning behind the shape; moved here from the repo root to cut what a fresh chat has to open. Not re-checked against the code line by line.
 
 # processOneExtraction Rewrite — A Real, Staged Plan, Not a Blank-Page Rewrite
 
