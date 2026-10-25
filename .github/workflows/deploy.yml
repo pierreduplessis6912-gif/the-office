@@ -46,10 +46,17 @@ jobs:
         working-directory: worker
         run: npm ci
 
+      # What matters is what PRODUCTION is running, not what the previous commit on main was: the previous commit may have failed its tests and never deployed (2026-10-17: a tests-only fix after a red run skipped the deploy and left a
+      # Worker change, and would have left a migration's staging gate, undone). The deploy stamps its commit into the Worker and /health reports it; "unknown" means "deploy, and rehearse any migration".
+      - name: Which commit is production running?
+        id: running
+        run: echo "base=$(bash tools/deployed-base.sh "$GITHUB_SHA" https://office.websitehub.co.za)" >> "$GITHUB_OUTPUT"
+
       - name: Documentation check
         run: node tools/docs-check.js
         env:
-          DOCS_CHECK_BASE: ${{ github.event.before }}
+          # the same base the pipeline uses for everything else: what PRODUCTION is running (never github.event.before, which is unreliable: tools/deploy-base.test.js holds that)
+          DOCS_CHECK_BASE: ${{ steps.running.outputs.base }}
 
       - name: Typecheck
         working-directory: worker
@@ -66,12 +73,6 @@ jobs:
           NODE_PATH: worker/node_modules
           HARNESS_BACKEND: do
           HARNESS_INDEXES: "1"
-
-      # What matters is what PRODUCTION is running, not what the previous commit on main was: the previous commit may have failed its tests and never deployed (2026-10-17: a tests-only fix after a red run skipped the deploy and left a
-      # Worker change, and would have left a migration's staging gate, undone). The deploy stamps its commit into the Worker and /health reports it; "unknown" means "deploy, and rehearse any migration".
-      - name: Which commit is production running?
-        id: running
-        run: echo "base=$(bash tools/deployed-base.sh "$GITHUB_SHA" https://office.websitehub.co.za)" >> "$GITHUB_OUTPUT"
 
       - name: Did the Worker change?
         id: changes
