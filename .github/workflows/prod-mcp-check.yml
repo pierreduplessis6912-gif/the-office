@@ -1,0 +1,24 @@
+name: Production MCP check (a real client against the live read-only endpoint)
+# Reads two reports through the official MCP SDK client with the owner's read-only key (secret MCP_PROD_KEY) and records only true or false. Nothing else can start it but a person. Delete the secret and revoke the key in the app when done.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run the real client against production
+        env:
+          KEY: ${{ secrets.MCP_PROD_KEY }}
+        run: |
+          mkdir -p /tmp/mcpc && cd /tmp/mcpc && npm init -y >/dev/null 2>&1 && npm install --silent @modelcontextprotocol/sdk@1.32.1 >/dev/null 2>&1
+          cp "$GITHUB_WORKSPACE/tools/mcp-real-client.mjs" /tmp/mcpc/
+          BASE="https://office.websitehub.co.za" OUT=/tmp/mcpc/result.json timeout 120 node mcp-real-client.mjs || true
+          echo "RESULT (true or false only):"
+          cat /tmp/mcpc/result.json
