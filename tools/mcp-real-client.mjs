@@ -7,7 +7,7 @@ import { writeFileSync } from "node:fs";
 
 const { BASE, KEY, OUT } = process.env;
 const r = { connected: false, server_named: false, tools_listed: false, tool_names_match: false, debtors_read: false, profit_and_loss_read: false, unknown_tool_refused: false, bad_key_refused: false, closed_cleanly: false };
-const EXPECTED = ["get_profit_and_loss", "get_aged_debtors", "get_customer_receivables", "analyse", "get_recent_history"];
+const EXPECTED = ["get_profit_and_loss", "get_aged_debtors", "get_customer_receivables", "analyse", "get_recent_history", "list_customers", "list_jobs", "list_invoices", "list_quotes", "get_stock", "get_document_link"];
 const open = async (key) => {
   const client = new Client({ name: "office-rehearsal-client", version: "1" });
   const transport = new StreamableHTTPClientTransport(new URL(BASE.replace(/\/$/, "") + "/mcp"), { requestInit: { headers: { Authorization: "Bearer " + key } } });

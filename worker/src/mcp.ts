@@ -1,11 +1,12 @@
 // The read-only MCP endpoint: POST /mcp (MCP_ARCHITECTURE.md, "Decisions made, and the design"). A hand-written, minimal, STATELESS Streamable HTTP server: JSON-RPC 2.0 over POST, plain JSON replies, no stream held open, no session, no packages. It lets an outside assistant READ a business's figures as ONE member, and nothing else.
-// THE RULES (each held by a test that fails if it is removed, tools/mcp-endpoint-breakage.js): (1) a key is the only way in: no key, a malformed key, a wrong, revoked or another business's key, an inactive member and a lapsed business are ALL the same 401, and a session alone is refused at the gate; (2) NOTHING here writes business data: the five tools only read, through the same functions the routes use;
+// THE RULES (each held by a test that fails if it is removed, tools/mcp-endpoint-breakage.js): (1) a key is the only way in: no key, a malformed key, a wrong, revoked or another business's key, an inactive member and a lapsed business are ALL the same 401, and a session alone is refused at the gate; (2) NOTHING here writes business data: the eleven tools only read (the first five through the same functions the routes use; the stage 1 lists, stock and document link are owner only, queries in mcp-reads.ts);
 // (3) every tool is authorised by the SAME rule table as the route it mirrors, against the member's role NOW, and a tool the member may not use returns no data; (4) each key has a rate limit (30 a minute, 500 a day) and every tool call is audited ("via MCP, key <id>", the member, the tool, the outcome and the time: never the arguments or the result); (5) the kill switch (the Worker variable MCP set to "off") answers 503 before anything is read;
 // (6) bounded: a request body over 64 KB, a batch, malformed JSON and an oversized result are refused. The protocol surface is: initialize, ping, notifications (202), tools/list and tools/call. Resources, prompts and sessions are not declared, so a client must not call them.
 import { challengeHeader } from "./mcp-oauth";
 import { businessLapsed } from "./access";
 import { analysisData, parseAnalysisParams } from "./analysis";
-import { ROUTE_RULES } from "./auth";
+import { ROUTE_RULES, signDocumentPath } from "./auth";
+import { MAX_PAGE, customersData, documentExists, invoicesData, jobsData, parseId, parsePage, parseRange, parseSearch, quotesData, stockData } from "./mcp-reads";
 import { parseHistoryParams, readHistory, resolveScope } from "./history";
 import { bearerKey } from "./mcp-key-format";
 import { authenticateKey } from "./mcp-keys";
@@ -25,8 +26,9 @@ interface Tool {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
+  ownerOnly?: boolean;   // stage 1 tools: only the owner, whatever the route table says (the installer's own-jobs scoping is not reproduced here)
   route: { method: string; path: string } | null;   // the route whose authorization this tool mirrors; null = open to any active member (own history only)
-  run: (env: Env, args: Record<string, unknown>, who: Who) => Promise<ToolOutput>;
+  run: (env: Env, args: Record<string, unknown>, who: Who, origin: string) => Promise<ToolOutput>;
 }
 
 const DATE = { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: "A date, YYYY-MM-DD." };
@@ -115,9 +117,59 @@ const TOOLS: Tool[] = [
   },
 ];
 
+const PAGE_PROPS = { limit: { type: "integer", minimum: 1, maximum: MAX_PAGE, default: 25 }, offset: { type: "integer", minimum: 0, default: 0 } };
+const RANGE_PROPS = { from: DATE, to: DATE };
+function listTool(name: string, description: string, extra: Record<string, unknown>, allowed: string[], read: (env: Env, args: Record<string, unknown>) => Promise<ToolOutput>): Tool {
+  return { name, description, ownerOnly: true, route: null, inputSchema: { type: "object", properties: { ...extra, ...PAGE_PROPS }, additionalProperties: false },
+    async run(env, args) { for (const key of Object.keys(args)) if (!allowed.includes(key)) return bad(`unknown argument: ${key.slice(0, 40)}`); return read(env, args); } };
+}
+const WIDER_TOOLS: Tool[] = [
+  listTool("list_customers", "The business's customers (merged duplicates left out), by name. search matches the name or address.", { search: { type: "string", maxLength: 60 } }, ["search", "limit", "offset"], async (env, a) => {
+    const p = parsePage(a), s = parseSearch(a.search); if (!p.ok) return bad(p.error); if (!s.ok) return bad(s.error);
+    return { ok: true, data: await customersData(env, p.page, s.search) };
+  }),
+  listTool("list_jobs", "Jobs (job scopes) with their scheduled date, soonest first; undated jobs come last. from and to filter on the scheduled date.", { customer_id: { type: "integer", minimum: 1 }, ...RANGE_PROPS }, ["customer_id", "from", "to", "limit", "offset"], async (env, a) => {
+    const p = parsePage(a), r = parseRange(a), c = parseId(a.customer_id, "customer_id"); if (!p.ok) return bad(p.error); if (!r.ok) return bad(r.error); if (!c.ok) return bad(c.error);
+    return { ok: true, data: await jobsData(env, p.page, r.range, c.id) };
+  }),
+  listTool("list_invoices", "Invoices, newest first, with customer, amount, status and due date. from and to filter on the date entered. Not what is still owed: use get_customer_receivables for that.", { customer_id: { type: "integer", minimum: 1 }, ...RANGE_PROPS }, ["customer_id", "from", "to", "limit", "offset"], async (env, a) => {
+    const p = parsePage(a), r = parseRange(a), c = parseId(a.customer_id, "customer_id"); if (!p.ok) return bad(p.error); if (!r.ok) return bad(r.error); if (!c.ok) return bad(c.error);
+    return { ok: true, data: await invoicesData(env, p.page, r.range, c.id) };
+  }),
+  listTool("list_quotes", "Quotations, newest first, with customer, amount and status. from and to filter on the date entered.", { customer_id: { type: "integer", minimum: 1 }, ...RANGE_PROPS }, ["customer_id", "from", "to", "limit", "offset"], async (env, a) => {
+    const p = parsePage(a), r = parseRange(a), c = parseId(a.customer_id, "customer_id"); if (!p.ok) return bad(p.error); if (!r.ok) return bad(r.error); if (!c.ok) return bad(c.error);
+    return { ok: true, data: await quotesData(env, p.page, r.range, c.id) };
+  }),
+  listTool("get_stock", "Tracked stock: quantity on hand, unit and reorder threshold, with a flag for items at or below it.", {}, ["limit", "offset"], async (env, a) => {
+    const p = parsePage(a); if (!p.ok) return bad(p.error);
+    return { ok: true, data: await stockData(env, p.page) };
+  }),
+  {
+    name: "get_document_link",
+    description: "A short-lived link (10 minutes) to the PDF of one invoice, quotation or customer statement. kind is invoice, quote or statement; id is the invoice or quotation id, or the customer id for a statement. The link opens the document without signing in, so treat it like the document itself and do not share it.",
+    inputSchema: { type: "object", properties: { kind: { type: "string", enum: ["invoice", "quote", "statement"] }, id: { type: "integer", minimum: 1 } }, required: ["kind", "id"], additionalProperties: false },
+    ownerOnly: true,
+    route: null,
+    async run(env, args, _who, origin) {
+      for (const key of Object.keys(args)) if (key !== "kind" && key !== "id") return bad(`unknown argument: ${key.slice(0, 40)}`);
+      const kind = args.kind;
+      if (kind !== "invoice" && kind !== "quote" && kind !== "statement") return bad("kind must be invoice, quote or statement.");
+      const id = parseId(args.id, "id");
+      if (!id.ok || id.id === null) return bad(id.ok ? "id is required." : id.error);
+      if (!(await documentExists(env, kind, id.id))) return { ok: false, message: "That record was not found.", outcome: "not_found" };
+      const path = kind === "invoice" ? `/invoices/${id.id}/pdf` : kind === "quote" ? `/quotations/${id.id}/pdf` : `/customers/${id.id}/statement/pdf`;
+      const sig = await signDocumentPath(env, path, 10 * 60 * 1000);
+      return { ok: true, data: { kind, id: id.id, url: `${origin}${path}?sig=${sig}`, expiresInMinutes: 10 } };
+    },
+  },
+];
+TOOLS.push(...WIDER_TOOLS);
+
 // A tool may be used only as the gate would let this member use the route it mirrors (auth.ts, authorizeRestrictedMember): the OWNER is always allowed, any other role only through a rule in the very table the gate uses, and no rule is no access (that is how the report routes are "owner only"). The history tool mirrors no route because every active member may read their own turns.
 function permitted(tool: Tool, who: { role: string; capabilities: string[] }): boolean {
-  if (tool.route === null || who.role === "owner") return true;
+  if (who.role === "owner") return true;
+  if (tool.ownerOnly) return false;
+  if (tool.route === null) return true;
   const { method, path } = tool.route;
   const rule = ROUTE_RULES.find((r) => r.method === method && r.path.test(path));
   return rule !== undefined && rule.anyOf.some((c) => who.capabilities.includes(c));
@@ -154,6 +206,7 @@ export async function handleMcp(request: Request, env: Env): Promise<Response> {
   if (!auth.ok) return unauthorized(request);   // the reason is for the audit: a caller only ever learns "unauthorized"
   if (await businessLapsed(env)) return unauthorized(request);
   if (request.method !== "POST") return new Response(null, { status: 405, headers: { Allow: "POST", "Cache-Control": "no-store" } });
+  const origin = new URL(request.url).origin;
   const who: Who = { keyId: auth.keyId, email: auth.email, role: auth.role, capabilities: auth.capabilities };
 
   const text = await request.text();
@@ -193,7 +246,7 @@ export async function handleMcp(request: Request, env: Env): Promise<Response> {
       outcome = "denied"; isError = true; content = [{ type: "text", text: "That is restricted for this member's role." }];
     } else {
       let out: ToolOutput;
-      try { out = await tool.run(env, args as Record<string, unknown>, who); } catch { out = { ok: false, message: "That could not be built.", outcome: "error" }; }
+      try { out = await tool.run(env, args as Record<string, unknown>, who, origin); } catch { out = { ok: false, message: "That could not be built.", outcome: "error" }; }
       if (out.ok) {
         const body = JSON.stringify(out.data);
         if (body.length > MAX_RESULT_CHARS) { outcome = "error"; isError = true; content = [{ type: "text", text: "That result is too large to return." }]; }

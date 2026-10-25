@@ -839,3 +839,6 @@ Pierre shared a note arguing for "one coordinator per business, add more objects
 ## MCP OAuth: the consent button refused on a real phone, 2026-10-25
 **What happened.** Pierre tapped Allow and got "Not allowed". Chrome sent `Origin: null` on the form post (the page sets no-referrer) and the cross-site check read null as another site. The unit tests only sent no Origin or a clearly foreign one, so they passed.
 **Decided.** Refuse a foreign Origin or `Sec-Fetch-Site: cross-site`; accept `Origin: null` otherwise. The signed ticket and the SameSite=Strict nonce cookie remain the real protection. A test now sends exactly what Chrome sends; a breakage guard holds the cross-site refusal.
+
+## MCP stage 1: wider reads and a short-lived document link (2026-10-25)
+Six read-only tools added to `/mcp` (customers, jobs, invoices, quotes, stock, document link). Owner only, because the installer's own-jobs scoping is not rebuilt here. The document link lasts 10 minutes (the app's own `/documents/sign` length), not the 60 days of a customer link: the PDF carries the business's banking details and the key does not expire. Details: `MCP_ARCHITECTURE.md`, end.
