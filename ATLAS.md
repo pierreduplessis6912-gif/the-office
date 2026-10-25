@@ -1,5 +1,7 @@
 > **Status:** real. **Verified:** not yet. **Owns:** none.
 
+> **Audit 2026-10-25.** Creation sites re-counted by grep against `worker/src`: invoices four (was two), job scopes two (was one); named functions and the backfill route exist; the three test files named in the coverage note exist. NOT re-proved: the dated bug histories and the "must always be true" lists beyond the creation paths above (the other concepts the file promises are not in it: it holds two).
+
 # Atlas
 
 A real, structured, per-concept register — not of code, of *truth*.
@@ -26,12 +28,14 @@ stated plainly rather than implied.
 
 ## Concept: Invoice
 
-**Created by** (two real, independent paths — both must be checked
+**Created by** (four real paths, checked by grep 2026-10-25: `INSERT INTO invoices` appears in four places; July said two — all four must be checked
 whenever something must be true of every invoice):
 - `recordInvoice()` (`finance.ts`) — direct invoice, flat amount or
   line items
 - `convertQuoteToInvoice()` (`finance.ts`) — quote-to-invoice
   conversion
+- `imported_invoice` branch of `POST /actions/:id/confirm` (`index.ts`) — a still-outstanding invoice from a CSV import, created only on confirmation; writes customer, description, amount and transcript only (no `job_scope_id`, no retention)
+- `POST /files/invoices-csv-import` (`index.ts`) — a fully settled historical invoice, written directly; same four columns only
 
 **Reads from**:
 - `customers` (retention rate, VAT-exempt status)
@@ -39,7 +43,7 @@ whenever something must be true of every invoice):
 - `quotations` (when converted — amount, job_scope_id)
 - `job_scopes` (when priced from a job scope)
 
-**Must always be true, regardless of creation path**:
+**Must always be true, regardless of creation path** (true of the first two paths; the two import paths are historical records and set neither `job_scope_id` nor retention):
 - `job_scope_id` set when the invoice was actually priced from a real
   job scope (nullable otherwise — a flat, unscoped invoice is a real,
   valid case)
@@ -70,8 +74,9 @@ real scenarios each fix was proven against.
 
 ## Concept: Job Scope
 
-**Created by** (one real path):
+**Created by** (two real paths, checked 2026-10-25; July said one):
 - `recordWorkObservation()` (`scheduler.ts`)
+- `attachToSiblingJobScope()` (`scheduler.ts`) — when a scheduling segment arrives in the same breath as a lead and no scope exists, it creates one from the sibling lead's reconciled customer (with `capture_id`, installer and date; no components or tasks)
 
 **Referenced by** (real, verified downstream consumers — a change to
 Job Scope's shape or meaning likely touches all of these):

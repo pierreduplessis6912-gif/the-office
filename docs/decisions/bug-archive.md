@@ -720,3 +720,5 @@ in any UI-positioning report, before investing in more than one
 theory-driven fix.
 
 ---
+
+**Docs pass 7 (2026-10-25).** `ATLAS.md` creation sites re-counted: invoices have four (the two CSV-import paths were missing), job scopes two (`attachToSiblingJobScope` was missing). The invariants hold for the first two invoice paths only; imports are historical records.
