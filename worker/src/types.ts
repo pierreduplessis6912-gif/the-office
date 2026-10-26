@@ -49,6 +49,7 @@ export interface Env {
   SHARED_DB?: D1Database;
   // True inside atomically() (atomic.ts): the operation is already running as one transaction, so a wrapped function does its work instead of wrapping itself again.
   __atomic?: boolean;
+  __mcpTagged?: boolean;   // set on a confirm or reject request that has already been through the connection tagging wrapper (index.ts), so it is wrapped once
   // Handed to the pipeline inside a business's object: runs its schema steps again and says what happened (the admin retry route). Absent outside an object.
   RETRY_SCHEMA?: () => Promise<{ applied: string[]; pending: string[]; error: { name: string; message: string } | null }>;
   // How long a business's plan is remembered, in seconds (limits.ts). 300 by default; "0" reads it every time (staging, so a rehearsal sees a change at once).

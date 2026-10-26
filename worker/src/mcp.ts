@@ -9,6 +9,7 @@ import { ROUTE_RULES, signDocumentPath } from "./auth";
 import { MAX_PAGE, customersData, documentExists, invoicesData, jobsData, parseId, parsePage, parseRange, parseSearch, quotesData, stockData } from "./mcp-reads";
 import { parseHistoryParams, readHistory, resolveScope } from "./history";
 import { bearerKey } from "./mcp-key-format";
+import { CONFIRMABLE, findLink, linkHeld } from "./mcp-pending";
 import { EDIT_KINDS, editCreated, scheduleJob } from "./mcp-changes";
 import { TRACKED_TABLES, taggingEnv, type TagSink, type TrackedTable } from "./mcp-tags";
 import { SCOPE_WRITE, authenticateKey, type McpScope } from "./mcp-keys";
@@ -26,7 +27,7 @@ const MAX_TELL_CHARS = 1000;
 
 type Who = { keyId: string; email: string; role: string; capabilities: string[]; scope: McpScope };
 /** What the Worker lends the endpoint: the same pipeline the owner's typed messages go through (index.ts). It is passed in, not imported, so this module never depends on the pipeline. */
-export interface McpHost { tell: (text: string, who: { email: string; capabilities: string[] }, sink: TagSink) => Promise<{ message: string; pendingActionIds: number[]; captureId: number | null }> }
+export interface McpHost { act: (kind: "confirm" | "reject", actionId: number, who: { email: string }) => Promise<{ status: number; body: unknown }>; tell: (text: string, who: { email: string; capabilities: string[] }, sink: TagSink) => Promise<{ message: string; pendingActionIds: number[]; captureId: number | null }> }
 type ToolOutput = { ok: true; data: unknown } | { ok: false; message: string; outcome: "invalid" | "not_found" | "error" | "limited" };
 interface Tool {
   name: string;
@@ -226,10 +227,12 @@ const tellTool: Tool = {
     for (const t of tagged) (created[t.table] ??= []).push(t.id);
     const flagged = await anyOverThreshold(env, tagged);
     const pending = told.pendingActionIds.length;
+    const held = await linkHeld(env, who.keyId, slot?.id ?? 0, told.pendingActionIds);
+    const confirmable = held.filter((h) => h.canConfirmHere).length;
     try { await env.OFFICE_DB.prepare("UPDATE mcp_creates SET capture_id = ?, created = ?, flagged = ?, pending = ?, untraced = ? WHERE id = ?").bind(told.captureId, JSON.stringify(created), flagged ? 1 : 0, pending, untraced, slot?.id ?? 0).run();
       for (const t of tagged) await env.OFFICE_DB.prepare("INSERT OR IGNORE INTO mcp_created_records (create_id, key_id, tbl, rec_id) VALUES (?, ?, ?, ?)").bind(slot?.id ?? 0, who.keyId, t.table, t.id).run();
     } catch { /* the tag never undoes the create */ }
-    return { ok: true, data: { message: told.message.slice(0, 2000), created, needsAnswerInApp: pending, flagged, ...(untraced > 0 ? { untracedNote: "Something this call recorded could not be tagged, so undoing it in the app may be incomplete." } : {}), ...(flagged ? { flagNote: `An invoice or quote above R${FLAG_OVER.toLocaleString("en-ZA")} was created. It was recorded, and the owner can see it flagged.` } : {}), taggedWithKey: who.keyId } };
+    return { ok: true, data: { message: told.message.slice(0, 2000), created, needsAnswerInApp: Math.max(0, pending - confirmable), ...(held.length > 0 ? { held, holdNote: held.some((h) => h.canConfirmHere) ? "These were HELD for confirmation, not recorded yet. Confirm one with confirm_pending_action (or reject it with reject_pending_action) using its actionId, or confirm it in the app." : "These were HELD and need an answer in the app." } : {}), flagged, ...(untraced > 0 ? { untracedNote: "Something this call recorded could not be tagged, so undoing it in the app may be incomplete." } : {}), ...(flagged ? { flagNote: `An invoice or quote above R${FLAG_OVER.toLocaleString("en-ZA")} was created. It was recorded, and the owner can see it flagged.` } : {}), taggedWithKey: who.keyId } };
   },
 };
 TOOLS.push(tellTool);
@@ -261,6 +264,47 @@ const editTool: Tool = {
   },
 };
 TOOLS.push(scheduleTool, editTool);
+
+const actionId = { type: "integer", minimum: 1, description: "The actionId of a held action that tell_the_office returned." };
+async function decideHeld(kind: "confirm" | "reject", env: Env, args: Record<string, unknown>, who: Who, host: McpHost | null): Promise<ToolOutput> {
+  for (const key of Object.keys(args)) if (key !== "action_id") return bad(`unknown argument: ${key.slice(0, 40)}`);
+  if (typeof args.action_id !== "number" || !Number.isInteger(args.action_id) || args.action_id < 1) return bad("action_id must be a whole number.");
+  if (host === null) return { ok: false, message: "That is not available here.", outcome: "error" };
+  await ensureRecords(env);
+  const reserved = await reserveWrite(env, who);
+  if (!reserved.ok) return reserved.refusal;
+  const id = args.action_id;
+  // Only an action THIS key proposed, still waiting, of a kind that needs only a yes.
+  const link = await findLink(env, id);
+  if (!link || link.key_id !== who.keyId) return { ok: false, message: "That action was not held by this connection, so it can only be decided in the app.", outcome: "not_found" };
+  if (!CONFIRMABLE.has(link.type)) return { ok: false, message: "That action needs an answer, not just a yes, so it can only be decided in the app.", outcome: "invalid" };
+  let result: { status: number; body: unknown };
+  try { result = await host.act(kind, id, { email: who.email }); } catch { return { ok: false, message: `That could not be ${kind === "confirm" ? "confirmed" : "rejected"}.`, outcome: "error" }; }
+  const reason = typeof (result.body as { error?: unknown } | null)?.error === "string" ? String((result.body as { error: string }).error).slice(0, 200) : null;
+  if (result.status < 200 || result.status >= 300) return { ok: false, message: reason ?? `That could not be ${kind === "confirm" ? "confirmed" : "rejected"}.`, outcome: "error" };
+  try { await env.OFFICE_DB.prepare("UPDATE mcp_pending_links SET resolved_by = 'claude' WHERE pending_id = ? AND resolved_by = 'app'").bind(id).run(); } catch { /* a label only */ }
+  if (kind === "reject") return { ok: true, data: { actionId: id, status: "rejected" } };
+  const made = await env.OFFICE_DB.prepare("SELECT tbl, rec_id FROM mcp_created_records WHERE create_id = ? AND key_id = ?").bind(link.create_id, who.keyId).all<{ tbl: string; rec_id: number }>().catch(() => ({ results: [] as Array<{ tbl: string; rec_id: number }> }));
+  const created: Record<string, number[]> = {}; const tagged: Array<{ table: TrackedTable; id: number }> = [];
+  for (const r of made.results) { (created[r.tbl] ??= []).push(r.rec_id); tagged.push({ table: r.tbl as TrackedTable, id: r.rec_id }); }
+  const flagged = await anyOverThreshold(env, tagged);
+  return { ok: true, data: { actionId: id, status: "confirmed", created, flagged, ...(flagged ? { flagNote: `An amount above R${FLAG_OVER.toLocaleString("en-ZA")} was recorded. It was recorded, and the owner can see it flagged.` } : {}), note: "The owner can undo this in the app." } };
+}
+const confirmTool: Tool = {
+  name: "confirm_pending_action",
+  description: "Confirm a held action that this connection proposed through tell_the_office (an expense, payment, invoice or quote waiting for a yes). It becomes a real record, tagged with this key, and the owner can undo it in the app. Only an action this connection proposed, still waiting, can be confirmed here; anything that needs an answer is decided in the app. It counts against the key's limit like any change.",
+  inputSchema: { type: "object", properties: { action_id: actionId }, required: ["action_id"], additionalProperties: false },
+  needsWrite: true, ownerOnly: true, route: null,
+  run: (env, args, who, _origin, host) => decideHeld("confirm", env, args, who, host),
+};
+const rejectTool: Tool = {
+  name: "reject_pending_action",
+  description: "Reject a held action that this connection proposed through tell_the_office, so it is never recorded. Only an action this connection proposed, still waiting, can be rejected here.",
+  inputSchema: { type: "object", properties: { action_id: actionId }, required: ["action_id"], additionalProperties: false },
+  needsWrite: true, ownerOnly: true, route: null,
+  run: (env, args, who, _origin, host) => decideHeld("reject", env, args, who, host),
+};
+TOOLS.push(confirmTool, rejectTool);
 
 // A tool may be used only as the gate would let this member use the route it mirrors (auth.ts, authorizeRestrictedMember): the OWNER is always allowed, any other role only through a rule in the very table the gate uses, and no rule is no access (that is how the report routes are "owner only"). The history tool mirrors no route because every active member may read their own turns.
 function permitted(tool: Tool, who: { role: string; capabilities: string[]; scope: McpScope }): boolean {

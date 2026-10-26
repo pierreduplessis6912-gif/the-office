@@ -12,6 +12,16 @@ const run = require('./mcp-endpoint.test.js');
 const clearBuildCache = () => { for (const n of ['rm-poe', 'rm-auth']) delete require.cache[path.join(os.tmpdir(), `${n}-${process.pid}.js`)]; };
 
 const MUTATIONS = [
+  ['an assistant may decide an action another key proposed', 'mcp', 'if (!link || link.key_id !== who.keyId) return', 'if (!link) return'],
+  ['an assistant may decide an action that needs an answer', 'mcp', 'if (!CONFIRMABLE.has(link.type)) return', 'if (false) return'],
+  ['confirming is not counted against the key\'s limit', 'mcp', 'await ensureRecords(env);\n  const reserved = await reserveWrite(env, who);\n  if (!reserved.ok) return reserved.refusal;\n  const id = args.action_id;', 'await ensureRecords(env);\n  const id = args.action_id;'],
+  ['confirm and reject ignore an argument they do not know', 'mcp', 'for (const key of Object.keys(args)) if (key !== "action_id") return bad(`unknown argument: ${key.slice(0, 40)}`);', ''],
+  ['a refusal from the app is reported as success', 'mcp', 'if (result.status < 200 || result.status >= 300) return', 'if (false) return'],
+  ['a reject asks the app to confirm', 'mcp', 'result = await host.act(kind, id, { email: who.email });', 'result = await host.act("confirm", id, { email: who.email });'],
+  ['a confirmed invoice over the threshold is not flagged', 'mcp', 'const flagged = await anyOverThreshold(env, tagged);\n  return { ok: true, data: { actionId: id,', 'const flagged = false;\n  return { ok: true, data: { actionId: id,'],
+  ['held actions are not linked to the key that proposed them', 'mcp', 'const held = await linkHeld(env, who.keyId, slot?.id ?? 0, told.pendingActionIds);', 'const held: Awaited<ReturnType<typeof linkHeld>> = [];'],
+  ['a read key can see confirm and reject', 'mcp', 'required: ["action_id"], additionalProperties: false },\n  needsWrite: true, ownerOnly: true, route: null,\n  run: (env, args, who, _origin, host) => decideHeld("confirm"', 'required: ["action_id"], additionalProperties: false },\n  needsWrite: false, ownerOnly: true, route: null,\n  run: (env, args, who, _origin, host) => decideHeld("confirm"'],
+  ['confirm is open to any role that holds a write key', 'mcp', 'required: ["action_id"], additionalProperties: false },\n  needsWrite: true, ownerOnly: true, route: null,\n  run: (env, args, who, _origin, host) => decideHeld("reject"', 'required: ["action_id"], additionalProperties: false },\n  needsWrite: true, ownerOnly: false, route: null,\n  run: (env, args, who, _origin, host) => decideHeld("reject"'],
   ['a read-scope key can see and run schedule_job', 'mcp', 'required: ["job_id", "date"], additionalProperties: false },\n  needsWrite: true, ownerOnly: true', 'required: ["job_id", "date"], additionalProperties: false },\n  needsWrite: false, ownerOnly: true'],
   ['edit_created_record is open to any role that holds a write key', 'mcp', 'required: ["kind", "id", "changes"], additionalProperties: false },\n  needsWrite: true, ownerOnly: true', 'required: ["kind", "id", "changes"], additionalProperties: false },\n  needsWrite: true, ownerOnly: false'],
   ['scheduling is not counted against the key\'s limit', 'mcp', 'const reserved = await reserveWrite(env, who);\n    if (!reserved.ok) return reserved.refusal;\n    return scheduleJob', 'return scheduleJob'],

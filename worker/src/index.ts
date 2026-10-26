@@ -9,6 +9,7 @@ import { handleMcp } from "./mcp";
 import { taggingEnv } from "./mcp-tags";
 import { listCreated, undoCall, undoTagged } from "./mcp-undo";
 import { listChanges, revertChange } from "./mcp-changes";
+import { collector, finishLink, findLink, listHeld } from "./mcp-pending";
 import { continueOAuthSignIn, handleOAuthRoute } from "./mcp-oauth-routes";
 import { issueKey, listKeys, revokeKey } from "./mcp-keys";
 import { analysisData, parseAnalysisParams } from "./analysis";
@@ -70,6 +71,7 @@ import {
   corsHeadersFor,
   signDocumentPath,
   resolveCapabilities,
+  signSession,
   getMemberContext,
   getJobScope,
   denyForRole,
@@ -466,6 +468,17 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
     // opaque blocked-by-CORS failure.
     const gate = await authGate(request, env, url);
     if (gate) return gate;
+
+    // A held action a CONNECTION proposed is tagged when it is decided, by whoever decides it (the owner here in the app, or the assistant through confirm_pending_action): the record its confirmation creates is tagged to that connection exactly (mcp-tags.ts wraps the database of this one request), shows in the owner's list and can be undone. Every other action passes straight through.
+    const decided = url.pathname.match(/^\/actions\/(\d+)\/(confirm|reject)$/);
+    if (decided && request.method === "POST" && !env.__mcpTagged) {
+      const link = await findLink(env, Number(decided[1]));
+      if (!link) return handleRequest(request, { ...env, __mcpTagged: true }, ctx, requestId);
+      const seen = collector();
+      const response = await handleRequest(request, { ...taggingEnv(env, seen.sink), __mcpTagged: true }, ctx, requestId);
+      if (response.ok) await finishLink(env, link, decided[2] === "confirm" ? "confirmed" : "rejected", "app", decided[2] === "confirm" ? seen.tagged : []);
+      return response;
+    }
 
     if (url.pathname === "/" || url.pathname === "/health") {
       return Response.json({ status: "ok", service: "office-api", commit: env.GIT_SHA ?? null });
@@ -895,7 +908,15 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
     if (url.pathname === "/mcp") {
       // The one thing an assistant with a write key may do is tell The Office something, through the SAME pipeline as a typed message, with the member's own capabilities (mcp.ts, stage 2).
       let captureId: number | null = null;
-      return handleMcp(request, env, { tell: async (text, who, sink) => { captureId = null; const r = await processTranscript(taggingEnv(env, sink), text, ctx, [], "text", null, who.capabilities, who.email, (id) => { captureId = id; }); return { message: r.message, pendingActionIds: r.pendingActionIds, captureId }; } });
+      return handleMcp(request, env, {
+        // The assistant's confirm or reject goes through the app's OWN route, as the member the key belongs to, with a one-minute session made here and never shown to anyone: so the app's own rules, atomic write and decision log all apply, and nothing is copied.
+        act: async (kind, actionId, who) => {
+          const token = await signSession(env, who.email, env.BUSINESS_ID, Date.now() + 60_000);
+          const inner = await serveRequest(new Request(new URL(`/actions/${actionId}/${kind}`, request.url), { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: "{}" }), env, ctx);
+          let body: unknown = null; try { body = await inner.json(); } catch { body = null; }
+          return { status: inner.status, body };
+        },
+        tell: async (text, who, sink) => { captureId = null; const r = await processTranscript(taggingEnv(env, sink), text, ctx, [], "text", null, who.capabilities, who.email, (id) => { captureId = id; }); return { message: r.message, pendingActionIds: r.pendingActionIds, captureId }; } });
     }
     if (url.pathname === "/mcp-keys" && request.method === "GET") {
       return Response.json({ keys: await listKeys(env) });
@@ -912,7 +933,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
     // What connected assistants created, and the owner's undo of it (mcp-undo.ts; MCP_ARCHITECTURE.md). Owner only (can_invite_members). Works even when MCP is switched off, so the owner can always clean up. The undo is by the TAG's id, never a bare record id.
     if (url.pathname === "/mcp-created" && request.method === "GET") {
       const limit = Number(url.searchParams.get("limit") ?? 50);
-      return Response.json({ items: await listCreated(env, limit), changes: await listChanges(env, limit) });
+      return Response.json({ items: await listCreated(env, limit), changes: await listChanges(env, limit), held: await listHeld(env, limit) });
     }
     if (url.pathname === "/mcp-created/undo" && request.method === "POST") {
       const asked = (await request.json().catch(() => null)) as { id?: unknown; call_id?: unknown; change_id?: unknown } | null;
