@@ -148,6 +148,9 @@ A connected assistant's key has a scope: read only by default, create only when 
 ## Assistant confirm and reject (2026-10-26)
 `confirm_pending_action` and `reject_pending_action` make the app's own confirm or reject request as the member a key belongs to, with a ONE-MINUTE session minted inside the Worker (`worker/src/mcp-act.ts`) and never shown to anyone, so the normal gate, atomic write and decision log all apply. They are write scope, owner only, limited to an action that the same key proposed and that only needs a yes, counted against the key's limit, audited and closed by `MCP=off`. The control that remains is claude.ai's per-tool approval; see `MCP_ARCHITECTURE.md`.
 
+## The upload link (2026-10-26)
+`/upload/<ticket>` is a page and an upload opened WITHOUT a sign-in, by a signed link (`signed link` class in `ROUTE_POLICY.md`, GET and POST only). It is bounded by: a signature over that exact path that ends in ten minutes; a ticket checked again on every use (10 minutes, at most 5 files, key not revoked, member still an active owner); a content check (JPEG, PNG or PDF by first bytes, at most 8 MB); and by the app's own photo and document routes, which hold anything touching money for confirmation. A leaked link can send a few files to the owner's pipeline for a few minutes; it cannot record money or read anything. Details: `MCP_ARCHITECTURE.md`, end.
+
 ## Progress log
 
 Moved (verbatim) to [docs/archive/SECURITY_PROGRESS_LOG.md](docs/archive/SECURITY_PROGRESS_LOG.md) on 2026-10-25. It holds the dated, live-verified results behind every ticked item above.

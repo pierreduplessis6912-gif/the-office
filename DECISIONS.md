@@ -283,3 +283,4 @@ Split on 2026-10-24 from the 7958-line original, which is `git show 95bf743:DECI
 - [MCP undo: void invoices, remove the rest with a copy, payments allowed (2026-10-26)](docs/decisions/platform-and-operations.md) (new)
 - [MCP stage 3: schedule any job, edit only what a connection created (2026-10-26)](docs/decisions/platform-and-operations.md) (new)
 - [MCP: held actions are tagged when decided, and Claude may confirm its own (2026-10-26)](docs/decisions/platform-and-operations.md) (new)
+- [MCP stage 4a: an upload link, not a file through the tool (2026-10-26)](docs/decisions/platform-and-operations.md) (new)

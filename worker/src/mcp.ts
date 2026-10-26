@@ -10,6 +10,7 @@ import { MAX_PAGE, customersData, documentExists, invoicesData, jobsData, parseI
 import { parseHistoryParams, readHistory, resolveScope } from "./history";
 import { bearerKey } from "./mcp-key-format";
 import { CONFIRMABLE, findLink, linkHeld } from "./mcp-pending";
+import { MAX_FILES, UPLOAD_TTL_MINUTES, issueTicket, linkFor, ticketOutcome } from "./mcp-upload";
 import { EDIT_KINDS, editCreated, scheduleJob } from "./mcp-changes";
 import { TRACKED_TABLES, taggingEnv, type TagSink, type TrackedTable } from "./mcp-tags";
 import { SCOPE_WRITE, authenticateKey, type McpScope } from "./mcp-keys";
@@ -305,6 +306,35 @@ const rejectTool: Tool = {
   run: (env, args, who, _origin, host) => decideHeld("reject", env, args, who, host),
 };
 TOOLS.push(confirmTool, rejectTool);
+
+const uploadLinkTool: Tool = {
+  name: "get_upload_link",
+  description: `Get a link for the OWNER to send a photo or PDF (a supplier invoice, a delivery note, a receipt) to the Office. You cannot pass a file through this connection, so give the owner the link: they open it on their phone, choose the file and send it. The Office reads it exactly as it reads one sent from the app, and anything that touches money is HELD for confirmation. The link works for ${UPLOAD_TTL_MINUTES} minutes and takes up to ${MAX_FILES} files. After the owner says they sent it, call check_upload with the ticketId to see what the Office made of it. It counts against the key's limit like any change.`,
+  inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  needsWrite: true, ownerOnly: true, route: null,
+  async run(env, args, who, origin) {
+    for (const key of Object.keys(args)) return bad(`unknown argument: ${key.slice(0, 40)}`);
+    const reserved = await reserveWrite(env, who);
+    if (!reserved.ok) return reserved.refusal;
+    const id = await issueTicket(env, { keyId: who.keyId, email: who.email }, reserved.slotId);
+    if (id === null) return { ok: false, message: "That could not be made.", outcome: "error" };
+    return { ok: true, data: { ticketId: id, url: await linkFor(env, origin, id), expiresInMinutes: UPLOAD_TTL_MINUTES, maxFiles: MAX_FILES, note: "Give the owner this link. It is for them to open, not for you to open." } };
+  },
+};
+const checkUploadTool: Tool = {
+  name: "check_upload",
+  description: "See what happened with an upload link you got from get_upload_link: whether a file was sent, what the Office made of it (its own plain message), and any action it HELD for confirmation (with its actionId; a held action you may confirm yourself says so, and anything else the owner confirms in the app). Only for a link this connection asked for.",
+  inputSchema: { type: "object", properties: { ticket_id: { type: "integer", minimum: 1 } }, required: ["ticket_id"], additionalProperties: false },
+  needsWrite: true, ownerOnly: true, route: null,
+  async run(env, args, who) {
+    for (const key of Object.keys(args)) if (key !== "ticket_id") return bad(`unknown argument: ${key.slice(0, 40)}`);
+    if (typeof args.ticket_id !== "number" || !Number.isInteger(args.ticket_id) || args.ticket_id < 1) return bad("ticket_id must be a whole number.");
+    const outcome = await ticketOutcome(env, who.keyId, args.ticket_id);
+    if (!outcome.found) return { ok: false, message: "That upload link was not found for this connection.", outcome: "not_found" };
+    return { ok: true, data: outcome };
+  },
+};
+TOOLS.push(uploadLinkTool, checkUploadTool);
 
 // A tool may be used only as the gate would let this member use the route it mirrors (auth.ts, authorizeRestrictedMember): the OWNER is always allowed, any other role only through a rule in the very table the gate uses, and no rule is no access (that is how the report routes are "owner only"). The history tool mirrors no route because every active member may read their own turns.
 function permitted(tool: Tool, who: { role: string; capabilities: string[]; scope: McpScope }): boolean {

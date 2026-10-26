@@ -1014,6 +1014,12 @@ export async function authGate(request: Request, env: Env, url: URL): Promise<Re
   // The read-only MCP endpoint (mcp.ts) is opened by its OWN key and by nothing else: a session is neither needed nor accepted there. A request without a well-formed key is refused here (independent of ENFORCE_APP_AUTH, like the signed-link routes above); the key itself is verified against the business's keys, and the member checked, on every call in the handler.
   if (path === "/mcp") return parseKey(bearerKey(request)) === null ? Response.json({ error: "unauthorized" }, { status: 401, headers: { "WWW-Authenticate": challengeHeader(url.origin) } }) : null;
 
+  // The upload page and the upload itself (mcp-upload.ts) are opened by a link the business made for ONE ticket: a signature over this exact path, and nothing else (the ticket is checked again, in the object, on every use). Only GET (the page) and POST (the file).
+  if (/^\/upload\/\d+$/.test(path)) {
+    if (request.method !== "GET" && request.method !== "POST") return Response.json({ error: "method not allowed" }, { status: 405 });
+    return (await verifyDocumentToken(env, path, url.searchParams.get("sig"))) ? null : Response.json({ error: "this link is missing or has expired" }, { status: 403 });
+  }
+
   if (path.endsWith("/pdf")) {
     const sig = url.searchParams.get("sig");
     const ok = await verifyDocumentToken(env, path, sig);

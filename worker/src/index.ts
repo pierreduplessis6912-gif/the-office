@@ -11,6 +11,7 @@ import { listCreated, undoCall, undoTagged } from "./mcp-undo";
 import { listChanges, revertChange } from "./mcp-changes";
 import { listHeld, mcpDecision } from "./mcp-pending";
 import { actThroughApp } from "./mcp-act";
+import { receiveUpload, uploadPage } from "./mcp-upload";
 import { continueOAuthSignIn, handleOAuthRoute } from "./mcp-oauth-routes";
 import { issueKey, listKeys, revokeKey } from "./mcp-keys";
 import { analysisData, parseAnalysisParams } from "./analysis";
@@ -895,6 +896,10 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
     // session, so "yourself" and "who added them" are real.
     // The owner's read-only keys for outside assistants (mcp-keys.ts; MCP_ARCHITECTURE.md). Owner only (can_invite_members, which can never be granted to another role). A key is in the answer to POST ONCE and nowhere else: only its hash is stored, and the list never shows it.
     // The read-only MCP endpoint (mcp.ts): opened by its own key, never by a session. The gate has already refused a request with no well-formed key; the handler verifies the key on every call.
+    // The upload link an assistant asked for (mcp-upload.ts): the page, and the file, both behind a signed link for one ticket. The file is handed to the app's own photo or document route.
+    if (url.pathname.match(/^\/upload\/\d+$/) && request.method === "GET") return uploadPage(env, Number(url.pathname.split("/")[2]), `${url.pathname}${url.search}`);
+    if (url.pathname.match(/^\/upload\/\d+$/) && request.method === "POST") return receiveUpload(env, request, Number(url.pathname.split("/")[2]), (sink) => (inner) => serveRequest(inner, taggingEnv(env, sink), ctx));
+
     if (url.pathname === "/mcp") {
       // The one thing an assistant with a write key may do is tell The Office something, through the SAME pipeline as a typed message, with the member's own capabilities (mcp.ts, stage 2).
       let captureId: number | null = null;

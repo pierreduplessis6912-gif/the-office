@@ -37,7 +37,7 @@ function classify(row) {
   const { none, owner } = row;
   const others = ROLES.filter((r) => r !== 'owner').map((r) => row[r]);
   if (none === 'A') return 'public';
-  if ([none, owner, ...others].every((v) => v === 403) && /\/pdf$/.test(row.pattern)) return 'signed link';
+  if ([none, owner, ...others].every((v) => v === 403) && /(\/pdf|^\/upload\/:id)$/.test(row.pattern)) return 'signed link';
   if ([none, owner, ...others].every((v) => v === 401) && row.pattern === '/mcp') return 'own key';
   if (owner === 'A' && others.every((v) => v === 'A')) return 'any member';
   if (owner === 'A' && others.every((v) => v !== 'A')) return 'owner only';

@@ -12,6 +12,13 @@ const run = require('./mcp-endpoint.test.js');
 const clearBuildCache = () => { for (const n of ['rm-poe', 'rm-auth']) delete require.cache[path.join(os.tmpdir(), `${n}-${process.pid}.js`)]; };
 
 const MUTATIONS = [
+  ['a read key can see get_upload_link', 'mcp', 'inputSchema: { type: "object", properties: {}, additionalProperties: false },\n  needsWrite: true, ownerOnly: true, route: null,\n  async run(env, args, who, origin) {', 'inputSchema: { type: "object", properties: {}, additionalProperties: false },\n  needsWrite: false, ownerOnly: true, route: null,\n  async run(env, args, who, origin) {'],
+  ['check_upload is open to any role that holds a write key', 'mcp', 'required: ["ticket_id"], additionalProperties: false },\n  needsWrite: true, ownerOnly: true, route: null,\n  async run(env, args, who) {', 'required: ["ticket_id"], additionalProperties: false },\n  needsWrite: true, ownerOnly: false, route: null,\n  async run(env, args, who) {'],
+  ['a link is not counted against the key\'s limit', 'mcp', 'const reserved = await reserveWrite(env, who);\n    if (!reserved.ok) return reserved.refusal;\n    const id = await issueTicket(', 'const reserved = { ok: true, slotId: 0 } as { ok: true; slotId: number };\n    const id = await issueTicket('],
+  ['get_upload_link ignores an argument it does not know', 'mcp', 'for (const key of Object.keys(args)) return bad(`unknown argument: ${key.slice(0, 40)}`);', ''],
+  ['a ticket is made for another key', 'mcp', 'issueTicket(env, { keyId: who.keyId, email: who.email }, reserved.slotId)', 'issueTicket(env, { keyId: "another-key", email: who.email }, reserved.slotId)'],
+  ['a ticket is made for another member', 'mcp', 'issueTicket(env, { keyId: who.keyId, email: who.email }, reserved.slotId)', 'issueTicket(env, { keyId: who.keyId, email: "someone@else.co" }, reserved.slotId)'],
+  ['check_upload ignores an argument it does not know', 'mcp', 'for (const key of Object.keys(args)) if (key !== "ticket_id") return bad(`unknown argument: ${key.slice(0, 40)}`);', ''],
   ['an assistant may decide an action another key proposed', 'mcp', 'if (!link || link.key_id !== who.keyId) return', 'if (!link) return'],
   ['an assistant may decide an action that needs an answer', 'mcp', 'if (!CONFIRMABLE.has(link.type)) return', 'if (false) return'],
   ['confirming is not counted against the key\'s limit', 'mcp', 'await ensureRecords(env);\n  const reserved = await reserveWrite(env, who);\n  if (!reserved.ok) return reserved.refusal;\n  const id = args.action_id;', 'await ensureRecords(env);\n  const id = args.action_id;'],

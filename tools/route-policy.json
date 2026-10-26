@@ -708,6 +708,18 @@
   "class": "owner only"
  },
  {
+  "route": "GET /upload/:id",
+  "pattern": "/upload/:id",
+  "how": "id in path",
+  "none": 403,
+  "owner": 403,
+  "accountant": 403,
+  "installer": 403,
+  "sales": 403,
+  "admin": 403,
+  "class": "signed link"
+ },
+ {
   "route": "PATCH /customers/:id",
   "pattern": "/customers/:id",
   "how": "id in path",
@@ -1306,5 +1318,17 @@
   "sales": 403,
   "admin": 403,
   "class": "owner only"
+ },
+ {
+  "route": "POST /upload/:id",
+  "pattern": "/upload/:id",
+  "how": "id in path",
+  "none": 403,
+  "owner": 403,
+  "accountant": 403,
+  "installer": 403,
+  "sales": 403,
+  "admin": 403,
+  "class": "signed link"
  }
 ]

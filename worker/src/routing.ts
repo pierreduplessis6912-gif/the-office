@@ -39,7 +39,7 @@ export async function routeRequest(request: Request, env: Env): Promise<Route> {
     const business = peekBusinessFromKey(bearerKey(request));
     return business ? { kind: "business", businessId: business } : { kind: "worker" };
   }
-  if (path.endsWith("/pdf")) {
+  if (path.endsWith("/pdf") || /^\/upload\/\d+$/.test(path)) {
     const business = peekBusinessFromToken(url.searchParams.get("sig"));
     if (business) return { kind: "business", businessId: business };
     // A link issued before the move carries no business: it belongs to the one business designated for such links (that object verifies the signature itself); with none designated, the Worker's gate refuses it.
