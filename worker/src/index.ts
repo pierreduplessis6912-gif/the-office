@@ -8,6 +8,7 @@ import { followUpReply, tryFollowUp } from "./followup";
 import { handleMcp } from "./mcp";
 import { taggingEnv } from "./mcp-tags";
 import { listCreated, undoCall, undoTagged } from "./mcp-undo";
+import { listChanges, revertChange } from "./mcp-changes";
 import { continueOAuthSignIn, handleOAuthRoute } from "./mcp-oauth-routes";
 import { issueKey, listKeys, revokeKey } from "./mcp-keys";
 import { analysisData, parseAnalysisParams } from "./analysis";
@@ -910,11 +911,17 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
     }
     // What connected assistants created, and the owner's undo of it (mcp-undo.ts; MCP_ARCHITECTURE.md). Owner only (can_invite_members). Works even when MCP is switched off, so the owner can always clean up. The undo is by the TAG's id, never a bare record id.
     if (url.pathname === "/mcp-created" && request.method === "GET") {
-      return Response.json({ items: await listCreated(env, Number(url.searchParams.get("limit") ?? 50)) });
+      const limit = Number(url.searchParams.get("limit") ?? 50);
+      return Response.json({ items: await listCreated(env, limit), changes: await listChanges(env, limit) });
     }
     if (url.pathname === "/mcp-created/undo" && request.method === "POST") {
-      const asked = (await request.json().catch(() => null)) as { id?: unknown; call_id?: unknown } | null;
+      const asked = (await request.json().catch(() => null)) as { id?: unknown; call_id?: unknown; change_id?: unknown } | null;
       const { email: undoer } = await resolveCapabilities(request, env);
+      if (asked && "change_id" in asked && !("id" in asked) && !("call_id" in asked)) {
+        const reverted = await revertChange(env, asked.change_id, undoer ?? "owner");
+        if (reverted.ok) return Response.json(reverted);
+        return Response.json(reverted, { status: reverted.reason === "not_found" ? 404 : reverted.reason === "error" ? 500 : 409 });
+      }
       if (asked && "call_id" in asked && !("id" in asked)) {
         const done = await undoCall(env, asked.call_id, undoer ?? "owner");
         if (!done.found) return Response.json({ error: "That is not something a connected assistant created." }, { status: 404 });
