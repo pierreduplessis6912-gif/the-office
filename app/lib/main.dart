@@ -9864,6 +9864,7 @@ class _CreatedByAssistantsPage extends StatefulWidget {
 class _CreatedByAssistantsPageState extends State<_CreatedByAssistantsPage> {
   List<McpCreated> _items = [];
   List<McpChange> _changes = [];
+  List<McpHeld> _held = [];
   bool _loading = true;
   bool _busy = false;
   String? _error;
@@ -9894,6 +9895,7 @@ class _CreatedByAssistantsPageState extends State<_CreatedByAssistantsPage> {
         } else {
           _items = items;
           _changes = parseChangeList(decoded);
+          _held = parseHeldList(decoded).where((h) => h.waiting).toList();
         }
       });
     } catch (_) {
@@ -9998,6 +10000,18 @@ class _CreatedByAssistantsPageState extends State<_CreatedByAssistantsPage> {
         child: Text(text, style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10, letterSpacing: 1)),
       );
 
+  Widget _heldRow(McpHeld h) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(heldTitle(h), style: GoogleFonts.workSans(color: _paper, fontSize: 14, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 2),
+            Text('${heldSubtitle(h)}\nHeld until you confirm or reject it, here in your actions, or by asking Claude.', style: GoogleFonts.workSans(color: _muted, fontSize: 12.5, height: 1.35)),
+          ],
+        ),
+      );
+
   Widget _changeRow(McpChange c) {
     final label = changeStateLabel(c);
     return Padding(
@@ -10094,13 +10108,16 @@ class _CreatedByAssistantsPageState extends State<_CreatedByAssistantsPage> {
                 const Padding(padding: EdgeInsets.only(top: 24), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
               else if (_error != null)
                 Padding(padding: const EdgeInsets.only(top: 16), child: Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
-              else if (_items.isEmpty && _changes.isEmpty)
+              else if (_items.isEmpty && _changes.isEmpty && _held.isEmpty)
                 Padding(padding: const EdgeInsets.only(top: 16), child: Text('Nothing yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
               else
                 Expanded(
                   child: Builder(builder: (context) {
                     final rows = <Widget>[
-                      if (_items.isNotEmpty && _changes.isNotEmpty) _sectionHeader('CREATED'),
+                      if (_held.isNotEmpty) _sectionHeader('WAITING FOR YOUR OK'),
+                      for (final h in _held) _heldRow(h),
+                      if (_held.isNotEmpty && (_items.isNotEmpty || _changes.isNotEmpty)) _sectionHeader('CREATED'),
+                      if (_held.isEmpty && _items.isNotEmpty && _changes.isNotEmpty) _sectionHeader('CREATED'),
                       for (final c in _items) _row(c),
                       if (_changes.isNotEmpty) _sectionHeader('CHANGED'),
                       for (final c in _changes) _changeRow(c),

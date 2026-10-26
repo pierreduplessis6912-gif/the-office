@@ -121,5 +121,33 @@ void main() {
     expect(revertMessage(500, <Object?>[]), 'Could not revert that right now.');
     expect(revertMessage(200, {'ok': false}), 'Could not revert that right now.');
   });
+
+  Map<String, Object?> held({Object? actionId = 41, Object? kind = 'expense', Object? summary = 'R1, connector test, for Jenny', Object? state = 'waiting', Object? connection = 'Claude on my phone', Object? resolvedBy}) =>
+      {'actionId': actionId, 'kind': kind, 'summary': summary, 'state': state, 'connection': connection, 'createdAt': '2026-10-26 11:24:13', 'resolvedBy': resolvedBy};
+
+  test('held actions are read: id, kind, summary, state, connection', () {
+    final list = parseHeldList({'held': [held(), held(actionId: 42, state: 'confirmed', resolvedBy: 'claude'), held(actionId: 43, state: 'rejected')]});
+    expect(list, hasLength(3));
+    expect(list.first.actionId, 41);
+    expect(list.first.kind, 'expense');
+    expect(list.first.waiting, isTrue);
+    expect(list[1].waiting, isFalse);
+    expect(list[1].resolvedBy, 'claude');
+    expect(heldTitle(list.first), 'Expense: R1, connector test, for Jenny');
+    expect(heldSubtitle(list.first), contains('Claude on my phone'));
+    expect(heldTitle(parseHeldList({'held': [held(summary: null)]}).single), 'Expense');
+  });
+
+  test('anything that is not a held list is empty; hostile or unknown entries are skipped; nothing throws', () {
+    for (final b in <Object?>[null, 'x', 5, <Object?>[], <String, Object?>{}, {'held': 'no'}, {'held': {'a': 1}}]) {
+      expect(parseHeldList(b), isEmpty, reason: '$b');
+    }
+    final skipped = parseHeldList({
+      'held': [null, 5, 'x', held(actionId: 0), held(actionId: '41'), held(actionId: 1.5), held(kind: null), held(kind: '  '), held(state: 'deleted'), held(state: null), held(summary: 5), held(connection: '   ')]
+    });
+    expect(skipped, hasLength(2));
+    expect(skipped[0].summary, isNull);
+    expect(skipped[1].connection, 'a connected assistant');
+  });
 }
 

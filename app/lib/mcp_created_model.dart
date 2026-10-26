@@ -203,3 +203,53 @@ String revertMessage(int status, Object? body) {
   return 'Could not revert that right now.';
 }
 
+// ---- held actions a connection proposed (every money action is held until it is confirmed) --------------------------------------------------
+
+class McpHeld {
+  final int actionId;
+  final String kind;
+  final String? summary;
+  final String state; // waiting, confirmed or rejected
+  final String connection;
+  final String? createdAt;
+  final String? resolvedBy;
+  const McpHeld({required this.actionId, required this.kind, this.summary, required this.state, required this.connection, this.createdAt, this.resolvedBy});
+
+  bool get waiting => state == 'waiting';
+}
+
+/// Reads the `held` list of a decoded GET /mcp-created body. Empty when there is none or it is not one. Never throws.
+List<McpHeld> parseHeldList(Object? body) {
+  try {
+    if (body is! Map || body['held'] is! List) return const [];
+    final out = <McpHeld>[];
+    for (final raw in (body['held'] as List).take(_maxItems)) {
+      if (raw is! Map) continue;
+      final id = _posInt(raw['actionId']);
+      final kind = _t(raw['kind']);
+      final state = raw['state'];
+      if (id == null || kind == null || (state != 'waiting' && state != 'confirmed' && state != 'rejected')) continue;
+      out.add(McpHeld(
+        actionId: id,
+        kind: kind,
+        summary: _t(raw['summary']),
+        state: state as String,
+        connection: _t(raw['connection']) ?? 'a connected assistant',
+        createdAt: _t(raw['createdAt']),
+        resolvedBy: _t(raw['resolvedBy']),
+      ));
+    }
+    return out;
+  } catch (_) {
+    return const [];
+  }
+}
+
+/// "Expense: R1, connector test, for Jenny".
+String heldTitle(McpHeld h) => h.summary == null ? _capital(h.kind) : '${_capital(h.kind)}: ${h.summary}';
+
+String heldSubtitle(McpHeld h) {
+  final when = parseTurnTime(h.createdAt);
+  return when == null ? h.connection : '${h.connection}  \u00b7  ${formatShort(when.toLocal())}';
+}
+
