@@ -281,3 +281,4 @@ Split on 2026-10-24 from the 7958-line original, which is `git show 95bf743:DECI
 \n- [MCP OAuth: the consent button refused on a real phone, 2026-10-25](docs/decisions/platform-and-operations.md) (new)- [MCP stage 1: wider reads and a short-lived document link (2026-10-25)](docs/decisions/platform-and-operations.md) (new)
 - [MCP stage 2: a write scope and one creating tool (2026-10-26)](docs/decisions/platform-and-operations.md) (new)
 - [MCP undo: void invoices, remove the rest with a copy, payments allowed (2026-10-26)](docs/decisions/platform-and-operations.md) (new)
+- [MCP stage 3: schedule any job, edit only what a connection created (2026-10-26)](docs/decisions/platform-and-operations.md) (new)
