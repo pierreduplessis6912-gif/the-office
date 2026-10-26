@@ -178,6 +178,7 @@ async function ensureCreates(env: Env): Promise<void> {
   await env.OFFICE_DB.prepare("CREATE INDEX IF NOT EXISTS idx_mcp_creates_key ON mcp_creates (key_id, created_at)").run();
 }
 async function ensureRecords(env: Env): Promise<void> {
+  await ensureCreates(env);   // first, so the column added below has a table to be added to
   await env.OFFICE_DB.prepare("CREATE TABLE IF NOT EXISTS mcp_created_records (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL DEFAULT (datetime('now')), create_id INTEGER NOT NULL, key_id TEXT NOT NULL, tbl TEXT NOT NULL, rec_id INTEGER NOT NULL, undone_at TEXT, undone_by TEXT, snapshot TEXT, UNIQUE (tbl, rec_id))").run();
   await env.OFFICE_DB.prepare("CREATE INDEX IF NOT EXISTS idx_mcp_created_records_key ON mcp_created_records (key_id, created_at)").run();
   try { await env.OFFICE_DB.prepare("ALTER TABLE mcp_creates ADD COLUMN untraced INTEGER NOT NULL DEFAULT 0").run(); } catch { /* already there */ }

@@ -16,18 +16,20 @@ module.exports = async function runCreatedRouteTests({ check, srcDir }) {
     db.prepare("INSERT INTO invoices (customer_id, description, amount, source_transcript) VALUES (1, 'Mine, typed in the app', 900, 't')").run();   // NOT tagged
     db.prepare("INSERT INTO expenses (amount, description, source_transcript, category) VALUES (50, 'fuel', 't', 'fuel')").run();
     db.prepare("INSERT INTO mcp_created_records (create_id, key_id, tbl, rec_id) VALUES (1, 'k1', 'invoices', 1)").run();
-    db.prepare("INSERT INTO mcp_created_records (create_id, key_id, tbl, rec_id) VALUES (2, 'k1', 'expenses', 1)").run(); };
+    db.prepare("INSERT INTO mcp_created_records (create_id, key_id, tbl, rec_id) VALUES (2, 'k1', 'expenses', 1)").run();
+    db.exec("CREATE TABLE IF NOT EXISTS mcp_changes (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL DEFAULT (datetime('now')), key_id TEXT NOT NULL, tbl TEXT NOT NULL, rec_id INTEGER NOT NULL, field TEXT NOT NULL, old_value TEXT, new_value TEXT, flagged INTEGER NOT NULL DEFAULT 0, reverted_at TEXT, reverted_by TEXT)");
+    db.prepare("UPDATE invoices SET amount = 3500 WHERE id = 1").run(); db.prepare("INSERT INTO mcp_changes (key_id, tbl, rec_id, field, old_value, new_value) VALUES ('k1', 'invoices', 1, 'amount', '3000', '3500')").run(); };
   const unchanged = (r) => Object.keys(r.writes || {}).length === 0;
-  const calls = [['GET', '/mcp-created', undefined], ['POST', '/mcp-created/undo', { id: 1 }]];
+  const calls = [['GET', '/mcp-created', undefined], ['POST', '/mcp-created/undo', { id: 1 }], ['POST', '/mcp-created/undo', { change_id: 1 }]];
 
   let refused = 0, total = 0;
   for (const [method, p, body] of calls) for (const role of ['accountant', 'installer', 'sales', 'admin']) { const r = await route({ name: `${method} ${p} as ${role}`, method, path: p, body, role, seed }); total++; if (r.result.status === 403 && unchanged(r)) refused++; }
-  check(refused === total, `all ${total} (2 routes x 4 other roles) are refused with 403 and change nothing: only the owner may list or undo`);
+  check(refused === total, `all ${total} (3 calls x 4 other roles) are refused with 403 and change nothing: only the owner may list or undo`);
   const noSession = []; for (const [method, p, body] of calls) noSession.push((await route({ name: `no session ${method} ${p}`, method, path: p, body, noSession: true, seed })).result.status);
   check(noSession.every((s) => s === 401), 'and to someone not signed in (401)');
 
   { const r = await route({ name: 'owner lists', method: 'GET', path: '/mcp-created', role: 'owner', seed }), b = r.result.body;
-    check(r.result.status === 200 && b.items.length === 2 && b.items[0].kind === 'expense' && b.items[1].kind === 'invoice' && b.items[1].state === 'active' && b.items[1].connection === 'Claude on my phone' && !JSON.stringify(b).includes('"hash"'), 'the owner sees what the connection created, newest first, by the connection\'s name, never a key hash'); }
+    check(r.result.status === 200 && b.changes.length === 1 && b.changes[0].kind === 'invoice' && b.changes[0].field === 'amount' && b.changes[0].oldValue === '3000' && b.changes[0].state === 'active' && b.items.length === 2 && b.items[0].kind === 'expense' && b.items[1].kind === 'invoice' && b.items[1].state === 'active' && b.items[1].connection === 'Claude on my phone' && !JSON.stringify(b).includes('"hash"'), 'the owner sees what the connection created, newest first, by the connection\'s name, never a key hash'); }
   { const r = await route({ name: 'owner undoes an invoice', method: 'POST', path: '/mcp-created/undo', body: { id: 1 }, role: 'owner', seed }), b = r.result.body;
     check(r.result.status === 200 && b.ok === true && b.action === 'voided' && b.kind === 'invoice' && b.recordId === 1 && r.writes.invoices.changed.length === 1 && r.writes.invoices.changed[0].after.status === 'void' && r.writes.invoices.changed[0].after.amount === 0 && !r.writes.invoices.removed && Object.keys(r.writes).sort().join() === 'invoices,mcp_created_records', 'the owner undoes a tagged invoice through the route: it is voided, never deleted'); }
   { const r = await route({ name: 'owner undoes by a record id that is not tagged', method: 'POST', path: '/mcp-created/undo', body: { id: 2 }, role: 'owner', seed: (db) => { seed(db); db.prepare("DELETE FROM mcp_created_records WHERE id = 2").run(); } }), b = r.result.body;
@@ -36,6 +38,12 @@ module.exports = async function runCreatedRouteTests({ check, srcDir }) {
     check(bad.every(Boolean), 'a missing, non-numeric, fractional, negative or list id, or an empty body, is refused with a 4xx and changes nothing'); }
   { const r = await route({ name: 'owner undoes a whole call', method: 'POST', path: '/mcp-created/undo', body: { call_id: 2 }, role: 'owner', seed }), b = r.result.body;
     check(r.result.status === 200 && b.results.length === 1 && b.results[0].kind === 'expense' && b.results[0].result.ok === true && r.writes.expenses.removed.length === 1 && !r.writes.invoices, 'a whole call can be undone by its call id'); }
+  { const r = await route({ name: 'owner reverts a change', method: 'POST', path: '/mcp-created/undo', body: { change_id: 1 }, role: 'owner', seed }), b = r.result.body;
+    check(r.result.status === 200 && b.ok === true && b.field === 'amount' && r.writes.invoices.changed[0].after.amount === 3000 && Object.keys(r.writes).sort().join() === 'invoices,mcp_changes', 'the owner reverts an assistant\'s change through the route: the old value is back'); }
+  { const r = await route({ name: 'change moved on', method: 'POST', path: '/mcp-created/undo', body: { change_id: 1 }, role: 'owner', seed: (db) => { seed(db); db.prepare('UPDATE invoices SET amount = 4000 WHERE id = 1').run(); } });
+    check(r.result.status === 409 && r.result.body.reason === 'changed_since' && unchanged(r), 'a change that was changed again since is a 409 with the reason, and nothing changes'); }
+  { const bad = []; for (const body of [{ change_id: 999 }, { change_id: 'x' }, { change_id: 0 }, { change_id: 1.5 }, { change_id: [1] }, { change_id: null }]) { const r = await route({ name: 'junk change ' + JSON.stringify(body), method: 'POST', path: '/mcp-created/undo', body, role: 'owner', seed }); bad.push(r.result.status >= 400 && r.result.status < 500 && unchanged(r)); }
+    check(bad.every(Boolean), 'an unknown, non-numeric, fractional or list change id is refused with a 4xx and changes nothing'); }
   { const r = await route({ name: 'unknown call', method: 'POST', path: '/mcp-created/undo', body: { call_id: 999 }, role: 'owner', seed }); check(r.result.status === 404, 'an unknown call is a 404'); }
   { const r = await route({ name: 'works with MCP off', method: 'POST', path: '/mcp-created/undo', body: { id: 1 }, role: 'owner', seed, env: { ...ENV, MCP: 'off' } }); check(r.result.status === 200 && r.result.body.ok === true, 'the undo works when MCP is switched off, so the owner can always clean up'); }
 };

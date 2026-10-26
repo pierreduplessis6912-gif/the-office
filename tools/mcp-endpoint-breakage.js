@@ -12,6 +12,13 @@ const run = require('./mcp-endpoint.test.js');
 const clearBuildCache = () => { for (const n of ['rm-poe', 'rm-auth']) delete require.cache[path.join(os.tmpdir(), `${n}-${process.pid}.js`)]; };
 
 const MUTATIONS = [
+  ['a read-scope key can see and run schedule_job', 'mcp', 'required: ["job_id", "date"], additionalProperties: false },\n  needsWrite: true, ownerOnly: true', 'required: ["job_id", "date"], additionalProperties: false },\n  needsWrite: false, ownerOnly: true'],
+  ['edit_created_record is open to any role that holds a write key', 'mcp', 'required: ["kind", "id", "changes"], additionalProperties: false },\n  needsWrite: true, ownerOnly: true', 'required: ["kind", "id", "changes"], additionalProperties: false },\n  needsWrite: true, ownerOnly: false'],
+  ['scheduling is not counted against the key\'s limit', 'mcp', 'const reserved = await reserveWrite(env, who);\n    if (!reserved.ok) return reserved.refusal;\n    return scheduleJob', 'return scheduleJob'],
+  ['editing is not counted against the key\'s limit', 'mcp', 'const reserved = await reserveWrite(env, who);\n    if (!reserved.ok) return reserved.refusal;\n    return editCreated', 'return editCreated'],
+  ['schedule_job ignores an argument it does not know', 'mcp', 'for (const key of Object.keys(args)) if (key !== "job_id" && key !== "date") return bad(`unknown argument: ${key.slice(0, 40)}`);', ''],
+  ['edit_created_record ignores an argument it does not know', 'mcp', 'for (const key of Object.keys(args)) if (key !== "kind" && key !== "id" && key !== "changes") return bad(`unknown argument: ${key.slice(0, 40)}`);', ''],
+  ['an edit over the threshold is not flagged through the tool', 'mcp', 'return editCreated(env, who.keyId, { kind: args.kind, id: args.id, changes: args.changes }, FLAG_OVER);', 'return editCreated(env, who.keyId, { kind: args.kind, id: args.id, changes: args.changes }, 1e15);'],
   ['a voided invoice still gets a document link', 'reads', '${kind === "invoice" ? " AND status IS NOT \'void\'" : ""}', '${""}'],
   ['a record that could not be traced is no longer reported as untraced', 'mcp', '...(untraced > 0 ? { untracedNote:', '...(false ? { untracedNote:'],
   ['a read-scope key can see and run the creating tool', 'mcp', 'if (tool.needsWrite && who.scope !== SCOPE_WRITE) return false;', ''],
