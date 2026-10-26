@@ -33,7 +33,7 @@ const MUTATIONS = [
   ['act', 'a bad action id is still sent', 'if (!Number.isInteger(actionId) || actionId < 1) return { status: 400, body: { error: "bad action id" } };', ''],
   ['act', 'a reject asks the app to confirm', '`/actions/${actionId}/${kind}`', '`/actions/${actionId}/confirm`'],
   ['act', 'the original request\'s own path is used', 'new URL(`/actions/${actionId}/${kind}`, requestUrl)', 'new URL(`/actions/${actionId}/${kind}` + new URL(requestUrl).pathname, requestUrl)'],
-  ['index', 'the front door ignores the decision environment', 'const runEnv = decision ? decision.env : env;', 'const runEnv = env;', 'index'],
+  ['index', 'the front door ignores the decision environment', 'if (decision) env = decision.env;', '', 'index'],
   ['index', 'the front door never finishes the decision', 'if (decision) await decision.finish(response);', '', 'index'],
 ];
 (async () => {

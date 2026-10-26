@@ -3984,8 +3984,8 @@ export async function serveRequest(request: Request, env: Env, ctx: ExecutionCon
   const cap = await capBefore(env, request);
   // A decision on a held action a CONNECTION proposed runs with a database that reports what the confirmation creates, so the record is tagged to that connection exactly (mcp-pending.ts); every other request is untouched.
   const decision = await mcpDecision(request, env);
-  const runEnv = decision ? decision.env : env;
-  const response = cap.block ?? (await runGuarded(request, requestId, () => handleRequest(request, timingOn ? instrumentEnv(runEnv, tally) : meterOn ? instrumentEnv(runEnv, tally, "ai") : runEnv, ctx, requestId), log));
+  if (decision) env = decision.env;
+  const response = cap.block ?? (await runGuarded(request, requestId, () => handleRequest(request, timingOn ? instrumentEnv(env, tally) : meterOn ? instrumentEnv(env, tally, "ai") : env, ctx, requestId), log));
   if (decision) await decision.finish(response);
   if (cap.countable && cap.over && !cap.block) response.headers.set("X-Usage-Warning", cap.over === "messages" ? "daily-message-limit" : "daily-spend-limit");
   if (cap.countable && !cap.block && isCountable(response)) ctx.waitUntil(capAfter(env, cap).catch(() => undefined));
