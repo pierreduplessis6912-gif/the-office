@@ -9,6 +9,7 @@ import { ROUTE_RULES, signDocumentPath } from "./auth";
 import { MAX_PAGE, customersData, documentExists, invoicesData, jobsData, parseId, parsePage, parseRange, parseSearch, quotesData, stockData } from "./mcp-reads";
 import { parseHistoryParams, readHistory, resolveScope } from "./history";
 import { bearerKey } from "./mcp-key-format";
+import { EDIT_KINDS, editCreated, scheduleJob } from "./mcp-changes";
 import { TRACKED_TABLES, taggingEnv, type TagSink, type TrackedTable } from "./mcp-tags";
 import { SCOPE_WRITE, authenticateKey, type McpScope } from "./mcp-keys";
 import { agedDebtorsData, customerReceivablesData, parseCustomerParam, parsePeriodParams, profitAndLossData } from "./reports-data";
@@ -193,6 +194,15 @@ async function anyOverThreshold(env: Env, tagged: Array<{ table: TrackedTable; i
   }
   return false;
 }
+/** Every WRITE a key makes (telling the Office, scheduling, editing) is counted here BEFORE it runs, against the same limits: 20 an hour and 100 a day per key. Over the limit nothing runs. */
+async function reserveWrite(env: Env, who: Who): Promise<{ ok: true; slotId: number } | { ok: false; refusal: ToolOutput }> {
+  await ensureCreates(env);
+  const hour = await env.OFFICE_DB.prepare("SELECT COUNT(*) AS n FROM mcp_creates WHERE key_id = ? AND created_at >= datetime('now', '-1 hour')").bind(who.keyId).first<{ n: number }>();
+  const day = await env.OFFICE_DB.prepare("SELECT COUNT(*) AS n FROM mcp_creates WHERE key_id = ? AND created_at >= datetime('now', '-1 day')").bind(who.keyId).first<{ n: number }>();
+  if ((hour?.n ?? 0) >= CREATES_PER_HOUR || (day?.n ?? 0) >= CREATES_PER_DAY) return { ok: false, refusal: { ok: false, message: `This key has reached its limit for making changes (${CREATES_PER_HOUR} an hour, ${CREATES_PER_DAY} a day). Nothing was recorded. Try later.`, outcome: "limited" } };
+  const slot = await env.OFFICE_DB.prepare("INSERT INTO mcp_creates (key_id, email) VALUES (?, ?) RETURNING id").bind(who.keyId, who.email).first<{ id: number }>();
+  return { ok: true, slotId: slot?.id ?? 0 };
+}
 const tellTool: Tool = {
   name: "tell_the_office",
   description: "Tell The Office something to record, in plain words, exactly as the owner would type it: an invoice, a quote, a job, an expense, a task. It goes through the same checks as a typed message. It creates only; it deletes nothing and moves no money. If it needs an answer (which customer, which project) it says so and the owner answers in the app. Everything it creates (invoices, quotes, jobs, expenses, tasks and payments received) is tagged with this key and the owner can undo it in the app, and there is a limit on how many times it can be used an hour and a day.",
@@ -203,12 +213,10 @@ const tellTool: Tool = {
     const text = typeof args.text === "string" ? args.text.trim() : "";
     if (text.length < 1 || text.length > MAX_TELL_CHARS || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(text)) return bad(`text must be 1 to ${MAX_TELL_CHARS} characters of plain text.`);
     if (host === null) return { ok: false, message: "Creating is not available here.", outcome: "error" };
-    await ensureCreates(env); await ensureRecords(env);
-    const hour = await env.OFFICE_DB.prepare("SELECT COUNT(*) AS n FROM mcp_creates WHERE key_id = ? AND created_at >= datetime('now', '-1 hour')").bind(who.keyId).first<{ n: number }>();
-    const day = await env.OFFICE_DB.prepare("SELECT COUNT(*) AS n FROM mcp_creates WHERE key_id = ? AND created_at >= datetime('now', '-1 day')").bind(who.keyId).first<{ n: number }>();
-    if ((hour?.n ?? 0) >= CREATES_PER_HOUR || (day?.n ?? 0) >= CREATES_PER_DAY) return { ok: false, message: `This key has reached its limit for creating (${CREATES_PER_HOUR} an hour, ${CREATES_PER_DAY} a day). Nothing was recorded. Try later.`, outcome: "limited" };
-    // The attempt is counted BEFORE it runs, so a call that fails half way still uses up its place.
-    const slot = await env.OFFICE_DB.prepare("INSERT INTO mcp_creates (key_id, email) VALUES (?, ?) RETURNING id").bind(who.keyId, who.email).first<{ id: number }>();
+    await ensureRecords(env);
+    const reserved = await reserveWrite(env, who);
+    if (!reserved.ok) return reserved.refusal;
+    const slot = { id: reserved.slotId };
     const tagged: Array<{ table: TrackedTable; id: number }> = []; let untraced = 0;
     const sink: TagSink = { record: (table, id) => { if (TRACKED_TABLES.includes(table) && !tagged.some((t) => t.table === table && t.id === id)) tagged.push({ table, id }); }, untraced: () => { untraced++; } };
     let told: { message: string; pendingActionIds: number[]; captureId: number | null };
@@ -224,6 +232,34 @@ const tellTool: Tool = {
   },
 };
 TOOLS.push(tellTool);
+
+const jobId = { type: "integer", minimum: 1, description: "The job's id, from list_jobs." };
+const scheduleTool: Tool = {
+  name: "schedule_job",
+  description: "Schedule a job (a job scope from list_jobs) for a date, today or later. It changes only the date, and the owner can revert it in the app. There is a limit on how many changes a key can make an hour and a day.",
+  inputSchema: { type: "object", properties: { job_id: jobId, date: DATE }, required: ["job_id", "date"], additionalProperties: false },
+  needsWrite: true, ownerOnly: true, route: null,
+  async run(env, args, who) {
+    for (const key of Object.keys(args)) if (key !== "job_id" && key !== "date") return bad(`unknown argument: ${key.slice(0, 40)}`);
+    if (typeof args.job_id !== "number" || typeof args.date !== "string") return bad("job_id must be a whole number and date a YYYY-MM-DD text.");
+    const reserved = await reserveWrite(env, who);
+    if (!reserved.ok) return reserved.refusal;
+    return scheduleJob(env, who.keyId, { job_id: args.job_id, date: args.date });
+  },
+};
+const editTool: Tool = {
+  name: "edit_created_record",
+  description: "Change a record that a connected assistant created (it must have been created through a connection, and still be untouched): an invoice's or quote's description or amount, an expense's description, amount or category, a task's description or done, a job's description. Give the kind, the id and only the fields to change. Anything the owner made in the app can only be changed in the app. The owner can revert each change in the app, and there is a limit on how many changes a key can make an hour and a day.",
+  inputSchema: { type: "object", properties: { kind: { type: "string", enum: EDIT_KINDS }, id: { type: "integer", minimum: 1 }, changes: { type: "object", properties: { description: { type: "string", maxLength: 500 }, amount: { type: "number", exclusiveMinimum: 0, maximum: 100000000 }, category: { type: "string", maxLength: 60 }, done: { type: "boolean" } }, additionalProperties: false, minProperties: 1 } }, required: ["kind", "id", "changes"], additionalProperties: false },
+  needsWrite: true, ownerOnly: true, route: null,
+  async run(env, args, who) {
+    for (const key of Object.keys(args)) if (key !== "kind" && key !== "id" && key !== "changes") return bad(`unknown argument: ${key.slice(0, 40)}`);
+    const reserved = await reserveWrite(env, who);
+    if (!reserved.ok) return reserved.refusal;
+    return editCreated(env, who.keyId, { kind: args.kind, id: args.id, changes: args.changes }, FLAG_OVER);
+  },
+};
+TOOLS.push(scheduleTool, editTool);
 
 // A tool may be used only as the gate would let this member use the route it mirrors (auth.ts, authorizeRestrictedMember): the OWNER is always allowed, any other role only through a rule in the very table the gate uses, and no rule is no access (that is how the report routes are "owner only"). The history tool mirrors no route because every active member may read their own turns.
 function permitted(tool: Tool, who: { role: string; capabilities: string[]; scope: McpScope }): boolean {
