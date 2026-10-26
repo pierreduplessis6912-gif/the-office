@@ -1,7 +1,7 @@
 // HELD ACTIONS PROPOSED THROUGH A CONNECTION (MCP_ARCHITECTURE.md). Every money action (an invoice, a quote, an expense, a payment) is HELD by the pipeline as a pending action and only becomes a record when it is confirmed (POST /actions/:id/confirm). When an assistant tells the Office something, what comes back is therefore usually a held action, not a record. Two things follow, and this module does both: (1) the held action is LINKED to the key that proposed it, so that whoever confirms it (the owner in the app, or the assistant through confirm_pending_action) the record that is then created is TAGGED to that key, shows in the owner's list and can be undone; (2) the assistant may confirm or reject ONLY an action its own key proposed, of a kind that needs no answer (CONFIRMABLE), once.
 // A confirmed record is tagged EXACTLY (mcp-tags.ts wraps the database of that one confirm request), never by guessing.
 import type { Env } from "./types";
-import { TRACKED_TABLES, type TagSink, type TrackedTable } from "./mcp-tags";
+import { TRACKED_TABLES, taggingEnv, type TagSink, type TrackedTable } from "./mcp-tags";
 
 /** The held actions an assistant may confirm or reject itself: the ones that only need a yes. Anything that needs an answer (which person, which project) or changes what exists is left to the owner in the app. */
 export const CONFIRMABLE = new Set(["expense", "payment", "invoice", "quotation"]);
@@ -72,4 +72,16 @@ export async function listHeld(env: Env, limit: number): Promise<Array<Record<st
     const { results } = await env.OFFICE_DB.prepare("SELECT l.pending_id, l.type, l.summary, l.status, l.created_at, l.resolved_by, k.label AS label FROM mcp_pending_links l LEFT JOIN mcp_keys k ON k.id = l.key_id ORDER BY l.id DESC LIMIT ?").bind(Math.min(Math.max(Math.floor(limit) || 50, 1), 200)).all<Record<string, unknown>>();
     return results.map((r) => ({ actionId: r.pending_id, kind: kindOfHeld(String(r.type)), summary: r.summary ?? null, state: r.status === "confirmed" ? "confirmed" : r.status === "rejected" ? "rejected" : "waiting", connection: r.label ?? "a connected assistant", createdAt: r.created_at, resolvedBy: r.resolved_by ?? null }));
   } catch { return []; }
+}
+
+/** For the front door (index.ts serveRequest): when this request is a decision on a held action a CONNECTION proposed, the environment to run it with (its database reports what the confirmation creates) and what to do with the answer. Null for everything else, which is nearly every request. The tagging happens only if the decision SUCCEEDED, so a refused or failed one tags nothing. */
+export async function mcpDecision(request: Request, env: Env): Promise<{ env: Env; finish: (response: Response) => Promise<void> } | null> {
+  if (request.method !== "POST") return null;
+  let path = ""; try { path = new URL(request.url).pathname; } catch { return null; }
+  const m = /^\/actions\/(\d+)\/(confirm|reject)$/.exec(path);
+  if (!m) return null;
+  const link = await findLink(env, Number(m[1]));
+  if (!link) return null;
+  const seen = collector(); const confirm = m[2] === "confirm";
+  return { env: taggingEnv(env, seen.sink), finish: async (response) => { if (response.ok) await finishLink(env, link, confirm ? "confirmed" : "rejected", "app", confirm ? seen.tagged : []); } };
 }

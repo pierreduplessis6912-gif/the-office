@@ -9,7 +9,8 @@ import { handleMcp } from "./mcp";
 import { taggingEnv } from "./mcp-tags";
 import { listCreated, undoCall, undoTagged } from "./mcp-undo";
 import { listChanges, revertChange } from "./mcp-changes";
-import { collector, finishLink, findLink, listHeld } from "./mcp-pending";
+import { listHeld, mcpDecision } from "./mcp-pending";
+import { actThroughApp } from "./mcp-act";
 import { continueOAuthSignIn, handleOAuthRoute } from "./mcp-oauth-routes";
 import { issueKey, listKeys, revokeKey } from "./mcp-keys";
 import { analysisData, parseAnalysisParams } from "./analysis";
@@ -71,7 +72,6 @@ import {
   corsHeadersFor,
   signDocumentPath,
   resolveCapabilities,
-  signSession,
   getMemberContext,
   getJobScope,
   denyForRole,
@@ -469,16 +469,6 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
     const gate = await authGate(request, env, url);
     if (gate) return gate;
 
-    // A held action a CONNECTION proposed is tagged when it is decided, by whoever decides it (the owner here in the app, or the assistant through confirm_pending_action): the record its confirmation creates is tagged to that connection exactly (mcp-tags.ts wraps the database of this one request), shows in the owner's list and can be undone. Every other action passes straight through.
-    const decided = url.pathname.match(/^\/actions\/(\d+)\/(confirm|reject)$/);
-    if (decided && request.method === "POST" && !env.__mcpTagged) {
-      const link = await findLink(env, Number(decided[1]));
-      if (!link) return handleRequest(request, { ...env, __mcpTagged: true }, ctx, requestId);
-      const seen = collector();
-      const response = await handleRequest(request, { ...taggingEnv(env, seen.sink), __mcpTagged: true }, ctx, requestId);
-      if (response.ok) await finishLink(env, link, decided[2] === "confirm" ? "confirmed" : "rejected", "app", decided[2] === "confirm" ? seen.tagged : []);
-      return response;
-    }
 
     if (url.pathname === "/" || url.pathname === "/health") {
       return Response.json({ status: "ok", service: "office-api", commit: env.GIT_SHA ?? null });
@@ -909,13 +899,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       // The one thing an assistant with a write key may do is tell The Office something, through the SAME pipeline as a typed message, with the member's own capabilities (mcp.ts, stage 2).
       let captureId: number | null = null;
       return handleMcp(request, env, {
-        // The assistant's confirm or reject goes through the app's OWN route, as the member the key belongs to, with a one-minute session made here and never shown to anyone: so the app's own rules, atomic write and decision log all apply, and nothing is copied.
-        act: async (kind, actionId, who) => {
-          const token = await signSession(env, who.email, env.BUSINESS_ID, Date.now() + 60_000);
-          const inner = await serveRequest(new Request(new URL(`/actions/${actionId}/${kind}`, request.url), { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: "{}" }), env, ctx);
-          let body: unknown = null; try { body = await inner.json(); } catch { body = null; }
-          return { status: inner.status, body };
-        },
+        // The assistant's confirm or reject goes through the app's OWN route (mcp-act.ts), so the app's own rules, atomic write and decision log all apply.
+        act: (kind, actionId, who) => actThroughApp(env, (inner) => serveRequest(inner, env, ctx), request.url, kind, actionId, who),
         tell: async (text, who, sink) => { captureId = null; const r = await processTranscript(taggingEnv(env, sink), text, ctx, [], "text", null, who.capabilities, who.email, (id) => { captureId = id; }); return { message: r.message, pendingActionIds: r.pendingActionIds, captureId }; } });
     }
     if (url.pathname === "/mcp-keys" && request.method === "GET") {
@@ -3997,7 +3982,11 @@ export async function serveRequest(request: Request, env: Env, ctx: ExecutionCon
   // Cost caps (limits.ts): for a message that would use the model, the member's day and the business's spend are checked BEFORE the model is called. In warn mode nobody is stopped; in enforce mode a member or
   // business over the limit gets a clear 429. The check is fail-open: any error in it lets the request through.
   const cap = await capBefore(env, request);
-  const response = cap.block ?? (await runGuarded(request, requestId, () => handleRequest(request, timingOn ? instrumentEnv(env, tally) : meterOn ? instrumentEnv(env, tally, "ai") : env, ctx, requestId), log));
+  // A decision on a held action a CONNECTION proposed runs with a database that reports what the confirmation creates, so the record is tagged to that connection exactly (mcp-pending.ts); every other request is untouched.
+  const decision = await mcpDecision(request, env);
+  const runEnv = decision ? decision.env : env;
+  const response = cap.block ?? (await runGuarded(request, requestId, () => handleRequest(request, timingOn ? instrumentEnv(runEnv, tally) : meterOn ? instrumentEnv(runEnv, tally, "ai") : runEnv, ctx, requestId), log));
+  if (decision) await decision.finish(response);
   if (cap.countable && cap.over && !cap.block) response.headers.set("X-Usage-Warning", cap.over === "messages" ? "daily-message-limit" : "daily-spend-limit");
   if (cap.countable && !cap.block && isCountable(response)) ctx.waitUntil(capAfter(env, cap).catch(() => undefined));
     // A decision on a held action (confirm, reject, edit-field) is recorded with who and the outcome, from the response STATUS alone; swallowed, so it can never change a response.

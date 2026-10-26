@@ -145,6 +145,9 @@ New PUBLIC paths in the gate (`auth.ts` `PUBLIC_ROUTES`) and the router (`routin
 ## Connected assistants (MCP): who can create and who can undo (2026-10-26)
 A connected assistant's key has a scope: read only by default, create only when the owner ticks it on the consent page. Creating is one tool, owner only, with per-key caps and a flag over R50,000 (`MCP_ARCHITECTURE.md`). Undoing what it created is the owner's own action in the app (`GET /mcp-created`, `POST /mcp-created/undo`, both `can_invite_members`, so owner only, and they work with MCP switched off); it acts only on records tagged to a key, by the tag's id, and never deletes an invoice (it voids it).
 
+## Assistant confirm and reject (2026-10-26)
+`confirm_pending_action` and `reject_pending_action` make the app's own confirm or reject request as the member a key belongs to, with a ONE-MINUTE session minted inside the Worker (`worker/src/mcp-act.ts`) and never shown to anyone, so the normal gate, atomic write and decision log all apply. They are write scope, owner only, limited to an action that the same key proposed and that only needs a yes, counted against the key's limit, audited and closed by `MCP=off`. The control that remains is claude.ai's per-tool approval; see `MCP_ARCHITECTURE.md`.
+
 ## Progress log
 
 Moved (verbatim) to [docs/archive/SECURITY_PROGRESS_LOG.md](docs/archive/SECURITY_PROGRESS_LOG.md) on 2026-10-25. It holds the dated, live-verified results behind every ticked item above.

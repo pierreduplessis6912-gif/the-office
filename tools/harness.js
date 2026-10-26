@@ -43,7 +43,7 @@ async function loadFunctions(workerDir) {
     name: 'expose-processOneExtraction',
     setup(b) {
       b.onLoad({ filter: /src[\\/]index\.ts$/ }, (a) => ({
-        contents: fs.readFileSync(a.path, 'utf8') + '\nexport { processOneExtraction as __poe, processTranscript as __pt, handleRequest as __hr };\n',
+        contents: fs.readFileSync(a.path, 'utf8') + '\nexport { processOneExtraction as __poe, processTranscript as __pt, handleRequest as __hr, serveRequest as __sr };\n',
         loader: 'ts',
       }));
     },
@@ -55,7 +55,7 @@ async function loadFunctions(workerDir) {
   // copy inside the index bundle because both use the same HMAC with the same secret.
   const authOut = path.join(os.tmpdir(), `rm-auth-${process.pid}.js`);
   await esbuild.build({ entryPoints: [path.join(workerDir, 'src', 'auth.ts')], bundle: true, platform: 'node', format: 'cjs', outfile: authOut, logLevel: 'silent' });
-  return { processOne: mod.__poe, processTranscript: mod.__pt, handleRequest: mod.__hr, auth: require(authOut) };
+  return { processOne: mod.__poe, processTranscript: mod.__pt, handleRequest: mod.__hr, serveRequest: mod.__sr, auth: require(authOut) };
 }
 
 // Kept for the cases that only need the single-segment function.
@@ -345,7 +345,7 @@ async function __runRouteCase(fns, workerDir, spec) {
     else if (!step.noSession) headers.cookie = `office_session=${await auth.signSession(env, `${step.role || 'owner'}@example.com`)}`;
     const payload = step.form ? await buildForm(step.form) : step.body === undefined ? undefined : JSON.stringify(step.body);
     const request = new Request('https://office.test' + step.path, { method: step.method || 'POST', headers, body: payload });
-    const response = await handleRequest(request, env, ctx, 'req-1');
+    const response = step.frontDoor ? await fns.serveRequest(request, env, ctx) : await handleRequest(request, env, ctx, 'req-1');   // frontDoor: the real entry point (serveRequest), for what only it does
     const text = await response.text();
     let body = text;
     try { body = JSON.parse(text); } catch (e) { /* not JSON: keep the text */ }

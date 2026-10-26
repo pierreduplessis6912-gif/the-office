@@ -17,7 +17,7 @@ module.exports = async function runPendingRouteTests({ check, srcDir }) {
     db.prepare("INSERT INTO mcp_pending_links (pending_id, key_id, create_id, type, summary) VALUES (1, 'k1', 7, 'expense', 'R1, connector test, for Jenny')").run();
     if (extra) extra(db); };
   const link = (r) => r.after && r.after.mcp_pending_links;
-  const decide = (id, what, spec = {}) => route({ name: `${what} ${id}`, method: 'POST', path: `/actions/${id}/${what}`, role: 'owner', seed: seed(), ...spec });
+  const decide = (id, what, spec = {}) => route({ name: `${what} ${id}`, method: 'POST', path: `/actions/${id}/${what}`, role: 'owner', seed: seed(), frontDoor: true, ...spec });
 
   { const r = await decide(1, 'confirm'); const w = r.writes;
     check(r.result.status === 200 && r.result.body.status === 'confirmed' && w.expenses && w.expenses.added.length === 1 && w.mcp_created_records && w.mcp_created_records.added.length === 1 && w.mcp_created_records.added[0].tbl === 'expenses' && w.mcp_created_records.added[0].rec_id === w.expenses.added[0].id && w.mcp_created_records.added[0].key_id === 'k1' && w.mcp_created_records.added[0].create_id === 7, 'the owner confirms a held action a connection proposed, in the app: the expense it creates is TAGGED to that connection and to the call that proposed it (the gap Pierre found)');
@@ -33,5 +33,5 @@ module.exports = async function runPendingRouteTests({ check, srcDir }) {
   { const refused = []; for (const role of ['installer', 'sales']) { const r = await decide(1, 'confirm', { role }); refused.push(r.result.status === 403 && !r.writes.mcp_created_records && !r.writes.expenses && !r.writes.mcp_pending_links); }
     const allowed = []; for (const role of ['accountant', 'admin']) { const r = await decide(1, 'confirm', { role }); allowed.push(r.result.status === 200 && r.writes.mcp_created_records.added.length === 1 && r.writes.mcp_created_records.added[0].key_id === 'k1'); }
     check(refused.every(Boolean) && allowed.every(Boolean), 'roles that may not confirm a money action (installer, sales) still cannot, and a refused confirm tags nothing; roles that may (accountant, admin) confirm as the app always allowed, and what they confirm is tagged the same'); }
-  { const r = await route({ name: 'confirm by a stranger', method: 'POST', path: '/actions/1/confirm', noSession: true, seed: seed() }); check(r.result.status === 401 && Object.keys(r.writes).length === 0, 'and without signing in it is refused (401) before anything is looked up'); }
+  { const r = await route({ name: 'confirm by a stranger', method: 'POST', path: '/actions/1/confirm', noSession: true, seed: seed(), frontDoor: true }); check(r.result.status === 401 && !r.writes.expenses && !r.writes.mcp_created_records && !r.writes.mcp_pending_links, 'and without signing in it is refused (401): nothing is created, tagged or ended (the app\'s own log of the refused attempt is its only write)'); }
 };

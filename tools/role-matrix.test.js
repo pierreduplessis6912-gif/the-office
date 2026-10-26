@@ -870,6 +870,7 @@ async function expect(role, method, path, want) {
   await require('./mcp-changes.test.js')({ check, srcDir });
   await require('./mcp-pending.test.js')({ check, srcDir });
   await require('./mcp-pending-routes.test.js')({ check, srcDir });
+  await require('./mcp-act.test.js')({ check, srcDir });
   // The read-only MCP adapter, slice B: the owner-only routes to issue, list and revoke keys, through the real pipeline as each role
   await require('./mcp-keys-routes.test.js')({ check, srcDir });
   // The read-only MCP adapter, slice C: the /mcp endpoint and its five read-only tools: the first place a key READS data, so every guard is also proven by tools/mcp-endpoint-breakage.js
