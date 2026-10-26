@@ -1,18 +1,18 @@
 {
- "commit": "a0865f7",
- "when": "2026-10-26T07:48:04.996397+00:00",
+ "commit": "54479d9",
+ "when": "2026-10-26T11:20:33.135314+00:00",
  "analyze": "success",
  "analyze_errors": 0,
  "analyze_error_lines": [],
  "tests": "success",
  "failing_lines": [],
  "test_tail": [
-  "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: the gate shows the app normally, replaces it when access ends, and \"Sign in\" brings it back",
-  "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: anything open on top (a dialog, a pushed page) is closed when access ends",
-  "\u2705 /home/runner/work/the-office/the-office/app/test/access_guard_test.dart: the screen is announced to a screen reader (live region) and has no way to continue except signing in",
+  "\u2705 /home/runner/work/the-office/the-office/app/test/mcp_keys_model_test.dart: the address to give an assistant is the API base plus /mcp, whatever slashes the base ends with",
+  "\u2705 /home/runner/work/the-office/the-office/app/test/mcp_keys_model_test.dart: the lines on a key say when it was made and used, in plain words",
+  "\u2705 /home/runner/work/the-office/the-office/app/test/mcp_keys_model_test.dart: a typed label is tidied: trimmed, control characters removed, at most 60 characters, and nothing usable is null",
   "::endgroup::",
   "",
-  "\ud83c\udf89 174 tests passed."
+  "\ud83c\udf89 176 tests passed."
  ],
  "build": "success"
 }
