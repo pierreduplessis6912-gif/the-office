@@ -60,7 +60,7 @@ export async function uploadPage(env: Env, ticketId: number, action: string): Pr
   const opened = await openTicket(env, ticketId);
   if (!opened.ok) return closed(opened.reason);
   const left = opened.ticket.max_uses - opened.ticket.used_count;
-  return page("Send a photo or PDF", `<h1>Send a photo or PDF to your Office</h1><p>Pick a photo (of a supplier invoice, a delivery note, a receipt) or a PDF. It is read the same way as one sent from the app, and anything that touches money waits for your confirmation.</p><form method="post" action="${escapeHtml(action)}" enctype="multipart/form-data"><p><input type="file" name="file" accept="image/*,application/pdf" required></p><p><label>A note, if you want one<br><input type="text" name="caption" maxlength="200"></label></p><p><button type="submit">Send</button></p></form><p class="small">You can send up to ${left} more file${left === 1 ? "" : "s"} with this link, for the next ${UPLOAD_TTL_MINUTES} minutes.</p>`);
+  return page("Send a photo or PDF", `<h1>Send a photo or PDF to your Office</h1><p>Pick a photo (of a supplier invoice, a delivery note, a receipt) or a PDF. It is read the same way as one sent from the app, and anything that touches money waits for your confirmation.</p><form method="post" action="${escapeHtml(action)}" enctype="multipart/form-data"><p><input type="file" name="file" accept="image/*,application/pdf" required></p><p><label>Who is it from? (optional)<br><input type="text" name="caption" maxlength="200"></label><br><span class="small">Type the supplier's name: that is what lets the Office treat it as a supplier invoice, a delivery note or a statement. Without a name it is only stored.</span></p><p><button type="submit">Send</button></p></form><p class="small">You can send up to ${left} more file${left === 1 ? "" : "s"} with this link, for the next ${UPLOAD_TTL_MINUTES} minutes.</p>`);
 }
 
 /** What kind of file this really is, from its first bytes. Anything else is not passed on. */
@@ -111,8 +111,14 @@ export async function receiveUpload(env: Env, request: Request, ticketId: number
   } catch { /* reported below */ }
   const ok = answer.status >= 200 && answer.status < 300;
   const held = ok && typeof answer.body?.pendingActionId === "number" ? await linkHeld(env, t.key_id, t.create_id, [answer.body.pendingActionId as number]) : [];
-  const message = ok ? (text(answer.body?.refusal, 300) ?? text(answer.body?.message, 300)) : text(answer.body?.error, 200);
-  const entry = { n, kind: kind.kind, received: ok, ...(message ? { message } : {}), ...(typeof answer.body?.refusal === "string" && answer.body.refusal ? { refused: true } : {}), held: held.map((h) => ({ actionId: h.actionId, kind: h.kind, summary: h.summary, canConfirmHere: h.canConfirmHere })) };
+  const appMessage = ok ? (text(answer.body?.refusal, 300) ?? text(answer.body?.message, 300)) : text(answer.body?.error, 200);
+  // What the Office READ, so a file that was only stored is not a mystery: the start of the text it found (or why it found none).
+  const read = ok ? text(answer.body?.description, 300) : null;
+  const unreadable = read !== null && /no extractable text layer|text extraction failed/i.test(read);
+  const recognised = ok && (appMessage !== null || held.length > 0);
+  // (5) the person and the assistant are always told what the Office did: its own message if it had one, otherwise plainly that it only stored the file
+  const message = !ok ? appMessage : appMessage ?? (unreadable ? "The Office could not read any text in that PDF (it may be a scan). Send a clear photo of it instead." : "It was stored, but the Office did not recognise it as a supplier invoice, a delivery note or a statement, so nothing was recorded. If it is one, send it again with the supplier's name in the box.");
+  const entry = { n, kind: kind.kind, received: ok, recognised, ...(message ? { message } : {}), ...(read ? { read } : {}), ...(typeof answer.body?.refusal === "string" && answer.body.refusal ? { refused: true } : {}), held: held.map((h) => ({ actionId: h.actionId, kind: h.kind, summary: h.summary, canConfirmHere: h.canConfirmHere })) };
   try {
     const prior = (() => { try { return JSON.parse(t.results ?? "[]") as unknown[]; } catch { return []; } })();
     await env.OFFICE_DB.prepare("UPDATE mcp_upload_tickets SET results = ? WHERE id = ?").bind(JSON.stringify([...prior, entry].slice(-MAX_FILES)), t.id).run();

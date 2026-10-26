@@ -309,7 +309,7 @@ TOOLS.push(confirmTool, rejectTool);
 
 const uploadLinkTool: Tool = {
   name: "get_upload_link",
-  description: `Get a link for the OWNER to send a photo or PDF (a supplier invoice, a delivery note, a receipt) to the Office. You cannot pass a file through this connection, so give the owner the link: they open it on their phone, choose the file and send it. The Office reads it exactly as it reads one sent from the app, and anything that touches money is HELD for confirmation. The link works for ${UPLOAD_TTL_MINUTES} minutes and takes up to ${MAX_FILES} files. After the owner says they sent it, call check_upload with the ticketId to see what the Office made of it. It counts against the key's limit like any change.`,
+  description: `Get a link for the OWNER to send a photo or PDF (a supplier invoice, a delivery note, a receipt) to the Office. You cannot pass a file through this connection, so give the owner the link: they open it on their phone, choose the file and send it. The Office reads it exactly as it reads one sent from the app, and anything that touches money is HELD for confirmation. BEFORE you give the link, ask the owner who the document is from (the supplier's name) and tell them to type it in the box on the page: a supplier invoice, delivery note or statement is only recognised when the supplier is named, and a document sent without a name is only stored. The link works for ${UPLOAD_TTL_MINUTES} minutes and takes up to ${MAX_FILES} files. After the owner says they sent it, call check_upload with the ticketId to see what the Office made of it. It counts against the key's limit like any change.`,
   inputSchema: { type: "object", properties: {}, additionalProperties: false },
   needsWrite: true, ownerOnly: true, route: null,
   async run(env, args, who, origin) {
@@ -323,7 +323,7 @@ const uploadLinkTool: Tool = {
 };
 const checkUploadTool: Tool = {
   name: "check_upload",
-  description: "See what happened with an upload link you got from get_upload_link: whether a file was sent, what the Office made of it (its own plain message), and any action it HELD for confirmation (with its actionId; a held action you may confirm yourself says so, and anything else the owner confirms in the app). Only for a link this connection asked for.",
+  description: "See what happened with an upload link you got from get_upload_link: whether a file was sent, what the Office made of it (its own plain message; `recognised` is false when it only stored the file and recorded nothing, and `read` is the start of the text it found), and any action it HELD for confirmation (with its actionId; a held action you may confirm yourself says so, and anything else the owner confirms in the app). Only for a link this connection asked for.",
   inputSchema: { type: "object", properties: { ticket_id: { type: "integer", minimum: 1 } }, required: ["ticket_id"], additionalProperties: false },
   needsWrite: true, ownerOnly: true, route: null,
   async run(env, args, who) {

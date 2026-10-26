@@ -35,6 +35,14 @@ const MUTATIONS = [
   ['upload', 'the form address is not escaped', 'action="${escapeHtml(action)}"', 'action="${action}"'],
   ['upload', 'any key can see any ticket\'s outcome', 'FROM mcp_upload_tickets WHERE id = ? AND key_id = ?`).bind(ticketId, keyId)', 'FROM mcp_upload_tickets WHERE id = ? AND ? IS NOT NULL`).bind(ticketId, keyId)'],
   ['upload', 'the link\'s signature covers any path', 'await signDocumentPath(env, path, UPLOAD_TTL_MINUTES * 60_000)', 'await signDocumentPath(env, "/invoices/3/pdf", UPLOAD_TTL_MINUTES * 60_000)'],
+  // a file that was only stored is said plainly
+  ['upload', 'a file that was only stored is reported as received with nothing said', ': "It was stored, but the Office did not recognise it as a supplier invoice, a delivery note or a statement, so nothing was recorded. If it is one, send it again with the supplier\'s name in the box.");', ': null);'],
+  ['upload', 'a PDF with no readable text is described as merely not recognised', '(unreadable ? "The Office could not read', '(false ? "The Office could not read'],
+  ['upload', 'every file is reported as recognised', 'const recognised = ok && (appMessage !== null || held.length > 0);', 'const recognised = true;'],
+  ['upload', 'a failure is reported as recognised', 'const recognised = ok && (', 'const recognised = ('],
+  ['upload', 'what the Office read is not passed on', '...(read ? { read } : {}),', ''],
+  ['upload', 'what the Office read is passed on whole', '.trim().slice(0, max) : null)', '.trim() : null)'],
+  ['upload', 'the page does not ask who the document is from', 'Who is it from? (optional)', 'A note, if you want one'],
   // the gate (auth.ts)
   ['auth', 'the gate does not check the signature', 'return (await verifyDocumentToken(env, path, url.searchParams.get("sig"))) ? null : Response.json({ error: "this link is missing or has expired" }, { status: 403 });\n  }\n\n  if (path.endsWith("/pdf"))', 'return null;\n  }\n\n  if (path.endsWith("/pdf"))'],
   ['auth', 'the gate allows any method', 'if (request.method !== "GET" && request.method !== "POST") return Response.json({ error: "method not allowed" }, { status: 405 });', ''],
