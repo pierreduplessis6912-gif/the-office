@@ -8,11 +8,11 @@ One entry per meaningful test, newest session last. Current state, risks and pri
 
 ## Session 2026-10-26-A: first capability audit (Claude on claude.ai, read-only, production)
 
-**Access verified:** 11 MCP tools were discoverable and callable from a claude.ai chat session; names match the stage-1 list in `MCP_ARCHITECTURE.md`. The auth mechanism (OAuth connector or key) is not observable from the chat. **Not accessible:** the repo was cloned read-only (public); there was no GitHub token, so nothing could be pushed. No tool exposes the running commit, so "production runs `c78633d`" (from `HANDOVER.md`) is not re-verified here.
+**Access verified:** the connector lists 16 tools in this chat. I loaded and used the 11 read-only ones (names match the stage-1 list in `MCP_ARCHITECTURE.md`). CORRECTION (same day, after the first push): the first version of this entry said 11 tools in all and nothing that writes; that was wrong. The other 5 were never loaded or called: `tell_the_office`, `schedule_job`, `edit_created_record`, `confirm_pending_action`, `reject_pending_action` (write-capable; repo stages 2 and 3, partly not deployed per `HANDOVER.md`). They are NOT verified and need Pierre's explicit go-ahead and the test business before any call. The auth mechanism (OAuth connector or key) is not observable from the chat. **Not accessible:** the repo was cloned read-only (public); there was no GitHub token, so nothing could be pushed. No tool exposes the running commit, so "production runs `c78633d`" (from `HANDOVER.md`) is not re-verified here.
 
 | ID | Scenario | Tools | Result |
 |---|---|---|---|
-| MCPT-20261026-01 | Connect and list tools | tool discovery | pass (11 tools, all read-only) |
+| MCPT-20261026-01 | Connect and list tools | tool discovery | partial (16 listed; the 11 read-only ones used; 5 write-capable ones not tested) |
 | MCPT-20261026-02 | "Show me some customers" | list_customers(limit 5) | pass; see F-02, F-08 |
 | MCPT-20261026-03 | "Latest invoices" | list_invoices(limit 5) | pass; see F-01, F-02, F-07 |
 | MCPT-20261026-04 | "Who owes us, and how old is it?" | get_aged_debtors | pass on arithmetic; see F-03, F-09 |
@@ -49,9 +49,9 @@ One entry per meaningful test, newest session last. Current state, risks and pri
 | F-10 | `analyse` flags every customer in a window as `new_in_period` when the comparison window has none of their invoices, including customers with earlier imported invoices. Evidence is attached for 3 of 5 contributors (documented in `limits`). | The flag means "none in the comparison window", not "new customer". | UX | S4 | proposed |
 | F-11 | In history rows 6 and 7 (source "text"), `recorded.heard` holds many partial phrases joined without spaces ("who", "who is", "who is our", ...). | Interim speech results are appended instead of replaced, in the app or the history writer; unconfirmed. | BUG | S3 | proposed |
 | F-12 | "Who has spent the most with us" opened a financial snapshot; the earlier "biggest customer" got a clarifying question. No MCP tool ranks customers by revenue. | Missing combined query (see summary). | CAPABILITY | S3 | proposed |
-| F-13 | `HANDOVER.md` "Backend live" line still says five MCP tools; eleven are callable. | Stale line after stage 1 went live. | BUG (docs) | S5 | proposed |
+| F-13 | `HANDOVER.md` "Backend live" line said five MCP tools when this audit began; eleven read-only plus write-capable tools exist. | Stale line after stage 1 went live. | BUG (docs) | S5 | proposed |
 
-**Security note (SECURITY, S4, observation).** Free-text fields (invoice and quote descriptions, history transcripts) come back to the model unchanged and are written from dictation. They are untrusted input. Today all 11 tools are read-only, so the exposure is low; it rises the day a write tool or a model-callable confirm exists (see `MCP_ARCHITECTURE.md`, concerns 1 and 3).
+**Security note (SECURITY, S4, observation).** Free-text fields (invoice and quote descriptions, history transcripts) come back to the model unchanged and are written from dictation. They are untrusted input. The 11 tools used are read-only, but the connector also lists write-capable tools (`tell_the_office`, `confirm_pending_action`, ...), so the exposure is real; `MCP_ARCHITECTURE.md` concerns 1 and 3 apply now (see `MCP_ARCHITECTURE.md`, concerns 1 and 3).
 
 **Not measured:** latency (all tests); pagination past one page; every quote status other than draft; stock movement; suppliers, purchase orders, staff and reminders (no MCP tool exists for them; that is a capability finding, not a failure).
 
