@@ -79,7 +79,25 @@ module.exports = async function runMcpOauthTests({ check, srcDir }) {
   // the consent page
   const page = o.consentPage({ clientName: '<img src=x onerror=alert(1)>', businessId: 'acme"co', email: "o'<b>@example.com", ticket: 'a.b' });
   check(!page.includes('<img') && !page.includes("o'<b>@") && !page.includes('onerror=alert(1)>') && !page.includes('acme"co') && page.includes('&lt;img') && page.includes('o&#39;&lt;b&gt;@') && page.includes('acme&quot;co') && page.includes('action="/oauth/consent"') && (page.match(/<button/g) || []).length === 2 && page.includes('name="ticket"') && !/<script/i.test(page), 'the consent page escapes everything it prints, posts only to /oauth/consent, has exactly two buttons and no script');
-  check(page.includes('name="access" value="read" checked') && /name="access" value="write"(?! checked)/.test(page) && !/value="write" checked/.test(page) && /never delete anything, take a payment or change who has access/.test(page) && /20 an hour and 100 a day/.test(page) && /R50,000/.test(page) && (page.match(/<button/g) || []).length === 2, 'the consent page offers read only (ticked) or read and create, says what create can and cannot do and its limits, and still has exactly two buttons');
+  check(page.includes('name="access" value="read" checked') && /name="access" value="write"(?! checked)/.test(page) && !/value="write" checked/.test(page) && /never delete anything, move money or change who has access/.test(page) && /payments received/.test(page) && /schedule jobs/.test(page) && /20 changes an hour and 100 a day/.test(page) && /R50,000/.test(page) && (page.match(/<button/g) || []).length === 2, 'the consent page offers read only (ticked) or read and create, says what create can and cannot do and its limits, and still has exactly two buttons');
+
+  // WHAT A BROWSER SENDS. The choice must be INSIDE the form the Allow button submits: a radio outside the form is never sent, and every connection is then read only whatever the owner ticked (this was a real bug: the tests posted the field directly). This reads the page the way a browser does.
+  const browserForm = (html, { pick, click }) => {
+    const forms = [...html.matchAll(/<form\b[^>]*>([\s\S]*?)<\/form>/gi)];
+    const form = forms.find((f) => new RegExp(`<button[^>]*name="decision"[^>]*value="${click}"`).test(f[1]));
+    if (!form) return null;
+    const params = new URLSearchParams(); const radios = [...form[1].matchAll(/<input\b[^>]*type="radio"[^>]*>/gi)].map((m) => m[0]);
+    for (const m of form[1].matchAll(/<input\b[^>]*type="hidden"[^>]*>/gi)) params.set(/name="([^"]*)"/.exec(m[0])[1], /value="([^"]*)"/.exec(m[0])[1]);
+    const chosen = radios.find((r) => (pick ? new RegExp(`value="${pick}"`).test(r) : / checked/.test(r)));
+    if (chosen) params.set(/name="([^"]*)"/.exec(chosen)[1], /value="([^"]*)"/.exec(chosen)[1]);
+    params.set('decision', click);
+    return { params, radios, formHtml: form[1] };
+  };
+  { const allowDefault = browserForm(page, { click: 'allow' }), allowWrite = browserForm(page, { pick: 'write', click: 'allow' }), allowRead = browserForm(page, { pick: 'read', click: 'allow' }), cancel = browserForm(page, { click: 'deny' });
+    check(allowDefault !== null && allowDefault.radios.length === 2 && (page.match(/<form\b/g) || []).length === 1 && allowDefault.params.get('ticket') !== null && allowDefault.params.get('decision') === 'allow', 'the page has ONE form, and the ticket, both choices and both buttons are in it');
+    check(allowDefault.params.get('access') === 'read' && o.scopeFromChoice(allowDefault.params.get('access')) === 'mcp:read' && allowRead.params.get('access') === 'read', 'pressing Allow with nothing touched sends "read": read only is the default');
+    check(allowWrite.params.get('access') === 'write' && o.scopeFromChoice(allowWrite.params.get('access')) === 'mcp:write' && allowWrite.params.get('decision') === 'allow', 'ticking "Read and create" and pressing Allow SENDS access=write (the choice reaches the server)');
+    check(cancel.params.get('decision') === 'deny' && (allowDefault.formHtml.match(/ checked/g) || []).length === 1 && /value="read" checked/.test(allowDefault.formHtml), 'Cancel sends deny, and exactly one choice (read only) is ticked when the page opens'); }
 
   // the owner's choice of scope: create only when the owner picks it, by the exact word, and only ever through the signed code
   check(o.scopeFromChoice('write') === 'mcp:write' && [undefined, null, '', 'read', 'WRITE', 'write ', 'mcp:write', 'writes', 5, ['write'], {}].every((v) => o.scopeFromChoice(v) === 'mcp:read'), 'the choice becomes mcp:write only for exactly "write"; anything else, or nothing, is mcp:read');

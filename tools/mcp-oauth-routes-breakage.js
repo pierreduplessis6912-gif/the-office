@@ -12,6 +12,9 @@ const run = require('./mcp-oauth-routes.test.js');
 const clearBuildCache = () => { for (const n of ['rm-poe', 'rm-auth']) delete require.cache[path.join(os.tmpdir(), `${n}-${process.pid}.js`)]; };
 
 const MUTATIONS = [
+  ['the choice sits OUTSIDE the form, so it is never sent and every connection is read only', 'core', 'value="${esc(input.ticket)}"><p><label><input type="radio" name="access" value="read" checked>', 'value="${esc(input.ticket)}"></form><p><label><input type="radio" name="access" value="read" checked>'],
+  ['create is ticked by default when the page opens', 'core', '<input type="radio" name="access" value="read" checked> <b>Read only</b></label><br><label><input type="radio" name="access" value="write">', '<input type="radio" name="access" value="read"> <b>Read only</b></label><br><label><input type="radio" name="access" value="write" checked>'],
+  ['the create choice is sent under another name', 'core', 'name="access" value="write">', 'name="accessx" value="write">'],
   ['the consent page grants create whatever the owner ticked', 'routes', 'oauth.scopeFromChoice(form.get("access"))', '"mcp:write"'],
   ['the owner\'s choice of create is ignored (a connector can only ever be read only)', 'routes', 'oauth.scopeFromChoice(form.get("access"))', '"mcp:read"'],
   ['any choice text that is not exactly "write" grants create', 'core', 'export const scopeFromChoice = (choice: unknown): string => (choice === "write" ? SCOPE_CREATE : SCOPE);', 'export const scopeFromChoice = (choice: unknown): string => (typeof choice === "string" && choice.toLowerCase().includes("write") ? SCOPE_CREATE : SCOPE);'],
