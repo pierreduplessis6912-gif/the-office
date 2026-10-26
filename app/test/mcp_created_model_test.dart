@@ -68,4 +68,58 @@ void main() {
     expect(undoMessage(200, {'ok': false}), 'Could not undo that right now.');
     expect(undoMessage(409, {'message': 5}), 'Could not undo that right now.');
   });
+
+  Map<String, Object?> change({Object? id = 4, Object? kind = 'invoice', Object? recordId = 313, Object? field = 'amount', Object? oldValue = '3000', Object? newValue = '3500', Object? state = 'active', Object? flagged = false, Object? connection = 'Claude on my phone'}) =>
+      {'id': id, 'connection': connection, 'kind': kind, 'recordId': recordId, 'field': field, 'oldValue': oldValue, 'newValue': newValue, 'createdAt': '2026-10-26 11:24:13', 'flagged': flagged, 'state': state};
+
+  test('changes are read: id, kind, record, field, old and new value, state, flag', () {
+    final list = parseChangeList({'changes': [change(), change(id: 5, state: 'reverted', flagged: true)]});
+    expect(list, hasLength(2));
+    expect(list.first.id, 4);
+    expect(list.first.kind, 'invoice');
+    expect(list.first.recordId, 313);
+    expect(list.first.field, 'amount');
+    expect(list.first.oldValue, '3000');
+    expect(list.first.newValue, '3500');
+    expect(list.first.canRevert, isTrue);
+    expect(list.last.canRevert, isFalse);
+    expect(list.last.flagged, isTrue);
+  });
+
+  test('anything that is not a changes answer is an empty list; hostile or unknown entries are skipped; nothing throws', () {
+    for (final b in <Object?>[null, 'x', 5, <Object?>[], <String, Object?>{}, {'changes': 'no'}, {'changes': {'a': 1}}]) {
+      expect(parseChangeList(b), isEmpty, reason: '$b');
+    }
+    final skipped = parseChangeList({
+      'changes': [null, 5, 'x', change(id: 0), change(id: '4'), change(id: 1.5), change(recordId: 0), change(kind: 'customer'), change(kind: 5), change(field: 'status'), change(field: 'customer_id'), change(field: 5), change(state: 'deleted'), change(state: null), change(oldValue: null), change(oldValue: 5, newValue: 7), change(connection: '   ')]
+    });
+    expect(skipped, hasLength(3));
+    expect(skipped[0].oldValue, isNull);
+    expect(skipped[1].oldValue, isNull);
+    expect(skipped[1].newValue, isNull);
+    expect(skipped[2].connection, 'a connected assistant');
+  });
+
+  test('the title says what changed and from what to what: money, done, a date, words', () {
+    expect(changeTitle(parseChangeList({'changes': [change()]}).single), 'Invoice 313: amount R3,000.00 \u2192 R3,500.00');
+    expect(changeTitle(parseChangeList({'changes': [change(kind: 'task', recordId: 8, field: 'done', oldValue: '0', newValue: '1')]}).single), 'Task 8: done not done \u2192 done');
+    expect(changeTitle(parseChangeList({'changes': [change(kind: 'job', recordId: 12, field: 'scheduled_date', oldValue: null, newValue: '2026-11-03')]}).single), 'Job 12: scheduled nothing \u2192 3 Nov');
+    expect(changeTitle(parseChangeList({'changes': [change(kind: 'expense', recordId: 2, field: 'description', oldValue: 'fuel', newValue: 'fuel Tuesday')]}).single), 'Expense 2: description fuel \u2192 fuel Tuesday');
+    final long = parseChangeList({'changes': [change(field: 'description', newValue: 'x' * 150)]}).single;
+    expect(changeTitle(long).length, lessThan(140));
+    expect(changeSubtitle(parseChangeList({'changes': [change(flagged: true)]}).single), contains('FLAGGED'));
+    expect(changeSubtitle(parseChangeList({'changes': [change()]}).single), isNot(contains('FLAGGED')));
+    expect(changeStateLabel(parseChangeList({'changes': [change(state: 'reverted')]}).single), 'REVERTED');
+    expect(changeStateLabel(parseChangeList({'changes': [change()]}).single), '');
+  });
+
+  test('after a revert the words are the backend\'s plain reason, or a safe fallback', () {
+    expect(revertMessage(200, {'ok': true}), 'Put back.');
+    expect(revertMessage(409, {'ok': false, 'reason': 'changed_since', 'message': 'That was changed again since, so it was left as it is.'}), 'That was changed again since, so it was left as it is.');
+    expect(revertMessage(403, null), 'Only the owner can revert this.');
+    expect(revertMessage(404, 'x'), 'That is not a change an assistant made.');
+    expect(revertMessage(500, <Object?>[]), 'Could not revert that right now.');
+    expect(revertMessage(200, {'ok': false}), 'Could not revert that right now.');
+  });
 }
+
