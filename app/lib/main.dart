@@ -22,6 +22,7 @@ import 'analysis_model.dart';
 import 'workspace_context.dart';
 import 'history_model.dart';
 import 'mcp_keys_model.dart';
+import 'mcp_created_model.dart';
 import 'plans_link.dart';
 import 'refusal_view.dart';
 import 'reply_envelope.dart';
@@ -9721,6 +9722,10 @@ class _AssistantsRoomContentState extends State<_AssistantsRoomContent> {
     }
   }
 
+  void _openCreated() {
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => _CreatedByAssistantsPage(authHeaders: widget.authHeaders)));
+  }
+
   Widget _keyRow(McpKey k) {
     final lines = [if (createdLine(k).isNotEmpty) createdLine(k), useLine(k)];
     return Padding(
@@ -9776,7 +9781,7 @@ class _AssistantsRoomContentState extends State<_AssistantsRoomContent> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Let an AI assistant such as Claude or Cursor read your figures. A key lets it READ only: it cannot change, send or confirm anything. Anyone who holds a key can read your figures until you revoke it, so keep keys private.',
+                'Let an AI assistant such as Claude or Cursor read your figures. A key lets it READ your figures. A connection you allow to "Read and create" can also record invoices, quotes, jobs, expenses, tasks and payments, which you can undo under WHAT ASSISTANTS CREATED. It can never delete anything or send anything. Anyone who holds a key can use it until you revoke it, so keep keys private.',
                 style: GoogleFonts.workSans(color: _muted, fontSize: 13, height: 1.4),
               ),
               const SizedBox(height: 10),
@@ -9809,6 +9814,20 @@ class _AssistantsRoomContentState extends State<_AssistantsRoomContent> {
                   ),
                 ),
               ),
+              const SizedBox(height: 8),
+              A11yButton(
+                label: 'See what assistants created',
+                onTap: () => _openCreated(),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _openCreated(),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(border: Border.all(color: _textTertiary.withOpacity(0.5)), borderRadius: BorderRadius.circular(20)),
+                    child: Text('WHAT ASSISTANTS CREATED', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 11, letterSpacing: 1.2)),
+                  ),
+                ),
+              ),
               if (_notice != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_notice!, style: GoogleFonts.workSans(color: _paper, fontSize: 13))),
               const SizedBox(height: 8),
               if (_loading)
@@ -9824,6 +9843,183 @@ class _AssistantsRoomContentState extends State<_AssistantsRoomContent> {
                     itemCount: _keys.length,
                     separatorBuilder: (_, __) => Divider(height: 1, color: _textTertiary.withOpacity(0.1)),
                     itemBuilder: (context, index) => _keyRow(_keys[index]),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CreatedByAssistantsPage extends StatefulWidget {
+  final Map<String, String> authHeaders;
+  const _CreatedByAssistantsPage({required this.authHeaders});
+
+  @override
+  State<_CreatedByAssistantsPage> createState() => _CreatedByAssistantsPageState();
+}
+
+class _CreatedByAssistantsPageState extends State<_CreatedByAssistantsPage> {
+  List<McpCreated> _items = [];
+  bool _loading = true;
+  bool _busy = false;
+  String? _error;
+  String? _notice;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Map<String, String> get _json => {...widget.authHeaders, 'Content-Type': 'application/json'};
+
+  Future<void> _fetch() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final response = await http.get(Uri.parse('$officeApiBase/mcp-created?limit=100'), headers: widget.authHeaders);
+      if (!mounted) return;
+      final items = response.statusCode == 200 ? parseCreatedList(jsonDecode(response.body)) : null;
+      setState(() {
+        _loading = false;
+        if (items == null) {
+          _error = response.statusCode == 403 ? 'Only the owner can see this.' : 'Could not load this list right now.';
+        } else {
+          _items = items;
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Could not load this list right now.';
+      });
+    }
+  }
+
+  Future<void> _undo(McpCreated c) async {
+    final isInvoice = c.kind == 'invoice';
+    final sure = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: _charcoal,
+        title: Text(isInvoice ? 'Void this invoice?' : 'Remove this ${c.kind}?', style: GoogleFonts.workSans(color: _paper, fontSize: 16, fontWeight: FontWeight.w600)),
+        content: Text(
+          isInvoice
+              ? '${createdTitle(c)}\n\nIt keeps its number and is marked VOID, and its amount no longer counts anywhere. If a payment was recorded against it, you will be told to remove the payment first.'
+              : '${createdTitle(c)}\n\nIt is removed, and a copy is kept. If something else depends on it, you will be told and nothing changes.',
+          style: GoogleFonts.workSans(color: _muted, fontSize: 14, height: 1.4),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text('KEEP IT', style: GoogleFonts.ibmPlexMono(color: _muted, fontSize: 12, letterSpacing: 1))),
+          TextButton(onPressed: () => Navigator.of(context).pop(true), child: Text(isInvoice ? 'VOID IT' : 'REMOVE IT', style: GoogleFonts.ibmPlexMono(color: _stampRed, fontSize: 12, letterSpacing: 1))),
+        ],
+      ),
+    );
+    if (sure != true || !mounted) return;
+    setState(() {
+      _busy = true;
+      _notice = null;
+    });
+    try {
+      final response = await http.post(Uri.parse('$officeApiBase/mcp-created/undo'), headers: _json, body: jsonEncode({'id': c.id}));
+      if (!mounted) return;
+      Object? decoded;
+      try {
+        decoded = jsonDecode(response.body);
+      } catch (_) {
+        decoded = null;
+      }
+      setState(() {
+        _busy = false;
+        _notice = undoMessage(response.statusCode, decoded);
+      });
+      await _fetch();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _notice = 'Could not undo that right now.';
+      });
+    }
+  }
+
+  Widget _row(McpCreated c) {
+    final label = stateLabel(c);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(createdTitle(c), style: GoogleFonts.workSans(color: c.canUndo ? _paper : _muted, fontSize: 14, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(createdSubtitle(c), style: GoogleFonts.workSans(color: _muted, fontSize: 12.5, height: 1.35)),
+              ],
+            ),
+          ),
+          if (c.canUndo)
+            A11yButton(
+              label: c.kind == 'invoice' ? 'Void this invoice' : 'Remove this ${c.kind}',
+              onTap: _busy ? null : () => _undo(c),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _busy ? null : () => _undo(c),
+                child: Padding(padding: const EdgeInsets.all(8), child: Text(c.kind == 'invoice' ? 'VOID' : 'UNDO', style: GoogleFonts.ibmPlexMono(color: _stampRed, fontSize: 11, letterSpacing: 1))),
+              ),
+            )
+          else if (label.isNotEmpty)
+            Padding(padding: const EdgeInsets.all(8), child: Text(label, style: GoogleFonts.ibmPlexMono(color: _muted, fontSize: 10, letterSpacing: 1))),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _void,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('WHAT ASSISTANTS CREATED', style: GoogleFonts.ibmPlexMono(color: _paper, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                  IconButton(tooltip: 'Close', icon: const Icon(Icons.close, size: 18), color: _muted, onPressed: () => Navigator.of(context).pop()),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Everything a connected assistant recorded for you, newest first. You can undo any of it: an invoice is voided and keeps its number, anything else is removed and a copy is kept.',
+                style: GoogleFonts.workSans(color: _muted, fontSize: 13, height: 1.4),
+              ),
+              if (_notice != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_notice!, style: GoogleFonts.workSans(color: _paper, fontSize: 13))),
+              const SizedBox(height: 8),
+              if (_loading)
+                const Padding(padding: EdgeInsets.only(top: 24), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+              else if (_error != null)
+                Padding(padding: const EdgeInsets.only(top: 16), child: Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else if (_items.isEmpty)
+                Padding(padding: const EdgeInsets.only(top: 16), child: Text('Nothing yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
+              else
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.only(top: 4),
+                    itemCount: _items.length,
+                    separatorBuilder: (_, __) => Divider(height: 1, color: _textTertiary.withOpacity(0.1)),
+                    itemBuilder: (context, index) => _row(_items[index]),
                   ),
                 ),
             ],
