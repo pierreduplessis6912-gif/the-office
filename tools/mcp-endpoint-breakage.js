@@ -12,6 +12,10 @@ const run = require('./mcp-endpoint.test.js');
 const clearBuildCache = () => { for (const n of ['rm-poe', 'rm-auth']) delete require.cache[path.join(os.tmpdir(), `${n}-${process.pid}.js`)]; };
 
 const MUTATIONS = [
+  ['the assistant may upload a file nobody asked it to send', 'mcp', ' Never upload a file the owner has not asked you to send.', ''],
+  ['the assistant is not told to check the upload it made', 'mcp', 'then call check_upload and tell the owner what the Office made of it.', ''],
+  ['the assistant is not told to fall back to the link', 'mcp', 'give them the link to open on their phone.', ''],
+  ['the link note still forbids using it', 'mcp', 'This link is for the owner to open on their phone, or for you to upload a file they attached and asked you to send (see the tool description); never use it for anything else.', 'Give the owner this link. It is for them to open, not for you to open.'],
   ['a read key can see get_upload_link', 'mcp', 'inputSchema: { type: "object", properties: {}, additionalProperties: false },\n  needsWrite: true, ownerOnly: true, route: null,\n  async run(env, args, who, origin) {', 'inputSchema: { type: "object", properties: {}, additionalProperties: false },\n  needsWrite: false, ownerOnly: true, route: null,\n  async run(env, args, who, origin) {'],
   ['check_upload is open to any role that holds a write key', 'mcp', 'required: ["ticket_id"], additionalProperties: false },\n  needsWrite: true, ownerOnly: true, route: null,\n  async run(env, args, who) {', 'required: ["ticket_id"], additionalProperties: false },\n  needsWrite: true, ownerOnly: false, route: null,\n  async run(env, args, who) {'],
   ['a link is not counted against the key\'s limit', 'mcp', 'const reserved = await reserveWrite(env, who);\n    if (!reserved.ok) return reserved.refusal;\n    const id = await issueTicket(', 'const reserved = { ok: true, slotId: 0 } as { ok: true; slotId: number };\n    const id = await issueTicket('],
