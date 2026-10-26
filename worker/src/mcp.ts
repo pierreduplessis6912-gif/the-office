@@ -9,6 +9,7 @@ import { ROUTE_RULES, signDocumentPath } from "./auth";
 import { MAX_PAGE, customersData, documentExists, invoicesData, jobsData, parseId, parsePage, parseRange, parseSearch, quotesData, stockData } from "./mcp-reads";
 import { parseHistoryParams, readHistory, resolveScope } from "./history";
 import { bearerKey } from "./mcp-key-format";
+import { TRACKED_TABLES, taggingEnv, type TagSink, type TrackedTable } from "./mcp-tags";
 import { SCOPE_WRITE, authenticateKey, type McpScope } from "./mcp-keys";
 import { agedDebtorsData, customerReceivablesData, parseCustomerParam, parsePeriodParams, profitAndLossData } from "./reports-data";
 import type { Env } from "./types";
@@ -24,7 +25,7 @@ const MAX_TELL_CHARS = 1000;
 
 type Who = { keyId: string; email: string; role: string; capabilities: string[]; scope: McpScope };
 /** What the Worker lends the endpoint: the same pipeline the owner's typed messages go through (index.ts). It is passed in, not imported, so this module never depends on the pipeline. */
-export interface McpHost { tell: (text: string, who: { email: string; capabilities: string[] }) => Promise<{ message: string; pendingActionIds: number[]; captureId: number | null }> }
+export interface McpHost { tell: (text: string, who: { email: string; capabilities: string[] }, sink: TagSink) => Promise<{ message: string; pendingActionIds: number[]; captureId: number | null }> }
 type ToolOutput = { ok: true; data: unknown } | { ok: false; message: string; outcome: "invalid" | "not_found" | "error" | "limited" };
 interface Tool {
   name: string;
@@ -175,27 +176,26 @@ async function ensureCreates(env: Env): Promise<void> {
   await env.OFFICE_DB.prepare("CREATE TABLE IF NOT EXISTS mcp_creates (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL DEFAULT (datetime('now')), key_id TEXT NOT NULL, email TEXT NOT NULL, capture_id INTEGER, created TEXT, flagged INTEGER NOT NULL DEFAULT 0, pending INTEGER NOT NULL DEFAULT 0)").run();
   await env.OFFICE_DB.prepare("CREATE INDEX IF NOT EXISTS idx_mcp_creates_key ON mcp_creates (key_id, created_at)").run();
 }
-const TAGGED_TABLES = ["invoices", "quotations", "job_scopes", "expenses", "tasks"] as const;
-async function topIds(env: Env): Promise<Record<string, number>> {
-  const out: Record<string, number> = {};
-  for (const t of TAGGED_TABLES) { try { out[t] = (await env.OFFICE_DB.prepare(`SELECT COALESCE(MAX(id), 0) AS m FROM ${t}`).first<{ m: number }>())?.m ?? 0; } catch { out[t] = 0; } }
-  return out;
+async function ensureRecords(env: Env): Promise<void> {
+  await env.OFFICE_DB.prepare("CREATE TABLE IF NOT EXISTS mcp_created_records (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL DEFAULT (datetime('now')), create_id INTEGER NOT NULL, key_id TEXT NOT NULL, tbl TEXT NOT NULL, rec_id INTEGER NOT NULL, undone_at TEXT, undone_by TEXT, snapshot TEXT, UNIQUE (tbl, rec_id))").run();
+  await env.OFFICE_DB.prepare("CREATE INDEX IF NOT EXISTS idx_mcp_created_records_key ON mcp_created_records (key_id, created_at)").run();
+  try { await env.OFFICE_DB.prepare("ALTER TABLE mcp_creates ADD COLUMN untraced INTEGER NOT NULL DEFAULT 0").run(); } catch { /* already there */ }
 }
-async function createdSince(env: Env, before: Record<string, number>): Promise<{ created: Record<string, number[]>; flagged: boolean }> {
-  const created: Record<string, number[]> = {}; let flagged = false;
-  for (const t of TAGGED_TABLES) {
+// Is any invoice, quote or payment this call recorded over the flag threshold? (flag only, never a block)
+async function anyOverThreshold(env: Env, tagged: Array<{ table: TrackedTable; id: number }>): Promise<boolean> {
+  for (const [table, name] of [["invoices", "invoices"], ["quotations", "quotations"], ["payments", "payments"]] as const) {
+    const ids = tagged.filter((t) => t.table === name).map((t) => t.id).slice(0, 50);
+    if (ids.length === 0) continue;
     try {
-      const amount = t === "invoices" || t === "quotations";
-      const { results } = await env.OFFICE_DB.prepare(`SELECT id${amount ? ", amount" : ""} FROM ${t} WHERE id > ? ORDER BY id LIMIT 50`).bind(before[t] ?? 0).all<{ id: number; amount?: number }>();
-      if (results.length) created[t] = results.map((r) => r.id);
-      if (amount && results.some((r) => typeof r.amount === "number" && r.amount > FLAG_OVER)) flagged = true;
-    } catch { /* a table this business does not have yet creates nothing */ }
+      const row = await env.OFFICE_DB.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE id IN (${ids.map(() => "?").join(",")}) AND amount > ?`).bind(...ids, FLAG_OVER).first<{ n: number }>();
+      if ((row?.n ?? 0) > 0) return true;
+    } catch { /* a table this business does not have yet */ }
   }
-  return { created, flagged };
+  return false;
 }
 const tellTool: Tool = {
   name: "tell_the_office",
-  description: "Tell The Office something to record, in plain words, exactly as the owner would type it: an invoice, a quote, a job, an expense, a task. It goes through the same checks as a typed message. It creates only; it deletes nothing and moves no money. If it needs an answer (which customer, which project) it says so and the owner answers in the app. Everything it creates is tagged with this key, and there is a limit on how many times it can be used an hour and a day.",
+  description: "Tell The Office something to record, in plain words, exactly as the owner would type it: an invoice, a quote, a job, an expense, a task. It goes through the same checks as a typed message. It creates only; it deletes nothing and moves no money. If it needs an answer (which customer, which project) it says so and the owner answers in the app. Everything it creates (invoices, quotes, jobs, expenses, tasks and payments received) is tagged with this key and the owner can undo it in the app, and there is a limit on how many times it can be used an hour and a day.",
   inputSchema: { type: "object", properties: { text: { type: "string", minLength: 1, maxLength: MAX_TELL_CHARS } }, required: ["text"], additionalProperties: false },
   needsWrite: true, ownerOnly: true, route: null,
   async run(env, args, who, _origin, host) {
@@ -203,19 +203,24 @@ const tellTool: Tool = {
     const text = typeof args.text === "string" ? args.text.trim() : "";
     if (text.length < 1 || text.length > MAX_TELL_CHARS || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(text)) return bad(`text must be 1 to ${MAX_TELL_CHARS} characters of plain text.`);
     if (host === null) return { ok: false, message: "Creating is not available here.", outcome: "error" };
-    await ensureCreates(env);
+    await ensureCreates(env); await ensureRecords(env);
     const hour = await env.OFFICE_DB.prepare("SELECT COUNT(*) AS n FROM mcp_creates WHERE key_id = ? AND created_at >= datetime('now', '-1 hour')").bind(who.keyId).first<{ n: number }>();
     const day = await env.OFFICE_DB.prepare("SELECT COUNT(*) AS n FROM mcp_creates WHERE key_id = ? AND created_at >= datetime('now', '-1 day')").bind(who.keyId).first<{ n: number }>();
     if ((hour?.n ?? 0) >= CREATES_PER_HOUR || (day?.n ?? 0) >= CREATES_PER_DAY) return { ok: false, message: `This key has reached its limit for creating (${CREATES_PER_HOUR} an hour, ${CREATES_PER_DAY} a day). Nothing was recorded. Try later.`, outcome: "limited" };
     // The attempt is counted BEFORE it runs, so a call that fails half way still uses up its place.
     const slot = await env.OFFICE_DB.prepare("INSERT INTO mcp_creates (key_id, email) VALUES (?, ?) RETURNING id").bind(who.keyId, who.email).first<{ id: number }>();
-    const before = await topIds(env);
+    const tagged: Array<{ table: TrackedTable; id: number }> = []; let untraced = 0;
+    const sink: TagSink = { record: (table, id) => { if (TRACKED_TABLES.includes(table) && !tagged.some((t) => t.table === table && t.id === id)) tagged.push({ table, id }); }, untraced: () => { untraced++; } };
     let told: { message: string; pendingActionIds: number[]; captureId: number | null };
-    try { told = await host.tell(text, { email: who.email, capabilities: who.capabilities }); } catch { return { ok: false, message: "That could not be recorded.", outcome: "error" }; }
-    const { created, flagged } = await createdSince(env, before);
+    try { told = await host.tell(text, { email: who.email, capabilities: who.capabilities }, sink); } catch { return { ok: false, message: "That could not be recorded.", outcome: "error" }; }
+    const created: Record<string, number[]> = {};
+    for (const t of tagged) (created[t.table] ??= []).push(t.id);
+    const flagged = await anyOverThreshold(env, tagged);
     const pending = told.pendingActionIds.length;
-    try { await env.OFFICE_DB.prepare("UPDATE mcp_creates SET capture_id = ?, created = ?, flagged = ?, pending = ? WHERE id = ?").bind(told.captureId, JSON.stringify(created), flagged ? 1 : 0, pending, slot?.id ?? 0).run(); } catch { /* the tag never undoes the create */ }
-    return { ok: true, data: { message: told.message.slice(0, 2000), created, needsAnswerInApp: pending, flagged, ...(flagged ? { flagNote: `An invoice or quote above R${FLAG_OVER.toLocaleString("en-ZA")} was created. It was recorded, and the owner can see it flagged.` } : {}), taggedWithKey: who.keyId } };
+    try { await env.OFFICE_DB.prepare("UPDATE mcp_creates SET capture_id = ?, created = ?, flagged = ?, pending = ?, untraced = ? WHERE id = ?").bind(told.captureId, JSON.stringify(created), flagged ? 1 : 0, pending, untraced, slot?.id ?? 0).run();
+      for (const t of tagged) await env.OFFICE_DB.prepare("INSERT OR IGNORE INTO mcp_created_records (create_id, key_id, tbl, rec_id) VALUES (?, ?, ?, ?)").bind(slot?.id ?? 0, who.keyId, t.table, t.id).run();
+    } catch { /* the tag never undoes the create */ }
+    return { ok: true, data: { message: told.message.slice(0, 2000), created, needsAnswerInApp: pending, flagged, ...(untraced > 0 ? { untracedNote: "Something this call recorded could not be tagged, so undoing it in the app may be incomplete." } : {}), ...(flagged ? { flagNote: `An invoice or quote above R${FLAG_OVER.toLocaleString("en-ZA")} was created. It was recorded, and the owner can see it flagged.` } : {}), taggedWithKey: who.keyId } };
   },
 };
 TOOLS.push(tellTool);

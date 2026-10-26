@@ -12,15 +12,16 @@ const run = require('./mcp-endpoint.test.js');
 const clearBuildCache = () => { for (const n of ['rm-poe', 'rm-auth']) delete require.cache[path.join(os.tmpdir(), `${n}-${process.pid}.js`)]; };
 
 const MUTATIONS = [
+  ['a record that could not be traced is no longer reported as untraced', 'mcp', '...(untraced > 0 ? { untracedNote:', '...(false ? { untracedNote:'],
   ['a read-scope key can see and run the creating tool', 'mcp', 'if (tool.needsWrite && who.scope !== SCOPE_WRITE) return false;', ''],
   ['the creating tool is open to any role that holds a write key', 'mcp', '  needsWrite: true, ownerOnly: true, route: null,', '  needsWrite: true, ownerOnly: false, route: null,'],
   ['the hourly cap on creating is not enforced', 'mcp', '(hour?.n ?? 0) >= CREATES_PER_HOUR ||', 'false ||'],
   ['the daily cap on creating is not enforced', 'mcp', '|| (day?.n ?? 0) >= CREATES_PER_DAY)', '|| false)'],
   ['the cap counts every key together instead of each key', 'mcp', "SELECT COUNT(*) AS n FROM mcp_creates WHERE key_id = ? AND created_at >= datetime('now', '-1 day')\").bind(who.keyId)", "SELECT COUNT(*) AS n FROM mcp_creates WHERE ? IS NOT NULL AND created_at >= datetime('now', '-1 day')\").bind(who.keyId)"],
   ['a failed attempt no longer uses up its place (counted after, not before)', 'mcp', 'const slot = await env.OFFICE_DB.prepare("INSERT INTO mcp_creates (key_id, email) VALUES (?, ?) RETURNING id").bind(who.keyId, who.email).first<{ id: number }>();', 'const slot = { id: 0 } as { id: number };'],
-  ['an invoice or quote over the threshold is not flagged', 'mcp', 'r.amount > FLAG_OVER', 'false'],
-  ['an invoice or quote over the threshold is refused instead of only flagged', 'mcp', 'const { created, flagged } = await createdSince(env, before);', 'const { created, flagged } = await createdSince(env, before); if (flagged) return { ok: false, message: "too large", outcome: "invalid" };'],
-  ['what a call created is not tagged with its key', 'mcp', 'UPDATE mcp_creates SET capture_id = ?, created = ?, flagged = ?, pending = ? WHERE id = ?', 'UPDATE mcp_creates SET capture_id = ?, flagged = ?, pending = ? WHERE 0 = ? AND id = ?'],
+  ['an invoice, quote or payment over the threshold is not flagged', 'mcp', 'if ((row?.n ?? 0) > 0) return true;', ''],
+  ['an invoice or quote over the threshold is refused instead of only flagged', 'mcp', 'const flagged = await anyOverThreshold(env, tagged);', 'const flagged = await anyOverThreshold(env, tagged); if (flagged) return { ok: false, message: "too large", outcome: "invalid" };'],
+  ['what a call created is not recorded against its key (so nothing could be undone)', 'mcp', 'INSERT OR IGNORE INTO mcp_created_records (create_id, key_id, tbl, rec_id) VALUES (?, ?, ?, ?)', 'INSERT OR IGNORE INTO mcp_created_records (create_id, key_id, tbl, rec_id) SELECT ?, ?, ?, ? WHERE 0'],
   ['the creating tool runs with the owner\'s capabilities whoever the member is', 'mcp', 'host.tell(text, { email: who.email, capabilities: who.capabilities })', 'host.tell(text, { email: who.email, capabilities: ["can_know_profit", "can_know_debtors", "can_invite_members", "can_manage_settings"] })'],
   ['the creating tool is marked read only to the assistant', 'mcp', 'readOnlyHint: !t.needsWrite', 'readOnlyHint: true'],
   ['an over-long or control-character text is accepted', 'mcp', 'if (text.length < 1 || text.length > MAX_TELL_CHARS || /[\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]/.test(text))', 'if (text.length < 1)'],

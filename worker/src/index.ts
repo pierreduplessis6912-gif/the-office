@@ -6,6 +6,7 @@ import { agedCreditorsData, agedDebtorsData, customerReceivablesData, parseCusto
 import { withExperience } from "./experience";
 import { followUpReply, tryFollowUp } from "./followup";
 import { handleMcp } from "./mcp";
+import { taggingEnv } from "./mcp-tags";
 import { continueOAuthSignIn, handleOAuthRoute } from "./mcp-oauth-routes";
 import { issueKey, listKeys, revokeKey } from "./mcp-keys";
 import { analysisData, parseAnalysisParams } from "./analysis";
@@ -892,7 +893,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
     if (url.pathname === "/mcp") {
       // The one thing an assistant with a write key may do is tell The Office something, through the SAME pipeline as a typed message, with the member's own capabilities (mcp.ts, stage 2).
       let captureId: number | null = null;
-      return handleMcp(request, env, { tell: async (text, who) => { captureId = null; const r = await processTranscript(env, text, ctx, [], "text", null, who.capabilities, who.email, (id) => { captureId = id; }); return { message: r.message, pendingActionIds: r.pendingActionIds, captureId }; } });
+      return handleMcp(request, env, { tell: async (text, who, sink) => { captureId = null; const r = await processTranscript(taggingEnv(env, sink), text, ctx, [], "text", null, who.capabilities, who.email, (id) => { captureId = id; }); return { message: r.message, pendingActionIds: r.pendingActionIds, captureId }; } });
     }
     if (url.pathname === "/mcp-keys" && request.method === "GET") {
       return Response.json({ keys: await listKeys(env) });
