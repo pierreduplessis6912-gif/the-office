@@ -92,6 +92,9 @@ async function endpointTests({ check, srcDir }) {
     check(jo.items.map((j) => j.description).join() === 'Fit blinds,Lay kitchen floor,Quote walk-through' && jw.items.length === 1 && jw.items[0].customer_name === 'Jenny', 'list_jobs returns jobs soonest first with undated last, and filters by the scheduled date');
     const sk = data(await as('owner', call('owner', 'get_stock')));
     check(sk.items.length === 2 && sk.items.find((i) => i.name === 'Vinyl planks').below_reorder === true && sk.items.find((i) => i.name === 'Roller blind tube').below_reorder === false, 'get_stock returns quantity on hand and flags what is at or below its reorder threshold'); }
+  { const voidSeed = (db) => { seed(db); db.prepare("UPDATE invoices SET status = 'void', amount = 0 WHERE id = 1").run(); };
+    const v = await as('owner', call('owner', 'get_document_link', { kind: 'invoice', id: 1 }), { seed: voidSeed }), other = await as('owner', call('owner', 'get_document_link', { kind: 'invoice', id: 2 }), { seed: voidSeed });
+    check(v.result.body.result.isError === true && /not found/.test(v.result.body.result.content[0].text) && !/sig=/.test(JSON.stringify(v.result.body)) && other.result.body.result.isError === false, 'a VOIDED invoice (the owner\'s undo) has no document link: it is refused as not found, and another invoice still gets one'); }
   { const sign = async (args) => as('owner', call('owner', 'get_document_link', args));
     const ok = data(await sign({ kind: 'invoice', id: 1 })), st = data(await sign({ kind: 'statement', id: 2 })), qt = data(await sign({ kind: 'quote', id: 1 }));
     const payload = (u) => JSON.parse(Buffer.from(new URL(u).searchParams.get('sig').split('.')[0], 'base64url').toString());

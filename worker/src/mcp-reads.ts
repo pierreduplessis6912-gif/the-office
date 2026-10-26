@@ -92,6 +92,7 @@ export async function stockData(env: Env, page: Page) {
 /** Whether the record a document link would point at exists (the link is never made for a record that is not there). */
 export async function documentExists(env: Env, kind: "invoice" | "quote" | "statement", id: number): Promise<boolean> {
   const table = kind === "invoice" ? "invoices" : kind === "quote" ? "quotations" : "customers";
-  const row = await env.OFFICE_DB.prepare(`SELECT id FROM ${table} WHERE id = ?`).bind(id).first<{ id: number }>();
+  // A VOIDED invoice (the owner's undo, mcp-undo.ts) has no document to hand out.
+  const row = await env.OFFICE_DB.prepare(`SELECT id FROM ${table} WHERE id = ?${kind === "invoice" ? " AND status IS NOT 'void'" : ""}`).bind(id).first<{ id: number }>();
   return row !== null && row !== undefined;
 }

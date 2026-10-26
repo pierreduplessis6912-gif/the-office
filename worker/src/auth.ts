@@ -817,6 +817,9 @@ export const ROUTE_RULES: Array<{ method: string; path: RegExp; anyOf: string[] 
   { method: "GET", path: /^\/mcp-keys$/, anyOf: ["can_invite_members"] },
   { method: "POST", path: /^\/mcp-keys$/, anyOf: ["can_invite_members"] },
   { method: "POST", path: /^\/mcp-keys\/revoke$/, anyOf: ["can_invite_members"] },
+  // What connected assistants created and the owner's undo of it (mcp-undo.ts). Owner only, like the keys.
+  { method: "GET", path: /^\/mcp-created$/, anyOf: ["can_invite_members"] },
+  { method: "POST", path: /^\/mcp-created\/undo$/, anyOf: ["can_invite_members"] },
   { method: "POST", path: /^\/business-profile\/logo$/, anyOf: ["can_manage_settings"] },
   { method: "POST", path: /^\/files\/(customers|invoices)-csv-import$/, anyOf: ["can_manage_settings"] },
 ];

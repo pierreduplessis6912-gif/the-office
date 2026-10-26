@@ -7,6 +7,7 @@ import { withExperience } from "./experience";
 import { followUpReply, tryFollowUp } from "./followup";
 import { handleMcp } from "./mcp";
 import { taggingEnv } from "./mcp-tags";
+import { listCreated, undoCall, undoTagged } from "./mcp-undo";
 import { continueOAuthSignIn, handleOAuthRoute } from "./mcp-oauth-routes";
 import { issueKey, listKeys, revokeKey } from "./mcp-keys";
 import { analysisData, parseAnalysisParams } from "./analysis";
@@ -906,6 +907,22 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       const made = await issueKey(env, { businessId: env.BUSINESS_ID, email: asked?.email ?? issuer, label: asked?.label, createdBy: issuer, ...(asked && "scope" in asked ? { scope: asked.scope } : {}) });
       if (!made.ok) return Response.json({ error: made.error }, { status: 400 });
       return Response.json({ id: made.id, key: made.key, label: made.label, email: made.email, shownOnce: true, note: "Copy this key now. It cannot be shown again: if it is lost, revoke it and issue another." }, { status: 201, headers: { "Cache-Control": "no-store" } });
+    }
+    // What connected assistants created, and the owner's undo of it (mcp-undo.ts; MCP_ARCHITECTURE.md). Owner only (can_invite_members). Works even when MCP is switched off, so the owner can always clean up. The undo is by the TAG's id, never a bare record id.
+    if (url.pathname === "/mcp-created" && request.method === "GET") {
+      return Response.json({ items: await listCreated(env, Number(url.searchParams.get("limit") ?? 50)) });
+    }
+    if (url.pathname === "/mcp-created/undo" && request.method === "POST") {
+      const asked = (await request.json().catch(() => null)) as { id?: unknown; call_id?: unknown } | null;
+      const { email: undoer } = await resolveCapabilities(request, env);
+      if (asked && "call_id" in asked && !("id" in asked)) {
+        const done = await undoCall(env, asked.call_id, undoer ?? "owner");
+        if (!done.found) return Response.json({ error: "That is not something a connected assistant created." }, { status: 404 });
+        return Response.json({ results: done.results });
+      }
+      const result = await undoTagged(env, asked?.id, undoer ?? "owner");
+      if (result.ok) return Response.json(result);
+      return Response.json(result, { status: result.reason === "not_found" ? 404 : result.reason === "error" ? 500 : 409 });
     }
     if (url.pathname === "/mcp-keys/revoke" && request.method === "POST") {
       const asked = (await request.json().catch(() => null)) as { id?: unknown } | null;

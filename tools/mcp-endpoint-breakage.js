@@ -12,6 +12,7 @@ const run = require('./mcp-endpoint.test.js');
 const clearBuildCache = () => { for (const n of ['rm-poe', 'rm-auth']) delete require.cache[path.join(os.tmpdir(), `${n}-${process.pid}.js`)]; };
 
 const MUTATIONS = [
+  ['a voided invoice still gets a document link', 'reads', '${kind === "invoice" ? " AND status IS NOT \'void\'" : ""}', '${""}'],
   ['a record that could not be traced is no longer reported as untraced', 'mcp', '...(untraced > 0 ? { untracedNote:', '...(false ? { untracedNote:'],
   ['a read-scope key can see and run the creating tool', 'mcp', 'if (tool.needsWrite && who.scope !== SCOPE_WRITE) return false;', ''],
   ['the creating tool is open to any role that holds a write key', 'mcp', '  needsWrite: true, ownerOnly: true, route: null,', '  needsWrite: true, ownerOnly: false, route: null,'],
@@ -22,7 +23,7 @@ const MUTATIONS = [
   ['an invoice, quote or payment over the threshold is not flagged', 'mcp', 'if ((row?.n ?? 0) > 0) return true;', ''],
   ['an invoice or quote over the threshold is refused instead of only flagged', 'mcp', 'const flagged = await anyOverThreshold(env, tagged);', 'const flagged = await anyOverThreshold(env, tagged); if (flagged) return { ok: false, message: "too large", outcome: "invalid" };'],
   ['what a call created is not recorded against its key (so nothing could be undone)', 'mcp', 'INSERT OR IGNORE INTO mcp_created_records (create_id, key_id, tbl, rec_id) VALUES (?, ?, ?, ?)', 'INSERT OR IGNORE INTO mcp_created_records (create_id, key_id, tbl, rec_id) SELECT ?, ?, ?, ? WHERE 0'],
-  ['the creating tool runs with the owner\'s capabilities whoever the member is', 'mcp', 'host.tell(text, { email: who.email, capabilities: who.capabilities })', 'host.tell(text, { email: who.email, capabilities: ["can_know_profit", "can_know_debtors", "can_invite_members", "can_manage_settings"] })'],
+  ['the creating tool runs with the owner\'s capabilities whoever the member is', 'mcp', 'host.tell(text, { email: who.email, capabilities: who.capabilities }, sink)', 'host.tell(text, { email: who.email, capabilities: ["can_know_profit", "can_know_debtors", "can_invite_members", "can_manage_settings"] }, sink)'],
   ['the creating tool is marked read only to the assistant', 'mcp', 'readOnlyHint: !t.needsWrite', 'readOnlyHint: true'],
   ['an over-long or control-character text is accepted', 'mcp', 'if (text.length < 1 || text.length > MAX_TELL_CHARS || /[\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]/.test(text))', 'if (text.length < 1)'],
   ['the gate no longer requires a well-formed key for /mcp', 'auth', 'if (path === "/mcp") return parseKey(bearerKey(request)) === null ?', 'if (path === "/mcp-never") return parseKey(bearerKey(request)) === null ?'],
