@@ -108,3 +108,98 @@ String undoMessage(int status, Object? body) {
   if (status == 404) return 'That is not something an assistant created.';
   return 'Could not undo that right now.';
 }
+
+// ---- changes an assistant made to a record (edits and scheduling) -----------------------------------------------------------------------------
+
+class McpChange {
+  final int id; // the change's own id: what the revert is asked for
+  final String connection;
+  final String kind;
+  final int recordId;
+  final String field;
+  final String? oldValue;
+  final String? newValue;
+  final String? createdAt;
+  final String state; // active or reverted
+  final bool flagged;
+  const McpChange({required this.id, required this.connection, required this.kind, required this.recordId, required this.field, this.oldValue, this.newValue, this.createdAt, required this.state, this.flagged = false});
+
+  bool get canRevert => state == 'active';
+}
+
+const Set<String> _fields = {'description', 'amount', 'category', 'done', 'scheduled_date'};
+
+/// Reads the `changes` of a decoded GET /mcp-created body. An empty list when there are none or it is not one: the page still shows the records. Never throws.
+List<McpChange> parseChangeList(Object? body) {
+  try {
+    if (body is! Map || body['changes'] is! List) return const [];
+    final out = <McpChange>[];
+    for (final raw in (body['changes'] as List).take(_maxItems)) {
+      if (raw is! Map) continue;
+      final id = _posInt(raw['id']);
+      final recordId = _posInt(raw['recordId']);
+      final kind = raw['kind'];
+      final field = raw['field'];
+      final state = raw['state'];
+      if (id == null || recordId == null || kind is! String || !_kinds.contains(kind) || field is! String || !_fields.contains(field) || (state != 'active' && state != 'reverted')) continue;
+      out.add(McpChange(
+        id: id,
+        connection: _t(raw['connection']) ?? 'a connected assistant',
+        kind: kind,
+        recordId: recordId,
+        field: field,
+        oldValue: _t(raw['oldValue']),
+        newValue: _t(raw['newValue']),
+        createdAt: _t(raw['createdAt']),
+        state: state as String,
+        flagged: raw['flagged'] == true,
+      ));
+    }
+    return out;
+  } catch (_) {
+    return const [];
+  }
+}
+
+String _show(String field, String? v) {
+  if (v == null) return 'nothing';
+  if (field == 'amount') {
+    final n = double.tryParse(v);
+    return n == null || !n.isFinite ? v : formatRand(n);
+  }
+  if (field == 'done') return v == '1' ? 'done' : 'not done';
+  if (field == 'scheduled_date') {
+    final d = DateTime.tryParse(v);
+    return d == null ? v : formatShort(d).split(' ').take(2).join(' ');
+  }
+  return v.length > 60 ? '${v.substring(0, 60)}\u2026' : v;
+}
+
+/// "Invoice 313: amount R3,000.00 \u2192 R3,500.00".
+String changeTitle(McpChange c) {
+  final what = c.field == 'scheduled_date' ? 'scheduled' : c.field;
+  return '${_capital(c.kind)} ${c.recordId}: $what ${_show(c.field, c.oldValue)} \u2192 ${_show(c.field, c.newValue)}';
+}
+
+String changeSubtitle(McpChange c) {
+  final when = parseTurnTime(c.createdAt);
+  final base = when == null ? c.connection : '${c.connection}  \u00b7  ${formatShort(when.toLocal())}';
+  return c.flagged ? '$base  \u00b7  FLAGGED: a large amount' : base;
+}
+
+String changeStateLabel(McpChange c) => c.state == 'reverted' ? 'REVERTED' : '';
+
+/// The words after a revert, from the HTTP status and decoded body. Never throws.
+String revertMessage(int status, Object? body) {
+  try {
+    if (status == 200 && body is Map && body['ok'] == true) return 'Put back.';
+    if (body is Map) {
+      final reason = _t(body['message']) ?? _t(body['error']);
+      if (reason != null) return reason;
+    }
+  } catch (_) {}
+  if (status == 403) return 'Only the owner can revert this.';
+  if (status == 404) return 'That is not a change an assistant made.';
+  return 'Could not revert that right now.';
+}
+

@@ -9863,6 +9863,7 @@ class _CreatedByAssistantsPage extends StatefulWidget {
 
 class _CreatedByAssistantsPageState extends State<_CreatedByAssistantsPage> {
   List<McpCreated> _items = [];
+  List<McpChange> _changes = [];
   bool _loading = true;
   bool _busy = false;
   String? _error;
@@ -9884,13 +9885,15 @@ class _CreatedByAssistantsPageState extends State<_CreatedByAssistantsPage> {
     try {
       final response = await http.get(Uri.parse('$officeApiBase/mcp-created?limit=100'), headers: widget.authHeaders);
       if (!mounted) return;
-      final items = response.statusCode == 200 ? parseCreatedList(jsonDecode(response.body)) : null;
+      final decoded = response.statusCode == 200 ? jsonDecode(response.body) : null;
+      final items = decoded == null ? null : parseCreatedList(decoded);
       setState(() {
         _loading = false;
         if (items == null) {
           _error = response.statusCode == 403 ? 'Only the owner can see this.' : 'Could not load this list right now.';
         } else {
           _items = items;
+          _changes = parseChangeList(decoded);
         }
       });
     } catch (_) {
@@ -9949,6 +9952,86 @@ class _CreatedByAssistantsPageState extends State<_CreatedByAssistantsPage> {
     }
   }
 
+  Future<void> _revert(McpChange c) async {
+    final sure = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: _charcoal,
+        title: Text('Put this back?', style: GoogleFonts.workSans(color: _paper, fontSize: 16, fontWeight: FontWeight.w600)),
+        content: Text('${changeTitle(c)}\n\nThe old value is restored. If it was changed again since, it is left as it is and you are told.', style: GoogleFonts.workSans(color: _muted, fontSize: 14, height: 1.4)),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text('LEAVE IT', style: GoogleFonts.ibmPlexMono(color: _muted, fontSize: 12, letterSpacing: 1))),
+          TextButton(onPressed: () => Navigator.of(context).pop(true), child: Text('PUT BACK', style: GoogleFonts.ibmPlexMono(color: _stampRed, fontSize: 12, letterSpacing: 1))),
+        ],
+      ),
+    );
+    if (sure != true || !mounted) return;
+    setState(() {
+      _busy = true;
+      _notice = null;
+    });
+    try {
+      final response = await http.post(Uri.parse('$officeApiBase/mcp-created/undo'), headers: _json, body: jsonEncode({'change_id': c.id}));
+      if (!mounted) return;
+      Object? decoded;
+      try {
+        decoded = jsonDecode(response.body);
+      } catch (_) {
+        decoded = null;
+      }
+      setState(() {
+        _busy = false;
+        _notice = revertMessage(response.statusCode, decoded);
+      });
+      await _fetch();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _notice = 'Could not revert that right now.';
+      });
+    }
+  }
+
+  Widget _sectionHeader(String text) => Padding(
+        padding: const EdgeInsets.only(top: 14, bottom: 2),
+        child: Text(text, style: GoogleFonts.ibmPlexMono(color: _textTertiary, fontSize: 10, letterSpacing: 1)),
+      );
+
+  Widget _changeRow(McpChange c) {
+    final label = changeStateLabel(c);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(changeTitle(c), style: GoogleFonts.workSans(color: c.canRevert ? _paper : _muted, fontSize: 14, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(changeSubtitle(c), style: GoogleFonts.workSans(color: _muted, fontSize: 12.5, height: 1.35)),
+              ],
+            ),
+          ),
+          if (c.canRevert)
+            A11yButton(
+              label: 'Put this change back',
+              onTap: _busy ? null : () => _revert(c),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _busy ? null : () => _revert(c),
+                child: Padding(padding: const EdgeInsets.all(8), child: Text('REVERT', style: GoogleFonts.ibmPlexMono(color: _stampRed, fontSize: 11, letterSpacing: 1))),
+              ),
+            )
+          else if (label.isNotEmpty)
+            Padding(padding: const EdgeInsets.all(8), child: Text(label, style: GoogleFonts.ibmPlexMono(color: _muted, fontSize: 10, letterSpacing: 1))),
+        ],
+      ),
+    );
+  }
+
   Widget _row(McpCreated c) {
     final label = stateLabel(c);
     return Padding(
@@ -10002,7 +10085,7 @@ class _CreatedByAssistantsPageState extends State<_CreatedByAssistantsPage> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Everything a connected assistant recorded for you, newest first. You can undo any of it: an invoice is voided and keeps its number, anything else is removed and a copy is kept.',
+                'Everything a connected assistant recorded or changed for you, newest first. You can undo any of it: an invoice is voided and keeps its number, anything else is removed and a copy is kept, and a change is put back to what it was.',
                 style: GoogleFonts.workSans(color: _muted, fontSize: 13, height: 1.4),
               ),
               if (_notice != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_notice!, style: GoogleFonts.workSans(color: _paper, fontSize: 13))),
@@ -10011,16 +10094,24 @@ class _CreatedByAssistantsPageState extends State<_CreatedByAssistantsPage> {
                 const Padding(padding: EdgeInsets.only(top: 24), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
               else if (_error != null)
                 Padding(padding: const EdgeInsets.only(top: 16), child: Text(_error!, style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
-              else if (_items.isEmpty)
+              else if (_items.isEmpty && _changes.isEmpty)
                 Padding(padding: const EdgeInsets.only(top: 16), child: Text('Nothing yet.', style: GoogleFonts.workSans(color: _muted, fontStyle: FontStyle.italic)))
               else
                 Expanded(
-                  child: ListView.separated(
-                    padding: const EdgeInsets.only(top: 4),
-                    itemCount: _items.length,
-                    separatorBuilder: (_, __) => Divider(height: 1, color: _textTertiary.withOpacity(0.1)),
-                    itemBuilder: (context, index) => _row(_items[index]),
-                  ),
+                  child: Builder(builder: (context) {
+                    final rows = <Widget>[
+                      if (_items.isNotEmpty && _changes.isNotEmpty) _sectionHeader('CREATED'),
+                      for (final c in _items) _row(c),
+                      if (_changes.isNotEmpty) _sectionHeader('CHANGED'),
+                      for (final c in _changes) _changeRow(c),
+                    ];
+                    return ListView.separated(
+                      padding: const EdgeInsets.only(top: 4),
+                      itemCount: rows.length,
+                      separatorBuilder: (_, __) => Divider(height: 1, color: _textTertiary.withOpacity(0.1)),
+                      itemBuilder: (context, index) => rows[index],
+                    );
+                  }),
                 ),
             ],
           ),
