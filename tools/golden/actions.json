@@ -3993,7 +3993,9 @@
       "vat_exempt": 0,
       "retention_percent": null,
       "person_id": 4,
-      "merged_into_customer_id": null
+      "merged_into_customer_id": null,
+      "phone": null,
+      "email": null
      }
     ]
    },
@@ -4118,7 +4120,9 @@
       "vat_exempt": 0,
       "retention_percent": null,
       "person_id": 4,
-      "merged_into_customer_id": null
+      "merged_into_customer_id": null,
+      "phone": null,
+      "email": null
      }
     ]
    },
@@ -4243,7 +4247,9 @@
       "vat_exempt": 0,
       "retention_percent": null,
       "person_id": 6,
-      "merged_into_customer_id": null
+      "merged_into_customer_id": null,
+      "phone": null,
+      "email": null
      }
     ]
    },
@@ -4437,7 +4443,9 @@
       "vat_exempt": 0,
       "retention_percent": null,
       "person_id": 3,
-      "merged_into_customer_id": null
+      "merged_into_customer_id": null,
+      "phone": null,
+      "email": null
      }
     ]
    },
@@ -4576,7 +4584,9 @@
       "vat_exempt": 0,
       "retention_percent": null,
       "person_id": 7,
-      "merged_into_customer_id": null
+      "merged_into_customer_id": null,
+      "phone": null,
+      "email": null
      }
     ]
    },
@@ -4715,7 +4725,9 @@
       "vat_exempt": 0,
       "retention_percent": null,
       "person_id": 6,
-      "merged_into_customer_id": null
+      "merged_into_customer_id": null,
+      "phone": null,
+      "email": null
      }
     ]
    },
@@ -4837,7 +4849,9 @@
       "vat_exempt": 0,
       "retention_percent": null,
       "person_id": 7,
-      "merged_into_customer_id": null
+      "merged_into_customer_id": null,
+      "phone": null,
+      "email": null
      }
     ]
    },
@@ -4948,7 +4962,9 @@
       "vat_exempt": 0,
       "retention_percent": null,
       "person_id": 4,
-      "merged_into_customer_id": null
+      "merged_into_customer_id": null,
+      "phone": null,
+      "email": null
      }
     ]
    },

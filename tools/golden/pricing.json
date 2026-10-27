@@ -1881,7 +1881,9 @@
       "vat_exempt": 0,
       "retention_percent": null,
       "person_id": null,
-      "merged_into_customer_id": null
+      "merged_into_customer_id": null,
+      "phone": null,
+      "email": null
      }
     ]
    },
