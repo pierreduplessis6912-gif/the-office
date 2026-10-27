@@ -99,6 +99,9 @@ from a live conversation for the same structural key `job_scopes`
 already had and `leads` was missing until tonight's fix. Independent
 of the `people` table — can happen before, after, or alongside it.
 
+## A title is not a name (fixed 2026-10-26)
+Found live (Pierre, through the connector; seen before in the app): a spoken "Mr Buitendacht" was held as "could match more than one person" when nobody of that name was on file. `reconcilePerson` matched on the FIRST WORD of the spoken name, and the first word was the title "Mr": it matched every "Mr ..." on file, and the sound-alike pass compared "Mr" with "Mr". Any two people sharing a title collided ("Mrs Pretorius" with "Mrs Dlamini", "Dr Smith" with "Dr Van der Walt"), and the opening step (`intents/opening.ts`) turned each into an `ambiguous_person` hold. NOW `nameCore` takes leading titles (mr, mrs, ms, miss, mister, mnr, mev, dr, prof, sir, madam, rev, adv; any case, with or without a full stop; several in a row; never the last word, so a lone "Mr" stays itself) off before matching, and the sound-alike pass compares the names, not the titles. The title is NOT ignored: a titled name is never AUTO-matched on a surname alone (it is held for a human), because "Mr Nkosi" and "Mrs Nkosi" are two people; an untitled long unique surname still matches as before, and an exact full-name match (any case) is still tried first. Only `reconcilePerson` changed; the customer, character and import matching use the whole name and were not affected. Tests: `tools/identity-titles.test.js` (11); breakage `tools/identity-titles-breakage.js` (12 guards, one of which is the original bug).
+
 ## What this document does not settle
 
 - The real, exact set of `link_type` values `people_links` should

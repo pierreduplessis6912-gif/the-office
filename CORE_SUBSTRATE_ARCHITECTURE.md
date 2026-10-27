@@ -128,3 +128,5 @@ vertical's shortcuts.
   "there is zero work to retarget it."
 - Which vertical, if any, is actually worth pursuing first. This document
   deliberately settles the shape of the decision, not the decision itself.
+
+**Person matching and titles (2026-10-26).** `reconcilePerson` (`worker/src/identity.ts`) no longer matches a leading title (Mr, Mrs, Dr...) as the person's name, so a new titled name is not held against everyone who shares the title; a titled name is still never auto-matched on a surname alone. Details and tests: `IDENTITY_ARCHITECTURE.md`, "A title is not a name".
