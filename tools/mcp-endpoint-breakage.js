@@ -12,6 +12,8 @@ const run = require('./mcp-endpoint.test.js');
 const clearBuildCache = () => { for (const n of ['rm-poe', 'rm-auth']) delete require.cache[path.join(os.tmpdir(), `${n}-${process.pid}.js`)]; };
 
 const MUTATIONS = [
+  ['the connector\'s customer list leaves out the phone and email', 'reads', 'SELECT id, name, address, phone, email, created_at FROM customers', 'SELECT id, name, address, NULL AS phone, NULL AS email, created_at FROM customers'],
+  ['the connector\'s customer list cannot be searched by phone', 'reads', 'OR phone LIKE ?2 ESCAPE', 'OR 0 ESCAPE'],
   ['the assistant may upload a file nobody asked it to send', 'mcp', ' Never upload a file the owner has not asked you to send.', ''],
   ['the assistant is not told to check the upload it made', 'mcp', 'then call check_upload and tell the owner what the Office made of it.', ''],
   ['the assistant is not told to fall back to the link', 'mcp', 'give them the link to open on their phone.', ''],
