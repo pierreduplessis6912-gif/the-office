@@ -293,7 +293,7 @@ async function decideHeld(kind: "confirm" | "reject", env: Env, args: Record<str
   // Only an action THIS key proposed, still waiting, of a kind that needs only a yes.
   const link = await findLink(env, id);
   if (!link || link.key_id !== who.keyId) return { ok: false, message: "That action was not held by this connection, so it can only be decided in the app.", outcome: "not_found" };
-  if (!CONFIRMABLE.has(link.type)) return { ok: false, message: "That action needs an answer, not just a yes, so it can only be decided in the app.", outcome: "invalid" };
+  if (!CONFIRMABLE.has(link.type)) return { ok: false, message: "That kind of action cannot be decided here yet, so it can only be decided in the app.", outcome: "invalid" };
   let result: { status: number; body: unknown };
   try { result = await host.act(kind, id, { email: who.email }); } catch { return { ok: false, message: `That could not be ${kind === "confirm" ? "confirmed" : "rejected"}.`, outcome: "error" }; }
   const reason = typeof (result.body as { error?: unknown } | null)?.error === "string" ? String((result.body as { error: string }).error).slice(0, 200) : null;
@@ -308,7 +308,7 @@ async function decideHeld(kind: "confirm" | "reject", env: Env, args: Record<str
 }
 const confirmTool: Tool = {
   name: "confirm_pending_action",
-  description: "Confirm a held action that this connection proposed through tell_the_office (an expense, payment, invoice or quote waiting for a yes). It becomes a real record, tagged with this key, and the owner can undo it in the app. Only an action this connection proposed, still waiting, can be confirmed here; anything that needs an answer is decided in the app. It counts against the key's limit like any change.",
+  description: "Confirm a held action that this connection proposed through tell_the_office (an expense, payment, invoice, quote, stock add or customer detail waiting for a yes). It is done as the owner's own confirm would do it, tagged with this key, and the owner can undo it in the app (a stock add or customer detail is only put back if nothing has changed it since). Only an action this connection proposed, still waiting, can be confirmed here; anything that needs an answer is decided in the app. It counts against the key's limit like any change.",
   inputSchema: { type: "object", properties: { action_id: actionId }, required: ["action_id"], additionalProperties: false },
   needsWrite: true, ownerOnly: true, route: null,
   run: (env, args, who, _origin, host) => decideHeld("confirm", env, args, who, host),

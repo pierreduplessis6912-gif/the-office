@@ -28,8 +28,8 @@ module.exports = async function runMcpPendingTests({ check, srcDir }) {
     check(out.length === 20 && links(w).length === 20, 'a call links at most 20 held actions'); }
   { const w = world(); const e = w.held('expense', { amount: 1 }); await pm.linkHeld(w.env, 'k1', 7, [e]); await pm.linkHeld(w.env, 'k2', 8, [e]);
     check(links(w).length === 1 && links(w)[0].key_id === 'k1' && links(w)[0].create_id === 7, 'a held action already linked is never re-linked to another key'); }
-  { const w = world(); const kinds = ['expense', 'payment', 'invoice', 'quotation']; const none = ['ambiguous_person', 'identity_collision', 'project_ambiguity', 'job_scope_amendment', 'stock_add', 'imported_invoice', 'supplier_payment', 'convert_quote', 'cancel_order', 'goods_received', 'customer_fact'];
-    check(kinds.every((k) => pm.CONFIRMABLE.has(k)) && none.every((k) => !pm.CONFIRMABLE.has(k)) && pm.CONFIRMABLE.size === 4, 'an assistant may decide only expense, payment, invoice and quote: everything that needs an answer or changes what exists is left to the owner'); }
+  { const w = world(); const kinds = ['expense', 'payment', 'invoice', 'quotation', 'stock_add', 'customer_fact']; const none = ['ambiguous_person', 'identity_collision', 'project_ambiguity', 'job_scope_amendment', 'imported_invoice', 'supplier_payment', 'convert_quote', 'cancel_order', 'goods_received'];
+    check(kinds.every((k) => pm.CONFIRMABLE.has(k)) && none.every((k) => !pm.CONFIRMABLE.has(k)) && pm.CONFIRMABLE.size === 6, 'an assistant may decide only expense, payment, invoice, quote, stock add and customer fact (each can be put back): everything that needs an answer or cannot yet be reversed is left to the owner'); }
 
   // ---- finding and finishing ----
   { const w = world(); const e = w.held('expense', { amount: 1 }); await pm.linkHeld(w.env, 'k1', 7, [e]);

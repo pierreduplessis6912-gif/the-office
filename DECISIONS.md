@@ -287,3 +287,4 @@ Split on 2026-10-24 from the 7958-line original, which is `git show 95bf743:DECI
 - [Customer phone and email become real fields (2026-10-27)](docs/decisions/platform-and-operations.md) (new)
 - [Customer phone and email on every document (2026-10-27)](docs/decisions/platform-and-operations.md) (new)
 - [MCP: read tools for expenses, payments and held actions (2026-10-27)](docs/decisions/platform-and-operations.md) (new)
+- [MCP: Claude may confirm more kinds, each only with an undo (2026-10-27)](docs/decisions/platform-and-operations.md) (new)

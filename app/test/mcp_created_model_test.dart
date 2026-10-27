@@ -149,5 +149,16 @@ void main() {
     expect(skipped[0].summary, isNull);
     expect(skipped[1].connection, 'a connected assistant');
   });
+
+  test('a confirmed stock add and a customer detail are read, and titled by their own description', () {
+    final list = parseCreatedList({'items': [
+      _item(id: 5, kind: 'stock add', recordId: 184, summary: {'description': 'Added to stock: Sample sets (2)'}),
+      _item(id: 6, kind: 'customer fact', recordId: 3, summary: {'description': 'Customer 1: phone'}),
+    ]})!;
+    expect(list, hasLength(2));
+    expect(createdTitle(list.first), 'Added to stock: Sample sets (2)');
+    expect(createdTitle(list.last), 'Customer 1: phone');
+    expect(list.first.canUndo, isTrue);
+  });
 }
 

@@ -2,9 +2,10 @@
 // THE RULES (each held by a test that fails if it is removed, tools/mcp-undo-breakage.js): (1) only a record that was TAGGED to a key can be undone here, by its tag, never by a bare id; (2) only what is still untouched: an invoice with a payment against it, a quote that became an invoice or a job, a job that has an invoice, quote, measurements or tasks hanging off it are REFUSED with the reason, nothing changes; (3) a copy of the row is saved BEFORE anything changes, and the tag is marked undone only after the change was made; (4) a record is undone once (a second time is refused); (5) nothing but the tagged record (and, for a quote, its own line items) is touched; (6) an invoice is never deleted: its number is never reused or left as a gap.
 import type { Env } from "./types";
 import { TRACKED_TABLES, type TrackedTable } from "./mcp-tags";
+import { EFFECT_LABEL, describeEffect, isEffectKind, undoEffect, type EffectKind } from "./mcp-effects";
 
 const LABEL: Record<TrackedTable, string> = { invoices: "invoice", quotations: "quote", expenses: "expense", tasks: "task", job_scopes: "job", payments: "payment" };
-export type UndoResult = { ok: true; action: "voided" | "removed"; kind: string; recordId: number } | { ok: false; reason: "not_found" | "already_undone" | "blocked" | "gone" | "error"; message: string };
+export type UndoResult = { ok: true; action: "voided" | "removed" | "reversed"; kind: string; recordId: number } | { ok: false; reason: "not_found" | "already_undone" | "blocked" | "gone" | "error"; message: string };
 interface Tag { id: number; create_id: number; key_id: string; tbl: string; rec_id: number; undone_at: string | null }
 
 const count = async (env: Env, sql: string, ...binds: unknown[]): Promise<number> => {
@@ -31,6 +32,16 @@ export async function undoTagged(env: Env, tagId: unknown, by: string): Promise<
   if (typeof tagId !== "number" || !Number.isInteger(tagId) || tagId < 1) return { ok: false, reason: "not_found", message: "That is not something a connected assistant created." };
   let tag: Tag | null = null;
   try { tag = await env.OFFICE_DB.prepare("SELECT id, create_id, key_id, tbl, rec_id, undone_at FROM mcp_created_records WHERE id = ?").bind(tagId).first<Tag>(); } catch { tag = null; }
+  if (tag && isEffectKind(tag.tbl)) {
+    // a confirmed decision that changed stock or a customer's details (mcp-effects.ts): put back exactly what it changed, or refuse and change nothing
+    if (tag.undone_at !== null) return { ok: false, reason: "already_undone", message: "That was already undone." };
+    let snapshot: string | null = null;
+    try { snapshot = (await env.OFFICE_DB.prepare("SELECT snapshot FROM mcp_created_records WHERE id = ?").bind(tag.id).first<{ snapshot: string | null }>())?.snapshot ?? null; } catch { snapshot = null; }
+    const done = await undoEffect(env, snapshot);
+    if (!done.ok) return { ok: false, reason: done.reason, message: done.message };
+    try { await env.OFFICE_DB.prepare("UPDATE mcp_created_records SET undone_at = datetime('now'), undone_by = ? WHERE id = ? AND undone_at IS NULL").bind(by.slice(0, 254), tag.id).run(); } catch { /* the change is already put back; the label is only a record */ }
+    return { ok: true, action: "reversed", kind: EFFECT_LABEL[tag.tbl], recordId: tag.rec_id };
+  }
   if (!tag || !(TRACKED_TABLES as readonly string[]).includes(tag.tbl)) return { ok: false, reason: "not_found", message: "That is not something a connected assistant created." };
   if (tag.undone_at !== null) return { ok: false, reason: "already_undone", message: "That was already undone." };
   const table = tag.tbl as TrackedTable, kind = LABEL[table];
@@ -63,18 +74,19 @@ export async function undoCall(env: Env, createId: unknown, by: string): Promise
   let tags: Array<{ id: number; tbl: string; rec_id: number }> = [];
   try { tags = (await env.OFFICE_DB.prepare("SELECT id, tbl, rec_id FROM mcp_created_records WHERE create_id = ? AND undone_at IS NULL ORDER BY id DESC").bind(createId).all<{ id: number; tbl: string; rec_id: number }>()).results; } catch { tags = []; }
   const results = [];
-  for (const t of tags) results.push({ tagId: t.id, kind: LABEL[t.tbl as TrackedTable] ?? t.tbl, recordId: t.rec_id, result: await undoTagged(env, t.id, by) });
+  for (const t of tags) results.push({ tagId: t.id, kind: LABEL[t.tbl as TrackedTable] ?? EFFECT_LABEL[t.tbl as EffectKind] ?? t.tbl, recordId: t.rec_id, result: await undoTagged(env, t.id, by) });
   return { found: tags.length > 0, results };
 }
 
 /** What the connected assistants created, newest first, for the owner's list. `state` says whether it can still be undone. */
 export async function listCreated(env: Env, limit: number): Promise<Array<Record<string, unknown>>> {
-  let tags: Array<Tag & { created_at: string; label: string | null; undone_by: string | null }> = [];
+  let tags: Array<Tag & { created_at: string; label: string | null; undone_by: string | null; snapshot: string | null }> = [];
   try {
-    tags = (await env.OFFICE_DB.prepare("SELECT r.id, r.create_id, r.key_id, r.tbl, r.rec_id, r.undone_at, r.undone_by, r.created_at, k.label AS label FROM mcp_created_records r LEFT JOIN mcp_keys k ON k.id = r.key_id ORDER BY r.id DESC LIMIT ?").bind(Math.min(Math.max(Math.floor(limit) || 50, 1), 200)).all<Tag & { created_at: string; label: string | null; undone_by: string | null }>()).results;
+    tags = (await env.OFFICE_DB.prepare("SELECT r.id, r.create_id, r.key_id, r.tbl, r.rec_id, r.undone_at, r.undone_by, r.created_at, r.snapshot AS snapshot, k.label AS label FROM mcp_created_records r LEFT JOIN mcp_keys k ON k.id = r.key_id ORDER BY r.id DESC LIMIT ?").bind(Math.min(Math.max(Math.floor(limit) || 50, 1), 200)).all<Tag & { created_at: string; label: string | null; undone_by: string | null; snapshot: string | null }>()).results;
   } catch { return []; }
   const out: Array<Record<string, unknown>> = [];
   for (const t of tags) {
+    if (isEffectKind(t.tbl)) { out.push({ id: t.id, callId: t.create_id, keyId: t.key_id, connection: t.label ?? "a connected assistant", kind: EFFECT_LABEL[t.tbl], recordId: t.rec_id, createdAt: t.created_at, state: t.undone_at !== null ? "undone" : "active", undoneAt: t.undone_at, summary: { description: describeEffect(t.snapshot) } }); continue; }
     const table = t.tbl as TrackedTable; if (!(TRACKED_TABLES as readonly string[]).includes(t.tbl)) continue;
     let summary: Record<string, unknown> | null = null;
     try { summary = await env.OFFICE_DB.prepare(`SELECT ${table === "tasks" ? "description" : table === "payments" ? "amount" : "description, amount"}${table === "invoices" ? ", status" : ""}${table === "quotations" ? ", status" : ""} FROM ${table} WHERE id = ?`).bind(t.rec_id).first(); } catch { summary = null; }

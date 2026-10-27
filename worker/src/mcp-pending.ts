@@ -2,9 +2,10 @@
 // A confirmed record is tagged EXACTLY (mcp-tags.ts wraps the database of that one confirm request), never by guessing.
 import type { Env } from "./types";
 import { TRACKED_TABLES, taggingEnv, type TagSink, type TrackedTable } from "./mcp-tags";
+import { captureAfter, captureBefore, isEffectKind } from "./mcp-effects";
 
-/** The held actions an assistant may confirm or reject itself: the ones that only need a yes. Anything that needs an answer (which person, which project) or changes what exists is left to the owner in the app. */
-export const CONFIRMABLE = new Set(["expense", "payment", "invoice", "quotation"]);
+/** The held actions an assistant may confirm or reject itself: the ones that only need a yes AND that the owner can put back (a record the owner can undo, or a decision mcp-effects.ts can reverse). Anything that needs an answer (which person, which project) or changes what exists is left to the owner in the app. */
+export const CONFIRMABLE = new Set(["expense", "payment", "invoice", "quotation", "stock_add", "customer_fact"]);
 const KIND: Record<string, string> = { expense: "expense", payment: "payment", invoice: "invoice", quotation: "quote" };
 export const kindOfHeld = (type: string): string => KIND[type] ?? type.replace(/_/g, " ").slice(0, 40);
 
@@ -24,6 +25,8 @@ export function summarise(payload: string | null): string | null {
     if (typeof p.amount === "number" && Number.isFinite(p.amount)) parts.push(`R${p.amount.toLocaleString("en-ZA")}`);
     const what = clean(p.description, 80) ?? clean(p.note, 80);
     if (what) parts.push(what);
+    if (Array.isArray(p.items) && p.amount === undefined) { const names = (p.items as Array<Record<string, unknown>>).slice(0, 5).map((i) => (clean(i?.name, 40) ? `${clean(i.name, 40)}${typeof i.quantity === "number" ? ` (${i.quantity})` : ""}` : null)).filter(Boolean); if (names.length) parts.push(names.join(", ")); }
+    if (typeof p.key === "string" && typeof p.value === "string") { const k = clean(p.key, 30), v = clean(p.value, 50); if (k && v) parts.push(`${k}: ${v}`); }
     const who = clean(p.customerName, 60) ?? clean(p.characterName, 60);
     if (who) parts.push(`for ${who}`);
     return parts.length ? parts.join(", ") : null;
@@ -53,10 +56,11 @@ export async function findLink(env: Env, pendingId: number): Promise<PendingLink
 }
 
 /** Records how a linked held action ended, and tags the records its confirmation created. */
-export async function finishLink(env: Env, link: PendingLink, outcome: "confirmed" | "rejected", by: "app" | "claude", tagged: Array<{ table: TrackedTable; id: number }>): Promise<void> {
+export async function finishLink(env: Env, link: PendingLink, outcome: "confirmed" | "rejected", by: "app" | "claude", tagged: Array<{ table: TrackedTable; id: number }>, effect?: { tbl: string; snapshot: string }): Promise<void> {
   try {
     await env.OFFICE_DB.prepare("UPDATE mcp_pending_links SET status = ?, resolved_at = datetime('now'), resolved_by = ? WHERE id = ? AND status = 'waiting'").bind(outcome, by, link.id).run();
     for (const t of tagged) if ((TRACKED_TABLES as readonly string[]).includes(t.table)) await env.OFFICE_DB.prepare("INSERT OR IGNORE INTO mcp_created_records (create_id, key_id, tbl, rec_id) VALUES (?, ?, ?, ?)").bind(link.create_id, link.key_id, t.table, t.id).run();
+    if (effect && outcome === "confirmed") await env.OFFICE_DB.prepare("INSERT OR IGNORE INTO mcp_created_records (create_id, key_id, tbl, rec_id, snapshot) VALUES (?, ?, ?, ?, ?)").bind(link.create_id, link.key_id, effect.tbl, link.pending_id, effect.snapshot).run();
   } catch { /* the tag never undoes a confirmation */ }
 }
 
@@ -83,5 +87,13 @@ export async function mcpDecision(request: Request, env: Env): Promise<{ env: En
   const link = await findLink(env, Number(m[1]));
   if (!link) return null;
   const seen = collector(); const confirm = m[2] === "confirm";
-  return { env: taggingEnv(env, seen.sink), finish: async (response) => { if (response.ok) await finishLink(env, link, confirm ? "confirmed" : "rejected", "app", confirm ? seen.tagged : []); } };
+  // a decision that changes something other than a tracked record (stock, a customer's details): a copy of what it is about to touch, so that exactly that can be put back (mcp-effects.ts)
+  let before: Awaited<ReturnType<typeof captureBefore>> = null;
+  if (confirm && isEffectKind(link.type)) { try { const row = await env.OFFICE_DB.prepare("SELECT payload FROM pending_actions WHERE id = ?").bind(link.pending_id).first<{ payload: string | null }>(); before = await captureBefore(env, link.type, row?.payload ?? null); } catch { before = null; } }
+  return { env: taggingEnv(env, seen.sink), finish: async (response) => {
+    if (!response.ok) return;
+    let effect: { tbl: string; snapshot: string } | undefined;
+    if (confirm && before) { try { const answer = await response.clone().json().catch(() => null); const snap = await captureAfter(env, before, answer); if (snap) effect = { tbl: link.type, snapshot: JSON.stringify(snap) }; } catch { effect = undefined; } }
+    await finishLink(env, link, confirm ? "confirmed" : "rejected", "app", confirm ? seen.tagged : [], effect);
+  } };
 }

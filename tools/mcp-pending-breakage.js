@@ -10,7 +10,7 @@ const originals = Object.fromEntries(Object.entries(files).map(([k, f]) => [k, f
 const runs = { pending: require('./mcp-pending.test.js'), index: require('./mcp-pending-routes.test.js'), act: require('./mcp-act.test.js') };
 const MUTATIONS = [
   // module (mcp-pending.ts), proven by tools/mcp-pending.test.js
-  ['pending', 'an assistant may decide an action that needs an answer', 'new Set(["expense", "payment", "invoice", "quotation"])', 'new Set(["expense", "payment", "invoice", "quotation", "ambiguous_person", "stock_add"])'],
+  ['pending', 'an assistant may decide an action that needs an answer', 'new Set(["expense", "payment", "invoice", "quotation", "stock_add", "customer_fact"])', 'new Set(["expense", "payment", "invoice", "quotation", "stock_add", "customer_fact", "ambiguous_person", "supplier_payment"])'],
   ['pending', 'an action already decided is linked again', 'if (r.status !== "pending") continue;', ''],
   ['pending', 'a held action is re-linked to another key', 'INSERT OR IGNORE INTO mcp_pending_links', 'INSERT OR REPLACE INTO mcp_pending_links'],
   ['pending', 'a call links more than 20 held actions', '.slice(0, 20);', '.slice(0, 2000);'],
@@ -23,7 +23,7 @@ const MUTATIONS = [
   ['pending', 'tagging at confirm is not tied to the call that proposed it', 'VALUES (?, ?, ?, ?)").bind(link.create_id, link.key_id, t.table, t.id)', 'VALUES (?, ?, ?, ?)").bind(0, link.key_id, t.table, t.id)'],
   // the decision wrapper (mcp-pending.ts mcpDecision) and the front door (index.ts), proven by tools/mcp-pending-routes.test.js through the real front door
   ['pending', 'the record a confirmation creates is not tagged', 'return { env: taggingEnv(env, seen.sink), finish:', 'return { env, finish:', 'index'],
-  ['pending', 'a confirmation that failed still tags and ends the link', 'if (response.ok) await finishLink(env, link,', 'await finishLink(env, link,', 'index'],
+  ['pending', 'a confirmation that failed still tags and ends the link', 'if (!response.ok) return;', '', 'index'],
   ['pending', 'a rejection is recorded as a confirmation', 'confirm ? "confirmed" : "rejected", "app"', '"confirmed", "app"', 'index'],
   ['pending', 'a decision on a held action is not looked up at all', 'const link = await findLink(env, Number(m[1]));\n  if (!link) return null;', 'const link = null as unknown as PendingLink;\n  if (!link) return null;', 'index'],
   // the session that carries the assistant's confirm (mcp-act.ts), proven by tools/mcp-act.test.js

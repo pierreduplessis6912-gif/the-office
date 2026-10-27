@@ -867,3 +867,7 @@ Pierre found a quotation showed the address but not the saved phone number: the 
 
 ## MCP: read tools for expenses, payments and held actions (2026-10-27)
 Claude could create expenses and payments but could not read them back: it could only confirm the R30 expense through the profit and loss report. Three owner-only read tools now return them: `list_expenses`, `list_payments` and `list_held_actions` (each says whether a connection created or proposed it). They never return the stored transcript or the raw payload, only the short summary. A creation that was undone is not marked as the connection's. Fourteen read tools, twenty-one in all.
+
+## MCP: Claude may confirm more kinds, each only with an undo (2026-10-27)
+Pierre asked for confirmations to happen through the connection rather than sending people to the app, for every kind including ones that need an answer. Rule he chose: only where the decision can be reversed, and an undo is added as each kind is built. First kinds: stock add and customer detail. The undo puts back exactly what that decision changed and refuses, changing nothing, if it was used, counted or changed again since. The other kinds follow in the same way, one slice at a time.
+
