@@ -46,7 +46,7 @@ const likeOf = (s: string): string => "%" + s.replace(/[\\%_]/g, (c) => "\\" + c
 export async function customersData(env: Env, page: Page, search: string | null) {
   const like = search ? likeOf(search) : null;
   const { results } = await env.OFFICE_DB.prepare(
-    `SELECT id, name, address, created_at FROM customers WHERE merged_into_customer_id IS NULL AND (?1 IS NULL OR name LIKE ?2 ESCAPE '\\' OR address LIKE ?2 ESCAPE '\\') ORDER BY name ASC LIMIT ?3 OFFSET ?4`
+    `SELECT id, name, address, phone, email, created_at FROM customers WHERE merged_into_customer_id IS NULL AND (?1 IS NULL OR name LIKE ?2 ESCAPE '\\' OR address LIKE ?2 ESCAPE '\\' OR phone LIKE ?2 ESCAPE '\\' OR email LIKE ?2 ESCAPE '\\') ORDER BY name ASC LIMIT ?3 OFFSET ?4`
   ).bind(search, like, page.limit, page.offset).all<{ id: number; name: string; address: string | null; created_at: string }>();
   return { report: "customers", limit: page.limit, offset: page.offset, items: results ?? [] };
 }

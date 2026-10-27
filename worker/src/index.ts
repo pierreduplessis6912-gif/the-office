@@ -9,6 +9,7 @@ import { handleMcp } from "./mcp";
 import { taggingEnv } from "./mcp-tags";
 import { listCreated, undoCall, undoTagged } from "./mcp-undo";
 import { listChanges, revertChange } from "./mcp-changes";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { listHeld, mcpDecision } from "./mcp-pending";
 import { actThroughApp } from "./mcp-act";
 import { receiveUpload, uploadPage } from "./mcp-upload";
@@ -1281,9 +1282,10 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
     // the real, confirmed insert), so editing it is genuinely
     // different from creating one from nothing. Deliberately narrow
     // to the two fields confirmed to actually exist in the schema
-    // (name, address, per generateStatementPdf's own real query) -
-    // no phone/email, since no evidence those columns exist; adding
-    // them would need a real, separate migration, not assumed here.
+    // (name, address, per generateStatementPdf's own real query).
+    // Phone and email joined them with migration 0003 (2026-10-27): a
+    // stated number or email is saved to the columns by memory.ts, and
+    // here they can be set or CLEARED by hand (an empty string clears).
     if (url.pathname.match(/^\/customers\/\d+$/) && request.method === "PATCH") {
       const customerId = Number(url.pathname.split("/")[2]);
       try {
@@ -1295,6 +1297,21 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
 
         const name = typeof body.name === "string" ? body.name : undefined;
         const address = typeof body.address === "string" ? body.address : undefined;
+        // Phone and email: checked, never stored as typed. A phone number must be a real one (South African by default, any country code respected) and is kept in international form; an email must look like one. Anything else is refused whole, so nothing is changed.
+        let phone: string | null | undefined;
+        if ("phone" in body) {
+          if (typeof body.phone !== "string") return Response.json({ error: "phone must be text" }, { status: 400 });
+          if (body.phone.trim() === "") phone = null;
+          else { const parsed = parsePhoneNumberFromString(body.phone.trim(), "ZA"); if (!parsed?.isValid()) return Response.json({ error: "that is not a valid phone number" }, { status: 400 }); phone = parsed.formatInternational(); }
+        }
+        let email: string | null | undefined;
+        if ("email" in body) {
+          if (typeof body.email !== "string") return Response.json({ error: "email must be text" }, { status: 400 });
+          const e = body.email.trim().toLowerCase();
+          if (e === "") email = null;
+          else if (e.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return Response.json({ error: "that is not a valid email address" }, { status: 400 });
+          else email = e;
+        }
 
         await env.OFFICE_DB.prepare(
           `UPDATE customers SET
@@ -1304,6 +1321,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         )
           .bind(name ?? null, address ?? null, customerId)
           .run();
+        if (phone !== undefined) await env.OFFICE_DB.prepare("UPDATE customers SET phone = ? WHERE id = ?").bind(phone, customerId).run();
+        if (email !== undefined) await env.OFFICE_DB.prepare("UPDATE customers SET email = ? WHERE id = ?").bind(email, customerId).run();
 
         return Response.json({ status: "ok", id: customerId });
       } catch (err) {
@@ -1528,14 +1547,14 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
 
       const jobScope = await getJobScope(request, env);
       const { results: customers } = await env.OFFICE_DB.prepare(
-        `SELECT id, name, address, created_at FROM customers
-         WHERE merged_into_customer_id IS NULL AND (?1 IS NULL OR name LIKE ?2 OR address LIKE ?2)
+        `SELECT id, name, address, phone, email, created_at FROM customers
+         WHERE merged_into_customer_id IS NULL AND (?1 IS NULL OR name LIKE ?2 OR address LIKE ?2 OR phone LIKE ?2 OR email LIKE ?2)
            AND (?6 = 0 OR id IN (SELECT customer_id FROM job_scopes WHERE installer_id = ?5))
          ORDER BY name ASC
          LIMIT ?3 OFFSET ?4`
       )
         .bind(search, like, limit, offset, jobScope.characterId, jobScope.scoped ? 1 : 0)
-        .all<{ id: number; name: string; address: string | null; created_at: string }>();
+        .all<{ id: number; name: string; address: string | null; phone: string | null; email: string | null; created_at: string }>();
 
       return Response.json({ items: customers, limit, offset });
     }

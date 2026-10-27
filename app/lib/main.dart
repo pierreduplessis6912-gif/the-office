@@ -23,6 +23,7 @@ import 'workspace_context.dart';
 import 'history_model.dart';
 import 'mcp_keys_model.dart';
 import 'mcp_created_model.dart';
+import 'customer_contact_model.dart';
 import 'plans_link.dart';
 import 'refusal_view.dart';
 import 'reply_envelope.dart';
@@ -5316,6 +5317,10 @@ class _CustomerDetailDialogState extends State<_CustomerDetailDialog> {
             if (address != null && address.isNotEmpty) ...[
               const SizedBox(height: 6),
               Text(address, style: GoogleFonts.workSans(color: _muted, fontSize: 13)),
+            ],
+            for (final line in contactLines(widget.customer)) ...[
+              const SizedBox(height: 4),
+              SelectableText(line, style: GoogleFonts.workSans(color: _muted, fontSize: 13)),
             ],
             const SizedBox(height: 16),
             // Real, second phase, per direct instruction: financial

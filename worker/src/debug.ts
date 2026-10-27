@@ -1719,6 +1719,10 @@ const tablesToRepoint = [
       await env.OFFICE_DB.prepare("UPDATE customers SET merged_into_customer_id = ? WHERE id = ?")
         .bind(body.intoId, body.fromId)
         .run();
+      // The one that is kept gets the phone and email of the one that goes, but only where it has none of its own: a merge never loses a contact detail and never overwrites one.
+      await env.OFFICE_DB.prepare("UPDATE customers SET phone = COALESCE(phone, (SELECT phone FROM customers WHERE id = ?)), email = COALESCE(email, (SELECT email FROM customers WHERE id = ?)) WHERE id = ?")
+        .bind(body.fromId, body.fromId, body.intoId)
+        .run();
 
       // Real, new step, per direct instruction after a real, confirmed
       // gap: merging the customer record alone left the underlying

@@ -72,9 +72,14 @@ export async function applyStructuredFact(
       const parsed = parsePhoneNumberFromString(value, "ZA");
       if (parsed?.isValid()) {
         normalizedValue = parsed.formatInternational();
+        // A valid number is also the customer's PHONE (migration 0003): the latest one stated. The note below is still kept, so what was said before is never lost.
+        await env.OFFICE_DB.prepare("UPDATE customers SET phone = ? WHERE id = ?").bind(normalizedValue, customerId).run();
       }
     } else if (normalizedKey === "email") {
       normalizedValue = value.trim().toLowerCase();
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedValue) && normalizedValue.length <= 254) {
+        await env.OFFICE_DB.prepare("UPDATE customers SET email = ? WHERE id = ?").bind(normalizedValue, customerId).run();
+      }
     }
 
     await env.OFFICE_DB.prepare(
