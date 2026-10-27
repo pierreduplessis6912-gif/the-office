@@ -858,3 +858,6 @@ The pipeline holds every money action until it is confirmed, so what a connectio
 ## MCP stage 4a: an upload link, not a file through the tool (2026-10-26)
 A connected assistant cannot pass a photo or PDF's bytes through a tool call, so it asks for a short-lived link and the owner uploads the file himself; the file goes through the app's own photo and document routes, so the app's vision, supplier-document detection and hold-and-confirm all apply unchanged (Pierre chose this over CSV imports first, 2026-10-26). The link is a signed link for one ticket, rechecked on every use. A held supplier invoice stays with the owner in the app, because Claude may only confirm what the owner can undo and supplier invoices cannot yet be undone. Details: `MCP_ARCHITECTURE.md`, end.
 
+## Customer phone and email become real fields (2026-10-27)
+Pierre found that a phone number said about a customer was not in the customer profile. It was being saved, but as a loose note nothing read. By the Office's own rule a fact that earns a column is promoted by a deliberate migration (0003), not silently; Pierre chose real fields over merely displaying the notes. The old notes are copied across once (latest wins, nothing overwritten) and are still kept as history. Details: `MCP_ARCHITECTURE.md`, end.
+
