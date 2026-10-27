@@ -5,7 +5,7 @@
 // downstream of the same records.
 
 import { atomically } from "./atomic";
-import { PDFDocument, PDFPage, StandardFonts, rgb, PDFString } from "pdf-lib";
+import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb, PDFString } from "pdf-lib";
 import type { Env, LineItemExtraction, LineItemWithTotal, PurchaseOrderLineItem } from "./types";
 import { reconcileProduct, setSelection } from "./identity";
 import { classifyExpenseCategory } from "./ai";
@@ -3689,6 +3689,18 @@ async function drawLogoIfPresent(env: Env, pdfDoc: PDFDocument, page: PDFPage, y
 // business header, same line-item table, same subtotal/VAT/total math
 // either way; only the title, document number, and source table
 // differ.
+// A line in the right-hand column of a document that can never run off the page or break the PDF: a character the PDF font cannot draw becomes "?", a line too wide for the column is made smaller (down to 7 pt), and if it is still too wide it is cut with "...". A phone number or email is typed by a person, so it must never be able to make a document fail.
+export function drawColumnLine(page: PDFPage, font: PDFFont, text: string, x: number, y: number, maxWidth: number): void {
+  let line = text.replace(/[^\x20-\x7e\xa0-\xff]/g, "?").trim();
+  let size = 10;
+  while (size > 7 && font.widthOfTextAtSize(line, size) > maxWidth) size -= 0.5;
+  if (font.widthOfTextAtSize(line, size) > maxWidth) {
+    while (line.length > 1 && font.widthOfTextAtSize(line + "...", size) > maxWidth) line = line.slice(0, -1);
+    line += "...";
+  }
+  page.drawText(line, { x, y, size, font });
+}
+
 export async function generateDocumentPdf(env: Env, id: number, kind: "invoice" | "quotation"): Promise<Uint8Array> {
   const business = await env.OFFICE_DB.prepare("SELECT * FROM business_profile WHERE id = 1").first<{
     name: string | null;
@@ -3711,7 +3723,7 @@ export async function generateDocumentPdf(env: Env, id: number, kind: "invoice" 
   const retentionColumn = kind === "invoice" ? ", d.retention_amount" : ", NULL as retention_amount";
 
   const doc = await env.OFFICE_DB.prepare(
-    `SELECT d.id, d.description, d.status, d.created_at, d.amount, c.name as customer_name, c.address as customer_address, c.vat_exempt${retentionColumn} FROM ${table} d JOIN customers c ON c.id = d.customer_id WHERE d.id = ?`
+    `SELECT d.id, d.description, d.status, d.created_at, d.amount, c.name as customer_name, c.address as customer_address, c.phone as customer_phone, c.email as customer_email, c.vat_exempt${retentionColumn} FROM ${table} d JOIN customers c ON c.id = d.customer_id WHERE d.id = ?`
   )
     .bind(id)
     .first<{
@@ -3722,6 +3734,8 @@ export async function generateDocumentPdf(env: Env, id: number, kind: "invoice" 
       amount: number;
       customer_name: string;
       customer_address: string | null;
+      customer_phone: string | null;
+      customer_email: string | null;
       vat_exempt: number | null;
       retention_amount: number | null;
     }>();
@@ -3783,6 +3797,13 @@ export async function generateDocumentPdf(env: Env, id: number, kind: "invoice" 
   if (doc.customer_address) {
     page.drawText(doc.customer_address, { x: right, y: yRight, size: 10, font });
     yRight -= 14;
+  }
+  // The customer's phone and email, when it has them (migration 0003; Pierre, 2026-10-27: a quote showed the address but not the number): on every quotation and invoice, under the address.
+  for (const contact of [doc.customer_phone, doc.customer_email]) {
+    if (contact) {
+      drawColumnLine(page, font, contact, right, yRight, 595.28 - 50 - right);
+      yRight -= 14;
+    }
   }
 
   y = Math.min(leftEndY, yRight) - 30;
@@ -3918,9 +3939,9 @@ export async function generateStatementPdf(env: Env, customerId: number): Promis
     banking_details: string | null;
   }>();
 
-  const customer = await env.OFFICE_DB.prepare("SELECT name, address FROM customers WHERE id = ?")
+  const customer = await env.OFFICE_DB.prepare("SELECT name, address, phone, email FROM customers WHERE id = ?")
     .bind(customerId)
-    .first<{ name: string; address: string | null }>();
+    .first<{ name: string; address: string | null; phone: string | null; email: string | null }>();
 
   if (!customer) {
     throw new Error(`no such customer: ${customerId}`);
@@ -3971,6 +3992,12 @@ export async function generateStatementPdf(env: Env, customerId: number): Promis
     if (customer.address) {
       page.drawText(customer.address, { x: right, y: yRight, size: 10, font });
       yRight -= 14;
+    }
+    for (const contact of [customer.phone, customer.email]) {   // as on a quotation or invoice: when the customer has them
+      if (contact) {
+        drawColumnLine(page, font, contact, right, yRight, pageWidth - 50 - right);
+        yRight -= 14;
+      }
     }
 
     y = Math.min(leftEndY, yRight) - 30;
