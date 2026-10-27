@@ -31,6 +31,9 @@ module.exports = async function runMcpPendingTests({ check, srcDir }) {
   { const w = world(); const kinds = ['expense', 'payment', 'invoice', 'quotation', 'stock_add', 'customer_fact']; const none = ['ambiguous_person', 'identity_collision', 'project_ambiguity', 'job_scope_amendment', 'imported_invoice', 'supplier_payment', 'convert_quote', 'cancel_order', 'goods_received'];
     check(kinds.every((k) => pm.CONFIRMABLE.has(k)) && none.every((k) => !pm.CONFIRMABLE.has(k)) && pm.CONFIRMABLE.size === 6, 'an assistant may decide only expense, payment, invoice, quote, stock add and customer fact (each can be put back): everything that needs an answer or cannot yet be reversed is left to the owner'); }
 
+  { const w = world(); const f = w.held('customer_fact', { customerId: 1, key: 'email', value: 'a@b.co' }); const out = await pm.linkHeld(w.env, 'k1', 7, pm.heldIdsOf([], [f]));
+    check(JSON.stringify(pm.heldIdsOf([3, 4, 3, 0, -1, 1.5, 'x', null], [4, 9, 9, NaN, 2])) === '[3,4,9,2]' && JSON.stringify(pm.heldIdsOf(undefined, 'x')) === '[]' && out.length === 1 && out[0].actionId === f && out[0].kind === 'customer fact' && out[0].canConfirmHere === true && /email: a@b\.co/.test(out[0].summary) && links(w).length === 1, 'the held FACT actions of a tell are linked to the key with the others (whole positive numbers once, in order), so an assistant that proposed a customer detail may confirm it itself'); }
+
   // ---- finding and finishing ----
   { const w = world(); const e = w.held('expense', { amount: 1 }); await pm.linkHeld(w.env, 'k1', 7, [e]);
     const l = await pm.findLink(w.env, e), none = await pm.findLink(w.env, e + 50), bad = [await pm.findLink(w.env, 0), await pm.findLink(w.env, 'x'), await pm.findLink(w.env, null)];

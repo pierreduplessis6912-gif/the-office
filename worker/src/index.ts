@@ -10,7 +10,7 @@ import { taggingEnv } from "./mcp-tags";
 import { listCreated, undoCall, undoTagged } from "./mcp-undo";
 import { listChanges, revertChange } from "./mcp-changes";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
-import { listHeld, mcpDecision } from "./mcp-pending";
+import { heldIdsOf, listHeld, mcpDecision } from "./mcp-pending";
 import { actThroughApp } from "./mcp-act";
 import { receiveUpload, uploadPage } from "./mcp-upload";
 import { continueOAuthSignIn, handleOAuthRoute } from "./mcp-oauth-routes";
@@ -322,7 +322,8 @@ async function processTranscript(
   r2Key: string | null = null,
   capabilities: string[] = ROLE_CAPABILITIES.owner,
   recordingUserEmail: string | null = null,
-  onCapture?: (id: number | null) => void
+  onCapture?: (id: number | null) => void,
+  onHeldFacts?: (ids: number[]) => void   // like onCapture: lets a caller learn the held FACT actions (a detail about a customer) WITHOUT them being added to the reply
 ): Promise<ProcessResult> {
   const captureId = await logCapture(env, transcript, source, r2Key);
   onCapture?.(captureId);   // lets a caller learn the capture id WITHOUT it being added to the reply
@@ -402,6 +403,7 @@ async function processTranscript(
   ];
   const pendingActionIds = pendingActions.map((a) => a.id);
   const factPendingActionIds = results.map((r) => r.factPendingActionId).filter((id): id is number => id !== null);
+  onHeldFacts?.(factPendingActionIds);
   const primary = results[0];
   // Structured role refusals (refusals.ts), kept only where some segment refused. "whole" when EVERY segment refused and nothing else was added to the message; otherwise "part".
   const allRefusals: Refusal[] = results.flatMap((r) => r.refusals ?? []).slice(0, 10);
@@ -907,7 +909,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       return handleMcp(request, env, {
         // The assistant's confirm or reject goes through the app's OWN route (mcp-act.ts), so the app's own rules, atomic write and decision log all apply.
         act: (kind, actionId, who) => actThroughApp(env, (inner) => serveRequest(inner, env, ctx), request.url, kind, actionId, who),
-        tell: async (text, who, sink) => { captureId = null; const r = await processTranscript(taggingEnv(env, sink), text, ctx, [], "text", null, who.capabilities, who.email, (id) => { captureId = id; }); return { message: r.message, pendingActionIds: r.pendingActionIds, captureId }; } });
+        tell: async (text, who, sink) => { captureId = null; let factIds: number[] = []; const r = await processTranscript(taggingEnv(env, sink), text, ctx, [], "text", null, who.capabilities, who.email, (id) => { captureId = id; }, (ids) => { factIds = ids; }); return { message: r.message, pendingActionIds: heldIdsOf(r.pendingActionIds, factIds), captureId }; } });
     }
     if (url.pathname === "/mcp-keys" && request.method === "GET") {
       return Response.json({ keys: await listKeys(env) });

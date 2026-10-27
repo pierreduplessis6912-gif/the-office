@@ -12,6 +12,7 @@ const MUTATIONS = [
   // module (mcp-pending.ts), proven by tools/mcp-pending.test.js
   ['pending', 'an assistant may decide an action that needs an answer', 'new Set(["expense", "payment", "invoice", "quotation", "stock_add", "customer_fact"])', 'new Set(["expense", "payment", "invoice", "quotation", "stock_add", "customer_fact", "ambiguous_person", "supplier_payment"])'],
   ['pending', 'an action already decided is linked again', 'if (r.status !== "pending") continue;', ''],
+  ['pending', 'the held fact actions of a tell are not linked', 'for (const list of [ids, factIds]) if', 'for (const list of [ids]) if'],
   ['pending', 'a held action is re-linked to another key', 'INSERT OR IGNORE INTO mcp_pending_links', 'INSERT OR REPLACE INTO mcp_pending_links'],
   ['pending', 'a call links more than 20 held actions', '.slice(0, 20);', '.slice(0, 2000);'],
   ['pending', 'a link that already ended is still found', "WHERE pending_id = ? AND status = 'waiting'\"", 'WHERE pending_id = ?"'],

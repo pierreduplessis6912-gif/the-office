@@ -9,6 +9,13 @@ export const CONFIRMABLE = new Set(["expense", "payment", "invoice", "quotation"
 const KIND: Record<string, string> = { expense: "expense", payment: "payment", invoice: "invoice", quotation: "quote" };
 export const kindOfHeld = (type: string): string => KIND[type] ?? type.replace(/_/g, " ").slice(0, 40);
 
+/** The held actions one tell produced: the money and order actions the pipeline lists, AND the fact actions it keeps in a separate list (a detail about a customer waits for a yes like any other). Without the fact ones those were never linked to the key, so the assistant that proposed them was told to send the owner to the app. Whole positive numbers only, each once, in order. */
+export function heldIdsOf(ids: unknown, factIds: unknown): number[] {
+  const out: number[] = [];
+  for (const list of [ids, factIds]) if (Array.isArray(list)) for (const n of list) if (typeof n === "number" && Number.isInteger(n) && n > 0 && !out.includes(n)) out.push(n);
+  return out;
+}
+
 export interface PendingLink { id: number; pending_id: number; key_id: string; create_id: number; type: string; status: string }
 
 export async function ensurePending(env: Env): Promise<void> {
