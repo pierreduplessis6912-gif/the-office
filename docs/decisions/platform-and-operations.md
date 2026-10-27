@@ -861,3 +861,6 @@ A connected assistant cannot pass a photo or PDF's bytes through a tool call, so
 ## Customer phone and email become real fields (2026-10-27)
 Pierre found that a phone number said about a customer was not in the customer profile. It was being saved, but as a loose note nothing read. By the Office's own rule a fact that earns a column is promoted by a deliberate migration (0003), not silently; Pierre chose real fields over merely displaying the notes. The old notes are copied across once (latest wins, nothing overwritten) and are still kept as history. Details: `MCP_ARCHITECTURE.md`, end.
 
+## Customer phone and email on every document (2026-10-27)
+Pierre found a quotation showed the address but not the saved phone number: the PDF generators read only name and address. He chose all documents (quotes, invoices and statements) and both details. They print under the address, only when the customer has them, and a hand-typed value can never break or overflow a document (it is shrunk, then cut, and unprintable characters become `?`). Details: `MCP_ARCHITECTURE.md`, end.
+
