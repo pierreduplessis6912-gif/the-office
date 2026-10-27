@@ -48,6 +48,15 @@ function wholeWordBindings(token: string): [string, string, string, string] {
 // authority to auto-match on its own, only ever used as reconcilePerson's
 // last resort before returning "new" — same "hold and ask" discipline
 // as every other ambiguous case in this file.
+// TITLES. Found live 2026-10-26 (Pierre, through the connector, and seen before in the app): a spoken "Mr Buitendacht" was held as "could match more than one person" when nobody called Buitendacht was on file, because reconcilePerson matched on the FIRST WORD, and the first word was "Mr": it matched every "Mr ..." on file, and the sound pass compared "Mr" with "Mr". Any two people who share a title collided ("Mrs Pretorius" with "Mrs Dlamini", "Dr Smith" with "Dr Van der Walt"). A title says nothing about WHO someone is, so the name that is matched is the first word after the title. The title is not thrown away: it makes sure a titled name is never matched on its surname alone (see reconcilePerson), because "Mr Nkosi" and "Mrs Nkosi" are two people.
+const TITLES = new Set(["mr", "mrs", "ms", "miss", "mister", "mnr", "mev", "dr", "prof", "sir", "madam", "rev", "adv"]);
+export function nameCore(spoken: string): { title: string | null; core: string[] } {
+  const tokens = spoken.trim().split(/\s+/);
+  let i = 0;
+  while (i < tokens.length - 1 && TITLES.has(tokens[i].replace(/\.$/, "").toLowerCase())) i++;   // never the last word: a lone "Mr" stays itself
+  return { title: i > 0 ? tokens.slice(0, i).join(" ") : null, core: tokens.slice(i) };
+}
+
 function soundex(name: string): string {
   const cleaned = name.toUpperCase().replace(/[^A-Z]/g, "");
   if (!cleaned) return "";
@@ -183,7 +192,8 @@ export async function reconcilePerson(
     options?.relationship === "supplier"
       ? " AND id IN (SELECT person_id FROM characters WHERE relationship = 'supplier' AND person_id IS NOT NULL AND merged_into_character_id IS NULL)"
       : "";
-  const firstToken = spokenName.trim().split(/\s+/)[0];
+  const { title, core } = nameCore(spokenName);
+  const firstToken = core[0];   // the first word AFTER any title: see TITLES above
   const weak = await env.OFFICE_DB.prepare(
     `SELECT id, name FROM people WHERE ${wholeWordClause("name")} AND merged_into_person_id IS NULL${onlySuppliers}`
   )
@@ -204,13 +214,14 @@ export async function reconcilePerson(
       `SELECT id, name FROM people WHERE merged_into_person_id IS NULL${onlySuppliers}`
     ).all<{ id: number; name: string }>();
     const targetCode = soundex(firstToken);
-    const phoneticMatches = allPeople.results.filter((p) => soundex(p.name.trim().split(/\s+/)[0]) === targetCode);
+    const phoneticMatches = allPeople.results.filter((p) => soundex(nameCore(p.name).core[0]) === targetCode);
     if (phoneticMatches.length > 0) {
       return { status: "ambiguous", candidates: phoneticMatches };
     }
     return { status: "new" };
   }
-  if (firstToken.length < 8) {
+  // A TITLED name ("Mr Nkosi") is never auto-matched on its surname alone: whoever shares that surname might be a different person ("Mrs Nkosi", a brother), so a human is asked. (Before titles were understood this happened by accident, for every titled name.)
+  if (firstToken.length < 8 || title !== null) {
     return { status: "ambiguous", candidates: weak.results };
   }
   if (weak.results.length === 1) {
