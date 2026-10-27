@@ -1,6 +1,7 @@
 // The wider READ-ONLY data the MCP tools return (MCP capabilities roadmap, stage 1): customers, jobs, invoices, quotes, stock. Every function here only SELECTs, takes already-validated arguments, and is bounded (a page of at most MAX_PAGE rows).
 // Who may call them is decided in mcp.ts (these tools are OWNER ONLY for now: none mirrors a rule that a lesser role could pass, and the installer's own-jobs scoping is not reproduced here). Amounts are South African rand.
 import type { Env } from "./types";
+import { kindOfHeld, summarise } from "./mcp-pending";
 
 export const MAX_PAGE = 100;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -95,4 +96,62 @@ export async function documentExists(env: Env, kind: "invoice" | "quote" | "stat
   // A VOIDED invoice (the owner's undo, mcp-undo.ts) has no document to hand out.
   const row = await env.OFFICE_DB.prepare(`SELECT id FROM ${table} WHERE id = ?${kind === "invoice" ? " AND status IS NOT 'void'" : ""}`).bind(id).first<{ id: number }>();
   return row !== null && row !== undefined;
+}
+
+// ---- the ledger reads: expenses, payments and held actions (so an assistant can check what it created). SELECT only, owner only, bounded; the stored transcript and the raw payload are never returned.
+
+/** Which of these records a connection created and has not had undone. Reads a table that may not exist (a business nothing was ever created through): then none were. */
+async function createdThroughConnection(env: Env, table: "expenses" | "payments", ids: number[]): Promise<Set<number>> {
+  const out = new Set<number>();
+  if (ids.length === 0) return out;
+  try {
+    const { results } = await env.OFFICE_DB.prepare(`SELECT rec_id FROM mcp_created_records WHERE tbl = ? AND undone_at IS NULL AND rec_id IN (${ids.map(() => "?").join(",")})`).bind(table, ...ids).all<{ rec_id: number }>();
+    for (const r of results ?? []) out.add(r.rec_id);
+  } catch { /* no such table: nothing was created through a connection */ }
+  return out;
+}
+
+export async function expensesData(env: Env, page: Page, range: Range, customerId: number | null) {
+  const { results } = await env.OFFICE_DB.prepare(
+    `SELECT e.id, e.amount, e.description, e.category, e.customer_id, c.name AS customer_name, e.created_at
+       FROM expenses e LEFT JOIN customers c ON c.id = e.customer_id
+      WHERE (?1 IS NULL OR e.customer_id = ?1) AND (?2 IS NULL OR date(e.created_at) >= ?2) AND (?3 IS NULL OR date(e.created_at) <= ?3)
+      ORDER BY e.created_at DESC, e.id DESC LIMIT ?4 OFFSET ?5`
+  ).bind(customerId, range.from, range.to, page.limit, page.offset).all<{ id: number }>();
+  const rows = results ?? [], made = await createdThroughConnection(env, "expenses", rows.map((r) => r.id));
+  return { report: "expenses", currency: "ZAR", note: "Periods are by the date the expense was entered. via_connection is true when a connected assistant created it (and it has not been undone).", limit: page.limit, offset: page.offset, items: rows.map((r) => ({ ...r, via_connection: made.has(r.id) })) };
+}
+
+export async function paymentsData(env: Env, page: Page, range: Range, customerId: number | null) {
+  const { results } = await env.OFFICE_DB.prepare(
+    `SELECT p.id, p.customer_id, c.name AS customer_name, p.amount, p.invoice_id, p.created_at
+       FROM payments p LEFT JOIN customers c ON c.id = p.customer_id
+      WHERE (?1 IS NULL OR p.customer_id = ?1) AND (?2 IS NULL OR date(p.created_at) >= ?2) AND (?3 IS NULL OR date(p.created_at) <= ?3)
+      ORDER BY p.created_at DESC, p.id DESC LIMIT ?4 OFFSET ?5`
+  ).bind(customerId, range.from, range.to, page.limit, page.offset).all<{ id: number }>();
+  const rows = results ?? [], made = await createdThroughConnection(env, "payments", rows.map((r) => r.id));
+  return { report: "payments", currency: "ZAR", note: "Customer payments, by the date entered. They are applied to the oldest invoices first, not matched to an invoice: invoice_id is set only when the payment named one. via_connection is true when a connected assistant created it (and it has not been undone).", limit: page.limit, offset: page.offset, items: rows.map((r) => ({ ...r, via_connection: made.has(r.id) })) };
+}
+
+export const HELD_STATES = ["pending", "processing", "confirmed", "rejected"] as const;
+export function parseHeldState(value: unknown): { ok: true; state: string | null } | { ok: false; error: string } {
+  if (value === undefined) return { ok: true, state: null };
+  if (typeof value !== "string" || !(HELD_STATES as readonly string[]).includes(value)) return { ok: false, error: `state must be one of ${HELD_STATES.join(", ")}.` };
+  return { ok: true, state: value };
+}
+
+/** Held actions: every money action waits here until it is confirmed or rejected. Only the kind, state, times and the short safe summary come back (never the payload or the transcript). */
+export async function heldActionsData(env: Env, page: Page, state: string | null) {
+  const { results } = await env.OFFICE_DB.prepare(
+    "SELECT id, type, status, payload, created_at, resolved_at FROM pending_actions WHERE (?1 IS NULL OR status = ?1) ORDER BY created_at DESC, id DESC LIMIT ?2 OFFSET ?3"
+  ).bind(state, page.limit, page.offset).all<{ id: number; type: string; status: string; payload: string | null; created_at: string; resolved_at: string | null }>();
+  const rows = results ?? [], proposed = new Map<number, string | null>();
+  if (rows.length > 0) {
+    try {
+      const { results: links } = await env.OFFICE_DB.prepare(`SELECT l.pending_id, k.label FROM mcp_pending_links l LEFT JOIN mcp_keys k ON k.id = l.key_id WHERE l.pending_id IN (${rows.map(() => "?").join(",")})`).bind(...rows.map((r) => r.id)).all<{ pending_id: number; label: string | null }>();
+      for (const l of links ?? []) proposed.set(l.pending_id, l.label ?? null);
+    } catch { /* no such table: nothing was proposed through a connection */ }
+  }
+  return { report: "held_actions", note: "A money action waits here until it is confirmed or rejected. state is pending, processing, confirmed or rejected. proposed_by_connection is true when a connected assistant proposed it; connection names which one.", limit: page.limit, offset: page.offset,
+    items: rows.map((r) => ({ id: r.id, kind: kindOfHeld(r.type), state: r.status, summary: summarise(r.payload), created_at: r.created_at, resolved_at: r.resolved_at ?? null, proposed_by_connection: proposed.has(r.id), connection: proposed.get(r.id) ?? null })) };
 }

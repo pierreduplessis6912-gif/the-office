@@ -864,3 +864,6 @@ Pierre found that a phone number said about a customer was not in the customer p
 ## Customer phone and email on every document (2026-10-27)
 Pierre found a quotation showed the address but not the saved phone number: the PDF generators read only name and address. He chose all documents (quotes, invoices and statements) and both details. They print under the address, only when the customer has them, and a hand-typed value can never break or overflow a document (it is shrunk, then cut, and unprintable characters become `?`). Details: `MCP_ARCHITECTURE.md`, end.
 
+
+## MCP: read tools for expenses, payments and held actions (2026-10-27)
+Claude could create expenses and payments but could not read them back: it could only confirm the R30 expense through the profit and loss report. Three owner-only read tools now return them: `list_expenses`, `list_payments` and `list_held_actions` (each says whether a connection created or proposed it). They never return the stored transcript or the raw payload, only the short summary. A creation that was undone is not marked as the connection's. Fourteen read tools, twenty-one in all.

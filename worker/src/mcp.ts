@@ -1,12 +1,12 @@
 // The read-only MCP endpoint: POST /mcp (MCP_ARCHITECTURE.md, "Decisions made, and the design"). A hand-written, minimal, STATELESS Streamable HTTP server: JSON-RPC 2.0 over POST, plain JSON replies, no stream held open, no session, no packages. It lets an outside assistant READ a business's figures as ONE member, and nothing else.
-// THE RULES (each held by a test that fails if it is removed, tools/mcp-endpoint-breakage.js): (1) a key is the only way in: no key, a malformed key, a wrong, revoked or another business's key, an inactive member and a lapsed business are ALL the same 401, and a session alone is refused at the gate; (2) NOTHING here writes business data: the eleven tools only read (the first five through the same functions the routes use; the stage 1 lists, stock and document link are owner only, queries in mcp-reads.ts);
+// THE RULES (each held by a test that fails if it is removed, tools/mcp-endpoint-breakage.js): (1) a key is the only way in: no key, a malformed key, a wrong, revoked or another business's key, an inactive member and a lapsed business are ALL the same 401, and a session alone is refused at the gate; (2) NOTHING here writes business data: the fourteen read tools only read (the first five through the same functions the routes use; the stage 1 lists, stock and document link are owner only, queries in mcp-reads.ts);
 // (3) every tool is authorised by the SAME rule table as the route it mirrors, against the member's role NOW, and a tool the member may not use returns no data; (4) each key has a rate limit (30 a minute, 500 a day) and every tool call is audited ("via MCP, key <id>", the member, the tool, the outcome and the time: never the arguments or the result); (5) the kill switch (the Worker variable MCP set to "off") answers 503 before anything is read;
 // (6) bounded: a request body over 64 KB, a batch, malformed JSON and an oversized result are refused. The protocol surface is: initialize, ping, notifications (202), tools/list and tools/call. Resources, prompts and sessions are not declared, so a client must not call them.
 import { challengeHeader } from "./mcp-oauth";
 import { businessLapsed } from "./access";
 import { analysisData, parseAnalysisParams } from "./analysis";
 import { ROUTE_RULES, signDocumentPath } from "./auth";
-import { MAX_PAGE, customersData, documentExists, invoicesData, jobsData, parseId, parsePage, parseRange, parseSearch, quotesData, stockData } from "./mcp-reads";
+import { MAX_PAGE, customersData, documentExists, expensesData, heldActionsData, invoicesData, jobsData, parseHeldState, parseId, parsePage, parseRange, parseSearch, paymentsData, quotesData, stockData } from "./mcp-reads";
 import { parseHistoryParams, readHistory, resolveScope } from "./history";
 import { bearerKey } from "./mcp-key-format";
 import { CONFIRMABLE, findLink, linkHeld } from "./mcp-pending";
@@ -172,6 +172,21 @@ const WIDER_TOOLS: Tool[] = [
     },
   },
 ];
+// the ledger reads: what was recorded and what is waiting, so an assistant can check its own work (owner only, read only)
+WIDER_TOOLS.push(
+  listTool("list_expenses", "Expenses, newest first, with amount, category, description and customer. from and to filter on the date entered. via_connection says whether a connected assistant created it.", { customer_id: { type: "integer", minimum: 1 }, ...RANGE_PROPS }, ["customer_id", "from", "to", "limit", "offset"], async (env, a) => {
+    const p = parsePage(a), r = parseRange(a), c = parseId(a.customer_id, "customer_id"); if (!p.ok) return bad(p.error); if (!r.ok) return bad(r.error); if (!c.ok) return bad(c.error);
+    return { ok: true, data: await expensesData(env, p.page, r.range, c.id) };
+  }),
+  listTool("list_payments", "Customer payments, newest first, with customer, amount and the invoice if one was named. from and to filter on the date entered. Payments are applied to the oldest invoices first, not matched to invoices. via_connection says whether a connected assistant created it.", { customer_id: { type: "integer", minimum: 1 }, ...RANGE_PROPS }, ["customer_id", "from", "to", "limit", "offset"], async (env, a) => {
+    const p = parsePage(a), r = parseRange(a), c = parseId(a.customer_id, "customer_id"); if (!p.ok) return bad(p.error); if (!r.ok) return bad(r.error); if (!c.ok) return bad(c.error);
+    return { ok: true, data: await paymentsData(env, p.page, r.range, c.id) };
+  }),
+  listTool("list_held_actions", "Held actions, newest first: every money action (invoice, quote, expense, payment) waits here until it is confirmed or rejected. Give state (pending, processing, confirmed or rejected) to see only those. Each has its kind, state, a short summary, when it was made and resolved, and whether a connected assistant proposed it. Use confirm_pending_action or reject_pending_action to decide one that this connection proposed.", { state: { type: "string", enum: ["pending", "processing", "confirmed", "rejected"] } }, ["state", "limit", "offset"], async (env, a) => {
+    const p = parsePage(a), s = parseHeldState(a.state); if (!p.ok) return bad(p.error); if (!s.ok) return bad(s.error);
+    return { ok: true, data: await heldActionsData(env, p.page, s.state) };
+  }),
+);
 TOOLS.push(...WIDER_TOOLS);
 
 // ---- stage 2: the one tool that creates things ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
