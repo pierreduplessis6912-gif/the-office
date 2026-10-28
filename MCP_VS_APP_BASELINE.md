@@ -90,3 +90,26 @@ New findings:
 | F-19 | A payment for "Test Customer" created a real new customer record. | Name not matched, so a new one is made | UX | S4 | proposed |
 
 Code reading and the comparison with the app are in section A above. Files changed: this file and `INDEX.md`.
+
+## G. First measured readout, 2026-10-28 (Pierre's `GET /debug/timings`, 300 requests, 2026-10-26 04:25 to 2026-10-28 08:06 UTC)
+
+Taken BEFORE the per-tool labels and per-call detail went live (`f4d6b5c`), so MCP traffic is still one `POST /mcp` row. Times are summed per request; the app's database is now each business's own object (local storage), so database time reads 0 ms on every route. A small sample for the app's text route (6 requests), so treat the numbers as indicative.
+
+| Route | n | p50 | p95 | Model calls (mean) | Model ms (mean) | DB calls (mean) |
+|---|---|---|---|---|---|---|
+| `POST /messages/text` | 6 | 4.4 s | 12.0 s | 2.5 | 6,386 | 22 |
+| `POST /mcp` (all tools) | 255 | 0 ms | 3.5 s | 0.1 | 546 | 11 |
+| `POST /actions/:id/confirm` | 14 | 0 ms | 3.5 s | 0.3 | 408 | 10 |
+| `POST /upload/:id` | 5 | 40.7 s | 75.3 s | 2.4 | 33,656 | 33 |
+| `POST /files/photo` | 3 | 51.7 s | 75.0 s | 3.3 | 55,272 | 26 |
+
+**What it shows (observations):**
+1. **Where the app's wait goes: the model.** On every slow route the model time is nearly all of the request time, and database time is 0. The October finding that database round trips were half the wait (about 190 ms each on the old shared database) no longer applies to this data; it predates business objects. That corrects section 0 above.
+2. **MCP is fast because most of it does no model work:** the median MCP request took 0 ms and made 0.1 model calls on average. Reads and protocol calls are instant.
+3. **MCP writes are not fast.** The four slowest MCP requests took 15 to 18 s each, with 2 to 3 model calls and 39 to 44 database calls: they are `tell_the_office` writes, through the same split-then-extract pipeline as a typed message (the label is not on these rows yet, so that attribution is from the times and the dates matching writes made that day, not proven). They felt quick from the chat only because the chat does not show the wait.
+4. **A confirm sometimes uses the model** (0.3 calls on average, p95 3.5 s). Not yet traced to the prompt.
+5. **Document and photo reading is by far the slowest path:** 40 to 75 s, 2 to 4 model calls.
+
+**Not established:** how long each model call takes on its own (per-call detail only exists from `f4d6b5c`); whether 0 ms database time is real or an artefact of the Workers clock only advancing on outside calls (the totals equal the model time, which supports it being real); anything about speech.
+
+**Candidate changes, in the brief's order, still unbuilt:** skip the topic-split call for a clearly single-topic message; run independent extraction calls together; trace the model call inside confirm. Each needs the per-prompt readout first.
