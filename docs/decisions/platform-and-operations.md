@@ -871,3 +871,6 @@ Claude could create expenses and payments but could not read them back: it could
 ## MCP: Claude may confirm more kinds, each only with an undo (2026-10-27)
 Pierre asked for confirmations to happen through the connection rather than sending people to the app, for every kind including ones that need an answer. Rule he chose: only where the decision can be reversed, and an undo is added as each kind is built. First kinds: stock add and customer detail. The undo puts back exactly what that decision changed and refuses, changing nothing, if it was used, counted or changed again since. The other kinds follow in the same way, one slice at a time.
 
+## Docs: the handover must name the commit production runs (2026-10-27)
+After a day of changes the handover's State section had fallen behind (it named a commit two deploys old), found only by Pierre asking. `tools/docs-check.js` now fails the build when the handover's "last code deploy" is older than the `running_commit` in `ops/production-signup-check-last.json` (a warning when it is newer, so a fresh deploy can be written up before its record refreshes), and `HANDOVER.md` rule 12 makes updating the State the last step of every slice.
+

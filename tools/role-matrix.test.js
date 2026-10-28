@@ -871,6 +871,7 @@ async function expect(role, method, path, want) {
   await require('./mcp-pending.test.js')({ check, srcDir });
   await require('./mcp-pending-routes.test.js')({ check, srcDir });
   await require('./mcp-effects.test.js')({ check, srcDir });
+  await require('./docs-state.test.js')({ check, srcDir });
   await require('./mcp-act.test.js')({ check, srcDir });
   await require('./mcp-upload.test.js')({ check, srcDir });
   await require('./mcp-upload-routes.test.js')({ check, srcDir });
