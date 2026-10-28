@@ -9,6 +9,14 @@ on:
       expect_commit:
         description: "The full commit staging must be running (the run fails if /health says otherwise)"
         required: true
+      thinking:
+        description: "on = the same model with thinking on (an experiment, staging only); off = as before"
+        required: false
+        default: "off"
+      samples:
+        description: "Samples per phrase"
+        required: false
+        default: "3"
 
 concurrency:
   group: converse-spike
@@ -20,12 +28,14 @@ permissions:
 jobs:
   smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 120
     env:
       SEED: ${{ secrets.STAGING_KEY_SEED }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       EXPECT_COMMIT: ${{ inputs.expect_commit }}
+      THINKING: ${{ inputs.thinking }}
+      SAMPLES: ${{ inputs.samples }}
       OUT: ${{ github.workspace }}/converse-spike-result.json
     steps:
       - uses: actions/checkout@v4
