@@ -3828,7 +3828,10 @@
       "meanAiCalls": 2,
       "meanDbMs": 483.3,
       "meanDbCalls": 9.3,
-      "meanOtherMs": 10
+      "meanOtherMs": 10,
+      "meanAiWallMs": 0,
+      "requestsWithOverlappingModelCalls": 0,
+      "requestsWithAFailedModelCall": 0
      },
      {
       "route": "POST /actions/:id/confirm",
@@ -3839,7 +3842,10 @@
       "meanAiCalls": 0,
       "meanDbMs": 335,
       "meanDbCalls": 7,
-      "meanOtherMs": 0
+      "meanOtherMs": 0,
+      "meanAiWallMs": 0,
+      "requestsWithOverlappingModelCalls": 0,
+      "requestsWithAFailedModelCall": 0
      }
     ],
     "slowest": [
@@ -3851,7 +3857,8 @@
       "aiMs": 3900,
       "aiCalls": 3,
       "dbMs": 700,
-      "dbCalls": 11
+      "dbCalls": 11,
+      "modelCalls": []
      },
      {
       "at": "2026-10-03 09:00:00",
@@ -3861,7 +3868,8 @@
       "aiMs": 1500,
       "aiCalls": 2,
       "dbMs": 450,
-      "dbCalls": 9
+      "dbCalls": 9,
+      "modelCalls": []
      },
      {
       "at": "2026-10-03 09:01:00",
@@ -3871,7 +3879,8 @@
       "aiMs": 700,
       "aiCalls": 1,
       "dbMs": 300,
-      "dbCalls": 8
+      "dbCalls": 8,
+      "modelCalls": []
      },
      {
       "at": "2026-10-03 09:04:00",
@@ -3881,7 +3890,8 @@
       "aiMs": 0,
       "aiCalls": 0,
       "dbMs": 410,
-      "dbCalls": 7
+      "dbCalls": 7,
+      "modelCalls": []
      },
      {
       "at": "2026-10-03 09:03:00",
@@ -3891,9 +3901,11 @@
       "aiMs": 0,
       "aiCalls": 0,
       "dbMs": 260,
-      "dbCalls": 7
+      "dbCalls": 7,
+      "modelCalls": []
      }
-    ]
+    ],
+    "byPrompt": []
    }
   },
   "threw": null,
@@ -3912,7 +3924,8 @@
     "to": null,
     "note": "Times are in milliseconds and SUMMED across calls, so calls that overlap can add up to more than the request took. 'other' is notes store, memory search and file storage.",
     "byPath": [],
-    "slowest": []
+    "slowest": [],
+    "byPrompt": []
    }
   },
   "threw": null,

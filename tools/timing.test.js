@@ -5,6 +5,45 @@ module.exports = async function runTimingTests({ check, bundleTo, srcDir, path, 
   const { newDatabase, d1 } = require('./harness.js');
   const workerDir = path.join(srcDir, '..');
 
+  // ---- per-call detail: which prompt, when, and whether it threw; text of a message is never kept ------------------------------------------------
+  { const real = Date.now; let clock = 5000; Date.now = () => clock;
+    try {
+      const calls = [];
+      const ai = { run: async (model, inputs) => { calls.push(inputs); clock += 100; if (inputs.messages[1].content === 'boom') throw new Error('model down'); return { response: 'x' }; } };
+      const tl = newTally(); const w = instrumentEnv({ AI: ai }, tl);
+      await w.AI.run('m', { messages: [{ role: 'system', content: 'Split a tradesperson message into topics.   Extra rules follow here and keep going on and on' }, { role: 'user', content: 'invoice Jenny for 1200 rand' }] });
+      let threw = false; try { await w.AI.run('m', { messages: [{ role: 'system', content: 'Extract structured facts' }, { role: 'user', content: 'boom' }] }); } catch { threw = true; }
+      check(threw && tl.aiCalls.length === 2 && tl.aiCalls[0].ok === true && tl.aiCalls[1].ok === false && tl.aiCalls[0].s === 0 && tl.aiCalls[0].e === 100 && tl.aiCalls[1].s === 100, 'each model call is kept with its prompt, offsets from the first call, and whether it threw');
+      check(tl.aiCalls[0].p.length <= 48 && !JSON.stringify(tl.aiCalls).includes('Jenny') && !JSON.stringify(tl.aiCalls).includes('1200'), 'the label is the fixed start of the system prompt: no message text is kept');
+      check(calls.length === 2 && w.AI.run.length >= 0, 'the call itself and its result are untouched');
+      const many = newTally(); const w2 = instrumentEnv({ AI: { run: async () => ({}) } }, many); for (let i = 0; i < 30; i++) await w2.AI.run('m', { messages: [{ role: 'system', content: 's' }] });
+      check(many.aiCalls.length === 12 && many.ai.n === 30, 'only the first 12 calls are kept in detail, while the count stays exact');
+      const noPrompt = newTally(); await instrumentEnv({ AI: { run: async () => ({}) } }, noPrompt).AI.run('m', {}); await instrumentEnv({ AI: { run: async () => ({}) } }, noPrompt).AI.run('m', null);
+      check(noPrompt.aiCalls.length === 2 && noPrompt.aiCalls.every((c) => typeof c.p === 'string'), 'a call with no system prompt, or odd input, still records without throwing');
+    } finally { Date.now = real; } }
+
+  // ---- the stored detail, on a table made BEFORE the column existed (what production has), and in the summary ---------------------------------------
+  { const old = newDatabase(workerDir);
+    old.exec("CREATE TABLE request_timings (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL DEFAULT (datetime('now')), method TEXT NOT NULL, path TEXT NOT NULL, status INTEGER NOT NULL, total_ms INTEGER NOT NULL, ai_n INTEGER NOT NULL, ai_ms INTEGER NOT NULL, db_n INTEGER NOT NULL, db_ms INTEGER NOT NULL, kv_n INTEGER NOT NULL, kv_ms INTEGER NOT NULL, vec_n INTEGER NOT NULL, vec_ms INTEGER NOT NULL, r2_n INTEGER NOT NULL, r2_ms INTEGER NOT NULL)");
+    old.prepare("INSERT INTO request_timings (method, path, status, total_ms, ai_n, ai_ms, db_n, db_ms, kv_n, kv_ms, vec_n, vec_ms, r2_n, r2_ms) VALUES ('POST', '/messages/text', 200, 900, 1, 300, 5, 900, 0, 0, 0, 0, 0, 0)").run();
+    const oenv = { OFFICE_DB: d1(old), RECORD_TIMINGS: '1' };
+    const mk = (calls) => { const x = newTally(); x.ai = { n: calls.length, ms: calls.reduce((a, c) => a + (c.e - c.s), 0) }; x.aiCalls = calls; return x; };
+    // two calls one after another, then a request where two overlap and one threw and was retried
+    await recordTiming(oenv, { method: 'POST', pathname: '/messages/text', status: 200, totalMs: 4000, tally: mk([{ p: 'Split topics', s: 0, e: 900, ok: true }, { p: 'Extract facts', s: 900, e: 2600, ok: true }]) });
+    await recordTiming(oenv, { method: 'POST', pathname: '/mcp:tell_the_office', status: 200, totalMs: 5000, tally: mk([{ p: 'Split topics', s: 0, e: 800, ok: true }, { p: 'Extract facts', s: 500, e: 900, ok: false }, { p: 'Extract facts', s: 950, e: 2500, ok: true }]) });
+    const sm = await timingsSummary(oenv);
+    const route = (name) => sm.byPath.find((r) => r.route === name);
+    check(sm.requests === 3 && route('POST /messages/text').n === 2, 'an older table gets the new column added, and its existing row still reads');
+    check(route('POST /messages/text').meanAiWallMs === 1300 && route('POST /messages/text').requestsWithOverlappingModelCalls === 0, 'model time on the wall clock is reported, and calls that ran one after another are not called overlapping');
+    check(route('POST /mcp:tell_the_office').requestsWithOverlappingModelCalls === 1 && route('POST /mcp:tell_the_office').requestsWithAFailedModelCall === 1, 'overlapping calls and a failed call are counted per route');
+    const sp = sm.byPrompt.find((r) => r.prompt === 'Extract facts');
+    check(sp && sp.calls === 3 && sp.failures === 1 && sp.maxMs === 1700, 'per prompt: how many calls, how many threw, the slowest');
+    check(sm.slowest.some((r) => Array.isArray(r.modelCalls)), 'the slowest requests carry their model calls');
+    const fresh = newDatabase(workerDir); const fenv = { OFFICE_DB: d1(fresh), RECORD_TIMINGS: '1' };
+    await recordTiming(fenv, { method: 'POST', pathname: '/messages/text', status: 200, totalMs: 100, tally: mk([{ p: 'Split topics', s: 0, e: 50, ok: true }]) });
+    check(fresh.prepare("SELECT ai_calls FROM request_timings").get().ai_calls.includes('Split topics') && !fresh.prepare("SELECT ai_calls FROM request_timings").get().ai_calls.includes('invoice'), 'a new table has the column and stores the detail as plain data');
+  }
+
   // ---- the connector's calls are told apart by tool name, and by nothing else --------------------------------------------------------
   check(mcpTimingPath('{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_aged_debtors","arguments":{}}}') === '/mcp:get_aged_debtors', 'a tool call is labelled with the tool name');
   check(mcpTimingPath('{"method":"tools/call","params":{"name":"tell_the_office","arguments":{"text":"invoice Jenny for 1200"}}}') === '/mcp:tell_the_office' && !mcpTimingPath('{"method":"tools/call","params":{"name":"tell_the_office","arguments":{"text":"invoice Jenny for 1200"}}}').includes('Jenny'), 'the label carries the name only, never an argument');

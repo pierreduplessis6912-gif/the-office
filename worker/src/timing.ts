@@ -22,10 +22,22 @@ export interface ModelUsage {
   cached: number;
   neurons: number;
 }
-export type Tally = Record<Kind, { n: number; ms: number }> & { usage: ModelUsage };
+// One model call, for the per-call detail: which prompt (the first words of its fixed system prompt, never any message text), when it started and ended (ms from the request's first call
+// timing), and whether it threw. A retry shows as a second call with the same prompt after a failed one.
+export interface AiCallDetail { p: string; s: number; e: number; ok: boolean }
+export type Tally = Record<Kind, { n: number; ms: number }> & { usage: ModelUsage; aiCalls: AiCallDetail[]; t0: number };
+const MAX_CALL_DETAIL = 12;
+const SYSTEM_ROLE = "system";
+const promptOf = (inputs: unknown): string => {
+  try {
+    const messages = (inputs as { messages?: Array<{ role?: string; content?: unknown }> } | null)?.messages ?? [];
+    const system = messages.find((m) => m?.role === SYSTEM_ROLE);
+    return typeof system?.content === "string" ? system.content.replace(/\s+/g, " ").slice(0, 48) : "(no system prompt)";
+  } catch { return "(unreadable)"; }
+};
 
 export function newTally(): Tally {
-  return { ai: { n: 0, ms: 0 }, db: { n: 0, ms: 0 }, kv: { n: 0, ms: 0 }, vec: { n: 0, ms: 0 }, r2: { n: 0, ms: 0 }, usage: { calls: 0, failures: 0, prompt: 0, completion: 0, cached: 0, neurons: 0 } };
+  return { ai: { n: 0, ms: 0 }, db: { n: 0, ms: 0 }, kv: { n: 0, ms: 0 }, vec: { n: 0, ms: 0 }, r2: { n: 0, ms: 0 }, usage: { calls: 0, failures: 0, prompt: 0, completion: 0, cached: 0, neurons: 0 }, aiCalls: [], t0: Date.now() };
 }
 
 // Reads what a model call says it used. Anything that is not a plain non-negative number counts as nothing, and a response with no `usage` (an embedding) adds nothing.
@@ -51,9 +63,11 @@ function timed<T extends object>(target: T, kind: Kind, tally: Tally): T {
         const started = Date.now();
         const result = (value as (...a: unknown[]) => unknown).apply(t, args);
         if (result && typeof (result as { then?: unknown }).then === "function") {
-          const done = () => {
+          const prompt = kind === "ai" && key === "run" && tally.aiCalls.length < MAX_CALL_DETAIL ? promptOf(args[1]) : null;
+          const done = (ok: boolean = true) => {
             tally[kind].n += 1;
             tally[kind].ms += Date.now() - started;
+            if (prompt !== null) tally.aiCalls.push({ p: prompt, s: started - tally.t0, e: Date.now() - tally.t0, ok });
           };
           return (result as Promise<unknown>).then(
             (v) => {
@@ -62,7 +76,7 @@ function timed<T extends object>(target: T, kind: Kind, tally: Tally): T {
               return v;
             },
             (e) => {
-              done();
+              done(false);
               if (kind === "ai") tally.usage.failures += 1;
               throw e;
             }
@@ -117,7 +131,14 @@ export function normalizeTimingPath(pathname: string): string {
 }
 
 const TIMINGS_DDL =
-  "CREATE TABLE IF NOT EXISTS request_timings (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL DEFAULT (datetime('now')), method TEXT NOT NULL, path TEXT NOT NULL, status INTEGER NOT NULL, total_ms INTEGER NOT NULL, ai_n INTEGER NOT NULL, ai_ms INTEGER NOT NULL, db_n INTEGER NOT NULL, db_ms INTEGER NOT NULL, kv_n INTEGER NOT NULL, kv_ms INTEGER NOT NULL, vec_n INTEGER NOT NULL, vec_ms INTEGER NOT NULL, r2_n INTEGER NOT NULL, r2_ms INTEGER NOT NULL)";
+  "CREATE TABLE IF NOT EXISTS request_timings (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL DEFAULT (datetime('now')), method TEXT NOT NULL, path TEXT NOT NULL, status INTEGER NOT NULL, total_ms INTEGER NOT NULL, ai_n INTEGER NOT NULL, ai_ms INTEGER NOT NULL, db_n INTEGER NOT NULL, db_ms INTEGER NOT NULL, kv_n INTEGER NOT NULL, kv_ms INTEGER NOT NULL, vec_n INTEGER NOT NULL, vec_ms INTEGER NOT NULL, r2_n INTEGER NOT NULL, r2_ms INTEGER NOT NULL, ai_calls TEXT)";
+// A table made before per-call detail has no column for it: added once per process (a repeated attempt is harmless: the error is swallowed).
+let aiCallsColumnChecked = false;
+async function ensureAiCallsColumn(env: Env): Promise<void> {
+  if (aiCallsColumnChecked) return;
+  try { await env.OFFICE_DB.prepare("ALTER TABLE request_timings ADD COLUMN ai_calls TEXT").run(); aiCallsColumnChecked = true; }
+  catch (error) { if (/duplicate column/i.test(String((error as { message?: string } | null)?.message ?? error))) aiCallsColumnChecked = true; }   // any other failure (no table yet, a hiccup) is tried again next time
+}
 export const TIMINGS_KEEP = 1000;
 
 // Called with the ORIGINAL env (never the timed one, so recording does not time itself) and only through ctx.waitUntil, after the response has gone.
@@ -127,11 +148,12 @@ export async function recordTiming(
   keep: number = TIMINGS_KEEP
 ): Promise<void> {
   await env.OFFICE_DB.prepare(TIMINGS_DDL).run();
+  await ensureAiCallsColumn(env);
   const t = row.tally;
   await env.OFFICE_DB.prepare(
-    "INSERT INTO request_timings (method, path, status, total_ms, ai_n, ai_ms, db_n, db_ms, kv_n, kv_ms, vec_n, vec_ms, r2_n, r2_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO request_timings (method, path, status, total_ms, ai_n, ai_ms, db_n, db_ms, kv_n, kv_ms, vec_n, vec_ms, r2_n, r2_ms, ai_calls) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
   )
-    .bind(row.method, normalizeTimingPath(row.pathname), row.status, row.totalMs, t.ai.n, t.ai.ms, t.db.n, t.db.ms, t.kv.n, t.kv.ms, t.vec.n, t.vec.ms, t.r2.n, t.r2.ms)
+    .bind(row.method, normalizeTimingPath(row.pathname), row.status, row.totalMs, t.ai.n, t.ai.ms, t.db.n, t.db.ms, t.kv.n, t.kv.ms, t.vec.n, t.vec.ms, t.r2.n, t.r2.ms, t.aiCalls.length ? JSON.stringify(t.aiCalls) : null)
     .run();
   await env.OFFICE_DB.prepare("DELETE FROM request_timings WHERE id <= (SELECT MAX(id) FROM request_timings) - ?").bind(keep).run();
 }
@@ -155,13 +177,32 @@ interface TimingRow {
   kv_ms: number;
   vec_ms: number;
   r2_ms: number;
+  ai_calls: string | null;
+}
+
+const callsOf = (r: TimingRow): AiCallDetail[] => {
+  try { const v = r.ai_calls ? JSON.parse(r.ai_calls) : []; return Array.isArray(v) ? v.filter((c) => c && typeof c.p === "string" && Number.isFinite(c.s) && Number.isFinite(c.e)) : []; } catch { return []; }
+};
+// How long the model calls took as the clock on the wall saw it (first start to last end), and whether any two overlapped. Compare with the SUMMED model time: the gap is the overlap.
+const wallOf = (calls: AiCallDetail[]): { wallMs: number; overlapped: boolean } => {
+  if (calls.length === 0) return { wallMs: 0, overlapped: false };
+  const sorted = [...calls].sort((a, b) => a.s - b.s);
+  return { wallMs: Math.max(...sorted.map((c) => c.e)) - sorted[0].s, overlapped: sorted.some((c, k) => k > 0 && c.s < sorted[k - 1].e) };
+};
+
+// Per model prompt over the recent requests: how many calls, mean and slowest duration, how many threw. Retries are calls that follow a failed call with the same prompt.
+function byPromptOf(rows: TimingRow[]): Array<{ prompt: string; calls: number; meanMs: number; maxMs: number; failures: number }> {
+  const by = new Map<string, number[]>(); const failed = new Map<string, number>();
+  for (const r of rows) for (const c of callsOf(r)) { by.set(c.p, [...(by.get(c.p) ?? []), c.e - c.s]); if (!c.ok) failed.set(c.p, (failed.get(c.p) ?? 0) + 1); }
+  return [...by.entries()].map(([prompt, ms]) => ({ prompt, calls: ms.length, meanMs: mean(ms), maxMs: Math.max(...ms), failures: failed.get(prompt) ?? 0 })).sort((a, b) => b.meanMs * b.calls - a.meanMs * a.calls);
 }
 
 export async function timingsSummary(env: Env, limit = 300): Promise<Record<string, unknown>> {
   let rows: TimingRow[] = [];
   try {
+    await ensureAiCallsColumn(env).catch(() => undefined);
     const { results } = await env.OFFICE_DB.prepare(
-      "SELECT created_at, method, path, status, total_ms, ai_n, ai_ms, db_n, db_ms, kv_ms, vec_ms, r2_ms FROM request_timings ORDER BY id DESC LIMIT ?"
+      "SELECT created_at, method, path, status, total_ms, ai_n, ai_ms, db_n, db_ms, kv_ms, vec_ms, r2_ms, ai_calls FROM request_timings ORDER BY id DESC LIMIT ?"
     )
       .bind(limit)
       .all<TimingRow>();
@@ -190,13 +231,17 @@ export async function timingsSummary(env: Env, limit = 300): Promise<Record<stri
           meanDbMs: mean(rs.map((r) => r.db_ms)),
           meanDbCalls: mean(rs.map((r) => r.db_n)),
           meanOtherMs: mean(rs.map((r) => r.kv_ms + r.vec_ms + r.r2_ms)),
+          meanAiWallMs: mean(rs.map((r) => wallOf(callsOf(r)).wallMs)),
+          requestsWithOverlappingModelCalls: rs.filter((r) => wallOf(callsOf(r)).overlapped).length,
+          requestsWithAFailedModelCall: rs.filter((r) => callsOf(r).some((c) => !c.ok)).length,
         };
       })
       .sort((a, b) => b.p95Ms - a.p95Ms),
     slowest: [...rows]
       .sort((a, b) => b.total_ms - a.total_ms)
       .slice(0, 10)
-      .map((r) => ({ at: r.created_at, route: `${r.method} ${r.path}`, status: r.status, totalMs: r.total_ms, aiMs: r.ai_ms, aiCalls: r.ai_n, dbMs: r.db_ms, dbCalls: r.db_n })),
+      .map((r) => ({ at: r.created_at, route: `${r.method} ${r.path}`, status: r.status, totalMs: r.total_ms, aiMs: r.ai_ms, aiCalls: r.ai_n, dbMs: r.db_ms, dbCalls: r.db_n, modelCalls: callsOf(r).map((c) => ({ prompt: c.p, startMs: c.s, endMs: c.e, ok: c.ok })) })),
+    byPrompt: byPromptOf(rows),
   };
 }
 
