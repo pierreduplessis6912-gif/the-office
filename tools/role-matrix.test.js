@@ -864,6 +864,8 @@ async function expect(role, method, path, want) {
   await require('./followup.test.js')({ check, srcDir });
   // The conversational layer, Phase 1: a reply for what the pipeline found nothing to act on, never for an instruction, never able to write (CONVERSATIONAL_LAYER.md)
   await require('./converse.test.js')({ check, srcDir });
+  // Lookup hardening: the no-answer and failure paths of answerFromMemory return a fixed sentence, never an unrelated fact
+  await require('./lookup-hardening.test.js')({ check, srcDir });
   // The read-only MCP adapter, slice A: the credential core (issue, list, revoke, authenticate). Security-sensitive: each guard is also proven by tools/mcp-keys-breakage.js
   await require('./mcp-keys.test.js')({ check, srcDir });
   await require('./mcp-tags.test.js')({ check, srcDir });

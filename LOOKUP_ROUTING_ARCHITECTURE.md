@@ -1,4 +1,4 @@
-> **Status:** partly built. **Verified:** 2026-10-24. **Owns:** `worker/src/intents/lookup.ts`.
+> **Status:** partly built. **Verified:** 2026-10-24. **Owns:** `worker/src/intents/lookup.ts`, `tools/lookup-hardening.test.js`, `tools/lookup-hardening-breakage.js`.
 
 # Lookup Routing Architecture — AI Determines Intent, Never Composes the Answer
 
@@ -154,3 +154,7 @@ discipline every other classification decision tonight required.
   selectable period) and Cash Flow (time-bucketed movement) are
   genuinely ready for a dashboard, versus Financial Snapshot and Aged
   Debtors, which already are.
+
+## Hardening of the no-answer and failure paths (2026-10-28, on branch `lookup-hardening`, awaiting review)
+`answerFromMemory` (`worker/src/ai.ts`) gives the answer-writing model a bundle of facts. Two paths used to expose an unrelated fact: a model that said "I don't have that on file" and then listed the facts it was given anyway (seen on staging: a confirmed invoice for R1500), and a failed or empty model call, which returned the first fact of the bundle. Now a reply that OPENS with "I don't have that on file" returns exactly that sentence, and a failed or empty call returns "I couldn't look that up just now. Please try again in a moment." Every other answer, the empty-bundle sentence and the restricted-role answers are unchanged. One recorded case changed (the answer-writer failing on a business question: it used to print the first outstanding-balance fact; it now prints the safe sentence, still followed by the "aged breakdown is also available" line, which is true but reads oddly after a failure; `lookup.ts` was left alone on purpose). Tested alone by `tools/lookup-hardening.test.js` (15 checks) with 9 deliberate breakages in `tools/lookup-hardening-breakage.js`. Not covered: a model that declines in other words ("nothing on file about that") is not cut.
+

@@ -1962,6 +1962,10 @@ export async function searchMemory(env: Env, query: string, customerId: number |
 // Synthesizes a real answer from retrieved memory, rather than a
 // templated "Found existing customer" line. If nothing relevant comes
 // back, says so honestly rather than guessing.
+export const LOOKUP_NO_ANSWER = "I don't have that on file.";
+export const LOOKUP_FAILED = "I couldn't look that up just now. Please try again in a moment.";
+const SAYS_NO_ANSWER = /^\s*i don['’]t have that on file\b/i;   // only a reply that OPENS with it: an answer that mentions something missing after a real answer is left whole
+
 export async function answerFromMemory(env: Env, question: string, facts: string[]): Promise<string> {
   if (facts.length === 0) {
     return "I don't have anything on file for that yet.";
@@ -2007,9 +2011,12 @@ export async function answerFromMemory(env: Env, question: string, facts: string
     }));
     const r = result as { choices?: Array<{ message?: { content?: string } }> };
     const answer = r.choices?.[0]?.message?.content;
-    return typeof answer === "string" && answer.trim() ? answer.trim() : facts[0];
+    // Hardened 2026-10-28 (tools/lookup-hardening.test.js). Two things used to leak an UNRELATED business fact: a model that said "I don't have that on file" and then listed the facts it was given
+    // anyway, and a failed or empty model call, which returned the first fact of the bundle. Now the first is cut to the one sentence and the second is a fixed safe sentence. Every other answer is as it was.
+    if (typeof answer !== "string" || !answer.trim()) return LOOKUP_FAILED;
+    return SAYS_NO_ANSWER.test(answer) ? LOOKUP_NO_ANSWER : answer.trim();
   } catch {
-    return facts[0];
+    return LOOKUP_FAILED;
   }
 }
 

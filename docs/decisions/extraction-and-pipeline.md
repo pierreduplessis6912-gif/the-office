@@ -974,3 +974,7 @@ Pierre: the list of open orders "gives a couple of lines and then it cuts off", 
 
 ## Conversational layer, Phase 1: words for what the pipeline found nothing to act on (2026-10-28)
 Built on branch `converse-layer`; Pierre approved the doctrine wording and Phase 1 (subject to gates) on 2026-10-28, and Principle 2 of the constitution carries a dated amendment. `worker/src/converse.ts` runs only when the whole reply is the old failure text from an intent of "other"; it gives Kimi a persona, the real capabilities and the member's own last turns, no tools and no data, and shows its words only if they hold no digit and claim nothing was recorded. It can change only `message`. Kill switch `CONVERSE=off`. `tools/converse.test.js` and 24 breakages in `tools/converse-breakage.js`; see `CONVERSATIONAL_LAYER.md`.
+
+## Lookup hardening: no unrelated fact on a no-answer or a failure (2026-10-28)
+Found on staging: a conversational question answered by the lookup path printed an unrelated confirmed invoice. `answerFromMemory` now returns only "I don't have that on file." when the model opens with that, and a fixed safe sentence when the model call fails or is empty (it returned the first fact of the bundle). One recorded case changed, reviewed line by line. Separate branch `lookup-hardening`, tested alone before the conversation routing; see `LOOKUP_ROUTING_ARCHITECTURE.md`.
+

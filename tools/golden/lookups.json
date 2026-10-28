@@ -2838,7 +2838,7 @@
    "character": null,
    "pendingActionId": null,
    "factPendingActionId": null,
-   "message": "Jenny Smith owes R3000 (invoiced R5000, paid R2000).\n\nA more detailed aged breakdown is also available if useful.",
+   "message": "I couldn't look that up just now. Please try again in a moment.\n\nA more detailed aged breakdown is also available if useful.",
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": null,
    "pendingActionType": null,
