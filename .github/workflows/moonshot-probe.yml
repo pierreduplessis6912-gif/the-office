@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API_KEY }}
+      MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API__KEY }}   # the secret was saved with a double underscore; kept as saved
       OUT: ${{ github.workspace }}/moonshot-probe-result.json
     steps:
       - uses: actions/checkout@v4
