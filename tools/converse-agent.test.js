@@ -95,12 +95,12 @@ module.exports = async function runConverseAgentTests({ check, srcDir }) {
     check(wr.threw === null && logOnly(wr) && !/R100/.test(toolMsgs(inputsOf(wr)[1])[0].content), 'a call to a creating tool (not offered) is refused and nothing is created'); }
 
   // ---- hand-off: an instruction goes to the existing pipeline, exactly as before ---------------------------------------------------------------------------------------------------------------
-  { const handoff = await say('Jenny paid R500', [agent(() => ({ tool_calls: [call('hand_to_office')] })), SPLIT, READ_PAYMENT]);
-    const off = await say('Jenny paid R500', [SPLIT, READ_PAYMENT], { env: { BUSINESS_ID: 'acme-co' } });
+  { const handoff = await say('Jenny settled her account', [agent(() => ({ tool_calls: [call('hand_to_office')] })), SPLIT, READ_PAYMENT]);
+    const off = await say('Jenny settled her account', [SPLIT, READ_PAYMENT], { env: { BUSINESS_ID: 'acme-co' } });
     check(handoff.threw === null && /Payment noted for Jenny Smith of R500 — needs your confirmation/.test(handoff.result.body.message) && handoff.result.body.pendingActionId === 1, 'an instruction handed off is held for confirmation by the existing pipeline');
     check(JSON.stringify(handoff.result.body) === JSON.stringify(off.result.body) && JSON.stringify(handoff.writes) === JSON.stringify(off.writes), 'and the reply and every record written are identical to the front door being off'); }
-  { const failing = await say('Jenny paid R500', [agent(() => { throw new Error('model down'); }), SPLIT, READ_PAYMENT]);
-    const off = await say('Jenny paid R500', [SPLIT, READ_PAYMENT], { env: { BUSINESS_ID: 'acme-co' } });
+  { const failing = await say('Jenny settled her account', [agent(() => { throw new Error('model down'); }), SPLIT, READ_PAYMENT]);
+    const off = await say('Jenny settled her account', [SPLIT, READ_PAYMENT], { env: { BUSINESS_ID: 'acme-co' } });
     check(JSON.stringify(failing.result.body) === JSON.stringify(off.result.body) && JSON.stringify(failing.writes) === JSON.stringify(off.writes), 'if the front door itself fails (the model), the message goes to the existing pipeline and the result is identical to it being off'); }
   { const off = await say('Hello Office', [SPLIT, { match: /Extract structured facts from a tradesperson's message/, reply: { ...harness.EXTRACTION_DEFAULTS, intent: 'other' } }, agent(() => ({ content: 'NEVER' }))], { env: { BUSINESS_ID: 'acme-co', CONVERSE: 'off', CONVERSE_MODE: 'agent' } });
     const unset = await say('Hello Office', [SPLIT, { match: /Extract structured facts from a tradesperson's message/, reply: { ...harness.EXTRACTION_DEFAULTS, intent: 'other' } }, { match: /You are The Office, a calm/, reply: 'Phase one reply.' }], { env: { BUSINESS_ID: 'acme-co' } });
@@ -135,13 +135,13 @@ module.exports = async function runConverseAgentTests({ check, srcDir }) {
     check(/financial reports/.test(sys) === ((ROLE.owner || []).includes('can_know_profit')) && /financial reports/.test(isys) === ((ROLE.installer || []).includes('can_know_profit')), 'and it lists only the capabilities that role has'); }
 
   // ---- work is decided in code, never by the model alone ------------------------------------------------------------------------------------------------------------------------------------------------
-  { const work = ['Bought diesel for R650', 'Jenny paid R500', 'Invoice Jenny R1200 for a repair', 'Remind me to call Thandi tomorrow', 'Add 5 boards to stock', 'Quote Sipho for the lounge', 'Can you remind me to phone Peter', 'schedule the Thandi job for Friday', 'Please record an expense of fifty rand', 'we bought glue today', 'Cancel the order for Floornet'];
+  { const work = ['Bought diesel for R650', 'Jenny paid R500', 'Invoice Jenny R1200 for a repair', 'Remind me to call Thandi tomorrow', 'Add 5 boards to stock', 'Quote Sipho for the lounge', 'Can you remind me to phone Peter', 'schedule the Thandi job for Friday', 'Please record an expense of fifty rand', 'we bought glue today', 'Diesel was R650 at BUCO', 'Cancel the order for Floornet'];
     const talk = ['Hello Office', 'Good morning, Office. How are you doing today?', 'I want to have a conversation with you', 'What can you help me with?', 'Can you explain what you can help me with?', 'I had a difficult day yesterday and wanted to talk through something.', 'Do you remember what I just said?',
       "Morning, Office. How are we looking on Jenny's outstanding invoices?", 'Hello, can you tell me what Jenny owes and then help me understand why our debtors are increasing?', 'How much does Jenny owe?', 'Who owes us money?', 'How much have we spent on expenses?', 'What jobs do I have coming up?', 'Do we have any open quotes?', 'hmm', 'what about the other one'];
     const missed = work.filter((t) => !ag.LOOKS_LIKE_WORK.test(t)), swallowed = talk.filter((t) => ag.LOOKS_LIKE_WORK.test(t));
     check(missed.length === 0, 'every recorded instruction is recognised as work in code: ' + missed.join(' | '));
     check(swallowed.length === 0, 'and none of the recorded conversation, lookup or mixed messages is taken for work: ' + swallowed.join(' | '));
-    const r = await say('Bought diesel for R650', [agent(() => ({ content: 'I can record that as an expense. Was this diesel for a specific job?' })), SPLIT, { match: /Extract structured facts from a tradesperson's message/, reply: { ...harness.EXTRACTION_DEFAULTS, intent: 'expense', amount: 650 } }]);
+    const r = await say('Diesel was R650 at BUCO', [agent(() => ({ content: 'I can record that as an expense. Was this diesel for a specific job?' })), SPLIT, { match: /Extract structured facts from a tradesperson's message/, reply: { ...harness.EXTRACTION_DEFAULTS, intent: 'expense', amount: 650 } }]);
     check(r.threw === null && inputsOf(r).length === 0 && r.result.body.message !== 'I can record that as an expense. Was this diesel for a specific job?', 'an instruction never reaches the model at all (a real model chatted back instead of handing it off): the existing pipeline takes it and the model is not called (' + String(r.threw || r.result.body.message).slice(0, 70) + ')'); }
 
   // ---- the source: what the module may touch --------------------------------------------------------------------------------------------------------------------------------------------------
