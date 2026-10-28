@@ -9,7 +9,10 @@ BASE = os.environ.get("BASE", "https://office-staging.websitehub.co.za").rstrip(
 SEED = os.environ["SEED"]; OUT = os.environ.get("OUT", "converse-spike-last.json")
 CF_TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN", ""); CF_ACCOUNT = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "")
 WORKER = os.environ.get("WORKER", "office-staging-api"); BUSINESS = "staging-co"; OWNER = "staging-owner@example.com"
-CUST = "Spike Customer"
+_WORDS = ["Alder", "Birch", "Cedar", "Hazel", "Larch", "Maple", "Rowan", "Willow"]   # a NEW customer every run (letters only: a digit in a name would make a read look like work), so the seed never accumulates
+_RID = int(os.environ.get("GITHUB_RUN_ID", "0") or 0)
+CUST = f"Spike {_WORDS[_RID % 8]} {_WORDS[(_RID // 8) % 8]}"
+SAMPLES = int(os.environ.get("SAMPLES", "3"))
 
 def derive(label):
     raw = base64.b64encode(hmac.new(SEED.encode(), label.encode(), hashlib.sha256).digest()).decode()
@@ -49,7 +52,7 @@ def say(text):
     it = (h.get("items") or [{}])[0] if isinstance(h, dict) else {}
     interp = ((it.get("generated") or {}).get("interpreted")) or {}
     return {"text": text, "status": s, "message": msg, "ms": ms, "pending": b.get("pendingActionId") if isinstance(b, dict) else None,
-            "converse": interp.get("converse"), "outcome": interp.get("outcome"), "steps": interp.get("steps"), "tools": interp.get("tools"), "intent": interp.get("intent")}
+            "converse": interp.get("converse"), "outcome": interp.get("outcome"), "steps": interp.get("steps"), "tools": interp.get("tools"), "intent": interp.get("intent"), "reason": interp.get("reason"), "rejected": interp.get("rejected")}
 
 def figs(s): return {re.sub(r",", "", t) for t in re.findall(r"\d[\d,]*(?:\.\d+)?", s or "")}
 def stats(xs): return {"n": len(xs), "median": int(statistics.median(xs)) if xs else None, "mean": int(statistics.mean(xs)) if xs else None, "max": max(xs) if xs else None}
@@ -99,8 +102,8 @@ try:
     R["front_door_active"] = active
     if not active: raise SystemExit("front door never became active: nothing evaluated")
     held = []
-    for kind, text, tools, fig in PHRASES:
-        r = say(text); r["kind"] = kind
+    for sample, (kind, text, tools, fig) in [(n, ph) for n in range(SAMPLES) for ph in PHRASES if not (ph[0] == "work" and n > 0)]:
+        r = say(text); r["kind"] = kind; r["sample"] = sample
         ok = None
         if kind in ("talk", "recall", "ambiguous"):
             ok = r["converse"] == "agent" and r["outcome"] == "reply" and not r["tools"]
@@ -127,6 +130,14 @@ for kind in ("talk", "recall", "read", "mixed", "work", "ambiguous"):
     rows = by(kind, R["agent"]); judged = [r for r in rows if r["ok"] is not None]
     S[kind] = {"n": len(rows), "judged": len(judged), "ok": sum(1 for r in judged if r["ok"]), "fallbacks": sum(1 for r in rows if r["outcome"] == "fallback"), "latency_ms": stats([r["ms"] for r in rows])}
     base = by(kind, R["baseline"]); S[kind]["baseline_latency_ms"] = stats([r["ms"] for r in base]) if base else None
+from collections import Counter
+S["fallback_reasons"] = dict(Counter(r.get("reason") for r in R["agent"] if r.get("outcome") == "fallback"))
+per = {}
+for r in R["agent"]:
+    d = per.setdefault(r["text"], {"kind": r["kind"], "n": 0, "ok": 0, "judged": 0, "fallbacks": 0, "ms": []})
+    d["n"] += 1; d["ms"].append(r["ms"]); d["fallbacks"] += 1 if r.get("outcome") == "fallback" else 0
+    if r["ok"] is not None: d["judged"] += 1; d["ok"] += 1 if r["ok"] else 0
+S["by_phrase"] = {t: {**{k: v for k, v in d.items() if k != "ms"}, "median_ms": int(statistics.median(d["ms"]))} for t, d in per.items()}
 replies = [r for r in R["agent"] if r["converse"] == "agent"]
 S["all_agent_replies"] = {"n": len(replies), "model_calls_mean": round(statistics.mean([r["steps"] for r in replies]), 2) if replies else None, "model_calls_max": max([r["steps"] for r in replies]) if replies else None, "fallback_rate": round(sum(1 for r in replies if r["outcome"] == "fallback") / len(replies), 3) if replies else None}
 json.dump(R, open(OUT, "w"), indent=1, ensure_ascii=False); open(OUT, "a").write("\n")

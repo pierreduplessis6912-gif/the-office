@@ -5,7 +5,7 @@
 //  - READ ONLY: the tools are the connector's read tools (mcp.ts readToolsFor), chosen by the connector's own permission rule for this member; no tool that creates, confirms, rejects or uploads is ever offered or run
 //  - WORK is not done here: a message that asks for something to be done makes the model call hand_to_office, and the route then sends the ORIGINAL text through the existing pipeline unchanged (held, confirmed in the app)
 //  - GROUNDED: every figure in a reply must appear in a tool result or in what the person said (no calculating, counting or estimating); a reply that fails that, or claims anything was recorded, is replaced by a fixed sentence
-//  - BOUNDED: at most three model calls per message, the last without tools; tool results go back as tool messages, never into the system prompt; history is the member's own (converse.ts lastTurns reads scope "own")
+//  - BOUNDED: at most four model calls per message (three tool steps and the answer), the last without tools; tool results go back as tool messages, never into the system prompt; history is the member's own (converse.ts lastTurns reads scope "own")
 //  - the model is given NO facts bundle: business facts reach it only through a tool it chooses to call
 //  - a failure of the front door itself (the model, an unreadable answer) returns "pass": the existing pipeline handles the message as if this did not exist
 import { withRetry } from "./ai";
@@ -19,10 +19,10 @@ export const AGENT_FALLBACK = "I'm having trouble responding right now. You can 
 // WORK IS NEVER LEFT TO THE MODEL'S JUDGEMENT. First real-model run on staging (2026-10-28): asked "Bought diesel for R650" the model chatted back instead of calling hand_to_office, so an instruction would have been lost. A message that carries
 // a figure, opens with a doing word ("invoice", "remind me", "add"...) or says something was paid or bought goes straight to the existing pipeline with NO model call here. It fails safe: a read with a digit in it simply takes the old path.
 export const LOOKS_LIKE_WORK = /\d|^\s*(?:please\s+|can you\s+|could you\s+)?(?:invoice|quote|remind|schedule|add|record|create|book|cancel|order|send|pay|log)\b|\b(?:paid|bought)\b/i;
-const MAX_MODEL_CALLS = 3;
+const MAX_MODEL_CALLS = 4;   // three tool steps and the answer; the last call gets no tools
 const MAX_TOOL_CALLS_PER_STEP = 4;
 
-export type AgentTrace = { steps: number; tools: string[]; outcome: "reply" | "fallback" | "handoff" | "error" | "off" };
+export type AgentTrace = { steps: number; tools: string[]; outcome: "reply" | "fallback" | "handoff" | "error" | "off"; reason?: "claim" | "figure" | "length" | "empty" | "tools"; rejected?: string };
 export type AgentOutcome = { kind: "reply" | "fallback"; message: string; trace: AgentTrace } | { kind: "pass"; trace: AgentTrace };
 
 // A figure is grounded when it appears, however formatted (R5,000 / 5000 / 5000.00), in a tool result or in the person's own words. Dates split into numbers the same way on both sides.
@@ -39,6 +39,8 @@ export function agentPersonaFor(capabilities: readonly string[]): string {
     "You can chat, explain what The Office can do, and read the business with your tools. Rules that never bend:",
     "- Every fact or figure about the business must come from a tool result. Copy figures exactly as the tool gives them. Never calculate, add up, round, count or estimate. If the answer is not in a tool result, say you could not find it.",
     "- Never explain WHY a figure changed beyond what a tool returns.",
+    "- When a tool takes optional arguments (a date range, a customer, a limit), call it WITHOUT them first and read what comes back. Ask the person only when no tool can supply what you need.",
+    "- A tool that needs a customer_id: first call list_customers with the customer's name as the search, then use the id it returns. Never guess an id.",
     "- Never say that anything was recorded, saved, created, sent, scheduled, updated, paid or confirmed. Nothing is recorded in this conversation.",
     `- If the person wants something DONE (an invoice, a quote, a payment, an expense, a job, a reminder, stock), call ${HANDOFF_TOOL} and say nothing else. Do not try to do it yourself.`,
     "- If you are not sure what they mean, ask one short question.",
@@ -89,6 +91,8 @@ export async function tryAgent(env: Env, text: string, who: { email: string | nu
       const words = typeof m.content === "string" ? m.content.trim() : "";
       const fine = words.length > 0 && words.length <= MAX_REPLY_CHARS && !CLAIMED.test(words) && groundedIn(words, results, text);
       trace.outcome = fine ? "reply" : "fallback";
+      // Why a reply was refused, with the first 200 characters of it, so a refusal can be diagnosed (round 2: 22% of replies were refused for an unrecorded reason).
+      if (!fine) { trace.reason = calls.length > 0 ? "tools" : words.length === 0 ? "empty" : words.length > MAX_REPLY_CHARS ? "length" : CLAIMED.test(words) ? "claim" : "figure"; trace.rejected = words.slice(0, 200); }
       return { kind: fine ? "reply" : "fallback", message: fine ? words : AGENT_FALLBACK, trace };
     }
     trace.outcome = "fallback";

@@ -2,7 +2,7 @@
 // The model gets the read tools the MCP connector has (same registry, same permission rule, read tools only) plus one hand-off tool that gives a real instruction to the EXISTING pipeline, unchanged. What this pins:
 //  - nothing but reading: no creating, confirming or rejecting tool is ever offered, nobody is offered a tool their role may not use, and a tool the model calls that it was not offered is refused
 //  - every figure in a reply must appear in a tool result (or in what the person said): an ungrounded or calculated figure, or a claim that something was recorded, is replaced by a fixed sentence
-//  - at most three model calls per message; the last gets no tools
+//  - at most four model calls per message (three tool steps and the answer); the last gets no tools
 //  - a hand-off or any failure of the front door leaves the message to the existing pipeline: its reply and records are identical to the switch being off
 //  - the model is never given a facts bundle: unrelated business facts can only reach it by a tool call it chooses, and a conversational prompt holds none
 // The model is SCRIPTED here, so this proves the plumbing and the guards, not how well real Kimi chooses tools: that is what the staging evaluation measures.
@@ -85,7 +85,7 @@ module.exports = async function runConverseAgentTests({ check, srcDir }) {
 
   // ---- limits on the loop, bad calls, permissions ----------------------------------------------------------------------------------------------------------------------------------------------
   { const r = await say('keep going', [agent(() => ({ tool_calls: [call('list_invoices')] }))]), ins = inputsOf(r);
-    check(ins.length === 3 && !ins[2].tools && ins[0].tools && r.result.body.message === FALLBACK, 'a model that never stops calling tools gets three calls, the last without tools, then the fixed sentence (' + ins.length + ' calls)'); }
+    check(ins.length === 4 && !ins[3].tools && ins[0].tools && ins[2].tools && r.result.body.message === FALLBACK, 'a model that never stops calling tools gets four calls, the last without tools, then the fixed sentence (' + ins.length + ' calls)'); }
   { const r = await say('hmm', [agent((input, turn) => turn === 0 ? { tool_calls: [call('list_invoices', '{not json')] } : { content: 'I could not read that. What would you like to see?' })]);
     check(r.threw === null && /error|invalid|could not/i.test(toolMsgs(inputsOf(r)[1])[0].content) && /What would you like/.test(r.result.body.message), 'a tool call with unreadable arguments is answered with an error the model can read, and the conversation goes on'); }
   { const r = await say('what is our profit', [agent((input, turn) => turn === 0 ? { tool_calls: [call('get_profit_and_loss')] } : { content: 'I am not able to see that.' })], { role: 'installer' }), ins = inputsOf(r);
@@ -120,6 +120,19 @@ module.exports = async function runConverseAgentTests({ check, srcDir }) {
     check(r.threw === null && !/ZEBRA|1500/.test(sent) && !/ZEBRA|1500/.test(shown), 'unrelated business facts (a confirmed invoice, a life note) are in neither the conversational prompt nor the reply: the model is given no facts bundle'); }
   { const r = await route({ name: 'voice', method: 'POST', path: '/files/audio', role: 'owner', seed, before: [], ai: [{ match: /@cf\/openai\/whisper/, raw: true, reply: { text: 'good morning office' } }, agent(() => ({ content: 'Good morning.' }))], form: { audio: { name: 'note.m4a', type: 'audio/mp4', text: 'fake audio bytes' } } });
     check(r.threw === null && r.result.body.message === 'Good morning.' && inputsOf(r).length === 1, 'a spoken greeting is answered the same way as a typed one'); }
+
+  // ---- round 2: why a reply was rejected, the persona's tool rules, finding a customer without guessing an id ----------------------------------------------------------------------------------------------
+  { const mk = (content) => ({ OFFICE_DB: harness.d1(harness.newDatabase(workerDir)), CONVERSE_MODE: 'agent', AI: { run: async () => ({ choices: [{ message: { content } }] }) } });
+    const who = { email: 'owner@example.com', role: 'owner', capabilities: ROLE.owner };
+    const cases = [['Done, I have recorded that for you.', 'claim'], ['You owe R9,999.', 'figure'], ['x'.repeat(1500), 'length'], ['   ', 'empty']], got = [];
+    for (const [reply, reason] of cases) { const out = await ag.tryAgent(mk(reply), 'hello', who, 'https://x.test'); got.push([reason, out.kind, out.trace.reason, typeof out.trace.rejected === 'string' && out.trace.rejected.length <= 200]); }
+    check(got.every(([want, kind, reason, short]) => kind === 'fallback' && reason === want && short), 'a rejected reply records WHY (claim, figure, length, empty) and the first 200 characters of what was rejected, so it can be diagnosed: ' + JSON.stringify(got.filter(([w, k, r]) => k !== 'fallback' || r !== w)));
+    const ok = await ag.tryAgent(mk('Good morning. How can I help?'), 'hello', who, 'https://x.test'); check(ok.kind === 'reply' && ok.trace.reason === undefined, 'an accepted reply records no rejection'); }
+  { const r = await say('hello', [agent(() => ({ content: 'Hello.' }))]), sys = (inputsOf(r)[0].messages[0] || {}).content || '';
+    check(/call it WITHOUT them first/.test(sys) && /Ask the person only when no tool can supply/.test(sys) && /list_customers/.test(sys) && /Never guess an id/.test(sys), 'the persona tells the model to call a tool with its default arguments instead of asking, and to find a customer id with list_customers instead of guessing'); }
+  { const flow = agent((input, turn) => turn === 0 ? { tool_calls: [call('list_customers', { search: 'Jenny' })] } : turn === 1 ? { tool_calls: [call('get_customer_receivables', { customer_id: Number(/"id":\s*(\d+)/.exec(toolMsgs(input)[0].content)[1]) })] } : { content: 'Jenny Smith has R' + /"outstanding":\s*(\d+)/.exec(toolMsgs(input)[1].content)[1] + ' outstanding.' });
+    const r = await say('How much does Jenny Smith owe?', [flow]), ins = inputsOf(r);
+    check(r.threw === null && ins.length === 3 && /R5000 outstanding/.test(r.result.body.message) && logOnly(r), 'a customer is found by name first (list_customers) and then read by id: three model calls, two tools, and the figure comes from the second tool (' + String(r.threw || r.result.body.message) + ')'); }
 
   // ---- who and what comes first -----------------------------------------------------------------------------------------------------------------------------------------------------------------------
   { const seen = []; const env = { OFFICE_DB: harness.d1(harness.newDatabase(workerDir)), CONVERSE_MODE: 'agent', AI: { run: async () => { seen.push(1); return { choices: [{ message: { content: 'hi' } }] }; } } };

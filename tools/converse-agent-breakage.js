@@ -20,7 +20,7 @@ const MUTATIONS = [
   ['agent', 'a figure that is in no tool result is shown', ' && groundedIn(words, results, text);', ';'],
   ['agent', 'a claim that something was recorded is shown', ' && !CLAIMED.test(words) &&', ' &&'],
   ['agent', 'a very long reply is shown', 'words.length <= MAX_REPLY_CHARS && ', ''],
-  ['agent', 'the model may call tools without limit', 'const MAX_MODEL_CALLS = 3;', 'const MAX_MODEL_CALLS = 30;'],
+  ['agent', 'the model may call tools without limit', 'const MAX_MODEL_CALLS = 4;', 'const MAX_MODEL_CALLS = 40;'],
   ['agent', 'the last model call still gets tools', '...(last ? {} : { tools: offered })', 'tools: offered'],
   ['agent', 'tool results go into the system prompt', '{ role: "tool", tool_call_id', '{ role: "system", tool_call_id'],
   ['agent', 'a figure the person did not say counts as said', 'figures(said)]', 'figures(said), ...figures(reply)]'],
@@ -38,6 +38,9 @@ const MUTATIONS = [
   ['agent', 'the persona stops forbidding calculation', 'Never calculate, add up, round, count or estimate. ', ''],
   ['agent', 'the persona stops handing work off', 'call ${HANDOFF_TOOL} and say nothing else', 'do it yourself'],
   ['agent', 'the persona lists capabilities the role lacks', '.filter((c) => !c.needs || capabilities.includes(c.needs))', '.filter(() => true)'],
+  ['agent', 'the persona stops telling the model to call tools with default arguments', 'call it WITHOUT them first and read what comes back. ', ''],
+  ['agent', 'the persona lets the model guess a customer id', 'Never guess an id.', ''],
+  ['agent', 'a rejected reply is not explained', 'trace.reason = calls.length > 0', 'trace.reasonX = calls.length > 0'],
   // the routes
   ['index', 'the front door runs before the follow-up check', 'const agentOut = followUp ? null : await tryAgent(', 'const agentOut = await tryAgent('],
   ['index', 'the typed route does not keep what was heard', 'if (viaAgent) captured = await logCapture(env, text, "text", null);', ''],
