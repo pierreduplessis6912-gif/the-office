@@ -1,8 +1,10 @@
-> **Status:** real. **Verified:** 2026-10-26. **Owns:** none.
+> **Status:** archived. **Verified:** not yet. **Owns:** none.
+
+> **Archived 2026-10-27.** The audit log of 2026-10-26, when the connector had 16 tools (11 read-only). It is a record of what was tested that day, not the current state: there are now 21 tools and the live results are in `PHONE_TEST_SCRIPT.md` and `MCP_ARCHITECTURE.md`.
 
 # MCP test log (chronological, append-only)
 
-One entry per meaningful test, newest session last. Current state, risks and priorities live in [MCP_TEST_SUMMARY.md](MCP_TEST_SUMMARY.md); this file is the evidence. Read [MCP_ARCHITECTURE.md](MCP_ARCHITECTURE.md) for what the MCP adapter is meant to do.
+One entry per meaningful test, newest session last. Current state, risks and priorities live in [MCP_TEST_SUMMARY.md](MCP_TEST_SUMMARY.md); this file is the evidence. Read [MCP_ARCHITECTURE.md](../../MCP_ARCHITECTURE.md) for what the MCP adapter is meant to do.
 
 **Rules for entries.** Observations and hypotheses are labelled; nothing here is invented. This repo is PUBLIC and the tests run against production data, so entries use record IDs and counts only: no customer names, no amounts (except a difference of 0.00 and ratios), no links, no keys. Latency was NOT measured in any entry (the chat host exposes no timing); "total elapsed" is not recorded either. Fields: ID, scenario, environment, expected, actual, tools, result (pass/fail/partial/blocked/not verified), data quality, cause, category, severity/priority (S1 security or integrity, S2 wrong money, S3 broken workflow, S4 friction, S5 idea), action, acceptance, regression, status.
 

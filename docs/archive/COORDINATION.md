@@ -1,4 +1,6 @@
-> **Status:** real. **Verified:** 2026-10-24. **Owns:** none.
+> **Status:** archived. **Verified:** not yet. **Owns:** none.
+
+> **Archived 2026-10-27.** A snapshot of 2026-10-19, written when two Claude sessions were assumed to work at once (later corrected: one chat, one device). Its five backend points are all in the git history. The live protocol (check on arrival, claim with the API, `Run:` ids, trust the record files) is in the "Rules" section of `HANDOVER.md`.
 
 # Who is working on what (read this first, and READ THE CORRECTION BELOW)
 

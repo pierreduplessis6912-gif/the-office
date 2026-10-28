@@ -110,7 +110,7 @@ The Office is being developed toward a reusable MCP interface so supported AI as
 
 The existing direction includes:
 
-- Read-only business-data access.
+- Business-data access through the MCP connector (21 tools: 14 read, 7 write; read-only keys remain an option).
 - Model-neutral business tools.
 - Authentication and authorisation.
 - Business-specific access boundaries.
@@ -593,7 +593,7 @@ Priorities to evaluate:
 3. Establish reliable baseline monitoring.
 4. Measure cost and usage per business.
 5. Validate data quality and important business calculations.
-6. Test the current MCP read-only workflow.
+6. Test the current MCP workflow (read and create; see `PHONE_TEST_SCRIPT.md`).
 7. Confirm that the handover and repository accurately describe deployed behaviour.
 
 Exit condition: The core product can demonstrate reliable access controls, accurate results and a credible recovery process.
@@ -604,7 +604,7 @@ Objective: Make existing AI access dependable and clearly bounded.
 
 Priorities to evaluate:
 
-1. Improve existing read-only MCP tools.
+1. Improve existing MCP tools.
 2. Confirm consistent business-level authorisation.
 3. Validate supported AI-client integrations.
 4. Improve error handling and diagnostics.

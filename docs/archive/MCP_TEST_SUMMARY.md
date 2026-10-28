@@ -1,4 +1,6 @@
-> **Status:** real. **Verified:** 2026-10-26. **Owns:** none.
+> **Status:** archived. **Verified:** not yet. **Owns:** none.
+
+> **Archived 2026-10-27.** The summary of the 2026-10-26 audit (16 tools, 11 read-only). Not the current state: see `MCP_ARCHITECTURE.md` and `PHONE_TEST_SCRIPT.md`.
 
 # MCP test summary (current state)
 

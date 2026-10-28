@@ -8,10 +8,7 @@ The API is the Office. Everything else — this Flutter app, a future PWA,
 WhatsApp, email, voice — is just a client of it. See `worker/` for the
 backend, `app/` for the first native client.
 
-**For the current, real state of the system — schema, what's built,
-what's deliberately deferred, known bugs and their fixes — see
-[`STATUS.md`](docs/archive/STATUS.md). Read that before starting any new work;
-it's kept current, the section below is historical.**
+**For the current, real state of the system, start at [`HANDOVER.md`](./HANDOVER.md) (state, open items, rules), then [`INDEX.md`](./INDEX.md) (each feature to its document, code and tests). The July `STATUS.md` is archived ([`docs/archive/STATUS.md`](docs/archive/STATUS.md)) and is NOT current; the section below is historical.**
 
 **For the *why* behind that state — architectural rationale, rejected
 alternatives, pinned philosophy not yet built, and the complete,
