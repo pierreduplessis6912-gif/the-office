@@ -866,6 +866,8 @@ async function expect(role, method, path, want) {
   await require('./converse.test.js')({ check, srcDir });
   // Lookup hardening: the no-answer and failure paths of answerFromMemory return a fixed sentence, never an unrelated fact
   await require('./lookup-hardening.test.js')({ check, srcDir });
+  // The conversation-first front door, a staging SPIKE: read tools only, hand-off for work, grounded figures; off unless CONVERSE_MODE is agent (CONVERSATIONAL_LAYER.md)
+  await require('./converse-agent.test.js')({ check, srcDir });
   // The read-only MCP adapter, slice A: the credential core (issue, list, revoke, authenticate). Security-sensitive: each guard is also proven by tools/mcp-keys-breakage.js
   await require('./mcp-keys.test.js')({ check, srcDir });
   await require('./mcp-tags.test.js')({ check, srcDir });

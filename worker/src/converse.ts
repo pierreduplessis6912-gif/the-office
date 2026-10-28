@@ -40,7 +40,7 @@ export const REAL_CAPABILITIES: Array<{ feature: string; says: string; needs?: s
 const HISTORY_TURNS = 6;       // the member's last few turns
 const TURN_CHARS = 300;        // each turn is cut to this
 const TEXT_CHARS = 1000;       // so is what they just said
-const MAX_REPLY_CHARS = 700;   // a longer answer is not a conversational one
+export const MAX_REPLY_CHARS = 700;   // a longer answer is not a conversational one
 
 /** The persona and its rules. No example in it contains a figure, and the capability list is the only list of abilities the model has. */
 export function personaFor(capabilities: readonly string[]): string {
@@ -74,7 +74,7 @@ export function nothingUnderstood(p: Understood): boolean {
 }
 
 // What may never be shown: any digit (a figure, an amount, a date, a count) or a claim that something HAS been done.
-const CLAIMED = /\b(?:recorded|saved|created|logged|confirmed|scheduled|booked|issued|deleted|updated|sent|added|noted|paid|invoiced|quoted)\b/i;
+export const CLAIMED = /\b(?:recorded|saved|created|logged|confirmed|scheduled|booked|issued|deleted|updated|sent|added|noted|paid|invoiced|quoted)\b/i;
 function shown(reply: unknown): string | null {
   if (typeof reply !== "string") return null;
   const text = reply.trim();
@@ -87,7 +87,7 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "obj
 const cut = (s: string): string => (s.length > TURN_CHARS ? s.slice(0, TURN_CHARS) : s);
 
 /** The member's own last few turns, oldest first, from their own history in their own business's database. Never throws: no history is just no history. */
-async function lastTurns(env: Env, email: string | null): Promise<Array<{ role: "user" | "assistant"; content: string }>> {
+export async function lastTurns(env: Env, email: string | null): Promise<Array<{ role: "user" | "assistant"; content: string }>> {
   try {
     const history = await readHistory(env, { scope: "own", viewer: email, limit: HISTORY_TURNS, before: null });
     const turns: Array<{ role: "user" | "assistant"; content: string }> = [];

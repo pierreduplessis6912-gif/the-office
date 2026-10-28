@@ -369,6 +369,28 @@ function permitted(tool: Tool, who: { role: string; capabilities: string[]; scop
   return rule !== undefined && rule.anyOf.some((c) => who.capabilities.includes(c));
 }
 
+// For the in-app conversation front door (converse-agent.ts, a staging spike): the connector's READ tools, chosen and permitted by exactly the rule above, and run the way the connector runs them. Nothing that creates, confirms,
+// rejects or uploads is ever returned or run here (needsWrite), whoever asks and whatever they claim to hold. No rate limit or audit row yet (the front door is off everywhere but staging); the route records what the front door did.
+export type AgentWho = { keyId: string; email: string; role: string; capabilities: string[]; scope: McpScope };
+const MAX_AGENT_RESULT_CHARS = 8000;
+export function readToolsFor(who: AgentWho): Array<{ name: string; description: string; inputSchema: Record<string, unknown> }> {
+  return TOOLS.filter((t) => !t.needsWrite && permitted(t, who)).map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema }));
+}
+export async function runReadTool(env: Env, name: string, args: unknown, who: AgentWho, origin: string): Promise<{ ok: boolean; text: string }> {
+  const tool = TOOLS.find((t) => t.name === name);
+  if (!tool) return { ok: false, text: "That tool is not available." };
+  if (tool.needsWrite || !permitted(tool, who)) return { ok: false, text: "That is not available, or it is restricted for this member's role." };
+  if (typeof args !== "object" || args === null || Array.isArray(args)) return { ok: false, text: "The arguments must be an object." };
+  try {
+    const out = await tool.run(env, args as Record<string, unknown>, who, origin, null);
+    if (!out.ok) return { ok: false, text: out.message };
+    const body = JSON.stringify(out.data);
+    return { ok: true, text: body.length > MAX_AGENT_RESULT_CHARS ? body.slice(0, MAX_AGENT_RESULT_CHARS) + " ...(truncated)" : body };
+  } catch {
+    return { ok: false, text: "That could not be built." };
+  }
+}
+
 // ---- the audit and the limit: one table ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 async function ensureCalls(env: Env): Promise<void> {
   await env.OFFICE_DB.prepare("CREATE TABLE IF NOT EXISTS mcp_calls (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL DEFAULT (datetime('now')), key_id TEXT NOT NULL, email TEXT NOT NULL, tool TEXT NOT NULL, outcome TEXT NOT NULL, ms INTEGER NOT NULL DEFAULT 0)").run();
