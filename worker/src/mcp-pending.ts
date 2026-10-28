@@ -5,7 +5,7 @@ import { TRACKED_TABLES, taggingEnv, type TagSink, type TrackedTable } from "./m
 import { captureAfter, captureBefore, isEffectKind } from "./mcp-effects";
 
 /** The held actions an assistant may confirm or reject itself: the ones that only need a yes AND that the owner can put back (a record the owner can undo, or a decision mcp-effects.ts can reverse). Anything that needs an answer (which person, which project) or changes what exists is left to the owner in the app. */
-export const CONFIRMABLE = new Set(["expense", "payment", "invoice", "quotation", "stock_add", "customer_fact"]);
+export const CONFIRMABLE = new Set(["expense", "payment", "invoice", "quotation", "stock_add", "customer_fact", "link_order"]);
 const KIND: Record<string, string> = { expense: "expense", payment: "payment", invoice: "invoice", quotation: "quote" };
 export const kindOfHeld = (type: string): string => KIND[type] ?? type.replace(/_/g, " ").slice(0, 40);
 

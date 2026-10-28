@@ -5,9 +5,9 @@ const root = path.join(__dirname, '..'), workerDir = path.join(root, 'worker');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'meb-')), copy = path.join(tmp, 'worker');
 fs.cpSync(workerDir, copy, { recursive: true, filter: (src) => !src.split(path.sep).includes('node_modules') });
 fs.symlinkSync(path.join(workerDir, 'node_modules'), path.join(copy, 'node_modules'));
-const files = { effects: path.join(copy, 'src', 'mcp-effects.ts'), pending: path.join(copy, 'src', 'mcp-pending.ts'), undo: path.join(copy, 'src', 'mcp-undo.ts') };
+const files = { mcp: path.join(copy, 'src', 'mcp.ts'), effects: path.join(copy, 'src', 'mcp-effects.ts'), pending: path.join(copy, 'src', 'mcp-pending.ts'), undo: path.join(copy, 'src', 'mcp-undo.ts') };
 const originals = Object.fromEntries(Object.entries(files).map(([k, f]) => [k, fs.readFileSync(f, 'utf8')]));
-const runs = { effects: require('./mcp-effects.test.js'), pending: require('./mcp-pending.test.js'), routes: require('./mcp-pending-routes.test.js') };
+const runs = { endpoint: require('./mcp-endpoint.test.js'), effects: require('./mcp-effects.test.js'), pending: require('./mcp-pending.test.js'), routes: require('./mcp-pending-routes.test.js') };
 // [file, what is broken, text to remove, what replaces it, which tests must fail]
 const MUTATIONS = [
   ['effects', 'a stock add is undone although the stock changed since', 'if (row.quantity_on_hand !== it.quantityAfter) return', 'if (false) return', 'effects'],
@@ -19,11 +19,17 @@ const MUTATIONS = [
   ['effects', 'undoing a customer detail removes every note of that customer', 'DELETE FROM customer_facts WHERE id = ? AND customer_id = ?', 'DELETE FROM customer_facts WHERE customer_id = ?', 'effects'],
   ['effects', 'a decision that added nothing is still tagged', 'return items.length > 0 ? { effect: "stock_add", items } : null;', 'return { effect: "stock_add", items };', 'effects'],
   ['effects', 'an unreadable record of the change is undone anyway', 'if (!s) return { ok: false, reason: "error", message: "There is no record', 'if (false) return { ok: false, reason: "error", message: "There is no record', 'effects'],
+  ['effects', 'a link order is undone although the order was linked to someone else since', 'if (link.customer_id !== linked) return', 'if (false) return', 'effects'],
+  ['effects', 'a moved cost is put back although it changed again', 'if ((row.customer_id ?? null) !== (m.after ?? null)) return', 'if (false) return', 'effects'],
+  ['effects', 'undoing a link order does not move the costs back', 'for (const m of moved) await tx.OFFICE_DB', 'for (const m of [] as typeof moved) await tx.OFFICE_DB', 'effects'],
+  ['effects', 'undoing a link order with no earlier link leaves the link', 'if (previous === null) await tx.OFFICE_DB.prepare("DELETE FROM purchase_order_customers', 'if (false) await tx.OFFICE_DB.prepare("DELETE FROM purchase_order_customers', 'effects'],
+  ['effects', 'a link order with too many costs to copy is still copied', 'if ((all.results ?? []).length > MAX_EXPENSE_ROWS) return null;', '', 'effects'],
+  ['mcp', 'a decision whose copy cannot be taken is made anyway', 'if (!copy) return { ok: false, message: "A copy of what this would change', 'if (false) return { ok: false, message: "A copy of what this would change', 'endpoint'],
   ['pending', 'no copy is taken before a decision', 'before = await captureBefore(env, link.type, row?.payload ?? null);', 'before = null;', 'effects'],
   ['pending', 'the tag is tied to the wrong action', 'VALUES (?, ?, ?, ?, ?)").bind(link.create_id, link.key_id, effect.tbl, link.pending_id, effect.snapshot)', 'VALUES (?, ?, ?, ?, ?)").bind(link.create_id, link.key_id, effect.tbl, 0, effect.snapshot)', 'effects'],
   ['pending', 'a decision the owner made in the app is tagged to a connection', 'if (confirm && isEffectKind(link.type))', 'if (isEffectKind(link.type) && !confirm)', 'effects'],
   ['pending', 'a failed confirmation still ends the link', 'if (!response.ok) return;', '', 'routes'],
-  ['pending', 'a stock add is not confirmable by an assistant', '"quotation", "stock_add", "customer_fact"]);', '"quotation", "customer_fact"]);', 'pending'],
+  ['pending', 'a stock add is not confirmable by an assistant', '"quotation", "stock_add", "customer_fact", "link_order"]);', '"quotation", "customer_fact", "link_order"]);', 'pending'],
   ['undo', 'a decision is undone twice', 'if (tag.undone_at !== null) return { ok: false, reason: "already_undone", message: "That was already undone." };\n    let snapshot', 'let snapshot', 'effects'],
   ['undo', 'an undone decision is not marked undone', "undone_at IS NULL\").bind(by.slice(0, 254), tag.id).run(); } catch { /* the change is already", "undone_at IS NULL AND 0\").bind(by.slice(0, 254), tag.id).run(); } catch { /* the change is already", 'effects'],
   ['undo', 'the list shows an undone decision as active', 'state: t.undone_at !== null ? "undone" : "active", undoneAt: t.undone_at, summary: { description: describeEffect', 'state: "active", undoneAt: t.undone_at, summary: { description: describeEffect', 'effects'],

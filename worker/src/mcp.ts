@@ -6,6 +6,7 @@ import { challengeHeader } from "./mcp-oauth";
 import { businessLapsed } from "./access";
 import { analysisData, parseAnalysisParams } from "./analysis";
 import { ROUTE_RULES, signDocumentPath } from "./auth";
+import { captureBefore, isEffectKind } from "./mcp-effects";
 import { MAX_PAGE, customersData, documentExists, expensesData, heldActionsData, invoicesData, jobsData, parseHeldState, parseId, parsePage, parseRange, parseSearch, paymentsData, quotesData, stockData } from "./mcp-reads";
 import { parseHistoryParams, readHistory, resolveScope } from "./history";
 import { bearerKey } from "./mcp-key-format";
@@ -294,6 +295,12 @@ async function decideHeld(kind: "confirm" | "reject", env: Env, args: Record<str
   const link = await findLink(env, id);
   if (!link || link.key_id !== who.keyId) return { ok: false, message: "That action was not held by this connection, so it can only be decided in the app.", outcome: "not_found" };
   if (!CONFIRMABLE.has(link.type)) return { ok: false, message: "That kind of action cannot be decided here yet, so it can only be decided in the app.", outcome: "invalid" };
+  // a decision that changes things other than a tracked record must be reversible, so a copy of what it is about to touch has to be possible BEFORE it is made; if it cannot be taken, the owner decides it in the app (mcp-effects.ts)
+  if (kind === "confirm" && isEffectKind(link.type)) {
+    let copy = null as Awaited<ReturnType<typeof captureBefore>>;
+    try { const row = await env.OFFICE_DB.prepare("SELECT payload FROM pending_actions WHERE id = ?").bind(id).first<{ payload: string | null }>(); copy = await captureBefore(env, link.type, row?.payload ?? null); } catch { copy = null; }
+    if (!copy) return { ok: false, message: "A copy of what this would change could not be taken, so it cannot be put back; it can only be decided in the app.", outcome: "invalid" };
+  }
   let result: { status: number; body: unknown };
   try { result = await host.act(kind, id, { email: who.email }); } catch { return { ok: false, message: `That could not be ${kind === "confirm" ? "confirmed" : "rejected"}.`, outcome: "error" }; }
   const reason = typeof (result.body as { error?: unknown } | null)?.error === "string" ? String((result.body as { error: string }).error).slice(0, 200) : null;

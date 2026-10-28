@@ -69,4 +69,26 @@ module.exports = async function runEffectsTests({ check, srcDir }) {
     check(r.result.status === 200 && item && item.state === 'active' && item.recordId === 1 && /Added to stock: Sample sets \(2\), vinyl planks \(3\)/.test(item.summary.description) && item.connection === 'Claude on my phone', 'the owner\'s list shows a confirmed stock add as active with a short description and which connection decided it'); }
   { const r = await route({ name: 'list undone', method: 'GET', path: '/mcp-created', role: 'owner', seed: stockWorld(7, 2, (db) => db.prepare("UPDATE mcp_created_records SET undone_at = datetime('now') WHERE id = 1").run()) }), item = (r.result.body.items || []).find((i) => i.kind === 'stock add');
     check(item && item.state === 'undone', 'and once undone it is listed as undone'); }
+
+  // ---- link order: links a purchase order to a customer's job and moves its supplier costs to that customer ----
+  const PO_DDL = "CREATE TABLE IF NOT EXISTS purchase_order_customers (purchase_order_id INTEGER PRIMARY KEY, customer_id INTEGER NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))";
+  const linkSeed = (db) => { seed()(db); db.exec(PO_DDL);
+    db.prepare("INSERT INTO supplier_invoices (purchase_order_id, supplier_id, supplier_reference, amount, source_transcript) VALUES (5, NULL, 'INV9', 500, 'tr')").run();
+    db.prepare("INSERT INTO expenses (amount, description, category, source_transcript) VALUES (500, 'Supplier invoice INV9', 'materials', 'tr')").run();
+    held(db, 'link_order', { purchaseOrderId: 5, customerId: 1, customerName: 'Jenny', supplierName: 'Hunter Douglas' }, true); };
+  { const r = await decide(5, 'confirm', { seed: linkSeed }), w = r.writes, s2 = w.mcp_created_records ? snap(r) : null;
+    check(r.result.status === 200 && s2 && w.mcp_created_records.added[0].tbl === 'link_order' && s2.effect === 'link_order' && s2.purchaseOrderId === 5 && s2.previousCustomerId === null && s2.customerId === 1 && s2.moved.length === 1 && s2.moved[0].before === null && s2.moved[0].after === 1 && w.purchase_order_customers.added.length === 1 && w.expenses.changed.length === 1,
+      'confirming a link order a connection proposed links the order and tags exactly what changed: which customer it was linked to before, and each cost that moved (from whom to whom)'); }
+  const linkWorld = (previous = null, linkedNow = 1, expenseNow = 1, extra) => (db) => { seed()(db); db.exec(PO_DDL);
+    db.prepare("INSERT INTO purchase_order_customers (purchase_order_id, customer_id) VALUES (5, ?)").run(linkedNow);
+    const eid = Number(db.prepare("INSERT INTO expenses (amount, description, category, customer_id, source_transcript) VALUES (500, 'Supplier invoice INV9', 'materials', ?, 'tr')").run(expenseNow).lastInsertRowid);
+    tag(db, 'link_order', 5, { effect: 'link_order', purchaseOrderId: 5, previousCustomerId: previous, customerId: 1, moved: [{ id: eid, before: null, after: 1 }] }); if (extra) extra(db, eid); };
+  { const r = await undo(1, linkWorld()), w = r.writes, b = r.result.body;
+    check(r.result.status === 200 && b.action === 'reversed' && b.kind === 'link order' && w.purchase_order_customers.removed.length === 1 && w.expenses.changed.length === 1 && w.expenses.changed[0].after.customer_id === null, 'undoing a link order that had no earlier link removes the link and moves the cost back to nobody'); }
+  { const r = await undo(1, linkWorld(2)), w = r.writes; check(r.result.status === 200 && w.purchase_order_customers.added.length === 1 && w.purchase_order_customers.added[0].customer_id === 2 && w.purchase_order_customers.removed.length === 1 && w.purchase_order_customers.removed[0].customer_id === 1, 'undoing a link order that replaced an earlier link puts the earlier customer back'); }
+  { const r = await undo(1, linkWorld(null, 3)); check(r.result.status === 409 && r.result.body.reason === 'blocked' && unchanged(r), 'a link order is NOT undone when the order has been linked to someone else since: a 409 and nothing is written'); }
+  { const r = await undo(1, linkWorld(null, 1, 7)); check(r.result.status === 409 && r.result.body.reason === 'blocked' && unchanged(r), 'a link order is NOT undone when a cost it moved has been changed again since (and the link is left alone too)'); }
+  { const r = await undo(1, linkWorld(null, 1, 1, (db, eid) => db.prepare('DELETE FROM expenses WHERE id = ?').run(eid))); check(r.result.status === 409 && r.result.body.reason === 'gone' && unchanged(r), 'a link order is refused as gone when a cost it moved no longer exists, and nothing is written'); }
+  { const r = await decide(5, 'confirm', { seed: (db) => { linkSeed(db); db.exec("WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 20001) INSERT INTO expenses (amount, description, category, source_transcript) SELECT 1, 'bulk', 'materials', 'b' FROM n"); } });
+    check(r.result.status === 200 && r.writes.purchase_order_customers && !r.writes.mcp_created_records, 'a business with more costs than can be copied (20,000) tags NOTHING for a link order, so no undo claims to exist (and an assistant is refused such a decision before it is made)'); }
 };
