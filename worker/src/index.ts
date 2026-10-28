@@ -38,7 +38,7 @@ import { runGuarded } from "./frontdoor";
 import { composeReply } from "./intents/reply";
 import { handlePayments } from "./intents/payments";
 import { handleFactsAndNotes } from "./intents/facts-notes";
-import { breakdown, instrumentEnv, newTally, recordTiming, shouldRecordTiming } from "./timing";
+import { breakdown, instrumentEnv, mcpTimingPath, newTally, recordTiming, shouldRecordTiming } from "./timing";
 import { handleOpeningStep } from "./intents/opening";
 import { handleJobPricing } from "./intents/job-pricing";
 import { handleProcurement } from "./intents/procurement";
@@ -4007,6 +4007,8 @@ export async function serveRequest(request: Request, env: Env, ctx: ExecutionCon
   // The front door (frontdoor.ts): an error nothing else caught is logged with this request's id and answered with a small JSON 500, never a bare failure.
   // Cost caps (limits.ts): for a message that would use the model, the member's day and the business's spend are checked BEFORE the model is called. In warn mode nobody is stopped; in enforce mode a member or
   // business over the limit gets a clear 429. The check is fail-open: any error in it lets the request through.
+  // The connector's calls are told apart by tool in the timing history (timing.ts); the body is read from a CLONE, so the handler still gets its own.
+  const mcpBody = timingOn && request.method === "POST" && url.pathname === "/mcp" ? request.clone().text().catch(() => "") : null;
   const cap = await capBefore(env, request);
   // A decision on a held action a CONNECTION proposed runs with a database that reports what the confirmation creates, so the record is tagged to that connection exactly (mcp-pending.ts); every other request is untouched.
   const decision = await mcpDecision(request, env);
@@ -4034,7 +4036,7 @@ export async function serveRequest(request: Request, env: Env, ctx: ExecutionCon
     ctx.waitUntil(recordModelUsage(env, tally).catch(() => undefined));
   }
   if (timingOn && shouldRecordTiming(request.method, url.pathname)) {
-    ctx.waitUntil(recordTiming(env, { method: request.method, pathname: url.pathname, status: response.status, totalMs, tally }).catch(() => undefined));
+    ctx.waitUntil(recordTiming(env, { method: request.method, pathname: mcpBody ? mcpTimingPath(await mcpBody) : url.pathname, status: response.status, totalMs, tally }).catch(() => undefined));
   }
 
   const newHeaders = new Headers(response.headers);
