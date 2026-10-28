@@ -13,6 +13,7 @@ _WORDS = ["Alder", "Birch", "Cedar", "Hazel", "Larch", "Maple", "Rowan", "Willow
 _RID = int(os.environ.get("GITHUB_RUN_ID", "0") or 0)
 CUST = f"Spike {_WORDS[_RID % 8]} {_WORDS[(_RID // 8) % 8]}"
 SAMPLES = int(os.environ.get("SAMPLES", "3"))
+THINKING = os.environ.get("THINKING", "off") == "on"   # the experiment: the same model with thinking on, and a budget raised to 90 seconds
 
 def derive(label):
     raw = base64.b64encode(hmac.new(SEED.encode(), label.encode(), hashlib.sha256).digest()).decode()
@@ -52,7 +53,7 @@ def say(text):
     it = (h.get("items") or [{}])[0] if isinstance(h, dict) else {}
     interp = ((it.get("generated") or {}).get("interpreted")) or {}
     return {"text": text, "status": s, "message": msg, "ms": ms, "pending": b.get("pendingActionId") if isinstance(b, dict) else None,
-            "converse": interp.get("converse"), "outcome": interp.get("outcome"), "steps": interp.get("steps"), "tools": interp.get("tools"), "intent": interp.get("intent"), "reason": interp.get("reason"), "rejected": interp.get("rejected"), "figures": interp.get("figures")}
+            "thinking": interp.get("thinking"), "converse": interp.get("converse"), "outcome": interp.get("outcome"), "steps": interp.get("steps"), "tools": interp.get("tools"), "intent": interp.get("intent"), "reason": interp.get("reason"), "rejected": interp.get("rejected"), "figures": interp.get("figures")}
 
 def figs(s): return {re.sub(r",", "", t) for t in re.findall(r"\d[\d,]*(?:\.\d+)?", s or "")}
 def stats(xs): return {"n": len(xs), "median": int(statistics.median(xs)) if xs else None, "mean": int(statistics.mean(xs)) if xs else None, "max": max(xs) if xs else None}
@@ -93,12 +94,14 @@ for kind, text, tools, fig in PHRASES:
     r = say(text); r["kind"] = kind; R["baseline"].append(r)
 # 3) the front door on
 put = cf_secret("PUT", "CONVERSE_MODE", "agent"); R["switch_put_status"] = put
+R["thinking_experiment"] = THINKING
+if THINKING: R["thinking_put_status"] = [cf_secret("PUT", "CONVERSE_THINKING", "on"), cf_secret("PUT", "CONVERSE_BUDGET_MS", "90000")]
 active = False
 try:
     # A warm business object keeps its old settings until it restarts: wait (up to ~7 minutes) until a plain greeting is really handled by the front door, and do NOT evaluate anything if it never is.
     for _ in range(42):
         time.sleep(10); r = say("Hello Office")
-        if r["converse"] == "agent": active = True; break
+        if r["converse"] == "agent" and (not THINKING or r.get("thinking") is True): active = True; break
     R["front_door_active"] = active
     if not active: raise SystemExit("front door never became active: nothing evaluated")
     held = []
@@ -123,6 +126,7 @@ except SystemExit:
     R["aborted"] = "the front door never became active; nothing was evaluated"
 finally:
     R["switch_delete_status"] = cf_secret("DELETE", "CONVERSE_MODE")
+    R["thinking_delete_status"] = [cf_secret("DELETE", "CONVERSE_THINKING"), cf_secret("DELETE", "CONVERSE_BUDGET_MS")]
 
 def by(kind, rows): return [r for r in rows if r.get("kind") == kind]
 S = R["summary"]

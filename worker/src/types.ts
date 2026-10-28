@@ -43,6 +43,8 @@ export interface Env {
   MCP?: string;   // "off" switches off issuing keys for outside assistants (and, later, the /mcp endpoint)
   CONVERSE?: string;   // "off" switches off the conversational layer (converse.ts): a message with nothing to act on gets the old "I didn't catch anything" again
   CONVERSE_MODE?: string;   // "agent" turns on the conversation-first front door (converse-agent.ts), a SPIKE for staging only; unset everywhere else
+  CONVERSE_THINKING?: string;   // "on" runs the front door's model with thinking on (an experiment; staging only)
+  CONVERSE_BUDGET_MS?: string;   // raises the front door's time budget (milliseconds, up to two minutes); for the thinking experiment
   // The ONE business that owns the document links customers already hold (issued before the move, so they carry no business). Set only for the business that was migrated from the single-business deployment.
   LEGACY_LINK_BUSINESS?: string;
   // A SEPARATE bucket for backups (backup.ts): snapshots and a mirror of the files, kept apart from the business's own file storage. Absent where no backup bucket is configured.

@@ -29,7 +29,7 @@ export const AGENT_BUDGET_MS = 25000;   // round 2 saw 40 to 45 second reads: pa
 const DONE = "recorded|saved|created|logged|confirmed|scheduled|booked|issued|deleted|updated|sent|added|noted|paid|invoiced|quoted|raised|captured|filed";
 export const CLAIMS_DONE = new RegExp(`\\b(?:i|we)(?:['\u2019]ve|['\u2019]ll have| have| just| already)?\\s+(?:\\w+\\s+){0,2}(?:${DONE})\\b|\\b(?:has|have|had|was|were|is|are)\\s+(?:(?:now|just|been|already)\\s+)+(?:${DONE})\\b|\\b(?:that|this)(?:['\u2019]s| is| has been)\\s+(?:now\\s+)?(?:${DONE}|done)\\b|\\b(?:all set|consider it done|done and dusted)\\b|^\\s*done\\b`, "i");
 
-export type AgentTrace = { steps: number; tools: string[]; outcome: "reply" | "fallback" | "handoff" | "error" | "off"; reason?: "claim" | "figure" | "length" | "empty" | "tools" | "time"; rejected?: string; figures?: string[] };
+export type AgentTrace = { steps: number; tools: string[]; outcome: "reply" | "fallback" | "handoff" | "error" | "off"; reason?: "claim" | "figure" | "length" | "empty" | "tools" | "time"; rejected?: string; figures?: string[]; thinking?: boolean };
 export type AgentOutcome = { kind: "reply" | "fallback"; message: string; trace: AgentTrace } | { kind: "pass"; trace: AgentTrace };
 
 // A figure is grounded when it appears, however formatted (R5,000 / 5000 / 5000.00), in a tool result or in the person's own words. Dates split into numbers the same way on both sides.
@@ -67,7 +67,10 @@ type ToolCall = { id?: unknown; function?: { name?: unknown; arguments?: unknown
 /** Tries to answer a message as conversation first. "reply" and "fallback" carry the words to show; "pass" means the existing pipeline takes the message exactly as if this did not exist (also on any failure). Never throws. */
 export async function tryAgent(env: Env, text: string, who: { email: string | null; role: string | null; capabilities: readonly string[] }, origin: string, budgetMs: number = AGENT_BUDGET_MS): Promise<AgentOutcome> {
   const started = Date.now();
-  const trace: AgentTrace = { steps: 0, tools: [], outcome: "off" };
+  const thinking = env.CONVERSE_THINKING === "on";   // an experiment (staging only): the same model with thinking on
+  const raised = Number(env.CONVERSE_BUDGET_MS);
+  const budget = Number.isFinite(raised) && raised > 0 && raised <= 120000 ? raised : budgetMs;
+  const trace: AgentTrace = { steps: 0, tools: [], outcome: "off", thinking: env.CONVERSE_THINKING === "on" };
   try {
     if (env.CONVERSE_MODE !== "agent" || env.CONVERSE === "off") return { kind: "pass", trace };
     if (!who.email || !who.role) return { kind: "pass", trace };   // no signed-in member: nothing to read as
@@ -82,13 +85,13 @@ export async function tryAgent(env: Env, text: string, who: { email: string | nu
     for (let call = 1; call <= MAX_MODEL_CALLS; call++) {
       trace.steps = call;
       const last = call === MAX_MODEL_CALLS;
-      const left = budgetMs - (Date.now() - started);
+      const left = budget - (Date.now() - started);
       if (left <= 0) { trace.outcome = "fallback"; trace.reason = "time"; return { kind: "fallback", message: AGENT_FALLBACK, trace }; }
       let timer: ReturnType<typeof setTimeout> | undefined;
-      const budget = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("budget")), left); });
+      const deadline = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("budget")), left); });
       let response: unknown;
       try {
-        response = await Promise.race([withRetry(() => env.AI.run("@cf/moonshotai/kimi-k2.6", { temperature: 0.3, chat_template_kwargs: { thinking: false }, messages, ...(last ? {} : { tools: offered }) } as never)), budget]);
+        response = await Promise.race([withRetry(() => env.AI.run("@cf/moonshotai/kimi-k2.6", { temperature: 0.3, chat_template_kwargs: { thinking }, messages, ...(last ? {} : { tools: offered }) } as never)), deadline]);
       } catch (e) {
         if (e instanceof Error && e.message === "budget") { trace.outcome = "fallback"; trace.reason = "time"; return { kind: "fallback", message: AGENT_FALLBACK, trace }; }
         throw e;
