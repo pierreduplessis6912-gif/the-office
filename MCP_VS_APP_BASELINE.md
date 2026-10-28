@@ -113,3 +113,23 @@ Taken BEFORE the per-tool labels and per-call detail went live (`f4d6b5c`), so M
 **Not established:** how long each model call takes on its own (per-call detail only exists from `f4d6b5c`); whether 0 ms database time is real or an artefact of the Workers clock only advancing on outside calls (the totals equal the model time, which supports it being real); anything about speech.
 
 **Candidate changes, in the brief's order, still unbuilt:** skip the topic-split call for a clearly single-topic message; run independent extraction calls together; trace the model call inside confirm. Each needs the per-prompt readout first.
+
+## H. Second readout, 2026-10-28 09:53 UTC: the end-to-end script through MCP (3 rounds) and the app (2 rounds)
+
+Per-tool labels and per-call detail are live. Counts mix the script with earlier traffic; the app's four-step rounds were not stopwatch-timed by hand (no notes yet), so the app side is read from the timing rows only. Names used were synthetic.
+
+| Route | n | p50 | p95 | Model calls (mean) | Model ms (mean) |
+|---|---|---|---|---|---|
+| `POST /mcp:tell_the_office` | 11 | 9.3 s | 26.2 s | 2.9 | 10,925 |
+| `POST /messages/text` | 19 | 6.8 s | 20.8 s | 2.8 | 8,538 |
+| `POST /mcp:confirm_pending_action` | 3 | 45 ms | 100 ms | 0 | 0 |
+| `POST /mcp:schedule_job` | 3 | 0 ms | 0 ms | 0 | 0 |
+| `POST /actions/:id/confirm` (app) | 29 | 0 ms | 0.8 s | 0.1 | 197 |
+
+Per model prompt, all calls since the detail went live (none failed, none retried, none overlapped; always one after another): facts extraction 24 calls, mean 3.3 s, slowest 8.3 s; topic split 24 calls, mean 2.8 s, slowest 12.7 s; job structure 12 calls, mean 4.3 s, slowest 21.7 s; supplier order 6 calls, mean 5.8 s, slowest 11.8 s; delivery received 6 calls, mean 2.1 s, slowest 6.2 s.
+
+**Observations.** (1) The app and the MCP write path cost the same in kind: three model calls in sequence, about 10 s typical and 20 to 26 s at worst; MCP writes are not faster than the app's. (2) The sum of the three typical call times (about 2.8 + 3.3 + 4.3 s) matches the typical invoice. (3) Which call is slow is not fixed: in the three slow invoices the long call was the job-structure call once (21.7 s) and the topic split twice (10.9 s and 12.7 s), while the same prompts took 1.5 to 5.7 s in other requests. (4) The two slow app invoices took almost the same total (20.8 s and 20.7 s); likely coincidence, not investigated. (5) Confirms, rejects, scheduling and reads cost about nothing. (6) Database time still reads 0 ms.
+
+**Hypothesis, not tested:** most of the variation is model-service speed, not our code, since the same prompt ranges from about 1.5 s to over 20 s. **Correctness findings from the run:** a new customer name containing "Test" was matched to an existing "Test Customer" (rejected before it was recorded); a name that merely resembled an existing one produced a "is this the same customer?" hold that cannot be settled through MCP.
+
+**Smallest candidate changes, none built, each needing an accuracy test first:** start the facts call at the same time as the topic split and use it when the split agrees; run the job-structure call beside the facts call for invoices; test a faster model for the split only.
