@@ -1,4 +1,4 @@
-> **Status:** partly built. **Verified:** 2026-10-28. **Owns:** `worker/src/converse.ts`, `tools/converse.test.js`, `tools/converse-breakage.js`, `tools/converse-smoke.py`, `.github/workflows/converse-smoke.yml`, `worker/src/converse-agent.ts`, `tools/converse-agent.test.js`, `tools/converse-agent-breakage.js`.
+> **Status:** partly built. **Verified:** 2026-10-28. **Owns:** `worker/src/converse.ts`, `tools/converse.test.js`, `tools/converse-breakage.js`, `tools/converse-smoke.py`, `.github/workflows/converse-smoke.yml`, `worker/src/converse-agent.ts`, `tools/converse-agent.test.js`, `tools/converse-agent-breakage.js`, `tools/converse-spike.py`, `.github/workflows/converse-spike.yml`.
 
 # The conversational layer
 
