@@ -4,7 +4,7 @@ import 'history_model.dart';
 
 const int _maxItems = 200;
 const int _maxText = 200;
-const Set<String> _kinds = {'invoice', 'quote', 'expense', 'task', 'job', 'payment', 'stock add', 'customer fact'};
+const Set<String> _kinds = {'invoice', 'quote', 'expense', 'task', 'job', 'payment', 'stock add', 'customer fact', 'link order', 'job amendment'};
 const Set<String> _states = {'active', 'undone', 'void', 'gone'};
 
 class McpCreated {
@@ -70,7 +70,7 @@ String _capital(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1)
 /// "Invoice: Carpet repair, R3,000.00" (the description and the amount only when there are any).
 String createdTitle(McpCreated c) {
   // a stock add or a customer detail (a decision, not a record): its description already says what it was
-  if ((c.kind == 'stock add' || c.kind == 'customer fact') && c.description != null) return c.description!;
+  if (const {'stock add', 'customer fact', 'link order', 'job amendment'}.contains(c.kind) && c.description != null) return c.description!;
   final parts = <String>[if (c.description != null) c.description!, if (c.amount != null) formatRand(c.amount!)];
   return parts.isEmpty ? _capital(c.kind) : '${_capital(c.kind)}: ${parts.join(', ')}';
 }

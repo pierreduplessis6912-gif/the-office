@@ -10,7 +10,7 @@ const originals = Object.fromEntries(Object.entries(files).map(([k, f]) => [k, f
 const runs = { pending: require('./mcp-pending.test.js'), index: require('./mcp-pending-routes.test.js'), act: require('./mcp-act.test.js') };
 const MUTATIONS = [
   // module (mcp-pending.ts), proven by tools/mcp-pending.test.js
-  ['pending', 'an assistant may decide an action that needs an answer', 'new Set(["expense", "payment", "invoice", "quotation", "stock_add", "customer_fact", "link_order"])', 'new Set(["expense", "payment", "invoice", "quotation", "stock_add", "customer_fact", "link_order", "ambiguous_person", "supplier_payment"])'],
+  ['pending', 'an assistant may decide an action that needs an answer', 'new Set(["expense", "payment", "invoice", "quotation", "stock_add", "customer_fact", "link_order", "job_scope_amendment"])', 'new Set(["expense", "payment", "invoice", "quotation", "stock_add", "customer_fact", "link_order", "job_scope_amendment", "ambiguous_person", "supplier_payment"])'],
   ['pending', 'an action already decided is linked again', 'if (r.status !== "pending") continue;', ''],
   ['pending', 'the held fact actions of a tell are not linked', 'for (const list of [ids, factIds]) if', 'for (const list of [ids]) if'],
   ['pending', 'a held action is re-linked to another key', 'INSERT OR IGNORE INTO mcp_pending_links', 'INSERT OR REPLACE INTO mcp_pending_links'],

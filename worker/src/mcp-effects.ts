@@ -3,10 +3,10 @@
 import { atomically } from "./atomic";
 import type { Env } from "./types";
 
-export const EFFECT_KINDS = ["stock_add", "customer_fact", "link_order"] as const;
+export const EFFECT_KINDS = ["stock_add", "customer_fact", "link_order", "job_scope_amendment"] as const;
 export type EffectKind = (typeof EFFECT_KINDS)[number];
 export const isEffectKind = (type: string): type is EffectKind => (EFFECT_KINDS as readonly string[]).includes(type);
-export const EFFECT_LABEL: Record<EffectKind, string> = { stock_add: "stock add", customer_fact: "customer fact", link_order: "link order" };
+export const EFFECT_LABEL: Record<EffectKind, string> = { stock_add: "stock add", customer_fact: "customer fact", link_order: "link order", job_scope_amendment: "job amendment" };
 const MAX_EXPENSE_ROWS = 20000;   // the copy of which customer each expense belongs to; a business with more cannot be copied, so an assistant may not decide a link order there
 
 type Row = Record<string, unknown>;
@@ -37,6 +37,14 @@ export async function captureBefore(env: Env, type: string, payloadText: string 
         seen.push({ name, id: found?.id ?? null, quantity: found?.quantity_on_hand ?? null });
       }
       return { kind: type, data: { items: seen } };
+    }
+    if (type === "job_scope_amendment") {
+      const jobScopeId = payload.jobScopeId;
+      if (typeof jobScopeId !== "number" || !Number.isInteger(jobScopeId) || jobScopeId < 1) return null;
+      const row = await env.OFFICE_DB.prepare("SELECT * FROM job_scopes WHERE id = ?").bind(jobScopeId).first<Row>();
+      if (!row) return null;
+      const am = await env.OFFICE_DB.prepare("SELECT id FROM job_scope_amendments WHERE job_scope_id = ?").bind(jobScopeId).all<{ id: number }>();
+      return { kind: type, data: { jobScopeId, row, amendmentIds: (am.results ?? []).map((a) => a.id) } };
     }
     if (type === "link_order") {
       const poId = payload.purchaseOrderId, customerId = payload.customerId;
@@ -72,6 +80,16 @@ export async function captureAfter(env: Env, before: Before, answer: unknown): P
       }
       return items.length > 0 ? { effect: "stock_add", items } : null;
     }
+    if (before.kind === "job_scope_amendment") {
+      const jobScopeId = before.data.jobScopeId as number, row = before.data.row as Row;
+      const now = await env.OFFICE_DB.prepare("SELECT * FROM job_scopes WHERE id = ?").bind(jobScopeId).first<Row>();
+      const am = await env.OFFICE_DB.prepare("SELECT id FROM job_scope_amendments WHERE job_scope_id = ?").bind(jobScopeId).all<{ id: number }>();
+      if (!now) return null;
+      const changes = Object.keys(now).filter((k) => !same(row[k], now[k])).map((column) => ({ column, before: row[column] ?? null, after: now[column] ?? null }));
+      const known = new Set(before.data.amendmentIds as number[]);
+      const newAmendmentIds = (am.results ?? []).map((a) => a.id).filter((id) => !known.has(id));
+      return changes.length > 0 || newAmendmentIds.length > 0 ? { effect: "job_scope_amendment", jobScopeId, changes, newAmendmentIds } : null;
+    }
     if (before.kind === "link_order") {
       const poId = before.data.poId as number, was = before.data.expenses as Record<string, number | null>;
       const link = await env.OFFICE_DB.prepare("SELECT customer_id FROM purchase_order_customers WHERE purchase_order_id = ?").bind(poId).first<{ customer_id: number }>();
@@ -97,6 +115,7 @@ export function describeEffect(snapshotText: string | null): string | null {
   const s = parse(snapshotText);
   if (!s) return null;
   if (s.effect === "stock_add" && Array.isArray(s.items)) return `Added to stock: ${(s.items as Row[]).map((i) => `${String(i.name).slice(0, 60)} (${Number(i.added)})`).join(", ")}`.slice(0, 200);
+  if (s.effect === "job_scope_amendment") { const cols = Array.isArray(s.changes) ? (s.changes as Row[]).map((c) => String(c.column)).join(", ") : ""; return `Job ${Number(s.jobScopeId)} amended${cols ? `: ${cols}` : ""}`.slice(0, 200); }
   if (s.effect === "link_order") return `Order #${Number(s.purchaseOrderId)} linked to customer ${Number(s.customerId)}${Array.isArray(s.moved) && s.moved.length ? `, ${s.moved.length} cost${s.moved.length === 1 ? "" : "s"} moved` : ""}`.slice(0, 200);
   if (s.effect === "customer_fact") {
     const cols = Array.isArray(s.changes) ? (s.changes as Row[]).map((c) => String(c.column)).join(", ") : "";
@@ -126,6 +145,20 @@ export async function undoEffect(env: Env, snapshotText: string | null): Promise
           if (it.created) await tx.OFFICE_DB.prepare("DELETE FROM stock_items WHERE id = ? AND quantity_on_hand = ?").bind(it.stockItemId, it.quantityAfter).run();
           else await tx.OFFICE_DB.prepare("UPDATE stock_items SET quantity_on_hand = quantity_on_hand - ? WHERE id = ? AND quantity_on_hand = ?").bind(it.added, it.stockItemId, it.quantityAfter).run();
         }
+      });
+      return { ok: true };
+    }
+    if (s.effect === "job_scope_amendment") {
+      const jobScopeId = s.jobScopeId as number, changes = (Array.isArray(s.changes) ? s.changes : []) as Array<{ column: string; before: unknown; after: unknown }>, newAmendmentIds = (Array.isArray(s.newAmendmentIds) ? s.newAmendmentIds : []) as number[];
+      const now = await env.OFFICE_DB.prepare("SELECT * FROM job_scopes WHERE id = ?").bind(jobScopeId).first<Row>();
+      if (!now) return { ok: false, reason: "gone", message: "That job no longer exists, so there is nothing to put back." };
+      for (const c of changes) {
+        if (!/^[a-z_]+$/.test(c.column) || !(c.column in now)) return { ok: false, reason: "error", message: "That change cannot be undone." };
+        if (!same(now[c.column], c.after)) return { ok: false, reason: "blocked", message: "That job has been changed again since, so it was not changed back." };
+      }
+      await atomically(env, async (tx) => {
+        for (const c of changes) await tx.OFFICE_DB.prepare(`UPDATE job_scopes SET ${c.column} = ? WHERE id = ?`).bind(c.before ?? null, jobScopeId).run();
+        for (const id of newAmendmentIds) await tx.OFFICE_DB.prepare("DELETE FROM job_scope_amendments WHERE id = ? AND job_scope_id = ?").bind(id, jobScopeId).run();
       });
       return { ok: true };
     }

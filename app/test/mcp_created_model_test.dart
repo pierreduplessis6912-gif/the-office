@@ -160,5 +160,15 @@ void main() {
     expect(createdTitle(list.last), 'Customer 1: phone');
     expect(list.first.canUndo, isTrue);
   });
+
+  test('a confirmed link order and job amendment are read and titled by their own description', () {
+    final list = parseCreatedList({'items': [
+      _item(id: 7, kind: 'link order', recordId: 5, summary: {'description': 'Order #5 linked to customer 1, 1 cost moved'}),
+      _item(id: 8, kind: 'job amendment', recordId: 9, summary: {'description': 'Job 1 amended: scheduled_date'}),
+    ]})!;
+    expect(list, hasLength(2));
+    expect(createdTitle(list.first), 'Order #5 linked to customer 1, 1 cost moved');
+    expect(createdTitle(list.last), 'Job 1 amended: scheduled_date');
+  });
 }
 

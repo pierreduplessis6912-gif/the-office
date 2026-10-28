@@ -5,7 +5,7 @@ import { TRACKED_TABLES, taggingEnv, type TagSink, type TrackedTable } from "./m
 import { captureAfter, captureBefore, isEffectKind } from "./mcp-effects";
 
 /** The held actions an assistant may confirm or reject itself: the ones that only need a yes AND that the owner can put back (a record the owner can undo, or a decision mcp-effects.ts can reverse). Anything that needs an answer (which person, which project) or changes what exists is left to the owner in the app. */
-export const CONFIRMABLE = new Set(["expense", "payment", "invoice", "quotation", "stock_add", "customer_fact", "link_order"]);
+export const CONFIRMABLE = new Set(["expense", "payment", "invoice", "quotation", "stock_add", "customer_fact", "link_order", "job_scope_amendment"]);
 const KIND: Record<string, string> = { expense: "expense", payment: "payment", invoice: "invoice", quotation: "quote" };
 export const kindOfHeld = (type: string): string => KIND[type] ?? type.replace(/_/g, " ").slice(0, 40);
 
@@ -33,6 +33,7 @@ export function summarise(payload: string | null): string | null {
     const what = clean(p.description, 80) ?? clean(p.note, 80);
     if (what) parts.push(what);
     if (Array.isArray(p.items) && p.amount === undefined) { const names = (p.items as Array<Record<string, unknown>>).slice(0, 5).map((i) => (clean(i?.name, 40) ? `${clean(i.name, 40)}${typeof i.quantity === "number" ? ` (${i.quantity})` : ""}` : null)).filter(Boolean); if (names.length) parts.push(names.join(", ")); }
+    if (typeof p.jobScopeDescription === "string" && Array.isArray(p.changes)) { const what = (p.changes as Array<Record<string, unknown>>).slice(0, 3).map((c) => (clean(c?.field, 30) ? `${clean(c.field, 30)}: ${clean(c.oldValue, 30) ?? "none"} to ${clean(c.newValue, 30) ?? "none"}` : null)).filter(Boolean).join("; "); const d = clean(p.jobScopeDescription, 60); if (d || what) parts.push([d, what].filter(Boolean).join(" - ")); }
     if (typeof p.key === "string" && typeof p.value === "string") { const k = clean(p.key, 30), v = clean(p.value, 50); if (k && v) parts.push(`${k}: ${v}`); }
     const who = clean(p.customerName, 60) ?? clean(p.characterName, 60);
     if (who) parts.push(`for ${who}`);
