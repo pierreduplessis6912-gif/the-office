@@ -1,0 +1,118 @@
+{
+ "when": "2026-10-28T12:12:31Z",
+ "target": "https://office-staging.websitehub.co.za",
+ "run": "40685915830",
+ "checks": {
+  "staging_runs_the_expected_commit": true,
+  "greeting_gets_a_conversational_reply": true,
+  "conversation_request_is_not_the_old_failure": true,
+  "follow_up_uses_the_previous_turn": false,
+  "capabilities_reply_is_conversational": true,
+  "conversation_wrote_no_business_record_or_held_action": true,
+  "business_instruction_still_held_for_confirmation": true,
+  "held_instruction_rejected_and_staging_left_as_found": true,
+  "all_greeting_samples_conversational": true,
+  "converse_off_restores_the_original_reply_exactly": true,
+  "off_samples_all_original_reply": false,
+  "converse_on_again_after_the_switch_is_removed": true
+ },
+ "replies": {
+  "greeting": "Morning. What can I do for you?",
+  "i_want_to_have_a_conversation": "I'm here. What's on your mind?",
+  "follow_up": "I don't have that on file.",
+  "capabilities": "I don't have that on file. The facts provided are about a confirmed invoice (R1500 for Staging Customer One) and some dated messages from 2026-10-28, but none of them address what I can help you with.",
+  "business_instruction": "Payment noted for DAMAGE ONE of R500 — needs your confirmation (action #149) before it's recorded.",
+  "on_samples": [
+   "Morning. What can I do for you?",
+   "Morning. What can I do for you?",
+   "Hi. What can I do for you?",
+   "I don't have that on file.",
+   "Hello. What can I do for you?"
+  ]
+ },
+ "deployed_commit": "15a7af7ea29d53a2db033090b83d5aaeb1dc470b",
+ "latency_on": {
+  "n": 5,
+  "ms": [
+   10181,
+   14281,
+   4401,
+   7053,
+   6337
+  ],
+  "median": 7053,
+  "mean": 8450,
+  "max": 14281
+ },
+ "switch_put_status": 201,
+ "latency_off": {
+  "n": 5,
+  "ms": [
+   3039,
+   4185,
+   7699,
+   3640,
+   2423
+  ],
+  "median": 3640,
+  "mean": 4197,
+  "max": 7699
+ },
+ "switch_delete_status": 200,
+ "added_by_the_layer_ms": {
+  "median": 3413,
+  "mean": 4253
+ },
+ "model_call_timings_by_prompt": [
+  {
+   "prompt": "Extract structured facts from a tradesperson's m",
+   "calls": 27,
+   "meanMs": 2659.2,
+   "maxMs": 5208,
+   "failures": 0
+  },
+  {
+   "prompt": "A tradesperson sometimes says several genuinely ",
+   "calls": 27,
+   "meanMs": 1593.6,
+   "maxMs": 10259,
+   "failures": 0
+  },
+  {
+   "prompt": "You are The Office, a calm, direct assistant for",
+   "calls": 8,
+   "meanMs": 1001.9,
+   "maxMs": 2948,
+   "failures": 0
+  },
+  {
+   "prompt": "Answer the tradesperson's question using only th",
+   "calls": 4,
+   "meanMs": 1904.5,
+   "maxMs": 3982,
+   "failures": 0
+  },
+  {
+   "prompt": "Is this a broad, whole-business question wanting",
+   "calls": 1,
+   "meanMs": 5580,
+   "maxMs": 5580,
+   "failures": 0
+  },
+  {
+   "prompt": "Extract the structure of a tradesperson's job ob",
+   "calls": 1,
+   "meanMs": 4092,
+   "maxMs": 4092,
+   "failures": 0
+  },
+  {
+   "prompt": "Does this message contain a genuine, referential",
+   "calls": 1,
+   "meanMs": 3285,
+   "maxMs": 3285,
+   "failures": 0
+  }
+ ],
+ "timings_status": 200
+}
