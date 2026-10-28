@@ -11,6 +11,7 @@ Start at [HANDOVER.md](HANDOVER.md). Links here are checked by `tools/docs-check
 | Who can call what | [ROUTE_POLICY.md](ROUTE_POLICY.md) | [`tools/route-policy-gen.js`](tools/route-policy-gen.js) | [`tools/route-policy.test.js`](tools/route-policy.test.js) |
 | Read-only MCP adapter | [MCP_ARCHITECTURE.md](MCP_ARCHITECTURE.md) | [`worker/src/mcp.ts`](worker/src/mcp.ts) | [`tools/mcp-keys-breakage.js`](tools/mcp-keys-breakage.js) |
 | MCP testing record | [PHONE_TEST_SCRIPT.md](PHONE_TEST_SCRIPT.md) (the live checklist and its last results); the 2026-10-26 audit is archived: [docs/archive/MCP_TEST_SUMMARY.md](docs/archive/MCP_TEST_SUMMARY.md), [docs/archive/MCP_TEST_LOG.md](docs/archive/MCP_TEST_LOG.md) | none | none |
+| MCP versus app baseline plan | [MCP_VS_APP_BASELINE.md](MCP_VS_APP_BASELINE.md) | none | none yet (plan only) |
 | Analysis and reports | [CONVERSATIONAL_BI_ARCHITECTURE.md](CONVERSATIONAL_BI_ARCHITECTURE.md) | [`worker/src/analysis.ts`](worker/src/analysis.ts) | [`tools/analysis.test.js`](tools/analysis.test.js) |
 | Spoken follow-ups | [CONVERSATIONAL_BI_ARCHITECTURE.md](CONVERSATIONAL_BI_ARCHITECTURE.md) | [`worker/src/followup.ts`](worker/src/followup.ts) | [`tools/followup.test.js`](tools/followup.test.js) |
 | History and audit | [DECISIONS.md](DECISIONS.md) | [`worker/src/history.ts`](worker/src/history.ts) | [`tools/history.test.js`](tools/history.test.js) |
