@@ -181,6 +181,8 @@ structured world, in both directions.
 `extractScopePricing`) already follows this — none of them ever
 decide, they only ever identify or narrate.
 
+**Amendment 2026-10-28 (approved by Pierre; `CONVERSATIONAL_LAYER.md`):** the footprint above is no longer exactly two seats. A third, bounded seat exists: conversation. It may converse, explain what Office can do and narrate what trusted Office capabilities supply, but it is still not a decision maker and holds no business logic. It states no business fact or figure the worker did not supply, and it cannot create, modify, approve or confirm a record: every action stays in the existing engine, with its validation, authorisation, confirmation and audit.
+
 ---
 
 ## Research 001 — Gmail (2026-07-11)

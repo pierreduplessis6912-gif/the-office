@@ -2,13 +2,21 @@
 
 # The conversational layer
 
-Phase 1 is built on branch `converse-layer` and is **not merged and not deployed**: it waits for Pierre's approval of the doctrine wording below and an explicit yes to merge (HANDOVER rule 11). Phases 2 to 4 are proposed only; each needs its own chat and his yes.
+Doctrine approved by Pierre 2026-10-28 (wording below). Phase 1 is approved subject to gates: the diff inspected, a fast-forward merge only, a controlled deploy with `CONVERSE=off` kept as the rollback, a production smoke test, and observed latency. Phases 2 to 4 are proposed only; each needs its own chat and his yes.
 
 ## Why
 The app feels transactional; the MCP feels conversational. A message with nothing to act on ("hello", "I want to have a conversation with you") ended as "I didn't catch anything there I could act on." The layer answers such a message in words, using Kimi (already in the stack). No new model, no agent framework, no schema change.
 
-## Doctrine change (WORDING AWAITING PIERRE'S APPROVAL; `OFFICE_CONSTITUTION.md` is not edited until he approves)
-Old: "LLM routes, never composes answers." Proposed: **Kimi may converse and narrate. Every business fact or number it states must come verbatim from a deterministic read tool. It never calculates, never confirms, and never claims a record exists until the backend confirms it.** In Phase 1 there is no read tool, so the model gets no business data and may state no figure at all.
+## Doctrine (APPROVED by Pierre, 2026-10-28, in his wording)
+> The conversational LLM may converse naturally, explain capabilities, guide onboarding, troubleshoot and narrate information supplied by trusted Office capabilities.
+>
+> It must not invent business facts, financial figures, calculations, transaction statuses or claims that an operation succeeded. Business facts and financial figures must be grounded in authorised data or deterministic calculations. Any calculations must use trusted, validated inputs and established business rules.
+>
+> The conversational layer cannot independently create, modify, approve or confirm business records. All business actions remain under the existing Office processing engine and its validation, authorisation, confirmation and audit controls.
+>
+> The conversational layer may explain what it knows, acknowledge uncertainty, ask clarifying questions and help users express their intentions without forcing every utterance into an actionable task.
+
+Phase 1 uses much less than this allows, on purpose: the model is given no business data at all, so it may state no figure (a reply with a digit is dropped), and onboarding, troubleshooting and narrating trusted data belong to later phases. `OFFICE_CONSTITUTION.md` Principle 2 said the AI has "exactly two seats"; it now carries a dated amendment pointing here, because a bounded third seat (conversation) exists. Nothing else in the constitution changed.
 
 ## What Phase 1 does (`tryConverse`)
 - **When:** only if the whole reply is the old failure text (`NO_INTENT_MESSAGE`), the intent was "other", and nothing was found, held or refused. A business instruction, a lookup, a follow-up or an upload never reaches it: its path and its records are byte-identical (the test runs one instruction with the layer on and off and compares the reply and every write).
