@@ -1,0 +1,223 @@
+{
+ "when": "2026-10-28T21:51:36Z",
+ "key_present": true,
+ "models_status": 200,
+ "models": [
+  "kimi-k2.6",
+  "kimi-k2.7-code",
+  "kimi-k2.7-code-highspeed",
+  "kimi-k3",
+  "kimi-k3.1-pro",
+  "kimi-k3.1-pro-highspeed"
+ ],
+ "calls": [
+  {
+   "model": "kimi-k2.6",
+   "variant": "default",
+   "status": 200,
+   "ms": 1943,
+   "usage": {
+    "prompt_tokens": 14,
+    "completion_tokens": 48,
+    "total_tokens": 62,
+    "completion_tokens_details": {
+     "reasoning_tokens": 43
+    }
+   },
+   "reply": "Hello there!",
+   "has_reasoning": true,
+   "error": null
+  },
+  {
+   "model": "kimi-k2.6",
+   "variant": "thinking_disabled",
+   "status": 200,
+   "ms": 1086,
+   "usage": {
+    "prompt_tokens": 14,
+    "completion_tokens": 12,
+    "total_tokens": 26,
+    "completion_tokens_details": {
+     "reasoning_tokens": 1
+    }
+   },
+   "reply": "Hello! How can I help you today?",
+   "has_reasoning": false,
+   "error": null
+  },
+  {
+   "model": "kimi-k2.7-code",
+   "variant": "default",
+   "status": 200,
+   "ms": 873,
+   "usage": {
+    "prompt_tokens": 14,
+    "completion_tokens": 17,
+    "total_tokens": 31,
+    "completion_tokens_details": {
+     "reasoning_tokens": 13
+    }
+   },
+   "reply": "Hello!",
+   "has_reasoning": true,
+   "error": null
+  },
+  {
+   "model": "kimi-k2.7-code",
+   "variant": "thinking_disabled",
+   "status": 400,
+   "ms": 275,
+   "usage": null,
+   "reply": "",
+   "has_reasoning": false,
+   "error": "{\"message\": \"invalid thinking: only type=enabled is allowed for this model\", \"type\": \"invalid_request_error\"}"
+  },
+  {
+   "model": "kimi-k2.7-code-highspeed",
+   "variant": "default",
+   "status": 200,
+   "ms": 885,
+   "usage": {
+    "prompt_tokens": 14,
+    "completion_tokens": 54,
+    "total_tokens": 68,
+    "completion_tokens_details": {
+     "reasoning_tokens": 49
+    }
+   },
+   "reply": "Hello there!",
+   "has_reasoning": true,
+   "error": null
+  },
+  {
+   "model": "kimi-k2.7-code-highspeed",
+   "variant": "thinking_disabled",
+   "status": 400,
+   "ms": 303,
+   "usage": null,
+   "reply": "",
+   "has_reasoning": false,
+   "error": "{\"message\": \"invalid thinking: only type=enabled is allowed for this model\", \"type\": \"invalid_request_error\"}"
+  },
+  {
+   "model": "kimi-k3",
+   "variant": "low",
+   "status": 200,
+   "ms": 2233,
+   "usage": {
+    "prompt_tokens": 93,
+    "completion_tokens": 50,
+    "total_tokens": 143,
+    "completion_tokens_details": {
+     "reasoning_tokens": 27
+    },
+    "prompt_tokens_details": {
+     "cache_write_tokens": 0
+    }
+   },
+   "reply": "Hello, nice to meet you!",
+   "has_reasoning": true,
+   "error": null
+  },
+  {
+   "model": "kimi-k3",
+   "variant": "default",
+   "status": 200,
+   "ms": 2580,
+   "usage": {
+    "prompt_tokens": 92,
+    "completion_tokens": 78,
+    "total_tokens": 170,
+    "completion_tokens_details": {
+     "reasoning_tokens": 54
+    },
+    "prompt_tokens_details": {
+     "cache_write_tokens": 0
+    }
+   },
+   "reply": "Hello! How can I help you today?",
+   "has_reasoning": true,
+   "error": null
+  },
+  {
+   "model": "kimi-k3.1-pro",
+   "variant": "low",
+   "status": 200,
+   "ms": 3923,
+   "usage": {
+    "prompt_tokens": 93,
+    "completion_tokens": 84,
+    "total_tokens": 177,
+    "completion_tokens_details": {
+     "reasoning_tokens": 60
+    },
+    "prompt_tokens_details": {
+     "cache_write_tokens": 0
+    }
+   },
+   "reply": "Hello, how can I help you today?",
+   "has_reasoning": true,
+   "error": null
+  },
+  {
+   "model": "kimi-k3.1-pro",
+   "variant": "default",
+   "status": 200,
+   "ms": 5346,
+   "usage": {
+    "prompt_tokens": 92,
+    "completion_tokens": 140,
+    "total_tokens": 232,
+    "completion_tokens_details": {
+     "reasoning_tokens": 118
+    },
+    "prompt_tokens_details": {
+     "cache_write_tokens": 0
+    }
+   },
+   "reply": "Hello, nice to meet you!",
+   "has_reasoning": true,
+   "error": null
+  },
+  {
+   "model": "kimi-k3.1-pro-highspeed",
+   "variant": "low",
+   "status": 200,
+   "ms": 2561,
+   "usage": {
+    "prompt_tokens": 93,
+    "completion_tokens": 228,
+    "total_tokens": 321,
+    "completion_tokens_details": {
+     "reasoning_tokens": 204
+    },
+    "prompt_tokens_details": {
+     "cache_write_tokens": 0
+    }
+   },
+   "reply": "Hello, how can I help you today?",
+   "has_reasoning": true,
+   "error": null
+  },
+  {
+   "model": "kimi-k3.1-pro-highspeed",
+   "variant": "default",
+   "status": 200,
+   "ms": 2347,
+   "usage": {
+    "prompt_tokens": 92,
+    "completion_tokens": 166,
+    "total_tokens": 258,
+    "completion_tokens_details": {
+     "reasoning_tokens": 144
+    },
+    "prompt_tokens_details": {
+     "cache_write_tokens": 0
+    }
+   },
+   "reply": "Hello, nice to meet you!",
+   "has_reasoning": true,
+   "error": null
+  }
+ ]
+}
