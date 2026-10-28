@@ -199,3 +199,13 @@ export async function timingsSummary(env: Env, limit = 300): Promise<Record<stri
       .map((r) => ({ at: r.created_at, route: `${r.method} ${r.path}`, status: r.status, totalMs: r.total_ms, aiMs: r.ai_ms, aiCalls: r.ai_n, dbMs: r.db_ms, dbCalls: r.db_n })),
   };
 }
+
+// The MCP connector's traffic is all POST /mcp, so reads and writes would blend into one row. A tool call is labelled with the tool's NAME ("/mcp:tell_the_office"). Only the name, and only if it
+// is a plain tool name: never an argument, never any text of the call. Anything else (a malformed body, another JSON-RPC method) stays "/mcp".
+export function mcpTimingPath(body: string | null | undefined): string {
+  try {
+    const parsed = JSON.parse(body ?? "") as { method?: unknown; params?: { name?: unknown } } | null;
+    const name = parsed?.method === "tools/call" ? parsed?.params?.name : undefined;
+    return typeof name === "string" && /^[a-z][a-z0-9_]{0,39}$/.test(name) ? `/mcp:${name}` : "/mcp";
+  } catch { return "/mcp"; }
+}

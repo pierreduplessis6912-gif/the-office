@@ -1,9 +1,15 @@
 // Tests for the per-request timing breakdown (added 2026-10-04 after Pierre noticed latency): it must only ever OBSERVE.
 module.exports = async function runTimingTests({ check, bundleTo, srcDir, path, fs }) {
   const T = bundleTo('timing.ts', 'rm-timing.js');
-  const { newTally, instrumentEnv, breakdown, shouldRecordTiming, normalizeTimingPath, recordTiming, timingsSummary } = T;
+  const { newTally, instrumentEnv, breakdown, shouldRecordTiming, normalizeTimingPath, recordTiming, timingsSummary, mcpTimingPath } = T;
   const { newDatabase, d1 } = require('./harness.js');
   const workerDir = path.join(srcDir, '..');
+
+  // ---- the connector's calls are told apart by tool name, and by nothing else --------------------------------------------------------
+  check(mcpTimingPath('{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_aged_debtors","arguments":{}}}') === '/mcp:get_aged_debtors', 'a tool call is labelled with the tool name');
+  check(mcpTimingPath('{"method":"tools/call","params":{"name":"tell_the_office","arguments":{"text":"invoice Jenny for 1200"}}}') === '/mcp:tell_the_office' && !mcpTimingPath('{"method":"tools/call","params":{"name":"tell_the_office","arguments":{"text":"invoice Jenny for 1200"}}}').includes('Jenny'), 'the label carries the name only, never an argument');
+  check(mcpTimingPath('{"method":"tools/list"}') === '/mcp' && mcpTimingPath('not json') === '/mcp' && mcpTimingPath('') === '/mcp' && mcpTimingPath(null) === '/mcp' && mcpTimingPath(undefined) === '/mcp', 'any other method, a malformed body, or no body stays /mcp');
+  check(mcpTimingPath('{"method":"tools/call","params":{"name":"../../etc or <script>"}}') === '/mcp' && mcpTimingPath('{"method":"tools/call","params":{"name":"' + 'a'.repeat(41) + '"}}') === '/mcp' && mcpTimingPath('{"method":"tools/call","params":{"name":5}}') === '/mcp', 'an unusual, overlong or non-text name is not used as a label');
 
   // ---- the wrapper, against a clock the test controls ---------------------------------------------------------------------------
   const realNow = Date.now; let now = 1000; Date.now = () => now;
