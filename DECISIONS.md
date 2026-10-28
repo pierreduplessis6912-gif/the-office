@@ -127,6 +127,7 @@ Split on 2026-10-24 from the 7958-line original, which is `git show 95bf743:DECI
 - [Phone verification after Phase 3](docs/decisions/extraction-and-pipeline.md) (was line 6744)
 - [The pipeline gap, closed, and the phone confirmation, 2026-10-17](docs/decisions/extraction-and-pipeline.md) (was line 7582)
 - [The reply envelope, Phase 1, 2026-10-19](docs/decisions/extraction-and-pipeline.md) (was line 7826)
+- [Conversational layer, Phase 1: words for what the pipeline found nothing to act on (2026-10-28)](docs/decisions/extraction-and-pipeline.md) (new)
 
 ### [platform-and-operations](docs/decisions/platform-and-operations.md): hardening, deploy and rollback, staging, the Durable Object cutover, backups and restore, migrations, cost caps, latency, observability (55 sections)
 

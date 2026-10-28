@@ -862,6 +862,8 @@ async function expect(role, method, path, want) {
   await require('./customer-receivables.test.js')({ check, srcDir });
   // Spoken follow-ups on an open analysis: the recorded-phrase gate, and the behaviour against real SQL (permissions, never guessing a customer, never writing)
   await require('./followup.test.js')({ check, srcDir });
+  // The conversational layer, Phase 1: a reply for what the pipeline found nothing to act on, never for an instruction, never able to write (CONVERSATIONAL_LAYER.md)
+  await require('./converse.test.js')({ check, srcDir });
   // The read-only MCP adapter, slice A: the credential core (issue, list, revoke, authenticate). Security-sensitive: each guard is also proven by tools/mcp-keys-breakage.js
   await require('./mcp-keys.test.js')({ check, srcDir });
   await require('./mcp-tags.test.js')({ check, srcDir });

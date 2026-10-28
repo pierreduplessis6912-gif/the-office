@@ -41,6 +41,7 @@ export interface Env {
   // Set by a business's object for each request it serves (never by a client): which business this is. See business-object.ts.
   BUSINESS_ID?: string;
   MCP?: string;   // "off" switches off issuing keys for outside assistants (and, later, the /mcp endpoint)
+  CONVERSE?: string;   // "off" switches off the conversational layer (converse.ts): a message with nothing to act on gets the old "I didn't catch anything" again
   // The ONE business that owns the document links customers already hold (issued before the move, so they carry no business). Set only for the business that was migrated from the single-business deployment.
   LEGACY_LINK_BUSINESS?: string;
   // A SEPARATE bucket for backups (backup.ts): snapshots and a mirror of the files, kept apart from the business's own file storage. Absent where no backup bucket is configured.

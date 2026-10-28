@@ -971,3 +971,6 @@ Pierre: the list of open orders "gives a couple of lines and then it cuts off", 
 **Not done, said plainly.** Phase 2 (reports as data), Phase 3 (analysis), Phase 4 (a history and audit record), Phase 5 (workspace context from the app); the notification-failure alert and customer emails; the in-app plans button and the app's 401 handling; the terms and privacy pages; the live PayFast secrets; and the separate Google token-verification hardening.
 
 ---
+
+## Conversational layer, Phase 1: words for what the pipeline found nothing to act on (2026-10-28)
+Built on branch `converse-layer` (not merged, not deployed; doctrine wording awaits Pierre). `worker/src/converse.ts` runs only when the whole reply is the old failure text from an intent of "other"; it gives Kimi a persona, the real capabilities and the member's own last turns, no tools and no data, and shows its words only if they hold no digit and claim nothing was recorded. It can change only `message`. Kill switch `CONVERSE=off`. `tools/converse.test.js` and 24 breakages in `tools/converse-breakage.js`; see `CONVERSATIONAL_LAYER.md`.

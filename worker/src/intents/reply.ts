@@ -18,6 +18,7 @@ import type { handleSnagsAndLeads } from "./snags-leads";
 import type { handleStock } from "./stock";
 import { completeTask, describeDate, getOpenTasks, resolveTaskCompletion } from "../scheduler";
 import type { sensitiveFactKind } from "../memory";
+import { NO_INTENT_MESSAGE } from "../no-intent";
 
 export interface ReplyInput {
   extraction: Extraction | null;
@@ -263,7 +264,7 @@ export async function composeReply(env: Env, input: ReplyInput): Promise<string>
     // though nothing was actually captured or acted on. This is the
     // TRUE nothing-happened case now, and it says so honestly instead
     // of pretending otherwise.
-    message = "I didn't catch anything there I could act on.";
+    message = NO_INTENT_MESSAGE;
   }
 
   // Said only when the sentence was kept out of notes AND went nowhere else: a saved detail, or a refusal with its own reason, already says what happened.
