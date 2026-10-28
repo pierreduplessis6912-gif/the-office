@@ -52,7 +52,7 @@ def say(text):
     it = (h.get("items") or [{}])[0] if isinstance(h, dict) else {}
     interp = ((it.get("generated") or {}).get("interpreted")) or {}
     return {"text": text, "status": s, "message": msg, "ms": ms, "pending": b.get("pendingActionId") if isinstance(b, dict) else None,
-            "converse": interp.get("converse"), "outcome": interp.get("outcome"), "steps": interp.get("steps"), "tools": interp.get("tools"), "intent": interp.get("intent"), "reason": interp.get("reason"), "rejected": interp.get("rejected")}
+            "converse": interp.get("converse"), "outcome": interp.get("outcome"), "steps": interp.get("steps"), "tools": interp.get("tools"), "intent": interp.get("intent"), "reason": interp.get("reason"), "rejected": interp.get("rejected"), "figures": interp.get("figures")}
 
 def figs(s): return {re.sub(r",", "", t) for t in re.findall(r"\d[\d,]*(?:\.\d+)?", s or "")}
 def stats(xs): return {"n": len(xs), "median": int(statistics.median(xs)) if xs else None, "mean": int(statistics.mean(xs)) if xs else None, "max": max(xs) if xs else None}

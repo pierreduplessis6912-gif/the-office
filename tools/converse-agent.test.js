@@ -134,6 +134,28 @@ module.exports = async function runConverseAgentTests({ check, srcDir }) {
     const r = await say('How much does Jenny Smith owe?', [flow]), ins = inputsOf(r);
     check(r.threw === null && ins.length === 3 && /R5000 outstanding/.test(r.result.body.message) && logOnly(r), 'a customer is found by name first (list_customers) and then read by id: three model calls, two tools, and the figure comes from the second tool (' + String(r.threw || r.result.body.message) + ')'); }
 
+  // ---- round 3: a claim check that catches claims, not words; a longer limit; figures named; recall; a time budget ------------------------------------------------------------------------------------
+  { const mk = (content, extra = {}) => ({ OFFICE_DB: harness.d1(harness.newDatabase(workerDir)), CONVERSE_MODE: 'agent', AI: { run: async () => { if (extra.delay) await new Promise((r) => setTimeout(r, extra.delay)); return { choices: [{ message: { content } }] }; } } });
+    const who = { email: 'owner@example.com', role: 'owner', capabilities: ROLE.owner }, shown = async (reply) => (await ag.tryAgent(mk(reply), 'hello', who, 'https://x.test')).kind === 'reply';
+    const claims = ['Done, I have recorded that for you.', 'I created a quote for Jenny.', 'Your invoice has been sent.', 'I have saved that.', 'That is confirmed.', "I've scheduled it for Friday.", 'Noted, I have logged it.', 'I updated the stock.', 'It was now added to your list.', 'Done.', 'All set.', 'Consider it done.', "That's saved.", 'We have booked the job.'];
+    const readings = ['Spike owes R2,000, with R1,000 paid against it.', 'None of them have a scheduled date yet.', 'The last invoice was sent on the 3rd.', 'Invoice 14108 is confirmed and due on the 5th.', 'I can look up your invoices, quotes and stock.', 'I can record payments and raise invoices for you.', 'You have a quote that was issued last week.', 'Three customers have outstanding balances, all current.', 'The business has done well this month.', 'I found the customer and their invoices are all paid.'];
+    const wrongRefused = []; for (const r of readings) if (!(await shown(r.replace(/\d+/g, (d) => d)))) wrongRefused.push(r);
+    // readings above that hold figures are only shown if grounded, so test the claim check on its own for them
+    const claimRe = ag.CLAIMS_DONE; const caught = claims.filter((c) => !claimRe.test(c)), blocked = readings.filter((r) => claimRe.test(r));
+    check(caught.length === 0, 'the claim check catches every recorded claim that THIS conversation did something (first person, "has been", "that is confirmed", "done"): missed ' + caught.join(' | '));
+    check(blocked.length === 0, 'and it does not take a reading for a claim ("R1,000 paid against it", "a scheduled date", "was sent on the 3rd", the capabilities list): wrongly blocked ' + blocked.join(' | '));
+    check(await shown('x'.repeat(1100)) && !(await shown('x'.repeat(1300))), 'a reply up to 1,200 characters is shown (a capability list), a longer one is not');
+    const bad = await ag.tryAgent(mk('You owe R9,999 and R2,500, in total R12,499.'), 'hello', who, 'https://x.test');
+    check(bad.kind === 'fallback' && bad.trace.reason === 'figure' && Array.isArray(bad.trace.figures) && bad.trace.figures.includes('9999') && bad.trace.figures.includes('12499') && bad.trace.figures.length <= 8, 'a refusal for an ungrounded figure names the figures (so a calculation, a unit slip and a formatting slip can be told apart): ' + JSON.stringify(bad.trace.figures));
+    const slow = await ag.tryAgent(mk('Hello.', { delay: 400 }), 'hello', who, 'https://x.test', 100);
+    check(slow.kind === 'fallback' && slow.trace.reason === 'time' && slow.message === FALLBACK, 'a model that takes longer than the time budget gets the fixed sentence (not a 40 second wait, and not the pipeline)');
+    const quick = await ag.tryAgent(mk('Hello.'), 'hello', who, 'https://x.test', 100); check(quick.kind === 'reply', 'and a quick one is unaffected by the budget'); }
+  { const r = await say('hello', [agent(() => ({ content: 'Hello.' }))]), sys = (inputsOf(r)[0].messages[0] || {}).content || '';
+    check(/most recent turns above this message/.test(sys) && /never say you keep no memory of the conversation/i.test(sys), 'the persona tells the model its earlier turns with this person are visible and that it must not say it keeps no memory of the conversation'); }
+
+  { const r = await say('How is the Jenny invoice looking?', [agent((input, turn) => turn === 0 ? { tool_calls: [call('list_invoices')] } : { content: 'Jenny has one invoice for R' + /"amount":\s*(\d+)/.exec(toolMsgs(input)[0].content)[1] + ', with nothing paid against it and no scheduled date to chase.' })]);
+    check(r.threw === null && /R5000, with nothing paid against it/.test(r.result.body.message), 'a correct, grounded reading that uses the words "paid" and "scheduled" is SHOWN through the real reply path (round 2 refused these): ' + String(r.threw || r.result.body.message).slice(0, 80)); }
+
   // ---- who and what comes first -----------------------------------------------------------------------------------------------------------------------------------------------------------------------
   { const seen = []; const env = { OFFICE_DB: harness.d1(harness.newDatabase(workerDir)), CONVERSE_MODE: 'agent', AI: { run: async () => { seen.push(1); return { choices: [{ message: { content: 'hi' } }] }; } } };
     const none = await ag.tryAgent(env, 'hello', { email: null, role: null, capabilities: [] }, 'https://x.test'), noRole = await ag.tryAgent(env, 'hello', { email: 'a@b.co', role: null, capabilities: [] }, 'https://x.test');
