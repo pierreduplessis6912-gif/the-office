@@ -38,7 +38,7 @@ const MUTATIONS = [
   ['conv', 'the persona stops forbidding figures', '"- Never state, give or invent a figure, number, amount, date or count, and never name', '"- Be vague about figures, and never name'],
   // the routes and the failure text
   ['index', 'the typed route replaces the whole reply, not only the words', 'if (talked !== null) processed = { ...processed, message: talked };', 'if (talked !== null) processed = { message: talked } as typeof processed;', 'index'],
-  ['index', 'the voice route never asks for a conversation', 'const spoken = transcript ? await tryConverse(', 'const spoken = transcript ? null && await tryConverse(', 'index'],
+  ['index', 'the voice route never asks for a conversation', 'const spoken = transcript && !(agentSpoken !== null && agentSpoken.kind !== "pass") ? await tryConverse(', 'const spoken = transcript && !(agentSpoken !== null && agentSpoken.kind !== "pass") ? null && await tryConverse(', 'index'],
   ['reply', 'the failure text is changed', 'message = NO_INTENT_MESSAGE;', 'message = "Sorry, nothing there.";', 'reply'],
 ];
 
