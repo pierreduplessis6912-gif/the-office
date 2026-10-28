@@ -16,6 +16,9 @@ import type { Env } from "./types";
 
 export const HANDOFF_TOOL = "hand_to_office";
 export const AGENT_FALLBACK = "I'm having trouble responding right now. You can try again in a moment.";
+// WORK IS NEVER LEFT TO THE MODEL'S JUDGEMENT. First real-model run on staging (2026-10-28): asked "Bought diesel for R650" the model chatted back instead of calling hand_to_office, so an instruction would have been lost. A message that carries
+// a figure, opens with a doing word ("invoice", "remind me", "add"...) or says something was paid or bought goes straight to the existing pipeline with NO model call here. It fails safe: a read with a digit in it simply takes the old path.
+export const LOOKS_LIKE_WORK = /\d|^\s*(?:please\s+|can you\s+|could you\s+)?(?:invoice|quote|remind|schedule|add|record|create|book|cancel|order|send|pay|log)\b|\b(?:paid|bought)\b/i;
 const MAX_MODEL_CALLS = 3;
 const MAX_TOOL_CALLS_PER_STEP = 4;
 
@@ -54,6 +57,7 @@ export async function tryAgent(env: Env, text: string, who: { email: string | nu
   try {
     if (env.CONVERSE_MODE !== "agent" || env.CONVERSE === "off") return { kind: "pass", trace };
     if (!who.email || !who.role) return { kind: "pass", trace };   // no signed-in member: nothing to read as
+    if (LOOKS_LIKE_WORK.test(text)) { trace.outcome = "handoff"; trace.tools.push("(work, decided in code)"); return { kind: "pass", trace }; }
     const member: AgentWho = { keyId: "in-app", email: who.email, role: who.role, capabilities: [...who.capabilities], scope: SCOPE_READ };
     const offered = [
       ...readToolsFor(member).map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.inputSchema } })),

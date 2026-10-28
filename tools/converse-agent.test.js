@@ -134,6 +134,16 @@ module.exports = async function runConverseAgentTests({ check, srcDir }) {
     const inst = await say('hello', [agent(() => ({ content: 'Hello.' }))], { role: 'installer' }), isys = (inputsOf(inst)[0].messages[0] || {}).content || '';
     check(/financial reports/.test(sys) === ((ROLE.owner || []).includes('can_know_profit')) && /financial reports/.test(isys) === ((ROLE.installer || []).includes('can_know_profit')), 'and it lists only the capabilities that role has'); }
 
+  // ---- work is decided in code, never by the model alone ------------------------------------------------------------------------------------------------------------------------------------------------
+  { const work = ['Bought diesel for R650', 'Jenny paid R500', 'Invoice Jenny R1200 for a repair', 'Remind me to call Thandi tomorrow', 'Add 5 boards to stock', 'Quote Sipho for the lounge', 'Can you remind me to phone Peter', 'schedule the Thandi job for Friday', 'Please record an expense of fifty rand', 'we bought glue today', 'Cancel the order for Floornet'];
+    const talk = ['Hello Office', 'Good morning, Office. How are you doing today?', 'I want to have a conversation with you', 'What can you help me with?', 'Can you explain what you can help me with?', 'I had a difficult day yesterday and wanted to talk through something.', 'Do you remember what I just said?',
+      "Morning, Office. How are we looking on Jenny's outstanding invoices?", 'Hello, can you tell me what Jenny owes and then help me understand why our debtors are increasing?', 'How much does Jenny owe?', 'Who owes us money?', 'How much have we spent on expenses?', 'What jobs do I have coming up?', 'Do we have any open quotes?', 'hmm', 'what about the other one'];
+    const missed = work.filter((t) => !ag.LOOKS_LIKE_WORK.test(t)), swallowed = talk.filter((t) => ag.LOOKS_LIKE_WORK.test(t));
+    check(missed.length === 0, 'every recorded instruction is recognised as work in code: ' + missed.join(' | '));
+    check(swallowed.length === 0, 'and none of the recorded conversation, lookup or mixed messages is taken for work: ' + swallowed.join(' | '));
+    const r = await say('Bought diesel for R650', [agent(() => ({ content: 'I can record that as an expense. Was this diesel for a specific job?' })), SPLIT, { match: /Extract structured facts from a tradesperson's message/, reply: { ...harness.EXTRACTION_DEFAULTS, intent: 'expense', amount: 650 } }]);
+    check(r.threw === null && inputsOf(r).length === 0 && r.result.body.message !== 'I can record that as an expense. Was this diesel for a specific job?', 'an instruction never reaches the model at all (a real model chatted back instead of handing it off): the existing pipeline takes it and the model is not called (' + String(r.threw || r.result.body.message).slice(0, 70) + ')'); }
+
   // ---- the source: what the module may touch --------------------------------------------------------------------------------------------------------------------------------------------------
   const src = fs.readFileSync(path.join(srcDir, 'converse-agent.ts'), 'utf8'), code = src.split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
   const imports = [...code.matchAll(/^\s*import\s+(?:type\s+)?(?:\{[^}]*\}|\*\s+as\s+\w+|\w+)\s+from\s+"([^"]+)"/gm)].map((m) => m[1]).sort();

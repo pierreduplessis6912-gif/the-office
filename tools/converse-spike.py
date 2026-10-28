@@ -92,10 +92,12 @@ for kind, text, tools, fig in PHRASES:
 put = cf_secret("PUT", "CONVERSE_MODE", "agent"); R["switch_put_status"] = put
 active = False
 try:
-    for _ in range(14):
-        time.sleep(5); r = say("Hello Office")
+    # A warm business object keeps its old settings until it restarts: wait (up to ~7 minutes) until a plain greeting is really handled by the front door, and do NOT evaluate anything if it never is.
+    for _ in range(42):
+        time.sleep(10); r = say("Hello Office")
         if r["converse"] == "agent": active = True; break
     R["front_door_active"] = active
+    if not active: raise SystemExit("front door never became active: nothing evaluated")
     held = []
     for kind, text, tools, fig in PHRASES:
         r = say(text); r["kind"] = kind
@@ -114,6 +116,8 @@ try:
             if r["pending"] is not None: held.append(r["pending"])
         r["ok"] = ok; R["agent"].append(r)
     for a in held: call("POST", f"/actions/{a}/reject", {})
+except SystemExit:
+    R["aborted"] = "the front door never became active; nothing was evaluated"
 finally:
     R["switch_delete_status"] = cf_secret("DELETE", "CONVERSE_MODE")
 

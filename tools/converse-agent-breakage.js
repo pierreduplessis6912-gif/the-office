@@ -27,6 +27,8 @@ const MUTATIONS = [
   // hand-off and failure
   ['agent', 'a hand-off is ignored (the model tries to do the work itself)', 'if (calls.some((c) => c.function?.name === HANDOFF_TOOL)) {', 'if (false) {'],
   ['agent', 'a failure of the front door ends the turn instead of passing the message on', '  } catch {\n    trace.outcome = "error";\n    return { kind: "pass", trace };\n  }\n}', '  } catch {\n    trace.outcome = "error";\n    return { kind: "fallback", message: AGENT_FALLBACK, trace };\n  }\n}'],
+  ['agent', 'work is left to the model to recognise', 'if (LOOKS_LIKE_WORK.test(text)) {', 'if (false) {'],
+  ['agent', 'an instruction with a figure is no longer recognised as work', '/\\d|^\\s*', '/^\\s*'],
   // switches and who
   ['agent', 'CONVERSE=off does not switch it off', ' || env.CONVERSE === "off"', ''],
   ['agent', 'it is on without CONVERSE_MODE', 'env.CONVERSE_MODE !== "agent" || ', ''],
