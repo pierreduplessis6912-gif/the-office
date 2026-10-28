@@ -1,0 +1,47 @@
+name: Conversational layer smoke test (staging, real model)
+
+# The six-point smoke test of the conversational layer (CONVERSATIONAL_LAYER.md) against STAGING: a real Worker, real Durable Objects and the real model, running the same commit as production. It uses only the staging
+# credentials (derived from STAGING_KEY_SEED, never printed), sets and removes a secret named CONVERSE on the STAGING Worker to prove the switch, and leaves staging as it found it. It records plain facts and Kimi's replies
+# to synthetic messages in ops/converse-smoke-last.json; no business data and no secret. Started by hand only; staging must already run the commit under test (dispatch staging.yml first).
+on:
+  workflow_dispatch:
+    inputs:
+      expect_commit:
+        description: "The full commit staging must be running (the run fails if /health says otherwise)"
+        required: true
+
+concurrency:
+  group: converse-smoke
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SEED: ${{ secrets.STAGING_KEY_SEED }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      EXPECT_COMMIT: ${{ inputs.expect_commit }}
+      OUT: ${{ github.workspace }}/converse-smoke-result.json
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the smoke test
+        id: run
+        continue-on-error: true
+        run: python3 tools/converse-smoke.py
+      - name: Record the result on main
+        run: |
+          mkdir -p ops
+          cp "$OUT" ops/converse-smoke-last.json
+          git config user.name "production-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/converse-smoke-last.json
+          git commit -q -m "Conversational layer smoke test record (staging; plain facts and replies to synthetic messages)" || true
+          git pull -q --rebase origin main && git push -q origin HEAD:main
+      - name: Fail the run if a check failed
+        if: steps.run.outcome != 'success'
+        run: exit 1
