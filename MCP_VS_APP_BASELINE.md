@@ -4,6 +4,18 @@
 
 Question from Pierre: (1) does the MCP path bypass guardrails the app has, and (2) where do the app's unnecessary calls and delays come from? No production behaviour, model, prompt or database change until the baseline below is captured. Earlier evidence is in [docs/archive/MCP_TEST_LOG.md](docs/archive/MCP_TEST_LOG.md) (the archived 2026-10-26 audit). Nothing here is a measurement: the audit session has no timer, and no latency figure exists yet.
 
+## 0. Correction and what already exists (added after reading `docs/decisions/platform-and-operations.md`, 2026-10-28)
+
+I wrote part C without first finding that request timing already exists: `worker/src/timing.ts`, switched on by `RECORD_TIMINGS = "1"` in `wrangler.toml`, read through `GET /debug/timings` (admin key), plus model-usage metering. My first instrumentation attempt duplicated it and was discarded, never committed. It records POST, PUT, PATCH and DELETE requests only, per route, with summed model and database time.
+
+The recorded first live readout (decision "Latency findings (first live timings)", 12 requests, one session, small sample) says:
+- **Messages: median 6.95 s.** About 3.5 s in the model (2.1 calls, about 1.7 s each) and **about 3.8 s in the database over about 20 calls, roughly 185 to 190 ms per call**, even for trivial lookups.
+- The database is in Western Europe (D1 has no African location), so **the floor is the number of round trips**; a one-topic message made 13 statements where about 4 would do. Options named, none built: fewer round trips, start the topic model call speculatively beside the splitter, a better wait experience in the app.
+
+**What this changes in what I told you:** the model is about half the wait, not the cause of it. **The database round trips are the other half.** That is a better explanation of "MCP feels faster" than any model difference: an MCP read makes a few database calls and no model call; a typed or spoken message makes about 20 database calls and 2 or more model calls. This is a recorded measurement from earlier in October, not something I re-measured, and the code has changed since.
+
+**Gaps left in the existing timing (what part C should add, nothing else):** MCP traffic is all `POST /mcp`, so reads and `tell_the_office` blend into one route entry; no per-call detail (which prompt, retry, overlap); nothing before the Worker (speech, fragmenting) or after the reply. Reading `/debug/timings` needs the admin key, which I do not have and you should not paste into a chat; run it yourself and share the output, or I can add a read path that needs no key (a proposal, not built).
+
 ## A. Guardrail comparison (read from code on `main`, 2026-10-27; observations from the live session are marked)
 
 | Guardrail | App (`POST /messages/text`) | MCP (`tell_the_office` and friends) | Same? |
@@ -28,7 +40,7 @@ One Kimi call splits topics, then one Kimi call per topic, run one after another
 
 ## C. Test plan (extends the one in the brief)
 
-**Instrumentation** as in the brief: a `request_id`, monotonic per-stage timers inside the Worker, per-model-call records (purpose, duration, retries, tokens, sequential or not, topics), plus for MCP: tool, arrival, query time, serialisation, whether a model ran. Never log tokens, keys or customer detail. **Additions I propose:**
+**Instrumentation** (the brief's list; most of it exists, see section 0, so build only the gaps): a `request_id`, monotonic per-stage timers inside the Worker, per-model-call records (purpose, duration, retries, tokens, sequential or not, topics), plus for MCP: tool, arrival, query time, serialisation, whether a model ran. Never log tokens, keys or customer detail. **Additions I propose:**
 
 1. **Same-text control (most important).** Send the identical clean sentence through the app's text route and through `tell_the_office`. This isolates pipeline cost and accuracy from speech and from Claude's cleaning-up.
 2. **Speech-only measure:** per utterance, the number of turns Flutter sends, the final recognised text against what was said, and name accuracy. (Evidence so far: 3 fragments for one sentence, "Sybil" heard as "civil".)
