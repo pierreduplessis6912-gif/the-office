@@ -41,22 +41,31 @@ jobs:
               try:
                   with urllib.request.urlopen(req, timeout=60) as r: return r.status, r.read().decode()
               except urllib.error.HTTPError as e: return e.code, e.read().decode()[:200]
+          errors = []
+          def why(tx):
+              # Cloudflare's own error codes and messages only (they never echo the request body, so never the secret)
+              try: return [{"code": e.get("code"), "message": str(e.get("message"))[:160]} for e in json.loads(tx).get("errors", [])]
+              except Exception: return [{"raw": str(tx)[:160]}]
           def put(name, text):
-              s, _ = call("PUT", base, {"name": name, "text": text, "type": "secret_text"}); print("set", name, "status", s)
-              if s != 200: sys.exit(1)
+              s, tx = call("PUT", base, {"name": name, "text": text, "type": "secret_text"}); print("set", name, "status", s)
+              if s != 200: errors.append({"step": "set " + name, "status": s, "cloudflare": why(tx)})
           def delete(name):
-              s, _ = call("DELETE", base + "/" + name); print("remove", name, "status", s)
-              if s not in (200, 404): sys.exit(1)
+              s, tx = call("DELETE", base + "/" + name); print("remove", name, "status", s)
+              if s not in (200, 404): errors.append({"step": "remove " + name, "status": s, "cloudflare": why(tx)})
           if act == "enable":
-              if not os.environ.get("MOONSHOT_API_KEY"): print("no key in the repo secret MOONSHOT_API__KEY"); sys.exit(1)
-              put("MOONSHOT_API_KEY", os.environ["MOONSHOT_API_KEY"]); put("CONVERSE_MODE", "moonshot")
+              if not os.environ.get("MOONSHOT_API_KEY"): errors.append({"step": "enable", "status": 0, "cloudflare": [{"message": "the repo secret MOONSHOT_API__KEY is empty or missing"}]})
+              else:
+                  put("MOONSHOT_API_KEY", os.environ["MOONSHOT_API_KEY"])
+                  if not errors: put("CONVERSE_MODE", "moonshot")
           elif act == "disable": delete("CONVERSE_MODE")
           elif act == "remove": delete("CONVERSE_MODE"); delete("MOONSHOT_API_KEY")
           s, tx = call("GET", base); names = sorted(x.get("name") for x in json.loads(tx).get("result", [])) if s == 200 else []
-          state = {"when": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "worker": "office-api", "action": act, "MOONSHOT_API_KEY": "MOONSHOT_API_KEY" in names, "CONVERSE_MODE": "CONVERSE_MODE" in names, "front_door_on": "MOONSHOT_API_KEY" in names and "CONVERSE_MODE" in names}
+          state = {"when": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "worker": "office-api", "action": act, "MOONSHOT_API_KEY": "MOONSHOT_API_KEY" in names, "CONVERSE_MODE": "CONVERSE_MODE" in names, "front_door_on": "MOONSHOT_API_KEY" in names and "CONVERSE_MODE" in names, "errors": errors}
           print(json.dumps(state)); open("prod-moonshot-last.json", "w").write(json.dumps(state, indent=1) + "\n")
+          if errors: sys.exit(1)
           PY
       - name: Record the state (names and true or false only; never a value)
+        if: always()
         run: |
           mkdir -p ops
           cp prod-moonshot-last.json ops/prod-moonshot-last.json
