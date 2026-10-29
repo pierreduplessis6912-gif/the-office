@@ -1,0 +1,41 @@
+name: Staging Moonshot key (set or remove)
+
+# Puts the repo secret MOONSHOT_API__KEY into the STAGING Worker (office-staging-api) as a Worker secret named MOONSHOT_API_KEY, or removes it. Never production, never printed. The key must be set BEFORE the staging deploy so the
+# Worker's business objects start with it. Started by hand only.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "set or remove"
+        required: true
+        default: "set"
+
+permissions:
+  contents: read
+
+jobs:
+  key:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API__KEY }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      ACTION: ${{ inputs.action }}
+    steps:
+      - name: Set or remove the staging Worker secret
+        run: |
+          python3 - <<'PY'
+          import json, os, sys, urllib.request, urllib.error
+          act = os.environ["ACTION"]; acct = os.environ["CLOUDFLARE_ACCOUNT_ID"]; tok = os.environ["CLOUDFLARE_API_TOKEN"]
+          base = f"https://api.cloudflare.com/client/v4/accounts/{acct}/workers/scripts/office-staging-api/secrets"
+          if act == "set":
+              key = os.environ.get("MOONSHOT_API_KEY", "")
+              if not key: print("no key in the repo secret"); sys.exit(1)
+              req = urllib.request.Request(base, data=json.dumps({"name": "MOONSHOT_API_KEY", "text": key, "type": "secret_text"}).encode(), method="PUT", headers={"Authorization": "Bearer " + tok, "Content-Type": "application/json"})
+          else:
+              req = urllib.request.Request(base + "/MOONSHOT_API_KEY", method="DELETE", headers={"Authorization": "Bearer " + tok})
+          try:
+              with urllib.request.urlopen(req, timeout=60) as r: print(act, "status", r.status)
+          except urllib.error.HTTPError as e: print(act, "status", e.code); sys.exit(1)
+          PY
