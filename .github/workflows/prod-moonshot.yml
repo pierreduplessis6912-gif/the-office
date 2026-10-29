@@ -48,7 +48,7 @@ jobs:
               except Exception: return [{"raw": str(tx)[:160]}]
           def put(name, text):
               s, tx = call("PUT", base, {"name": name, "text": text, "type": "secret_text"}); print("set", name, "status", s)
-              if s != 200: errors.append({"step": "set " + name, "status": s, "cloudflare": why(tx)})
+              if s not in (200, 201): errors.append({"step": "set " + name, "status": s, "cloudflare": why(tx)})
           def delete(name):
               s, tx = call("DELETE", base + "/" + name); print("remove", name, "status", s)
               if s not in (200, 404): errors.append({"step": "remove " + name, "status": s, "cloudflare": why(tx)})
