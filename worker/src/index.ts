@@ -3410,9 +3410,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           return Response.json({ status: "discarded", id, message: shown ? `Okay, nothing was recorded. I didn't act on "${shown}". Say it again with the name you meant.` : "Okay, nothing was recorded. Say it again with the name you meant." });
         }
         const { capabilities: fixCapabilities, email: fixEmail } = await resolveCapabilities(request, env);
-        // A corrected name that is exactly an existing customer's is that customer, by id; anything else goes through the normal resolution, near-match question included.
-        const named = await env.OFFICE_DB.prepare("SELECT id FROM customers WHERE name = ? COLLATE NOCASE AND merged_into_customer_id IS NULL ORDER BY id LIMIT 1").bind(name).first<{ id: number }>();
-        const outcome = await processOneExtraction(env, payload.transcript, { ...payload.extraction, customer_name: name }, [], ctx, payload.captureId, fixCapabilities, fixEmail, named ? named.id : null);
+        // A corrected name goes through the normal resolution: an exact name wins (reconcileCustomer), a near match asks again, nothing matching is new.
+        const outcome = await processOneExtraction(env, payload.transcript, { ...payload.extraction, customer_name: name }, [], ctx, payload.captureId, fixCapabilities, fixEmail);
         return Response.json({ status: "corrected", correctedTo: name, ...outcome });
       } catch (err) {
         const detail = err instanceof Error ? err.message : String(err);

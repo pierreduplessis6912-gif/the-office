@@ -4544,14 +4544,14 @@
     "status": "confirmed",
     "linkedToPersonId": 7,
     "customer": {
-     "id": 4,
-     "name": "Sipho Dube",
+     "id": 6,
+     "name": "Sipho Dub",
      "matched": true
     },
     "character": null,
     "pendingActionId": null,
     "factPendingActionId": null,
-    "message": "Found existing customer: Sipho Dube.",
+    "message": "Found existing customer: Sipho Dub.",
     "jobScopeIdForProjectResolution": null,
     "pendingCandidates": null,
     "pendingActionType": null,
@@ -4579,10 +4579,10 @@
        "id": 1,
        "raw_text": "Sipho Dub called",
        "source": "text",
-       "subject_hint": "Sipho Dube",
+       "subject_hint": "Sipho Dub",
        "extraction_status": "processed",
        "r2_key": null,
-       "customer_id": 4,
+       "customer_id": 6,
        "character_id": null
       }
      }
@@ -4608,8 +4608,8 @@
      {
       "member": "owner@example.com",
       "key": "customer",
-      "entity_id": 4,
-      "label": "Sipho Dube"
+      "entity_id": 6,
+      "label": "Sipho Dub"
      }
     ]
    },
@@ -4637,7 +4637,7 @@
     "added": [
      {
       "id": 1,
-      "customer_id": 4,
+      "customer_id": 6,
       "text": "Sipho Dub called"
      }
     ]
@@ -4646,7 +4646,7 @@
   "effects": [
    {
     "kv": "put",
-    "key": "customer:4",
+    "key": "customer:6",
     "value": "{\"facts\":[{\"text\":\"Sipho Dub called\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
    }
   ]
@@ -4809,14 +4809,14 @@
     "status": "confirmed",
     "linkedToPersonId": 7,
     "customer": {
-     "id": 4,
-     "name": "Sipho Dube",
+     "id": 6,
+     "name": "Sipho Dub",
      "matched": true
     },
     "character": null,
     "pendingActionId": null,
     "factPendingActionId": null,
-    "message": "Found existing customer: Sipho Dube.",
+    "message": "Found existing customer: Sipho Dub.",
     "jobScopeIdForProjectResolution": null,
     "pendingCandidates": null,
     "pendingActionType": null,
@@ -4844,10 +4844,10 @@
        "id": 1,
        "raw_text": "Sipho Dub called",
        "source": "text",
-       "subject_hint": "Sipho Dube",
+       "subject_hint": "Sipho Dub",
        "extraction_status": "processed",
        "r2_key": null,
-       "customer_id": 4,
+       "customer_id": 6,
        "character_id": null
       }
      }
@@ -4873,8 +4873,8 @@
      {
       "member": "owner@example.com",
       "key": "customer",
-      "entity_id": 4,
-      "label": "Sipho Dube"
+      "entity_id": 6,
+      "label": "Sipho Dub"
      }
     ]
    },
@@ -4902,7 +4902,7 @@
     "added": [
      {
       "id": 1,
-      "customer_id": 4,
+      "customer_id": 6,
       "text": "Sipho Dub called"
      }
     ]
@@ -4911,7 +4911,7 @@
   "effects": [
    {
     "kv": "put",
-    "key": "customer:4",
+    "key": "customer:6",
     "value": "{\"facts\":[{\"text\":\"Sipho Dub called\",\"storedAt\":\"2026-10-03T12:00:00.000Z\"}]}"
    }
   ]

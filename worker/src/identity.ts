@@ -368,6 +368,11 @@ export async function reconcileCustomer(env: Env, spokenName: string): Promise<{
     return null;
   }
 
+  // A customer that already has EXACTLY this name (any case) wins, before any looser reading (Pierre, 2026-10-29: the most logical rule, and the one the customer name guard needs). Without it the first row whose name merely contains the
+  // spoken first and last words was taken even when the exact name existed: "Jan Willem Botha" became "Jan Pieter Botha", "Jenny" became "Jenny Hawke", and a customer made as "a new customer" could not be reached by its own name.
+  const exact = await env.OFFICE_DB.prepare("SELECT id, name FROM customers WHERE name = ? COLLATE NOCASE AND merged_into_customer_id IS NULL ORDER BY id LIMIT 1").bind(spokenName.trim()).first<{ id: number; name: string }>();
+  if (exact) return { id: exact.id, name: exact.name, matched: true };
+
   // Real, new shortcut, per direct instruction to continue wiring the
   // identity layer into live reconciliation. Checked first: if the
   // canonical people layer already has a confident match, genuinely

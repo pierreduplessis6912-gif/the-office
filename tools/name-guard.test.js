@@ -72,7 +72,7 @@ module.exports = async function runNameGuardTests({ check, srcDir }) {
 
   { const two = ['Jan Pieter Botha', 'Jan Willem Botha'];
     const r = await say(SAID, [SPLIT, PAY('Jan Hendrik Botha')], two, { before: [post('/messages/text', { text: SAID })], method: 'POST', path: '/actions/1/correct', body: { name: 'jan willem botha' } });
-    check(r.result.body.status === 'corrected' && /Payment noted for Jan Willem Botha of R500/.test(r.result.body.message) && !r.writes.customers, 'a correction that is exactly the SECOND of two similar customers goes to THAT one (carried by id, never re-matched by first and last word)'); }
+    check(r.result.body.status === 'corrected' && /Payment noted for Jan Willem Botha of R500/.test(r.result.body.message) && !r.writes.customers, 'a correction that is exactly the SECOND of two similar customers goes to THAT one (an exact name wins over the first similar row)'); }
 
   // ---- the Office's OLDER near-match question (the canonical people check) offers the same three ways out ---------------------------------------------------------------------------------------
   // The real-model smoke on staging (2026-10-29) found it: after one near match was made a NEW customer (a person record exists), the next similar name is caught by the people check, whose question had two options and refused "correct".
@@ -86,6 +86,18 @@ module.exports = async function runNameGuardTests({ check, srcDir }) {
     const forget = await say(B, [SPLIT, PAYN], ['Jan Pieter Botha'], { before: [...first, post('/messages/text', { text: B })], method: 'POST', path: '/actions/3/correct', body: { discard: true } });
     check(forget.result.status === 200 && /nothing was recorded/i.test(forget.result.body.message), 'and so does "forget it"'); }
 
+  // ---- an exact name always wins (the hole that would make "a new customer" self-defeating) -----------------------------------------------------------------------------------------------------
+  // Found 2026-10-29 while wrapping up: reconcileCustomer took the FIRST row whose name contains the spoken first and last words, even when a customer with exactly the spoken name exists. So a person made as "a new customer"
+  // ("Jan Hendrik Botha") was, on the next mention, silently handed to the similar older one ("Jan Pieter Botha"), and with two similar customers on file the second could never be reached.
+  { const PAYN = { match: /Extract structured facts from a tradesperson's message/, reply: (input) => ({ ...harness.EXTRACTION_DEFAULTS, intent: 'payment', amount: 500, customer_name: userOf(input).replace(/ paid.*$/, '') }) };
+    const A = 'Jan Hendrik Botha paid R500';
+    const again = await say(A, [SPLIT, PAYN], ['Jan Pieter Botha'], { before: [post('/messages/text', { text: A }), post('/actions/1/reject', {})] });
+    check(again.threw === null && /Payment noted for Jan Hendrik Botha of R500/.test(again.result.body.message), 'a customer made as "a new customer" is found by its exact name on the NEXT mention, not mistaken for the similar one: ' + String(again.threw || again.result.body.message).slice(0, 110));
+    const two = await say('Jan Willem Botha paid R500', [SPLIT, PAYN], ['Jan Pieter Botha', 'Jan Willem Botha']);
+    check(two.threw === null && !asked(two) && /Payment noted for Jan Willem Botha of R500/.test(two.result.body.message), 'with two similar customers on file, each is reachable by its exact name: ' + String(two.threw || two.result.body.message).slice(0, 110));
+    const jenny = await say('Jenny paid R500', [SPLIT, PAYN], ['Jenny Hawke', 'Jennys', 'Jenny']);
+    check(/Payment noted for Jenny of R500/.test(jenny.result.body.message), '"Jenny" is Jenny, not the "Jenny Hawke" that happens to come first'); }
+
   // ---- several candidates -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   { const two = ['Jan Pieter Botha', 'Jan Willem Botha'], first = [post('/messages/text', { text: SAID })];
     const none = await say(SAID, [SPLIT, PAY('Jan Hendrik Botha')], two, { before: first, method: 'POST', path: '/actions/1/confirm', body: {} });
@@ -94,6 +106,11 @@ module.exports = async function runNameGuardTests({ check, srcDir }) {
     check(pick.result.status === 200 && /Payment noted for Jan Willem Botha of R500/.test(pick.result.body.message), 'and the chosen one is used');
     const wrong = await say(SAID, [SPLIT, PAY('Jan Hendrik Botha')], two, { before: first, method: 'POST', path: '/actions/1/confirm', body: { personId: 99 } });
     check(wrong.result.status === 400, 'a choice that is not one of the candidates is refused'); }
+
+  // ---- "the same one" carries the chosen customer by id (two customers can have exactly the same name) -----------------------------------------------------------------------------------------------
+  { const dup = ['Jan Pieter Botha', 'Jan Pieter Botha'], first = [post('/messages/text', { text: SAID })];
+    const pick = await say(SAID, [SPLIT, PAY('Jan Hendrik Botha')], dup, { before: first, method: 'POST', path: '/actions/1/confirm', body: { personId: 2 } });
+    check(pick.result.status === 200 && pick.result.body.customer && pick.result.body.customer.id === 2 && pick.result.body.usedCustomerId === 2, 'when two customers have exactly the same name, "the same one" uses the one that was CHOSEN, by id (customer ' + (pick.result.body.customer && pick.result.body.customer.id) + ')'); }
 
   // ---- the source -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   const read = (f) => fs.readFileSync(path.join(srcDir, f), 'utf8');
