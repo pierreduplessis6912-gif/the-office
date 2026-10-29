@@ -1,0 +1,12 @@
+{
+ "when": "2026-10-29T08:46:58Z",
+ "worker": "office-staging-api",
+ "moonshot_api_key_configured": false,
+ "secret_names": [
+  "ADMIN_CONFIRM_KEY",
+  "ADMIN_KEY",
+  "GOOGLE_CLIENT_ID",
+  "GOOGLE_CLIENT_SECRET",
+  "SESSION_SECRET"
+ ]
+}
