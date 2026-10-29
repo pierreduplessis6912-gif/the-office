@@ -343,6 +343,23 @@ export function withArticle(label: string): string {
   return `${/^[aeiou]/i.test(label.trim()) ? "an" : "a"} ${label.trim()}`;
 }
 
+/**
+ * The existing customers that reconcileCustomer's shortcut would take SILENTLY for this spoken name (read only): for two or more words, any whose name CONTAINS the spoken first and last words (a middle name is ignored: "Jan Hendrik Botha"
+ * finds "Jan Pieter Botha"); for one word, any that has it as a whole word. Found by the Office read baseline (2026-10-29). Empty when the text is not a name, or when a customer already has this exact name (any case, any spacing).
+ * The caller ASKS about what this returns instead of matching it (the near-match question, with a third way out: neither, correct it). At most three.
+ */
+export async function findLooseCustomerMatches(env: Env, spokenName: string): Promise<Array<{ id: number; name: string }>> {
+  if (!looksLikeAName(spokenName)) return [];
+  const words = spokenName.trim().split(/\s+/);
+  const rows =
+    words.length >= 2
+      ? (await env.OFFICE_DB.prepare("SELECT id, name FROM customers WHERE name LIKE ? AND name LIKE ? AND merged_into_customer_id IS NULL ORDER BY id LIMIT 5").bind(`%${words[0]}%`, `%${words[words.length - 1]}%`).all<{ id: number; name: string }>()).results
+      : (await env.OFFICE_DB.prepare(`SELECT id, name FROM customers WHERE ${wholeWordClause("name")} AND merged_into_customer_id IS NULL ORDER BY id LIMIT 5`).bind(...wholeWordBindings(words[0])).all<{ id: number; name: string }>()).results;
+  const plain = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+  if ((rows ?? []).some((r) => plain(r.name) === plain(spokenName))) return [];
+  return (rows ?? []).slice(0, 3);
+}
+
 export async function reconcileCustomer(env: Env, spokenName: string): Promise<{ id: number; name: string; matched: boolean } | null> {
   // One transaction (atomic.ts): all of it happens or none of it does. This call outside a transaction calls itself again inside one.
   if (!env.__atomic) return atomically(env, (tx) => reconcileCustomer.apply(undefined, [tx, ...Array.prototype.slice.call(arguments, 1)] as unknown as Parameters<typeof reconcileCustomer>));

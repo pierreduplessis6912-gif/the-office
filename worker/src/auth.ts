@@ -824,7 +824,7 @@ export const ROUTE_RULES: Array<{ method: string; path: RegExp; anyOf: string[] 
   { method: "POST", path: /^\/files\/(customers|invoices)-csv-import$/, anyOf: ["can_manage_settings"] },
 ];
 
-const ACTION_ROUTE = /^\/actions\/(\d+)\/(confirm|reject|edit-field)$/;
+const ACTION_ROUTE = /^\/actions\/(\d+)\/(confirm|reject|correct|edit-field)$/;
 
 // Real, new, per direct instruction: the allowlist for /documents/sign.
 // Every real PDF route in this project, matched to whichever

@@ -183,7 +183,8 @@ async function processOneExtraction(
   ctx: ExecutionContext,
   captureId: number | null,
   capabilities: string[],
-  recordingUserEmail: string | null = null
+  recordingUserEmail: string | null = null,
+  chosenCustomerId: number | null = null
 ): Promise<{
   customer: { id: number; name: string; matched: boolean } | null;
   character: { id: number; name: string; matched: boolean } | null;
@@ -213,7 +214,7 @@ async function processOneExtraction(
 }> {
   // Rewrite Phase 3, step 9: the opening step (who the sentence is about, and what may be done about them) lives in intents/opening.ts. It either
   // finishes the whole result (a refusal, an identity question, forget-last) or hands back the five values and the extraction the rest needs.
-  const opening = await handleOpeningStep(env, ctx, { extraction, transcript, history, captureId, capabilities, recordingUserEmail });
+  const opening = await handleOpeningStep(env, ctx, { extraction, transcript, history, captureId, capabilities, recordingUserEmail, chosenCustomerId });
   if (!("opening" in opening)) return opening;
   extraction = opening.extraction;
   let { customer, character, pendingActionId, pendingActionType, canManageInvoicesForWrites } = opening;
@@ -2496,6 +2497,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             name: string;
             intendedRole: "customer" | "character";
             candidates: Array<{ id: number; name: string }>;
+            candidateKind?: "customer";
             extraction: Extraction;
             transcript: string;
             captureId: number | null;
@@ -2516,6 +2518,21 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           if (replayRefused) return replayRefused;
 
           const body = (await request.json().catch(() => ({}))) as { personId?: number };
+
+          // The customer name guard (opening.ts): the candidates are CUSTOMERS, and "the same one" means use that customer. The original message is processed again with the existing customer's own name, which now matches exactly.
+          if (payload.candidateKind === "customer") {
+            const picked = body.personId != null ? payload.candidates.find((c) => c.id === body.personId) : payload.candidates.length === 1 ? payload.candidates[0] : undefined;
+            if (!picked) {
+              await releaseClaim(env, id);
+              return Response.json({ error: "Say which one it is: pass personId (the id of one of the candidates) in the request body.", candidates: payload.candidates }, { status: 400 });
+            }
+            await atomically(env, async (env) => {
+              await env.OFFICE_DB.prepare("UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?").bind(id).run();
+            });
+            const { capabilities: sameCapabilities, email: sameEmail } = await resolveCapabilities(request, env);
+            const sameOutcome = await processOneExtraction(env, payload.transcript, { ...payload.extraction, customer_name: picked.name }, [], ctx, payload.captureId, sameCapabilities, sameEmail, picked.id);
+            return Response.json({ status: "confirmed", usedCustomerId: picked.id, ...sameOutcome });
+          }
 
           let chosenPersonId: number;
           if (body.personId != null && payload.candidates.some((c) => c.id === body.personId)) {
@@ -3362,6 +3379,45 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           // Nothing further to do if even the revert fails.
         }
         return Response.json({ error: "reject handler threw", detail }, { status: 500 });
+      }
+    }
+
+    // The third way out of the customer name question (Pierre, 2026-10-29): "neither, here is the right name" (the original message is processed again with it: an exact match goes on, a near match asks again, nothing matching is a new
+    // customer) or "forget it" (nothing is recorded). Authorized exactly like confirm and reject (auth.ts ACTION_ROUTE). Only for a customer name question; a name that is not usable is refused and the question stays open.
+    if (url.pathname.match(/^\/actions\/\d+\/correct$/) && request.method === "POST") {
+      const id = Number(url.pathname.split("/")[2]);
+      try {
+        const action = await env.OFFICE_DB.prepare("SELECT id, type, payload, status FROM pending_actions WHERE id = ?").bind(id).first<{ id: number; type: string; payload: string; status: string }>();
+        if (!action) return Response.json({ error: "no such pending action" }, { status: 404 });
+        if (action.status !== "pending") return Response.json({ error: `action already ${action.status}` }, { status: 409 });
+        const payload = (() => { try { return JSON.parse(action.payload) as { candidateKind?: string; extraction: Extraction; transcript: string; captureId: number | null }; } catch { return null; } })();
+        if (action.type !== "ambiguous_person" || !payload || payload.candidateKind !== "customer") return Response.json({ error: "only a customer name question can be corrected" }, { status: 400 });
+        const body = (await request.json().catch(() => ({}))) as { name?: unknown; discard?: unknown };
+        const discard = body.discard === true;
+        const name = typeof body.name === "string" ? body.name.trim().replace(/\s+/g, " ") : null;
+        if (!discard && (name === null || name.length < 2 || name.length > 80 || !/^[\p{L}][\p{L}\p{N} .'’&-]*$/u.test(name))) {
+          return Response.json({ error: "Tell me the right name, or ask me to forget it. The question is still open." }, { status: 400 });
+        }
+        const claim = await env.OFFICE_DB.prepare("UPDATE pending_actions SET status = 'processing' WHERE id = ? AND status = 'pending'").bind(id).run();
+        if (claim.meta.changes !== 1) return Response.json({ error: "already being processed" }, { status: 409 });
+        const replayRefused = await refuseReplayIfNotPermitted(request, env, id, payload.extraction);
+        if (replayRefused) return replayRefused;
+        await env.OFFICE_DB.prepare("UPDATE pending_actions SET status = 'rejected', resolved_at = datetime('now') WHERE id = ?").bind(id).run();
+        if (discard || name === null) {
+          const said = String(payload.transcript ?? "").trim();
+          const shown = said.length > 120 ? `${said.slice(0, 117)}...` : said;
+          return Response.json({ status: "discarded", id, message: shown ? `Okay, nothing was recorded. I didn't act on "${shown}". Say it again with the name you meant.` : "Okay, nothing was recorded. Say it again with the name you meant." });
+        }
+        const { capabilities: fixCapabilities, email: fixEmail } = await resolveCapabilities(request, env);
+        // A corrected name that is exactly an existing customer's is that customer, by id; anything else goes through the normal resolution, near-match question included.
+        const named = await env.OFFICE_DB.prepare("SELECT id FROM customers WHERE name = ? COLLATE NOCASE AND merged_into_customer_id IS NULL ORDER BY id LIMIT 1").bind(name).first<{ id: number }>();
+        const outcome = await processOneExtraction(env, payload.transcript, { ...payload.extraction, customer_name: name }, [], ctx, payload.captureId, fixCapabilities, fixEmail, named ? named.id : null);
+        return Response.json({ status: "corrected", correctedTo: name, ...outcome });
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err);
+        log("error", requestId, "correct handler threw", { actionId: id, detail });
+        try { await env.OFFICE_DB.prepare("UPDATE pending_actions SET status = 'pending' WHERE id = ? AND status = 'processing'").bind(id).run(); } catch { /* nothing further to do */ }
+        return Response.json({ error: "correct handler threw", detail }, { status: 500 });
       }
     }
 

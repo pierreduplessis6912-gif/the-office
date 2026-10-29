@@ -26,6 +26,8 @@ export interface ProcessingInput {
   captureId: number | null;
   capabilities: string[];
   recordingUserEmail: string | null;
+  // The customer a person chose when asked about a near-match name (the customer name guard, 2026-10-29); carried by id.
+  chosenCustomerId?: number | null;
 }
 
 // What the shared preamble (customer and character resolution) will compute once and hand to a handler,
@@ -47,7 +49,8 @@ export type LegacyProcessor = (
   ctx: ExecutionContext,
   captureId: number | null,
   capabilities: string[],
-  recordingUserEmail?: string | null
+  recordingUserEmail?: string | null,
+  chosenCustomerId?: number | null
 ) => Promise<LegacyProcessResult>;
 
 export function adaptLegacyProcessor(legacy: LegacyProcessor): (input: ProcessingInput) => Promise<ProcessingResult> {
@@ -61,7 +64,8 @@ export function adaptLegacyProcessor(legacy: LegacyProcessor): (input: Processin
         input.ctx,
         input.captureId,
         input.capabilities,
-        input.recordingUserEmail
+        input.recordingUserEmail,
+        input.chosenCustomerId ?? null
       )
     );
 }

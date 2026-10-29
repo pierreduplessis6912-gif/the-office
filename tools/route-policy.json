@@ -840,6 +840,18 @@
   "class": "any member"
  },
  {
+  "route": "POST /actions/:id/correct",
+  "pattern": "/actions/:id/correct",
+  "how": "id in path",
+  "none": 401,
+  "owner": "A",
+  "accountant": "A",
+  "installer": 403,
+  "sales": 403,
+  "admin": "A",
+  "class": "some roles"
+ },
+ {
   "route": "POST /actions/:id/edit-field [invoice]",
   "pattern": "/actions/:id/edit-field",
   "how": "id in path",
