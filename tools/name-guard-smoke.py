@@ -2,7 +2,7 @@
 # NAME GUARD SMOKE (IDENTITY_ARCHITECTURE.md, "A near-match customer name is asked, not matched"): the real model's extraction and every outcome of the near-match customer question, against STAGING with synthetic names.
 # Picks names whose words appear in NO existing customer (read from the Office's own /customers), creates one customer, then says a near-match name and answers the question every way: forget it, the same one, a new customer, neither with an
 # existing name, neither with a brand new name; also an exact repeat, a lookup and a measurement (a record that is not held). Every payment it holds is rejected afterwards. Staging credentials only, never production.
-import base64, hashlib, hmac, json, os, re, sys, time, urllib.request, urllib.error
+import base64, hashlib, hmac, json, os, re, sys, time, urllib.parse, urllib.request, urllib.error
 BASE = os.environ.get("BASE", "https://office-staging.websitehub.co.za").rstrip("/"); SEED = os.environ["SEED"]; OUT = os.environ.get("OUT", "name-guard-smoke.json")
 BUSINESS = "staging-co"; OWNER = "staging-owner@example.com"
 def derive(l): return re.sub(r"[=+/\n]", "", base64.b64encode(hmac.new(SEED.encode(), l.encode(), hashlib.sha256).digest()).decode())[:43]
@@ -23,13 +23,16 @@ def call(method, path, body=None):
 FIRST = ["Zanele", "Thabo", "Naledi", "Sipho", "Lindiwe", "Mandla", "Nomsa", "Kagiso", "Palesa", "Tumelo", "Refilwe", "Bheki"]
 MID = ["Pieter", "Hendrik", "Willem", "Johan", "Jacobus", "Andries", "Stephanus", "Gideon", "Marthinus", "Christiaan", "Daniel", "Frederik"]
 LAST = ["Mokoena", "Dlamini", "Nkosi", "Pretorius", "Venter", "Naidoo", "Khumalo", "Mahlangu", "Steyn", "Ndlovu", "Cele", "Zulu"]
-s, cs, _ = call("GET", "/customers"); existing = json.dumps(cs).lower()
 rid = int(os.environ.get("GITHUB_RUN_ID", "0") or 0)
+def used(word):
+    # /customers lists only the first 50 names by default and staging holds thousands, so ask the Office's own search: is this word in ANY customer's name (or address, phone, email)?
+    s, d, _ = call("GET", "/customers?limit=1&search=" + urllib.parse.quote(word))
+    return s != 200 or bool((d.get("customers") or d.get("items") or []) if isinstance(d, dict) else d)
 def pick():
     for n in range(144):
         f, l = FIRST[(rid + n) % 12], LAST[(rid // 3 + n) % 12]
-        if f.lower() not in existing and l.lower() not in existing: return f, l
-    return FIRST[rid % 12], LAST[(rid // 3) % 12]
+        if not used(f) and not used(l): return f, l
+    raise SystemExit("every candidate first or last name is already used on staging: add names to the lists")
 F, L = pick(); M = [MID[(rid + k) % 12] for k in range(6)]
 EXISTING = f"{F} {M[0]} {L}"; NEAR = [f"{F} {M[k]} {L}" for k in range(1, 6)]; BRAND = f"{FIRST[(rid + 5) % 12]} {MID[(rid + 7) % 12]} {LAST[(rid + 9) % 12]}"
 R = {"when": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "target": BASE, "run": os.environ.get("GITHUB_RUN_ID"), "existing": EXISTING, "near": NEAR, "brand_new": BRAND, "steps": []}
