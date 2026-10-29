@@ -1,7 +1,7 @@
 {
- "when": "2026-10-28T12:09:06.675649Z",
- "run": "40684131504",
- "commit": "15a7af7",
+ "when": "2026-10-29T11:29:02.141750Z",
+ "run": "40863944212",
+ "commit": "e8d0bbb",
  "resources": {
   "database_id": "527785b0-2ca7-4d18-a3b0-0a1d6d0d671a",
   "kv_namespace_id": "5cb9a972eeef4e6b95fea4f6ed95e28a",
@@ -115,23 +115,23 @@
   "sharedTrips": 0,
   "sharedMs": null,
   "objectColo": null,
-  "rowsInThisObjectsOwnTable": 2240,
+  "rowsInThisObjectsOwnTable": 2492,
   "object": "staging-a",
   "hint": "weur",
   "callsMs": [
-   718,
-   163,
-   162,
-   161
+   550,
+   110,
+   109,
+   108
   ],
-  "firstCallMs": 718,
-  "warmCallsMedianMs": 162,
-  "workerToObjectAndBackMs": 161
+  "firstCallMs": 550,
+  "warmCallsMedianMs": 109,
+  "workerToObjectAndBackMs": 108
  },
  "trial_d1": {
   "statements": 10,
-  "totalMs": 1843,
-  "perStatementMs": 184.3,
+  "totalMs": 1235,
+  "perStatementMs": 123.5,
   "note": "SELECT 1 against the production database: reads no data"
  },
  "businesses": {
@@ -164,11 +164,11 @@
    "admin_call_naming_no_business": "400"
   },
   "five_list_calls_seconds_from_a_US_runner": [
-   0.262088,
-   0.253327,
-   0.273216,
-   0.258371,
-   0.259773
+   0.203783,
+   0.198644,
+   0.189981,
+   0.217527,
+   0.207104
   ]
  },
  "memory_index_probe": {
@@ -176,18 +176,18 @@
    "first_business": "200",
    "second_business": "200"
   },
-  "seconds_waited_for_cloudflare_to_process_the_writes": 145,
+  "seconds_waited_for_cloudflare_to_process_the_writes": 115,
   "index_info_before_waiting": {
    "dimensions": 768,
    "vectorCount": 229,
-   "processedUpToDatetime": "2026-10-25T23:14:04.131Z",
-   "processedUpToMutation": "189a8c58-ed8e-4fb8-b855-b0792cd27bb6"
+   "processedUpToDatetime": "2026-10-29T06:29:42.892Z",
+   "processedUpToMutation": "dd11b718-77e0-4127-809e-76208db6a9c5"
   },
   "index_info_after_waiting": {
    "dimensions": 768,
    "vectorCount": 229,
-   "processedUpToDatetime": "2026-10-28T12:05:16.149Z",
-   "processedUpToMutation": "85aedda1-6382-457c-afeb-bced1ef95a09"
+   "processedUpToDatetime": "2026-10-29T11:20:45.392Z",
+   "processedUpToMutation": "efebbd00-f957-4922-a8e8-7fd21939e807"
   },
   "search_in_first_business_returns": [
    "FIRST probe",
@@ -230,8 +230,8 @@
   ],
   "raw_first_search_answer": "{\"matches\":[{\"id\":\"staging-co:probe-1\",\"score\":1,\"metadata\":{\"customerId\":\"1\",\"text\":\"FIRST probe\"}},{\"id\":\"probe-1\",\"score\":1,\"metadata\":{\"customerId\":\"1\",\"text\":\"FIRST probe\"}}]}",
   "raw_first_by_id_answer": "{\"vectors\":[{\"id\":\"probe-1\",\"values\":[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,",
-  "raw_first_upsert_answer": "{\"written\":1,\"mutationId\":\"bd232776-61a8-461e-b8ce-0a0ac3e9a0b5\"}",
-  "raw_second_upsert_answer": "{\"written\":1,\"mutationId\":\"85aedda1-6382-457c-afeb-bced1ef95a09\"}",
+  "raw_first_upsert_answer": "{\"written\":1,\"mutationId\":\"6c2a3add-746e-40da-a920-752f849bbcd4\"}",
+  "raw_second_upsert_answer": "{\"written\":1,\"mutationId\":\"efebbd00-f957-4922-a8e8-7fd21939e807\"}",
   "raw_direct_query_staging_two": "{\"result\":{\"count\":2,\"matches\":[{\"id\":\"staging-two:probe-1\",\"score\":1.0,\"namespace\":\"staging-two\",\"metadata\":{\"customerId\":\"1\",\"text\":\"SECOND probe\"}},{\"id\":\"2e7af795~probe-1\",\"score\":1.0,\"namespace\":\"staging-two\",\"metadata\":{\"customerId\":\"1\",\"text\":\"SECOND probe\"}}]},\"result_info\":null,\"success\":true,\"errors\":[],\"messages\":[]}"
  },
  "model_probe": {
@@ -239,12 +239,12 @@
    "padding_chars": 500,
    "affinity_sent": false,
    "calls_ms": [
-    2466,
-    2144,
-    1553
+    5970,
+    8030,
+    3933
    ],
-   "first_ms": 2466,
-   "later_calls_median_ms": 2144,
+   "first_ms": 5970,
+   "later_calls_median_ms": 8030,
    "first_usage": {
     "prompt_tokens": 114,
     "completion_tokens": 2,
@@ -268,12 +268,12 @@
    "padding_chars": 8000,
    "affinity_sent": false,
    "calls_ms": [
-    388,
-    572,
-    317
+    6800,
+    74859,
+    25742
    ],
-   "first_ms": 388,
-   "later_calls_median_ms": 572,
+   "first_ms": 6800,
+   "later_calls_median_ms": 74859,
    "first_usage": {
     "prompt_tokens": 1412,
     "completion_tokens": 2,
@@ -297,12 +297,12 @@
    "padding_chars": 40000,
    "affinity_sent": false,
    "calls_ms": [
-    2101,
-    1415,
-    1635
+    10816,
+    25664,
+    27416
    ],
-   "first_ms": 2101,
-   "later_calls_median_ms": 1635,
+   "first_ms": 10816,
+   "later_calls_median_ms": 27416,
    "first_usage": {
     "prompt_tokens": 6949,
     "completion_tokens": 2,
@@ -326,14 +326,14 @@
    "padding_chars": 40000,
    "affinity_sent": true,
    "calls_ms": [
-    672,
-    350,
-    327,
-    427,
-    327
+    28394,
+    19680,
+    10599,
+    12037,
+    2311
    ],
-   "first_ms": 672,
-   "later_calls_median_ms": 350,
+   "first_ms": 28394,
+   "later_calls_median_ms": 12037,
    "first_usage": {
     "prompt_tokens": 6950,
     "completion_tokens": 2,
@@ -357,14 +357,14 @@
    "padding_chars": 40000,
    "affinity_sent": false,
    "calls_ms": [
-    595,
-    366,
-    358,
-    594,
-    451
+    4138,
+    6689,
+    26933,
+    341,
+    359
    ],
-   "first_ms": 595,
-   "later_calls_median_ms": 451,
+   "first_ms": 4138,
+   "later_calls_median_ms": 6689,
    "first_usage": {
     "prompt_tokens": 6950,
     "completion_tokens": 2,
@@ -386,19 +386,19 @@
   }
  },
  "backup_restore": {
-  "snapshot": "20261028T120341Z",
+  "snapshot": "20261029T111938Z",
   "snapshot_took": {
    "tables": 45,
-   "rows": 41534,
-   "notes": 1,
+   "rows": 45036,
+   "notes": 3,
    "files": 0,
    "filesMirroredNow": 0,
-   "ms": 28231
+   "ms": 28353
   },
   "status_after_the_snapshot": {
    "backupBucketConfigured": true,
    "lastAttemptOk": true,
-   "complete": 14,
+   "complete": 9,
    "newestAgeHours": 0
   },
   "customers_as_listed": {
@@ -407,12 +407,12 @@
    "restored": 50
   },
   "customers_in_the_fingerprints": {
-   "original": 26396,
-   "damaged": 26399,
-   "restored": 26399
+   "original": 26452,
+   "damaged": 26452,
+   "restored": 26452
   },
-  "the_import_answered": "{\"status\": \"ok\", \"totalRows\": 3, \"created\": 3, \"matched\": 0, \"skipped\": 0, \"skippedRows\": [], \"possibleDuplicateCount\": 0, \"possibleDuplicates\": []}",
-  "damage_1_customers_were_added": true,
+  "the_import_answered": "{\"status\": \"ok\", \"totalRows\": 3, \"created\": 0, \"matched\": 3, \"skipped\": 0, \"skippedRows\": [], \"possibleDuplicateCount\": 0, \"possibleDuplicates\": []}",
+  "damage_1_customers_were_added": false,
   "damage_2_the_note_was_overwritten": true,
   "the_damaged_fingerprint_differs_from_the_original": true,
   "the_note_is_back": false,
@@ -424,18 +424,18 @@
    "filesRestoredFromMirror": null,
    "filesMissingEverywhere": null,
    "differences": null,
-   "error": "Durable Object's isolate exceeded its memory limit and was reset."
+   "error": null
   },
-  "customers_are_back_exactly_as_before": false,
+  "customers_are_back_exactly_as_before": true,
   "the_whole_business_fingerprint_equals_the_original": false,
   "no_damage_left": false,
   "linked_import_answered": "{\"status\": \"ok\", \"totalRows\": 2, \"imported\": 0, \"heldForConfirmation\": 0, \"skipped\": 0, \"skippedRows\": [], \"alreadyImported\": 2, \"possibleDuplicateCount\": 0, \"p",
   "payments_before_and_after": {
-   "original": 63,
-   "restored": 63
+   "original": 81,
+   "restored": 81
   },
   "linked_rows_exist_before": true,
-  "the_linked_rows_are_back": false,
+  "the_linked_rows_are_back": true,
   "restore_ok": false,
   "a_safety_snapshot_was_taken": true,
   "the_other_business_is_untouched": true
@@ -665,11 +665,11 @@
    "context": {
     "cx-send": [
      "200",
-     "{\"status\":\"processed\",\"transcript\":\"what is on my list today\",\"extraction\":{\"customer_name\":null,\"character_name\":null,\""
+     "{\"status\":\"processed\",\"transcript\":\"what is on my list today\",\"extraction\":null,\"extractionRaw\":null,\"extractionRawText\""
     ],
     "cx-mine": [
      "200",
-     "{\"version\":1,\"scope\":\"own\",\"items\":[{\"id\":7,\"at\":\"2026-10-28 12:03:17\",\"source\":\"text\",\"viewing\":{\"room\":\"finance\",\"repo"
+     "{\"version\":1,\"scope\":\"own\",\"items\":[{\"id\":7,\"at\":\"2026-10-29 11:19:18\",\"source\":\"text\",\"viewing\":{\"room\":\"finance\",\"repo"
     ],
     "cx-check": [
      "200",
@@ -687,19 +687,19 @@
    "history": {
     "hs-send": [
      "200",
-     "{\"status\":\"processed\",\"transcript\":\"what is on my list today\",\"extraction\":{\"customer_name\":null,\"character_na"
+     "{\"status\":\"processed\",\"transcript\":\"what is on my list today\",\"extraction\":null,\"extractionRaw\":null,\"extracti"
     ],
     "hs-mine": [
      "200",
-     "{\"version\":1,\"scope\":\"own\",\"items\":[{\"id\":6,\"at\":\"2026-10-28 12:03:11\",\"source\":\"text\",\"viewing\":null,\"recorde"
+     "{\"version\":1,\"scope\":\"own\",\"items\":[{\"id\":6,\"at\":\"2026-10-29 11:19:16\",\"source\":\"text\",\"viewing\":null,\"recorde"
     ],
     "hs-all": [
      "200",
-     "{\"version\":1,\"scope\":\"all\",\"items\":[{\"id\":6,\"at\":\"2026-10-28 12:03:11\",\"source\":\"text\",\"viewing\":null,\"recorde"
+     "{\"version\":1,\"scope\":\"all\",\"items\":[{\"id\":6,\"at\":\"2026-10-29 11:19:16\",\"source\":\"text\",\"viewing\":null,\"recorde"
     ],
     "hs-sales": [
      "200",
-     "{\"version\":1,\"scope\":\"own\",\"items\":[{\"id\":5,\"at\":\"2026-10-28 12:02:56\",\"source\":\"text\",\"viewing\":{\"room\":\"anal"
+     "{\"version\":1,\"scope\":\"own\",\"items\":[{\"id\":5,\"at\":\"2026-10-29 11:19:05\",\"source\":\"text\",\"viewing\":{\"room\":\"anal"
     ],
     "hs-sales-all": [
      "403",
@@ -763,11 +763,11 @@
     ],
     "rp-deb": [
      "200",
-     "{\"report\":\"aged_debtors\",\"version\":1,\"certainty\":\"calculated\",\"currency\":\"ZAR\",\"asAt\":\"2026-10-28\",\"basis\":{\"a"
+     "{\"report\":\"aged_debtors\",\"version\":1,\"certainty\":\"calculated\",\"currency\":\"ZAR\",\"asAt\":\"2026-10-29\",\"basis\":{\"a"
     ],
     "rp-cre": [
      "200",
-     "{\"report\":\"aged_creditors\",\"version\":1,\"certainty\":\"calculated\",\"currency\":\"ZAR\",\"asAt\":\"2026-10-28\",\"basis\":{"
+     "{\"report\":\"aged_creditors\",\"version\":1,\"certainty\":\"calculated\",\"currency\":\"ZAR\",\"asAt\":\"2026-10-29\",\"basis\":{"
     ]
    },
    "card_update": {
@@ -840,11 +840,11 @@
      "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name="
     ]
    },
-   "plans_start": "303 https://office-staging.websitehub.co.za/billing/pay?order=fcfda6c7-18d7-4b2a-b15b-9673cbd24eb1",
+   "plans_start": "303 https://office-staging.websitehub.co.za/billing/pay?order=0bb13ae9-7230-4f9f-9af9-5872ac55d47b",
    "access": {
     "ac-set-cancelled": [
      "200",
-     "{\"business\":{\"id\":\"signup-floors-r40684131504-b33d39\",\"name\":\"Signup Floors r40684131504\","
+     "{\"business\":{\"id\":\"signup-floors-r40863944212-b68aa6\",\"name\":\"Signup Floors r40863944212\","
     ],
     "ac-owner-lapsed": [
      "401",
@@ -860,15 +860,15 @@
     ],
     "ac-set-grace": [
      "200",
-     "{\"business\":{\"id\":\"signup-floors-r40684131504-b33d39\",\"name\":\"Signup Floors r40684131504\","
+     "{\"business\":{\"id\":\"signup-floors-r40863944212-b68aa6\",\"name\":\"Signup Floors r40863944212\","
     ],
     "ac-owner-grace": [
      "200",
-     "{\"members\":[{\"id\":1,\"email\":\"signup-owner-r40684131504@example.com\",\"role\":\"owner\",\"status"
+     "{\"members\":[{\"id\":1,\"email\":\"signup-owner-r40863944212@example.com\",\"role\":\"owner\",\"status"
     ],
     "ac-set-pastdue": [
      "200",
-     "{\"business\":{\"id\":\"signup-floors-r40684131504-b33d39\",\"name\":\"Signup Floors r40684131504\","
+     "{\"business\":{\"id\":\"signup-floors-r40863944212-b68aa6\",\"name\":\"Signup Floors r40863944212\","
     ],
     "ac-owner-pastdue": [
      "401",
@@ -884,11 +884,11 @@
     ],
     "ac-set-active": [
      "200",
-     "{\"business\":{\"id\":\"signup-floors-r40684131504-b33d39\",\"name\":\"Signup Floors r40684131504\","
+     "{\"business\":{\"id\":\"signup-floors-r40863944212-b68aa6\",\"name\":\"Signup Floors r40863944212\","
     ],
     "ac-owner-back": [
      "200",
-     "{\"members\":[{\"id\":1,\"email\":\"signup-owner-r40684131504@example.com\",\"role\":\"owner\",\"status"
+     "{\"members\":[{\"id\":1,\"email\":\"signup-owner-r40863944212@example.com\",\"role\":\"owner\",\"status"
     ],
     "ac-sales-back": [
      "403",
@@ -896,11 +896,11 @@
     ],
     "ac-sales-me": [
      "200",
-     "{\"signedIn\":true,\"email\":\"sales-member-r40684131504@example.com\",\"role\":\"sales\"}"
+     "{\"signedIn\":true,\"email\":\"sales-member-r40863944212@example.com\",\"role\":\"sales\"}"
     ],
     "ac-me-back": [
      "200",
-     "{\"signedIn\":true,\"email\":\"signup-owner-r40684131504@example.com\",\"role\":\"owner\"}"
+     "{\"signedIn\":true,\"email\":\"signup-owner-r40863944212@example.com\",\"role\":\"owner\"}"
     ]
    },
    "billing": {
@@ -965,27 +965,27 @@
  "health_report": {
   "business": "staging-co",
   "model_today": {
-   "day": "2026-10-28",
-   "requests": 1,
-   "modelCalls": 3,
+   "day": "2026-10-29",
+   "requests": 677,
+   "modelCalls": 2293,
    "failures": 0,
-   "promptTokens": 11724,
-   "completionTokens": 149,
-   "cachedTokens": 11584,
-   "neurons": 234.8,
-   "estimatedUsd": 0.0026
+   "promptTokens": 7944156,
+   "completionTokens": 69530,
+   "cachedTokens": 7751872,
+   "neurons": 154644.5,
+   "estimatedUsd": 1.7011
   },
-  "estimated_usd_today": 0.0026,
+  "estimated_usd_today": 1.7011,
   "usage_was_recorded": true,
-  "cached_tokens_seen": 11584,
+  "cached_tokens_seen": 7751872,
   "the_other_business_was_not_charged": true,
   "hourly_job": {
-   "lastRunAt": "2026-10-28T11:45:31.780Z",
-   "minutesSinceLastRun": 23,
+   "lastRunAt": "2026-10-29T10:46:03.231Z",
+   "minutesSinceLastRun": 42,
    "lastOk": true,
    "lastError": null,
    "lastMs": null,
-   "nextAlarmAt": "2026-10-28T12:45:58.577Z"
+   "nextAlarmAt": "2026-10-29T11:46:03.231Z"
   },
   "next_alarm_is_recorded": true,
   "memory_queue": {
@@ -993,7 +993,7 @@
    "oldestPendingMinutes": null
   },
   "backup": {
-   "lastSuccessAt": "2026-10-28T12:04:10.022Z",
+   "lastSuccessAt": "2026-10-29T11:20:06.724Z",
    "lastAttemptOk": true,
    "lastError": null,
    "newestAgeHours": 0.1,
@@ -1012,8 +1012,8 @@
    "capped": true,
    "reason": "messages",
    "limit": 1,
-   "used": 1,
-   "resetsInSeconds": 42681
+   "used": 1091,
+   "resetsInSeconds": 45096
   },
   "enforce_blocked_with_429": true,
   "retry_after_header_present": true,
@@ -1031,42 +1031,42 @@
     "mode": "warn"
    },
    "activeMembers": 1,
-   "messages": 2,
-   "topMemberMessages": 2,
+   "messages": 1092,
+   "topMemberMessages": 1092,
    "membersAtOrOverLimit": 1
   },
   "plan_restored": true
  },
  "schema_migration": {
-  "step_added_to_the_build_only": "1085_staging_probe",
-  "column": "probe_85",
+  "step_added_to_the_build_only": "1094_staging_probe",
+  "column": "probe_94",
   "businesses": {
    "staging-co": {
     "migrated_by_this_deploy": true,
     "last_migration_applied": [
-     "1085_staging_probe"
+     "1094_staging_probe"
     ],
     "nothing_pending": true,
     "no_error": true,
-    "steps_applied": 68,
-    "steps_this_code_knows": 1085,
-    "steps_from_earlier_runs_this_code_does_not_know": 64,
+    "steps_applied": 77,
+    "steps_this_code_knows": 1094,
+    "steps_from_earlier_runs_this_code_does_not_know": 73,
     "column_is_there": true,
     "column_was_not_there_before": true,
-    "customers_before": 26391,
-    "customers_after": 26391,
+    "customers_before": 26447,
+    "customers_after": 26447,
     "data_kept": true
    },
    "staging-two": {
     "migrated_by_this_deploy": true,
     "last_migration_applied": [
-     "1085_staging_probe"
+     "1094_staging_probe"
     ],
     "nothing_pending": true,
     "no_error": true,
-    "steps_applied": 68,
-    "steps_this_code_knows": 1085,
-    "steps_from_earlier_runs_this_code_does_not_know": 64,
+    "steps_applied": 77,
+    "steps_this_code_knows": 1094,
+    "steps_from_earlier_runs_this_code_does_not_know": 73,
     "column_is_there": true,
     "column_was_not_there_before": true,
     "customers_before": 101,
@@ -1103,12 +1103,12 @@
    },
    "6_a_child_can_use_the_parent_id_from_RETURNING_inside_transactionSync": {
     "ran": true,
-    "parentId": 623,
+    "parentId": 713,
     "childrenFound": 2
    },
    "7_last_insert_rowid_moves_after_every_insert_so_it_cannot_serve_several_children": {
     "ran": true,
-    "parentId": 626,
+    "parentId": 716,
     "firstChildPointsAtTheParent": true,
     "secondChildPointsAtTheParent": false
    },
@@ -1126,144 +1126,144 @@
  },
  "real_sentence": {
   "sentence": "Invoice Staging Customer One R1500 for repairing the bathroom floor",
-  "message_status_and_seconds_from_a_US_runner": "200 7.843347",
-  "reply": "Invoice noted for Staging Customer One of R1500 \u2014 needs your confirmation (action #148) before it's recorded. Job scope #75 also recorded \u2014 1 component measured, 1 task noted.",
+  "message_status_and_seconds_from_a_US_runner": "200 16.435345",
+  "reply": "Invoice noted for Staging Customer One of R1500 \u2014 needs your confirmation (action #253) before it's recorded. Job scope #95 also recorded \u2014 1 component measured, 1 task noted.",
   "held_action": {
-   "id": 148,
+   "id": 253,
    "type": "invoice"
   },
   "customer_matched": "Staging Customer One",
-  "confirm_status_and_seconds": "200 0.261470",
+  "confirm_status_and_seconds": "200 0.207024",
   "confirm_reply": "confirmed",
   "inside_the_object_model_versus_database": {
-   "POST /admin/backup/restore": {
-    "n": 3,
-    "p50Ms": 49265,
-    "p95Ms": 53247,
-    "meanAiMs": 0,
-    "meanAiCalls": 0,
+   "POST /messages/text": {
+    "n": 206,
+    "p50Ms": 8079,
+    "p95Ms": 39446,
+    "meanAiMs": 6944,
+    "meanAiCalls": 3.2,
     "meanDbMs": 0,
-    "meanDbCalls": 43144
+    "meanDbCalls": 29.1
    },
    "POST /admin/backup/run": {
-    "n": 4,
-    "p50Ms": 27942,
-    "p95Ms": 28231,
+    "n": 1,
+    "p50Ms": 28353,
+    "p95Ms": 28353,
     "meanAiMs": 0,
     "meanAiCalls": 0,
     "meanDbMs": 0,
-    "meanDbCalls": 795
-   },
-   "POST /messages/text": {
-    "n": 10,
-    "p50Ms": 3885,
-    "p95Ms": 7517,
-    "meanAiMs": 3524.1,
-    "meanAiCalls": 2.4,
-    "meanDbMs": 0,
-    "meanDbCalls": 19.1
+    "meanDbCalls": 847
    },
    "POST /admin/migration/vectors": {
-    "n": 4,
-    "p50Ms": 1464,
-    "p95Ms": 1924,
+    "n": 1,
+    "p50Ms": 1069,
+    "p95Ms": 1069,
     "meanAiMs": 0,
     "meanAiCalls": 0,
     "meanDbMs": 0,
     "meanDbCalls": 1
    },
-   "POST /onboarding/step": {
-    "n": 16,
+   "POST /actions/:id/confirm": {
+    "n": 9,
     "p50Ms": 24,
-    "p95Ms": 1163,
-    "meanAiMs": 0,
-    "meanAiCalls": 0,
+    "p95Ms": 1039,
+    "meanAiMs": 213.1,
+    "meanAiCalls": 0.3,
     "meanDbMs": 0,
-    "meanDbCalls": 8.8
+    "meanDbCalls": 8.7
    },
    "POST /admin/migration/vectors-query": {
-    "n": 4,
-    "p50Ms": 537,
-    "p95Ms": 724,
+    "n": 1,
+    "p50Ms": 499,
+    "p95Ms": 499,
     "meanAiMs": 0,
     "meanAiCalls": 0,
     "meanDbMs": 0,
     "meanDbCalls": 1
    },
    "POST /admin/migration/vectors-by-ids": {
-    "n": 4,
-    "p50Ms": 368,
-    "p95Ms": 483,
+    "n": 1,
+    "p50Ms": 397,
+    "p95Ms": 397,
     "meanAiMs": 0,
     "meanAiCalls": 0,
     "meanDbMs": 0,
     "meanDbCalls": 1
+   },
+   "POST /files/customers-csv-import": {
+    "n": 4,
+    "p50Ms": 28,
+    "p95Ms": 142,
+    "meanAiMs": 0,
+    "meanAiCalls": 0,
+    "meanDbMs": 0,
+    "meanDbCalls": 7.3
    },
    "POST /debug/kv-set": {
-    "n": 8,
-    "p50Ms": 56,
-    "p95Ms": 77,
-    "meanAiMs": 0,
-    "meanAiCalls": 0,
-    "meanDbMs": 0,
-    "meanDbCalls": 1
-   },
-   "POST /files/invoices-csv-import": {
-    "n": 16,
-    "p50Ms": 24,
+    "n": 2,
+    "p50Ms": 54,
     "p95Ms": 54,
     "meanAiMs": 0,
     "meanAiCalls": 0,
     "meanDbMs": 0,
-    "meanDbCalls": 6
+    "meanDbCalls": 1
    },
-   "POST /files/customers-csv-import": {
-    "n": 16,
-    "p50Ms": 27,
-    "p95Ms": 41,
+   "POST /files/team-csv-import": {
+    "n": 2,
+    "p50Ms": 28,
+    "p95Ms": 38,
+    "meanAiMs": 0,
+    "meanAiCalls": 0,
+    "meanDbMs": 0,
+    "meanDbCalls": 5
+   },
+   "POST /onboarding/step": {
+    "n": 4,
+    "p50Ms": 23,
+    "p95Ms": 34,
     "meanAiMs": 0,
     "meanAiCalls": 0,
     "meanDbMs": 0,
     "meanDbCalls": 8.8
    },
-   "POST /files/products-csv-import": {
-    "n": 8,
-    "p50Ms": 21,
-    "p95Ms": 36,
+   "POST /actions/:id/reject": {
+    "n": 21,
+    "p50Ms": 26,
+    "p95Ms": 33,
     "meanAiMs": 0,
     "meanAiCalls": 0,
     "meanDbMs": 0,
-    "meanDbCalls": 5
+    "meanDbCalls": 4
    },
    "POST /files/suppliers-csv-import": {
-    "n": 8,
-    "p50Ms": 21,
-    "p95Ms": 30,
-    "meanAiMs": 0,
-    "meanAiCalls": 0,
-    "meanDbMs": 0,
-    "meanDbCalls": 5
-   },
-   "POST /actions/:id/confirm": {
-    "n": 4,
+    "n": 2,
     "p50Ms": 20,
-    "p95Ms": 27,
-    "meanAiMs": 0,
-    "meanAiCalls": 0,
-    "meanDbMs": 0,
-    "meanDbCalls": 11
-   },
-   "POST /files/team-csv-import": {
-    "n": 8,
-    "p50Ms": 21,
-    "p95Ms": 26,
+    "p95Ms": 29,
     "meanAiMs": 0,
     "meanAiCalls": 0,
     "meanDbMs": 0,
     "meanDbCalls": 5
+   },
+   "POST /files/products-csv-import": {
+    "n": 2,
+    "p50Ms": 21,
+    "p95Ms": 25,
+    "meanAiMs": 0,
+    "meanAiCalls": 0,
+    "meanDbMs": 0,
+    "meanDbCalls": 5
+   },
+   "POST /files/invoices-csv-import": {
+    "n": 4,
+    "p50Ms": 21,
+    "p95Ms": 24,
+    "meanAiMs": 0,
+    "meanAiCalls": 0,
+    "meanDbMs": 0,
+    "meanDbCalls": 6
    },
    "POST /debug/init-indexes": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1272,7 +1272,7 @@
     "meanDbCalls": 3
    },
    "POST /debug/init-vat-exempt-column": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1281,7 +1281,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-variance-dispositions": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1290,7 +1290,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-tasks-table": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1299,7 +1299,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-tasks-fk": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1308,7 +1308,7 @@
     "meanDbCalls": 3
    },
    "POST /debug/init-task-due-date-columns": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1317,7 +1317,7 @@
     "meanDbCalls": 3
    },
    "POST /debug/init-supplier-payments": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1326,7 +1326,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-supplier-invoices": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1335,7 +1335,7 @@
     "meanDbCalls": 3
    },
    "POST /debug/init-stock": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1344,7 +1344,7 @@
     "meanDbCalls": 5
    },
    "POST /debug/init-snags": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1353,7 +1353,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-selections-table": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1362,7 +1362,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-retention-columns": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1371,7 +1371,7 @@
     "meanDbCalls": 4
    },
    "POST /debug/init-purchase-orders": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1380,7 +1380,7 @@
     "meanDbCalls": 3
    },
    "POST /debug/init-projects": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1389,7 +1389,7 @@
     "meanDbCalls": 3
    },
    "POST /debug/init-products": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1398,7 +1398,7 @@
     "meanDbCalls": 6
    },
    "POST /debug/init-people-merge": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1407,7 +1407,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-memberships": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1416,7 +1416,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-membership-character": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1425,7 +1425,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-leads-capture-id": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1434,7 +1434,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-leads": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1443,7 +1443,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-jobscopes-installer": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1452,7 +1452,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-job-scopes-date": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1461,7 +1461,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-job-scope-links": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1470,7 +1470,7 @@
     "meanDbCalls": 3
    },
    "POST /debug/init-job-scope-amendments": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1479,7 +1479,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-invoices-due-date": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1488,7 +1488,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-interaction-edges": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1497,7 +1497,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-identity-layer": {
-    "n": 5,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1506,7 +1506,7 @@
     "meanDbCalls": 6
    },
    "POST /debug/init-idempotency-keys": {
-    "n": 4,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1515,7 +1515,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-grn-recorded-by": {
-    "n": 4,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1524,7 +1524,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-goods-received": {
-    "n": 4,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1533,7 +1533,7 @@
     "meanDbCalls": 3
    },
    "POST /debug/init-expenses-table": {
-    "n": 4,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1542,7 +1542,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-expenses-jobcost": {
-    "n": 4,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1551,7 +1551,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-expenses-category": {
-    "n": 4,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1560,7 +1560,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-discount-column": {
-    "n": 4,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1569,7 +1569,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-customer-merge": {
-    "n": 4,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1578,7 +1578,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-character-merge": {
-    "n": 4,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1587,7 +1587,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-character-facts": {
-    "n": 4,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1596,7 +1596,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/init-captures-fk": {
-    "n": 4,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1605,7 +1605,7 @@
     "meanDbCalls": 3
    },
    "POST /debug/init-capture-id-column": {
-    "n": 4,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
@@ -1614,7 +1614,7 @@
     "meanDbCalls": 2
    },
    "POST /debug/create-membership": {
-    "n": 4,
+    "n": 1,
     "p50Ms": 0,
     "p95Ms": 0,
     "meanAiMs": 0,
