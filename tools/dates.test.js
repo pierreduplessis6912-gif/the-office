@@ -60,7 +60,9 @@ module.exports = async function runDateTests({ check, bundleTo }) {
     }
   }
   check(timeOk === timeTotal && timeTotal === 72, `a time of day beside a date is never read as the day (${timeOk} of ${timeTotal} phrasings)`);
-  for (const phrase of ['3 days from now', '2 weeks from now', 'in about 3 hours', '10 minutes']) check(resolveScheduledDate(phrase, now) === null, `"${phrase}" is a duration, not a day of the month`);
+  // DECISION CHANGED by Pierre 2026-10-29: "3 days from now" and "2 weeks from now" ARE dates (the 2026-10-04 decision read them as durations, so a job said that way stayed undated). A length of time with no "in" or "from now" still is not a date.
+  for (const phrase of ['in about 3 hours', '10 minutes']) check(resolveScheduledDate(phrase, now) === null, `"${phrase}" is a duration, not a date`);
+  check(resolveScheduledDate('3 days from now', now) === '2026-10-06' && resolveScheduledDate('2 weeks from now', now) === '2026-10-17', '"3 days from now" and "2 weeks from now" are dates (Pierre 2026-10-29)');
   for (const phrase of ['install 20 sqm on the 17th', '2 boxes on the 17th', '12 bags on the 17th', '3 rolls of underlay on the 17th']) check(resolveScheduledDate(phrase, now) === '2026-10-17', `"${phrase}": an amount of something is not the day`);
   // The amount guard matters when the date has no ordinal ending, which is when the ordinal preference cannot help.
   for (const phrase of ['20 sqm on the 17', '2 boxes on 17', '12 bags on the 17', '3 rolls of underlay on 17', '20 m2 for the 17']) check(resolveScheduledDate(phrase, now) === '2026-10-17', `"${phrase}": with no ordinal ending, the amount must still not be read as the day`);
@@ -81,4 +83,11 @@ module.exports = async function runDateTests({ check, bundleTo }) {
   check(bad.length === 0, 'a count in words or "a week" or "a fortnight" works exactly like the digits: ' + bad.map(([p, w]) => `"${p}" gave ${iso(p)} not ${w}`).join('; '));
   for (const phrase of ['it will take two weeks', 'two weeks', 'the job takes three days', 'a fortnight', 'in about three hours', 'in two minutes']) check(iso(phrase) === null, `"${phrase}" is a length of time or not a day count, never a date`);
   check(iso('tomorrow') === '2026-10-04' && iso('in 3 days') === '2026-10-06' && iso('the 10th') === '2026-10-10' && iso('Thursday 17 November') === '2026-11-17' && iso('next week monday') === '2026-10-12', 'everything decided before is unchanged');
+
+  // ---- "<count> <unit> from now / from today" is a date (Pierre, 2026-10-29) -----------------------------------------------------------------------
+  const fromNow = [['3 days from now', '2026-10-06'], ['2 weeks from now', '2026-10-17'], ['three weeks from now', '2026-10-24'], ['five days from today', '2026-10-08'], ['ten days from now', '2026-10-13'], ['a week from now', '2026-10-10'], ['a week from today', '2026-10-10'], ['a fortnight from now', '2026-10-17'], ['1 day from now', '2026-10-04'], ['Install it 4 days from now please', '2026-10-07'], ['march 3 days from now', '2026-10-06']];
+  const badFrom = fromNow.filter(([p, want]) => resolveScheduledDate(p, now) !== want);
+  check(badFrom.length === 0, 'a count of days or weeks "from now" or "from today" is that many days on: ' + badFrom.map(([p, w]) => `"${p}" gave ${resolveScheduledDate(p, now)} not ${w}`).join('; '));
+  for (const phrase of ['it will take 3 days', 'the job is 2 weeks long', '3 days', 'two weeks', 'in about 3 hours', '2 hours from now', '30 minutes from now']) check(resolveScheduledDate(phrase, now) === null, `"${phrase}" is a length of time or an hour count, still not a date`);
+  check(resolveScheduledDate('today', now) === '2026-10-03' && resolveScheduledDate('do it today', now) === '2026-10-03' && resolveScheduledDate('tomorrow', now) === '2026-10-04', '"today" and "tomorrow" alone are unchanged (the "from today" form is read before the word "today")');
 };

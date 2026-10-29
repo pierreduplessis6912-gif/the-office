@@ -115,6 +115,16 @@ export function resolveScheduledDate(rawPhrase: string | null, now: Date): strin
     return real.getFullYear() === y && real.getMonth() === m - 1 && real.getDate() === d ? `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}` : null;
   }
 
+  // "<count> <unit> from now" and "from today" are dates (Pierre, 2026-10-29; the 2026-10-04 reading of them as durations left such a job undated). Read BEFORE the word "today", which the phrase contains.
+  const FROM_NOW_WORDS: Record<string, number> = { a: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 };
+  const fromNow = phrase.match(/(\d+|a|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(days?|weeks?|fortnight)\s+from\s+(?:now|today)\b/);
+  if (fromNow) {
+    const n = /^\d+$/.test(fromNow[1]) ? parseInt(fromNow[1], 10) : FROM_NOW_WORDS[fromNow[1]];
+    const d = new Date(now);
+    d.setDate(d.getDate() + n * (fromNow[2].startsWith("week") ? 7 : fromNow[2] === "fortnight" ? 14 : 1));
+    return toIso(d);
+  }
+
   if (phrase.includes("today")) return toIso(now);
   if (phrase.includes("tomorrow")) {
     const d = new Date(now);
@@ -165,8 +175,7 @@ export function resolveScheduledDate(rawPhrase: string | null, now: Date): strin
     }
   }
 
-  // "in 3 days", "in two weeks", "in a week", "in a fortnight": a count in digits or words (found 2026-10-29: "in two weeks" read as no date, so the job stayed undated). "N days from now" is deliberately NOT here: a
-  // decision of 2026-10-04 (tools/dates.test.js) reads it as a duration, not a date.
+  // "in 3 days", "in two weeks", "in a week", "in a fortnight": a count in digits or words (found 2026-10-29: "in two weeks" read as no date, so the job stayed undated). "N days from now" is read above.
   const COUNT_WORDS: Record<string, number> = { a: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 };
   const inCount = phrase.match(/in\s+(\d+|a|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(days?|weeks?|fortnight)\b/);
   if (inCount) {
