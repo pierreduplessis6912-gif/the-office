@@ -68,4 +68,17 @@ module.exports = async function runDateTests({ check, bundleTo }) {
   check(resolveScheduledDate('the 10th', now) === '2026-10-10' && resolveScheduledDate('17', now) === '2026-10-17' && resolveScheduledDate('on the 17', now) === '2026-10-17', 'a plain day, with or without an ordinal ending, is read exactly as before');
   check(resolveScheduledDate('the 5th at 3 pm', now) === '2026-10-05' && resolveScheduledDate('the 20 sqm job on the 4th', now) === '2026-10-04', 'the ordinal is found wherever it falls in the phrase');
   check(resolveScheduledDate('in 3 days', now) === '2026-10-06' && resolveScheduledDate('tomorrow', now) === '2026-10-04', '"in 3 days" and "tomorrow" are unchanged (they are read before any day number)');
+
+  // ---- ISO dates and number words in "in <count> <unit>" (found 2026-10-29 by the Office read baseline) ---------------------------------------------
+  // A job asked for on 2026-10-29 was recorded as "Tue 10 Nov": the day reader took the FIRST number (10, the month) as the day. "in two weeks" read as no date at all (left the job undated), "in 2 weeks" as the 17th.
+  const iso = (p) => resolveScheduledDate(p, now);
+  check(iso('2026-10-29') === '2026-10-29' && iso('2026-11-08') === '2026-11-08' && iso('2027-01-15') === '2027-01-15' && iso('2026-10-03') === '2026-10-03', 'an ISO date (YYYY-MM-DD) is that date, not the month taken as the day (was 10 Nov, 11 Nov, 1 Nov)');
+  check(iso('on 2026-11-08 at 9 am') === '2026-11-08' && iso('Monday 2026-11-09') === '2026-11-09' && iso('book it for 2026-12-01, 20 sqm') === '2026-12-01', 'wherever it falls in the phrase, and an ISO date beats a weekday or a number beside it');
+  check(iso('2026-13-45') === null && iso('2026-02-30') === null && iso('2026-04-31') === null && iso('2028-02-29') === '2028-02-29' && iso('2026-02-29') === null, 'an impossible ISO date is no date (never misread as another day), and a real leap day is one');
+  check(iso('2026-09-30') === '2026-09-30', 'a past ISO date is returned as it was said, not moved to next year or next month');
+  const inN = [['in 2 weeks', '2026-10-17'], ['in two weeks', '2026-10-17'], ['in three days', '2026-10-06'], ['in 3 days', '2026-10-06'], ['in a week', '2026-10-10'], ['in one week', '2026-10-10'], ['in a fortnight', '2026-10-17'], ['in twelve days', '2026-10-15'], ['in Two Weeks time', '2026-10-17'], ['in an day', null]];
+  const bad = inN.filter(([p, want]) => iso(p) !== want);
+  check(bad.length === 0, 'a count in words or "a week" or "a fortnight" works exactly like the digits: ' + bad.map(([p, w]) => `"${p}" gave ${iso(p)} not ${w}`).join('; '));
+  for (const phrase of ['it will take two weeks', 'two weeks', 'the job takes three days', 'a fortnight', 'in about three hours', 'in two minutes']) check(iso(phrase) === null, `"${phrase}" is a length of time or not a day count, never a date`);
+  check(iso('tomorrow') === '2026-10-04' && iso('in 3 days') === '2026-10-06' && iso('the 10th') === '2026-10-10' && iso('Thursday 17 November') === '2026-11-17' && iso('next week monday') === '2026-10-12', 'everything decided before is unchanged');
 };
