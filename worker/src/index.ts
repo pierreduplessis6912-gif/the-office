@@ -3390,8 +3390,9 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         const action = await env.OFFICE_DB.prepare("SELECT id, type, payload, status FROM pending_actions WHERE id = ?").bind(id).first<{ id: number; type: string; payload: string; status: string }>();
         if (!action) return Response.json({ error: "no such pending action" }, { status: 404 });
         if (action.status !== "pending") return Response.json({ error: `action already ${action.status}` }, { status: 409 });
-        const payload = (() => { try { return JSON.parse(action.payload) as { candidateKind?: string; extraction: Extraction; transcript: string; captureId: number | null }; } catch { return null; } })();
-        if (action.type !== "ambiguous_person" || !payload || payload.candidateKind !== "customer") return Response.json({ error: "only a customer name question can be corrected" }, { status: 400 });
+        const payload = (() => { try { return JSON.parse(action.payload) as { intendedRole?: string; extraction: Extraction; transcript: string; captureId: number | null }; } catch { return null; } })();
+        // Either near-match question about a CUSTOMER name: the one raised by the name guard (candidateKind "customer") and the older one raised by the canonical people check. A question about a character is not corrected here.
+        if (action.type !== "ambiguous_person" || !payload || payload.intendedRole !== "customer") return Response.json({ error: "only a customer name question can be corrected" }, { status: 400 });
         const body = (await request.json().catch(() => ({}))) as { name?: unknown; discard?: unknown };
         const discard = body.discard === true;
         const name = typeof body.name === "string" ? body.name.trim().replace(/\s+/g, " ") : null;

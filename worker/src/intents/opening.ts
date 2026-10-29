@@ -249,8 +249,8 @@ export async function handleOpeningStep(
           // not prose listing every name inline.
           const message =
             personCheck.candidates.length === 1
-              ? `"${extraction.customer_name}" sounds like an existing customer, "${personCheck.candidates[0].name}" — is this the same one? (action #${held.id})`
-              : `"${extraction.customer_name}" could be more than one person already on file — which one is this? (action #${held.id})`;
+              ? `"${extraction.customer_name}" sounds like an existing customer, "${personCheck.candidates[0].name}" — is this the same one, a new customer, or did I hear the name wrong? (action #${held.id})`
+              : `"${extraction.customer_name}" could be more than one person already on file — which one is it, a new customer, or did I hear the name wrong? (action #${held.id})`;
           return {
             customer: null,
             character: null,

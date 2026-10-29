@@ -74,6 +74,18 @@ module.exports = async function runNameGuardTests({ check, srcDir }) {
     const r = await say(SAID, [SPLIT, PAY('Jan Hendrik Botha')], two, { before: [post('/messages/text', { text: SAID })], method: 'POST', path: '/actions/1/correct', body: { name: 'jan willem botha' } });
     check(r.result.body.status === 'corrected' && /Payment noted for Jan Willem Botha of R500/.test(r.result.body.message) && !r.writes.customers, 'a correction that is exactly the SECOND of two similar customers goes to THAT one (carried by id, never re-matched by first and last word)'); }
 
+  // ---- the Office's OLDER near-match question (the canonical people check) offers the same three ways out ---------------------------------------------------------------------------------------
+  // The real-model smoke on staging (2026-10-29) found it: after one near match was made a NEW customer (a person record exists), the next similar name is caught by the people check, whose question had two options and refused "correct".
+  { const PAYN = { match: /Extract structured facts from a tradesperson's message/, reply: (input) => ({ ...harness.EXTRACTION_DEFAULTS, intent: 'payment', amount: 500, customer_name: userOf(input).replace(/ paid.*$/, '') }) };
+    const A = 'Jan Hendrik Botha paid R500', B = 'Jan Willem Botha paid R500';
+    const first = [post('/messages/text', { text: A }), post('/actions/1/reject', {})];
+    const q = await say(B, [SPLIT, PAYN], ['Jan Pieter Botha'], { before: first });
+    check(asked(q) && /is this the same one, a new customer, or did I hear the name wrong\? \(action #\d+\)/.test(q.result.body.message) || /could be more than one (?:customer|person) already on file — which one is it, a new customer, or did I hear the name wrong\? \(action #\d+\)/.test(q.result.body.message), 'once a person record exists, the people check asks the SAME three-way question (the real model smoke saw the old two-way one): ' + String(q.result.body.message).slice(0, 170));
+    const fix = await say(B, [SPLIT, PAYN], ['Jan Pieter Botha'], { before: [...first, post('/messages/text', { text: B })], method: 'POST', path: '/actions/3/correct', body: { name: 'Jan Hendrik Botha' } });
+    check(fix.result.status === 200 && fix.result.body.status === 'corrected' && /Payment noted for Jan Hendrik Botha of R500/.test(fix.result.body.message), 'and "correct" works on it too: the right name, an existing customer, by id (' + fix.result.status + ' ' + String(fix.result.body.message || JSON.stringify(fix.result.body)).slice(0, 100) + ')');
+    const forget = await say(B, [SPLIT, PAYN], ['Jan Pieter Botha'], { before: [...first, post('/messages/text', { text: B })], method: 'POST', path: '/actions/3/correct', body: { discard: true } });
+    check(forget.result.status === 200 && /nothing was recorded/i.test(forget.result.body.message), 'and so does "forget it"'); }
+
   // ---- several candidates -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   { const two = ['Jan Pieter Botha', 'Jan Willem Botha'], first = [post('/messages/text', { text: SAID })];
     const none = await say(SAID, [SPLIT, PAY('Jan Hendrik Botha')], two, { before: first, method: 'POST', path: '/actions/1/confirm', body: {} });
