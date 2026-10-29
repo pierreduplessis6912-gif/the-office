@@ -1,8 +1,15 @@
 {
- "when": "2026-10-29T20:05:46Z",
+ "when": "2026-10-29T21:26:50Z",
  "worker": "office-api",
- "action": "verify",
- "MOONSHOT_API_KEY": false,
- "CONVERSE_MODE": false,
- "front_door_on": false
+ "action": "enable",
+ "MOONSHOT_API_KEY": true,
+ "CONVERSE_MODE": true,
+ "front_door_on": true,
+ "errors": [
+  {
+   "step": "set CONVERSE_MODE",
+   "status": 201,
+   "cloudflare": []
+  }
+ ]
 }
