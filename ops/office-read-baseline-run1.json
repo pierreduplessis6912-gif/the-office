@@ -1,0 +1,1321 @@
+{
+ "when": "2026-10-29T09:51:57Z",
+ "target": "https://office-staging.websitehub.co.za",
+ "run": "40852959273",
+ "customer": "Base Birch Maple",
+ "item": "alder screed",
+ "dates": {
+  "today": "2026-10-29",
+  "tomorrow": "2026-10-30",
+  "next_week": "2026-11-08",
+  "far": "2027-01-15"
+ },
+ "seed": [
+  {
+   "tag": "invoice",
+   "text": "Invoice Base Birch Maple R3000 for carpet repair",
+   "reply": "I heard an invoice for R3000, but no customer name came through — who is it for?",
+   "pending": null,
+   "confirm": null,
+   "intent": "invoice"
+  },
+  {
+   "tag": "payment",
+   "text": "Base Birch Maple paid R1000",
+   "reply": "Payment noted for Base Birch Maple of R1000 — needs your confirmation (action #244) before it's recorded.",
+   "pending": 244,
+   "confirm": "{\"status\": \"confirmed\", \"payment\": {\"id\": 79, \"customerId\": 26446, \"amount\": 1000}}",
+   "intent": "payment"
+  },
+  {
+   "tag": "quote",
+   "text": "Quote Base Birch Maple R4500 for lounge flooring",
+   "reply": "I heard a quotation for R4500, but no customer name came through — who is it for?",
+   "pending": null,
+   "confirm": null,
+   "intent": "quotation"
+  },
+  {
+   "tag": "expense",
+   "text": "Bought glue for R850 for Base Birch Maple",
+   "reply": "Expense noted of R850 — needs your confirmation (action #245) before it's recorded.",
+   "pending": 245,
+   "confirm": "{\"status\": \"confirmed\", \"expense\": {\"id\": 8, \"characterId\": null, \"customerId\": null, \"amount\": 850, \"category\": \"materials\"}}",
+   "intent": "expense"
+  },
+  {
+   "tag": "job_today",
+   "text": "Schedule vinyl flooring installation for Base Birch Maple on 2026-10-29",
+   "reply": "Job scope #89 recorded for Base Birch Maple — 1 component measured, scheduled for Tue 10 Nov.",
+   "pending": null,
+   "confirm": null,
+   "intent": "work_observation"
+  },
+  {
+   "tag": "job_next",
+   "text": "Schedule carpet installation for Base Birch Maple on 2026-11-08",
+   "reply": "Job scope #90 recorded for Base Birch Maple — 1 component measured, scheduled for Wed 11 Nov.",
+   "pending": null,
+   "confirm": null,
+   "intent": "work_observation"
+  },
+  {
+   "tag": "job_far",
+   "text": "Schedule a hospital floor for Base Birch Maple on 2027-01-15",
+   "reply": "I heard a job for 2027-01-15 (1 room measured), but no customer came through — which customer is it for? Nothing was recorded.",
+   "pending": null,
+   "confirm": null,
+   "intent": "work_observation"
+  },
+  {
+   "tag": "job_undated",
+   "text": "Measure Base Birch Maple's lounge, it is 6 metres by 4 metres",
+   "reply": "Job scope #91 recorded for Base Birch Maple — 1 component measured.",
+   "pending": null,
+   "confirm": null,
+   "intent": "work_observation"
+  },
+  {
+   "tag": "task_tomorrow",
+   "text": "Remind me to phone Gran about her birthday tomorrow",
+   "reply": "Noted: Gran. Also noted: phone Gran about her birthday.",
+   "pending": null,
+   "confirm": null,
+   "intent": "reminder"
+  },
+  {
+   "tag": "task_far",
+   "text": "Remind me to attend the Zululand gala on 2027-01-15",
+   "reply": "I didn't catch anything there I could act on.",
+   "pending": null,
+   "confirm": null,
+   "intent": "reminder"
+  },
+  {
+   "tag": "stock",
+   "text": "Add 12 bags of alder screed to stock",
+   "reply": "Now tracking alder screed (bags) as real, running stock.",
+   "pending": null,
+   "confirm": null,
+   "intent": "register_stock_item"
+  }
+ ],
+ "ground_truth": {
+  "stock_route": {
+   "status": 200,
+   "has_item": true
+  },
+  "aged_debtors_route": {
+   "status": 200,
+   "customer_seen": false,
+   "snippet": ""
+  },
+  "profit_and_loss_route_status": 200
+ },
+ "cases": [
+  {
+   "id": "owe_customer",
+   "class": "debtors",
+   "sample": 0,
+   "question": "How much does Base Birch Maple owe?",
+   "reply": "Base Birch Maple has R1000 in payments recorded with no invoices on file to balance against.",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": "customer",
+   "ms": 5655,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "2000"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "outstanding_invoices",
+   "class": "debtors",
+   "sample": 0,
+   "question": "Show me Base Birch Maple's outstanding invoices",
+   "reply": "Base Birch Maple has no invoices on file.",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": "customer",
+   "ms": 4228,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "2000",
+     "3000"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "who_owes",
+   "class": "debtors",
+   "sample": 0,
+   "question": "Who owes us money?",
+   "reply": "__OPEN_DASHBOARD__:aged_debtors",
+   "reply_kind": "dashboard_marker",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 4427,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "base birch maple"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "quotes_open",
+   "class": "quotes",
+   "sample": 0,
+   "question": "Do we have any open quotes?",
+   "reply": "Did you want to see the full financial snapshot, or are you asking specifically about who owes you money?",
+   "reply_kind": "clarifying_question",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 5842,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "4500"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "quote_amount",
+   "class": "quotes",
+   "sample": 0,
+   "question": "How much was the quote for Base Birch Maple?",
+   "reply": "No real supplier invoice on file yet mentions \"Base Birch Maple\" — nothing to base a price on.",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": "material_price",
+   "ms": 3741,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "4500"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "stock_all",
+   "class": "stock",
+   "sample": 0,
+   "question": "What do we have in stock?",
+   "reply": "Did you want to see the full financial snapshot, or are you asking specifically about who owes you money?",
+   "reply_kind": "clarifying_question",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 9983,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "alder",
+     "12"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "stock_item",
+   "class": "stock",
+   "sample": 0,
+   "question": "How many bags of alder screed do we have?",
+   "reply": "No real supplier invoice on file yet mentions \"alder screed\" — nothing to base a price on.",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": "material_price",
+   "ms": 3704,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "12"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "jobs_coming_up",
+   "class": "jobs",
+   "sample": 0,
+   "question": "What jobs do I have coming up?",
+   "reply": "I don't have any information about upcoming jobs on file. The facts I have are about open tasks (calling Thandi, phoning Gran about her birthday, attending the Zululand gala), confirmed invoices and payments, expenses, and conversation logs from 2026-10-28 and 2026-10-29 — but nothing about scheduled or upcoming work jobs.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "personal",
+   "ms": 6064,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "2026-11-08",
+     "8 november",
+     "08 nov"
+    ],
+    [
+     "base birch maple"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false,
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "jobs_today",
+   "class": "jobs",
+   "sample": 0,
+   "question": "What jobs do I have today?",
+   "reply": "I don't have any facts showing jobs scheduled for today.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "personal",
+   "ms": 5720,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "base birch maple"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "jobs_customer",
+   "class": "jobs",
+   "sample": 0,
+   "question": "When is Base Birch Maple's job?",
+   "reply": "I don't have that on file.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "customer",
+   "ms": 4907,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "base birch maple",
+     "2026-11-08",
+     "2026-10-29"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "tomorrow",
+   "class": "scheduling",
+   "sample": 0,
+   "question": "What do I need to do tomorrow?",
+   "reply": "I don't have any facts on file about what you need to do tomorrow.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "personal",
+   "ms": 4659,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "gran"
+    ]
+   ],
+   "forbidden": [
+    "gala"
+   ],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "whats_up_today",
+   "class": "scheduling",
+   "sample": 0,
+   "question": "What's on for today?",
+   "reply": "I don't have today's date or schedule on file — the facts I have are dated 2026-10-28 and 2026-10-29, with no way to know what \"today\" is relative to those dates.",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": "personal",
+   "ms": 5226,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "base birch maple"
+    ]
+   ],
+   "forbidden": [
+    "gala",
+    "hospital"
+   ],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "coming_up_judgment",
+   "class": "scheduling",
+   "sample": 0,
+   "question": "What's coming up?",
+   "reply": "I don't have that on file.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "personal",
+   "ms": 14205,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "gran",
+     "base birch maple"
+    ]
+   ],
+   "forbidden": [
+    "gala"
+   ],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "far_future_asked",
+   "class": "scheduling",
+   "sample": 0,
+   "question": "Do I have anything planned for January?",
+   "reply": "I don't have that on file.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "personal",
+   "ms": 3653,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "gala",
+     "hospital"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "expenses_total",
+   "class": "expenses",
+   "sample": 0,
+   "question": "How much have we spent on expenses?",
+   "reply": "__OPEN_DASHBOARD__:financial_snapshot",
+   "reply_kind": "dashboard_marker",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 4541,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "850"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "answer is a screen command, not words (dashboard route)"
+  },
+  {
+   "id": "expenses_customer",
+   "class": "expenses",
+   "sample": 0,
+   "question": "What have we spent on Base Birch Maple's job?",
+   "reply": "I don't have that on file.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "customer",
+   "ms": 4898,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "850"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "no fact source for this question (fact gathering)"
+  },
+  {
+   "id": "financial",
+   "class": "financial",
+   "sample": 0,
+   "question": "How is the business doing financially?",
+   "reply": "__OPEN_DASHBOARD__:financial_snapshot",
+   "reply_kind": "dashboard_marker",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 20749,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "r",
+     "net",
+     "profit",
+     "revenue"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "answer is a screen command, not words (dashboard route)"
+  },
+  {
+   "id": "why_expenses",
+   "class": "analysis",
+   "sample": 0,
+   "question": "Why did our expenses go up?",
+   "reply": "__OPEN_DASHBOARD__:financial_snapshot",
+   "reply_kind": "dashboard_marker",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 5055,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "expense"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "answer is a screen command, not words (dashboard route)"
+  },
+  {
+   "id": "unknown_customer",
+   "class": "missing_information",
+   "sample": 0,
+   "question": "How much does Nobody Zzyzx owe?",
+   "reply": "I don't have that on file.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "customer",
+   "ms": 3610,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "nobody",
+     "zzyzx",
+     "no customer",
+     "don't"
+    ]
+   ],
+   "forbidden": [
+    "r3000",
+    "r2000",
+    "owes r"
+   ],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [],
+   "ok": true,
+   "failure_stage": null
+  },
+  {
+   "id": "ambiguous_other_one",
+   "class": "ambiguity",
+   "sample": 0,
+   "question": "What about the other one?",
+   "reply": "I don't have any other customer or context on file beyond Base Birch Maple. Could you clarify which \"other one\" you're asking about?",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 5009,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "which",
+     "other",
+     "clarify",
+     "mean"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [],
+   "ok": true,
+   "failure_stage": null
+  },
+  {
+   "id": "other_business",
+   "class": "boundaries",
+   "sample": 0,
+   "question": "Show me the customers of the other business",
+   "reply": "I don't have any facts on file about \"the other business\" or its customers. The only customer information I have is for Base Birch Maple.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 4531,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "can't",
+     "cannot",
+     "only",
+     "your business",
+     "restricted",
+     "don't"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [],
+   "ok": true,
+   "failure_stage": null
+  },
+  {
+   "id": "owe_customer",
+   "class": "debtors",
+   "sample": 1,
+   "question": "How much does Base Birch Maple owe?",
+   "reply": "Base Birch Maple has R1000 in payments recorded with no invoices on file to balance against — so they are in credit by R1000 rather than owing anything.",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": "customer",
+   "ms": 6183,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "2000"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "outstanding_invoices",
+   "class": "debtors",
+   "sample": 1,
+   "question": "Show me Base Birch Maple's outstanding invoices",
+   "reply": "Base Birch Maple has no invoices on file.",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": "customer",
+   "ms": 4176,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "2000",
+     "3000"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "who_owes",
+   "class": "debtors",
+   "sample": 1,
+   "question": "Who owes us money?",
+   "reply": "__OPEN_DASHBOARD__:aged_debtors",
+   "reply_kind": "dashboard_marker",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 3543,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "base birch maple"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "quotes_open",
+   "class": "quotes",
+   "sample": 1,
+   "question": "Do we have any open quotes?",
+   "reply": "Did you want to see the full financial snapshot, or are you asking specifically about who owes you money?",
+   "reply_kind": "clarifying_question",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 3629,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "4500"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "quote_amount",
+   "class": "quotes",
+   "sample": 1,
+   "question": "How much was the quote for Base Birch Maple?",
+   "reply": "I don't have that on file.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "customer",
+   "ms": 4821,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "4500"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "stock_all",
+   "class": "stock",
+   "sample": 1,
+   "question": "What do we have in stock?",
+   "reply": "Did you want to see the full financial snapshot, or are you asking specifically about who owes you money?",
+   "reply_kind": "clarifying_question",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 4743,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "alder",
+     "12"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "stock_item",
+   "class": "stock",
+   "sample": 1,
+   "question": "How many bags of alder screed do we have?",
+   "reply": "No real supplier invoice on file yet mentions \"alder screed\" — nothing to base a price on.",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": "material_price",
+   "ms": 3035,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "12"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "jobs_coming_up",
+   "class": "jobs",
+   "sample": 1,
+   "question": "What jobs do I have coming up?",
+   "reply": "I don't have any information about upcoming jobs on file. The facts I have are about open tasks (calling Thandi, phoning Gran about her birthday, attending the Zululand gala), confirmed invoices and payments, expenses, and conversation logs from 2026-10-28 and 2026-10-29 — but nothing about scheduled work or jobs coming up.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "personal",
+   "ms": 19335,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "2026-11-08",
+     "8 november",
+     "08 nov"
+    ],
+    [
+     "base birch maple"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false,
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "jobs_today",
+   "class": "jobs",
+   "sample": 1,
+   "question": "What jobs do I have today?",
+   "reply": "I don't have any facts showing jobs scheduled for today.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "personal",
+   "ms": 4025,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "base birch maple"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "jobs_customer",
+   "class": "jobs",
+   "sample": 1,
+   "question": "When is Base Birch Maple's job?",
+   "reply": "I don't have that on file.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "customer",
+   "ms": 4251,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "base birch maple",
+     "2026-11-08",
+     "2026-10-29"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "tomorrow",
+   "class": "scheduling",
+   "sample": 1,
+   "question": "What do I need to do tomorrow?",
+   "reply": "I don't have any facts on file about what you need to do tomorrow.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "personal",
+   "ms": 4672,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "gran"
+    ]
+   ],
+   "forbidden": [
+    "gala"
+   ],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "whats_up_today",
+   "class": "scheduling",
+   "sample": 1,
+   "question": "What's on for today?",
+   "reply": "I don't have today's date in the facts provided — the records are dated 2026-10-28 and 2026-10-29. If today is 2026-10-29, here's what's on:\n\n- Still open: Call Thandi\n- Still open: Phone Gran about her birthday\n- Still open: Attend the Zululand gala",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": "personal",
+   "ms": 5251,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "base birch maple"
+    ]
+   ],
+   "forbidden": [
+    "gala",
+    "hospital"
+   ],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [
+    "gala"
+   ],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "coming_up_judgment",
+   "class": "scheduling",
+   "sample": 1,
+   "question": "What's coming up?",
+   "reply": "Based on the facts, here's what's coming up:\n\n- Call Thandi (still open, repeatedly logged)\n- Phone Gran about her birthday (still open)\n- Attend the Zululand gala (still open)",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": "personal",
+   "ms": 4134,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "gran",
+     "base birch maple"
+    ]
+   ],
+   "forbidden": [
+    "gala"
+   ],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [
+    "gala"
+   ],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "far_future_asked",
+   "class": "scheduling",
+   "sample": 1,
+   "question": "Do I have anything planned for January?",
+   "reply": "I don't have that on file.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "personal",
+   "ms": 4237,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "gala",
+     "hospital"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "expenses_total",
+   "class": "expenses",
+   "sample": 1,
+   "question": "How much have we spent on expenses?",
+   "reply": "__OPEN_DASHBOARD__:financial_snapshot",
+   "reply_kind": "dashboard_marker",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 3647,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "850"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "answer is a screen command, not words (dashboard route)"
+  },
+  {
+   "id": "expenses_customer",
+   "class": "expenses",
+   "sample": 1,
+   "question": "What have we spent on Base Birch Maple's job?",
+   "reply": "I don't have that on file.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "customer",
+   "ms": 5306,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "850"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "no fact source for this question (fact gathering)"
+  },
+  {
+   "id": "financial",
+   "class": "financial",
+   "sample": 1,
+   "question": "How is the business doing financially?",
+   "reply": "__OPEN_DASHBOARD__:financial_snapshot",
+   "reply_kind": "dashboard_marker",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 4466,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "r",
+     "net",
+     "profit",
+     "revenue"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "answer is a screen command, not words (dashboard route)"
+  },
+  {
+   "id": "why_expenses",
+   "class": "analysis",
+   "sample": 1,
+   "question": "Why did our expenses go up?",
+   "reply": "__OPEN_DASHBOARD__:financial_snapshot",
+   "reply_kind": "dashboard_marker",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 3694,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "expense"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "answer is a screen command, not words (dashboard route)"
+  },
+  {
+   "id": "unknown_customer",
+   "class": "missing_information",
+   "sample": 1,
+   "question": "How much does Nobody Zzyzx owe?",
+   "reply": "I don't have that on file.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "customer",
+   "ms": 8233,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "nobody",
+     "zzyzx",
+     "no customer",
+     "don't"
+    ]
+   ],
+   "forbidden": [
+    "r3000",
+    "r2000",
+    "owes r"
+   ],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [],
+   "ok": true,
+   "failure_stage": null
+  },
+  {
+   "id": "ambiguous_other_one",
+   "class": "ambiguity",
+   "sample": 1,
+   "question": "What about the other one?",
+   "reply": "I don't have that on file.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 4545,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "which",
+     "other",
+     "clarify",
+     "mean"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "no fact source for this question (fact gathering)"
+  },
+  {
+   "id": "other_business",
+   "class": "boundaries",
+   "sample": 1,
+   "question": "Show me the customers of the other business",
+   "reply": "I don't have any facts on file about \"the other business\" or its customers. The only customer information I have is for Base Birch Maple.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 5731,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "can't",
+     "cannot",
+     "only",
+     "your business",
+     "restricted",
+     "don't"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [],
+   "ok": true,
+   "failure_stage": null
+  }
+ ],
+ "deployed_commit": "c586ddb67fe3f46cce2c7abac889e6b16af938b0",
+ "summary": {
+  "by_class": {
+   "debtors": {
+    "n": 6,
+    "judged": 0,
+    "ok": 0,
+    "kinds": {
+     "words": 4,
+     "dashboard_marker": 2
+    }
+   },
+   "quotes": {
+    "n": 4,
+    "judged": 0,
+    "ok": 0,
+    "kinds": {
+     "clarifying_question": 2,
+     "words": 1,
+     "no_information": 1
+    }
+   },
+   "stock": {
+    "n": 4,
+    "judged": 0,
+    "ok": 0,
+    "kinds": {
+     "clarifying_question": 2,
+     "words": 2
+    }
+   },
+   "jobs": {
+    "n": 6,
+    "judged": 0,
+    "ok": 0,
+    "kinds": {
+     "no_information": 6
+    }
+   },
+   "scheduling": {
+    "n": 8,
+    "judged": 0,
+    "ok": 0,
+    "kinds": {
+     "no_information": 5,
+     "words": 3
+    }
+   },
+   "expenses": {
+    "n": 4,
+    "judged": 4,
+    "ok": 0,
+    "kinds": {
+     "dashboard_marker": 2,
+     "no_information": 2
+    }
+   },
+   "financial": {
+    "n": 2,
+    "judged": 2,
+    "ok": 0,
+    "kinds": {
+     "dashboard_marker": 2
+    }
+   },
+   "analysis": {
+    "n": 2,
+    "judged": 2,
+    "ok": 0,
+    "kinds": {
+     "dashboard_marker": 2
+    }
+   },
+   "missing_information": {
+    "n": 2,
+    "judged": 2,
+    "ok": 2,
+    "kinds": {
+     "no_information": 2
+    }
+   },
+   "ambiguity": {
+    "n": 2,
+    "judged": 2,
+    "ok": 1,
+    "kinds": {
+     "no_information": 2
+    }
+   },
+   "boundaries": {
+    "n": 2,
+    "judged": 2,
+    "ok": 2,
+    "kinds": {
+     "no_information": 2
+    }
+   }
+  },
+  "judged": 14,
+  "ok": 5,
+  "latency_ms": {
+   "median": 4665,
+   "max": 20749
+  },
+  "seeds_confirmed": {
+   "invoice": false,
+   "payment": true,
+   "quote": false,
+   "expense": true,
+   "job_today": false,
+   "job_next": false,
+   "job_far": false,
+   "job_undated": false,
+   "task_tomorrow": false,
+   "task_far": false,
+   "stock": false
+  }
+ }
+}
