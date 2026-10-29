@@ -57,6 +57,11 @@ for t in [f"Invoice {CUST} R3000 for carpet repair", f"{CUST} paid R1000", "Boug
 for kind, text, fig in PHRASES:
     if kind in ("work", "recall"): continue
     r = say(text); r["kind"] = kind; R["baseline"].append(r)
+# Do not spend an hour on a front door that is not there: one greeting under the first configuration must come back routed by the Moonshot layer (a missing key or an old deploy gives no routing at all).
+_probe = say("Hello Office", CONFIGS[0]); R["activation_probe"] = {k: _probe[k] for k in ("message", "outcome", "converse", "model_ms")}
+if _probe["outcome"] is None:
+    R["aborted"] = "the Moonshot front door is not active on staging (no key, or the deploy predates it): nothing was evaluated"
+    json.dump(R, open(OUT, "w"), indent=1, ensure_ascii=False); open(OUT, "a").write("\n"); print(R["aborted"]); sys.exit(0)
 held = []
 def judge(kind, fig, r):
     routed_talk = r["converse"] == "moonshot" and r["outcome"] == "reply"; routed_engine = r["outcome"] == "engine"
