@@ -7,7 +7,7 @@ import base64, datetime, hashlib, hmac, json, os, re, statistics, sys, time, url
 BASE = os.environ.get("BASE", "https://office-staging.websitehub.co.za").rstrip("/"); SEED = os.environ["SEED"]; OUT = os.environ.get("OUT", "office-read-baseline.json"); SAMPLES = int(os.environ.get("SAMPLES", "2"))
 BUSINESS = "staging-co"; OWNER = "staging-owner@example.com"
 _W = ["Alder", "Birch", "Cedar", "Hazel", "Larch", "Maple", "Rowan", "Willow"]; _R = int(os.environ.get("GITHUB_RUN_ID", "0") or 0)
-CUST = f"Base {_W[_R % 8]} {_W[(_R // 8) % 8]}"; ITEM = f"{_W[(_R // 64) % 8].lower()} screed"
+CUST = f"Spike {_W[_R % 8]} {_W[(_R // 8) % 8]}"   # run 1 used a "Base ..." name that the invoice and quote seeds could not read as a customer; "Spike ..." names parse; ITEM = f"{_W[(_R // 64) % 8].lower()} screed"
 def derive(l): return re.sub(r"[=+/\n]", "", base64.b64encode(hmac.new(SEED.encode(), l.encode(), hashlib.sha256).digest()).decode())[:43]
 def cookie():
     b = lambda x: base64.urlsafe_b64encode(x).rstrip(b"=").decode(); p = b(json.dumps({"email": OWNER, "exp": int(time.time() * 1000) + 3 * 3600000, "b": BUSINESS}, separators=(",", ":")).encode())
@@ -33,19 +33,42 @@ fmt = lambda d: d.strftime("%Y-%m-%d")
 R = {"when": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "target": BASE, "run": os.environ.get("GITHUB_RUN_ID"), "customer": CUST, "item": ITEM, "dates": {"today": fmt(TODAY), "tomorrow": fmt(TOMORROW), "next_week": fmt(NEXTWK), "far": fmt(FAR)}, "seed": [], "ground_truth": {}, "cases": []}
 s, h, _ = call("GET", "/health"); R["deployed_commit"] = h.get("commit") if isinstance(h, dict) else None
 # ---- seed (the existing pipeline only; every held action is confirmed) ------------------------------------------------------------------------------------------------------------------------------------------
-SEEDS = [("invoice", f"Invoice {CUST} R3000 for carpet repair"), ("payment", f"{CUST} paid R1000"), ("quote", f"Quote {CUST} R4500 for lounge flooring"), ("expense", f"Bought glue for R850 for {CUST}"),
-         ("job_today", f"Schedule vinyl flooring installation for {CUST} on {fmt(TODAY)}"), ("job_next", f"Schedule carpet installation for {CUST} on {fmt(NEXTWK)}"), ("job_far", f"Schedule a hospital floor for {CUST} on {fmt(FAR)}"),
-         ("job_undated", f"Measure {CUST}'s lounge, it is 6 metres by 4 metres"), ("task_tomorrow", "Remind me to phone Gran about her birthday tomorrow"), ("task_far", f"Remind me to attend the Zululand gala on {fmt(FAR)}"), ("stock", f"Add 12 bags of {ITEM} to stock")]
-for tag, text in SEEDS:
-    r = say(text); confirmed = None
+SPOKEN = {"today": "today", "next": "in 2 weeks", "far": "15 January"}   # spoken forms the date reader handles TODAY; ISO dates (2026-10-29) are misread and are tested separately
+NEXT_DATE = TODAY + datetime.timedelta(days=14); FAR_DATE = FAR
+SEEDS = [("invoice", f"Invoice {CUST} R3000 for carpet repair"), ("payment", f"{CUST} paid R1000"), ("quote", f"Quote {CUST} R4500 for lounge flooring"),
+         ("expense", [f"Bought glue for R850 for {CUST}", f"Bought glue for R850 for {CUST}'s job", f"R850 for glue on the {CUST} job"]),
+         ("job_today", f"Schedule vinyl flooring installation for {CUST} {SPOKEN['today']}"), ("job_next", f"Schedule carpet installation for {CUST} {SPOKEN['next']}"), ("job_far", f"Schedule a hospital floor for {CUST} on {SPOKEN['far']}"),
+         ("job_undated", f"Measure {CUST}'s lounge, it is 6 metres by 4 metres"), ("task_tomorrow", "Remind me to phone Gran about her birthday tomorrow"), ("task_far", "Remind me to attend the Zululand gala on 15 January"), ("stock", f"Add 12 bags of {ITEM} to stock")]
+EXPECT_JOB = {"job_today": TODAY, "job_next": NEXT_DATE, "job_far": FAR_DATE}
+def seed_one(tag, text):
+    r = say(text); confirm = None
     if r["pending"] is not None:
-        s2, c, _ = call("POST", f"/actions/{r['pending']}/confirm", {}); confirmed = (c.get("message") if isinstance(c, dict) else None) or json.dumps(c)[:160]
-    R["seed"].append({"tag": tag, "text": text, "reply": r["message"], "pending": r["pending"], "confirm": confirmed, "intent": r["intent"]})
+        s2, c, _ = call("POST", f"/actions/{r['pending']}/confirm", {}); confirm = json.dumps(c)[:400]
+    msg = (r["message"] or "") + " " + (confirm or "")
+    ok, why = False, "not recorded"
+    if tag in ("invoice", "quote", "payment"): ok = r["pending"] is not None and '"status": "confirmed"' in (confirm or ""); why = "confirmed" if ok else "not confirmed: " + (r["message"] or "")[:90]
+    elif tag == "expense":
+        link = re.search(r'"customerId": (\d+)', confirm or ""); ok = r["pending"] is not None and '"status": "confirmed"' in (confirm or "") and link is not None; why = "confirmed and linked to the customer" if ok else "not linked to the customer or not confirmed: " + msg[:120]
+    elif tag.startswith("job_") and tag != "job_undated":
+        m = re.search(r"scheduled for (\w{3}) (\d{1,2}) (\w{3})", msg); want = EXPECT_JOB[tag].strftime("%a %-d %b")
+        got = f"{m.group(1)} {m.group(2)} {m.group(3)}" if m else None; ok = ("Job scope #" in msg and CUST in msg and got == want); why = f"recorded for {want}" if ok else f"asked for {want}, the Office recorded: {got or msg[:100]}"
+    elif tag == "job_undated": ok = "Job scope #" in msg and CUST in msg; why = "recorded undated" if ok else msg[:100]
+    elif tag.startswith("task_"): ok = bool(re.search(r"noted", msg, re.I)) and not re.search(r"didn't catch", msg, re.I); why = "noted" if ok else msg[:100]
+    elif tag == "stock": ok = bool(re.search(r"tracking", msg, re.I)); why = "tracking" if ok else msg[:100]
+    return {"tag": tag, "text": text, "reply": r["message"], "pending": r["pending"], "confirm": confirm, "intent": r["intent"], "seed_ok": ok, "seed_note": why}
+for tag, text in SEEDS:
+    tries = text if isinstance(text, list) else [text]
+    for t in tries:
+        row = seed_one(tag, t); R["seed"].append(row)
+        if row["seed_ok"]: break
 # ---- ground truth the Office itself can give (cross-checks) ------------------------------------------------------------------------------------------------------------------------------------------------------
-s, st, _ = call("GET", "/stock"); R["ground_truth"]["stock_route"] = {"status": s, "has_item": ITEM.split()[0] in json.dumps(st).lower()}
-s, ad, _ = call("GET", "/reports/aged-debtors"); R["ground_truth"]["aged_debtors_route"] = {"status": s, "customer_seen": CUST in json.dumps(ad), "snippet": json.dumps(ad)[:0]}
+s, st, _ = call("GET", "/stock"); _items = (st.get("items") if isinstance(st, dict) else st) or []
+_mine = [x for x in _items if isinstance(x, dict) and ITEM.split()[0] in json.dumps(x).lower()]
+R["ground_truth"]["stock_route"] = {"status": s, "item": _mine[:1], "has_item": bool(_mine)}
+s, ad, _ = call("GET", "/reports/aged-debtors"); _ad = json.dumps(ad); _i = _ad.find(CUST)
+R["ground_truth"]["aged_debtors_route"] = {"status": s, "customer_seen": _i >= 0, "around_customer": _ad[max(0, _i - 20): _i + 260] if _i >= 0 else None}
 s, pl, _ = call("GET", "/reports/profit-and-loss"); R["ground_truth"]["profit_and_loss_route_status"] = s
-def took(tag): x = [q for q in R["seed"] if q["tag"] == tag][0]; return x["pending"] is not None and x["confirm"] is not None
+def took(tag): return any(q["tag"] == tag and q["seed_ok"] for q in R["seed"])
 def money(s): return {re.sub(r",", "", t) for t in re.findall(r"\d[\d,]*(?:\.\d+)?", s or "")}
 def kind_of(m):
     m = m or ""
@@ -66,6 +89,7 @@ CASES = [
  ("jobs_coming_up", "jobs", "What jobs do I have coming up?", [[fmt(NEXTWK), NEXTWK.strftime("%-d %B").lower(), NEXTWK.strftime("%d %b").lower()], [CUST.lower()]], [], ["job_next"]),
  ("jobs_today", "jobs", "What jobs do I have today?", [[CUST.lower()]], [], ["job_today"]),
  ("jobs_customer", "jobs", f"When is {CUST}'s job?", [[CUST.lower(), fmt(NEXTWK), fmt(TODAY)]], [], ["job_today"]),
+ ("todays_date", "scheduling", "What is today's date?", [[TODAY.strftime("%-d %B").lower(), fmt(TODAY), TODAY.strftime("%d %B").lower(), TODAY.strftime("%A").lower()]], [], []),
  ("tomorrow", "scheduling", "What do I need to do tomorrow?", [["gran"]], ["gala"], ["task_tomorrow"]),
  ("whats_up_today", "scheduling", "What's on for today?", [[CUST.lower()]], ["gala", "hospital"], ["job_today"]),
  ("coming_up_judgment", "scheduling", "What's coming up?", [["gran", CUST.lower()]], ["gala"], ["task_tomorrow", "job_next"]),
@@ -92,6 +116,6 @@ by = {}
 for c in R["cases"]:
     d = by.setdefault(c["class"], {"n": 0, "judged": 0, "ok": 0, "kinds": {}}); d["n"] += 1; d["kinds"][c["reply_kind"]] = d["kinds"].get(c["reply_kind"], 0) + 1
     if c["ok"] is not None: d["judged"] += 1; d["ok"] += 1 if c["ok"] else 0
-R["summary"] = {"by_class": by, "judged": sum(d["judged"] for d in by.values()), "ok": sum(d["ok"] for d in by.values()), "latency_ms": {"median": int(statistics.median([c["ms"] for c in R["cases"]])), "max": max(c["ms"] for c in R["cases"])}, "seeds_confirmed": {q["tag"]: (q["pending"] is not None and q["confirm"] is not None) for q in R["seed"]}}
+R["summary"] = {"by_class": by, "judged": sum(d["judged"] for d in by.values()), "ok": sum(d["ok"] for d in by.values()), "latency_ms": {"median": int(statistics.median([c["ms"] for c in R["cases"]])), "max": max(c["ms"] for c in R["cases"])}, "seeds_ok": {t: took(t) for t in sorted({q["tag"] for q in R["seed"]})}}
 json.dump(R, open(OUT, "w"), indent=1, ensure_ascii=False); open(OUT, "a").write("\n")
-print("judged", R["summary"]["judged"], "ok", R["summary"]["ok"], "| seeds:", R["summary"]["seeds_confirmed"])
+print("judged", R["summary"]["judged"], "of", len(R["cases"]), "ok", R["summary"]["ok"], "| seeds:", R["summary"]["seeds_ok"])
