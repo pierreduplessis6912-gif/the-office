@@ -7,7 +7,7 @@ import base64, datetime, hashlib, hmac, json, os, re, statistics, sys, time, url
 BASE = os.environ.get("BASE", "https://office-staging.websitehub.co.za").rstrip("/"); SEED = os.environ["SEED"]; OUT = os.environ.get("OUT", "office-read-baseline.json"); SAMPLES = int(os.environ.get("SAMPLES", "2"))
 BUSINESS = "staging-co"; OWNER = "staging-owner@example.com"
 _W = ["Alder", "Birch", "Cedar", "Hazel", "Larch", "Maple", "Rowan", "Willow"]; _R = int(os.environ.get("GITHUB_RUN_ID", "0") or 0)
-CUST = f"Spike {_W[_R % 8]} {_W[(_R // 8) % 8]}"   # run 1 used a "Base ..." name that the invoice and quote seeds could not read as a customer; "Spike ..." names parse; ITEM = f"{_W[(_R // 64) % 8].lower()} screed"
+CUST = f"Spike {_W[_R % 8]} {_W[(_R // 8) % 8]}"; ITEM = f"{_W[(_R // 64) % 8].lower()} screed"   # run 1 used a "Base ..." name that the invoice and quote seeds could not read as a customer; "Spike ..." names parse
 def derive(l): return re.sub(r"[=+/\n]", "", base64.b64encode(hmac.new(SEED.encode(), l.encode(), hashlib.sha256).digest()).decode())[:43]
 def cookie():
     b = lambda x: base64.urlsafe_b64encode(x).rstrip(b"=").decode(); p = b(json.dumps({"email": OWNER, "exp": int(time.time() * 1000) + 3 * 3600000, "b": BUSINESS}, separators=(",", ":")).encode())
