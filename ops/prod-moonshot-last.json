@@ -1,0 +1,8 @@
+{
+ "when": "2026-10-29T20:05:46Z",
+ "worker": "office-api",
+ "action": "verify",
+ "MOONSHOT_API_KEY": false,
+ "CONVERSE_MODE": false,
+ "front_door_on": false
+}
