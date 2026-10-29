@@ -1,0 +1,101 @@
+{
+ "when": "2026-10-29T15:13:23Z",
+ "target": "https://office-staging.websitehub.co.za",
+ "run": "40899313860",
+ "existing": "Naledi Pieter Cele",
+ "near": [
+  "Naledi Hendrik Cele",
+  "Naledi Willem Cele",
+  "Naledi Johan Cele",
+  "Naledi Jacobus Cele",
+  "Naledi Andries Cele"
+ ],
+ "brand_new": "Mandla Gideon Ndlovu",
+ "steps": [
+  {
+   "step": "0 existing customer created",
+   "ok": true,
+   "reply": "Payment noted for Naledi Pieter Cele of R100 — needs your confirmation (action #288) before it's recorded.",
+   "extracted_ok": true
+  },
+  {
+   "step": "1 near match is asked, not matched",
+   "ok": true,
+   "reply": "\"Naledi Hendrik Cele\" sounds like an existing customer, \"Naledi Pieter Cele\" — is this the same one, a new customer, or did I hear the name wrong? (action #289)",
+   "type": "ambiguous_person",
+   "candidates": [
+    {
+     "id": 26469,
+     "name": "Naledi Pieter Cele"
+    }
+   ],
+   "ms": 31580
+  },
+  {
+   "step": "1b only the question is open (no payment held yet)",
+   "ok": true,
+   "pending_count": 89
+  },
+  {
+   "step": "2 forget it records nothing and says so",
+   "ok": true,
+   "status": 200,
+   "reply": "Okay, nothing was recorded. I didn't act on \"Naledi Hendrik Cele paid R200\". Say it again with the name you meant."
+  },
+  {
+   "step": "2b the answered question cannot be answered again",
+   "ok": true,
+   "status": 409,
+   "body": {
+    "error": "action already rejected"
+   }
+  },
+  {
+   "step": "3 the same one: the payment goes to the existing customer",
+   "ok": true,
+   "status": 200,
+   "reply": "Payment noted for Naledi Pieter Cele of R300 — needs your confirmation (action #291) before it's recorded."
+  },
+  {
+   "step": "4 a new customer: made as spoken",
+   "ok": true,
+   "status": 200,
+   "reply": "Payment noted for Naledi Johan Cele of R300 — needs your confirmation (action #293) before it's recorded."
+  },
+  {
+   "step": "5 neither: corrected to an existing customer",
+   "ok": true,
+   "status": 200,
+   "reply": "Payment noted for Naledi Pieter Cele of R300 — needs your confirmation (action #295) before it's recorded."
+  },
+  {
+   "step": "6 neither: corrected to a brand new name",
+   "ok": true,
+   "status": 200,
+   "reply": "Payment noted for Mandla Gideon Ndlovu of R300 — needs your confirmation (action #297) before it's recorded."
+  },
+  {
+   "step": "7 the exact name is not asked about",
+   "ok": true,
+   "reply": "Payment noted for Naledi Pieter Cele of R400 — needs your confirmation (action #298) before it's recorded.",
+   "type": "payment"
+  },
+  {
+   "step": "8 a lookup is never asked",
+   "ok": true,
+   "reply": "I don't have that on file."
+  },
+  {
+   "step": "9 a measurement for a near-match name is asked about, not written",
+   "ok": true,
+   "reply": "\"Naledi Hendrik Cele\" sounds like an existing customer, \"Naledi Johan Cele\" — is this the same one, a new customer, or did I hear the name wrong? (action #299)",
+   "type": "ambiguous_person"
+  }
+ ],
+ "deployed_commit": "213b7c519aded773c837979ea0b1a2bd8044de74",
+ "summary": {
+  "steps": 12,
+  "ok": 12,
+  "failed": []
+ }
+}
