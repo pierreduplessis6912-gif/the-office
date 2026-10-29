@@ -7,6 +7,7 @@ import { withExperience } from "./experience";
 import { followUpReply, tryFollowUp } from "./followup";
 import { tryConverse } from "./converse";
 import { tryAgent } from "./converse-agent";
+import { interpretedFor, narrate, tryMoonshot } from "./converse-moonshot";
 import { handleMcp } from "./mcp";
 import { taggingEnv } from "./mcp-tags";
 import { listCreated, undoCall, undoTagged } from "./mcp-undo";
@@ -3977,11 +3978,16 @@ let created = 0;
       const agentOut = followUp ? null : await tryAgent(env, text, { email: textEmail, role: textRole, capabilities }, url.origin);
       const viaAgent = agentOut !== null && agentOut.kind !== "pass";
       if (viaAgent) captured = await logCapture(env, text, "text", null);
-      let processed = followUp ? followUpReply(text, followUp.message, followUp.refusals) : agentOut !== null && agentOut.kind !== "pass" ? followUpReply(text, agentOut.message) : await processTranscript(env, text, ctx, history, "text", null, capabilities, textEmail, (id) => { captured = id; });
+      // The Moonshot front door (converse-moonshot.ts, a staging spike, off unless CONVERSE_MODE is "moonshot"): a Kimi model called directly at Moonshot decides to talk or to hand the message to the engine below; it sees no business data.
+      const moonOut = followUp || viaAgent ? null : await tryMoonshot(env, text, { email: textEmail, role: textRole, capabilities }, request.headers.get("X-Converse-Config"));
+      const viaMoon = moonOut !== null && (moonOut.kind === "reply" || moonOut.kind === "fallback");
+      if (viaMoon) captured = await logCapture(env, text, "text", null);
+      let processed = followUp ? followUpReply(text, followUp.message, followUp.refusals) : agentOut !== null && agentOut.kind !== "pass" ? followUpReply(text, agentOut.message) : moonOut !== null && (moonOut.kind === "reply" || moonOut.kind === "fallback") ? followUpReply(text, moonOut.message) : await processTranscript(env, text, ctx, history, "text", null, capabilities, textEmail, (id) => { captured = id; });
       // The conversational layer (converse.ts): only when the pipeline found nothing to act on (never after a follow-up, never for an instruction). It can only replace the words of the reply, nothing else; null leaves it exactly as it was.
-      const talked = followUp || viaAgent ? null : await tryConverse(env, text, processed, { email: textEmail, capabilities });
+      if (moonOut !== null && moonOut.kind === "engine" && processed.pendingActionId == null && (processed.pendingActionIds ?? []).length === 0 && processed.factPendingActionId == null) { const narrated = await narrate(env, moonOut.cfg, text, processed.message, moonOut.trace); if (narrated !== null) processed = { ...processed, message: narrated }; }   // Policy B only, never over a held action (its number and its confirmation wording must survive); null leaves the engine's own words
+      const talked = followUp || viaAgent || viaMoon ? null : await tryConverse(env, text, processed, { email: textEmail, capabilities });
       if (talked !== null) processed = { ...processed, message: talked };
-      await recordInteraction(env, { actorEmail: textEmail, source: "text", captureId: captured, processed, viewing: parseContext(body.context).context, ...(followUp ? { interpreted: followUp.interpreted } : agentOut !== null && agentOut.kind !== "pass" ? { interpreted: { converse: "agent", ...agentOut.trace } } : {}) });   // swallowed on failure: it can never change a reply
+      await recordInteraction(env, { actorEmail: textEmail, source: "text", captureId: captured, processed, viewing: parseContext(body.context).context, ...(followUp ? { interpreted: followUp.interpreted } : agentOut !== null && agentOut.kind !== "pass" ? { interpreted: { converse: "agent", ...agentOut.trace } } : moonOut !== null && moonOut.kind !== "pass" ? { interpreted: interpretedFor(moonOut, processed.extraction) } : {}) });   // swallowed on failure: it can never change a reply
       const responseBody = JSON.stringify({ status: "processed", transcript: text, ...withExperience(processed) });
 
       await completeIdempotencyKey(env, idempotencyKey, responseBody);

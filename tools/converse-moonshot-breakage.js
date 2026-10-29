@@ -1,0 +1,58 @@
+// Proof that the Moonshot front door tests are not decorative: each line breaks one guard (in converse-moonshot.ts or the typed route) and tools/converse-moonshot.test.js must FAIL.
+// Run: NODE_PATH=worker/node_modules node --no-warnings tools/converse-moonshot-breakage.js
+const fs = require('fs'), os = require('os'), path = require('path');
+const root = path.join(__dirname, '..'), workerDir = path.join(root, 'worker');
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cmb-')), copy = path.join(tmp, 'worker');
+fs.cpSync(workerDir, copy, { recursive: true, filter: (src) => !src.split(path.sep).includes('node_modules') });
+fs.symlinkSync(path.join(workerDir, 'node_modules'), path.join(copy, 'node_modules'));
+fs.copyFileSync(path.join(root, 'FEATURES.md'), path.join(tmp, 'FEATURES.md'));
+const files = { moon: path.join(copy, 'src', 'converse-moonshot.ts'), index: path.join(copy, 'src', 'index.ts') };
+const originals = Object.fromEntries(Object.entries(files).map(([k, f]) => [k, fs.readFileSync(f, 'utf8')]));
+const run = require('./converse-moonshot.test.js');
+const MUTATIONS = [
+  // what crosses to Moonshot
+  ['moon', 'the engine\'s earlier answer is sent back to Moonshot', 'content: mine && replied ? replied.slice(0, TURN_CHARS) : ENGINE_PLACEHOLDER', 'content: replied.slice(0, TURN_CHARS)'],
+  ['moon', 'other members\' turns are sent', 'scope: "own"', 'scope: "all"'],
+  ['moon', 'Policy A narrates (sends the engine\'s answer)', 'if (cfg.policy !== "B" || ', 'if ('],
+  ['moon', 'a talk reply is not marked, so the next turn cannot tell it from an engine answer', 'return { converse: "moonshot", moonshot: out.trace };', 'return { moonshot: out.trace };'],
+  ['moon', 'work reaches the model', 'if (LOOKS_LIKE_WORK.test(text)) {', 'if (false) {'],
+  ['moon', 'the persona stops forbidding figures', 'never state a figure, number, date or fact about the business, and', 'be careful with figures, and'],
+  // what may be shown
+  ['moon', 'a talk reply with a figure is shown', 'if (ungroundedFigures(words, [], text).length > 0) {', 'if (false) {'],
+  ['moon', 'a talk reply claiming it recorded something is shown', 'if (CLAIMS_DONE.test(words)) { trace.outcome = "fallback"; trace.reason = "claim";', 'if (false) { trace.outcome = "fallback"; trace.reason = "claim";'],
+  ['moon', 'a narration with a figure the engine did not give is shown', 'ungroundedFigures(words, [engineMessage], text).length > 0) return null;', 'false) return null;'],
+  ['moon', 'a narration claiming something was done is shown', 'CLAIMS_DONE.test(words) || ungroundedFigures(words, [engineMessage], text)', 'ungroundedFigures(words, [engineMessage], text)'],
+  // failure and switches
+  ['moon', 'a Moonshot failure ends the turn instead of passing the message on', 'if (!r.ok) { trace.outcome = "error"; return { kind: "pass", trace }; }', 'if (!r.ok) { trace.outcome = "error"; return { kind: "fallback", message: AGENT_FALLBACK, trace }; }'],
+  ['moon', 'CONVERSE=off does not switch it off', 'if (env.CONVERSE === "off") return { kind: "pass", trace: off };', ''],
+  ['moon', 'it runs without a key', 'if (cfg === null || !env.MOONSHOT_API_KEY || !who.email', 'if (cfg === null || !who.email'],
+  // configuration and the request
+  ['moon', 'a header is honoured in production', 'env.ENVIRONMENT === "staging" && header', 'header'],
+  ['moon', 'any model name is accepted', 'if (!MOONSHOT_MODELS.includes(model)) return null;', ''],
+  ['moon', 'the K2.7 Code models are told to switch thinking off', 'if (cfg.model === "kimi-k2.6" && cfg.thinking === "off") b.thinking', 'if (cfg.thinking === "off") b.thinking'],
+  ['moon', 'the K3 series gets no effort', 'if (cfg.model.startsWith("kimi-k3")) b.reasoning_effort = cfg.effort;', ''],
+  ['moon', 'the URL is changed', 'https://api.moonshot.ai/v1/chat/completions', 'https://api.moonshot.cn/v1/chat/completions'],
+  // the route
+  ['index', 'Policy B narrates over a held action', ' && processed.pendingActionId == null && (processed.pendingActionIds ?? []).length === 0 && processed.factPendingActionId == null) { const narrated', ') { const narrated'],
+  ['index', 'the typed route does not keep what was heard', 'if (viaMoon) captured = await logCapture(env, text, "text", null);', ''],
+  ['index', 'the routing is not recorded', '{ interpreted: interpretedFor(moonOut, processed.extraction) }', '{}'],
+  ['index', 'the front door runs before the follow-up check', 'const moonOut = followUp || viaAgent ? null : await tryMoonshot(', 'const moonOut = await tryMoonshot('],
+];
+(async () => {
+  let missed = 0;
+  const collect = () => { const list = []; return { list, check: (ok, label) => { if (!ok) list.push(label); } }; };
+  const clearBuildCache = () => { for (const n of ['rm-poe', 'rm-auth']) delete require.cache[path.join(os.tmpdir(), `${n}-${process.pid}.js`)]; };
+  const reset = () => { for (const [k, f] of Object.entries(files)) fs.writeFileSync(f, originals[k]); };
+  reset(); clearBuildCache(); { const c = collect(); await run({ check: c.check, srcDir: path.join(copy, 'src') }); console.log(`baseline (nothing broken): ${c.list.length} failing checks (must be 0)`); if (c.list.length) { console.log(c.list.join('\n')); process.exit(1); } }
+  for (const [k, name, from, to] of MUTATIONS) {
+    reset();
+    if (!originals[k].includes(from)) { console.log(`NOT APPLIED  ${name}: the text to change was not found in ${k} (update this script)`); missed++; continue; }
+    fs.writeFileSync(files[k], originals[k].replace(from, to)); clearBuildCache();
+    const c = collect();
+    try { await run({ check: c.check, srcDir: path.join(copy, 'src') }); } catch (e) { c.list.push('threw: ' + String(e.message).slice(0, 100)); }
+    if (c.list.length === 0) { missed++; console.log(`NOT CAUGHT   ${name}`); } else console.log(`caught (${String(c.list.length).padStart(2)})  ${name}`);
+  }
+  reset();
+  console.log(missed === 0 ? `\nall ${MUTATIONS.length} Moonshot front-door guards are held by a test that fails when the guard is removed` : `\n${missed} problem(s): see above`);
+  process.exit(missed === 0 ? 0 : 1);
+})();

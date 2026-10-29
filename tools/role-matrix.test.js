@@ -868,6 +868,8 @@ async function expect(role, method, path, want) {
   await require('./lookup-hardening.test.js')({ check, srcDir });
   // The conversation-first front door, a staging SPIKE: read tools only, hand-off for work, grounded figures; off unless CONVERSE_MODE is agent (CONVERSATIONAL_LAYER.md)
   await require('./converse-agent.test.js')({ check, srcDir });
+  // The Moonshot front door, a staging SPIKE: a Kimi model direct at Moonshot decides to talk or hand the message to the engine; no business data crosses (CONVERSATIONAL_LAYER.md)
+  await require('./converse-moonshot.test.js')({ check, srcDir });
   // The read-only MCP adapter, slice A: the credential core (issue, list, revoke, authenticate). Security-sensitive: each guard is also proven by tools/mcp-keys-breakage.js
   await require('./mcp-keys.test.js')({ check, srcDir });
   await require('./mcp-tags.test.js')({ check, srcDir });

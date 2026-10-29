@@ -45,6 +45,10 @@ export interface Env {
   CONVERSE_MODE?: string;   // "agent" turns on the conversation-first front door (converse-agent.ts), a SPIKE for staging only; unset everywhere else
   CONVERSE_THINKING?: string;   // "on" runs the front door's model with thinking on (an experiment; staging only)
   CONVERSE_BUDGET_MS?: string;   // raises the front door's time budget (milliseconds, up to two minutes); for the thinking experiment
+  CONVERSE_MODEL?: string;   // the Moonshot model for the Moonshot front door (converse-moonshot.ts, a staging spike)
+  CONVERSE_POLICY?: string;   // "A" (Moonshot sees only the person's words and conversation) or "B" (it also narrates the Office's answer)
+  MOONSHOT_API_KEY?: string;   // a Worker secret on STAGING only; absent everywhere else, which switches the Moonshot front door off
+  ENVIRONMENT?: string;   // "staging" or "production" (a wrangler var); the Moonshot front door honours a per-request config header only where this is "staging"
   // The ONE business that owns the document links customers already hold (issued before the move, so they carry no business). Set only for the business that was migrated from the single-business deployment.
   LEGACY_LINK_BUSINESS?: string;
   // A SEPARATE bucket for backups (backup.ts): snapshots and a mirror of the files, kept apart from the business's own file storage. Absent where no backup bucket is configured.
