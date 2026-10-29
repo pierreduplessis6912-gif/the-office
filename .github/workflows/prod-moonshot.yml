@@ -1,0 +1,67 @@
+name: Production conversation front door (enable, disable, remove, verify)
+
+# The ON/OFF switch for the Moonshot conversation front door (worker/src/converse-moonshot.ts) on the PRODUCTION Worker (office-api). The code ships DORMANT: it does nothing unless the Worker has BOTH a MOONSHOT_API_KEY secret and CONVERSE_MODE=moonshot.
+#   enable  = puts the repo secret MOONSHOT_API__KEY in as MOONSHOT_API_KEY and sets CONVERSE_MODE=moonshot (the front door is on)
+#   disable = removes CONVERSE_MODE only (the front door is off at once; the key stays so enable is one tap)
+#   remove  = removes both secrets
+#   verify  = lists only whether the two secret NAMES are present; never a value
+# What crosses to Moonshot when it is on: only the person's own words and what the front door itself said (never a business fact, never an engine answer); work (a figure, a doing word) never crosses. Started by hand only.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "enable, disable, remove or verify"
+        required: true
+        default: "verify"
+
+permissions:
+  contents: write
+
+jobs:
+  switch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API__KEY }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      ACTION: ${{ inputs.action }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply the switch on the production Worker
+        run: |
+          python3 - <<'PY'
+          import json, os, sys, time, urllib.request, urllib.error
+          act = os.environ["ACTION"]; acct = os.environ["CLOUDFLARE_ACCOUNT_ID"]; tok = os.environ["CLOUDFLARE_API_TOKEN"]
+          if act not in ("enable", "disable", "remove", "verify"): print("action must be enable, disable, remove or verify"); sys.exit(1)
+          base = f"https://api.cloudflare.com/client/v4/accounts/{acct}/workers/scripts/office-api/secrets"
+          hdr = {"Authorization": "Bearer " + tok, "Content-Type": "application/json"}
+          def call(method, url, body=None):
+              req = urllib.request.Request(url, data=json.dumps(body).encode() if body is not None else None, method=method, headers=hdr)
+              try:
+                  with urllib.request.urlopen(req, timeout=60) as r: return r.status, r.read().decode()
+              except urllib.error.HTTPError as e: return e.code, e.read().decode()[:200]
+          def put(name, text):
+              s, _ = call("PUT", base, {"name": name, "text": text, "type": "secret_text"}); print("set", name, "status", s)
+              if s != 200: sys.exit(1)
+          def delete(name):
+              s, _ = call("DELETE", base + "/" + name); print("remove", name, "status", s)
+              if s not in (200, 404): sys.exit(1)
+          if act == "enable":
+              if not os.environ.get("MOONSHOT_API_KEY"): print("no key in the repo secret MOONSHOT_API__KEY"); sys.exit(1)
+              put("MOONSHOT_API_KEY", os.environ["MOONSHOT_API_KEY"]); put("CONVERSE_MODE", "moonshot")
+          elif act == "disable": delete("CONVERSE_MODE")
+          elif act == "remove": delete("CONVERSE_MODE"); delete("MOONSHOT_API_KEY")
+          s, tx = call("GET", base); names = sorted(x.get("name") for x in json.loads(tx).get("result", [])) if s == 200 else []
+          state = {"when": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "worker": "office-api", "action": act, "MOONSHOT_API_KEY": "MOONSHOT_API_KEY" in names, "CONVERSE_MODE": "CONVERSE_MODE" in names, "front_door_on": "MOONSHOT_API_KEY" in names and "CONVERSE_MODE" in names}
+          print(json.dumps(state)); open("prod-moonshot-last.json", "w").write(json.dumps(state, indent=1) + "\n")
+          PY
+      - name: Record the state (names and true or false only; never a value)
+        run: |
+          mkdir -p ops
+          cp prod-moonshot-last.json ops/prod-moonshot-last.json
+          git config user.name "production-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/prod-moonshot-last.json
+          git commit -q -m "Production conversation front door state (secret names only)" || true
+          git pull -q --rebase origin main && git push -q origin HEAD:main

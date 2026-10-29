@@ -5,6 +5,7 @@ import { decisionOf, parseHistoryParams, readHistory, recordDecision, recordInte
 import { agedCreditorsData, agedDebtorsData, customerReceivablesData, parseCustomerParam, parsePeriodParams, profitAndLossData } from "./reports-data";
 import { withExperience } from "./experience";
 import { followUpReply, tryFollowUp } from "./followup";
+import { interpretedFor, tryMoonshot } from "./converse-moonshot";
 import { tryReadLayer } from "./read-layer";
 import { tryConverse } from "./converse";
 import { handleMcp } from "./mcp";
@@ -3473,8 +3474,11 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       // The same read layer as the typed route (read-layer.ts).
       const spokenRead = transcript ? await tryReadLayer(env, transcript, { role: voiceRole }) : null;
       if (transcript && spokenRead) captured = await logCapture(env, transcript, "voice", key);
+      // The same conversation front door as the typed route (converse-moonshot.ts).
+      const spokenMoon = transcript && !spokenRead ? await tryMoonshot(env, transcript, { email: voiceEmail, role: voiceRole, capabilities: voiceCapabilities }, request.headers.get("X-Converse-Config")) : null;
+      if (transcript && spokenMoon !== null && (spokenMoon.kind === "reply" || spokenMoon.kind === "fallback")) captured = await logCapture(env, transcript, "voice", key);
       let processed = transcript
-        ? spokenRead ? followUpReply(transcript, spokenRead.message) : await processTranscript(env, transcript, ctx, history, "voice", key, voiceCapabilities, voiceEmail, (id) => { captured = id; })
+        ? spokenRead ? followUpReply(transcript, spokenRead.message) : spokenMoon !== null && (spokenMoon.kind === "reply" || spokenMoon.kind === "fallback") ? followUpReply(transcript, spokenMoon.message) : await processTranscript(env, transcript, ctx, history, "voice", key, voiceCapabilities, voiceEmail, (id) => { captured = id; })
         : {
             extraction: null,
             extractionRaw: null,
@@ -3487,9 +3491,9 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           };
 
       // Same as the typed route: a spoken message with nothing to act on can be answered in words (converse.ts); anything else is untouched.
-      const spoken = transcript && !spokenRead ? await tryConverse(env, transcript, processed, { email: voiceEmail, capabilities: voiceCapabilities }) : null;
+      const spoken = transcript && !spokenRead && !(spokenMoon !== null && (spokenMoon.kind === "reply" || spokenMoon.kind === "fallback")) ? await tryConverse(env, transcript, processed, { email: voiceEmail, capabilities: voiceCapabilities }) : null;
       if (spoken !== null) processed = { ...processed, message: spoken };
-      await recordInteraction(env, { actorEmail: voiceEmail, source: "voice", captureId: captured, processed, viewing: contextFromHeader(request.headers.get("X-Office-Context")).context, ...(spokenRead ? { interpreted: { intent: "lookup", read_layer: spokenRead.kind } } : {}) });   // swallowed on failure: it can never change a reply
+      await recordInteraction(env, { actorEmail: voiceEmail, source: "voice", captureId: captured, processed, viewing: contextFromHeader(request.headers.get("X-Office-Context")).context, ...(spokenRead ? { interpreted: { intent: "lookup", read_layer: spokenRead.kind } } : spokenMoon !== null && (spokenMoon.kind !== "pass" || spokenMoon.trace.outcome === "error") ? { interpreted: interpretedFor(spokenMoon, processed.extraction) } : {}) });   // swallowed on failure: it can never change a reply
       const audioResponseBody = JSON.stringify({ status: "stored", key, transcript, transcriptionError, ...withExperience(processed) });
       await completeIdempotencyKey(env, idempotencyKey, audioResponseBody);
       return new Response(audioResponseBody, { headers: { "Content-Type": "application/json" } });
@@ -4032,11 +4036,16 @@ let created = 0;
       // The read layer (read-layer.ts): the OWNER's question about today's date, the schedule, quotes or stock is answered in words from the same read-only data the MCP tools return, with no model call; anything else is untouched.
       const readAnswer = followUp ? null : await tryReadLayer(env, text, { role: textRole });
       if (readAnswer) captured = await logCapture(env, text, "text", null);
-      let processed = followUp ? followUpReply(text, followUp.message, followUp.refusals) : readAnswer ? followUpReply(text, readAnswer.message) : await processTranscript(env, text, ctx, history, "text", null, capabilities, textEmail, (id) => { captured = id; });
+      // The conversation front door (converse-moonshot.ts, OFF unless CONVERSE_MODE is "moonshot" and a key is set): a Kimi model called directly at Moonshot decides to talk or to hand the message to the engine below. It sees only the person's words and what
+      // it said itself, never a business fact; work never reaches it; any failure passes the message on untouched.
+      const moonOut = followUp || readAnswer ? null : await tryMoonshot(env, text, { email: textEmail, role: textRole, capabilities }, request.headers.get("X-Converse-Config"));
+      const viaMoon = moonOut !== null && (moonOut.kind === "reply" || moonOut.kind === "fallback");
+      if (viaMoon) captured = await logCapture(env, text, "text", null);
+      let processed = followUp ? followUpReply(text, followUp.message, followUp.refusals) : readAnswer ? followUpReply(text, readAnswer.message) : moonOut !== null && (moonOut.kind === "reply" || moonOut.kind === "fallback") ? followUpReply(text, moonOut.message) : await processTranscript(env, text, ctx, history, "text", null, capabilities, textEmail, (id) => { captured = id; });
       // The conversational layer (converse.ts): only when the pipeline found nothing to act on (never after a follow-up, never for an instruction). It can only replace the words of the reply, nothing else; null leaves it exactly as it was.
-      const talked = followUp || readAnswer ? null : await tryConverse(env, text, processed, { email: textEmail, capabilities });
+      const talked = followUp || readAnswer || viaMoon ? null : await tryConverse(env, text, processed, { email: textEmail, capabilities });
       if (talked !== null) processed = { ...processed, message: talked };
-      await recordInteraction(env, { actorEmail: textEmail, source: "text", captureId: captured, processed, viewing: parseContext(body.context).context, ...(followUp ? { interpreted: followUp.interpreted } : readAnswer ? { interpreted: { intent: "lookup", read_layer: readAnswer.kind } } : {}) });   // swallowed on failure: it can never change a reply
+      await recordInteraction(env, { actorEmail: textEmail, source: "text", captureId: captured, processed, viewing: parseContext(body.context).context, ...(followUp ? { interpreted: followUp.interpreted } : readAnswer ? { interpreted: { intent: "lookup", read_layer: readAnswer.kind } } : moonOut !== null && (moonOut.kind !== "pass" || moonOut.trace.outcome === "error") ? { interpreted: interpretedFor(moonOut, processed.extraction) } : {}) });   // swallowed on failure: it can never change a reply
       const responseBody = JSON.stringify({ status: "processed", transcript: text, ...withExperience(processed) });
 
       await completeIdempotencyKey(env, idempotencyKey, responseBody);

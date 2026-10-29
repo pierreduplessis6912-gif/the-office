@@ -40,6 +40,11 @@ export interface Env {
   BUSINESS_OBJECT_NAME?: string;
   // Set by a business's object for each request it serves (never by a client): which business this is. See business-object.ts.
   BUSINESS_ID?: string;
+  CONVERSE_MODE?: string;   // "moonshot" turns the conversation front door on (converse-moonshot.ts): a Kimi model called directly at Moonshot decides to talk or to hand the message to the Office. Unset = off.
+  CONVERSE_MODEL?: string;   // the Moonshot model; default kimi-k2.6
+  CONVERSE_THINKING?: string;   // "on" runs the front door model with thinking on; default off (the fastest, and enough for routing)
+  MOONSHOT_API_KEY?: string;   // a Worker secret; absent = the front door is off
+  ENVIRONMENT?: string;   // "staging" or "production" (a wrangler var); a per-request config header is honoured ONLY where this is "staging"
   NAME_GUARD?: string;   // "off" restores the old silent first-and-last-word customer match (opening.ts); otherwise a near-match customer name is asked about
   MCP?: string;   // "off" switches off issuing keys for outside assistants (and, later, the /mcp endpoint)
   READ_LAYER?: string;   // "off" switches off the read layer (read-layer.ts): the owner's questions about the date, schedule, quotes and stock go back to the pipeline

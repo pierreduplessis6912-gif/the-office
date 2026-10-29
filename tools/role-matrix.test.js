@@ -798,6 +798,8 @@ async function expect(role, method, path, want) {
   await require('./dates.test.js')({ check, bundleTo });
   // The customer name guard: a near-match is asked (the existing ambiguous_person hold) before any write, with a third way out: neither, correct it (name-guard.test.js)
   await require('./name-guard.test.js')({ check, srcDir });
+  // The conversation front door (converse-moonshot.ts): a Kimi model called directly at Moonshot decides to talk or hand the message to the engine; scripted fetch, off unless switched on
+  await require('./converse-moonshot.test.js')({ check, srcDir });
   // The read layer: the owner's read questions (date, schedule, quotes, stock, a customer's jobs) answered in words from the MCP's own data functions, no model, owner only, with judgment (read-layer.ts)
   await require('./read-layer.test.js')({ check, srcDir });
 
