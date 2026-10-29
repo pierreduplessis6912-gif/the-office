@@ -141,7 +141,7 @@ module.exports = async function runConverseTests({ check, srcDir }) {
   check(/CONVERSE/.test(code) && /scope:\s*"own"/.test(code) && !/scope:\s*"all"/.test(code), 'it reads the CONVERSE switch and reads history with scope "own" only');
   const index = fs.readFileSync(path.join(srcDir, 'index.ts'), 'utf8');
   check((index.match(/tryConverse\(/g) || []).length === 2 && /import \{ tryConverse \} from "\.\/converse"/.test(index), 'the two routes (typed message, voice note) call it, once each');
-  check((index.match(/\{ \.\.\.processed, message: \w+ \}/g) || []).length === 2, 'the routes replace only `message` in the reply, in exactly those two places; nothing else of it is touched');
+  check((index.match(/\{ \.\.\.processed, message: \w+ \}/g) || []).length === 3, 'the routes replace only `message` in the reply, in exactly three places (the typed and the spoken conversation layer, and the Moonshot narration of a read); nothing else of it is touched');
   const reply = fs.readFileSync(path.join(srcDir, 'intents', 'reply.ts'), 'utf8');
   check(/NO_INTENT_MESSAGE/.test(reply) && !/"I didn't catch anything there I could act on\."/.test(reply) && NO === "I didn't catch anything there I could act on.", 'the failure text is one constant, word for word as before');
 
