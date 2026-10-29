@@ -1,6 +1,6 @@
 {
- "when": "2026-10-28T14:51:44.408585Z",
- "run": "40710097657",
+ "when": "2026-10-29T20:04:13.937750Z",
+ "run": "40945682654",
  "the_health_check_answers": true,
  "the_health_check_reports_the_commit_production_is_running": true,
  "a_garbage_proof_is_refused_with_a_page": true,
@@ -28,5 +28,5 @@
   "billplans": "400",
   "billstart": "400"
  },
- "running_commit": "23cee531a8e318046f9aae35c5050ce86058ad33"
+ "running_commit": "8738923a1e7b02089223fa569faef98e1974772e"
 }
