@@ -17,7 +17,7 @@ import type { LegacyProcessResult } from "./result";
 import { containsBackwardReference, resolveFollowUpEntity, splitIntoTopics } from "../ai";
 import { canResolveActionType, intentCreationRefusal, intentCreationRefusalInfo, intentOnlyFindsCharacters, intentOnlyFindsCustomers } from "../auth";
 import { holdForConfirmation } from "../finance";
-import { checkCrossRoleCollision, clearSelections, findExistingCharacterByName, findExistingCustomerByName, findExistingEntityByName, getCurrentSelection, logInteractionEdge, reconcileCharacter, reconcileCustomer, reconcilePerson, setSelection, withArticle } from "../identity";
+import { checkCrossRoleCollision, clearSelections, findExistingCharacterByName, findExistingCustomerByName, findLooseCustomerMatches, findExistingEntityByName, getCurrentSelection, logInteractionEdge, reconcileCharacter, reconcileCustomer, reconcilePerson, setSelection, withArticle } from "../identity";
 import { updateCaptureHint } from "../memory";
 import { HistoryTurn } from "../types";
 
@@ -41,6 +41,8 @@ export async function handleOpeningStep(
     captureId: number | null;
     capabilities: string[];
     recordingUserEmail: string | null;
+    // The customer a person chose when asked about a near-match name (confirm "the same one", or a correction that names an existing customer exactly): used as it is, by id, never re-read from the name.
+    chosenCustomerId?: number | null;
   }
 ): Promise<LegacyProcessResult | OpeningState> {
   let { extraction } = input;
@@ -144,6 +146,7 @@ export async function handleOpeningStep(
   // pure resolution, never a write. Fixed by routing lookup intent
   // through the already-existing read-only findExistingEntityByName
   // instead of the create-or-find reconcile functions.
+  const chosenCustomer = input.chosenCustomerId != null ? await env.OFFICE_DB.prepare("SELECT id, name FROM customers WHERE id = ? AND merged_into_customer_id IS NULL").bind(input.chosenCustomerId).first<{ id: number; name: string }>() : null;
   if (extraction?.customer_name) {
     if (intentOnlyFindsCustomers(extraction.intent)) {
       const found = await findExistingCustomerByName(env, extraction.customer_name);
@@ -158,6 +161,8 @@ export async function handleOpeningStep(
       // someone who hasn't been quoted yet, the exact duplication the
       // whole design exists to avoid. Handled entirely separately,
       // below, against the real leads table instead.
+    } else if (chosenCustomer) {
+      customer = { id: chosenCustomer.id, name: chosenCustomer.name, matched: true };
     } else {
       // Real feature 2026-07-25 — Identity Collision, given directly
       // by Pierre. A real, deterministic check — before ever
@@ -244,8 +249,8 @@ export async function handleOpeningStep(
           // not prose listing every name inline.
           const message =
             personCheck.candidates.length === 1
-              ? `"${extraction.customer_name}" sounds like an existing customer, "${personCheck.candidates[0].name}" — is this the same one? (action #${held.id})`
-              : `"${extraction.customer_name}" could be more than one person already on file — which one is this? (action #${held.id})`;
+              ? `"${extraction.customer_name}" sounds like an existing customer, "${personCheck.candidates[0].name}" — is this the same one, a new customer, or did I hear the name wrong? (action #${held.id})`
+              : `"${extraction.customer_name}" could be more than one person already on file — which one is it, a new customer, or did I hear the name wrong? (action #${held.id})`;
           return {
             customer: null,
             character: null,
@@ -254,6 +259,36 @@ export async function handleOpeningStep(
             message,
             jobScopeIdForProjectResolution: null,
             pendingCandidates: personCheck.candidates,
+            pendingActionType: "ambiguous_person",
+            pendingChanges: null,
+          };
+        }
+      }
+      // The customer name guard (Pierre, 2026-10-29): reconcileCustomer's own shortcut takes any customer whose name merely contains the spoken first and last words, so a NEW person could land on an existing one. A near match is
+      // ASKED about instead, before anything is written, with the same ambiguous_person hold (candidateKind "customer"): confirm = the same one, reject = a new customer, and the correct route = neither, here is the right name.
+      // NAME_GUARD=off restores the old silent match. A confident match by the canonical people check, and an exact name, are never asked.
+      if (!alreadyKnownCustomer && env.NAME_GUARD !== "off") {
+        const personMatch = await reconcilePerson(env, extraction.customer_name);
+        const near = personMatch?.status === "matched" ? [] : await findLooseCustomerMatches(env, extraction.customer_name);
+        if (near.length > 0) {
+          const held = await holdForConfirmation(
+            env,
+            "ambiguous_person",
+            { name: extraction.customer_name, intendedRole: "customer", candidates: near, candidateKind: "customer", extraction, transcript, captureId },
+            transcript
+          );
+          const message =
+            near.length === 1
+              ? `"${extraction.customer_name}" sounds like an existing customer, "${near[0].name}" — is this the same one, a new customer, or did I hear the name wrong? (action #${held.id})`
+              : `"${extraction.customer_name}" could be more than one customer already on file — which one is it, a new customer, or did I hear the name wrong? (action #${held.id})`;
+          return {
+            customer: null,
+            character: null,
+            pendingActionId: held.id,
+            factPendingActionId: null,
+            message,
+            jobScopeIdForProjectResolution: null,
+            pendingCandidates: near,
             pendingActionType: "ambiguous_person",
             pendingChanges: null,
           };

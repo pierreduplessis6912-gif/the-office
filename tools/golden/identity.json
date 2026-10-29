@@ -1675,7 +1675,7 @@
    "character": null,
    "pendingActionId": 1,
    "factPendingActionId": null,
-   "message": "\"Sipo Dlamini\" sounds like an existing customer, \"Sipho Dlamini\" — is this the same one? (action #1)",
+   "message": "\"Sipo Dlamini\" sounds like an existing customer, \"Sipho Dlamini\" — is this the same one, a new customer, or did I hear the name wrong? (action #1)",
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": [
     {
@@ -1710,7 +1710,7 @@
    "character": null,
    "pendingActionId": 1,
    "factPendingActionId": null,
-   "message": "\"Thandi Mokoeno\" could be more than one person already on file — which one is this? (action #1)",
+   "message": "\"Thandi Mokoeno\" could be more than one person already on file — which one is it, a new customer, or did I hear the name wrong? (action #1)",
    "jobScopeIdForProjectResolution": null,
    "pendingCandidates": [
     {

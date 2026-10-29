@@ -85,7 +85,8 @@ module.exports = async function runIntentTests({ check, bundleTo, srcDir, fs, pa
   }
   // Rewrite Phase 3, step 7: two of the ten (the "update that job?" hold, identical in the invoice's job part and in a spoken observation) became calls to ONE helper,
   // jobAmendmentReturn, so the function has 8 object-literal sites (7 early, 1 final) plus two calls. The helper's own site is held to the same rules just below.
-  check(sites.length === 8, `the opening step (7 early sites) and processOneExtraction (1 final) have 8 multi-line return sites between them, plus two calls to jobAmendmentReturn; there are now ${sites.length}, so the adapter's rules must be re-checked against the new site before this number is changed`);
+  // 2026-10-29 (the customer name guard): one more early site, the near-match customer question. Checked against the rules just below: it carries an action id with its type (ambiguous_person), candidates only because it is an ambiguous_person hold, no changes, no fact hold, no job scope.
+  check(sites.length === 9, `the opening step (8 early sites) and processOneExtraction (1 final) have 9 multi-line return sites between them, plus two calls to jobAmendmentReturn; there are now ${sites.length}, so the adapter's rules must be re-checked against the new site before this number is changed`);
   sites.forEach((s, n) => {
     const where = `return site ${n + 1} of ${sites.length}`;
     if (s.id === 'null') check(s.type === 'null' && s.cand === 'null' && s.chg === 'null', `${where}: with no action id, the type, candidates and changes must all be null`);
@@ -99,7 +100,7 @@ module.exports = async function runIntentTests({ check, bundleTo, srcDir, fs, pa
   // them in ANY formatting catches a new site written on one line, which the multi-line parse above cannot see.
   const openingSrcBody = openingFnLines.join('\n').slice(0, openingFnLines.join('\n').indexOf('\n}\n'));
   const anyReturns = (fnBody.match(/\breturn\s*\{/g) || []).length + ((openingSrcBody.match(/\breturn\s*\{/g) || []).length - 1);   // the opening step's own state return is not a result site
-  check(anyReturns === 8 && anyReturns === sites.length, `every object-literal return in processOneExtraction must be a result site the adapter's rules were checked against (found ${anyReturns} in any formatting, ${sites.length} multi-line)`);
+  check(anyReturns === 9 && anyReturns === sites.length, `every object-literal return in processOneExtraction must be a result site the adapter's rules were checked against (found ${anyReturns} in any formatting, ${sites.length} multi-line)`);
   // The shape moved into the helper must still obey the adapter's rules, exactly as the two sites it replaced did.
   // Rewrite Phase 3, step 8: the helper moved with the job-pricing region into intents/job-pricing.ts.
   const jpSrc = fs.readFileSync(path.join(srcDir, 'intents', 'job-pricing.ts'), 'utf8');
@@ -118,7 +119,7 @@ module.exports = async function runIntentTests({ check, bundleTo, srcDir, fs, pa
   const dispSrc = fs.readFileSync(path.join(srcDir, 'intents', 'dispatcher.ts'), 'utf8');
   const legacyType = dispSrc.slice(dispSrc.indexOf('export type LegacyProcessor = ('), dispSrc.indexOf('=> Promise<LegacyProcessResult>;'));
   const adapterParams = [...legacyType.matchAll(/^\s+(\w+)\??:/gm)].map((m) => m[1]);
-  check(liveParams.length === 8 && sameJson(liveParams, adapterParams), `the adapter's parameter list must match processOneExtraction's, in order (live: ${liveParams.join(',')}; adapter: ${adapterParams.join(',')})`);
+  check(liveParams.length === 9 && sameJson(liveParams, adapterParams), `the adapter's parameter list must match processOneExtraction's, in order (live: ${liveParams.join(',')}; adapter: ${adapterParams.join(',')})`);
   // Semicolons inside an inline object type ({ id: number; name: string }) are not field separators.
   const flatten = (s) => { let depth = 0; let out = ''; for (const c of s) { if (c === '{') depth++; if (c === '}') depth--; out += c === ';' && depth > 0 ? ',' : c; } return out; };
   const retStart = indexSrc.indexOf('): Promise<{', fnStart) + '): Promise<{'.length;
@@ -147,7 +148,7 @@ module.exports = async function runIntentTests({ check, bundleTo, srcDir, fs, pa
   const input = { env: { tag: 'env' }, transcript: 'T', extraction: { intent: 'payment' }, history: [{ role: 'user' }], ctx: { tag: 'ctx' }, captureId: 77, capabilities: ['can_manage_invoices'], recordingUserEmail: 'p@x.com' };
   const okLegacy = async (...args) => { seen = args; return { ...base, message: 'done', pendingActionId: 5, pendingActionType: 'payment' }; };
   const out = await adaptLegacyProcessor(okLegacy)(input);
-  check(seen && seen.length === 8 && seen[0] === input.env && seen[1] === 'T' && seen[2] === input.extraction && seen[3] === input.history && seen[4] === input.ctx && seen[5] === 77 && seen[6] === input.capabilities && seen[7] === 'p@x.com', 'the adapter passes every input to the live function in the live order');
+  check(seen && seen.length === 9 && seen[8] === null && seen[0] === input.env && seen[1] === 'T' && seen[2] === input.extraction && seen[3] === input.history && seen[4] === input.ctx && seen[5] === 77 && seen[6] === input.capabilities && seen[7] === 'p@x.com', 'the adapter passes every input to the live function in the live order');
   check(out.message === 'done' && out.held.id === 5 && out.held.type === 'payment', 'the adapter returns the new shape');
   let rejected = null; try { await adaptLegacyProcessor(async () => ({ ...base, pendingActionId: 5 }))(input); } catch (e) { rejected = e; }
   check(rejected && rejected.name === 'MalformedLegacyResult', 'a malformed result from the live function is an error, not a plausible answer');

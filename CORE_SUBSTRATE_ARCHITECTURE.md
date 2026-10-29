@@ -130,3 +130,5 @@ vertical's shortcuts.
   deliberately settles the shape of the decision, not the decision itself.
 
 **Person matching and titles (2026-10-26).** `reconcilePerson` (`worker/src/identity.ts`) no longer matches a leading title (Mr, Mrs, Dr...) as the person's name, so a new titled name is not held against everyone who shares the title; a titled name is still never auto-matched on a surname alone. Details and tests: `IDENTITY_ARCHITECTURE.md`, "A title is not a name".
+
+**Customer name guard (2026-10-29, branch `name-guard`).** `findLooseCustomerMatches` in `worker/src/identity.ts` is the read-only matcher behind the near-match customer question; see IDENTITY_ARCHITECTURE.md ("A near-match customer name is asked, not matched"). It adds no table and no column: the question is an `ambiguous_person` hold with `candidateKind: "customer"`.
