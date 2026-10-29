@@ -7,7 +7,7 @@ import base64, datetime, hashlib, hmac, json, os, re, statistics, sys, time, url
 BASE = os.environ.get("BASE", "https://office-staging.websitehub.co.za").rstrip("/"); SEED = os.environ["SEED"]; OUT = os.environ.get("OUT", "office-read-baseline.json"); SAMPLES = int(os.environ.get("SAMPLES", "2"))
 BUSINESS = "staging-co"; OWNER = "staging-owner@example.com"
 _W = ["Alder", "Birch", "Cedar", "Hazel", "Larch", "Maple", "Rowan", "Willow"]; _R = int(os.environ.get("GITHUB_RUN_ID", "0") or 0)
-CUST = f"Spike {_W[_R % 8]} {_W[(_R // 8) % 8]}"; ITEM = f"{_W[(_R // 64) % 8].lower()} screed"   # run 1 used a "Base ..." name that the invoice and quote seeds could not read as a customer; "Spike ..." names parse
+CUST = f"Spike {_W[_R % 8]} {_W[(_R // 8) % 8]}"; ITEM = f"{_W[(_R // 64) % 8].lower()} screed"; CUST2 = f"Spike {_W[(_R // 3) % 8]} {_W[(_R // 5) % 8]}"   # run 1 used a "Base ..." name that the invoice and quote seeds could not read as a customer; "Spike ..." names parse
 def derive(l): return re.sub(r"[=+/\n]", "", base64.b64encode(hmac.new(SEED.encode(), l.encode(), hashlib.sha256).digest()).decode())[:43]
 def cookie():
     b = lambda x: base64.urlsafe_b64encode(x).rstrip(b"=").decode(); p = b(json.dumps({"email": OWNER, "exp": int(time.time() * 1000) + 3 * 3600000, "b": BUSINESS}, separators=(",", ":")).encode())
@@ -37,8 +37,8 @@ SPOKEN = {"today": "today", "next": "in 2 weeks", "far": "15 January"}   # spoke
 NEXT_DATE = TODAY + datetime.timedelta(days=14); FAR_DATE = FAR
 SEEDS = [("invoice", f"Invoice {CUST} R3000 for carpet repair"), ("payment", f"{CUST} paid R1000"), ("quote", f"Quote {CUST} R4500 for lounge flooring"),
          ("expense", [f"Bought glue for R850 for {CUST}", f"Bought glue for R850 for {CUST}'s job", f"R850 for glue on the {CUST} job"]),
-         ("job_today", f"Schedule vinyl flooring installation for {CUST} {SPOKEN['today']}"), ("job_next", f"Schedule carpet installation for {CUST} {SPOKEN['next']}"), ("job_far", f"Schedule a hospital floor for {CUST} on {SPOKEN['far']}"),
-         ("job_undated", f"Measure {CUST}'s lounge, it is 6 metres by 4 metres"), ("task_tomorrow", "Remind me to phone Gran about her birthday tomorrow"), ("task_far", "Remind me to attend the Zululand gala on 15 January"), ("stock", f"Add 12 bags of {ITEM} to stock")]
+         ("job_today", f"Schedule vinyl flooring installation for {CUST} {SPOKEN['today']}"), ("job_next", f"Schedule carpet installation for {CUST} {SPOKEN['next']}"), ("job_far", [f"Schedule a hospital floor for {CUST2} on {SPOKEN['far']}", f"Schedule a hospital floor for {CUST2} on 15 January 2027"]),
+         ("job_undated", f"Measure {CUST}'s lounge, it is 6 metres by 4 metres"), ("task_tomorrow", "Remind me to phone Gran about her birthday tomorrow"), ("task_far", ["Remind me to attend the Zululand gala on 15 January", "Remind me about the Zululand gala on 15 January", "Remind me to attend the Zululand gala in January"]), ("stock", f"Add 12 bags of {ITEM} to stock")]
 EXPECT_JOB = {"job_today": TODAY, "job_next": NEXT_DATE, "job_far": FAR_DATE}
 def seed_one(tag, text):
     r = say(text); confirm = None
@@ -50,8 +50,9 @@ def seed_one(tag, text):
     elif tag == "expense":
         link = re.search(r'"customerId": (\d+)', confirm or ""); ok = r["pending"] is not None and '"status": "confirmed"' in (confirm or "") and link is not None; why = "confirmed and linked to the customer" if ok else "not linked to the customer or not confirmed: " + msg[:120]
     elif tag.startswith("job_") and tag != "job_undated":
+        who = CUST2 if tag == "job_far" else CUST
         m = re.search(r"scheduled for (\w{3}) (\d{1,2}) (\w{3})", msg); want = EXPECT_JOB[tag].strftime("%a %-d %b")
-        got = f"{m.group(1)} {m.group(2)} {m.group(3)}" if m else None; ok = ("Job scope #" in msg and CUST in msg and got == want); why = f"recorded for {want}" if ok else f"asked for {want}, the Office recorded: {got or msg[:100]}"
+        got = f"{m.group(1)} {m.group(2)} {m.group(3)}" if m else None; ok = ("Job scope #" in msg and who in msg and got == want); why = f"recorded for {want}" if ok else f"asked for {want}, the Office recorded: {got or msg[:100]}"
     elif tag == "job_undated": ok = "Job scope #" in msg and CUST in msg; why = "recorded undated" if ok else msg[:100]
     elif tag.startswith("task_"): ok = bool(re.search(r"noted", msg, re.I)) and not re.search(r"didn't catch", msg, re.I); why = "noted" if ok else msg[:100]
     elif tag == "stock": ok = bool(re.search(r"tracking", msg, re.I)); why = "tracking" if ok else msg[:100]
@@ -92,8 +93,8 @@ CASES = [
  ("todays_date", "scheduling", "What is today's date?", [[TODAY.strftime("%-d %B").lower(), fmt(TODAY), TODAY.strftime("%d %B").lower(), TODAY.strftime("%A").lower()]], [], []),
  ("tomorrow", "scheduling", "What do I need to do tomorrow?", [["gran"]], ["gala"], ["task_tomorrow"]),
  ("whats_up_today", "scheduling", "What's on for today?", [[CUST.lower()]], ["gala", "hospital"], ["job_today"]),
- ("coming_up_judgment", "scheduling", "What's coming up?", [["gran", CUST.lower()]], ["gala"], ["task_tomorrow", "job_next"]),
- ("far_future_asked", "scheduling", "Do I have anything planned for January?", [["gala", "hospital"]], [], ["task_far", "job_far"]),
+ ("coming_up_judgment", "scheduling", "What's coming up?", [["gran"], [CUST.lower()]], ["gala", "hospital"], ["task_tomorrow", "job_next"]),
+ ("far_future_asked", "scheduling", "Do I have anything planned for January?", [["gala"], ["hospital"]], [], ["task_far", "job_far"]),
  ("expenses_total", "expenses", "How much have we spent on expenses?", [["850"]], [], ["expense"]),
  ("expenses_customer", "expenses", f"What have we spent on {CUST}'s job?", [["850"]], [], ["expense"]),
  ("financial", "financial", "How is the business doing financially?", [["r", "net", "profit", "revenue"]], [], []),
