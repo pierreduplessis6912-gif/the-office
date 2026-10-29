@@ -798,6 +798,8 @@ async function expect(role, method, path, want) {
   await require('./dates.test.js')({ check, bundleTo });
   // The customer name guard: a near-match is asked (the existing ambiguous_person hold) before any write, with a third way out: neither, correct it (name-guard.test.js)
   await require('./name-guard.test.js')({ check, srcDir });
+  // The read layer: the owner's read questions (date, schedule, quotes, stock, a customer's jobs) answered in words from the MCP's own data functions, no model, owner only, with judgment (read-layer.ts)
+  await require('./read-layer.test.js')({ check, srcDir });
 
   // Linking an existing order to a customer, and moving the costs already recorded for it.
   await require('./linkorder.test.js')({ check, bundleTo, srcDir, path, sameJson });

@@ -42,6 +42,7 @@ export interface Env {
   BUSINESS_ID?: string;
   NAME_GUARD?: string;   // "off" restores the old silent first-and-last-word customer match (opening.ts); otherwise a near-match customer name is asked about
   MCP?: string;   // "off" switches off issuing keys for outside assistants (and, later, the /mcp endpoint)
+  READ_LAYER?: string;   // "off" switches off the read layer (read-layer.ts): the owner's questions about the date, schedule, quotes and stock go back to the pipeline
   CONVERSE?: string;   // "off" switches off the conversational layer (converse.ts): a message with nothing to act on gets the old "I didn't catch anything" again
   // The ONE business that owns the document links customers already hold (issued before the move, so they carry no business). Set only for the business that was migrated from the single-business deployment.
   LEGACY_LINK_BUSINESS?: string;

@@ -5,6 +5,7 @@ import { decisionOf, parseHistoryParams, readHistory, recordDecision, recordInte
 import { agedCreditorsData, agedDebtorsData, customerReceivablesData, parseCustomerParam, parsePeriodParams, profitAndLossData } from "./reports-data";
 import { withExperience } from "./experience";
 import { followUpReply, tryFollowUp } from "./followup";
+import { tryReadLayer } from "./read-layer";
 import { tryConverse } from "./converse";
 import { handleMcp } from "./mcp";
 import { taggingEnv } from "./mcp-tags";
@@ -3462,15 +3463,18 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       // real, live entry point that didn't have it: voice upload was
       // still using the default (full-access) capabilities, unlike
       // /messages/text, which already resolves the real session.
-      const { capabilities: voiceCapabilities, email: voiceEmail } = await resolveCapabilities(request, env);
+      const { capabilities: voiceCapabilities, email: voiceEmail, role: voiceRole } = await resolveCapabilities(request, env);
       // Found by the characterization recordings 2026-10-04: when the transcription failed or came back empty, the audio was
       // stored but NOTHING was written to the database, so no record pointed at the file and it could never be found or
       // retried, while the person was told it had been received. Documents and photos have always logged a capture before
       // anything else; audio only did so inside a successful transcription.
       if (!transcript) await logCapture(env, "[voice note — transcription unavailable]", "voice", key);
       let captured: number | null = null;
+      // The same read layer as the typed route (read-layer.ts).
+      const spokenRead = transcript ? await tryReadLayer(env, transcript, { role: voiceRole }) : null;
+      if (transcript && spokenRead) captured = await logCapture(env, transcript, "voice", key);
       let processed = transcript
-        ? await processTranscript(env, transcript, ctx, history, "voice", key, voiceCapabilities, voiceEmail, (id) => { captured = id; })
+        ? spokenRead ? followUpReply(transcript, spokenRead.message) : await processTranscript(env, transcript, ctx, history, "voice", key, voiceCapabilities, voiceEmail, (id) => { captured = id; })
         : {
             extraction: null,
             extractionRaw: null,
@@ -3483,9 +3487,9 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
           };
 
       // Same as the typed route: a spoken message with nothing to act on can be answered in words (converse.ts); anything else is untouched.
-      const spoken = transcript ? await tryConverse(env, transcript, processed, { email: voiceEmail, capabilities: voiceCapabilities }) : null;
+      const spoken = transcript && !spokenRead ? await tryConverse(env, transcript, processed, { email: voiceEmail, capabilities: voiceCapabilities }) : null;
       if (spoken !== null) processed = { ...processed, message: spoken };
-      await recordInteraction(env, { actorEmail: voiceEmail, source: "voice", captureId: captured, processed, viewing: contextFromHeader(request.headers.get("X-Office-Context")).context });   // swallowed on failure: it can never change a reply
+      await recordInteraction(env, { actorEmail: voiceEmail, source: "voice", captureId: captured, processed, viewing: contextFromHeader(request.headers.get("X-Office-Context")).context, ...(spokenRead ? { interpreted: { intent: "lookup", read_layer: spokenRead.kind } } : {}) });   // swallowed on failure: it can never change a reply
       const audioResponseBody = JSON.stringify({ status: "stored", key, transcript, transcriptionError, ...withExperience(processed) });
       await completeIdempotencyKey(env, idempotencyKey, audioResponseBody);
       return new Response(audioResponseBody, { headers: { "Content-Type": "application/json" } });
@@ -4019,17 +4023,20 @@ let created = 0;
       const idempotencyResult = await checkIdempotencyKey(env, idempotencyKey);
       if (idempotencyResult) return idempotencyResult;
 
-      const { capabilities, email: textEmail } = await resolveCapabilities(request, env);
+      const { capabilities, email: textEmail, role: textRole } = await resolveCapabilities(request, env);
       let captured: number | null = null;
       const onScreen = parseContext(body.context).context;
       // A follow-up on the analysis the app says is open ("why did it drop?", "which customers caused that?", "show me their outstanding invoices") is answered from the analysis itself, in words, and never goes near the model or writes anything. Anything else (or no analysis on screen) is null here and goes down the ordinary pipeline exactly as before.
       const followUp = await tryFollowUp(env, text, onScreen, capabilities);
       if (followUp) captured = await logCapture(env, text, "text", null);
-      let processed = followUp ? followUpReply(text, followUp.message, followUp.refusals) : await processTranscript(env, text, ctx, history, "text", null, capabilities, textEmail, (id) => { captured = id; });
+      // The read layer (read-layer.ts): the OWNER's question about today's date, the schedule, quotes or stock is answered in words from the same read-only data the MCP tools return, with no model call; anything else is untouched.
+      const readAnswer = followUp ? null : await tryReadLayer(env, text, { role: textRole });
+      if (readAnswer) captured = await logCapture(env, text, "text", null);
+      let processed = followUp ? followUpReply(text, followUp.message, followUp.refusals) : readAnswer ? followUpReply(text, readAnswer.message) : await processTranscript(env, text, ctx, history, "text", null, capabilities, textEmail, (id) => { captured = id; });
       // The conversational layer (converse.ts): only when the pipeline found nothing to act on (never after a follow-up, never for an instruction). It can only replace the words of the reply, nothing else; null leaves it exactly as it was.
-      const talked = followUp ? null : await tryConverse(env, text, processed, { email: textEmail, capabilities });
+      const talked = followUp || readAnswer ? null : await tryConverse(env, text, processed, { email: textEmail, capabilities });
       if (talked !== null) processed = { ...processed, message: talked };
-      await recordInteraction(env, { actorEmail: textEmail, source: "text", captureId: captured, processed, viewing: parseContext(body.context).context, ...(followUp ? { interpreted: followUp.interpreted } : {}) });   // swallowed on failure: it can never change a reply
+      await recordInteraction(env, { actorEmail: textEmail, source: "text", captureId: captured, processed, viewing: parseContext(body.context).context, ...(followUp ? { interpreted: followUp.interpreted } : readAnswer ? { interpreted: { intent: "lookup", read_layer: readAnswer.kind } } : {}) });   // swallowed on failure: it can never change a reply
       const responseBody = JSON.stringify({ status: "processed", transcript: text, ...withExperience(processed) });
 
       await completeIdempotencyKey(env, idempotencyKey, responseBody);

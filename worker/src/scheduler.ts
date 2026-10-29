@@ -106,6 +106,25 @@ export function resolveScheduledDate(rawPhrase: string | null, now: Date): strin
   const pad = (n: number) => String(n).padStart(2, "0");
   const toIso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
+  // An ISO date (2026-10-29) is that date. Found 2026-10-29 by the Office read baseline: the day reader below took the FIRST number it saw, 10 (the month), as the day, so 29 October became 10 November. An impossible one
+  // (2026-13-45, 2026-02-30) is no date, never another day. A past ISO date is returned as it was said.
+  const isoMatch = phrase.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+  if (isoMatch) {
+    const y = Number(isoMatch[1]), m = Number(isoMatch[2]), d = Number(isoMatch[3]);
+    const real = new Date(y, m - 1, d);
+    return real.getFullYear() === y && real.getMonth() === m - 1 && real.getDate() === d ? `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}` : null;
+  }
+
+  // "<count> <unit> from now" and "from today" are dates (Pierre, 2026-10-29; the 2026-10-04 reading of them as durations left such a job undated). Read BEFORE the word "today", which the phrase contains.
+  const FROM_NOW_WORDS: Record<string, number> = { a: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 };
+  const fromNow = phrase.match(/(\d+|a|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(days?|weeks?|fortnight)\s+from\s+(?:now|today)\b/);
+  if (fromNow) {
+    const n = /^\d+$/.test(fromNow[1]) ? parseInt(fromNow[1], 10) : FROM_NOW_WORDS[fromNow[1]];
+    const d = new Date(now);
+    d.setDate(d.getDate() + n * (fromNow[2].startsWith("week") ? 7 : fromNow[2] === "fortnight" ? 14 : 1));
+    return toIso(d);
+  }
+
   if (phrase.includes("today")) return toIso(now);
   if (phrase.includes("tomorrow")) {
     const d = new Date(now);
@@ -156,16 +175,14 @@ export function resolveScheduledDate(rawPhrase: string | null, now: Date): strin
     }
   }
 
-  const inDaysMatch = phrase.match(/in (\d+) days?/);
-  if (inDaysMatch) {
+  // "in 3 days", "in two weeks", "in a week", "in a fortnight": a count in digits or words (found 2026-10-29: "in two weeks" read as no date, so the job stayed undated). "N days from now" is read above.
+  const COUNT_WORDS: Record<string, number> = { a: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 };
+  const inCount = phrase.match(/in\s+(\d+|a|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(days?|weeks?|fortnight)\b/);
+  if (inCount) {
+    const n = /^\d+$/.test(inCount[1]) ? parseInt(inCount[1], 10) : COUNT_WORDS[inCount[1]];
+    const perUnit = inCount[2].startsWith("week") ? 7 : inCount[2] === "fortnight" ? 14 : 1;
     const d = new Date(now);
-    d.setDate(d.getDate() + parseInt(inDaysMatch[1], 10));
-    return toIso(d);
-  }
-  const inWeeksMatch = phrase.match(/in (\d+) weeks?/);
-  if (inWeeksMatch) {
-    const d = new Date(now);
-    d.setDate(d.getDate() + parseInt(inWeeksMatch[1], 10) * 7);
+    d.setDate(d.getDate() + n * perUnit);
     return toIso(d);
   }
 
