@@ -1,0 +1,104 @@
+{
+ "when": "2026-10-29T13:58:50Z",
+ "target": "https://office-staging.websitehub.co.za",
+ "run": "40886946396",
+ "existing": "Zanele Pieter Mokoena",
+ "near": [
+  "Zanele Hendrik Mokoena",
+  "Zanele Willem Mokoena",
+  "Zanele Johan Mokoena",
+  "Zanele Jacobus Mokoena",
+  "Zanele Andries Mokoena"
+ ],
+ "brand_new": "Mandla Gideon Ndlovu",
+ "steps": [
+  {
+   "step": "0 existing customer created",
+   "ok": true,
+   "reply": "Payment noted for Zanele Pieter Mokoena of R100 — needs your confirmation (action #263) before it's recorded.",
+   "extracted_ok": true
+  },
+  {
+   "step": "1 near match is asked, not matched",
+   "ok": true,
+   "reply": "\"Zanele Hendrik Mokoena\" sounds like an existing customer, \"Zanele Pieter Mokoena\" — is this the same one, a new customer, or did I hear the name wrong? (action #264)",
+   "type": "ambiguous_person",
+   "candidates": [
+    {
+     "id": 26458,
+     "name": "Zanele Pieter Mokoena"
+    }
+   ],
+   "ms": 6022
+  },
+  {
+   "step": "1b only the question is open (no payment held yet)",
+   "ok": true,
+   "pending_count": 84
+  },
+  {
+   "step": "2 forget it records nothing and says so",
+   "ok": true,
+   "status": 200,
+   "reply": "Okay, nothing was recorded. I didn't act on \"Zanele Hendrik Mokoena paid R200\". Say it again with the name you meant."
+  },
+  {
+   "step": "2b the answered question cannot be answered again",
+   "ok": true,
+   "status": 409,
+   "body": {
+    "error": "action already rejected"
+   }
+  },
+  {
+   "step": "3 the same one: the payment goes to the existing customer",
+   "ok": true,
+   "status": 200,
+   "reply": "Payment noted for Zanele Pieter Mokoena of R300 — needs your confirmation (action #266) before it's recorded."
+  },
+  {
+   "step": "4 a new customer: made as spoken",
+   "ok": true,
+   "status": 200,
+   "reply": "Payment noted for Zanele Johan Mokoena of R300 — needs your confirmation (action #268) before it's recorded."
+  },
+  {
+   "step": "5 neither: corrected to an existing customer",
+   "ok": false,
+   "status": 400,
+   "reply": ""
+  },
+  {
+   "step": "6 neither: corrected to a brand new name",
+   "ok": false,
+   "status": 400,
+   "reply": ""
+  },
+  {
+   "step": "7 the exact name is not asked about",
+   "ok": true,
+   "reply": "Payment noted for Zanele Pieter Mokoena of R400 — needs your confirmation (action #271) before it's recorded.",
+   "type": "payment"
+  },
+  {
+   "step": "8 a lookup is never asked",
+   "ok": true,
+   "reply": "I don't have that on file."
+  },
+  {
+   "step": "9 a measurement for a near-match name is asked about, not written",
+   "ok": true,
+   "reply": "\"Zanele Hendrik Mokoena\" sounds like an existing customer, \"Zanele Johan Mokoena\" — is this the same one? (action #272)",
+   "type": "ambiguous_person"
+  }
+ ],
+ "deployed_commit": "7549405b5da4df026853fa1b3fc2b4b923b92f51",
+ "summary": {
+  "steps": 12,
+  "ok": 10,
+  "failed": [
+   "5 neither: corrected to an existing customer",
+   "6 neither: corrected to a brand new name"
+  ]
+ }
+}
