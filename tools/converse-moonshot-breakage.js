@@ -11,7 +11,14 @@ const originals = Object.fromEntries(Object.entries(files).map(([k, f]) => [k, f
 const run = require('./converse-moonshot.test.js');
 const MUTATIONS = [
   // what crosses to Moonshot
-  ['moon', 'the engine\'s earlier answer is sent back to Moonshot', 'content: mine && replied ? replied.slice(0, TURN_CHARS) : ENGINE_PLACEHOLDER', 'content: replied.slice(0, TURN_CHARS)'],
+  ['moon', 'the engine\'s earlier answer is sent back to Moonshot as an assistant turn', 'if (answeredHere) { turns.push({ role: "user", content: heard.trim().slice(0, TURN_CHARS) }); turns.push({ role: "assistant", content: replied.slice(0, TURN_CHARS) }); }\n      else handled.push(heard.trim().slice(0, TURN_CHARS));', 'turns.push({ role: "user", content: heard.trim().slice(0, TURN_CHARS) }); turns.push({ role: "assistant", content: replied.slice(0, TURN_CHARS) });'],
+  ['moon', 'a placeholder stands in for the engine\'s answer again', 'else handled.push(heard.trim().slice(0, TURN_CHARS));', 'else { turns.push({ role: "user", content: heard.trim().slice(0, TURN_CHARS) }); turns.push({ role: "assistant", content: "(The Office answered that from the business records.)" }); }'],
+  ['moon', 'the fixed sentence is fed back as an assistant turn', 'trace.outcome === "reply" && replied.length > 0;', 'replied.length > 0;'],
+  ['moon', 'the person\'s business words are dropped (recall and intent lost)', 'const kept = handled.slice(-NOTE_ITEMS);', 'const kept: string[] = [];'],
+  ['moon', 'the note stops saying the model did not answer these', 'you did not answer them and their answers are not shown to you', 'carry on'],
+  ['moon', 'a failed request is not classed', 'return { ok: false, failure: { kind: "http", status: response.status }, ms: Date.now() - started };', 'return { ok: false, failure: { kind: "malformed" }, ms: Date.now() - started };'],
+  ['moon', 'a timeout is called a network error', 'kind: e instanceof Error && e.name === "AbortError" ? "timeout" : "network"', 'kind: "network"'],
+  ['index', 'a failure of the Moonshot request is not recorded', 'moonOut.kind !== "pass" || moonOut.trace.outcome === "error"', 'moonOut.kind !== "pass"'],
   ['moon', 'other members\' turns are sent', 'scope: "own"', 'scope: "all"'],
   ['moon', 'Policy A narrates (sends the engine\'s answer)', 'if (cfg.policy !== "B" || ', 'if ('],
   ['moon', 'a talk reply is not marked, so the next turn cannot tell it from an engine answer', 'return { converse: "moonshot", moonshot: out.trace };', 'return { moonshot: out.trace };'],
@@ -23,7 +30,7 @@ const MUTATIONS = [
   ['moon', 'a narration with a figure the engine did not give is shown', 'ungroundedFigures(words, [engineMessage], text).length > 0) return null;', 'false) return null;'],
   ['moon', 'a narration claiming something was done is shown', 'CLAIMS_DONE.test(words) || ungroundedFigures(words, [engineMessage], text)', 'ungroundedFigures(words, [engineMessage], text)'],
   // failure and switches
-  ['moon', 'a Moonshot failure ends the turn instead of passing the message on', 'if (!r.ok) { trace.outcome = "error"; return { kind: "pass", trace }; }', 'if (!r.ok) { trace.outcome = "error"; return { kind: "fallback", message: AGENT_FALLBACK, trace }; }'],
+  ['moon', 'a Moonshot failure ends the turn instead of passing the message on', 'if (!r.ok) { trace.outcome = "error"; trace.failure = r.failure; return { kind: "pass", trace }; }', 'if (!r.ok) { trace.outcome = "error"; trace.failure = r.failure; return { kind: "fallback", message: AGENT_FALLBACK, trace }; }'],
   ['moon', 'CONVERSE=off does not switch it off', 'if (env.CONVERSE === "off") return { kind: "pass", trace: off };', ''],
   ['moon', 'it runs without a key', 'if (cfg === null || !env.MOONSHOT_API_KEY || !who.email', 'if (cfg === null || !who.email'],
   // configuration and the request

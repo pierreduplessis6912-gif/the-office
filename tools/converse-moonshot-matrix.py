@@ -4,12 +4,16 @@
 # (which the Worker honours only on staging), and records plain facts and replies: routing (talk or engine), whether the person got the engine's words or a narration, time (total, model calls, tokens), refusals.
 import base64, hashlib, hmac, json, os, re, statistics, sys, time, urllib.request, urllib.error
 BASE = os.environ.get("BASE", "https://office-staging.websitehub.co.za").rstrip("/")
-SEED = os.environ["SEED"]; OUT = os.environ.get("OUT", "converse-moonshot-matrix.json"); SAMPLES = int(os.environ.get("SAMPLES", "2"))
+SEED = os.environ["SEED"]; OUT = os.environ.get("OUT", "converse-moonshot-matrix.json"); SAMPLES = int(os.environ.get("SAMPLES", "3"))
 BUSINESS = "staging-co"; OWNER = "staging-owner@example.com"
 _WORDS = ["Alder", "Birch", "Cedar", "Hazel", "Larch", "Maple", "Rowan", "Willow"]
 _RID = int(os.environ.get("GITHUB_RUN_ID", "0") or 0); CUST = f"Spike {_WORDS[_RID % 8]} {_WORDS[(_RID // 8) % 8]}"
-DEFAULT_CONFIGS = [{"model": "kimi-k2.6", "thinking": "off"}, {"model": "kimi-k2.6", "thinking": "on"}, {"model": "kimi-k2.7-code", "thinking": "on"}, {"model": "kimi-k2.7-code-highspeed", "thinking": "on"}]
-CONFIGS = [{**c, "policy": p, "effort": "low"} for p in ("A", "B") for c in json.loads(os.environ.get("CONFIGS", "null") or "null") or DEFAULT_CONFIGS]
+# The corrected run (history fix): Policy A, seven configurations. kimi-k2.6 is the only model that can run with thinking off; the K2.7 Code models run their one supported (reasoning) configuration; the K3 series always reasons and gets low effort.
+DEFAULT_CONFIGS = [{"model": "kimi-k2.6", "thinking": "off"}, {"model": "kimi-k2.6", "thinking": "on"}, {"model": "kimi-k2.7-code", "thinking": "on"}, {"model": "kimi-k2.7-code-highspeed", "thinking": "on"},
+                   {"model": "kimi-k3", "thinking": "on", "effort": "low"}, {"model": "kimi-k3.1-pro", "thinking": "on", "effort": "low"}, {"model": "kimi-k3.1-pro-highspeed", "thinking": "on", "effort": "low"}]
+POLICIES = [p.strip() for p in os.environ.get("POLICIES", "A").split(",") if p.strip() in ("A", "B")] or ["A"]
+CONFIGS = [{"effort": "low", **c, "policy": p} for p in POLICIES for c in json.loads(os.environ.get("CONFIGS", "null") or "null") or DEFAULT_CONFIGS]
+PROBE_ONLY = os.environ.get("PROBE_ONLY", "") == "1"   # after the key is removed: is the front door still active? (it must not be)
 def derive(label):
     raw = base64.b64encode(hmac.new(SEED.encode(), label.encode(), hashlib.sha256).digest()).decode(); return re.sub(r"[=+/\n]", "", raw)[:43]
 def cookie():
@@ -35,13 +39,18 @@ def say(text, cfg=None):
     it = (h.get("items") or [{}])[0] if isinstance(h, dict) else {}
     i = ((it.get("generated") or {}).get("interpreted")) or {}; m = i.get("moonshot") or {}
     return {"text": text, "status": s, "message": b.get("message") if isinstance(b, dict) else None, "ms": ms, "pending": b.get("pendingActionId") if isinstance(b, dict) else None,
-            "converse": i.get("converse"), "outcome": m.get("outcome"), "via": m.get("via"), "reason": m.get("reason"), "model_ms": m.get("model_ms"), "tokens": m.get("tokens"), "narrated": m.get("narrated"), "intent": i.get("intent")}
+            "converse": i.get("converse"), "outcome": m.get("outcome"), "via": m.get("via"), "reason": m.get("reason"), "model_ms": m.get("model_ms"), "tokens": m.get("tokens"), "narrated": m.get("narrated"), "intent": i.get("intent"), "failure": m.get("failure")}
 def figs(s): return {re.sub(r",", "", t) for t in re.findall(r"\d[\d,]*(?:\.\d+)?", s or "")}
 def stats(xs): return {"n": len(xs), "median": int(statistics.median(xs)) if xs else None, "mean": int(statistics.mean(xs)) if xs else None, "p90": sorted(xs)[int(len(xs) * .9)] if xs else None, "max": max(xs) if xs else None}
 BAD = re.compile(r"don't have that on file|couldn't look that up|didn't catch|trouble responding", re.I)
 R = {"when": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "target": BASE, "run": os.environ.get("GITHUB_RUN_ID"), "customer": CUST, "samples": SAMPLES, "configs": [], "baseline": [], "seed": []}
 s, h, _ = call("GET", "/health"); R["deployed_commit"] = h.get("commit") if isinstance(h, dict) else None
 R["expected_commit"] = os.environ.get("EXPECT_COMMIT", ""); R["runs_expected_commit"] = bool(R["expected_commit"]) and R["deployed_commit"] == R["expected_commit"]
+if PROBE_ONLY:
+    _p = say("Hello Office", {"model": "kimi-k2.6", "thinking": "off", "policy": "A", "effort": "low"})
+    R["front_door_active_now"] = _p["outcome"] in ("reply", "engine", "fallback") and _p["converse"] == "moonshot" or _p["outcome"] == "engine"
+    R["probe_outcome"] = {k: _p[k] for k in ("outcome", "converse", "failure", "message")}
+    json.dump(R, open(OUT, "w"), indent=1, ensure_ascii=False); open(OUT, "a").write("\n"); print("front door active:", R["front_door_active_now"]); sys.exit(0)
 PHRASES = [
  ("talk", "Hello Office", None), ("talk", "Good morning, Office. How are you doing today?", None), ("talk", "I want to have a conversation with you", None), ("talk", "Who are you?", None), ("talk", "What can you help me with?", None),
  ("talk", "Can you explain what you can help me with?", None), ("talk", "I had a difficult day yesterday and wanted to talk through something.", None), ("talk", "Thanks, that is all for now", None),
@@ -64,32 +73,52 @@ if _probe["outcome"] is None:
     json.dump(R, open(OUT, "w"), indent=1, ensure_ascii=False); open(OUT, "a").write("\n"); print(R["aborted"]); sys.exit(0)
 held = []
 def judge(kind, fig, r):
+    """Returns (routing_ok, answer_ok): routing_ok = the layer did the right thing (talk for talk and recall, hand to the engine for reads, mixed and work); answer_ok = the person got a right answer (recall mentions the week; a read has a real engine answer with the expected figure; work was held). A request that FAILED is neither: it is a failure of the request, classed separately."""
+    if r["outcome"] == "error": return (None, None)
     routed_talk = r["converse"] == "moonshot" and r["outcome"] == "reply"; routed_engine = r["outcome"] == "engine"
     if kind in ("talk", "recall"):
-        ok = routed_talk
-        if kind == "recall" and fig: ok = ok and any(f in (r["message"] or "").lower() for f in fig)
-        return ok
+        ans = routed_talk and (not (kind == "recall" and fig) or any(f in (r["message"] or "").lower() for f in fig))
+        return (routed_talk, ans)
     if kind in ("read", "mixed"):
-        ok = routed_engine and not BAD.search(r["message"] or "")
-        if fig: ok = ok and any(f in figs(r["message"]) for f in fig)
-        return ok
-    if kind == "work": return routed_engine and (r["pending"] is not None or r["intent"] is not None)
+        ans = routed_engine and not BAD.search(r["message"] or "") and (not fig or any(f in figs(r["message"]) for f in fig))
+        return (routed_engine, ans)
+    if kind == "work": return (routed_engine, routed_engine and (r["pending"] is not None or r["intent"] is not None))
+    return (None, None)
+def wilson(k, n, z=1.96):
+    if n == 0: return None
+    p = k / n; d = 1 + z * z / n; c = p + z * z / (2 * n); w = z * ((p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5)
+    return [round((c - w) / d, 3), round((c + w) / d, 3)]
+def failure_class(r):
+    if r["outcome"] == "error": f = r.get("failure") or {}; return f"{f.get('kind', 'unknown')}" + (f" {f['status']}" if f.get("status") else "")
+    if r["kind"] in ("read", "mixed", "work") and r["outcome"] in ("reply", "fallback"): return "routing: the layer answered a business message itself"
+    if r["kind"] in ("talk", "recall") and r["outcome"] == "engine": return "routing: a conversational message was sent to the engine"
     return None
 for cfg in CONFIGS:
     rows = []
     for sample in range(SAMPLES):
         for kind, text, fig in PHRASES:
             if kind == "work" and sample > 0: continue
-            r = say(text, cfg); r["kind"] = kind; r["sample"] = sample; r["ok"] = judge(kind, fig, r)
+            r = say(text, cfg); r["kind"] = kind; r["sample"] = sample; r["routing_ok"], r["ok"] = judge(kind, fig, r); r["failure_class"] = failure_class(r)
             if r["pending"] is not None and kind == "work": held.append(r["pending"])
             rows.append(r)
     S = {}
+    from collections import Counter
     for kind in ("talk", "recall", "read", "mixed", "work", "ambiguous"):
-        k = [r for r in rows if r["kind"] == kind]; j = [r for r in k if r["ok"] is not None]
-        S[kind] = {"n": len(k), "ok": sum(1 for r in j if r["ok"]), "judged": len(j), "latency_ms": stats([r["ms"] for r in k])}
+        k = [r for r in rows if r["kind"] == kind]; jr = [r for r in k if r["routing_ok"] is not None]; ja = [r for r in k if r["ok"] is not None]
+        S[kind] = {"n": len(k), "routing_ok": sum(1 for r in jr if r["routing_ok"]), "routing_judged": len(jr), "answer_ok": sum(1 for r in ja if r["ok"]), "answer_judged": len(ja), "latency_ms": stats([r["ms"] for r in k])}
+    need = [r for r in rows if r["kind"] in ("talk", "recall", "read", "mixed", "work") and r["routing_ok"] is not None]; engine_need = [r for r in need if r["kind"] in ("read", "mixed", "work")]; talk_need = [r for r in need if r["kind"] in ("talk", "recall")]
+    S["routing"] = {"overall": {"ok": sum(1 for r in need if r["routing_ok"]), "n": len(need), "wilson95": wilson(sum(1 for r in need if r["routing_ok"]), len(need))},
+                    "business_to_engine": {"ok": sum(1 for r in engine_need if r["routing_ok"]), "n": len(engine_need), "wilson95": wilson(sum(1 for r in engine_need if r["routing_ok"]), len(engine_need))},
+                    "talk_answered_by_layer": {"ok": sum(1 for r in talk_need if r["routing_ok"]), "n": len(talk_need), "wilson95": wilson(sum(1 for r in talk_need if r["routing_ok"]), len(talk_need))}}
+    eng_rows = [r for r in rows if r["outcome"] == "engine" and r.get("model_ms") is not None]
     allms = [r["ms"] for r in rows]; calls = [m for r in rows for m in (r.get("model_ms") or [])]
-    S["all"] = {"latency_ms": stats(allms), "model_call_ms": stats(calls), "model_calls": len(calls), "tokens_in": sum((r.get("tokens") or {}).get("in", 0) for r in rows), "tokens_out": sum((r.get("tokens") or {}).get("out", 0) for r in rows),
-                "fallbacks": sum(1 for r in rows if r["outcome"] == "fallback"), "errors": sum(1 for r in rows if r["outcome"] in (None, "error") and r["kind"] not in ("work",)), "narrated": sum(1 for r in rows if r.get("narrated"))}
+    S["all"] = {"latency_ms": stats(allms), "moonshot_call_ms": stats(calls), "engine_share_ms": stats([max(0, r["ms"] - sum(r["model_ms"])) for r in eng_rows if r["via"] != "code"]), "moonshot_calls": len(calls), "tokens_in": sum((r.get("tokens") or {}).get("in", 0) for r in rows), "tokens_out": sum((r.get("tokens") or {}).get("out", 0) for r in rows),
+                "failures_by_class": dict(Counter(r["failure_class"] for r in rows if r["failure_class"])), "fixed_sentence": sum(1 for r in rows if r["outcome"] == "fallback")}
+    per = {}
+    for r in rows:
+        d = per.setdefault(r["text"], {"kind": r["kind"], "n": 0, "routing_ok": 0, "answer_ok": 0, "errors": 0, "ms": []})
+        d["n"] += 1; d["ms"].append(r["ms"]); d["routing_ok"] += 1 if r["routing_ok"] else 0; d["answer_ok"] += 1 if r["ok"] else 0; d["errors"] += 1 if r["outcome"] == "error" else 0
+    S["by_phrase"] = {t: {**{k: v for k, v in d.items() if k != "ms"}, "median_ms": int(statistics.median(d["ms"]))} for t, d in per.items()}
     R["configs"].append({"config": cfg, "summary": S, "rows": rows})
     json.dump(R, open(OUT, "w"), indent=1, ensure_ascii=False)
 for a in held: call("POST", f"/actions/{a}/reject", {})

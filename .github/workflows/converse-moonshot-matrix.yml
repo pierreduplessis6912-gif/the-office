@@ -13,10 +13,22 @@ on:
         description: "Optional JSON list of {model, thinking}; empty runs kimi-k2.6 off and on, kimi-k2.7-code and kimi-k2.7-code-highspeed, each under Policy A and Policy B"
         required: false
         default: ""
+      record:
+        description: "File name under ops/ for this run's record (a new name keeps an earlier run's evidence intact)"
+        required: false
+        default: "converse-moonshot-matrix-last.json"
+      policies:
+        description: "A, B or A,B"
+        required: false
+        default: "A"
+      probe_only:
+        description: "1 = only check whether the Moonshot front door is active (after the key was removed it must not be)"
+        required: false
+        default: ""
       samples:
         description: "Samples per phrase"
         required: false
-        default: "2"
+        default: "3"
 
 concurrency:
   group: converse-moonshot-matrix
@@ -36,6 +48,9 @@ jobs:
       EXPECT_COMMIT: ${{ inputs.expect_commit }}
       CONFIGS: ${{ inputs.configs }}
       SAMPLES: ${{ inputs.samples }}
+      POLICIES: ${{ inputs.policies }}
+      PROBE_ONLY: ${{ inputs.probe_only }}
+      RECORD: ${{ inputs.record }}
       OUT: ${{ github.workspace }}/converse-moonshot-matrix-result.json
     steps:
       - uses: actions/checkout@v4
@@ -46,10 +61,10 @@ jobs:
       - name: Record the result on main
         run: |
           mkdir -p ops
-          cp "$OUT" ops/converse-moonshot-matrix-last.json
+          cp "$OUT" "ops/$RECORD"
           git config user.name "production-workflow"
           git config user.email "noreply@github.com"
-          git add ops/converse-moonshot-matrix-last.json
+          git add "ops/$RECORD"
           git commit -q -m "Moonshot front door matrix record (staging; plain facts and replies to synthetic messages)" || true
           git pull -q --rebase origin main && git push -q origin HEAD:main
       - name: Fail the run if the evaluation did not run

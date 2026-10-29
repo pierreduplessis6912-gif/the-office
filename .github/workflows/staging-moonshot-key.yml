@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "set or remove"
+        description: "set, remove or verify (verify lists only whether the secret NAME is configured on the staging Worker)"
         required: true
         default: "set"
 
@@ -29,6 +29,12 @@ jobs:
           import json, os, sys, urllib.request, urllib.error
           act = os.environ["ACTION"]; acct = os.environ["CLOUDFLARE_ACCOUNT_ID"]; tok = os.environ["CLOUDFLARE_API_TOKEN"]
           base = f"https://api.cloudflare.com/client/v4/accounts/{acct}/workers/scripts/office-staging-api/secrets"
+          if act == "verify":
+              req = urllib.request.Request(base, method="GET", headers={"Authorization": "Bearer " + tok})
+              try:
+                  with urllib.request.urlopen(req, timeout=60) as r: names = sorted(x.get("name") for x in json.loads(r.read().decode()).get("result", []))
+              except urllib.error.HTTPError as e: print("verify status", e.code); sys.exit(1)
+              print("MOONSHOT_API_KEY configured on the staging Worker:", "MOONSHOT_API_KEY" in names, "| secret names:", names); sys.exit(0)
           if act == "set":
               key = os.environ.get("MOONSHOT_API_KEY", "")
               if not key: print("no key in the repo secret"); sys.exit(1)

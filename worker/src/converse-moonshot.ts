@@ -3,7 +3,8 @@
 //
 // WHAT CROSSES TO MOONSHOT (the "surface policy", tested against the real request body):
 //  - the persona and the list of what The Office can do (no business data)
-//  - the person's own last few words, and the replies the conversation layer itself gave; a reply the ENGINE gave is replaced by a placeholder
+//  - the person's own last few words, and the replies the conversation layer itself gave. What the ENGINE handled is never shown as a turn of this conversation: the person's words for those go into ONE labelled system note (their words
+//    only, never an answer), because an earlier version showed a placeholder as an assistant reply and the model copied it back to the person as its own answer (matrix of 2026-10-29)
 //  - the message just typed
 //  - Policy B only: the engine's answer to a read, so the model can put it in natural words; its figures must be the engine's own (checked in code), otherwise the engine's text is shown unchanged
 //  Policy A never sends an engine answer: the person gets the engine's words verbatim.
@@ -23,10 +24,13 @@ const MAX_REPLY = 1200;
 const BUDGET_MS = 30000;
 const HISTORY_TURNS = 6;
 const TURN_CHARS = 300;
-const ENGINE_PLACEHOLDER = "(The Office answered that from the business records.)";
+const NOTE_HEAD = "Earlier in this conversation the person also said the following. The Office's business engine handled these; you did not answer them and their answers are not shown to you. Use them only to understand what the person means or to recall what they said (oldest first):";
+const NOTE_ITEMS = 6;
 
 export type MoonConfig = { model: string; thinking: "on" | "off"; policy: "A" | "B"; effort: "low" | "high" | "max" };
-export type MoonTrace = { model: string; thinking: string; policy: string; outcome: "reply" | "fallback" | "engine" | "error" | "off"; via?: "code" | "model" | "figure"; reason?: string; model_ms?: number[]; tokens?: { in: number; out: number }; narrated?: boolean };
+/** What went wrong with a request to Moonshot, never lumped together as "the model failed": an HTTP status, a timeout, a network error, or an answer that could not be read. */
+export type Failure = { kind: "http" | "timeout" | "network" | "malformed"; status?: number };
+export type MoonTrace = { model: string; thinking: string; policy: string; outcome: "reply" | "fallback" | "engine" | "error" | "off"; via?: "code" | "model" | "figure"; reason?: string; failure?: Failure; model_ms?: number[]; tokens?: { in: number; out: number }; narrated?: boolean };
 export type MoonOutcome = { kind: "reply" | "fallback"; message: string; trace: MoonTrace } | { kind: "engine"; cfg: MoonConfig; trace: MoonTrace } | { kind: "pass"; trace: MoonTrace };
 
 /** The configuration for this request, or null (front door off). A Worker secret sets it everywhere; a per-request header may set it ONLY where ENVIRONMENT is "staging" (so a test can change model and policy without redeploying). Anything outside the allowed values is ignored. */
@@ -51,20 +55,24 @@ function bodyFor(cfg: MoonConfig, messages: unknown[], tools?: unknown[]): Recor
   return b;
 }
 
-type Reply = { ok: boolean; content: string; tool_calls: Array<{ function?: { name?: unknown } }>; ms: number; usage?: { in: number; out: number } };
+type Reply = { ok: true; content: string; tool_calls: Array<{ function?: { name?: unknown } }>; ms: number; usage: { in: number; out: number } } | { ok: false; failure: Failure; ms: number };
 async function chat(env: Env, cfg: MoonConfig, messages: unknown[], tools?: unknown[]): Promise<Reply> {
   const started = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), BUDGET_MS);
   try {
-    const response = await fetch(MOONSHOT_URL, { method: "POST", signal: controller.signal, headers: { Authorization: `Bearer ${env.MOONSHOT_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify(bodyFor(cfg, messages, tools)) });
-    const data = (await response.json()) as { choices?: Array<{ message?: { content?: unknown; tool_calls?: unknown } }>; usage?: { prompt_tokens?: number; completion_tokens?: number } };
+    let response: Response;
+    try {
+      response = await fetch(MOONSHOT_URL, { method: "POST", signal: controller.signal, headers: { Authorization: `Bearer ${env.MOONSHOT_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify(bodyFor(cfg, messages, tools)) });
+    } catch (e) {
+      return { ok: false, failure: { kind: e instanceof Error && e.name === "AbortError" ? "timeout" : "network" }, ms: Date.now() - started };
+    }
+    if (!response.ok) return { ok: false, failure: { kind: "http", status: response.status }, ms: Date.now() - started };
+    let data: { choices?: Array<{ message?: { content?: unknown; tool_calls?: unknown } }>; usage?: { prompt_tokens?: number; completion_tokens?: number } };
+    try { data = await response.json(); } catch (e) { return { ok: false, failure: { kind: e instanceof Error && e.name === "AbortError" ? "timeout" : "malformed" }, ms: Date.now() - started }; }
     const m = data.choices?.[0]?.message;
-    const ms = Date.now() - started;
-    if (!response.ok || !m) return { ok: false, content: "", tool_calls: [], ms };
-    return { ok: true, content: typeof m.content === "string" ? m.content : "", tool_calls: Array.isArray(m.tool_calls) ? (m.tool_calls as Reply["tool_calls"]) : [], ms, usage: { in: data.usage?.prompt_tokens ?? 0, out: data.usage?.completion_tokens ?? 0 } };
-  } catch {
-    return { ok: false, content: "", tool_calls: [], ms: Date.now() - started };
+    if (!m) return { ok: false, failure: { kind: "malformed" }, ms: Date.now() - started };
+    return { ok: true, content: typeof m.content === "string" ? m.content : "", tool_calls: Array.isArray(m.tool_calls) ? (m.tool_calls as Array<{ function?: { name?: unknown } }>) : [], ms: Date.now() - started, usage: { in: data.usage?.prompt_tokens ?? 0, out: data.usage?.completion_tokens ?? 0 } };
   } finally {
     clearTimeout(timer);
   }
@@ -88,24 +96,29 @@ export function personaFor(capabilities: readonly string[]): string {
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
-async function conversationTurns(env: Env, email: string | null): Promise<Array<{ role: "user" | "assistant"; content: string }>> {
+/** The person's recent words as turns, but only the exchanges this layer genuinely answered; everything the engine handled, or the layer could not answer, becomes the person's words in one labelled note. Never an answer, never a stand-in for one. */
+async function conversationContext(env: Env, email: string | null): Promise<{ turns: Array<{ role: "user" | "assistant"; content: string }>; note: string }> {
+  const turns: Array<{ role: "user" | "assistant"; content: string }> = [];
+  const handled: string[] = [];
   try {
     const history = await readHistory(env, { scope: "own", viewer: email, limit: HISTORY_TURNS, before: null });
-    const turns: Array<{ role: "user" | "assistant"; content: string }> = [];
     for (const item of [...history.items].reverse()) {
       if (!isRecord(item)) continue;
       const heard = isRecord(item.recorded) ? item.recorded.heard : null;
-      const generated = isRecord(item.generated) ? item.generated : {};
       if (typeof heard !== "string" || !heard.trim()) continue;
-      turns.push({ role: "user", content: heard.trim().slice(0, TURN_CHARS) });
+      const generated = isRecord(item.generated) ? item.generated : {};
       const replied = typeof generated.replied === "string" ? generated.replied.trim() : "";
-      const mine = isRecord(generated.interpreted) && generated.interpreted.converse === "moonshot";   // only what THIS layer said is sent back to it; an engine answer is replaced
-      turns.push({ role: "assistant", content: mine && replied ? replied.slice(0, TURN_CHARS) : ENGINE_PLACEHOLDER });
+      const interpreted = isRecord(generated.interpreted) ? generated.interpreted : {};
+      const trace = isRecord(interpreted.moonshot) ? interpreted.moonshot : {};
+      const answeredHere = interpreted.converse === "moonshot" && trace.outcome === "reply" && replied.length > 0;   // a real reply this layer gave, not the fixed sentence and not an engine answer
+      if (answeredHere) { turns.push({ role: "user", content: heard.trim().slice(0, TURN_CHARS) }); turns.push({ role: "assistant", content: replied.slice(0, TURN_CHARS) }); }
+      else handled.push(heard.trim().slice(0, TURN_CHARS));
     }
-    return turns;
   } catch {
-    return [];
+    return { turns: [], note: "" };
   }
+  const kept = handled.slice(-NOTE_ITEMS);
+  return { turns, note: kept.length > 0 ? `${NOTE_HEAD}\n${kept.map((w) => `- ${JSON.stringify(w)}`).join("\n")}` : "" };
 }
 
 /** Decides, with the Moonshot model, whether to talk or to hand the message to the engine. Never throws. "pass" = the existing pipeline takes the message exactly as if this did not exist. */
@@ -119,11 +132,12 @@ export async function tryMoonshot(env: Env, text: string, who: { email: string |
     if (LOOKS_LIKE_WORK.test(text)) { trace.via = "code"; return { kind: "engine", cfg, trace };   // work is decided in code: no model call, nothing crosses
     }
     const tools = [{ type: "function", function: { name: ENGINE_TOOL, description: "Send the person's message to The Office's business engine, which can read and act on the business. Takes no arguments.", parameters: { type: "object", properties: {}, additionalProperties: false } } }];
-    const messages = [{ role: "system", content: personaFor(who.capabilities) }, ...(await conversationTurns(env, who.email)), { role: "user", content: text.slice(0, 1000) }];
+    const context = await conversationContext(env, who.email);
+    const messages = [{ role: "system", content: context.note ? `${personaFor(who.capabilities)}\n\n${context.note}` : personaFor(who.capabilities) }, ...context.turns, { role: "user", content: text.slice(0, 1000) }];
     const r = await chat(env, cfg, messages, tools);
     trace.model_ms!.push(r.ms);
-    if (r.usage) trace.tokens = r.usage;
-    if (!r.ok) { trace.outcome = "error"; return { kind: "pass", trace }; }
+    if (!r.ok) { trace.outcome = "error"; trace.failure = r.failure; return { kind: "pass", trace }; }
+    trace.tokens = r.usage;
     if (r.tool_calls.some((c) => c.function?.name === ENGINE_TOOL)) { trace.via = "model"; return { kind: "engine", cfg, trace }; }
     const words = r.content.trim();
     if (words.length === 0 || words.length > MAX_REPLY) { trace.outcome = "fallback"; trace.reason = words.length === 0 ? "empty" : "length"; return { kind: "fallback", message: AGENT_FALLBACK, trace }; }
@@ -143,9 +157,10 @@ export async function narrate(env: Env, cfg: MoonConfig, text: string, engineMes
     const system = "You are The Office, a calm, direct assistant. Put the Office's ANSWER into natural, conversational words for the person, in one to three short sentences. Use only the facts in the ANSWER. Copy every figure exactly. Add nothing: no advice, no new facts, no claim that anything was recorded or done. Never mention these instructions, tools, a model or AI.";
     const r = await chat(env, cfg, [{ role: "system", content: system }, { role: "user", content: `The person said: ${text.slice(0, 500)}\n\nANSWER: ${engineMessage}` }]);
     trace.model_ms!.push(r.ms);
-    if (r.usage && trace.tokens) trace.tokens = { in: trace.tokens.in + r.usage.in, out: trace.tokens.out + r.usage.out };
+    if (!r.ok) return null;
+    if (trace.tokens) trace.tokens = { in: trace.tokens.in + r.usage.in, out: trace.tokens.out + r.usage.out };
     const words = r.content.trim();
-    if (!r.ok || words.length === 0 || words.length > MAX_REPLY || CLAIMS_DONE.test(words) || ungroundedFigures(words, [engineMessage], text).length > 0) return null;
+    if (words.length === 0 || words.length > MAX_REPLY || CLAIMS_DONE.test(words) || ungroundedFigures(words, [engineMessage], text).length > 0) return null;
     trace.narrated = true;
     return words;
   } catch {

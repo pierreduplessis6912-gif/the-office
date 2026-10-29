@@ -97,7 +97,7 @@ module.exports = async function runConverseMoonshotTests({ check, srcDir }) {
     await run(handler, async () => {
       const failing = await say('Jenny settled her account', [SPLIT, READ_PAYMENT]);
       const off = await say('Jenny settled her account', [SPLIT, READ_PAYMENT], { env: { BUSINESS_ID: 'acme-co' } });
-      check(JSON.stringify(failing.result.body) === JSON.stringify(off.result.body) && JSON.stringify(failing.writes) === JSON.stringify(off.writes), `if Moonshot ${label}, the message goes to the pipeline and the result is identical to the front door being off`);
+      check(JSON.stringify(failing.result.body) === JSON.stringify(off.result.body) && JSON.stringify({ ...failing.writes, interaction_log: undefined }) === JSON.stringify({ ...off.writes, interaction_log: undefined }), `if Moonshot ${label}, the message goes to the pipeline and the reply and every record are identical to the front door being off (only the history line carries the failure note)`);
     });
   }
 
@@ -113,15 +113,46 @@ module.exports = async function runConverseMoonshotTests({ check, srcDir }) {
     const r = await say('What did I just say?', [SPLIT, READ_PAYMENT], { before, ...cfgHeader({ mode: 'moonshot', policy: 'A' }) });
     const last = calls[calls.length - 1].body, sent = JSON.stringify(last), roles = last.messages.map((m) => m.role);
     check(/Hello Office/.test(sent) && /Jenny settled her account/.test(sent), 'the person\'s own earlier words are sent (so it can recall what was said)');
-    check(!/Payment noted|needs your confirmation|Jenny Smith|R500/.test(sent) && sent.includes('The Office answered that from the business records'), 'but the ENGINE\'s earlier answer (a held payment with a name and an amount) is NOT: it is replaced by a placeholder');
+    const sysText = last.messages[0].content, others = last.messages.slice(1);
+    check(!/Payment noted|needs your confirmation|Jenny Smith|R500/.test(sent) && !sent.includes('The Office answered that from the business records') && !sent.includes('(The Office'), 'the ENGINE\'s earlier answer (a held payment with a name and an amount) is NOT sent, and no placeholder standing in for it is either: nothing internal is ever shown to the model as if it were its own reply');
+    check(/also said the following/.test(sysText) && /you did not answer them/.test(sysText) && /- "Jenny settled her account"/.test(sysText) && !/Hello Office/.test(sysText.split('also said the following')[1] || ''), 'the person\'s own business words are kept in ONE clearly labelled system note (what the engine handled, that the model did not answer it), so intent and recall survive without forwarding any answer');
+    check(JSON.stringify(others.map((m) => m.role)) === JSON.stringify(['user', 'assistant', 'user']) && others[1].content === 'You asked me hello, then said Jenny settled her account.' && others[0].content === 'Hello Office', 'only genuine conversation turns appear as turns: the person\'s words and the layer\'s own earlier reply');
     check(!/ZEBRA|R1500/.test(sent) && !sent.includes(KEY), 'no seeded business fact (a confirmed invoice) and no key is anywhere in the body');
-    check(roles[0] === 'system' && roles[roles.length - 1] === 'user' && roles.every((x) => ['system', 'user', 'assistant'].includes(x)) && /Good morning|Hello/.test(sent) === true, 'the message order is system, then the turns, then the message just typed; no tool role, nothing else');
+    check(roles[0] === 'system' && roles[roles.length - 1] === 'user' && roles.filter((x) => x === 'system').length === 1 && roles.every((x) => ['system', 'user', 'assistant'].includes(x)), 'there is one system message, then the turns, then the message just typed; no tool role, nothing else');
     check(r.threw === null && r.result.body.message === 'You asked me hello, then said Jenny settled her account.', 'and the recall is answered'); });
   await run((b) => ({ content: 'Hello again.' }), async (calls) => {
     const before = [{ method: 'POST', path: '/messages/text', role: 'owner', body: { text: 'OWNER-EARLIER-LINE about my day' } }, { method: 'POST', path: '/messages/text', role: 'accountant', body: { text: 'ZEBRA-SECRET about the books' } }];
     await say('Hello again', [], { before }); const a = JSON.stringify(calls[calls.length - 1].body);
     await say('Hello again', [], { before, role: 'accountant' }); const b = JSON.stringify(calls[calls.length - 1].body);
     check(/OWNER-EARLIER/.test(a) && !/ZEBRA/.test(a) && /ZEBRA-SECRET/.test(b) && !/OWNER-EARLIER/.test(b), 'only the member\'s own turns are sent, never another member\'s'); });
+
+  // ---- REGRESSION: the placeholder leak (a model copied the text used for earlier engine answers and showed it as its own reply) -----------------------------------------------------------------
+  { const PLACEHOLDER = 'The Office answered that from the business records';
+    const copycat = (b) => { if (/Jenny/.test(b.messages[b.messages.length - 1].content)) return { tool_calls: ENGINE_CALL }; const lastAssistant = [...b.messages].reverse().find((m) => m.role === 'assistant'); return { content: lastAssistant ? lastAssistant.content : 'Hello.' }; };   // a model that repeats whatever its last reply looked like
+    await run(copycat, async (calls) => {
+      const before = [{ method: 'POST', path: '/messages/text', body: { text: 'Jenny settled her account' } }, { method: 'POST', path: '/messages/text', body: { text: 'How much does Jenny owe' } }];
+      const r = await say('And how are you today?', [SPLIT, READ_PAYMENT, READ_LOOKUP, ANSWER('x')], { before });
+      const everything = JSON.stringify(calls.map((c) => c.body));
+      check(!everything.includes(PLACEHOLDER) && !everything.includes('(The Office answered') && !calls.some((c) => c.body.messages.some((m) => m.role === 'assistant')), 'after earlier engine-handled turns, NO assistant message exists at all in anything sent to the model, so there is nothing for it to copy');
+      check(r.threw === null && !String(r.result.body.message).includes(PLACEHOLDER) && r.result.body.message === 'Hello.', 'and a model that repeats its last reply shows only what it would say with no history: the placeholder cannot reach the person (' + String(r.threw || r.result.body.message).slice(0, 60) + ')'); });
+    await run((b) => (/recorded/.test(b.messages[b.messages.length - 1].content) ? { content: 'Done, I have recorded that for you.' } : { content: 'Hello.' }), async (calls) => {
+      const before = [{ method: 'POST', path: '/messages/text', body: { text: 'please say it is recorded' } }];
+      await say('Next question', [], { before });
+      const last = calls[calls.length - 1].body, sent = JSON.stringify(last);
+      check(!sent.includes(FALLBACK) && !last.messages.some((m) => m.role === 'assistant' && m.content === FALLBACK) && /- "please say it is recorded"/.test(last.messages[0].content), 'the fixed "trouble responding" sentence is never fed back either: a turn the layer could not answer goes into the labelled note as the person\'s words only'); }); }
+
+  // ---- every kind of failure is classified, never lumped together as "the model failed" ---------------------------------------------------------------------------------------------------------
+  { const abort = () => { const e = new Error('aborted'); e.name = 'AbortError'; throw e; };
+    const cases = [['http 500', () => new Response('boom', { status: 500 }), 'http', 500], ['http 429', () => new Response('slow down', { status: 429 }), 'http', 429], ['http 401', () => new Response('{"error":"bad key"}', { status: 401 }), 'http', 401], ['a timeout', abort, 'timeout', undefined], ['a network error', () => { throw new TypeError('fetch failed'); }, 'network', undefined], ['junk instead of JSON', () => new Response('<html>nope</html>', { status: 200 }), 'malformed', undefined], ['no choices', () => new Response(JSON.stringify({ choices: [] }), { status: 200 }), 'malformed', undefined]];
+    const got = [];
+    for (const [label, handler, kind, status] of cases) {
+      await run(handler, async () => {
+        const r = await route({ name: 'fail', method: 'GET', path: '/history?limit=1', role: 'owner', seed, ai: [SPLIT, { match: /Extract structured facts from a tradesperson's message/, reply: { ...harness.EXTRACTION_DEFAULTS, intent: 'other' } }, { match: /You are The Office, a calm/, reply: 'Phase one.' }], before: [{ method: 'POST', path: '/messages/text', body: { text: 'Good morning there' } }] });
+        const m = ((((r.result.body.items || [])[0] || {}).generated || {}).interpreted || {}).moonshot || {};
+        got.push([label, m.outcome, m.failure && m.failure.kind, m.failure && m.failure.status, kind, status]);
+      });
+    }
+    check(got.every(([, outcome, k, s, wantKind, wantStatus]) => outcome === 'error' && k === wantKind && s === wantStatus), 'every failed Moonshot request is recorded with its CLASS and, for an HTTP error, its STATUS (http 500, 429, 401; timeout; network; malformed): ' + JSON.stringify(got.filter(([, o, k, s, wk, ws]) => o !== 'error' || k !== wk || s !== ws))); }
 
   // ---- switches and order ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
   await run(() => ({ content: 'NEVER' }), async (calls) => {
