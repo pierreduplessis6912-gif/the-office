@@ -1,0 +1,20 @@
+{
+ "when": "2026-10-29T08:48:06Z",
+ "target": "https://office-staging.websitehub.co.za",
+ "run": "40844754969",
+ "customer": "Spike Birch Hazel",
+ "samples": 1,
+ "configs": [],
+ "baseline": [],
+ "seed": [],
+ "deployed_commit": "c586ddb67fe3f46cce2c7abac889e6b16af938b0",
+ "expected_commit": "c586ddb67fe3f46cce2c7abac889e6b16af938b0",
+ "runs_expected_commit": true,
+ "front_door_active_now": false,
+ "probe_outcome": {
+  "outcome": null,
+  "converse": null,
+  "failure": null,
+  "message": "Morning. What can I do for you?"
+ }
+}
