@@ -1,0 +1,56 @@
+name: Name guard smoke (staging, real model)
+
+# Runs the customer name guard smoke (IDENTITY_ARCHITECTURE.md, "A near-match customer name is asked, not matched") on STAGING with the REAL model: picks names no existing customer shares, then says a near-match name and answers the question
+# every way (forget it, the same one, a new customer, neither with an existing or a brand new name), plus an exact repeat, a lookup and a measurement; rejects every payment it holds. Staging credentials only, never production. Started by hand only.
+on:
+  workflow_dispatch:
+    inputs:
+      expect_commit:
+        description: "The full commit staging must be running (the run fails if /health says otherwise)"
+        required: true
+      record:
+        description: "File name under ops/ for this run's record (a new name keeps an earlier run's evidence intact)"
+        required: false
+        default: "name-guard-smoke-last.json"
+      samples:
+        description: "Samples per phrase"
+        required: false
+        default: "3"
+
+concurrency:
+  group: name-guard-smoke
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SEED: ${{ secrets.STAGING_KEY_SEED }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      EXPECT_COMMIT: ${{ inputs.expect_commit }}
+      SAMPLES: ${{ inputs.samples }}
+      RECORD: ${{ inputs.record }}
+      OUT: ${{ github.workspace }}/name-guard-smoke-result.json
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the smoke test
+        id: run
+        continue-on-error: true
+        run: python3 tools/name-guard-smoke.py
+      - name: Record the result on main
+        run: |
+          mkdir -p ops
+          cp "$OUT" "ops/$RECORD"
+          git config user.name "production-workflow"
+          git config user.email "noreply@github.com"
+          git add "ops/$RECORD"
+          git commit -q -m "Moonshot front door matrix record (staging; plain facts and replies to synthetic messages)" || true
+          git pull -q --rebase origin main && git push -q origin HEAD:main
+      - name: Fail the run if the evaluation did not run
+        if: steps.run.outcome != 'success'
+        run: exit 1
