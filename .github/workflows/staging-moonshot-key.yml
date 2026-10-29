@@ -11,7 +11,7 @@ on:
         default: "set"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   key:
@@ -23,6 +23,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       ACTION: ${{ inputs.action }}
     steps:
+      - uses: actions/checkout@v4
       - name: Set or remove the staging Worker secret
         run: |
           python3 - <<'PY'
@@ -34,7 +35,8 @@ jobs:
               try:
                   with urllib.request.urlopen(req, timeout=60) as r: names = sorted(x.get("name") for x in json.loads(r.read().decode()).get("result", []))
               except urllib.error.HTTPError as e: print("verify status", e.code); sys.exit(1)
-              print("MOONSHOT_API_KEY configured on the staging Worker:", "MOONSHOT_API_KEY" in names, "| secret names:", names); sys.exit(0)
+              print("MOONSHOT_API_KEY configured on the staging Worker:", "MOONSHOT_API_KEY" in names, "| secret names:", names)
+              import time; open("staging-moonshot-key-last.json", "w").write(json.dumps({"when": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "worker": "office-staging-api", "moonshot_api_key_configured": "MOONSHOT_API_KEY" in names, "secret_names": names}, indent=1) + "\n"); sys.exit(0)
           if act == "set":
               key = os.environ.get("MOONSHOT_API_KEY", "")
               if not key: print("no key in the repo secret"); sys.exit(1)
@@ -45,3 +47,13 @@ jobs:
               with urllib.request.urlopen(req, timeout=60) as r: print(act, "status", r.status)
           except urllib.error.HTTPError as e: print(act, "status", e.code); sys.exit(1)
           PY
+      - name: Record the verification (secret names and a true or false only; never a value)
+        if: ${{ inputs.action == 'verify' }}
+        run: |
+          mkdir -p ops
+          cp staging-moonshot-key-last.json ops/staging-moonshot-key-last.json
+          git config user.name "production-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/staging-moonshot-key-last.json
+          git commit -q -m "Staging Moonshot key verification record (secret names only)" || true
+          git pull -q --rebase origin main && git push -q origin HEAD:main
