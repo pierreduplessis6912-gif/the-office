@@ -1,0 +1,34 @@
+name: Moonshot API probe (models and timing)
+
+# Uses the repo secret MOONSHOT_API_KEY (never printed or recorded) to list the models the key can call and to time one tiny request to each Kimi model. Records plain facts in ops/moonshot-probe-last.json.
+# Started by hand only. It touches no Worker and no business data.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: moonshot-probe
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API__KEY }}   # the secret was saved with a double underscore; kept as saved
+      OUT: ${{ github.workspace }}/moonshot-probe-result.json
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the probe
+        run: python3 tools/moonshot-probe.py
+      - name: Record the result on main
+        run: |
+          mkdir -p ops
+          cp "$OUT" ops/moonshot-probe-last.json
+          git config user.name "production-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/moonshot-probe-last.json
+          git commit -q -m "Moonshot API probe record (model ids, status, timings; no key, no business data)" || true
+          git pull -q --rebase origin main && git push -q origin HEAD:main
