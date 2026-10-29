@@ -1,0 +1,1448 @@
+{
+ "when": "2026-10-29T11:34:06Z",
+ "target": "https://office-staging.websitehub.co.za",
+ "run": "40866365731",
+ "customer": "Spike Hazel Larch",
+ "item": "larch screed",
+ "dates": {
+  "today": "2026-10-29",
+  "tomorrow": "2026-10-30",
+  "next_week": "2026-11-08",
+  "far": "2027-01-15"
+ },
+ "seed": [
+  {
+   "tag": "invoice",
+   "text": "Invoice Spike Hazel Larch R3000 for carpet repair",
+   "reply": "Invoice noted for Spike Willow Larch of R3000 — needs your confirmation (action #254) before it's recorded. Job scope #96 also recorded — 1 component measured, 1 task noted.",
+   "pending": 254,
+   "confirm": "{\"status\": \"confirmed\", \"invoice\": {\"id\": 14124, \"customerId\": 26447, \"amount\": 3000, \"retentionAmount\": 0}, \"pdfUrl\": \"https://office-staging.websitehub.co.za/invoices/14124/pdf?sig=eyJwYXRoIjoiL2ludm9pY2VzLzE0MTI0L3BkZiIsImV4cCI6MTc5ODQ1NzY4Nzc3OSwiYiI6InN0YWdpbmctY28ifQ.Hy-QHCwM4nFcPSzvFyk2Ui0hddRhgZUHMttEkiEwPek\", \"shareMessage\": \"Hi Spike, here's your invoice from us \\u2014 R3,000. View it he",
+   "intent": "invoice",
+   "seed_ok": true,
+   "seed_note": "confirmed"
+  },
+  {
+   "tag": "payment",
+   "text": "Spike Hazel Larch paid R1000",
+   "reply": "Payment noted for Spike Willow Larch of R1000 — needs your confirmation (action #255) before it's recorded.",
+   "pending": 255,
+   "confirm": "{\"status\": \"confirmed\", \"payment\": {\"id\": 82, \"customerId\": 26447, \"amount\": 1000}}",
+   "intent": "payment",
+   "seed_ok": true,
+   "seed_note": "confirmed"
+  },
+  {
+   "tag": "quote",
+   "text": "Quote Spike Hazel Larch R4500 for lounge flooring",
+   "reply": "Quotation noted for Spike Willow Larch of R4500 (1 line item) — needs your confirmation (action #256) before it's recorded.",
+   "pending": 256,
+   "confirm": "{\"status\": \"confirmed\", \"quotation\": {\"id\": 2, \"customerId\": 26447, \"amount\": 4500}, \"pdfUrl\": \"https://office-staging.websitehub.co.za/quotations/2/pdf?sig=eyJwYXRoIjoiL3F1b3RhdGlvbnMvMi9wZGYiLCJleHAiOjE3OTg0NTc3MTM5NjcsImIiOiJzdGFnaW5nLWNvIn0.1l0eQBPV3c3gDdxAGUK0cuctrZ--kZWk23fUs_yVgTM\", \"shareMessage\": \"Hi Spike, here's your quote from us \\u2014 R4,500. View it here: https://office-staging.webs",
+   "intent": "quotation",
+   "seed_ok": true,
+   "seed_note": "confirmed"
+  },
+  {
+   "tag": "expense",
+   "text": "Bought glue for R850 for Spike Hazel Larch",
+   "reply": "Expense noted of R850 — needs your confirmation (action #257) before it's recorded.",
+   "pending": 257,
+   "confirm": "{\"status\": \"confirmed\", \"expense\": {\"id\": 11, \"characterId\": null, \"customerId\": null, \"amount\": 850, \"category\": \"materials\"}}",
+   "intent": "expense",
+   "seed_ok": false,
+   "seed_note": "not linked to the customer or not confirmed: Expense noted of R850 — needs your confirmation (action #257) before it's recorded. {\"status\": \"confirmed\", \"expense\": {"
+  },
+  {
+   "tag": "expense",
+   "text": "Bought glue for R850 for Spike Hazel Larch's job",
+   "reply": "Expense noted of R850 — needs your confirmation (action #258) before it's recorded.",
+   "pending": 258,
+   "confirm": "{\"status\": \"confirmed\", \"expense\": {\"id\": 12, \"characterId\": null, \"customerId\": 26447, \"amount\": 850, \"category\": \"materials\"}}",
+   "intent": "expense",
+   "seed_ok": true,
+   "seed_note": "confirmed and linked to the customer"
+  },
+  {
+   "tag": "job_today",
+   "text": "Schedule vinyl flooring installation for Spike Hazel Larch today",
+   "reply": "Job #96 (\"carpet repair\") — update it, or create this as a separate new job?",
+   "pending": 259,
+   "confirm": "{\"status\": \"confirmed\", \"amendedJobScopeId\": 96, \"changes\": [{\"field\": \"scheduled_date_raw\", \"oldValue\": null, \"newValue\": \"today\"}, {\"field\": \"installer_id\", \"oldValue\": null, \"newValue\": \"264\"}]}",
+   "intent": "work_observation",
+   "seed_ok": false,
+   "seed_note": "asked for Thu 29 Oct, the Office recorded: Job #96 (\"carpet repair\") — update it, or create this as a separate new job? {\"status\": \"confirmed\","
+  },
+  {
+   "tag": "job_next",
+   "text": "Schedule carpet installation for Spike Hazel Larch in 2 weeks",
+   "reply": "Job scope #97 recorded for Spike Willow Larch — 1 component measured.",
+   "pending": null,
+   "confirm": null,
+   "intent": "work_observation",
+   "seed_ok": false,
+   "seed_note": "asked for Thu 12 Nov, the Office recorded: Job scope #97 recorded for Spike Willow Larch — 1 component measured. "
+  },
+  {
+   "tag": "job_far",
+   "text": "Schedule a hospital floor for Spike Rowan Cedar on 15 January",
+   "reply": "Job #87 (\"window repair\") — update it, or create this as a separate new job?",
+   "pending": 260,
+   "confirm": "{\"status\": \"confirmed\", \"amendedJobScopeId\": 87, \"changes\": [{\"field\": \"scheduled_date_raw\", \"oldValue\": null, \"newValue\": \"15 January\"}]}",
+   "intent": "work_observation",
+   "seed_ok": false,
+   "seed_note": "asked for Fri 15 Jan, the Office recorded: Job #87 (\"window repair\") — update it, or create this as a separate new job? {\"status\": \"confirmed\","
+  },
+  {
+   "tag": "job_far",
+   "text": "Schedule a hospital floor for Spike Rowan Cedar on 15 January 2027",
+   "reply": "Job scope #98 recorded for Spike Cedar Cedar — 1 component measured, scheduled for Fri 15 Jan. Heads up — the same installer is already booked that day (Spike Cedar Cedar: window repair).",
+   "pending": null,
+   "confirm": null,
+   "intent": "work_observation",
+   "seed_ok": false,
+   "seed_note": "asked for Fri 15 Jan, the Office recorded: Fri 15 Jan"
+  },
+  {
+   "tag": "job_undated",
+   "text": "Measure Spike Hazel Larch's lounge, it is 6 metres by 4 metres",
+   "reply": "Job scope #99 recorded for Spike Willow Larch — 1 component measured.",
+   "pending": null,
+   "confirm": null,
+   "intent": "work_observation",
+   "seed_ok": false,
+   "seed_note": "Job scope #99 recorded for Spike Willow Larch — 1 component measured. "
+  },
+  {
+   "tag": "task_tomorrow",
+   "text": "Remind me to phone Gran about her birthday tomorrow",
+   "reply": "Found existing: Gran. Also noted: phone Gran about her birthday.",
+   "pending": null,
+   "confirm": null,
+   "intent": "reminder",
+   "seed_ok": true,
+   "seed_note": "noted"
+  },
+  {
+   "tag": "task_far",
+   "text": "Remind me to attend the Zululand gala on 15 January",
+   "reply": "I didn't catch anything there I could act on.",
+   "pending": null,
+   "confirm": null,
+   "intent": "reminder",
+   "seed_ok": false,
+   "seed_note": "I didn't catch anything there I could act on. "
+  },
+  {
+   "tag": "task_far",
+   "text": "Remind me about the Zululand gala on 15 January",
+   "reply": "I didn't catch anything there I could act on.",
+   "pending": null,
+   "confirm": null,
+   "intent": "reminder",
+   "seed_ok": false,
+   "seed_note": "I didn't catch anything there I could act on. "
+  },
+  {
+   "tag": "task_far",
+   "text": "Remind me to attend the Zululand gala in January",
+   "reply": "I didn't catch anything there I could act on.",
+   "pending": null,
+   "confirm": null,
+   "intent": "reminder",
+   "seed_ok": false,
+   "seed_note": "I didn't catch anything there I could act on. "
+  },
+  {
+   "tag": "stock",
+   "text": "Add 12 bags of larch screed to stock",
+   "reply": "Now tracking larch screed (bags) as real, running stock.",
+   "pending": null,
+   "confirm": null,
+   "intent": "register_stock_item",
+   "seed_ok": true,
+   "seed_note": "tracking"
+  }
+ ],
+ "ground_truth": {
+  "stock_route": {
+   "status": 200,
+   "item": [],
+   "has_item": false
+  },
+  "aged_debtors_route": {
+   "status": 200,
+   "customer_seen": false,
+   "around_customer": null
+  },
+  "profit_and_loss_route_status": 200
+ },
+ "cases": [
+  {
+   "id": "owe_customer",
+   "class": "debtors",
+   "sample": 0,
+   "question": "How much does Spike Hazel Larch owe?",
+   "reply": "I don't have that on file.\n\nOnly expenses explicitly linked to this job are counted — an expense recorded without job context isn't included, since there's no way to know which job it was really for.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "customer",
+   "ms": 26389,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "2000"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "no fact source for this question (fact gathering)"
+  },
+  {
+   "id": "outstanding_invoices",
+   "class": "debtors",
+   "sample": 0,
+   "question": "Show me Spike Hazel Larch's outstanding invoices",
+   "reply": "I don't have any information on file for Spike Hazel Larch. The facts I have are for Spike Willow Larch, not Spike Hazel Larch.\n\nOnly expenses explicitly linked to this job are counted — an expense recorded without job context isn't included, since there's no way to know which job it was really for.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "customer",
+   "ms": 15076,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "2000",
+     "3000"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "no fact source for this question (fact gathering)"
+  },
+  {
+   "id": "who_owes",
+   "class": "debtors",
+   "sample": 0,
+   "question": "Who owes us money?",
+   "reply": "__OPEN_DASHBOARD__:aged_debtors",
+   "reply_kind": "dashboard_marker",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 5149,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "spike hazel larch"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "answer is a screen command, not words (dashboard route)"
+  },
+  {
+   "id": "quotes_open",
+   "class": "quotes",
+   "sample": 0,
+   "question": "Do we have any open quotes?",
+   "reply": "Open quotes:\n- Spike Willow Larch: Spike Hazel Larch for lounge flooring, R4500\n- Spike Willow Larch: Spike Willow Larch for lounge flooring, R4500",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": null,
+   "ms": 354,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "4500"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [],
+   "ok": true,
+   "failure_stage": null
+  },
+  {
+   "id": "quote_amount",
+   "class": "quotes",
+   "sample": 0,
+   "question": "How much was the quote for Spike Hazel Larch?",
+   "reply": "Open quotes:\n- Spike Willow Larch: Spike Hazel Larch for lounge flooring, R4500\n- Spike Willow Larch: Spike Willow Larch for lounge flooring, R4500",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": null,
+   "ms": 292,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "4500"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [],
+   "ok": true,
+   "failure_stage": null
+  },
+  {
+   "id": "stock_all",
+   "class": "stock",
+   "sample": 0,
+   "question": "What do we have in stock?",
+   "reply": "Stock on hand:\n- alder screed: 0 bags\n- boards: -10\n- larch screed: 0 bags\n- rowan screed: 0 bags",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": null,
+   "ms": 277,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "larch",
+     "12"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [],
+   "ok": true,
+   "failure_stage": null
+  },
+  {
+   "id": "stock_item",
+   "class": "stock",
+   "sample": 0,
+   "question": "How many bags of larch screed do we have?",
+   "reply": "larch screed: 0 bags on hand.",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": null,
+   "ms": 314,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "12"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "answer composition: wrong or missing facts"
+  },
+  {
+   "id": "jobs_coming_up",
+   "class": "jobs",
+   "sample": 0,
+   "question": "What jobs do I have coming up?",
+   "reply": "Coming up (next 14 days):\n\nToday, Thu 29 Oct:\n- vinyl flooring installation for Spike Willow Larch\n- carpet repair for Spike Willow Larch\n\nTue 10 Nov:\n- vinyl flooring installation for Base Birch Maple\n\nWed 11 Nov:\n- carpet installation for Base Birch Maple\n\nNot yet scheduled:\n- flooring measurement for Spike Willow Larch\n- carpet installation for Spike Willow Larch\n- bathroom floor repair for Staging Customer One\n- flooring measurement for Spike Willow Larch\n- vinyl flooring installation for Base Birch Maple",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": null,
+   "ms": 449,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "2026-11-08",
+     "8 november",
+     "08 nov"
+    ],
+    [
+     "spike hazel larch"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false,
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "jobs_today",
+   "class": "jobs",
+   "sample": 0,
+   "question": "What jobs do I have today?",
+   "reply": "Today, Thu 29 Oct:\n- vinyl flooring installation for Spike Willow Larch\n- carpet repair for Spike Willow Larch",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": null,
+   "ms": 298,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "spike hazel larch"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "jobs_customer",
+   "class": "jobs",
+   "sample": 0,
+   "question": "When is Spike Hazel Larch's job?",
+   "reply": "Coming up (next 14 days):\n\nToday, Thu 29 Oct:\n- vinyl flooring installation for Spike Willow Larch\n- carpet repair for Spike Willow Larch\n\nTue 10 Nov:\n- vinyl flooring installation for Base Birch Maple\n\nWed 11 Nov:\n- carpet installation for Base Birch Maple\n\nNot yet scheduled:\n- flooring measurement for Spike Willow Larch\n- carpet installation for Spike Willow Larch\n- bathroom floor repair for Staging Customer One\n- flooring measurement for Spike Willow Larch\n- vinyl flooring installation for Base Birch Maple",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": null,
+   "ms": 294,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "spike hazel larch",
+     "2026-11-08",
+     "2026-10-29"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "todays_date",
+   "class": "scheduling",
+   "sample": 0,
+   "question": "What is today's date?",
+   "reply": "Today is Thursday 29 October 2026.",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": null,
+   "ms": 549,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "29 october",
+     "2026-10-29",
+     "29 october",
+     "thursday"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [],
+   "ok": true,
+   "failure_stage": null
+  },
+  {
+   "id": "tomorrow",
+   "class": "scheduling",
+   "sample": 0,
+   "question": "What do I need to do tomorrow?",
+   "reply": "Tomorrow, Fri 30 Oct:\n- Reminder: Phone Gran about her birthday\n- Reminder: Phone Gran about her birthday\n- Reminder: Phone Gran about her birthday\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": null,
+   "ms": 302,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "gran"
+    ]
+   ],
+   "forbidden": [
+    "gala"
+   ],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [],
+   "ok": true,
+   "failure_stage": null
+  },
+  {
+   "id": "whats_up_today",
+   "class": "scheduling",
+   "sample": 0,
+   "question": "What's on for today?",
+   "reply": "Today, Thu 29 Oct:\n- vinyl flooring installation for Spike Willow Larch\n- carpet repair for Spike Willow Larch\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": null,
+   "ms": 313,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "spike hazel larch"
+    ]
+   ],
+   "forbidden": [
+    "gala",
+    "hospital"
+   ],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "coming_up_judgment",
+   "class": "scheduling",
+   "sample": 0,
+   "question": "What's coming up?",
+   "reply": "Coming up (next 14 days):\n\nToday, Thu 29 Oct:\n- vinyl flooring installation for Spike Willow Larch\n- carpet repair for Spike Willow Larch\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n\nTomorrow, Fri 30 Oct:\n- Reminder: Phone Gran about her birthday\n- Reminder: Phone Gran about her birthday\n- Reminder: Phone Gran about her birthday\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n\nSun 1 Nov:\n- Reminder: Attend the Zululand gala\n\nTue 10 Nov:\n- vinyl flooring installation for Base Birch Maple\n\nWed 11 Nov:\n- carpet installation for Base Birch Maple\n\nNot yet scheduled:\n- Attend the Zululand gala\n- flooring measurement for Spike Willow Larch\n- carpet installation for Spike Willow Larch\n- bathroom floor repair for Staging Customer One\n- flooring measurement for Spike Willow Larch\n- vinyl flooring installation for Base Birch Maple",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": null,
+   "ms": 272,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "gran"
+    ],
+    [
+     "spike hazel larch"
+    ]
+   ],
+   "forbidden": [
+    "gala",
+    "hospital"
+   ],
+   "hit": [
+    true,
+    false
+   ],
+   "forbidden_found": [
+    "gala"
+   ],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "far_future_asked",
+   "class": "scheduling",
+   "sample": 0,
+   "question": "Do I have anything planned for January?",
+   "reply": "January 2027:\n\nFri 15 Jan:\n- window repair for Spike Cedar Cedar\n- carpet installation for Spike Willow Larch\n- hospital floor installation for Spike Cedar Cedar\n- Reminder: The Zululand gala\n- Reminder: Attend the Zululand gala\n- Reminder: Attend the Zululand gala",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": null,
+   "ms": 291,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "gala"
+    ],
+    [
+     "hospital"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    true,
+    true
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "expenses_total",
+   "class": "expenses",
+   "sample": 0,
+   "question": "How much have we spent on expenses?",
+   "reply": "__OPEN_DASHBOARD__:financial_snapshot",
+   "reply_kind": "dashboard_marker",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 126023,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "850"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "answer is a screen command, not words (dashboard route)"
+  },
+  {
+   "id": "expenses_customer",
+   "class": "expenses",
+   "sample": 0,
+   "question": "What have we spent on Spike Hazel Larch's job?",
+   "reply": "I don't have that on file.\n\nOnly expenses explicitly linked to this job are counted — an expense recorded without job context isn't included, since there's no way to know which job it was really for.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "customer",
+   "ms": 27184,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "850"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "no fact source for this question (fact gathering)"
+  },
+  {
+   "id": "financial",
+   "class": "financial",
+   "sample": 0,
+   "question": "How is the business doing financially?",
+   "reply": "__OPEN_DASHBOARD__:financial_snapshot",
+   "reply_kind": "dashboard_marker",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 63521,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "r",
+     "net",
+     "profit",
+     "revenue"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "answer is a screen command, not words (dashboard route)"
+  },
+  {
+   "id": "why_expenses",
+   "class": "analysis",
+   "sample": 0,
+   "question": "Why did our expenses go up?",
+   "reply": "__OPEN_DASHBOARD__:financial_snapshot",
+   "reply_kind": "dashboard_marker",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 34533,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "expense"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "answer is a screen command, not words (dashboard route)"
+  },
+  {
+   "id": "unknown_customer",
+   "class": "missing_information",
+   "sample": 0,
+   "question": "How much does Nobody Zzyzx owe?",
+   "reply": "I don't have that on file.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "customer",
+   "ms": 9620,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "nobody",
+     "zzyzx",
+     "no customer",
+     "don't"
+    ]
+   ],
+   "forbidden": [
+    "r3000",
+    "r2000",
+    "owes r"
+   ],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [],
+   "ok": true,
+   "failure_stage": null
+  },
+  {
+   "id": "ambiguous_other_one",
+   "class": "ambiguity",
+   "sample": 0,
+   "question": "What about the other one?",
+   "reply": "I don't have any information about \"the other one\" on file. The facts I have only cover Spike Willow Larch.\n\nOnly expenses explicitly linked to this job are counted — an expense recorded without job context isn't included, since there's no way to know which job it was really for.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 5151,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "which",
+     "other",
+     "clarify",
+     "mean"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [],
+   "ok": true,
+   "failure_stage": null
+  },
+  {
+   "id": "other_business",
+   "class": "boundaries",
+   "sample": 0,
+   "question": "Show me the customers of the other business",
+   "reply": "I don't have that on file.\n\nOnly expenses explicitly linked to this job are counted — an expense recorded without job context isn't included, since there's no way to know which job it was really for.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 5169,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "can't",
+     "cannot",
+     "only",
+     "your business",
+     "restricted",
+     "don't"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [],
+   "ok": true,
+   "failure_stage": null
+  },
+  {
+   "id": "owe_customer",
+   "class": "debtors",
+   "sample": 1,
+   "question": "How much does Spike Hazel Larch owe?",
+   "reply": "I don't have that on file.\n\nOnly expenses explicitly linked to this job are counted — an expense recorded without job context isn't included, since there's no way to know which job it was really for.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "customer",
+   "ms": 5099,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "2000"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "no fact source for this question (fact gathering)"
+  },
+  {
+   "id": "outstanding_invoices",
+   "class": "debtors",
+   "sample": 1,
+   "question": "Show me Spike Hazel Larch's outstanding invoices",
+   "reply": "I don't have that on file.\n\nOnly expenses explicitly linked to this job are counted — an expense recorded without job context isn't included, since there's no way to know which job it was really for.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "customer",
+   "ms": 5946,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "2000",
+     "3000"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "no fact source for this question (fact gathering)"
+  },
+  {
+   "id": "who_owes",
+   "class": "debtors",
+   "sample": 1,
+   "question": "Who owes us money?",
+   "reply": "__OPEN_DASHBOARD__:aged_debtors",
+   "reply_kind": "dashboard_marker",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 5952,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "spike hazel larch"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "answer is a screen command, not words (dashboard route)"
+  },
+  {
+   "id": "quotes_open",
+   "class": "quotes",
+   "sample": 1,
+   "question": "Do we have any open quotes?",
+   "reply": "Open quotes:\n- Spike Willow Larch: Spike Hazel Larch for lounge flooring, R4500\n- Spike Willow Larch: Spike Willow Larch for lounge flooring, R4500",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": null,
+   "ms": 273,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "4500"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [],
+   "ok": true,
+   "failure_stage": null
+  },
+  {
+   "id": "quote_amount",
+   "class": "quotes",
+   "sample": 1,
+   "question": "How much was the quote for Spike Hazel Larch?",
+   "reply": "Open quotes:\n- Spike Willow Larch: Spike Hazel Larch for lounge flooring, R4500\n- Spike Willow Larch: Spike Willow Larch for lounge flooring, R4500",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": null,
+   "ms": 267,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "4500"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [],
+   "ok": true,
+   "failure_stage": null
+  },
+  {
+   "id": "stock_all",
+   "class": "stock",
+   "sample": 1,
+   "question": "What do we have in stock?",
+   "reply": "Stock on hand:\n- alder screed: 0 bags\n- boards: -10\n- larch screed: 0 bags\n- rowan screed: 0 bags",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": null,
+   "ms": 288,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "larch",
+     "12"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [],
+   "ok": true,
+   "failure_stage": null
+  },
+  {
+   "id": "stock_item",
+   "class": "stock",
+   "sample": 1,
+   "question": "How many bags of larch screed do we have?",
+   "reply": "larch screed: 0 bags on hand.",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": null,
+   "ms": 276,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "12"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "answer composition: wrong or missing facts"
+  },
+  {
+   "id": "jobs_coming_up",
+   "class": "jobs",
+   "sample": 1,
+   "question": "What jobs do I have coming up?",
+   "reply": "Coming up (next 14 days):\n\nToday, Thu 29 Oct:\n- vinyl flooring installation for Spike Willow Larch\n- carpet repair for Spike Willow Larch\n\nTue 10 Nov:\n- vinyl flooring installation for Base Birch Maple\n\nWed 11 Nov:\n- carpet installation for Base Birch Maple\n\nNot yet scheduled:\n- flooring measurement for Spike Willow Larch\n- carpet installation for Spike Willow Larch\n- bathroom floor repair for Staging Customer One\n- flooring measurement for Spike Willow Larch\n- vinyl flooring installation for Base Birch Maple",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": null,
+   "ms": 527,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "2026-11-08",
+     "8 november",
+     "08 nov"
+    ],
+    [
+     "spike hazel larch"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false,
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "jobs_today",
+   "class": "jobs",
+   "sample": 1,
+   "question": "What jobs do I have today?",
+   "reply": "Today, Thu 29 Oct:\n- vinyl flooring installation for Spike Willow Larch\n- carpet repair for Spike Willow Larch",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": null,
+   "ms": 279,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "spike hazel larch"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "jobs_customer",
+   "class": "jobs",
+   "sample": 1,
+   "question": "When is Spike Hazel Larch's job?",
+   "reply": "Coming up (next 14 days):\n\nToday, Thu 29 Oct:\n- vinyl flooring installation for Spike Willow Larch\n- carpet repair for Spike Willow Larch\n\nTue 10 Nov:\n- vinyl flooring installation for Base Birch Maple\n\nWed 11 Nov:\n- carpet installation for Base Birch Maple\n\nNot yet scheduled:\n- flooring measurement for Spike Willow Larch\n- carpet installation for Spike Willow Larch\n- bathroom floor repair for Staging Customer One\n- flooring measurement for Spike Willow Larch\n- vinyl flooring installation for Base Birch Maple",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": null,
+   "ms": 299,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "spike hazel larch",
+     "2026-11-08",
+     "2026-10-29"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "todays_date",
+   "class": "scheduling",
+   "sample": 1,
+   "question": "What is today's date?",
+   "reply": "Today is Thursday 29 October 2026.",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": null,
+   "ms": 276,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "29 october",
+     "2026-10-29",
+     "29 october",
+     "thursday"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [],
+   "ok": true,
+   "failure_stage": null
+  },
+  {
+   "id": "tomorrow",
+   "class": "scheduling",
+   "sample": 1,
+   "question": "What do I need to do tomorrow?",
+   "reply": "Tomorrow, Fri 30 Oct:\n- Reminder: Phone Gran about her birthday\n- Reminder: Phone Gran about her birthday\n- Reminder: Phone Gran about her birthday\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": null,
+   "ms": 296,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "gran"
+    ]
+   ],
+   "forbidden": [
+    "gala"
+   ],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [],
+   "ok": true,
+   "failure_stage": null
+  },
+  {
+   "id": "whats_up_today",
+   "class": "scheduling",
+   "sample": 1,
+   "question": "What's on for today?",
+   "reply": "Today, Thu 29 Oct:\n- vinyl flooring installation for Spike Willow Larch\n- carpet repair for Spike Willow Larch\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": null,
+   "ms": 263,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "spike hazel larch"
+    ]
+   ],
+   "forbidden": [
+    "gala",
+    "hospital"
+   ],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "coming_up_judgment",
+   "class": "scheduling",
+   "sample": 1,
+   "question": "What's coming up?",
+   "reply": "Coming up (next 14 days):\n\nToday, Thu 29 Oct:\n- vinyl flooring installation for Spike Willow Larch\n- carpet repair for Spike Willow Larch\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n\nTomorrow, Fri 30 Oct:\n- Reminder: Phone Gran about her birthday\n- Reminder: Phone Gran about her birthday\n- Reminder: Phone Gran about her birthday\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n- Reminder: Call Thandi\n\nSun 1 Nov:\n- Reminder: Attend the Zululand gala\n\nTue 10 Nov:\n- vinyl flooring installation for Base Birch Maple\n\nWed 11 Nov:\n- carpet installation for Base Birch Maple\n\nNot yet scheduled:\n- Attend the Zululand gala\n- flooring measurement for Spike Willow Larch\n- carpet installation for Spike Willow Larch\n- bathroom floor repair for Staging Customer One\n- flooring measurement for Spike Willow Larch\n- vinyl flooring installation for Base Birch Maple",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": null,
+   "ms": 274,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "gran"
+    ],
+    [
+     "spike hazel larch"
+    ]
+   ],
+   "forbidden": [
+    "gala",
+    "hospital"
+   ],
+   "hit": [
+    true,
+    false
+   ],
+   "forbidden_found": [
+    "gala"
+   ],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "far_future_asked",
+   "class": "scheduling",
+   "sample": 1,
+   "question": "Do I have anything planned for January?",
+   "reply": "January 2027:\n\nFri 15 Jan:\n- window repair for Spike Cedar Cedar\n- carpet installation for Spike Willow Larch\n- hospital floor installation for Spike Cedar Cedar\n- Reminder: The Zululand gala\n- Reminder: Attend the Zululand gala\n- Reminder: Attend the Zululand gala",
+   "reply_kind": "words",
+   "intent": "lookup",
+   "scope": null,
+   "ms": 264,
+   "ground_truth_established": false,
+   "expected_groups": [
+    [
+     "gala"
+    ],
+    [
+     "hospital"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    true,
+    true
+   ],
+   "forbidden_found": [],
+   "ok": null,
+   "failure_stage": null
+  },
+  {
+   "id": "expenses_total",
+   "class": "expenses",
+   "sample": 1,
+   "question": "How much have we spent on expenses?",
+   "reply": "__OPEN_DASHBOARD__:financial_snapshot",
+   "reply_kind": "dashboard_marker",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 34836,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "850"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "answer is a screen command, not words (dashboard route)"
+  },
+  {
+   "id": "expenses_customer",
+   "class": "expenses",
+   "sample": 1,
+   "question": "What have we spent on Spike Hazel Larch's job?",
+   "reply": "I don't have that on file.\n\nOnly expenses explicitly linked to this job are counted — an expense recorded without job context isn't included, since there's no way to know which job it was really for.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "customer",
+   "ms": 11039,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "850"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "no fact source for this question (fact gathering)"
+  },
+  {
+   "id": "financial",
+   "class": "financial",
+   "sample": 1,
+   "question": "How is the business doing financially?",
+   "reply": "__OPEN_DASHBOARD__:financial_snapshot",
+   "reply_kind": "dashboard_marker",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 9345,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "r",
+     "net",
+     "profit",
+     "revenue"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "answer is a screen command, not words (dashboard route)"
+  },
+  {
+   "id": "why_expenses",
+   "class": "analysis",
+   "sample": 1,
+   "question": "Why did our expenses go up?",
+   "reply": "__OPEN_DASHBOARD__:financial_snapshot",
+   "reply_kind": "dashboard_marker",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 6699,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "expense"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "answer is a screen command, not words (dashboard route)"
+  },
+  {
+   "id": "unknown_customer",
+   "class": "missing_information",
+   "sample": 1,
+   "question": "How much does Nobody Zzyzx owe?",
+   "reply": "I don't have that on file.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "customer",
+   "ms": 13584,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "nobody",
+     "zzyzx",
+     "no customer",
+     "don't"
+    ]
+   ],
+   "forbidden": [
+    "r3000",
+    "r2000",
+    "owes r"
+   ],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [],
+   "ok": true,
+   "failure_stage": null
+  },
+  {
+   "id": "ambiguous_other_one",
+   "class": "ambiguity",
+   "sample": 1,
+   "question": "What about the other one?",
+   "reply": "I don't have that on file.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "personal",
+   "ms": 5521,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "which",
+     "other",
+     "clarify",
+     "mean"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    false
+   ],
+   "forbidden_found": [],
+   "ok": false,
+   "failure_stage": "no fact source for this question (fact gathering)"
+  },
+  {
+   "id": "other_business",
+   "class": "boundaries",
+   "sample": 1,
+   "question": "Show me the customers of the other business",
+   "reply": "I don't have that on file.\n\nOnly expenses explicitly linked to this job are counted — an expense recorded without job context isn't included, since there's no way to know which job it was really for.",
+   "reply_kind": "no_information",
+   "intent": "lookup",
+   "scope": "business",
+   "ms": 10416,
+   "ground_truth_established": true,
+   "expected_groups": [
+    [
+     "can't",
+     "cannot",
+     "only",
+     "your business",
+     "restricted",
+     "don't"
+    ]
+   ],
+   "forbidden": [],
+   "hit": [
+    true
+   ],
+   "forbidden_found": [],
+   "ok": true,
+   "failure_stage": null
+  }
+ ],
+ "deployed_commit": "e8d0bbbb471f7cd5382c29f098bf51b7acbb6b0f",
+ "summary": {
+  "by_class": {
+   "debtors": {
+    "n": 6,
+    "judged": 6,
+    "ok": 0,
+    "kinds": {
+     "no_information": 4,
+     "dashboard_marker": 2
+    }
+   },
+   "quotes": {
+    "n": 4,
+    "judged": 4,
+    "ok": 4,
+    "kinds": {
+     "words": 4
+    }
+   },
+   "stock": {
+    "n": 4,
+    "judged": 4,
+    "ok": 2,
+    "kinds": {
+     "words": 4
+    }
+   },
+   "jobs": {
+    "n": 6,
+    "judged": 0,
+    "ok": 0,
+    "kinds": {
+     "words": 6
+    }
+   },
+   "scheduling": {
+    "n": 10,
+    "judged": 4,
+    "ok": 4,
+    "kinds": {
+     "words": 10
+    }
+   },
+   "expenses": {
+    "n": 4,
+    "judged": 4,
+    "ok": 0,
+    "kinds": {
+     "dashboard_marker": 2,
+     "no_information": 2
+    }
+   },
+   "financial": {
+    "n": 2,
+    "judged": 2,
+    "ok": 0,
+    "kinds": {
+     "dashboard_marker": 2
+    }
+   },
+   "analysis": {
+    "n": 2,
+    "judged": 2,
+    "ok": 0,
+    "kinds": {
+     "dashboard_marker": 2
+    }
+   },
+   "missing_information": {
+    "n": 2,
+    "judged": 2,
+    "ok": 2,
+    "kinds": {
+     "no_information": 2
+    }
+   },
+   "ambiguity": {
+    "n": 2,
+    "judged": 2,
+    "ok": 1,
+    "kinds": {
+     "no_information": 2
+    }
+   },
+   "boundaries": {
+    "n": 2,
+    "judged": 2,
+    "ok": 2,
+    "kinds": {
+     "no_information": 2
+    }
+   }
+  },
+  "judged": 32,
+  "ok": 15,
+  "latency_ms": {
+   "median": 488,
+   "max": 126023
+  },
+  "seeds_ok": {
+   "expense": true,
+   "invoice": true,
+   "job_far": false,
+   "job_next": false,
+   "job_today": false,
+   "job_undated": false,
+   "payment": true,
+   "quote": true,
+   "stock": true,
+   "task_far": false,
+   "task_tomorrow": true
+  }
+ }
+}
