@@ -18,7 +18,12 @@
 const fs = require('fs'), os = require('os'), path = require('path'), esbuild = require('esbuild');
 const harness = require('./harness.js');
 
-module.exports = async function runCapabilityContractTests({ check, bundleTo, srcDir }) {
+// An exception inside this suite must show up as a FAILING CHECK, never as a crash: in the umbrella a throw would abort every suite that comes after it.
+module.exports = async function runCapabilityContractTests(context) {
+  try { await suite(context); } catch (e) { context.check(false, 'the capability contract suite threw instead of failing a check: ' + String((e && e.message) || e).slice(0, 160)); }
+};
+
+async function suite({ check, bundleTo, srcDir }) {
   const workerDir = path.join(srcDir, '..');
   const sameJson = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -76,7 +81,9 @@ module.exports = async function runCapabilityContractTests({ check, bundleTo, sr
   const added = (r, table) => ((r.writes && r.writes[table] && r.writes[table].added) || []);
   const confirmed = (r) => ((r.writes && r.writes.pending_actions && r.writes.pending_actions.changed) || []).some((c) => c.after && c.after.status === 'confirmed');
   const refusedWith = (r, code) => Boolean(r.result) && r.result.status >= 400 && r.result.status < 500 && Boolean(r.result.body) && r.result.body.error === code;
-  const nothingExecuted = (r) => added(r, 'proof_visits').length === 0 && !confirmed(r);
+  const nothingConfirmed = (r) => added(r, 'proof_visits').length === 0 && !confirmed(r);
+  const leftPending = (r) => !(r.writes && r.writes.pending_actions);   // no net change to the held action: the claim was put back, exactly as the unknown-type case does
+  const nothingExecuted = (r) => nothingConfirmed(r) && leftPending(r);
   const why = (r) => (r.threw ? 'threw: ' + String(r.threw).slice(0, 80) : r.result ? `got ${r.result.status} ${JSON.stringify(r.result.body && r.result.body.error)}` : 'no result');
 
   // ==== CONTROLS: behaviour that exists today and must not change (these pass before any change) ================================================================================================
@@ -105,6 +112,9 @@ module.exports = async function runCapabilityContractTests({ check, bundleTo, sr
   r = await run(real, { name: 'confirm: business with no configuration', seed: hold(GOOD), env: envFor('visits-z') });
   check(refusedWith(r, 'capability_unavailable') && nothingExecuted(r), 'a business with no entry in the configuration offers nothing: unavailable, never "available by default" (' + why(r) + ')');
 
+  r = await run(real, { name: 'confirm: no configuration at all', seed: hold(GOOD), env: { BUSINESS_ID: 'visits-a' } });
+  check(refusedWith(r, 'capability_unavailable') && nothingExecuted(r), 'with NO configuration at all (what production has today) nothing is available, so the capability cannot run there (' + why(r) + ')');
+
   for (const [label, payload] of BAD) {
     r = await run(real, { name: 'confirm: invalid payload ' + label, seed: hold(payload), env: envFor('visits-a') });
     check(refusedWith(r, 'invalid_payload') && nothingExecuted(r), `a held action written DIRECTLY with ${label} is refused at confirm, not executed (${why(r)})`);
@@ -132,18 +142,25 @@ module.exports = async function runCapabilityContractTests({ check, bundleTo, sr
   const counted = await run(real, { name: 'atomic: count the writes', seed: hold(GOOD), env: envFor('visits-a'), failAtWrite: 0 });
   const countedOk = Boolean(counted.result) && counted.result.status === 200 && counted.writeCount >= 3;
   check(countedOk, 'the executing path writes at least the claim, the visit and the outcome (' + why(counted) + ', writes: ' + counted.writeCount + ')');
-  if (countedOk) {
+  // `atomically` (atomic.ts, rule 3) runs a body WITHOUT a transaction on a database that has none, which is the default test database; "nothing is left behind" can only be claimed
+  // where transactions exist, the Durable Object adapter, which the push gate runs as its second step. The default backend says so instead of pretending.
+  const transactional = process.env.HARNESS_BACKEND === 'do';
+  if (!transactional) console.log('  capability contract: the failure-injection loop needs transactions, so it runs on the Durable Object adapter step only');
+  if (countedOk && transactional) {
     for (let n = 1; n <= counted.writeCount; n++) {
       const f = await run(real, { name: 'atomic: fail at write ' + n, seed: hold(GOOD), env: envFor('visits-a'), failAtWrite: n });
       const honest = f.result ? f.result.status >= 400 : Boolean(f.threw);
-      check(nothingExecuted(f) && honest, `a failure at write ${n} of ${counted.writeCount} leaves no visit, no confirmation, and an honest failure (${why(f)})`);
+      check(nothingConfirmed(f) && honest, `a failure at write ${n} of ${counted.writeCount} leaves no visit, no confirmation, and an honest failure (${why(f)})`);
     }
   }
 
   // ==== THE DOOR: a scripted proposal. The raw request is kept; an unavailable or invalid one writes NOTHING ELSE ====================================================================================
   let door = null;
   try { door = bundleTo('capability-contract.ts', 'cc-proof-contract.js'); } catch (e) { door = null; }
-  const doorCheck = async (name, body) => { if (!door || typeof door.proposeCapability !== 'function') { check(false, name + ' (worker/src/capability-contract.ts does not exist yet, or does not export proposeCapability)'); return; } await body(); };
+  const doorCheck = async (name, body) => {
+    if (!door || typeof door.proposeCapability !== 'function') { check(false, name + ' (worker/src/capability-contract.ts does not exist yet, or does not export proposeCapability)'); return; }
+    try { await body(); } catch (e) { check(false, name + ' threw: ' + String((e && e.message) || e).slice(0, 120)); }
+  };
   const world = (id) => {
     const db = harness.newDatabase(workerDir); db.exec(PROOF_DDL);
     const puts = [];
@@ -190,9 +207,26 @@ module.exports = async function runCapabilityContractTests({ check, bundleTo, sr
     });
   }
 
+  await doorCheck('with no configuration at all the door offers nothing', async () => {
+    const w = world('visits-a'); delete w.env.CAPABILITY_CONFIG; const before = counts(w.db);
+    const x = await door.proposeCapability(w.env, request(GOOD));
+    check(x && x.status === 'refused' && x.code === 'capability_unavailable' && sameJson(changed(before, counts(w.db)), ['captures']), 'no configuration at all: refused as unavailable, and only the capture was written');
+  });
+
   await doorCheck('the door decides availability from configuration alone', async () => {
     const out = {};
     for (const id of ['visits-a', 'visits-c', 'visits-b', 'visits-z']) { const w = world(id); const x = await door.proposeCapability(w.env, request(GOOD)); out[id] = x && x.status === 'held' ? 'held' : x && x.code; }
     check(sameJson(out, { 'visits-a': 'held', 'visits-c': 'held', 'visits-b': 'capability_unavailable', 'visits-z': 'capability_unavailable' }), 'currency and time zone do not change the door\'s decision: ' + JSON.stringify(out));
   });
-};
+}
+
+// Run on its own (node tools/capability-contract.test.js), which is how tools/capability-contract-breakage.js drives it in a fresh process for every mutation. The umbrella requires it instead.
+if (require.main === module) {
+  const esbuild = require('esbuild'), os = require('os'), path = require('path');
+  global.__RealResponse = global.Response;
+  const srcDir = path.join(__dirname, '..', 'worker', 'src');
+  let total = 0, fails = 0;
+  const check = (c, m) => { total++; if (!c) { fails++; console.log('FAIL  ' + m); } };
+  const bundleTo = (entry, name) => { const out = path.join(os.tmpdir(), name); esbuild.buildSync({ entryPoints: [path.join(srcDir, entry)], bundle: true, platform: 'node', format: 'cjs', outfile: out, logLevel: 'silent' }); return require(out); };
+  module.exports({ check, bundleTo, srcDir }).then(() => { console.log(`\n${total - fails}/${total} correct, ${fails} failing`); process.exit(fails ? 1 : 0); }).catch((e) => { console.log('SUITE CRASHED: ' + (e && e.stack || e)); process.exit(2); });
+}
