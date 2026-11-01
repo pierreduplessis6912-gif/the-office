@@ -24,6 +24,7 @@ import { bulkImportRoute, similarNameTracker } from "./imports";
 import { INVOICE_COLUMNS, matchColumns, parseMoney, readCsv } from "./csv-import";
 import { onboardingRoute } from "./onboarding";
 import { atomically } from "./atomic";
+import { contractForHeldType, executeThroughContract } from "./capability-contract";
 import { capAfter, capBefore, isCountable } from "./limits";
 import { recordModelUsage } from "./usage";
 import { takeSnapshot } from "./backup";
@@ -3179,6 +3180,17 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
             payload: JSON.parse(action.payload),
           });
           });
+        }
+
+        // A held type with a declared CAPABILITY CONTRACT (worker/src/capability-contract.ts, the proof on branch claim/proof-1): the contract's OWN permission, this business's
+        // availability and the payload are checked here whatever the old confirm-permission map let through, and the execution and the confirmation are one atomic unit.
+        // Every legacy type above is untouched. A refusal puts the claim back, exactly as the unknown-type case below does.
+        const contract = contractForHeldType(action.type);
+        if (contract) {
+          const member = await getMemberContext(request, env);
+          const decided = await executeThroughContract(env, contract, { id, payload: action.payload }, { email: member?.email ?? null, caps: member?.caps ?? [] });
+          if (decided.status !== 200) await env.OFFICE_DB.prepare("UPDATE pending_actions SET status = 'pending' WHERE id = ?").bind(id).run();
+          return Response.json(decided.body, { status: decided.status });
         }
 
         // Real, new, per direct instruction: this action was genuinely
