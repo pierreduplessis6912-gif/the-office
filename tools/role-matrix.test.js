@@ -998,6 +998,9 @@ async function expect(role, method, path, want) {
   // Characterization (rewrite Phase 2): the REAL processOneExtraction, against a real database, compared with recordings.
   await require('./characterization.test.js')({ check, bundleTo, srcDir, fs, path, sameJson });
 
+  // Restore memory (branch claim/restore-1): a restore must not hold every table at once; it reads each part once, before anything is deleted, and one table at a time after.
+  await require('./restore-memory.test.js')({ check, bundleTo, srcDir });
+
   // And the refusal wording that people actually see is unchanged.
   check(/payments, invoices, quotations, or supplier transactions/.test(intentCreationRefusal('payment', RC.installer) || ''), 'money refusal wording changed');
   check(/Managing leads isn't available/.test(intentCreationRefusal('lose_lead', RC.accountant) || ''), 'leads refusal wording changed');

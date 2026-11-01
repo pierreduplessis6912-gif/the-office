@@ -230,7 +230,7 @@ async function backupTests({ check, srcDir }) {
   // ---- guards on the code itself -----------------------------------------------------------------------------------------------------------------------------------------------------------
   const code = fs.readFileSync(path.join(srcDir, 'backup.ts'), 'utf8');
   const restore = code.slice(code.indexOf('export async function restoreSnapshot'));
-  const iCheck = restore.indexOf('getPart(bucket, t.part)'), iSafety = restore.indexOf('takeSnapshot(env, new Date(), "-pre-restore")'), iLock = restore.indexOf('setMeta(env, "restoring", "1")'), iWipe = restore.indexOf('DELETE FROM');
+  const iCheck = restore.indexOf('getVerifiedBytes(bucket, t.part)'), iSafety = restore.indexOf('takeSnapshot(env, new Date(), "-pre-restore")'), iLock = restore.indexOf('setMeta(env, "restoring", "1")'), iWipe = restore.indexOf('DELETE FROM');
   check(iCheck > 0 && iCheck < iSafety && iSafety < iLock && iLock < iWipe && /finally \{\s*await setMeta\(env, "restoring", "0"\)/.test(restore), 'in a restore the ORDER is fixed: checksum everything, then the safety snapshot, then lock, then wipe; and the lock is released in a finally');
   const take = code.slice(code.indexOf('export async function takeSnapshot'), code.indexOf('export async function listSnapshotNames'));
   check(take.indexOf('"manifest.json"') > take.indexOf('files-inventory.json.gz') && take.indexOf('await applyRetention(env)') > take.indexOf('"manifest.json"'), 'in a snapshot the manifest comes after every part, and retention runs only after the new snapshot is complete');

@@ -1212,6 +1212,9 @@ jobs:
           BASE="https://${SLUG}.websitehub.co.za"
           A=(-H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY")
           COOKIE=$(cat "$RESULTS/cookie.txt")
+          # Every run damages the business with its OWN marker, so leftovers of an earlier run that failed (which used to make the damage import answer "matched 3, created 0" and the note check
+          # compare against an already vandalised note) cannot change what this run measures.
+          RUN="$GITHUB_RUN_ID"
           fingerprint() { curl -s "${A[@]}" -H "X-Target-Business: $1" "$BASE/admin/migration/fingerprint" > "$RESULTS/$2"; }
           customers() { curl -s -H "Cookie: $COOKIE" "$BASE/customers" > "$RESULTS/$1"; }
           # LINKED data first. Two PAID invoices with payment details make the real import write invoices AND payments that point at their customers (payments.customer_id -> customers: the schema's one foreign key). The first real
@@ -1220,6 +1223,7 @@ jobs:
           curl -s -o "$RESULTS/backup-linked-import.json" -X POST -H "Cookie: $COOKIE" -F "csv=@$RESULTS/linked.csv;type=text/csv" "$BASE/files/invoices-csv-import"
           customers backup-customers-before.json
           note() { curl -s -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Target-Business: staging-co" "$BASE/debug/customer-notes?customerId=1" > "$RESULTS/$1"; }
+          curl -s -o /dev/null -X POST "$BASE/debug/kv-set" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Target-Business: staging-co" -H "Content-Type: application/json" -d '{"key":"customer:1","value":{"note":"Drill note before the snapshot"}}'
           note backup-note-before.json
           fingerprint staging-co backup-fp-original.json
           fingerprint staging-two backup-fp-other-before.json
@@ -1228,13 +1232,13 @@ jobs:
           SNAPSHOT=$(python3 -c "import json; print(json.load(open('$RESULTS/backup-run.json')).get('snapshot',''))")
           echo "snapshot: $SNAPSHOT"
           # Damage the business the way a bad day would: add customers that were never there.
-          printf 'name\nDAMAGE ONE\nDAMAGE TWO\nDAMAGE THREE\n' > "$RESULTS/damage.csv"
+          printf 'name\nDAMAGE ONE %s\nDAMAGE TWO %s\nDAMAGE THREE %s\n' "$RUN" "$RUN" "$RUN" > "$RESULTS/damage.csv"
           curl -s -o "$RESULTS/backup-damage.json" -X POST -H "Cookie: $COOKIE" -F "csv=@$RESULTS/damage.csv;type=text/csv" "$BASE/files/customers-csv-import"
-          curl -s -o /dev/null -X POST "$BASE/debug/kv-set" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Target-Business: staging-co" -H "Content-Type: application/json" -d '{"key":"customer:1","value":{"note":"VANDALISED NOTE"}}'
+          curl -s -o /dev/null -X POST "$BASE/debug/kv-set" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Target-Business: staging-co" -H "Content-Type: application/json" -d "{\"key\":\"customer:1\",\"value\":{\"note\":\"VANDALISED NOTE $RUN\"}}"
           customers backup-customers-damaged.json
           note backup-note-damaged.json
           fingerprint staging-co backup-fp-damaged.json
-          curl -s -X POST "${A[@]}" -H "X-Target-Business: staging-co" -H "Content-Type: application/json" -d "{\"snapshot\":\"$SNAPSHOT\",\"confirm\":\"staging-co\"}" "$BASE/admin/backup/restore" > "$RESULTS/backup-restore.json"
+          curl -s --max-time 300 -o "$RESULTS/backup-restore.json" -w '%{http_code}' -X POST "${A[@]}" -H "X-Target-Business: staging-co" -H "Content-Type: application/json" -d "{\"snapshot\":\"$SNAPSHOT\",\"confirm\":\"staging-co\"}" "$BASE/admin/backup/restore" > "$RESULTS/backup-restore.status" || echo "curl-exit-$?" > "$RESULTS/backup-restore.status"
           customers backup-customers-restored.json
           note backup-note-restored.json
           fingerprint staging-co backup-fp-restored.json
@@ -1263,6 +1267,18 @@ jobs:
           note_before, note_damaged, note_restored = (json.dumps(read("backup-note-%s.json" % k), sort_keys=True) for k in ("before", "damaged", "restored"))
           damage = read("backup-damage.json")
           rep = read("backup-restore.json") or {}
+          RUN = os.environ.get("GITHUB_RUN_ID", "")
+          def text_of(n):
+              try:
+                  return open(os.path.join(r, n), encoding="utf-8", errors="replace").read()
+              except Exception:
+                  return ""
+          restore_status, restore_body = text_of("backup-restore.status").strip(), text_of("backup-restore.json")
+          try:
+              parsed_body = json.loads(restore_body)
+          except Exception:
+              parsed_body = None
+          restore_kind = "empty" if not restore_body.strip() else ("json-object" if isinstance(parsed_body, dict) else ("json-other" if parsed_body is not None else "not-json"))
           run = read("backup-run.json") or {}
           lst = (read("backup-list.json") or {}).get("snapshots") or []
           print(json.dumps({
@@ -1272,13 +1288,14 @@ jobs:
               "customers_in_the_fingerprints": {"original": count(fo, "customers"), "damaged": count(fd, "customers"), "restored": count(fr, "customers")},
               "the_import_answered": (json.dumps(damage)[:160] if damage is not None else None),
               "damage_1_customers_were_added": count(fd, "customers") is not None and count(fd, "customers") == (count(fo, "customers") or 0) + 3,   # judged by the fingerprint's count: the customers LIST is capped, and staging holds 26,117 customers left by the load tests
-              "damage_2_the_note_was_overwritten": note_damaged != note_before and "VANDALISED NOTE" in note_damaged,
+              "damage_2_the_note_was_overwritten": note_damaged != note_before and ("VANDALISED NOTE " + RUN) in note_damaged,
               "the_damaged_fingerprint_differs_from_the_original": core(fd) != core(fo),
-              "the_note_is_back": note_restored == note_before and "VANDALISED" not in note_restored,
+              "the_note_is_back": note_restored == note_before and ("VANDALISED NOTE " + RUN) not in note_restored,
+              "drill_run": RUN, "restore_http_status": restore_status, "restore_response_kind": restore_kind, "restore_response_head": restore_body.strip()[:160],
               "restore_report": {k: rep.get(k) for k in ("ok", "tablesRestored", "rowsRestored", "notesRestored", "filesRestoredFromMirror", "filesMissingEverywhere", "differences", "error")},
               "customers_are_back_exactly_as_before": names(restored) == names(before),
               "the_whole_business_fingerprint_equals_the_original": core(fr) == core(fo),
-              "no_damage_left": not any(n.startswith("DAMAGE") for n in names(restored)),
+              "no_damage_left": count(fr, "customers") == count(fo, "customers") and not any(n.startswith("DAMAGE") and RUN in n for n in names(restored)),   # the fingerprint count is the reliable half: the customers LIST is capped
               "linked_import_answered": (json.dumps(read("backup-linked-import.json"))[:160] if read("backup-linked-import.json") is not None else None),
               "payments_before_and_after": {"original": count(fo, "payments"), "restored": count(fr, "payments")},
               "linked_rows_exist_before": (count(fo, "payments") or 0) >= 3 and (count(fo, "invoices") or 0) >= 2,

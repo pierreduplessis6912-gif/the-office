@@ -58,14 +58,34 @@ async function putPart(bucket: R2Bucket, key: string, text: string): Promise<Par
   await bucket.put(key, bytes, { httpMetadata: { contentType: "application/gzip" } });
   return { key, bytes: bytes.length, sha256: await sha256(bytes) };
 }
-async function getPart(bucket: R2Bucket, part: Part): Promise<string> {
+// A part's COMPRESSED bytes, read from the bucket and checked against the size and SHA-256 the manifest recorded for them. Small: a table of 26,000 rows is a few hundred kilobytes here.
+async function getVerifiedBytes(bucket: R2Bucket, part: Part): Promise<Uint8Array> {
   const object = await bucket.get(part.key);
   if (!object) throw new Error(`a part of the snapshot is missing: ${part.key}`);
   const bytes = new Uint8Array(await object.arrayBuffer());
   if (bytes.length !== part.bytes || (await sha256(bytes)) !== part.sha256) throw new Error(`a part of the snapshot is damaged (its checksum does not match): ${part.key}`);
-  return gunzip(bytes);
+  return bytes;
+}
+async function getPart(bucket: R2Bucket, part: Part): Promise<string> {
+  return gunzip(await getVerifiedBytes(bucket, part));
 }
 
+// The rows of a table's text, a page at a time: the same rows as splitting the whole text, dropping empty lines and parsing every one, without holding a whole table of parsed rows at once.
+// A line that is not JSON still throws: a damaged part is never skipped over.
+export function* jsonLinePages(text: string, pageSize: number): Generator<Record<string, unknown>[]> {
+  let page: Record<string, unknown>[] = [];
+  for (let start = 0; start <= text.length;) {
+    let end = text.indexOf("\n", start);
+    if (end === -1) end = text.length;
+    if (end > start) page.push(JSON.parse(text.slice(start, end)) as Record<string, unknown>);
+    start = end + 1;
+    if (page.length === pageSize) {
+      yield page;
+      page = [];
+    }
+  }
+  if (page.length > 0) yield page;
+}
 // ---- taking a snapshot -----------------------------------------------------------------------------------------------------------------------------------------------------------
 export async function takeSnapshot(env: Env, now: Date = new Date(), suffix = ""): Promise<Manifest> {
   const bucket = bucketOf(env), business = businessOf(env);
@@ -186,9 +206,15 @@ export async function restoreSnapshot(env: Env, name: string, confirm: string): 
   const manifest = await readManifest(env, name);
   if (!manifest) throw new Error("no complete snapshot of that name (a snapshot without its manifest never finished)");
 
-  // 1. Everything the snapshot holds is read and CHECKSUMMED before anything is changed: a damaged snapshot must never be half-applied.
-  const tableText = new Map<string, string>();
-  for (const t of manifest.tables) tableText.set(t.name, await getPart(bucket, t.part));
+  // 1. Everything the snapshot holds is read and CHECKSUMMED before anything is changed: a damaged snapshot must never be half-applied. What is KEPT is only each table's COMPRESSED bytes (small);
+  // each table is also decompressed once here and the text dropped, so a part that will not decompress is found now, not half way through. Holding every table's decompressed text at once,
+  // through the safety snapshot below and the apply, is what ran a Durable Object out of memory on 2026-10-28 (staging-co, 41,534 rows); tools/restore-memory.test.js pins it.
+  const tableBytes = new Map<string, Uint8Array>();
+  for (const t of manifest.tables) {
+    const bytes = await getVerifiedBytes(bucket, t.part);
+    await gunzip(bytes);
+    tableBytes.set(t.name, bytes);
+  }
   const notesText = await getPart(bucket, manifest.notes.part);
   const inventory = JSON.parse(await getPart(bucket, manifest.files.inventory)) as { key: string; size: number }[];
 
@@ -210,11 +236,11 @@ export async function restoreSnapshot(env: Env, name: string, confirm: string): 
       for (const table of [...parentsFirst].reverse()) await tx.OFFICE_DB.prepare(`DELETE FROM "${table}"`).run();
       let inserted = 0;
       for (const name of fillOrder) {
-        const t = manifest.tables.find((x) => x.name === name)!;
-        const parsed = (tableText.get(t.name) ?? "").split("\n").filter(Boolean).map((l) => JSON.parse(l) as Record<string, unknown>);
-        for (let i = 0; i < parsed.length; i += 200) {
-          const page = parsed.slice(i, i + 200);
-          for (const statement of await rowStatements(tx, t.name, page)) await statement.run();
+        // One table's text at a time, read a page of rows at a time. Nothing but the database is touched in here (no read from the bucket), and nothing outlives its table.
+        const text = await gunzip(tableBytes.get(name) ?? new Uint8Array());
+        tableBytes.delete(name);
+        for (const page of jsonLinePages(text, 200)) {
+          for (const statement of await rowStatements(tx, name, page)) await statement.run();
           inserted += page.length;
         }
       }
