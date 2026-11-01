@@ -293,3 +293,4 @@ Split on 2026-10-24 from the 7958-line original, which is `git show 95bf743:DECI
 - [MCP: Claude may confirm more kinds, each only with an undo (2026-10-27)](docs/decisions/platform-and-operations.md) (new)
 - [Docs: the handover must name the commit production runs (2026-10-27)](docs/decisions/platform-and-operations.md) (new)
 - [Restore: it must not hold every table at once, and the drill must be repeatable (2026-11-01)](docs/decisions/platform-and-operations.md) (new)
+- [Staging: the signup check's MCP tool list is read from the real-client script (2026-11-01)](docs/decisions/platform-and-operations.md) (new)
