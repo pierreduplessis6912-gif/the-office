@@ -998,6 +998,9 @@ async function expect(role, method, path, want) {
   // Characterization (rewrite Phase 2): the REAL processOneExtraction, against a real database, compared with recordings.
   await require('./characterization.test.js')({ check, bundleTo, srcDir, fs, path, sameJson });
 
+  // Capability contract proof (branch claim/proof-1): what a declared capability contract must enforce, and that the old declarations cannot get round it.
+  await require('./capability-contract.test.js')({ check, bundleTo, srcDir });
+
   // And the refusal wording that people actually see is unchanged.
   check(/payments, invoices, quotations, or supplier transactions/.test(intentCreationRefusal('payment', RC.installer) || ''), 'money refusal wording changed');
   check(/Managing leads isn't available/.test(intentCreationRefusal('lose_lead', RC.accountant) || ''), 'leads refusal wording changed');

@@ -1,0 +1,106 @@
+name: Proof tests on a branch
+
+# Runs the backend suites that deploy.yml runs on main (docs check and typecheck first, then the role-matrix test on both backends) on every branch EXCEPT main, and deploys nothing.
+# Why: until now a branch's backend tests ran only in a chat's own sandbox, and the only CI that sees them is the push to main, which also deploys. This gives a branch the same suites
+# before it is merged, with no secrets and no deploy. A run's log cannot be read from a chat sandbox (the log host is blocked), so the result is also written as a record the way
+# app-compile-check.yml does: the commit, each step's outcome, the counts, the failing checks and the tail of each output (test descriptions only, nothing else), committed back to the
+# branch by the workflow's own identity (a push made with the workflow token does not start another run, and the record path is not in the trigger paths).
+on:
+  push:
+    branches-ignore: [main]
+    paths:
+      - "worker/**"
+      - "tools/**"
+      - ".github/workflows/proof-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: proof-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        working-directory: worker
+        run: npm ci
+
+      - name: Typecheck
+        id: typecheck
+        continue-on-error: true
+        working-directory: worker
+        run: npm run typecheck
+
+      - name: Role-matrix test
+        id: rm_default
+        continue-on-error: true
+        shell: bash
+        env:
+          NODE_PATH: worker/node_modules
+        run: node tools/role-matrix.test.js 2>&1 | tee /tmp/rm-default.txt
+
+      - name: Role-matrix test on the Durable Object adapter with every index applied
+        id: rm_do
+        continue-on-error: true
+        shell: bash
+        env:
+          NODE_PATH: worker/node_modules
+          HARNESS_BACKEND: do
+          HARNESS_INDEXES: "1"
+        run: node tools/role-matrix.test.js 2>&1 | tee /tmp/rm-do.txt
+
+      - name: Record the result
+        if: always()
+        env:
+          TYPECHECK: ${{ steps.typecheck.outcome }}
+          RM_DEFAULT: ${{ steps.rm_default.outcome }}
+          RM_DO: ${{ steps.rm_do.outcome }}
+        run: |
+          mkdir -p ops
+          python3 - <<'PY'
+          import datetime, json, os, re, subprocess
+          def read(path):
+              try: return open(path, encoding="utf-8", errors="replace").read().splitlines()
+              except Exception: return []
+          def summary(lines):
+              m = [re.search(r"(\d+)/(\d+) decisions correct", l) for l in lines]
+              m = [x for x in m if x]
+              fails = [l.strip()[:200] for l in lines if l.startswith("FAIL")]
+              return {"decisions_correct": int(m[-1].group(1)) if m else None, "decisions_total": int(m[-1].group(2)) if m else None, "failing_checks": len(fails), "failing": fails[:60], "tail": [l.strip()[:200] for l in lines[-25:]]}
+          out = {
+            "commit": os.environ["GITHUB_SHA"][:7],
+            "when": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "node": subprocess.run(["node", "--version"], capture_output=True, text=True).stdout.strip(),
+            "typecheck": os.environ["TYPECHECK"],
+            "role_matrix_default": os.environ["RM_DEFAULT"],
+            "role_matrix_default_detail": summary(read("/tmp/rm-default.txt")),
+            "role_matrix_do_adapter": os.environ["RM_DO"],
+            "role_matrix_do_adapter_detail": summary(read("/tmp/rm-do.txt")),
+          }
+          json.dump(out, open("ops/proof-tests-last.json", "w"), indent=1)
+          print(json.dumps({k: v for k, v in out.items() if not k.endswith("_detail")}, indent=1))
+          PY
+
+      - name: Commit the record
+        if: always()
+        run: |
+          git config user.name "proof-tests-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/proof-tests-last.json || true
+          git commit -m "Proof test record (commit, outcomes, counts, failing checks and output tail only)" || echo "nothing to record"
+          git pull --rebase origin "$GITHUB_REF_NAME" || true
+          git push origin HEAD:"$GITHUB_REF_NAME" || echo "could not push the record"
+
+      - name: Fail the run if any suite failed
+        if: steps.typecheck.outcome != 'success' || steps.rm_default.outcome != 'success' || steps.rm_do.outcome != 'success'
+        run: exit 1
