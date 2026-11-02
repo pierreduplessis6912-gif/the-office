@@ -1,6 +1,8 @@
-// The integrity verifier: READ-ONLY, and the reason append-only needs no database trigger. It re-derives every invariant from the tables and reports what is wrong, so a business can be checked at any time
-// (by the tests, by a health report, after a restore) and an edit made behind the engine's back cannot stay hidden. Each fact's event carries a snapshot of the fact as it was recorded; the verifier compares
-// the snapshot with the row, recomputes document totals from the lines, and checks conservation, cascade and numbering. It changes nothing.
+// The integrity verifier: READ-ONLY, and PARTIAL detection after the fact, not prevention (corrected 2026-11-02: an earlier version of this comment overstated it). It re-derives conservation (no payment or document
+// over-allocated), the reversal cascade and invoice numbering from the tables, and compares each PAYMENT, ALLOCATION and DOCUMENT (with its lines and recomputed totals) with the snapshot its event recorded, so an
+// EDIT to one of those that its event does not match is reported. It does NOT detect the deletion of a fact nothing depends on, an edit to a party, a party role, a reversal, an event or a number value (numbers are
+// checked for gaps, not edits), or a coordinated edit of a fact together with its event snapshot. Only the payment comparison has a detection test; the allocation and document comparisons are untested.
+// It runs only when called (today: the admin status route, engine/admin.ts). It changes nothing.
 import type { Env } from "../types";
 import { documentTotals as sumTotals } from "./money";
 

@@ -1,7 +1,7 @@
-// THE ONE WRITE PATH for the engine's facts. Everything that records a party, a document, a payment, an allocation or a reversal comes through here, and every function here only INSERTS: no function
+// THE ONE WRITE PATH for the engine's facts (that no OTHER code writes these tables is observed by code inspection, not yet pinned by a test: the static ownership-boundary test is outstanding). Everything that records a party, a document, a payment, an allocation or a reversal comes through here, and every function here only INSERTS: no function
 // updates, deletes or replaces a fact (tools/engine-ledger.test.js scans this folder for it), so a mistake is corrected by a new fact that reverses the old one, never by changing it. Each operation is
 // ONE transaction (it all happens or none of it does; an operation called from inside another joins it), and each records an EVENT carrying who did it, under which contract version, from which
-// capture and approval, plus a snapshot of the fact, so an edit made behind the engine's back is detected by the integrity verifier. Rules about what a document KIND means are not here: they belong to
+// capture and approval, plus a snapshot of the fact, which the integrity verifier compares for payments, allocations and documents (partial detection after the fact; integrity.ts says what it does and does not cover). Rules about what a document KIND means are not here: they belong to
 // the capability that issues it. What IS here is structural: whole-number money, real relationships, conservation (a payment is never over-allocated, a document is never over-paid).
 import type { Env } from "../types";
 import { atomically } from "../atomic";

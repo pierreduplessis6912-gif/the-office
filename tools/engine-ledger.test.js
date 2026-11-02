@@ -1,6 +1,6 @@
 // Engine ledger (worker/src/engine, branch engine-phase1). TESTS FIRST: what the engine's facts, derivations and corrections must guarantee, before they exist.
 //   MONEY      integer arithmetic only: minor units, thousandths, basis points, half-up rounding per line, exact above 2^53 (no floats anywhere)
-//   FACTS      recorded through ONE path that only inserts; no update or delete of a fact exists in the code (scanned), and each fact's event carries a snapshot of it so an edit made behind the engine's back is DETECTED
+//   FACTS      recorded through ONE path that only inserts; no update or delete of a fact exists in the code (scanned), and each fact's event carries a snapshot of it, which the verifier compares for payments, allocations and documents (PARTIAL detection on demand; only the payment case is tested here)
 //   DERIVED    what is outstanding is computed in one place from effective facts (a reversed fact is not effective, and neither is what hangs off it)
 //   CORRECTED  a mistake is reversed and, if need be, replaced: nothing is edited, the trail shows every step, a fact with live dependents cannot be reversed alone, nothing is reversed twice
 //   ATOMIC     every operation is all or nothing: a failure injected at EVERY write leaves the business exactly as it was, and numbering has no gap
@@ -107,7 +107,7 @@ module.exports = kit.guard('engine ledger', async ({ check }) => {
   check(!(await codeOf(() => facts.reverse(w.env, { documentId: cleanInvoice.id, reason: 'issued in error' }, CTX))), 'a document with nothing hanging off it can be reversed');
   check((await ledger.outstandingForParty(w.env, patel)).totalMinor === 0 && (await ledger.isEffective(w.env, 'document', cleanInvoice.id)) === false, 'and a reversed document no longer counts toward what is owed');
 
-  // ---- INTEGRITY: an edit behind the engine's back is detected ------------------------------------------------------------------------------------------------------------------------------
+  // ---- INTEGRITY: partial detection (a payment edit, an over-allocation, a numbering hole, the reversal cascade); integrity.ts says what is not covered ------------------------------------------------------------------------------------------------------------------------------
   const clean = await eng.verifyIntegrity(w.env);
   check(clean.ok === true && clean.problems.length === 0, 'a business built through the engine verifies clean: ' + JSON.stringify(clean.problems).slice(0, 150));
   const tampered = (await world()).w;
