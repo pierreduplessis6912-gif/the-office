@@ -4,7 +4,7 @@
 const fs = require('fs'), path = require('path'), { spawnSync } = require('child_process');
 const root = path.join(__dirname, '..');
 const E = (f) => `worker/src/engine/${f}`, CONTRACT = 'worker/src/capability-contract.ts', MIG = 'worker/migrations/0004_engine_foundation.sql';
-const ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
+const ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
 
 const MUTATIONS = [
   // money: exact integer arithmetic
@@ -43,6 +43,9 @@ const MUTATIONS = [
   { name: 'admin: provisioning a business that already has engine data', suite: ADMIN, file: E('admin.ts'), find: 'if ((now.rows as number) > 0 || now.mode !== "legacy") return bad(', replace: 'if (false) return bad(' },
   { name: 'admin: the status hash ignores the rows', suite: ADMIN, file: E('admin.ts'), find: 'hashes[t] = await sha256(JSON.stringify(all));', replace: 'hashes[t] = await sha256("constant");' },
   { name: 'admin: provisioning is demoted from privileged to write', suite: ADMIN, file: 'worker/src/admin-routes.ts', find: '"POST /admin/engine/provision-sample": "privileged",', replace: '"POST /admin/engine/provision-sample": "write",' },
+  // restore verification (recovery-sensitive: found by the staging rehearsal)
+  { name: 'restore: verify over every live column again (the false failure returns)', suite: ADDCOL, file: 'worker/src/backup.ts', find: 'await fingerprint(env, snapshotColumns)', replace: 'await fingerprint(env)' },
+  { name: 'restore: the column restriction ignores every value (the check goes blind)', suite: ADDCOL, file: 'worker/src/migration.ts', find: 'canonical(keep ? Object.fromEntries(keep.map((k) => [k, row[k]])) : row)', replace: 'canonical(keep ? {} : row)' },
   // the database itself
   { name: 'migration: a reversal may point at two things', suite: SCHEMA, file: MIG, find: '+ (document_id IS NOT NULL) = 1)', replace: '+ (document_id IS NOT NULL) >= 0)' },
 ];

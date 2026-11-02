@@ -278,7 +278,9 @@ export async function restoreSnapshot(env: Env, name: string, confirm: string): 
     }
     // 4. Compare with what the snapshot recorded about itself.
     // (A restore deletes no file, so files ADDED since the snapshot are expected: the file comparison is left out and replaced by the explicit "missing from both" check above.)
-    const differences = compareFingerprints(manifest.fingerprint, await fingerprint(env)).filter((d) => !d.startsWith("files:"));
+    // Hashed over the SNAPSHOT'S columns (migration.ts fingerprint): a column a later migration added is not a difference; a changed value or a missing snapshot column still is.
+    const snapshotColumns = Object.fromEntries(manifest.tables.map((t) => [t.name, t.columns.map((c) => c.name)]));
+    const differences = compareFingerprints(manifest.fingerprint, await fingerprint(env, snapshotColumns)).filter((d) => !d.startsWith("files:"));
     return { ok: differences.length === 0 && missing.length === 0, snapshot: name, safetySnapshot: safety.name, tablesRestored: manifest.tables.length, rowsRestored: rows, notesRestored: notes.length, filesRestoredFromMirror: fromMirror, filesMissingEverywhere: missing, differences };
   } finally {
     await setMeta(env, "restoring", "0");

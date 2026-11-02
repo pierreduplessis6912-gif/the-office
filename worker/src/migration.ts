@@ -230,13 +230,17 @@ export interface Fingerprint {
   files: { count: number; hash: string };
 }
 
-export async function fingerprint(env: Env): Promise<Fingerprint> {
+// `only` restricts a table's hash to the named columns. A RESTORE of an older snapshot verifies with it, using the columns the snapshot recorded: a column added by a migration since the snapshot is then not a
+// difference (the data in the snapshot's columns came back exactly and the new column holds its default), while a changed value in a snapshot column, or a snapshot column that has gone missing, still is.
+// Without it every live column is hashed, as it always was (a migration between two businesses compares whole tables).
+export async function fingerprint(env: Env, only?: Record<string, readonly string[]>): Promise<Fingerprint> {
   const tables: Fingerprint["tables"] = {};
   for (const name of await listTables(env)) {
     let acc = 0n, count = 0, after = 0;
+    const keep = only?.[name];
     for (;;) {
       const page = await readRows(env, name, after, 500);
-      for (const row of page.rows) { acc = await foldHash(acc, canonical(row)); count++; }
+      for (const row of page.rows) { acc = await foldHash(acc, canonical(keep ? Object.fromEntries(keep.map((k) => [k, row[k]])) : row)); count++; }
       if (page.last === null) break;
       after = page.last;
     }
