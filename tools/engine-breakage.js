@@ -4,7 +4,7 @@
 const fs = require('fs'), path = require('path'), { spawnSync } = require('child_process');
 const root = path.join(__dirname, '..');
 const E = (f) => `worker/src/engine/${f}`, CONTRACT = 'worker/src/capability-contract.ts', MIG = 'worker/migrations/0004_engine_foundation.sql';
-const INTEG = 'engine-integrity.test.js', ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
+const ISOL = 'engine-isolation.test.js', OWN = 'engine-ownership.test.js', INTEG = 'engine-integrity.test.js', ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
 
 const MUTATIONS = [
   // money: exact integer arithmetic
@@ -57,6 +57,19 @@ const MUTATIONS = [
   { name: 'integrity: a hole in the numbering is not reported', suite: INTEG, file: E('integrity.ts'), find: 'if (k.lo !== 1 || k.hi !== k.n) problems.push({ code: "number_gap"', replace: 'if (false) problems.push({ code: "number_gap"' },
   { name: 'integrity: a document with no number is not reported', suite: INTEG, file: E('integrity.ts'), find: 'for (const u of unnumbered) problems.push({ code: "number_gap"', replace: 'for (const u of []) problems.push({ code: "number_gap"' },
   { name: 'integrity: an event type the engine writes is missing from the model', suite: INTEG, file: E('integrity.ts'), find: '  "payment.made": { creates: "movement", note: "one eng_money_movement with direction out" },\n', replace: '' },
+  // tenant isolation and ownership, Task 3: each removes ONE protection (or, for the compound, ALL of the router's and object's layers) and the suite that owns it must fail
+  { name: 'router: a client-supplied business header decides the route, not the session', suite: ISOL, file: 'worker/src/routing.ts', find: '  if (session?.b) return { kind: "business", businessId: session.b };', replace: '  const spoof = request.headers.get("X-Business-Id"); if (isBusinessId(spoof)) return { kind: "business", businessId: spoof };\n  if (session?.b) return { kind: "business", businessId: session.b };' },
+  { name: 'router: a session whose signature does not verify is still believed', suite: ISOL, file: 'worker/src/auth.ts', find: '    if (!valid) return null;', replace: '    if (false) return null;' },
+  { name: 'forwarding: a client-supplied X-Business-Id is no longer overwritten', suite: ISOL, file: 'worker/src/routing.ts', find: '  headers.set("X-Business-Id", businessId);', replace: '  if (!headers.has("X-Business-Id")) headers.set("X-Business-Id", businessId);' },
+  { name: 'object: the session\'s business is no longer compared with the object\'s', suite: ISOL, file: 'worker/src/auth.ts', find: '  if (env.BUSINESS_MODE === "object" && (!env.BUSINESS_ID || payload.b !== env.BUSINESS_ID)) return null;', replace: '  if (false) return null;' },
+  { name: 'object: a claim for another business is no longer refused', suite: ISOL, file: 'worker/src/business-object.ts', find: '      if (this.businessId !== claimed) return Response.json({ error: "this object belongs to another business" }, { status: 403 });', replace: '      if (false) return Response.json({ error: "this object belongs to another business" }, { status: 403 });' },
+  { name: 'COMPOUND: router honours the client header AND the object drops the session check AND the one-business binding (every layer removed: a request for alpha must now be served beta\'s data)', suite: ISOL, file: 'worker/src/routing.ts', find: '  if (session?.b) return { kind: "business", businessId: session.b };', replace: '  const spoof = request.headers.get("X-Business-Id"); if (isBusinessId(spoof)) return { kind: "business", businessId: spoof };\n  if (session?.b) return { kind: "business", businessId: session.b };', also: [{ file: 'worker/src/auth.ts', find: '  if (env.BUSINESS_MODE === "object" && (!env.BUSINESS_ID || payload.b !== env.BUSINESS_ID)) return null;', replace: '  if (false) return null;' }, { file: 'worker/src/business-object.ts', find: '      if (this.businessId !== claimed) return Response.json({ error: "this object belongs to another business" }, { status: 403 });', replace: '      if (false) return Response.json({ error: "this object belongs to another business" }, { status: 403 });' }] },
+  { name: 'ownership: an engine file reads a shared binding (SHARED_DB)', suite: OWN, file: 'worker/src/engine/records.ts', find: 'import type { Env } from "../types";', replace: 'import type { Env } from "../types";\nconst __leak = (e: Env) => (e as unknown as { SHARED_DB?: unknown }).SHARED_DB;' },
+  { name: 'ownership: engine SQL names a legacy domain table', suite: OWN, file: 'worker/src/engine/ledger.ts', find: 'import type { Env } from "../types";', replace: 'import type { Env } from "../types";\nconst __q = "SELECT id FROM customers";' },
+  { name: 'ownership: legacy code writes an engine table', suite: OWN, file: 'worker/src/index.ts', find: 'import { handleEngineRoute } from "./engine/routes";', replace: 'import { handleEngineRoute } from "./engine/routes";\nconst __w = "INSERT INTO eng_party (kind, name, event_id) VALUES (\'person\', \'x\', 1)";' },
+  { name: 'ownership: a stray UPDATE of a fact table', suite: OWN, file: 'worker/src/engine/records.ts', find: 'import type { Env } from "../types";', replace: 'import type { Env } from "../types";\nconst __u = "UPDATE eng_money_movement SET amount_minor = 0";' },
+  { name: 'ownership: an engine file imports an unreviewed module', suite: OWN, file: 'worker/src/engine/ledger.ts', find: 'import type { Env } from "../types";', replace: 'import type { Env } from "../types";\nimport "../customers";' },
+  { name: 'ownership: a new legacy-to-engine coupling', suite: OWN, file: 'worker/src/index.ts', find: 'import { handleEngineRoute } from "./engine/routes";', replace: 'import { handleEngineRoute } from "./engine/routes";\nimport { isAvailable as __x } from "./engine/availability";' },
   // the admin routes (privileged: they can put a business into engine mode)
   { name: 'admin: provisioning exists on a deployment that is not a rehearsal', suite: ADMIN, file: E('admin.ts'), find: 'if (env.ENGINE_REHEARSAL !== "1") return bad("this route exists only on a rehearsal deployment", 404);', replace: '/* mutation: no rehearsal flag */' },
   { name: 'admin: provisioning without the business id as confirmation', suite: ADMIN, file: E('admin.ts'), find: 'if (!body || body.confirm !== env.BUSINESS_ID) return bad("confirm must be the business id", 400);', replace: '/* mutation: no confirmation */' },
@@ -89,12 +102,12 @@ for (const suite of [...new Set(MUTATIONS.map((m) => m.suite))]) {
   if (base.crashed || base.failing !== 0) { console.log('the unmutated suite must be green before a mutation means anything'); process.exit(1); }
 }
 for (const [i, m] of MUTATIONS.entries()) {
-  const full = path.join(root, m.file);
-  if (!originals.has(m.file)) originals.set(m.file, fs.readFileSync(full, 'utf8'));
-  const text = originals.get(m.file);
-  if (text.split(m.find).length !== 2) { console.log(`${String(i + 1).padStart(2)}. ${m.name}: the text to mutate is not found exactly once (the code moved: update this script)`); bad++; continue; }
+  const edits = [{ file: m.file, find: m.find, replace: m.replace }, ...(m.also || [])];   // a mutation may edit several files (the compound isolation control)
+  let notFound = null;
+  for (const e of edits) { const full = path.join(root, e.file); if (!originals.has(e.file)) originals.set(e.file, fs.readFileSync(full, 'utf8')); if (originals.get(e.file).split(e.find).length !== 2) { notFound = e; break; } }
+  if (notFound) { console.log(`${String(i + 1).padStart(2)}. ${m.name}: the text to mutate is not found exactly once in ${notFound.file} (the code moved: update this script)`); bad++; continue; }
   let res;
-  try { fs.writeFileSync(full, text.replace(m.find, () => m.replace)); res = runSuite(m.suite); } finally { fs.writeFileSync(full, text); }
+  try { for (const e of edits) { const full = path.join(root, e.file); fs.writeFileSync(full, fs.readFileSync(full, 'utf8').replace(e.find, () => e.replace)); } res = runSuite(m.suite); } finally { for (const e of edits) fs.writeFileSync(path.join(root, e.file), originals.get(e.file)); }
   const caught = !res.crashed && res.failing > 0;
   if (!caught) bad++;
   console.log(`${String(i + 1).padStart(2)}. ${caught ? 'CAUGHT  ' : res.crashed ? 'CRASHED ' : 'SURVIVED'} ${m.name}${caught ? `  (${res.failing} failing; first: ${res.first})` : ''}`);

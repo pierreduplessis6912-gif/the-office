@@ -81,7 +81,7 @@ async function buildHandler() {
   await esbuild.build({ entryPoints: [path.join(workerDir, 'src', 'index.ts')], bundle: true, platform: 'node', format: 'cjs', outfile: out, logLevel: 'silent', plugins: [expose] });
   await esbuild.build({ entryPoints: [path.join(workerDir, 'src', 'auth.ts')], bundle: true, platform: 'node', format: 'cjs', outfile: authOut, logLevel: 'silent' });
   const mod = require(out);
-  handlerCache = { processOne: mod.__poe, processTranscript: mod.__pt, handleRequest: mod.__hr, serveRequest: mod.__sr, auth: require(authOut) };
+  handlerCache = { processOne: mod.__poe, processTranscript: mod.__pt, handleRequest: mod.__hr, serveRequest: mod.__sr, auth: require(authOut), mod };   // mod: the whole bundle, so a suite can reach the Worker's default export (the real front door) and the real BusinessObject class
   return handlerCache;
 }
 // One request through the real handler against a fresh business: { result: {status, body}, writes: per-table diff }. spec: method, path, body, role, seed(db), env.
@@ -127,4 +127,38 @@ function standalone(suiteModule) {
   suiteModule({ check, bundleTo, srcDir }).then(() => { console.log(`\n${total - fails}/${total} correct, ${fails} failing`); process.exit(fails ? 1 : 0); }).catch((e) => { console.log('SUITE CRASHED: ' + ((e && e.stack) || e)); process.exit(2); });
 }
 
-module.exports = { makeWorld, loadEngine, guard, standalone, workerDir, bundle, buildHandler, route, asEngineBusiness, seedReceivables, ALL_CAPABILITIES };
+
+// ---- a FLEET: the Worker's REAL front door (the default export's fetch) in front of REAL business objects --------------------------------------------------------------------------------------------------
+// Each object is the production class (makeBusinessObject wrapping the real serveRequest), woken over a stand-in for Durable Object storage on its own Node SQLite database, building its own schema from empty.
+// WHAT THIS IS NOT: the namespace is a plain map from object name to object, and the storage is a stand-in. It is NOT real Cloudflare routing and NOT a real Durable Object (the staging rehearsal is where those are exercised).
+const { DatabaseSync } = require('node:sqlite');
+const plainRow = (r) => (r ? { ...r } : r);
+// the storage stand-in, copied verbatim from tools/business-object.test.js (which is where the object's contract with its storage is tested)
+const plain = plainRow;
+  const makeDoState = (db) => {
+    const waited = []; let alarmAt = null, alarmSets = 0;
+    const sql = { exec(query, ...binds) { const s = db.prepare(query); if (/^\s*(select|with|pragma|values)\b/i.test(query) || /\breturning\b/i.test(query)) { const rows = s.all(...binds).map(plain); return { toArray: () => rows, rowsRead: rows.length, rowsWritten: 0 }; } const r = s.run(...binds); return { toArray: () => [], rowsRead: 0, rowsWritten: Number(r.changes) }; } };
+    const storage = { sql, transactionSync(fn) { db.exec('BEGIN'); try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; } }, getAlarm: async () => alarmAt, setAlarm: async (t) => { alarmAt = t; alarmSets++; } };
+    return { state: { storage, blockConcurrencyWhile: (fn) => fn(), waitUntil: (p) => waited.push(p) }, waited, alarm: () => alarmAt, alarmSets: () => alarmSets };
+  };
+async function makeFleet({ ids = ['alpha-co', 'beta-co'] } = {}) {
+  const fns = await buildHandler(), mod = fns.mod;
+  const env = { BUSINESS_MODE: 'object', SESSION_SECRET: 'fleet-secret', ADMIN_KEY: 'fleet-admin', METER_USAGE: '0' };
+  const objects = {}, raws = {}; let misroute = null;
+  // forwardToBusiness calls namespace.get(namespace.idFromName(name), { locationHint }).fetch(request); misroute(name) lets a test send a request to the WRONG object on purpose
+  env.BUSINESS = { idFromName: (name) => ({ name }), get: (id) => ({ fetch: (req) => objects[misroute ? misroute(id.name) : id.name].fetch(req) }) };
+  const ctx = { waitUntil() {}, passThroughOnException() {} };
+  const wake = async (b) => { const raw = new DatabaseSync(':memory:'); const st = makeDoState(raw); const o = new mod.BusinessObject(st.state, env); await o.ready; objects['business-' + b] = o; raws[b] = raw; return o; };
+  for (const b of ids) await wake(b);
+  const url = (p) => 'https://office.example' + p;
+  return {
+    env, mod, auth: fns.auth, objects, raws, wake, ctx,
+    setMisroute: (fn) => { misroute = fn; },
+    db: (b) => objects['business-' + b].db,   // the object's own database, in the D1 shape the engine uses
+    token: (email, b) => fns.auth.signSession(env, email, b),
+    front: (p, init) => mod.default.fetch(new Request(url(p), init), env, ctx),                       // the Worker's real front door
+    direct: (b, p, init) => objects['business-' + b].fetch(new Request(url(p), init)),                // one object, with no router in front
+  };
+}
+
+module.exports = { makeFleet, makeWorld, loadEngine, guard, standalone, workerDir, bundle, buildHandler, route, asEngineBusiness, seedReceivables, ALL_CAPABILITIES };

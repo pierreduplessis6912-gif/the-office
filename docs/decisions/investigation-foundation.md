@@ -53,7 +53,7 @@ A selection, a temporary filter or "these invoices" is investigation state. It i
 | Provenance from capture to outcome | PARTIAL: `captureId` is never set; no engine code writes `eng_interpretation` (`engine-fit.test.js:113` writes it by hand). |
 | Client-held context | EXISTS in legacy, narrow and tested (`context.test.js:84`); not used by the engine. |
 | Permission at every hop | Kind-level only. Cost, margin and supplier permissions are unmapped. |
-| Engine cross-business isolation | OPEN VERIFICATION GAP: structural through the per-business object, untested, although listed in the Phase 1 acceptance criteria. |
+| Engine cross-business isolation | TESTED LOCALLY (Task 3) through the real front door and two real business objects on a stand-in for Durable Object storage; NOT shown on a real Durable Object; one ownership-initialization finding (an unused object binds to the first business that names it) is OPEN. See `engine-foundation.md`. |
 | Recovery and restore gate | STILL OPEN: the restore fix is proven on the harness only; `staging-two` is in engine mode. |
 
 ## Investigation foundation: open questions and what is deliberately deferred (2026-11-02)
