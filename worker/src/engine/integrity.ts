@@ -1,25 +1,57 @@
-// The integrity verifier: READ-ONLY, and PARTIAL detection after the fact, not prevention (corrected 2026-11-02: an earlier version of this comment overstated it). It re-derives conservation (no payment or document
-// over-allocated), the reversal cascade and invoice numbering from the tables, and compares each PAYMENT, ALLOCATION and DOCUMENT (with its lines and recomputed totals) with the snapshot its event recorded, so an
-// EDIT to one of those that its event does not match is reported. It does NOT detect the deletion of a fact nothing depends on, an edit to a party, a party role, a reversal, an event or a number value (numbers are
-// checked for gaps, not edits), or a coordinated edit of a fact together with its event snapshot. Only the payment comparison has a detection test; the allocation and document comparisons are untested.
-// It runs only when called (today: the admin status route, engine/admin.ts). It changes nothing.
+// The integrity verifier: READ-ONLY, and PARTIAL detection after the fact, not prevention. It reports violations of the invariants listed below, and nothing else.
+//
+// WHAT A CLEAN RESULT MEANS: no violation was found among THE INVARIANTS THIS VERIFIER CHECKS. It is NOT proof that the data is authentic, unaltered or complete. Neither a fact nor its event is independently protected
+// (no hash chain, no external copy), so these are NOT detected, and tools/engine-integrity.test.js PINS each one: a COORDINATED edit of a fact and its event; the deletion of a fact AND its event; a swap of two documents'
+// numbers (the number is not in the event, and a swap leaves no gap); an edit to a document's terms (not recorded in the event).
+// It runs only when called (today: the admin status route, engine/admin.ts); nothing runs it automatically, and a failed check only REPORTS: it blocks nothing, repairs nothing, restores nothing.
+//
+// THE EVENT MODEL (EVENT_MODEL, below, derived from what facts.ts and capability-contract.ts actually write). Eight event types each create EXACTLY ONE fact row, carried by that row's event_id (party.created also creates
+// the party's roles); operation.executed creates NO fact; any other type is NOT MODELLED and is reported as a WARNING, never a violation (it may come from newer code that was rolled back, or from a type nobody modelled
+// yet: tools/engine-integrity.test.js fails if the engine writes an event type that is not in the model). Both directions are checked.
+//
+// THE INVARIANTS, and the code each violation is reported under:
+//   event_without_fact      a modelled fact-creating event has no fact row (the fact was deleted while its event survived)
+//   event_multiple_facts    a modelled fact-creating event has more than one fact row
+//   fact_wrong_event        a fact's event does not exist, or is not the kind of event that creates that kind of fact (a payment's direction must match payment.recorded / payment.made)
+//   fact_changed            a party, party role set, payment, allocation or document (header, reference, lines, recomputed totals) differs from the snapshot its event recorded
+//   reversal_mismatch       a reversal row's target, reason or replacement differs from what its event recorded
+//   over_allocated          a payment, or a document, has more allocated against it than it holds or owes (reversed things excluded)
+//   allocation_on_reversed  an allocation is still counted although its payment or document was reversed
+//   number_gap              an invoice-style sequence does not run 1..n, or a document has no number
+//   orphan                  a foreign key points at nothing (PRAGMA foreign_key_check, engine tables only)
+//   event_payload_malformed an event's payload is not a JSON object
+// NOT checked at all: eng_interpretation, and the working-state tables (eng_config, eng_draft, eng_observation).
 import type { Env } from "../types";
 import { documentTotals as sumTotals } from "./money";
 
 export interface IntegrityProblem {
-  code: "orphan" | "fact_changed" | "over_allocated" | "allocation_on_reversed" | "number_gap";
+  code: "orphan" | "fact_changed" | "over_allocated" | "allocation_on_reversed" | "number_gap" | "event_without_fact" | "event_multiple_facts" | "fact_wrong_event" | "reversal_mismatch" | "event_payload_malformed";
   detail: string;
 }
+export interface IntegrityWarning { code: "event_type_not_modelled"; detail: string }
+
+type FactKind = "party" | "document" | "movement" | "allocation" | "reversal";
+// Every event type the engine writes. `creates` is the kind of fact the event requires (exactly one); null means the event creates none.
+export const EVENT_MODEL: Record<string, { creates: FactKind | null; note: string }> = {
+  "party.created": { creates: "party", note: "one eng_party, plus one eng_party_role per role in the payload" },
+  "document.issued": { creates: "document", note: "one eng_document (its lines and number are written with it)" },
+  "payment.recorded": { creates: "movement", note: "one eng_money_movement with direction in" },
+  "payment.made": { creates: "movement", note: "one eng_money_movement with direction out" },
+  "payment.allocated": { creates: "allocation", note: "one eng_allocation" },
+  "payment.reversed": { creates: "reversal", note: "one eng_reversal whose target is a payment" },
+  "payment.allocation_reversed": { creates: "reversal", note: "one eng_reversal whose target is an allocation" },
+  "document.reversed": { creates: "reversal", note: "one eng_reversal whose target is a document" },
+  "operation.executed": { creates: null, note: "the record that an approved proposal executed; it creates no fact" },
+};
+const FACT_TABLE: Record<FactKind, string> = { party: "eng_party", document: "eng_document", movement: "eng_money_movement", allocation: "eng_allocation", reversal: "eng_reversal" };
 
 const many = async <T>(env: Env, sql: string, ...binds: unknown[]): Promise<T[]> => ((await env.OFFICE_DB.prepare(sql).bind(...binds).all<T>()).results ?? []);
-
-function snapshotOf(json: string | null): Record<string, unknown> | null {
-  try { const v = JSON.parse(json ?? ""); return v && typeof v === "object" ? (v as Record<string, unknown>) : null; } catch { return null; }
-}
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+const sortedRoles = (v: unknown): string[] | null => (Array.isArray(v) && v.every((r) => typeof r === "string") ? [...(v as string[])].sort() : null);
 
-export async function verifyIntegrity(env: Env): Promise<{ ok: boolean; problems: IntegrityProblem[] }> {
+export async function verifyIntegrity(env: Env): Promise<{ ok: boolean; problems: IntegrityProblem[]; warnings: IntegrityWarning[] }> {
   const problems: IntegrityProblem[] = [];
+  const warnings: IntegrityWarning[] = [];
 
   // every relationship points at something that exists
   try {
@@ -27,31 +59,100 @@ export async function verifyIntegrity(env: Env): Promise<{ ok: boolean; problems
     for (const o of orphans.filter((r) => String(r.table ?? "").startsWith("eng_"))) problems.push({ code: "orphan", detail: `${o.table} row ${o.rowid} points at a missing ${o.parent}` });
   } catch { /* a database that cannot answer the pragma is not reported as broken */ }
 
-  // each fact still matches the snapshot its event recorded
-  const movements = await many<{ id: number; direction: string; party_id: number; amount_minor: number; currency: string; occurred_on: string; method: string | null; payload_json: string | null }>(env,
-    "SELECT m.id, m.direction, m.party_id, m.amount_minor, m.currency, m.occurred_on, m.method, e.payload_json FROM eng_money_movement m LEFT JOIN eng_event e ON e.id = m.event_id");
+  // ---- the events: each is parsed once; an unmodelled type is a warning, a payload that is not a JSON object is a violation -------------------------------------------------------------------------------------
+  const events = new Map<number, { type: string; payload: Record<string, unknown> | null }>();
+  for (const e of await many<{ id: number; type: string; payload_json: string | null }>(env, "SELECT id, type, payload_json FROM eng_event ORDER BY id")) {
+    let payload: Record<string, unknown> | null = null;
+    try { const v = JSON.parse(e.payload_json ?? ""); if (v && typeof v === "object" && !Array.isArray(v)) payload = v as Record<string, unknown>; } catch { /* malformed: reported next */ }
+    if (payload === null) problems.push({ code: "event_payload_malformed", detail: `event ${e.id} (${e.type}) has a payload that is not a JSON object` });
+    if (!(e.type in EVENT_MODEL)) warnings.push({ code: "event_type_not_modelled", detail: `event ${e.id} has type ${e.type}, which the integrity model does not know` });
+    events.set(e.id, { type: e.type, payload });
+  }
+
+  // ---- event to fact: a modelled fact-creating event needs EXACTLY ONE fact row ----------------------------------------------------------------------------------------------------------------------------------------
+  const counts = new Map<FactKind, Map<number, number>>();
+  for (const kind of Object.keys(FACT_TABLE) as FactKind[]) {
+    const m = new Map<number, number>();
+    for (const r of await many<{ e: number; n: number }>(env, `SELECT event_id AS e, COUNT(*) AS n FROM ${FACT_TABLE[kind]} GROUP BY event_id`)) m.set(Number(r.e), Number(r.n));
+    counts.set(kind, m);
+  }
+  for (const [id, ev] of events) {
+    const model = EVENT_MODEL[ev.type];
+    if (!model || model.creates === null) continue;
+    const n = counts.get(model.creates)?.get(id) ?? 0;
+    if (n === 0) problems.push({ code: "event_without_fact", detail: `event ${id} (${ev.type}) has no ${FACT_TABLE[model.creates]} row: the fact was deleted or never written` });
+    else if (n > 1) problems.push({ code: "event_multiple_facts", detail: `event ${id} (${ev.type}) has ${n} ${FACT_TABLE[model.creates]} rows, expected exactly one` });
+  }
+  // fact to event: the event must exist and be the kind that creates this kind of fact
+  const wrongEvent = (kind: string, id: number, eventId: number, expected: string[]) => {
+    const ev = events.get(eventId);
+    if (!ev) { problems.push({ code: "fact_wrong_event", detail: `${kind} ${id} points at event ${eventId}, which does not exist` }); return null; }
+    if (!expected.includes(ev.type)) { problems.push({ code: "fact_wrong_event", detail: `${kind} ${id} points at event ${eventId} of type ${ev.type}, expected ${expected.join(" or ")}` }); return null; }
+    return ev;
+  };
+
+  // parties and their roles
+  const parties = await many<{ id: number; kind: string; name: string; event_id: number }>(env, "SELECT id, kind, name, event_id FROM eng_party");
+  const roleRows = await many<{ party_id: number; role: string; event_id: number }>(env, "SELECT party_id, role, event_id FROM eng_party_role");
+  for (const p of parties) {
+    const ev = wrongEvent("party", p.id, p.event_id, ["party.created"]);
+    if (!ev) continue;
+    const s = ev.payload;
+    if (!s || !same([s.kind, s.name], [p.kind, p.name])) problems.push({ code: "fact_changed", detail: `party ${p.id} no longer matches what was recorded` });
+    const recorded = sortedRoles(s?.roles), actual = roleRows.filter((r) => r.party_id === p.id && r.event_id === p.event_id).map((r) => r.role).sort();
+    if (recorded === null || !same(recorded, actual)) problems.push({ code: "fact_changed", detail: `party ${p.id}'s roles no longer match what was recorded` });
+  }
+  for (const r of roleRows) {
+    wrongEvent("party role", r.party_id, r.event_id, ["party.created"]);
+    if (!parties.some((p) => p.id === r.party_id && p.event_id === r.event_id)) problems.push({ code: "fact_wrong_event", detail: `role ${r.role} of party ${r.party_id} is not carried by the event that created that party` });
+  }
+
+  // payments
+  const movements = await many<{ id: number; direction: string; party_id: number; amount_minor: number; currency: string; occurred_on: string; method: string | null; event_id: number }>(env,
+    "SELECT id, direction, party_id, amount_minor, currency, occurred_on, method, event_id FROM eng_money_movement");
   for (const m of movements) {
-    const s = snapshotOf(m.payload_json);
+    const ev = wrongEvent("payment", m.id, m.event_id, [m.direction === "in" ? "payment.recorded" : "payment.made"]);
+    if (!ev) continue;
+    const s = ev.payload;
     if (!s || !same([s.direction, s.partyId, s.amountMinor, s.currency, s.occurredOn, s.method ?? null], [m.direction, m.party_id, m.amount_minor, m.currency, m.occurred_on, m.method])) problems.push({ code: "fact_changed", detail: `payment ${m.id} no longer matches what was recorded` });
   }
-  const allocations = await many<{ id: number; movement_id: number; document_id: number; amount_minor: number; payload_json: string | null }>(env,
-    "SELECT a.id, a.movement_id, a.document_id, a.amount_minor, e.payload_json FROM eng_allocation a LEFT JOIN eng_event e ON e.id = a.event_id");
+
+  // allocations
+  const allocations = await many<{ id: number; movement_id: number; document_id: number; amount_minor: number; event_id: number }>(env, "SELECT id, movement_id, document_id, amount_minor, event_id FROM eng_allocation");
   for (const a of allocations) {
-    const s = snapshotOf(a.payload_json);
+    const ev = wrongEvent("allocation", a.id, a.event_id, ["payment.allocated"]);
+    if (!ev) continue;
+    const s = ev.payload;
     if (!s || !same([s.movementId, s.documentId, s.amountMinor], [a.movement_id, a.document_id, a.amount_minor])) problems.push({ code: "fact_changed", detail: `allocation ${a.id} no longer matches what was recorded` });
   }
-  const documents = await many<{ id: number; kind: string; direction: string; party_id: number; currency: string; issued_on: string; payload_json: string | null }>(env,
-    "SELECT d.id, d.kind, d.direction, d.party_id, d.currency, d.issued_on, e.payload_json FROM eng_document d LEFT JOIN eng_event e ON e.id = d.event_id");
+
+  // documents, with their lines
+  const documents = await many<{ id: number; kind: string; direction: string; party_id: number; currency: string; reference: string | null; issued_on: string; event_id: number }>(env,
+    "SELECT id, kind, direction, party_id, currency, reference, issued_on, event_id FROM eng_document");
   for (const d of documents) {
     const lines = await many<{ description: string; quantity_milli: number; unit: string | null; unit_price_minor: number; tax_bp: number }>(env, "SELECT description, quantity_milli, unit, unit_price_minor, tax_bp FROM eng_document_line WHERE document_id = ? ORDER BY line_no", d.id);
-    const s = snapshotOf(d.payload_json);
+    const ev = wrongEvent("document", d.id, d.event_id, ["document.issued"]);
+    if (!ev) continue;
+    const s = ev.payload;
     const asRecorded = lines.map((l) => ({ description: l.description, quantityMilli: l.quantity_milli, unit: l.unit, unitPriceMinor: l.unit_price_minor, taxBp: l.tax_bp }));
     let totals: unknown = null;
     try { totals = sumTotals(asRecorded); } catch { /* a line that cannot be totalled is reported below as changed */ }
-    if (!s || !same([s.kind, s.direction, s.partyId, s.currency, s.issuedOn, s.lines, s.totals], [d.kind, d.direction, d.party_id, d.currency, d.issued_on, asRecorded, totals])) problems.push({ code: "fact_changed", detail: `document ${d.id} or its lines no longer match what was issued` });
+    if (!s || !same([s.kind, s.direction, s.partyId, s.currency, s.issuedOn, s.reference ?? null, s.lines, s.totals], [d.kind, d.direction, d.party_id, d.currency, d.issued_on, d.reference ?? null, asRecorded, totals])) problems.push({ code: "fact_changed", detail: `document ${d.id} or its lines no longer match what was issued` });
   }
 
-  // conservation: nothing is over-allocated, and nothing is allocated to something reversed
+  // reversals: each row must be the kind its event says, and say what its event says
+  const reversals = await many<{ id: number; movement_id: number | null; allocation_id: number | null; document_id: number | null; reason: string; replaced_by_movement_id: number | null; event_id: number }>(env,
+    "SELECT id, movement_id, allocation_id, document_id, reason, replaced_by_movement_id, event_id FROM eng_reversal");
+  for (const r of reversals) {
+    const kindOf = r.movement_id !== null ? "payment.reversed" : r.allocation_id !== null ? "payment.allocation_reversed" : "document.reversed";
+    const ev = wrongEvent("reversal", r.id, r.event_id, [kindOf]);
+    if (!ev) continue;
+    const s = ev.payload;
+    const matches = !!s && s.reason === r.reason && (kindOf === "payment.reversed" ? s.movementId === r.movement_id && (s.replacedByMovementId ?? null) === (r.replaced_by_movement_id ?? null) : kindOf === "payment.allocation_reversed" ? s.allocationId === r.allocation_id : s.documentId === r.document_id);
+    if (!matches) problems.push({ code: "reversal_mismatch", detail: `reversal ${r.id} (${kindOf}) no longer says what its event recorded` });
+  }
+
+  // ---- conservation: nothing is over-allocated, and nothing is allocated to something reversed -----------------------------------------------------------------------------------------------------------------------------
   for (const m of await many<{ id: number; amount_minor: number; used: number }>(env,
     `SELECT m.id, m.amount_minor, COALESCE((SELECT SUM(a.amount_minor) FROM eng_allocation a WHERE a.movement_id = m.id AND NOT EXISTS (SELECT 1 FROM eng_reversal r WHERE r.allocation_id = a.id)), 0) AS used
        FROM eng_money_movement m WHERE NOT EXISTS (SELECT 1 FROM eng_reversal r WHERE r.movement_id = m.id)`)) {
@@ -72,12 +173,12 @@ export async function verifyIntegrity(env: Env): Promise<{ ok: boolean; problems
     problems.push({ code: "allocation_on_reversed", detail: `allocation ${a.id} is still counted although its payment or document was reversed` });
   }
 
-  // numbering: each kind runs 1..n with no hole, and every document has its number
+  // ---- numbering: each kind runs 1..n with no hole, and every document has its number -----------------------------------------------------------------------------------------------------------------------------------
   for (const k of await many<{ kind: string; n: number; lo: number; hi: number }>(env, "SELECT kind, COUNT(*) AS n, MIN(number) AS lo, MAX(number) AS hi FROM eng_document_number GROUP BY kind")) {
     if (k.lo !== 1 || k.hi !== k.n) problems.push({ code: "number_gap", detail: `${k.kind} numbers run ${k.lo} to ${k.hi} but there are ${k.n}` });
   }
   const unnumbered = await many<{ id: number }>(env, "SELECT d.id FROM eng_document d WHERE NOT EXISTS (SELECT 1 FROM eng_document_number n WHERE n.document_id = d.id)");
   for (const u of unnumbered) problems.push({ code: "number_gap", detail: `document ${u.id} has no number` });
 
-  return { ok: problems.length === 0, problems };
+  return { ok: problems.length === 0, problems, warnings };
 }

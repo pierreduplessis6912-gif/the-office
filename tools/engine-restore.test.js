@@ -49,7 +49,8 @@ module.exports = kit.guard('engine restore', async ({ check }) => {
   w.db.prepare("INSERT INTO eng_event (type) VALUES ('junk')").run();
   w.db.prepare("INSERT INTO eng_draft (kind, direction, payload_json) VALUES ('invoice', 'sell', '{}')").run();
   w.db.exec('PRAGMA foreign_keys = ON');
-  check(!(await eng.verifyIntegrity(w.env)).ok || fingerprint(w.db, ENG) !== engineBefore, 'after the damage the business is visibly not what it was');
+  const damaged = await eng.verifyIntegrity(w.env); const damagedCodes = damaged.problems.map((p) => p.code);
+  check(damagedCodes.includes('event_without_fact') && damagedCodes.includes('fact_changed') && fingerprint(w.db, ENG) !== engineBefore, 'after the damage the verifier REPORTS what was deleted (event_without_fact) and what was edited (fact_changed), and the tables differ: ' + [...new Set(damagedCodes)].join(', '));
   const report = await bk.restoreSnapshot(w.env, snap.name, 'eng-a');
   check(report.ok === true && report.differences.length === 0, `the restore reports ok with no differences (${report.tablesRestored} tables, ${report.rowsRestored} rows)`);
   check(fingerprint(w.db, ENG) === engineBefore, 'every engine table is back EXACTLY: rows, ids, relationships, in order');

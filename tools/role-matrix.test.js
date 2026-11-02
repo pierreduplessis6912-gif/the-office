@@ -1004,6 +1004,7 @@ async function expect(role, method, path, want) {
   // Engine foundation (branch engine-phase1): the schema the database itself enforces, and the ledger (money, the one insert-only write path, derivations, corrections, atomicity, integrity).
   await require('./engine-schema.test.js')({ check, bundleTo, srcDir });
   await require('./engine-ledger.test.js')({ check, bundleTo, srcDir });
+  await require('./engine-integrity.test.js')({ check, bundleTo, srcDir });
   await require('./engine-boundary.test.js')({ check, bundleTo, srcDir });
   await require('./engine-operations.test.js')({ check, bundleTo, srcDir });
   await require('./engine-restore.test.js')({ check, bundleTo, srcDir });

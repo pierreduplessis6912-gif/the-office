@@ -306,3 +306,4 @@ Split on 2026-10-24 from the 7958-line original, which is `git show 95bf743:DECI
 - [D3 and D4: investigation context is explicit, client-held, untrusted and never a business record (2026-11-02)](docs/decisions/investigation-foundation.md) (new)
 - [D5: rules every consumer shares, and what is intended versus verified (2026-11-02)](docs/decisions/investigation-foundation.md) (new)
 - [Investigation foundation: open questions and what is deliberately deferred (2026-11-02)](docs/decisions/investigation-foundation.md) (new)
+- [Engine integrity: the invariants, the event model, and what a clean result means (2026-11-02)](docs/decisions/engine-foundation.md) (new)

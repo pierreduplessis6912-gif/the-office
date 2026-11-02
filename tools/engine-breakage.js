@@ -4,7 +4,7 @@
 const fs = require('fs'), path = require('path'), { spawnSync } = require('child_process');
 const root = path.join(__dirname, '..');
 const E = (f) => `worker/src/engine/${f}`, CONTRACT = 'worker/src/capability-contract.ts', MIG = 'worker/migrations/0004_engine_foundation.sql';
-const ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
+const INTEG = 'engine-integrity.test.js', ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
 
 const MUTATIONS = [
   // money: exact integer arithmetic
@@ -37,6 +37,26 @@ const MUTATIONS = [
   { name: 'payment.record: ignore that the account changed', suite: OPS, file: E('capabilities.ts'), find: 'if (value.basedOn && (await versionOf(env, { kind: "party", id: value.partyId })) !== value.basedOn.partyVersion)', replace: 'if (false)' },
   { name: 'records: show a record to a member who may not see it', suite: OPS, file: E('records.ts'), find: '  if (!viewer.perms.has("receivables.read")) return null;\n', replace: '' },
   { name: 'permissions: the invoices capability no longer grants recording payments', suite: OPS, file: E('permissions.ts'), find: 'can_manage_invoices: ["payment.record", "payment.correct", "invoice.issue", "drafts.edit"],', replace: 'can_manage_invoices: ["payment.correct", "invoice.issue", "drafts.edit"],' },
+  // integrity, Task 2: each new check has an invariant behind it, and removing it must make the integrity suite fail
+  { name: 'integrity: an event whose fact was deleted is not reported', suite: INTEG, file: E('integrity.ts'), find: 'if (n === 0) problems.push({ code: "event_without_fact"', replace: 'if (false) problems.push({ code: "event_without_fact"' },
+  { name: 'integrity: two facts for one event are not reported', suite: INTEG, file: E('integrity.ts'), find: 'else if (n > 1) problems.push({ code: "event_multiple_facts"', replace: 'else if (false) problems.push({ code: "event_multiple_facts"' },
+  { name: 'integrity: a fact with the wrong kind of event is not reported', suite: INTEG, file: E('integrity.ts'), find: 'if (!expected.includes(ev.type)) {', replace: 'if (false) {' },
+  { name: 'integrity: a fact whose event does not exist is not reported', suite: INTEG, file: E('integrity.ts'), find: 'problems.push({ code: "fact_wrong_event", detail: `${kind} ${id} points at event ${eventId}, which does not exist` }); return null;', replace: 'return null;' },
+  { name: 'integrity: a payment direction is no longer tied to its event type', suite: INTEG, file: E('integrity.ts'), find: '[m.direction === "in" ? "payment.recorded" : "payment.made"]', replace: '["payment.recorded", "payment.made"]' },
+  { name: 'integrity: a party is no longer compared with its snapshot', suite: INTEG, file: E('integrity.ts'), find: 'if (!s || !same([s.kind, s.name], [p.kind, p.name]))', replace: 'if (false)' },
+  { name: 'integrity: a party\'s roles are no longer compared', suite: INTEG, file: E('integrity.ts'), find: 'if (recorded === null || !same(recorded, actual))', replace: 'if (false)' },
+  { name: 'integrity: a role carried by another party\'s event is not reported', suite: INTEG, file: E('integrity.ts'), find: 'if (!parties.some((p) => p.id === r.party_id && p.event_id === r.event_id))', replace: 'if (false)' },
+  { name: 'integrity: an allocation is no longer compared with its snapshot', suite: INTEG, file: E('integrity.ts'), find: 'if (!s || !same([s.movementId, s.documentId, s.amountMinor], [a.movement_id, a.document_id, a.amount_minor]))', replace: 'if (false)' },
+  { name: 'integrity: a document is no longer compared with its snapshot at all', suite: INTEG, file: E('integrity.ts'), find: 'if (!s || !same([s.kind, s.direction, s.partyId, s.currency, s.issuedOn, s.reference ?? null,', replace: 'if (false && !same([s.kind, s.direction, s.partyId, s.currency, s.issuedOn, s.reference ?? null,' },
+  { name: 'integrity: a document\'s reference is no longer compared', suite: INTEG, file: E('integrity.ts'), find: 's.issuedOn, s.reference ?? null, s.lines, s.totals], [d.kind, d.direction, d.party_id, d.currency, d.issued_on, d.reference ?? null, asRecorded, totals]', replace: 's.issuedOn, s.lines, s.totals], [d.kind, d.direction, d.party_id, d.currency, d.issued_on, asRecorded, totals]' },
+  { name: 'integrity: a reversal row is no longer compared with its event', suite: INTEG, file: E('integrity.ts'), find: 'if (!matches) problems.push({ code: "reversal_mismatch"', replace: 'if (false) problems.push({ code: "reversal_mismatch"' },
+  { name: 'integrity: a malformed event payload is not reported', suite: INTEG, file: E('integrity.ts'), find: 'if (payload === null) problems.push({ code: "event_payload_malformed"', replace: 'if (false) problems.push({ code: "event_payload_malformed"' },
+  { name: 'integrity: an unmodelled event type is no longer warned about', suite: INTEG, file: E('integrity.ts'), find: 'if (!(e.type in EVENT_MODEL)) warnings.push(', replace: 'if (false) warnings.push(' },
+  { name: 'integrity: a DOCUMENT over-allocation is not reported', suite: INTEG, file: E('integrity.ts'), find: 'if (Number(row[0]?.reversed ?? 0) === 0 && Number(row[0]?.n ?? 0) > gross) problems.push({ code: "over_allocated"', replace: 'if (false) problems.push({ code: "over_allocated"' },
+  { name: 'integrity: foreign-key orphans are not reported', suite: INTEG, file: E('integrity.ts'), find: 'orphans.filter((r) => String(r.table ?? "").startsWith("eng_"))', replace: '[]' },
+  { name: 'integrity: a hole in the numbering is not reported', suite: INTEG, file: E('integrity.ts'), find: 'if (k.lo !== 1 || k.hi !== k.n) problems.push({ code: "number_gap"', replace: 'if (false) problems.push({ code: "number_gap"' },
+  { name: 'integrity: a document with no number is not reported', suite: INTEG, file: E('integrity.ts'), find: 'for (const u of unnumbered) problems.push({ code: "number_gap"', replace: 'for (const u of []) problems.push({ code: "number_gap"' },
+  { name: 'integrity: an event type the engine writes is missing from the model', suite: INTEG, file: E('integrity.ts'), find: '  "payment.made": { creates: "movement", note: "one eng_money_movement with direction out" },\n', replace: '' },
   // the admin routes (privileged: they can put a business into engine mode)
   { name: 'admin: provisioning exists on a deployment that is not a rehearsal', suite: ADMIN, file: E('admin.ts'), find: 'if (env.ENGINE_REHEARSAL !== "1") return bad("this route exists only on a rehearsal deployment", 404);', replace: '/* mutation: no rehearsal flag */' },
   { name: 'admin: provisioning without the business id as confirmation', suite: ADMIN, file: E('admin.ts'), find: 'if (!body || body.confirm !== env.BUSINESS_ID) return bad("confirm must be the business id", 400);', replace: '/* mutation: no confirmation */' },

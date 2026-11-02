@@ -1,6 +1,6 @@
 // Engine ledger (worker/src/engine, branch engine-phase1). TESTS FIRST: what the engine's facts, derivations and corrections must guarantee, before they exist.
 //   MONEY      integer arithmetic only: minor units, thousandths, basis points, half-up rounding per line, exact above 2^53 (no floats anywhere)
-//   FACTS      recorded through ONE path that only inserts; no update or delete of a fact exists in the code (scanned), and each fact's event carries a snapshot of it, which the verifier compares for payments, allocations and documents (PARTIAL detection on demand; only the payment case is tested here)
+//   FACTS      recorded through ONE path that only inserts; no update or delete of a fact exists in the code (scanned), and each fact's event carries a snapshot of it, which the verifier compares for payments, allocations and documents (PARTIAL detection on demand; the isolated detection cases are in tools/engine-integrity.test.js)
 //   DERIVED    what is outstanding is computed in one place from effective facts (a reversed fact is not effective, and neither is what hangs off it)
 //   CORRECTED  a mistake is reversed and, if need be, replaced: nothing is edited, the trail shows every step, a fact with live dependents cannot be reversed alone, nothing is reversed twice
 //   ATOMIC     every operation is all or nothing: a failure injected at EVERY write leaves the business exactly as it was, and numbering has no gap
@@ -122,7 +122,7 @@ module.exports = kit.guard('engine ledger', async ({ check }) => {
   check(!v2.ok && v2.problems.some((p) => p.code === 'over_allocated'), 'an allocation written around the engine that over-allocates a payment is detected (over_allocated)');
   const gap = (await world()).w;
   gap.db.prepare("UPDATE eng_document_number SET number = 5 WHERE document_id = 2").run();   // invoices numbered 1 and 5: a hole
-  check(!(await eng.verifyIntegrity(gap.env)).ok, 'a hole or a stray number in the invoice sequence is detected');
+  check((await eng.verifyIntegrity(gap.env)).problems.some((p) => p.code === 'number_gap'), 'a hole or a stray number in the invoice sequence is detected, as number_gap (by CODE, no longer just "not ok")');
 
   // ---- DERIVED does not depend on the cascade having been done: what hangs off a reversed payment is not effective, and the verifier says so --------------------------------------------------------------------
   const orphaned = await world();
