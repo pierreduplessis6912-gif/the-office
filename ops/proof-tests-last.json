@@ -1,12 +1,12 @@
 {
- "commit": "72d7e18",
- "when": "2026-11-02T12:07:34.052850+00:00",
+ "commit": "793043d",
+ "when": "2026-11-02T12:30:35.843948+00:00",
  "node": "v22.23.4",
  "typecheck": "success",
  "role_matrix_default": "success",
  "role_matrix_default_detail": {
-  "decisions_correct": 8998,
-  "decisions_total": 8998,
+  "decisions_correct": 9014,
+  "decisions_total": 9014,
   "failing_checks": 0,
   "failing": [],
   "tail": [
@@ -34,13 +34,13 @@
    "engine operations: the route-level failure-injection loop needs transactions, so it runs on the Durable Object adapter step only",
    "capability contract: the failure-injection loop needs transactions, so it runs on the Durable Object adapter step only",
    "",
-   "8998/8998 decisions correct  \u2014  all correct"
+   "9014/9014 decisions correct  \u2014  all correct"
   ]
  },
  "role_matrix_do_adapter": "success",
  "role_matrix_do_adapter_detail": {
-  "decisions_correct": 9001,
-  "decisions_total": 9001,
+  "decisions_correct": 9017,
+  "decisions_total": 9017,
   "failing_checks": 0,
   "failing": [],
   "tail": [
@@ -68,7 +68,7 @@
    "Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.",
    "restore memory: the heap-capped probe runs on the default backend step only",
    "",
-   "9001/9001 decisions correct  \u2014  all correct"
+   "9017/9017 decisions correct  \u2014  all correct"
   ]
  }
 }
