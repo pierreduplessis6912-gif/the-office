@@ -494,6 +494,10 @@ export const ENFORCE_CAPABILITIES = true;
 // character_fact (staff and supplier details), imported_invoice, and
 // schema_candidate — and any type added in future, until classified.
 export const ACTION_TYPE_CAPABILITY: Record<string, string[]> = {
+  // The ENGINE's held actions (branch engine-phase1): this says only who may TRY to confirm one. Each contract checks its own engine permission again at the door and at confirm (capability-contract.ts).
+  "engine.payment.record": ["can_manage_invoices"],
+  "engine.payment.correct": ["can_manage_invoices"],
+  "engine.invoice.issue": ["can_manage_invoices"],
   invoice: ["can_manage_invoices"],
   quotation: ["can_make_quotes"],
   convert_quote: ["can_manage_invoices"],
@@ -749,6 +753,10 @@ export function intentCreationRefusalInfo(intent: string | null | undefined, cap
 // they only ever create a held action; the confirmation is what is
 // checked, by type, below.
 const MEMBER_OPEN_ROUTES: Array<{ method: string; path: RegExp }> = [
+  // The engine's record view and its proposals (worker/src/engine): any member may ASK. What a record shows is decided per kind (a record the member may not see answers as one that does not exist) and a proposal is
+  // checked against the engine permission of its capability at the door; the mode gate refuses both in a business that does not use the engine.
+  { method: "GET", path: /^\/engine\/records\/[a-z]+\/\d+$/ },
+  { method: "POST", path: /^\/engine\/proposals$/ },
   { method: "POST", path: /^\/messages\/text$/ },
   // The history of what the person said and what The Office did (history.ts): open to every member exactly like the message routes, because a member only ever receives their OWN turns; the owner's "everyone" view is checked inside the handler (can_manage_settings).
   { method: "GET", path: /^\/history$/ },
@@ -763,6 +771,8 @@ const MEMBER_OPEN_ROUTES: Array<{ method: string; path: RegExp }> = [
 ];
 
 export const ROUTE_RULES: Array<{ method: string; path: RegExp; anyOf: string[] }> = [
+  // What a customer owes, from the engine's ledger (worker/src/engine): the same knowledge the debtors report needs.
+  { method: "GET", path: /^\/engine\/receivables$/, anyOf: ["can_know_debtors"] },
   // Money — accountant and owner.
   { method: "GET", path: /^\/customers\/\d+\/profitability$/, anyOf: ["can_know_profit"] },
   { method: "PATCH", path: /^\/(invoices|customers)\/\d+$/, anyOf: ["can_manage_invoices"] },

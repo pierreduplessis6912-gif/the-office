@@ -10,6 +10,7 @@ import { captureBefore, isEffectKind } from "./mcp-effects";
 import { MAX_PAGE, customersData, documentExists, expensesData, heldActionsData, invoicesData, jobsData, parseHeldState, parseId, parsePage, parseRange, parseSearch, paymentsData, quotesData, stockData } from "./mcp-reads";
 import { parseHistoryParams, readHistory, resolveScope } from "./history";
 import { bearerKey } from "./mcp-key-format";
+import { isEngineMode } from "./engine/boundary";
 import { CONFIRMABLE, findLink, linkHeld } from "./mcp-pending";
 import { MAX_FILES, UPLOAD_TTL_MINUTES, issueTicket, linkFor, ticketOutcome } from "./mcp-upload";
 import { EDIT_KINDS, editCreated, scheduleJob } from "./mcp-changes";
@@ -416,17 +417,21 @@ export async function handleMcp(request: Request, env: Env, host: McpHost | null
   const id = m.id;
   const params = typeof m.params === "object" && m.params !== null && !Array.isArray(m.params) ? (m.params as Record<string, unknown>) : {};
 
+  // The engine / legacy boundary (branch engine-phase1): an engine business offers NO legacy tool, reads included. A legacy report over an engine business's empty legacy tables would say "owes nothing" and be wrong.
+  // The engine's own tools arrive with its operations; until then an engine business offers none.
+  const engineMode = await isEngineMode(env);
+  const offered: Tool[] = engineMode ? [] : TOOLS;
   if (m.method === "initialize") {
     const asked = typeof params.protocolVersion === "string" ? params.protocolVersion : "";
     return reply(id, { protocolVersion: PROTOCOLS.includes(asked) ? asked : PROTOCOLS[0], capabilities: { tools: { listChanged: false } }, serverInfo: { name: "The Office", version: "1" }, instructions: INSTRUCTIONS });
   }
   if (m.method === "ping") return reply(id, {});
   if (m.method === "tools/list") {
-    return reply(id, { tools: TOOLS.filter((t) => permitted(t, who)).map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema, annotations: { readOnlyHint: !t.needsWrite, destructiveHint: false, idempotentHint: !t.needsWrite, openWorldHint: false } })) });
+    return reply(id, { tools: offered.filter((t) => permitted(t, who)).map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema, annotations: { readOnlyHint: !t.needsWrite, destructiveHint: false, idempotentHint: !t.needsWrite, openWorldHint: false } })) });
   }
   if (m.method === "tools/call") {
     const name = typeof params.name === "string" ? params.name : "";
-    const tool = TOOLS.find((t) => t.name === name);
+    const tool = offered.find((t) => t.name === name);
     if (!tool) return failure(id, -32602, "Unknown tool.");
     const args = params.arguments === undefined ? {} : params.arguments;
     if (typeof args !== "object" || args === null || Array.isArray(args)) return failure(id, -32602, "arguments must be an object.");

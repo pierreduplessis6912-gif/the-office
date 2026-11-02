@@ -1004,6 +1004,8 @@ async function expect(role, method, path, want) {
   // Engine foundation (branch engine-phase1): the schema the database itself enforces, and the ledger (money, the one insert-only write path, derivations, corrections, atomicity, integrity).
   await require('./engine-schema.test.js')({ check, bundleTo, srcDir });
   await require('./engine-ledger.test.js')({ check, bundleTo, srcDir });
+  await require('./engine-boundary.test.js')({ check, bundleTo, srcDir });
+  await require('./engine-operations.test.js')({ check, bundleTo, srcDir });
 
   // Capability contract proof (branch claim/proof-1): what a declared capability contract must enforce, and that the old declarations cannot get round it.
   await require('./capability-contract.test.js')({ check, bundleTo, srcDir });

@@ -25,6 +25,8 @@ import { INVOICE_COLUMNS, matchColumns, parseMoney, readCsv } from "./csv-import
 import { onboardingRoute } from "./onboarding";
 import { atomically } from "./atomic";
 import { contractForHeldType, executeThroughContract } from "./capability-contract";
+import { actionModeRefusal, engineModeGate } from "./engine/boundary";
+import { handleEngineRoute } from "./engine/routes";
 import { capAfter, capBefore, isCountable } from "./limits";
 import { recordModelUsage } from "./usage";
 import { takeSnapshot } from "./backup";
@@ -477,6 +479,16 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
     // opaque blocked-by-CORS failure.
     const gate = await authGate(request, env, url);
     if (gate) return gate;
+
+    // The engine / legacy BOUNDARY (worker/src/engine/boundary.ts, branch engine-phase1): in an engine business every legacy business-write route is refused here, before it runs, and in a legacy
+    // business the engine's own routes are. Everything the engine does not touch (reads, the platform routes, the held-action lifecycle) falls through unchanged.
+    const modeGate = await engineModeGate(request, env, url);
+    if (modeGate) return modeGate;
+    if (url.pathname === "/engine" || url.pathname.startsWith("/engine/")) {
+      const engineMember = await getMemberContext(request, env);
+      if (!engineMember) return Response.json({ error: "sign in required" }, { status: 401 });
+      return handleEngineRoute(request, env, url, { email: engineMember.email, caps: engineMember.caps });
+    }
 
 
     if (url.pathname === "/" || url.pathname === "/health") {
@@ -2242,6 +2254,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
       const action = await env.OFFICE_DB.prepare("SELECT id, type, payload, status FROM pending_actions WHERE id = ?")
         .bind(id)
         .first<{ id: number; type: string; payload: string; status: string }>();
+        { const modeRefusal = action ? await actionModeRefusal(env, action.type) : null; if (modeRefusal) return modeRefusal; }
       if (!action || action.status !== "pending") {
         return Response.json({ error: "no pending action with that id" }, { status: 404 });
       }
@@ -2386,6 +2399,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         )
           .bind(id)
           .first<{ id: number; type: string; payload: string; source_transcript: string; status: string }>();
+        { const modeRefusal = action ? await actionModeRefusal(env, action.type) : null; if (modeRefusal) return modeRefusal; }
 
         if (!action) return Response.json({ error: "no such pending action" }, { status: 404 });
         if (action.status !== "pending") {
@@ -3243,6 +3257,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext, 
         )
           .bind(id)
           .first<{ id: number; type: string; payload: string; status: string }>();
+        { const modeRefusal = action ? await actionModeRefusal(env, action.type) : null; if (modeRefusal) return modeRefusal; }
 
         if (!action) return Response.json({ error: "no such pending action" }, { status: 404 });
         if (action.status !== "pending") {

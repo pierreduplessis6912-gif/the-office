@@ -62,6 +62,42 @@ function makeWorld({ businessId = 'eng-a', config } = {}) {
   return world;
 }
 
+// The real request handler, bundled once: the same device the capability proof uses (the real authentication gate, the real routes, a real SQLite), plus the harness's route runner.
+let handlerCache;
+async function buildHandler() {
+  if (handlerCache) return handlerCache;
+  const expose = { name: 'expose-for-engine-suites', setup(b) { b.onLoad({ filter: /src[\\/]index\.ts$/ }, (a) => ({ contents: fs.readFileSync(a.path, 'utf8') + '\nexport { processOneExtraction as __poe, processTranscript as __pt, handleRequest as __hr, serveRequest as __sr };\n', loader: 'ts' })); } };
+  const out = path.join(os.tmpdir(), `engkit-handler-${process.pid}.js`), authOut = path.join(os.tmpdir(), `engkit-auth-${process.pid}.js`);
+  await esbuild.build({ entryPoints: [path.join(workerDir, 'src', 'index.ts')], bundle: true, platform: 'node', format: 'cjs', outfile: out, logLevel: 'silent', plugins: [expose] });
+  await esbuild.build({ entryPoints: [path.join(workerDir, 'src', 'auth.ts')], bundle: true, platform: 'node', format: 'cjs', outfile: authOut, logLevel: 'silent' });
+  const mod = require(out);
+  handlerCache = { processOne: mod.__poe, processTranscript: mod.__pt, handleRequest: mod.__hr, serveRequest: mod.__sr, auth: require(authOut) };
+  return handlerCache;
+}
+// One request through the real handler against a fresh business: { result: {status, body}, writes: per-table diff }. spec: method, path, body, role, seed(db), env.
+async function route(spec) { const fns = await buildHandler(); const full = { method: 'POST', body: {}, role: 'owner', ...spec }; if (full.method === 'GET') delete full.body; return harness.runRouteCase(fns, workerDir, full); }
+const asEngineBusiness = (more) => (db) => { db.prepare("INSERT INTO eng_config (key, value_json) VALUES ('mode', '\"engine\"')").run(); if (more) more(db); };
+
+// A receivables business seeded with raw SQL (the route runner's seed hook is synchronous): customer Mokoena (party 1) with invoice 1 (R1,150.00 incl. 15% tax) and invoice 2 (R230.00 incl. tax), the engine's configuration,
+// and events whose snapshots match the rows so the integrity verifier is happy. Event order is the order the engine's own functions record them in, so event numbers (and therefore versions) agree with a world built through the API.
+const ALL_CAPABILITIES = ['receivables.query', 'records.get', 'payment.record', 'payment.correct', 'invoice.issue'];
+const seedReceivables = (available) => (db) => {
+  const ev = (type, payload) => Number(db.prepare("INSERT INTO eng_event (type, actor_email, contract, contract_version, payload_json) VALUES (?, 'seed@example.com', 'seed', 1, ?) RETURNING id").get(type, JSON.stringify(payload)).id);
+  db.prepare("INSERT INTO eng_config (key, value_json) VALUES ('mode', '\"engine\"')").run();
+  db.prepare("INSERT INTO eng_config (key, value_json) VALUES ('available', ?)").run(JSON.stringify(available || ALL_CAPABILITIES));
+  const e1 = ev('party.created', { kind: 'person', name: 'Mokoena', roles: ['customer'] });
+  db.prepare("INSERT INTO eng_party (kind, name, event_id) VALUES ('person', 'Mokoena', ?)").run(e1);
+  db.prepare("INSERT INTO eng_party_role (party_id, role, event_id) VALUES (1, 'customer', ?)").run(e1);
+  const invoice = (partyId, issuedOn, lines, totals) => {
+    const e = ev('document.issued', { kind: 'invoice', direction: 'sell', partyId, currency: 'ZAR', issuedOn, reference: null, lines, totals });
+    const id = Number(db.prepare("INSERT INTO eng_document (kind, direction, party_id, currency, issued_on, event_id) VALUES ('invoice', 'sell', ?, 'ZAR', ?, ?) RETURNING id").get(partyId, issuedOn, e).id);
+    lines.forEach((l, i) => db.prepare('INSERT INTO eng_document_line (document_id, line_no, description, quantity_milli, unit, unit_price_minor, tax_bp) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, i + 1, l.description, l.quantityMilli, l.unit, l.unitPriceMinor, l.taxBp));
+    db.prepare("INSERT INTO eng_document_number (kind, number, document_id) VALUES ('invoice', ?, ?)").run(id, id);
+  };
+  invoice(1, '2026-10-01', [{ description: 'Vinyl plank', quantityMilli: 1000, unit: 'job', unitPriceMinor: 100000, taxBp: 1500 }], { netMinor: 100000, taxMinor: 15000, grossMinor: 115000 });
+  invoice(1, '2026-10-15', [{ description: 'Skirting', quantityMilli: 1000, unit: 'job', unitPriceMinor: 20000, taxBp: 1500 }], { netMinor: 20000, taxMinor: 3000, grossMinor: 23000 });
+};
+
 // A suite wrapper: an exception becomes a failing check, never a crash (in the umbrella a throw would abort every suite after it), and the real Response is put back for anything that gzips.
 function guard(name, body) {
   return async function run(context) {
@@ -81,4 +117,4 @@ function standalone(suiteModule) {
   suiteModule({ check, bundleTo, srcDir }).then(() => { console.log(`\n${total - fails}/${total} correct, ${fails} failing`); process.exit(fails ? 1 : 0); }).catch((e) => { console.log('SUITE CRASHED: ' + ((e && e.stack) || e)); process.exit(2); });
 }
 
-module.exports = { makeWorld, loadEngine, guard, standalone, workerDir, bundle };
+module.exports = { makeWorld, loadEngine, guard, standalone, workerDir, bundle, buildHandler, route, asEngineBusiness, seedReceivables, ALL_CAPABILITIES };

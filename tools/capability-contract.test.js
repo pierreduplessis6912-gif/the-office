@@ -186,7 +186,7 @@ async function suite({ check, bundleTo, srcDir }) {
     const x = await door.proposeCapability(w.env, request(GOOD));
     check(x && x.status === 'refused' && x.code === 'capability_unavailable', 'a request for a capability this business does not have is refused as unavailable');
     check(typeof x.message === 'string' && /not available/i.test(x.message), 'and the answer says plainly that it was not done: "' + (x && x.message) + '"');
-    check(sameJson(changed(before, counts(w.db)), ['captures']), 'ONLY the capture was written: no customer, no note, no life event, no held action, no visit (' + changed(before, counts(w.db)).join(', ') + ')');
+    check(sameJson(changed(before, counts(w.db)), ['captures', 'eng_observation']), 'ONLY the capture and an OBSERVATION (a possible unmet need) were written: no customer, no note, no life event, no held action, no visit (' + changed(before, counts(w.db)).join(', ') + ')');
     check(w.db.prepare("SELECT COUNT(*) AS n FROM captures WHERE raw_text = 'visit at Mokoena for 45 minutes'").get().n === 1, 'the original request is preserved word for word');
     check(w.puts.length === 0, 'and nothing was written to the notes store');
   });
@@ -195,7 +195,7 @@ async function suite({ check, bundleTo, srcDir }) {
     const w = world('visits-a'), before = counts(w.db);
     const x = await door.proposeCapability(w.env, request(GOOD, { capability: 'log_visit_for_everyone' }));
     check(x && x.status === 'refused' && x.code === 'unknown_capability', 'a capability nobody declared is refused as unknown');
-    check(sameJson(changed(before, counts(w.db)), ['captures']) && w.puts.length === 0, 'ONLY the capture was written (' + changed(before, counts(w.db)).join(', ') + ')');
+    check(sameJson(changed(before, counts(w.db)), ['captures', 'eng_observation']) && w.puts.length === 0, 'ONLY the capture and an observation (unsupported) were written (' + changed(before, counts(w.db)).join(', ') + ')');
   });
 
   for (const [label, payload] of BAD) {
@@ -210,7 +210,7 @@ async function suite({ check, bundleTo, srcDir }) {
   await doorCheck('with no configuration at all the door offers nothing', async () => {
     const w = world('visits-a'); delete w.env.CAPABILITY_CONFIG; const before = counts(w.db);
     const x = await door.proposeCapability(w.env, request(GOOD));
-    check(x && x.status === 'refused' && x.code === 'capability_unavailable' && sameJson(changed(before, counts(w.db)), ['captures']), 'no configuration at all: refused as unavailable, and only the capture was written');
+    check(x && x.status === 'refused' && x.code === 'capability_unavailable' && sameJson(changed(before, counts(w.db)), ['captures', 'eng_observation']), 'no configuration at all: refused as unavailable, and only the capture and an observation were written');
   });
 
   await doorCheck('the door decides availability from configuration alone', async () => {

@@ -8,7 +8,10 @@ export type EngineErrorCode =
   | "already_reversed"       // it was reversed already: nothing is reversed twice
   | "has_dependents"         // it still has effective records hanging off it; reverse those first
   | "over_allocated"         // more than the payment still has, or more than the document still owes
-  | "currency_mismatch";     // a payment in one currency is never allocated to a document in another
+  | "currency_mismatch"      // a payment in one currency is never allocated to a document in another
+  | "stale"                  // the record changed since the person looked at it: an approval or a save is only for the version it showed
+  | "invalid_state"          // valid in form, but the facts do not allow it now (a closed draft, an incomplete draft)
+  | "already_executed";      // this approval has been executed already: it cannot record twice
 
 export class EngineError extends Error {
   readonly code: EngineErrorCode;
