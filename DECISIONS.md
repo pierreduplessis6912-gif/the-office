@@ -294,3 +294,8 @@ Split on 2026-10-24 from the 7958-line original, which is `git show 95bf743:DECI
 - [Docs: the handover must name the commit production runs (2026-10-27)](docs/decisions/platform-and-operations.md) (new)
 - [Restore: it must not hold every table at once, and the drill must be repeatable (2026-11-01)](docs/decisions/platform-and-operations.md) (new)
 - [Staging: the signup check's MCP tool list is read from the real-client script (2026-11-01)](docs/decisions/platform-and-operations.md) (new)
+- [Engine foundation: the facts are recorded once and corrected, never edited (2026-11-02)](docs/decisions/engine-foundation.md) (new)
+- [Engine and legacy coexist by mode, and every way in is classified (2026-11-02)](docs/decisions/engine-foundation.md) (new)
+- [Engine operations: five conditions, one boundary, the record contract (2026-11-02)](docs/decisions/engine-foundation.md) (new)
+- [Engine migration 0004: recovery plan, and what is NOT proven (2026-11-02)](docs/decisions/engine-foundation.md) (new)
+- [Engine schema fit: later domains and the stop rule (2026-11-02)](docs/decisions/engine-foundation.md) (new)

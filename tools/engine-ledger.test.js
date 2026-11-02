@@ -124,6 +124,17 @@ module.exports = kit.guard('engine ledger', async ({ check }) => {
   gap.db.prepare("UPDATE eng_document_number SET number = 5 WHERE document_id = 2").run();   // invoices numbered 1 and 5: a hole
   check(!(await eng.verifyIntegrity(gap.env)).ok, 'a hole or a stray number in the invoice sequence is detected');
 
+  // ---- DERIVED does not depend on the cascade having been done: what hangs off a reversed payment is not effective, and the verifier says so --------------------------------------------------------------------
+  const orphaned = await world();
+  const op = await facts.recordMovement(orphaned.w.env, { direction: 'in', partyId: orphaned.mokoena, amountMinor: 100000, currency: 'ZAR', occurredOn: '2026-11-02' }, CTX);
+  const oa = await facts.allocate(orphaned.w.env, { movementId: op.id, documentId: orphaned.inv1.id, amountMinor: 100000 }, CTX);
+  check((await ledger.outstandingForDocument(orphaned.w.env, orphaned.inv1.id)) === 245000, 'control: with the payment allocated, the invoice owes R2,450.00');
+  const rawEvent = Number(orphaned.w.db.prepare("INSERT INTO eng_event (type) VALUES ('raw.reversal') RETURNING id").get().id);
+  orphaned.w.db.prepare("INSERT INTO eng_reversal (movement_id, reason, event_id) VALUES (?, 'written around the engine', ?)").run(op.id, rawEvent);   // the payment is reversed but its allocation is NOT (the cascade was bypassed)
+  check((await ledger.outstandingForDocument(orphaned.w.env, orphaned.inv1.id)) === 345000 && (await ledger.isEffective(orphaned.w.env, 'allocation', oa.id)) === false, 'an allocation hanging off a reversed payment does not count even if nobody reversed it: the invoice owes the full R3,450.00 again');
+  const orphanReport = await eng.verifyIntegrity(orphaned.w.env);
+  check(!orphanReport.ok && orphanReport.problems.some((x) => x.code === 'allocation_on_reversed'), 'and the verifier reports it (allocation_on_reversed), so the inconsistency is found, not just tolerated');
+
   // ---- ATOMIC: a failure at EVERY write leaves nothing behind ----------------------------------------------------------------------------------------------------------------------------------
   const failEverywhere = async (label, prepare, operation) => {
     const probe = await prepare(); probe.w.resetWrites(); const state = JSON.stringify(probe.w.counts());

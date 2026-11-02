@@ -22,7 +22,16 @@ function loadEngine() {
   return engineCache;
 }
 
-function makeWorld({ businessId = 'eng-a', config } = {}) {
+// A fake object store with the methods the backup module uses (put, get, head, list, delete).
+function fakeBucket() {
+  const m = new Map();
+  const bytes = (v) => (typeof v === 'string' ? new TextEncoder().encode(v) : v instanceof ArrayBuffer ? new Uint8Array(v) : new Uint8Array(v));
+  const wrap = (key) => { const e = m.get(key); return e ? { key, size: e.b.length, httpMetadata: e.meta, uploaded: new Date(), arrayBuffer: async () => e.b.slice().buffer, text: async () => new TextDecoder().decode(e.b) } : null; };
+  return { m, put: async (key, value, opts = {}) => { m.set(key, { b: bytes(value), meta: (opts && opts.httpMetadata) || {} }); }, get: async (k) => wrap(k), head: async (k) => wrap(k), delete: async (keys) => { for (const k of Array.isArray(keys) ? keys : [keys]) m.delete(k); },
+    list: async ({ prefix = '', cursor, limit = 1000 } = {}) => { const keys = [...m.keys()].filter((k) => k.startsWith(prefix)).sort(); const start = cursor ? Number(cursor) : 0; const page = keys.slice(start, start + limit); return { objects: page.map((k) => ({ key: k, size: m.get(k).b.length, uploaded: new Date() })), truncated: start + limit < keys.length, cursor: start + limit < keys.length ? String(start + limit) : undefined }; } };
+}
+
+function makeWorld({ businessId = 'eng-a', config, backups = false } = {}) {
   const { DoD1Database } = bundle('storage/do-d1.ts', 'dod1');
   const db = harness.newDatabase(workerDir);
   const plain = (r) => (r ? { ...r } : r);
@@ -54,6 +63,7 @@ function makeWorld({ businessId = 'eng-a', config } = {}) {
   const tables = () => db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all().map((r) => r.name);
   const counts = () => Object.fromEntries(tables().map((t) => [t, count(t)]));
   const changedTables = (before) => { const after = counts(); return Object.keys(after).filter((t) => (after[t] || 0) !== (before[t] || 0)).sort(); };
+  if (backups) { db.exec('CREATE TABLE IF NOT EXISTS object_meta (key TEXT PRIMARY KEY, value TEXT)'); env.BACKUPS = fakeBucket(); env.OFFICE_VAULT = fakeBucket(); }
   const world = { businessId, db, env, puts, count, counts, changedTables, tables,
     writeCount: () => writes, resetWrites: () => { writes = 0; failAtWrite = null; }, failAt: (n) => { writes = 0; failAtWrite = n; },
     // the engine's own configuration for this business (currency, which capabilities are on), written the way the engine reads it
