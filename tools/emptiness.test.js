@@ -31,7 +31,11 @@ module.exports = async function runEmptinessTests({ check, srcDir }) {
   const tables = newDatabase(workerDir).prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all().map((r) => r.name).filter((n) => !['memberships', 'business_profile'].includes(n));
   check(tables.length >= 38, `the business database has ${tables.length} other tables (the test covers all of them)`);
   // The two tables with CHECK constraints: the generic code fills every required column, and these override only the one the constraint cares about.
-  const overrides = { line_items: { quotation_id: 1 }, onboarding_progress: { status: 'done' } };
+  const overrides = { line_items: { quotation_id: 1 }, onboarding_progress: { status: 'done' },
+    // the engine tables (migration 0004) have enumerations and a one-of-three CHECK; each override names only the column the constraint cares about
+    eng_party: { kind: 'person' }, eng_document: { direction: 'sell', currency: 'ZAR', issued_on: '2026-11-01' }, eng_draft: { direction: 'sell' },
+    eng_money_movement: { direction: 'in', currency: 'ZAR', occurred_on: '2026-11-02' }, eng_reversal: { movement_id: 1 },
+    eng_interpretation: { interpreter: 'script', status: 'proposed' }, eng_observation: { kind: 'unsupported' } };
   const populate = (db, t) => {
     const cols = db.prepare(`PRAGMA table_info("${t}")`).all(), over = overrides[t] || {};
     const need = cols.filter((c) => (c.notnull && c.dflt_value === null) || (c.pk && !/INTEGER/i.test(c.type)) || over[c.name] !== undefined);
@@ -55,7 +59,7 @@ module.exports = async function runEmptinessTests({ check, srcDir }) {
   const baseline = fs.readFileSync(path.join(srcDir, 'baseline-sql.ts'), 'utf8'), inBaseline = new Set([...baseline.matchAll(/CREATE TABLE(?: IF NOT EXISTS)? \\?"?([a-z_]+)/g)].map((m) => m[1]));
   const sharedOrExperiment = new Set(['directory.ts', 'signup.ts', 'trial.ts', 'billing.ts']), lazy = new Set();   // billing.ts makes its tables in the SHARED directory, never inside a business object
   for (const f of fs.readdirSync(srcDir).filter((x) => x.endsWith('.ts') && x !== 'baseline-sql.ts' && !sharedOrExperiment.has(x))) for (const m of fs.readFileSync(path.join(srcDir, f), 'utf8').matchAll(/CREATE TABLE IF NOT EXISTS ([a-z_]+) \(/g)) if (!inBaseline.has(m[1])) lazy.add(m[1]);
-  const IGNORED = ['admin_audit', 'member_sign_ins', 'object_meta', 'request_timings', 'schema_steps'], COUNTS = ['action_events', 'interaction_log', 'mcp_calls', 'mcp_changes', 'mcp_created_records', 'mcp_creates', 'mcp_keys', 'mcp_pending_links', 'mcp_upload_tickets', 'mcp_oauth_codes', 'member_selections', 'member_usage', 'model_usage', 'onboarding_progress', 'permission_audit', 'plans', 'purchase_order_cancellations', 'purchase_order_customers', 'role_capability_overrides', 'stock_item_merges', 'supplier_statements', 'team_audit', 'unit_conversions'];
+  const IGNORED = ['admin_audit', 'member_sign_ins', 'object_meta', 'request_timings', 'schema_steps'], COUNTS = ['action_events', 'interaction_log', 'mcp_calls', 'mcp_changes', 'mcp_created_records', 'mcp_creates', 'mcp_keys', 'mcp_pending_links', 'mcp_upload_tickets', 'mcp_oauth_codes', 'member_selections', 'member_usage', 'model_usage', 'onboarding_progress', 'eng_config', 'eng_event', 'eng_party', 'eng_party_role', 'eng_draft', 'eng_document', 'eng_document_line', 'eng_document_number', 'eng_money_movement', 'eng_allocation', 'eng_reversal', 'eng_interpretation', 'eng_observation', 'permission_audit', 'plans', 'purchase_order_cancellations', 'purchase_order_customers', 'role_capability_overrides', 'stock_item_merges', 'supplier_statements', 'team_audit', 'unit_conversions'];
   const expected = new Set([...IGNORED, ...COUNTS]), unclassified = [...lazy].filter((n) => !expected.has(n)), gone = [...expected].filter((n) => !lazy.has(n));
   check(unclassified.length === 0, `every lazily-created table is classified (bookkeeping the platform writes, or data the owner's activity writes). UNCLASSIFIED: ${unclassified.join(', ')}: decide which, then add it to emptiness.ts or to this list`);
   check(gone.length === 0, `and the classification lists no table that no longer exists (stale: ${gone.join(', ')})`);

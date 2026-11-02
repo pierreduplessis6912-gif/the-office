@@ -1001,6 +1001,10 @@ async function expect(role, method, path, want) {
   // Restore memory (branch claim/restore-1): a restore must not hold every table at once; it reads each part once, before anything is deleted, and one table at a time after.
   await require('./restore-memory.test.js')({ check, bundleTo, srcDir });
 
+  // Engine foundation (branch engine-phase1): the schema the database itself enforces, and the ledger (money, the one insert-only write path, derivations, corrections, atomicity, integrity).
+  await require('./engine-schema.test.js')({ check, bundleTo, srcDir });
+  await require('./engine-ledger.test.js')({ check, bundleTo, srcDir });
+
   // Capability contract proof (branch claim/proof-1): what a declared capability contract must enforce, and that the old declarations cannot get round it.
   await require('./capability-contract.test.js')({ check, bundleTo, srcDir });
 
