@@ -20,6 +20,7 @@ import { atomically } from "./atomic";
 import { assignPlan, listPlans, setPlan } from "./limits";
 import { healthReport } from "./health";
 import { backupRoute } from "./backup-routes";
+import { engineAdminRoute } from "./engine/admin";
 import { migrationRoute } from "./migration-routes";
 import { addDirectoryMember, createBusiness, findDirectoryConflicts, isBusinessId, listDirectory, normaliseEmail } from "./directory";
 import { convertTrial, extendTrial } from "./freetrial";
@@ -179,6 +180,9 @@ if (url.pathname === "/debug/timings" && request.method === "GET") {
     if (migrationReply) return migrationReply;
     const backupReply = await backupRoute(request, env, url);
     if (backupReply) return backupReply;
+    // The engine's two admin routes (engine/admin.ts): a status read, and a privileged sample provisioning that exists only on a rehearsal deployment.
+    const engineReply = await engineAdminRoute(request, env, url);
+    if (engineReply) return engineReply;
 
 // The shared directory (directory.ts): which email belongs to which business. Worker-level admin routes (the shared layer is the Worker's own D1); the two that write are privileged.
 if (url.pathname === "/debug/directory" && request.method === "GET") {

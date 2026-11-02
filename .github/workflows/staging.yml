@@ -164,6 +164,7 @@ jobs:
 
           [vars]
           ENVIRONMENT = "staging"
+          ENGINE_REHEARSAL = "1"
           RECORD_TIMINGS = "1"
           PLAN_CACHE_SECONDS = "0"
           BUSINESS_MODE = "object"
@@ -213,6 +214,16 @@ jobs:
           for b in staging-co staging-two; do
             curl -s "$BASE/admin/migration/manifest" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY" -H "X-Target-Business: $b" > "$RESULTS/schema-before-$b.json"
           done
+
+      - name: Engine rehearsal, part 1 (staging-two is snapshotted BEFORE the deploy, while the previous code is still live)
+        if: env.MODE == 'rehearsal'
+        continue-on-error: true
+        run: |
+          BASE="https://${SLUG}.websitehub.co.za"
+          A=(-H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY")
+          # The business as it is before migration 0004 can reach it: its manifest was just recorded above, and this is the SNAPSHOT the rollback will be restored from (engine-phase1, docs/decisions/engine-foundation.md).
+          curl -s --max-time 300 -X POST "${A[@]}" -H "X-Target-Business: staging-two" "$BASE/admin/backup/run" > "$RESULTS/engine-pre-snapshot.json"
+          echo "pre-migration snapshot: $(python3 -c "import json; print(json.load(open('$RESULTS/engine-pre-snapshot.json')).get('snapshot',''))")"
 
       - name: Add a temporary schema step (staging only, NEVER committed)
         if: env.MODE == 'rehearsal'
@@ -1646,6 +1657,87 @@ jobs:
         run: |
           curl -s -X POST "https://${SLUG}.websitehub.co.za/debug/create-membership" -H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY" -H "Content-Type: application/json" -d "{\"google_email\": \"${{ github.event.inputs.owner_email }}\", \"role\": \"owner\"}"
 
+      - name: Engine rehearsal, part 2 (migration, rollback and roll forward on a real Durable Object)
+        id: engine
+        if: env.MODE == 'rehearsal'
+        continue-on-error: true
+        run: |
+          BASE="https://${SLUG}.websitehub.co.za"
+          A=(-H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY")
+          B=staging-two
+          J() { curl -s --max-time 300 "${A[@]}" -H "X-Target-Business: $B" "$@"; }
+          one() { python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('snapshot',''))" "$1" 2>/dev/null; }
+          SNAP_A=$(one "$RESULTS/engine-pre-snapshot.json")
+          echo "pre-migration snapshot: ${SNAP_A:-NONE}"
+          # 1. The migration reached a REAL object (the deploy applied 0004 when staging-two woke), and the engine tables are there and empty.
+          J "$BASE/admin/health" > "$RESULTS/engine-health-1.json"
+          J "$BASE/admin/migration/manifest" > "$RESULTS/engine-manifest-1.json"
+          J "$BASE/admin/engine/status" > "$RESULTS/engine-status-0.json"
+          # 2. Put it in engine mode with the known sample (privileged; exists only on this rehearsal deployment), then snapshot it WITH engine data.
+          curl -s --max-time 300 -o "$RESULTS/engine-provision.json" -w '%{http_code}' -X POST "${A[@]}" -H "X-Target-Business: $B" -H "Content-Type: application/json" -d "{\"confirm\":\"$B\"}" "$BASE/admin/engine/provision-sample" > "$RESULTS/engine-provision-code.txt"
+          J "$BASE/admin/engine/status" > "$RESULTS/engine-status-1.json"
+          J -X POST "$BASE/admin/backup/run" > "$RESULTS/engine-post-snapshot.json"
+          SNAP_B=$(one "$RESULTS/engine-post-snapshot.json")
+          echo "post-migration snapshot with engine data: ${SNAP_B:-NONE}"
+          # 3. ROLL BACK: restore the snapshot taken before the migration. The legacy tables must come back exactly; the engine tables must be empty and still there.
+          curl -s --max-time 300 -o "$RESULTS/engine-restore-pre.json" -w '%{http_code}' -X POST "${A[@]}" -H "X-Target-Business: $B" -H "Content-Type: application/json" -d "{\"snapshot\":\"$SNAP_A\",\"confirm\":\"$B\"}" "$BASE/admin/backup/restore" > "$RESULTS/engine-restore-pre-code.txt"
+          J "$BASE/admin/health" > "$RESULTS/engine-health-2.json"
+          J "$BASE/admin/engine/status" > "$RESULTS/engine-status-2.json"
+          J "$BASE/admin/migration/manifest" > "$RESULTS/engine-manifest-2.json"
+          # The restore also brought back the record of which schema steps were applied, so the object now believes 0004 is pending. Re-applying it must be a no-op that leaves nothing pending.
+          J -X POST "$BASE/admin/schema/retry" > "$RESULTS/engine-retry.json"
+          J "$BASE/admin/health" > "$RESULTS/engine-health-3.json"
+          J "$BASE/admin/engine/status" > "$RESULTS/engine-status-3.json"
+          # 4. ROLL FORWARD: restore the snapshot that has the engine data. The engine must be back exactly.
+          curl -s --max-time 300 -o "$RESULTS/engine-restore-post.json" -w '%{http_code}' -X POST "${A[@]}" -H "X-Target-Business: $B" -H "Content-Type: application/json" -d "{\"snapshot\":\"$SNAP_B\",\"confirm\":\"$B\"}" "$BASE/admin/backup/restore" > "$RESULTS/engine-restore-post-code.txt"
+          J "$BASE/admin/engine/status" > "$RESULTS/engine-status-4.json"
+          J "$BASE/admin/health" > "$RESULTS/engine-health-4.json"
+          python3 - <<'PY'
+          import json, os, sys
+          r = os.environ["RESULTS"]
+          def load(n):
+              try:
+                  return json.load(open(os.path.join(r, n)))
+              except Exception:
+                  return {}
+          def code(n):
+              try:
+                  return open(os.path.join(r, n)).read().strip()
+              except Exception:
+                  return ""
+          ENG = ["eng_config", "eng_event", "eng_party", "eng_party_role", "eng_draft", "eng_document", "eng_document_line", "eng_document_number", "eng_money_movement", "eng_allocation", "eng_reversal", "eng_interpretation", "eng_observation"]
+          sch = lambda i: (load("engine-health-%d.json" % i).get("schema") or {})
+          h1, h2, h3, h4 = sch(1), sch(2), sch(3), sch(4)
+          tbl = lambda m: {t.get("name"): t for t in (m.get("tables") or [])}
+          before, t1, t2 = tbl(load("schema-before-staging-two.json")), tbl(load("engine-manifest-1.json")), tbl(load("engine-manifest-2.json"))
+          s0, s1, s2, s3, s4 = (load("engine-status-%d.json" % i) for i in range(5))
+          rpre, rpost = load("engine-restore-pre.json"), load("engine-restore-post.json")
+          snap_a, snap_b = load("engine-pre-snapshot.json").get("snapshot"), load("engine-post-snapshot.json").get("snapshot")
+          ok = lambda s: (s.get("integrity") or {}).get("ok") is True
+          d = {}
+          d["a_snapshot_was_taken_before_the_deploy"] = bool(snap_a) and bool(before)
+          d["the_migration_applied_on_the_real_object"] = h1.get("pending") == [] and h1.get("error") is None and all(t in t1 for t in ENG)
+          d["the_engine_tables_were_empty_and_inert_before_use"] = s0.get("mode") == "legacy" and s0.get("rows") == 0 and ok(s0) and all((s0.get("tables") or {}).get(t) == 0 for t in ENG)
+          d["it_provisioned"] = code("engine-provision-code.txt") == "200" and s1.get("mode") == "engine" and (s1.get("rows") or 0) > 0 and ok(s1)
+          d["the_sample_is_what_was_expected"] = all((s1.get("tables") or {}).get(k) == v for k, v in {"eng_party": 2, "eng_document": 2, "eng_money_movement": 2, "eng_allocation": 2, "eng_reversal": 2, "eng_draft": 1, "eng_observation": 1}.items())
+          d["a_snapshot_was_taken_with_engine_data"] = bool(snap_b) and snap_b != snap_a
+          d["the_rollback_restore_is_ok"] = code("engine-restore-pre-code.txt") == "200" and rpre.get("ok") is True and rpre.get("differences") == []
+          d["the_legacy_tables_are_back_exactly"] = bool(before) and all((t2.get(n) or {}).get("count") == (t or {}).get("count") for n, t in before.items())
+          d["the_engine_tables_are_empty_after_the_rollback_and_still_there"] = s2.get("mode") == "legacy" and s2.get("rows") == 0 and all(t in t2 for t in ENG) and ok(s2)
+          d["the_migration_reapplied_cleanly_after_the_rollback"] = h3.get("pending") == [] and h3.get("error") is None and s3.get("rows") == 0
+          d["the_roll_forward_restore_is_ok"] = code("engine-restore-post-code.txt") == "200" and rpost.get("ok") is True and rpost.get("differences") == []
+          d["the_engine_is_back_exactly"] = s4.get("mode") == "engine" and s4.get("tables") == s1.get("tables") and s4.get("hashes") == s1.get("hashes") and s4.get("available") == s1.get("available") and ok(s4)
+          d["nothing_is_pending_at_the_end"] = h4.get("pending") == [] and h4.get("error") is None
+          d["details"] = {"pre_migration_snapshot": snap_a, "post_migration_snapshot": snap_b, "pending_right_after_the_rollback_restore": h2.get("pending"), "pending_after_the_retry": h3.get("pending"),
+                          "rollback_restore": {k: rpre.get(k) for k in ("ok", "tablesRestored", "rowsRestored", "safetySnapshot", "differences")}, "roll_forward_restore": {k: rpost.get(k) for k in ("ok", "tablesRestored", "rowsRestored", "safetySnapshot", "differences")},
+                          "engine_rows_provisioned": s1.get("rows"), "engine_tables_in_manifest": sorted(t for t in t1 if t.startswith("eng_"))}
+          failed = [k for k, v in d.items() if isinstance(v, bool) and not v]
+          d["all_ok"] = not failed
+          json.dump(d, open(os.path.join(r, "engine-rehearsal.json"), "w"), indent=1)
+          print("engine rehearsal checks that did not hold:", failed)
+          sys.exit(1 if failed else 0)
+          PY
+
       - name: Record what happened
         if: always() && env.MODE == 'rehearsal'
         env:
@@ -1660,6 +1752,7 @@ jobs:
           VECTORS: ${{ steps.vectors.outcome }}
           MODEL: ${{ steps.model.outcome }}
           BACKUP: ${{ steps.backup.outcome }}
+          ENGINE: ${{ steps.engine.outcome }}
           ONBOARDING: ${{ steps.onboarding.outcome }}
           SIGNUP: ${{ steps.signup.outcome }}
           HEALTH: ${{ steps.health.outcome }}
@@ -1687,7 +1780,7 @@ jobs:
               "run": os.environ.get("GITHUB_RUN_ID"),
               "commit": os.environ.get("GITHUB_SHA", "")[:7],
               "resources": {"database_id": os.environ.get("D1_ID"), "kv_namespace_id": os.environ.get("KV_ID"), "worker": "office-staging-api", "host": "office-staging.websitehub.co.za"},
-              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E"), "real_sentence": os.environ.get("SENTENCE"), "businesses_created": os.environ.get("BUSINESSES"), "signup_on_cloudflare": os.environ.get("SIGNUP"), "memory_index_probe": os.environ.get("VECTORS"), "model_probe": os.environ.get("MODEL"), "backup_restore": os.environ.get("BACKUP"), "onboarding_imports": os.environ.get("ONBOARDING"), "health_report": os.environ.get("HEALTH"), "cost_caps": os.environ.get("CAPS"), "schema_migration": os.environ.get("SCHEMA"), "transaction_experiment": os.environ.get("TX")},
+              "outcomes": {"smoke_test": os.environ.get("SMOKE"), "schema_and_indexes": os.environ.get("INIT"), "trial": os.environ.get("TRIAL"), "business_object_e2e": os.environ.get("E2E"), "real_sentence": os.environ.get("SENTENCE"), "businesses_created": os.environ.get("BUSINESSES"), "signup_on_cloudflare": os.environ.get("SIGNUP"), "memory_index_probe": os.environ.get("VECTORS"), "model_probe": os.environ.get("MODEL"), "backup_restore": os.environ.get("BACKUP"), "engine_migration_rehearsal": os.environ.get("ENGINE"), "onboarding_imports": os.environ.get("ONBOARDING"), "health_report": os.environ.get("HEALTH"), "cost_caps": os.environ.get("CAPS"), "schema_migration": os.environ.get("SCHEMA"), "transaction_experiment": os.environ.get("TX")},
               "init_routes": (read("init.txt") or "").splitlines(),
               "indexes": readjson("indexes.json"),
               "trial_do": readjson("trial-do.json"),
@@ -1703,6 +1796,7 @@ jobs:
               "cost_caps": readjson("caps.json"),
               "schema_migration": readjson("schema.json"),
               "transaction_experiment": readjson("tx.json"),
+              "engine_migration_rehearsal": readjson("engine-rehearsal.json"),
               "real_sentence": readjson("sentence.json"),
           }
           json.dump(out, open("ops/staging-last-run.json", "w"), indent=1)

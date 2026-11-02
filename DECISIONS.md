@@ -299,3 +299,4 @@ Split on 2026-10-24 from the 7958-line original, which is `git show 95bf743:DECI
 - [Engine operations: five conditions, one boundary, the record contract (2026-11-02)](docs/decisions/engine-foundation.md) (new)
 - [Engine migration 0004: recovery plan, and what is NOT proven (2026-11-02)](docs/decisions/engine-foundation.md) (new)
 - [Engine schema fit: later domains and the stop rule (2026-11-02)](docs/decisions/engine-foundation.md) (new)
+- [Engine migration rehearsal on real Cloudflare: what it does, and what it needs (2026-11-02)](docs/decisions/engine-foundation.md) (new)

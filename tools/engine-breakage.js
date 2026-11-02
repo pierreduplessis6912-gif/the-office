@@ -4,7 +4,7 @@
 const fs = require('fs'), path = require('path'), { spawnSync } = require('child_process');
 const root = path.join(__dirname, '..');
 const E = (f) => `worker/src/engine/${f}`, CONTRACT = 'worker/src/capability-contract.ts', MIG = 'worker/migrations/0004_engine_foundation.sql';
-const LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
+const ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
 
 const MUTATIONS = [
   // money: exact integer arithmetic
@@ -37,6 +37,12 @@ const MUTATIONS = [
   { name: 'payment.record: ignore that the account changed', suite: OPS, file: E('capabilities.ts'), find: 'if (value.basedOn && (await versionOf(env, { kind: "party", id: value.partyId })) !== value.basedOn.partyVersion)', replace: 'if (false)' },
   { name: 'records: show a record to a member who may not see it', suite: OPS, file: E('records.ts'), find: '  if (!viewer.perms.has("receivables.read")) return null;\n', replace: '' },
   { name: 'permissions: the invoices capability no longer grants recording payments', suite: OPS, file: E('permissions.ts'), find: 'can_manage_invoices: ["payment.record", "payment.correct", "invoice.issue", "drafts.edit"],', replace: 'can_manage_invoices: ["payment.correct", "invoice.issue", "drafts.edit"],' },
+  // the admin routes (privileged: they can put a business into engine mode)
+  { name: 'admin: provisioning exists on a deployment that is not a rehearsal', suite: ADMIN, file: E('admin.ts'), find: 'if (env.ENGINE_REHEARSAL !== "1") return bad("this route exists only on a rehearsal deployment", 404);', replace: '/* mutation: no rehearsal flag */' },
+  { name: 'admin: provisioning without the business id as confirmation', suite: ADMIN, file: E('admin.ts'), find: 'if (!body || body.confirm !== env.BUSINESS_ID) return bad("confirm must be the business id", 400);', replace: '/* mutation: no confirmation */' },
+  { name: 'admin: provisioning a business that already has engine data', suite: ADMIN, file: E('admin.ts'), find: 'if ((now.rows as number) > 0 || now.mode !== "legacy") return bad(', replace: 'if (false) return bad(' },
+  { name: 'admin: the status hash ignores the rows', suite: ADMIN, file: E('admin.ts'), find: 'hashes[t] = await sha256(JSON.stringify(all));', replace: 'hashes[t] = await sha256("constant");' },
+  { name: 'admin: provisioning is demoted from privileged to write', suite: ADMIN, file: 'worker/src/admin-routes.ts', find: '"POST /admin/engine/provision-sample": "privileged",', replace: '"POST /admin/engine/provision-sample": "write",' },
   // the database itself
   { name: 'migration: a reversal may point at two things', suite: SCHEMA, file: MIG, find: '+ (document_id IS NOT NULL) = 1)', replace: '+ (document_id IS NOT NULL) >= 0)' },
 ];
