@@ -427,7 +427,7 @@ jobs:
           git commit -m "Staging restore re-proof record (the restore-verification fix on a real object; ids, counts and results only)" || echo "nothing to record"
           PUSHRC=1
           for attempt in 1 2 3; do
-            git pull --rebase origin "$GITHUB_REF_NAME" && git push origin HEAD:"$GITHUB_REF_NAME" && { PUSHRC=0; break; }
+            git pull --rebase origin "$GITHUB_REF_NAME" && git push origin HEAD:"$GITHUB_REF_NAME" && { break; }
             sleep 3
           done
           if [ "$RC" -ne 0 ]; then exit "$RC"; fi
