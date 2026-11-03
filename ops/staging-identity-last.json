@@ -1,0 +1,27 @@
+{
+  "when": "2026-11-03T04:56:36.590926Z",
+  "run": "41580891686",
+  "expected_commit": "1ea2d45f6ced22a06d6333a79f5bcdb1a0e52202",
+  "deployed_commit": "1ea2d45f6ced22a06d6333a79f5bcdb1a0e52202",
+  "businesses": {
+    "staging-co": {
+      "http_status": 200,
+      "reachable": true,
+      "business": "staging-co",
+      "has_object_field": true,
+      "identity_visible": true,
+      "object_name": "business-staging-co",
+      "name_matches": true
+    },
+    "staging-two": {
+      "http_status": 200,
+      "reachable": true,
+      "business": "staging-two",
+      "has_object_field": true,
+      "identity_visible": true,
+      "object_name": "business-staging-two",
+      "name_matches": true
+    }
+  },
+  "verdict": "runtime_exposes_the_object_name_and_it_matches"
+}
