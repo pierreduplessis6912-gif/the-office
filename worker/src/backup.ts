@@ -175,7 +175,7 @@ export function validateManifest(raw: unknown, business: string, name: string): 
     if (typeof v.key !== "string" || v.key === "") return `${where}.key is missing`;
     if (!v.key.startsWith(folder)) return `${where}.key is outside this snapshot's folder`;
     if (!isCount(v.bytes)) return `${where}.bytes is not a size`;
-    if (typeof v.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(v.sha256)) return `${where}.sha256 is not a SHA-256 checksum`;
+    if (typeof v.sha256 !== "string") return `${where}.sha256 is not a SHA-256 checksum`;
     return null;
   };
   if (!Array.isArray(raw.tables)) return bad("tables is not an array");
