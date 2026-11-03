@@ -8,6 +8,17 @@ Written 2026-11-03 so work can continue when one assistant's usage runs out. It 
 - Pierre is a solo founder working **from a phone** (Termux and GitHub Actions). He wants direct answers, **one priority at a time**, results in chat (no long documents). **He decides.** Every build, staging run and merge needs his explicit approval.
 - Evidence labels used everywhere: **[C]** code read, **[T]** automated test, **[X]** committed record of a real staging run, **[D]** public Cloudflare docs, **[I]** inference, **[U]** unknown. Never present [I] or [U] as fact. CI is authoritative; a local pass is not.
 
+## Last verified state (re-check with git; the newest commit is usually a CI record, not code)
+| Field | Value |
+|---|---|
+| Branch | `engine-phase1` (`main` is `30a249f`, untouched) |
+| Last commit that changed production code (`worker/src`, migrations, `wrangler.toml`) | `243b3fa` |
+| Last code commit with a green CI record | `da55997`: 9,353 of 9,353 default, 9,350 of 9,350 adapter, typecheck success (`ops/proof-tests-last.json`). The production code itself was last verified at `ec3baed` (run 41607411580). |
+| Last full staging rehearsal (real sessions, two-business isolation, sign-up, model, memory, backup and restore, migration `0004` rollback) | `0ed2de0`, run 41445346938, 12 of 13 (the 13th was a restore-verification bug since fixed) |
+| Later staging runs | gate `496c1aa`; identity check `1ea2d45`; restore re-proof `843e67e` and `b985ace` (`ops/staging-*-last.json`) |
+| Production | Last deploy `f469510` (2026-11-01). **Nothing from this branch is deployed or authorised.** |
+Never confuse the newest commit with the newest *verified* implementation: a green record names the exact commit it tested.
+
 ## Hard limits (do not cross without Pierre's explicit approval)
 1. **Never merge to `main`.** A push to `main` runs `deploy.yml` and DEPLOYS PRODUCTION. `main` is at `30a249f` and untouched.
 2. **Never deploy, and never touch production** (no production calls, no production validation, no production workflows). Production manifest validation is a separate approval he has not given.
@@ -34,12 +45,23 @@ Integrity verifier with 10 codes and an event model; tenant-isolation tests (rou
 | Phase 2 (Flutter receivables shell against a fake API, in `app/`) | **Can proceed on the branch.** Not started. |
 | Merge, deploy | **Pierre's call.** Not established as production-ready. |
 
+## First task for the next model: accept or reject `da55997` (read only)
+It is committed and CI-green but **not reviewed**. Green CI does not show the tests prove the intended invariant. Report, with evidence, whether the tests (`tools/object-binding.test.js`, the new checks in `tools/business-object.test.js`):
+1. exercise the REAL object lifecycle (the production class over a stand-in for Durable Object storage, not a re-implementation);
+2. prove the binding is write-once and that an ordinary request cannot create, change or reset it;
+3. cover a missing, a malformed and a mismatched stored binding, with the exact behaviour asserted;
+4. **fail when the protection is removed**: for each claim, name the mutation in `tools/engine-breakage.js` that removes it and run `node tools/engine-breakage.js --only <text>` (it works on a copy);
+5. do not assert behaviour as a security contract where the code only observes it (the first-claim binding on a runtime with no name is a known limitation, not a guarantee).
+Do not change code to make a test pass. Report gaps to Pierre; he decides.
+
 ## Known release blockers (why it is not merge-ready)
 1. The deploy smoke test is unauthenticated, so it cannot detect an object-level failure; it needs an authenticated gate (design in `engine-foundation.md`).
 2. Production's real manifests have not been checked against the new validator.
 3. The recovery gate is open. 4. Memory margin at size is unmeasured on a real object. 5. Not re-run end to end on staging at this exact head.
 
 ## Working rules
+- **STANDING RULE: never retry a Git operation or any write after an uncertain timeout.** First run `git status`, `git log -3` and `git rev-parse HEAD` (and compare with `origin/engine-phase1`) and decide whether the earlier attempt already succeeded. Only then act. Duplicate attempts have already produced unexpected commits.
+- A recommendation in this file or in any report is NOT permission to implement it. Only the ledger's "approved" entries are approved.
 - **First, always:** `git fetch`; `git log -5`; `git status`. A retried turn can start a second attempt while the first is still committing (this has happened twice: a mutated line reached a commit, and `da55997` landed while a turn was timing out). Do not act on a tree you did not leave.
 - Tests first. Commit messages end with `Run: <8 hex>`. Keep `node tools/docs-check.js` clean. Security-sensitive code needs a deliberate-breakage proof.
 - Commands (run from the repo root):
