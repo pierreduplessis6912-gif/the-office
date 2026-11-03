@@ -25,6 +25,7 @@ on:
           - gate-drill
           - load
           - identity
+          - restore-proof
         default: rehearsal
       load_sentences:
         description: "Load mode only: how many real sentences wait on the model while reads are timed (each costs a little; never more than 8)"
@@ -226,8 +227,20 @@ jobs:
           curl -s --max-time 300 -X POST "${A[@]}" -H "X-Target-Business: staging-two" "$BASE/admin/backup/run" > "$RESULTS/engine-pre-snapshot.json"
           echo "pre-migration snapshot: $(python3 -c "import json; print(json.load(open('$RESULTS/engine-pre-snapshot.json')).get('snapshot',''))")"
 
+      - name: Restore proof, part 1 (both staging businesses are snapshotted BEFORE the deploy, by the code that is still live)
+        if: env.MODE == 'restore-proof'
+        continue-on-error: true
+        run: |
+          BASE="https://${SLUG}.websitehub.co.za"
+          A=(-H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY")
+          # The snapshot staging-two's restore will come from, taken before the temporary migration below reaches the real object. Both snapshots are written by the PREVIOUS code, so reading them with the new manifest validator
+          # is itself a test of the validator against real manifests (tools/restore-proof-judge.py).
+          curl -s --max-time 300 -X POST "${A[@]}" -H "X-Target-Business: staging-two" "$BASE/admin/backup/run" > "$RESULTS/rp-pre-snapshot.json"
+          curl -s --max-time 300 -X POST "${A[@]}" -H "X-Target-Business: staging-co" "$BASE/admin/backup/run" > "$RESULTS/rp-pre-snapshot-staging-co.json"
+          echo "pre-deploy snapshots: $(python3 -c "import json; print(json.load(open('$RESULTS/rp-pre-snapshot.json')).get('snapshot',''))") $(python3 -c "import json; print(json.load(open('$RESULTS/rp-pre-snapshot-staging-co.json')).get('snapshot',''))")"
+
       - name: Add a temporary schema step (staging only, NEVER committed)
-        if: env.MODE == 'rehearsal'
+        if: env.MODE == 'rehearsal' || env.MODE == 'restore-proof'
         run: |
           # A new migration file that exists only in this run's workspace: it adds a column to a table that already holds data. Its number is per run, so every run migrates the objects once more.
           V=$((1000 + GITHUB_RUN_NUMBER % 8000)); P=$(printf '%04d' "$V")
@@ -363,6 +376,43 @@ jobs:
             git pull --rebase origin "$GITHUB_REF_NAME"
             git push origin HEAD:"$GITHUB_REF_NAME"
           fi
+          exit $RC
+
+      - name: Restore proof, part 2 (restore the older snapshot onto the migrated real object and have the judge decide)
+        if: env.MODE == 'restore-proof'
+        env:
+          EXPECT_COMMIT: ${{ github.sha }}
+        run: |
+          # On 2026-11-02 (run 41445346938) restoring an older snapshot onto a table that had gained a column reported a false failure. By now the deploy has added the probe column to customers on the real object;
+          # restore the snapshot taken before it, then read everything the judge needs. Records to the BRANCH it ran on and fails the run unless every check holds.
+          BASE="https://${SLUG}.websitehub.co.za"
+          A=(-H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY")
+          B=staging-two
+          J() { curl -s --max-time 300 "${A[@]}" -H "X-Target-Business: $B" "$@"; }
+          SNAP=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('snapshot',''))" "$RESULTS/rp-pre-snapshot.json" 2>/dev/null)
+          echo "restoring the pre-deploy snapshot: ${SNAP:-NONE}"
+          curl -s --max-time 30 "$BASE/health" > "$RESULTS/rp-health-commit.json"
+          J "$BASE/admin/migration/manifest" > "$RESULTS/rp-manifest-before.json"
+          J "$BASE/admin/engine/status" > "$RESULTS/rp-engine-before.json"
+          curl -s --max-time 300 -o "$RESULTS/rp-restore.json" -w '%{http_code}' -X POST "${A[@]}" -H "X-Target-Business: $B" -H "Content-Type: application/json" -d "{\"snapshot\":\"$SNAP\",\"confirm\":\"$B\"}" "$BASE/admin/backup/restore" > "$RESULTS/rp-restore-code.txt"
+          J "$BASE/admin/migration/manifest" > "$RESULTS/rp-manifest-after.json"
+          J -X POST "$BASE/admin/schema/retry" > "$RESULTS/rp-retry.json"
+          J "$BASE/admin/health" > "$RESULTS/rp-health-final.json"
+          J "$BASE/admin/engine/status" > "$RESULTS/rp-engine-after.json"
+          for X in staging-two staging-co; do
+            curl -s --max-time 120 "${A[@]}" -H "X-Target-Business: $X" "$BASE/admin/backup/status" > "$RESULTS/rp-backup-status-$X.json"
+            curl -s --max-time 120 "${A[@]}" -H "X-Target-Business: $X" "$BASE/admin/backup/list" > "$RESULTS/rp-backup-list-$X.json"
+          done
+          RC=0
+          python3 tools/restore-proof-judge.py "$RESULTS" "$SCHEMA_PROBE_COLUMN" "$EXPECT_COMMIT" || RC=$?
+          mkdir -p ops
+          cp "$RESULTS/restore-proof.json" ops/staging-restore-proof-last.json
+          git config user.name "staging-workflow"
+          git config user.email "noreply@github.com"
+          git add ops/staging-restore-proof-last.json
+          git commit -m "Staging restore re-proof record (the restore-verification fix on a real object; ids, counts and results only)" || echo "nothing to record"
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin HEAD:"$GITHUB_REF_NAME"
           exit $RC
 
       - name: Drill - recover by removing the broken step and redeploying
