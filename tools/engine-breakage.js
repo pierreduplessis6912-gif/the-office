@@ -1,8 +1,11 @@
 // Deliberate-breakage proof for the engine (HANDOVER rule 8: security- and money-sensitive code; branch engine-phase1). A test that cannot fail proves nothing, so each guarantee is removed or weakened IN TURN, in a
 // fresh process each time, and the suite responsible for it must then FAIL. A mutation no suite catches is a hole in the tests and fails this script. Every file is restored in a finally block and again on exit.
 // Run: NODE_PATH=worker/node_modules node tools/engine-breakage.js   (several minutes: it runs the responsible suite once per mutation, on the Durable Object adapter).
-const fs = require('fs'), path = require('path'), { spawnSync } = require('child_process');
-const root = path.join(__dirname, '..');
+const fs = require('fs'), os = require('os'), path = require('path'), { spawnSync } = require('child_process');
+const { parseArgs, select } = require('./breakage-select.js');
+// It NEVER edits the working tree: every mutation is applied to an ISOLATED COPY (below), so a kill, a crash or a second session cannot leave a mutated line behind or commit one (the incident of 2026-11-03).
+const sourceRoot = path.join(__dirname, '..');
+let root = sourceRoot;   // becomes the isolated copy before anything is edited or run
 const E = (f) => `worker/src/engine/${f}`, CONTRACT = 'worker/src/capability-contract.ts', MIG = 'worker/migrations/0004_engine_foundation.sql';
 const RPROOF = 'restore-proof.test.js', MANI = 'backup-manifest.test.js', STID = 'staging-identity.test.js', OBJ = 'business-object.standalone.js', ISOL = 'engine-isolation.test.js', OWN = 'engine-ownership.test.js', INTEG = 'engine-integrity.test.js', ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
 
@@ -132,25 +135,48 @@ const MUTATIONS = [
   { name: 'migration: a reversal may point at two things', suite: SCHEMA, file: MIG, find: '+ (document_id IS NOT NULL) = 1)', replace: '+ (document_id IS NOT NULL) >= 0)' },
 ];
 
-const originals = new Map();
-const restoreAll = () => { for (const [f, text] of originals) fs.writeFileSync(path.join(root, f), text); };
-process.on('exit', restoreAll);
-for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { restoreAll(); process.exit(130); });
+let opts;
+try { opts = parseArgs(process.argv.slice(2)); } catch (e) { console.log(String(e.message)); process.exit(2); }
+let changed = [];
+if (opts.since) {
+  const git = (args) => spawnSync('git', args, { cwd: sourceRoot, encoding: 'utf8' });
+  const diff = git(['diff', '--name-only', opts.since]), untracked = git(['ls-files', '--others', '--exclude-standard']);
+  if (diff.status !== 0) { console.log(`git could not diff against ${opts.since}: ${(diff.stderr || '').trim().slice(0, 160)}`); process.exit(2); }
+  changed = [...diff.stdout.split('\n'), ...untracked.stdout.split('\n')].filter(Boolean);
+}
+const chosen = select(MUTATIONS, opts, changed);
+console.log(`${chosen.length} of ${MUTATIONS.length} mutations selected${opts.since ? ` (changed since ${opts.since}: ${changed.length} files)` : ''}`);
+if (opts.list) { for (const { mutation, index } of chosen) console.log(`${String(index + 1).padStart(2)}. ${mutation.name}  [${mutation.suite}]`); process.exit(0); }
+if (!chosen.length) { console.log('nothing to run'); process.exit(0); }
 
+// the isolated copy: everything except .git and node_modules (worker/node_modules is linked, not copied)
+const workRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'breakage-'));
+fs.cpSync(sourceRoot, workRoot, { recursive: true, filter: (src) => !['.git', 'node_modules'].includes(path.basename(src)) });
+if (fs.existsSync(path.join(sourceRoot, 'worker', 'node_modules'))) fs.symlinkSync(path.join(sourceRoot, 'worker', 'node_modules'), path.join(workRoot, 'worker', 'node_modules'));
+root = workRoot;
+console.log(`isolated copy: ${workRoot} (the working tree is never touched)`);
+// the files the mutations will edit, as they are in the REAL tree now: checked again at the end, which can only ever differ if something outside this script changed them
+const pristine = new Map();
+for (const { mutation: m } of chosen) for (const f of [m.file, ...(m.also || []).map((e) => e.file)]) if (!pristine.has(f)) pristine.set(f, fs.readFileSync(path.join(sourceRoot, f), 'utf8'));
+const cleanup = () => { if (!opts.keep) fs.rmSync(workRoot, { recursive: true, force: true }); };
+process.on('exit', cleanup);
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { cleanup(); process.exit(130); });
+
+const originals = new Map();   // within the copy: each mutation is put back before the next
 const runSuite = (suite) => {
-  const r = spawnSync(process.execPath, ['--no-warnings', path.join(__dirname, suite)], { env: { ...process.env, NODE_PATH: path.join(root, 'worker', 'node_modules'), HARNESS_BACKEND: 'do', HARNESS_INDEXES: '1' }, encoding: 'utf8', timeout: 280000 });
+  const r = spawnSync(process.execPath, ['--no-warnings', path.join(root, 'tools', suite)], { env: { ...process.env, NODE_PATH: path.join(sourceRoot, 'worker', 'node_modules'), HARNESS_BACKEND: 'do', HARNESS_INDEXES: '1' }, encoding: 'utf8', timeout: 280000, maxBuffer: 64 * 1024 * 1024 });
   const out = r.stdout || '';
   const m = /(\d+)\/(\d+) correct, (\d+) failing/.exec(out);
   return { failing: m ? Number(m[3]) : null, total: m ? Number(m[2]) : null, crashed: !m, first: (out.split('\n').find((l) => l.startsWith('FAIL')) || '').slice(0, 120) };
 };
 
 let bad = 0;
-for (const suite of [...new Set(MUTATIONS.map((m) => m.suite))]) {
+for (const suite of [...new Set(chosen.map(({ mutation: m }) => m.suite))]) {
   const base = runSuite(suite);
   console.log(`unmutated ${suite}: ${base.crashed ? 'CRASHED' : base.total - base.failing + '/' + base.total + ' correct'}`);
   if (base.crashed || base.failing !== 0) { console.log('the unmutated suite must be green before a mutation means anything'); process.exit(1); }
 }
-for (const [i, m] of MUTATIONS.entries()) {
+for (const { mutation: m, index: i } of chosen) {
   const edits = [{ file: m.file, find: m.find, replace: m.replace }, ...(m.also || [])];   // a mutation may edit several files (the compound isolation control)
   let notFound = null;
   for (const e of edits) { const full = path.join(root, e.file); if (!originals.has(e.file)) originals.set(e.file, fs.readFileSync(full, 'utf8')); if (originals.get(e.file).split(e.find).length !== 2) { notFound = e; break; } }
@@ -161,5 +187,8 @@ for (const [i, m] of MUTATIONS.entries()) {
   if (!caught) bad++;
   console.log(`${String(i + 1).padStart(2)}. ${caught ? 'CAUGHT  ' : res.crashed ? 'CRASHED ' : 'SURVIVED'} ${m.name}${caught ? `  (${res.failing} failing; first: ${res.first})` : ''}`);
 }
-console.log(bad ? `\n${bad} mutation(s) not caught: the tests have a hole` : `\nall ${MUTATIONS.length} mutations caught`);
+// the real files must be exactly as they were: this is a check on the isolation, and it can only fail if something outside this script edited them
+const touched = [...pristine].filter(([f, text]) => fs.readFileSync(path.join(sourceRoot, f), 'utf8') !== text).map(([f]) => f);
+if (touched.length) { console.log(`\nTHE REAL TREE CHANGED while this ran (not by this script, which only edits its copy): ${touched.join(', ')}`); process.exit(2); }
+console.log(bad ? `\n${bad} mutation(s) not caught: the tests have a hole` : `\nall ${chosen.length} selected mutations caught`);
 process.exit(bad ? 1 : 0);
