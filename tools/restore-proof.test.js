@@ -27,6 +27,7 @@ module.exports = kit.guard('restore proof (judge and workflow)', async ({ check 
     'rp-engine-before.json': engineStatus(), 'rp-engine-after.json': engineStatus(),
     'rp-backup-status-staging-two.json': { snapshots: 14, complete: 14, unreadable: 0 }, 'rp-backup-list-staging-two.json': { snapshots: [{ name: '20261102T123131Z', complete: true }] },
     'rp-backup-status-staging-co.json': { snapshots: 9, complete: 9, unreadable: 0 }, 'rp-backup-list-staging-co.json': { snapshots: [{ name: '20261030T030000Z', complete: true }] },
+    'rp-calls.txt': 'pre-snapshot curl_exit=0 http=200\nrestore curl_exit=0 http=200\nmanifest-before curl_exit=0 http=200\n',   // what the workflow's own calls did: the first thing to read when a run does not prove
   });
   const run = (mutate) => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rp-')); const files = good(); if (mutate) mutate(files);
@@ -59,6 +60,11 @@ module.exports = kit.guard('restore proof (judge and workflow)', async ({ check 
   check(u.rec && JSON.stringify(u.rec.details.unreadable_snapshots).includes('20261014T030000Z') && JSON.stringify(u.rec.details.unreadable_snapshots).includes('columns is not an array'), 'and the record names the snapshot and the reason, so it can be investigated before it is called corruption or a validator defect');
   fails('the status has no unreadable count at all (the old code is what is running)', (f) => { f['rp-backup-status-staging-two.json'] = { snapshots: 14, complete: 14 }; }, 'every_existing_snapshot_of_staging-two_validates');
   fails('the second staging business has an unreadable snapshot', (f) => { f['rp-backup-status-staging-co.json'] = { snapshots: 9, complete: 8, unreadable: 1 }; }, 'every_existing_snapshot_of_staging-co_validates');
+  fails('a call of the run itself failed (curl exit 28, a timeout)', (f) => { f['rp-calls.txt'] += 'restore curl_exit=28 http=000\n'; }, 'the_calls_all_completed');
+  fails('the run recorded no calls at all (the workflow did not run its steps)', (f) => { f['rp-calls.txt'] = undefined; }, 'the_calls_all_completed');
+  const nj = run((f) => { f['rp-pre-snapshot.json'] = '<html>error code: 1101</html>'; });
+  check(nj.rec && nj.rec.a_snapshot_was_taken_before_the_deploy === false && JSON.stringify(nj.rec.details).includes('error code: 1101'), 'when the pre-deploy snapshot response is not JSON, the record says so and keeps the start of what came back, so the cause can be read without the raw log');
+  check(nj.rec && Array.isArray(nj.rec.details.calls) && nj.rec.details.calls.length >= 3, 'and the record carries the calls the run made, with their curl and HTTP status');
   fails('the backup list for staging-two was never read', (f) => { f['rp-backup-status-staging-two.json'] = undefined; f['rp-backup-list-staging-two.json'] = undefined; }, 'the_backup_lists_of_staging_two_were_read');
   const empty = spawnSync('python3', [JUDGE, fs.mkdtempSync(path.join(os.tmpdir(), 'rp-empty-')), PROBE, COMMIT], { encoding: 'utf8' });
   check(empty.status !== 0 && !/Traceback/.test(empty.stderr), 'a run that produced no results at all is not proven and does not crash the judge');
@@ -72,6 +78,30 @@ module.exports = kit.guard('restore proof (judge and workflow)', async ({ check 
   check(/if: env\.MODE == 'rehearsal' \|\| env\.MODE == 'restore-proof'/.test(tmp) && /ADD COLUMN probe_/.test(tmp), 'the temporary column-adding step runs in this mode as well as the rehearsal, and nowhere else');
   check(p2.length > 400 && /if: env\.MODE == 'restore-proof'/.test(p2) && /python3 tools\/restore-proof-judge\.py/.test(p2) && wf.indexOf('Restore proof, part 2') > wf.indexOf('Identity - read what the real objects report'), 'part 2 runs only in this mode, after the deploy, and has the judge decide');
   check(/admin\/backup\/restore/.test(p2) && /admin\/backup\/status/.test(p2) && /admin\/backup\/list/.test(p2) && /admin\/schema\/retry/.test(p2) && /admin\/engine\/status/.test(p2) && /STAGING_CONFIRM_KEY/.test(p2), 'part 2 restores, reads the backup status and list, retries the schema and reads the engine, with both admin keys (the restore is privileged)');
+  check(/set \+e/.test(p2) && /rp-calls\.txt/.test(p2) && /call\(\)/.test(p2) && /call\(\)/.test(p1) && !/\$\(python3 -c/.test(p2.replace(/^\s*#.*$/gm, '')), 'HARDENED: neither part can die silently: errors are tolerated (set +e), every call is logged with its curl and HTTP status, and no command substitution can abort the step before the judge runs');
+  check(/restore-proof\.json/.test(p2) && /did not produce a record/.test(p2) && /PUSHRC/.test(p2), 'a record is ALWAYS committed (a fallback record if the judge itself produced none) and a failed push fails the step');
+  // BEHAVIOUR of the step's last section, run in bash with git and the judge stubbed: a record is ALWAYS committed, a failing judge or a failed push fails the step
+  const tail = (p2.match(/ {10}RC=0\n {10}python3 tools\/restore-proof-judge\.py[\s\S]*$/) || [''])[0].split('\n').map((l) => l.replace(/^ {10}/, '')).join('\n');
+  const runTail = ({ judge, push = 0 }) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rt-')), log = path.join(dir, 'log.txt');
+    const script = `set +e\ncd "${dir}"\nexport RESULTS="${dir}/results" SCHEMA_PROBE_COLUMN=probe_1 EXPECT_COMMIT=abc GITHUB_REF_NAME=engine-phase1\nmkdir -p "$RESULTS"\n` +
+      `python3() { case "${judge}" in ok) echo '{"all_ok": true}' > "$RESULTS/restore-proof.json"; return 0;; fail) echo '{"all_ok": false}' > "$RESULTS/restore-proof.json"; return 1;; none) return 2;; none0) return 0;; esac; }\n` +
+      `git() { echo "git $*" >> "${log}"; if [ "$1" = push ]; then return ${push}; fi; return 0; }\n${tail}\n`;
+    const r = spawnSync('bash', ['-c', script], { encoding: 'utf8' });
+    const rec = path.join(dir, 'ops', 'staging-restore-proof-last.json');
+    return { code: r.status, record: fs.existsSync(rec) ? fs.readFileSync(rec, 'utf8') : null, log: fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '' };
+  };
+  check(tail.length > 300, 'the step\'s last section could be extracted to run');
+  let t = runTail({ judge: 'ok' });
+  check(t.code === 0 && /"all_ok": true/.test(t.record || '') && /git add ops\/staging-restore-proof-last\.json/.test(t.log) && /git push origin HEAD:engine-phase1/.test(t.log), 'BEHAVIOUR: a proving judge and a good push: the step succeeds, the judge\'s record is committed and pushed to the branch');
+  t = runTail({ judge: 'fail' });
+  check(t.code !== 0 && /"all_ok": false/.test(t.record || '') && /git push origin HEAD:engine-phase1/.test(t.log), 'BEHAVIOUR: a judge that does not prove FAILS the step, and its record is still committed and pushed');
+  t = runTail({ judge: 'none' });
+  check(t.code !== 0 && /did not produce a record/.test(t.record || '') && /git push origin HEAD:engine-phase1/.test(t.log), 'BEHAVIOUR: a judge that writes NOTHING still leaves a committed fallback record saying so, and FAILS the step (the first attempt died with no evidence)');
+  t = runTail({ judge: 'none0' });
+  check(t.code !== 0 && /did not produce a record/.test(t.record || ''), 'BEHAVIOUR: a judge that exits 0 but writes NO record is not a success: the fallback record is committed and the step FAILS (otherwise silence would read as proof)');
+  t = runTail({ judge: 'ok', push: 1 });
+  check(t.code !== 0, 'BEHAVIOUR: a proof whose record could not be pushed FAILS the step (an unrecorded proof is not a proof)');
   check(/git push origin HEAD:"\$GITHUB_REF_NAME"/.test(p2) && !/HEAD:main|origin main/.test(p2), 'it records to the BRANCH it ran on, never to main (a push to main deploys production)');
   check(!/provision/i.test(p1 + p2.replace(/^\s*#.*$/gm, '')) && !/wrangler|secret put|CLOUDFLARE_API_TOKEN/i.test((p1 + p2).replace(/^\s*#.*$/gm, '')), 'it provisions no engine data, sets no secret and holds no Cloudflare token: it snapshots, restores and reads');
   check(/uses: \.\/\.github\/workflows\/staging\.yml\s*\n\s*with:\s*\n\s*mode: gate/.test(fs.readFileSync(DEPLOY, 'utf8')) && !/restore-proof/.test(step('Gate - check that every business object')), 'production\'s pipeline still calls staging.yml in gate mode, never restore-proof, and the gate steps do not mention it');

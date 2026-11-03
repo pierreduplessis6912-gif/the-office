@@ -231,13 +231,15 @@ jobs:
         if: env.MODE == 'restore-proof'
         continue-on-error: true
         run: |
+          set +e
           BASE="https://${SLUG}.websitehub.co.za"
           A=(-H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY")
+          # Every call is logged with its curl exit and HTTP status (rp-calls.txt), and nothing here can abort the step: the judge in part 2 reads the log.
+          call() { name=$1; out=$2; shift 2; CODE=$(curl -s --max-time 300 -o "$out" -w '%{http_code}' "$@"); rc=$?; echo "$name curl_exit=$rc http=$CODE" | tee -a "$RESULTS/rp-calls.txt"; }
           # The snapshot staging-two's restore will come from, taken before the temporary migration below reaches the real object. Both snapshots are written by the PREVIOUS code, so reading them with the new manifest validator
           # is itself a test of the validator against real manifests (tools/restore-proof-judge.py).
-          curl -s --max-time 300 -X POST "${A[@]}" -H "X-Target-Business: staging-two" "$BASE/admin/backup/run" > "$RESULTS/rp-pre-snapshot.json"
-          curl -s --max-time 300 -X POST "${A[@]}" -H "X-Target-Business: staging-co" "$BASE/admin/backup/run" > "$RESULTS/rp-pre-snapshot-staging-co.json"
-          echo "pre-deploy snapshots: $(python3 -c "import json; print(json.load(open('$RESULTS/rp-pre-snapshot.json')).get('snapshot',''))") $(python3 -c "import json; print(json.load(open('$RESULTS/rp-pre-snapshot-staging-co.json')).get('snapshot',''))")"
+          call pre-snapshot "$RESULTS/rp-pre-snapshot.json" -X POST "${A[@]}" -H "X-Target-Business: staging-two" "$BASE/admin/backup/run"
+          call pre-snapshot-staging-co "$RESULTS/rp-pre-snapshot-staging-co.json" -X POST "${A[@]}" -H "X-Target-Business: staging-co" "$BASE/admin/backup/run"
 
       - name: Add a temporary schema step (staging only, NEVER committed)
         if: env.MODE == 'rehearsal' || env.MODE == 'restore-proof'
@@ -384,36 +386,47 @@ jobs:
           EXPECT_COMMIT: ${{ github.sha }}
         run: |
           # On 2026-11-02 (run 41445346938) restoring an older snapshot onto a table that had gained a column reported a false failure. By now the deploy has added the probe column to customers on the real object;
-          # restore the snapshot taken before it, then read everything the judge needs. Records to the BRANCH it ran on and fails the run unless every check holds.
+          # restore the snapshot taken before it, then read everything the judge needs. Nothing here can end the step before the judge runs and a record is ALWAYS committed (the first attempt, run 41587913275, died
+          # before recording and left no evidence). Records to the BRANCH it ran on and fails the run unless every check holds.
+          set +e
           BASE="https://${SLUG}.websitehub.co.za"
           A=(-H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY")
           B=staging-two
-          J() { curl -s --max-time 300 "${A[@]}" -H "X-Target-Business: $B" "$@"; }
-          SNAP=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('snapshot',''))" "$RESULTS/rp-pre-snapshot.json" 2>/dev/null)
+          call() { name=$1; out=$2; shift 2; CODE=$(curl -s --max-time 300 -o "$out" -w '%{http_code}' "$@"); rc=$?; echo "$name curl_exit=$rc http=$CODE" | tee -a "$RESULTS/rp-calls.txt"; }
+          jcall() { name=$1; out=$2; shift 2; call "$name" "$out" "${A[@]}" -H "X-Target-Business: $B" "$@"; }
+          SNAP=$(sed -n 's/.*"snapshot" *: *"\([^"]*\)".*/\1/p' "$RESULTS/rp-pre-snapshot.json" 2>/dev/null | head -n 1)
           echo "restoring the pre-deploy snapshot: ${SNAP:-NONE}"
-          curl -s --max-time 30 "$BASE/health" > "$RESULTS/rp-health-commit.json"
-          J "$BASE/admin/migration/manifest" > "$RESULTS/rp-manifest-before.json"
-          J "$BASE/admin/engine/status" > "$RESULTS/rp-engine-before.json"
-          curl -s --max-time 300 -o "$RESULTS/rp-restore.json" -w '%{http_code}' -X POST "${A[@]}" -H "X-Target-Business: $B" -H "Content-Type: application/json" -d "{\"snapshot\":\"$SNAP\",\"confirm\":\"$B\"}" "$BASE/admin/backup/restore" > "$RESULTS/rp-restore-code.txt"
-          J "$BASE/admin/migration/manifest" > "$RESULTS/rp-manifest-after.json"
-          J -X POST "$BASE/admin/schema/retry" > "$RESULTS/rp-retry.json"
-          J "$BASE/admin/health" > "$RESULTS/rp-health-final.json"
-          J "$BASE/admin/engine/status" > "$RESULTS/rp-engine-after.json"
+          call health "$RESULTS/rp-health-commit.json" "$BASE/health"
+          jcall manifest-before "$RESULTS/rp-manifest-before.json" "$BASE/admin/migration/manifest"
+          jcall engine-before "$RESULTS/rp-engine-before.json" "$BASE/admin/engine/status"
+          call restore "$RESULTS/rp-restore.json" -X POST "${A[@]}" -H "X-Target-Business: $B" -H "Content-Type: application/json" -d "{\"snapshot\":\"$SNAP\",\"confirm\":\"$B\"}" "$BASE/admin/backup/restore"
+          printf '%s' "$CODE" > "$RESULTS/rp-restore-code.txt"
+          jcall manifest-after "$RESULTS/rp-manifest-after.json" "$BASE/admin/migration/manifest"
+          jcall retry "$RESULTS/rp-retry.json" -X POST "$BASE/admin/schema/retry"
+          jcall health-final "$RESULTS/rp-health-final.json" "$BASE/admin/health"
+          jcall engine-after "$RESULTS/rp-engine-after.json" "$BASE/admin/engine/status"
           for X in staging-two staging-co; do
-            curl -s --max-time 120 "${A[@]}" -H "X-Target-Business: $X" "$BASE/admin/backup/status" > "$RESULTS/rp-backup-status-$X.json"
-            curl -s --max-time 120 "${A[@]}" -H "X-Target-Business: $X" "$BASE/admin/backup/list" > "$RESULTS/rp-backup-list-$X.json"
+            call "status-$X" "$RESULTS/rp-backup-status-$X.json" "${A[@]}" -H "X-Target-Business: $X" "$BASE/admin/backup/status"
+            call "list-$X" "$RESULTS/rp-backup-list-$X.json" "${A[@]}" -H "X-Target-Business: $X" "$BASE/admin/backup/list"
           done
           RC=0
           python3 tools/restore-proof-judge.py "$RESULTS" "$SCHEMA_PROBE_COLUMN" "$EXPECT_COMMIT" || RC=$?
           mkdir -p ops
-          cp "$RESULTS/restore-proof.json" ops/staging-restore-proof-last.json
+          if [ -f "$RESULTS/restore-proof.json" ]; then
+            cp "$RESULTS/restore-proof.json" ops/staging-restore-proof-last.json
+          else
+            printf '{"all_ok": false, "failed": ["the judge did not produce a record"], "details": {"note": "the judge did not produce a record"}}\n' > ops/staging-restore-proof-last.json
+            RC=1
+          fi
           git config user.name "staging-workflow"
           git config user.email "noreply@github.com"
           git add ops/staging-restore-proof-last.json
           git commit -m "Staging restore re-proof record (the restore-verification fix on a real object; ids, counts and results only)" || echo "nothing to record"
           git pull --rebase origin "$GITHUB_REF_NAME"
-          git push origin HEAD:"$GITHUB_REF_NAME"
-          exit $RC
+          PUSHRC=0
+          git push origin HEAD:"$GITHUB_REF_NAME" || PUSHRC=$?
+          if [ "$RC" -ne 0 ]; then exit "$RC"; fi
+          exit "$PUSHRC"
 
       - name: Drill - recover by removing the broken step and redeploying
         id: recover

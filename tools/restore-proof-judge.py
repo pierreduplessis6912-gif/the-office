@@ -49,6 +49,8 @@ d["nothing_is_pending_after_the_retry"] = final.get("pending") == [] and final.g
 d["the_engine_is_back_exactly_and_verifies_clean"] = eng_before.get("mode") == "engine" and eng_after.get("mode") == "engine" and eng_after.get("tables") == eng_before.get("tables") and eng_after.get("hashes") == eng_before.get("hashes") and engine_ok(eng_after)
 
 businesses = sorted(os.path.basename(p)[len("rp-backup-status-"):-len(".json")] for p in glob.glob(os.path.join(results, "rp-backup-status-*.json")))
+calls = [l for l in text("rp-calls.txt").split("\n") if l.strip()]   # what the workflow's own calls did (curl exit and HTTP status): the first thing to read when a run does not prove
+d["the_calls_all_completed"] = bool(calls) and all("curl_exit=0" in l for l in calls)
 d["the_backup_lists_of_staging_two_were_read"] = "staging-two" in businesses and bool(load("rp-backup-list-staging-two.json"))
 validated, unreadable = {}, {}
 for b in businesses:
@@ -65,8 +67,10 @@ d["details"] = {
     "pre_snapshot": pre.get("snapshot"), "deployed_commit": deployed, "expected_commit": expect, "probe_column": probe,
     "restore": {k: restore.get(k) for k in ("ok", "snapshot", "safetySnapshot", "tablesRestored", "rowsRestored", "differences", "error")}, "restore_http_status": code,
     "customers_rows": {"before_restore": (before.get("customers") or {}).get("count"), "after_restore": (after.get("customers") or {}).get("count")},
-    "snapshots_validated": validated, "unreadable_snapshots": unreadable,
+    "snapshots_validated": validated, "unreadable_snapshots": unreadable, "calls": calls,
 }
+if not d["a_snapshot_was_taken_before_the_deploy"]:
+    d["details"]["pre_snapshot_response"] = text("rp-pre-snapshot.json")[:300]   # the start of what came back, so the cause can be read without the raw log
 if not d["the_probe_column_is_on_the_real_object_before_the_restore"]:
     d["details"]["note"] = "VACUOUS: the deploy did not add the probe column to customers on the real object, so the scenario this run exists to test was not exercised (precondition not met); the run proves nothing about the fix"
 with open(os.path.join(results, "restore-proof.json"), "w") as f:
