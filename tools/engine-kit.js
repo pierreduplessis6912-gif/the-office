@@ -141,14 +141,15 @@ const plain = plainRow;
     const storage = { sql, transactionSync(fn) { db.exec('BEGIN'); try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; } }, getAlarm: async () => alarmAt, setAlarm: async (t) => { alarmAt = t; alarmSets++; } };
     return { state: { storage, blockConcurrencyWhile: (fn) => fn(), waitUntil: (p) => waited.push(p) }, waited, alarm: () => alarmAt, alarmSets: () => alarmSets };
   };
-async function makeFleet({ ids = ['alpha-co', 'beta-co'] } = {}) {
+async function makeFleet({ ids = ['alpha-co', 'beta-co'], exposeIdentity = true } = {}) {
   const fns = await buildHandler(), mod = fns.mod;
   const env = { BUSINESS_MODE: 'object', SESSION_SECRET: 'fleet-secret', ADMIN_KEY: 'fleet-admin', METER_USAGE: '0' };
   const objects = {}, raws = {}; let misroute = null;
   // forwardToBusiness calls namespace.get(namespace.idFromName(name), { locationHint }).fetch(request); misroute(name) lets a test send a request to the WRONG object on purpose
   env.BUSINESS = { idFromName: (name) => ({ name }), get: (id) => ({ fetch: (req) => objects[misroute ? misroute(id.name) : id.name].fetch(req) }) };
   const ctx = { waitUntil() {}, passThroughOnException() {} };
-  const wake = async (b) => { const raw = new DatabaseSync(':memory:'); const st = makeDoState(raw); const o = new mod.BusinessObject(st.state, env); await o.ready; objects['business-' + b] = o; raws[b] = raw; return o; };
+  const wake = async (b) => { const raw = new DatabaseSync(':memory:'); const st = makeDoState(raw); if (exposeIdentity) st.state.id = { name: 'business-' + b };   // what the runtime tells an object about the name it was addressed by (exposeIdentity: false simulates a runtime that tells it nothing)
+    const o = new mod.BusinessObject(st.state, env); await o.ready; objects['business-' + b] = o; raws[b] = raw; return o; };
   for (const b of ids) await wake(b);
   const url = (p) => 'https://office.example' + p;
   return {

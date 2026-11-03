@@ -10,7 +10,7 @@ import { isAdminPath } from "./auth";
 import { readBackupMeta, recordBackupResult } from "./backup";
 import { locationIsStale, readLocation, recordLocation } from "./location";
 import { scopeBindings } from "./scoped-bindings";
-import { isBusinessId } from "./directory";
+import { isBusinessId, objectNameFor } from "./directory";
 import { migrateSchema, splitStatements, type SchemaOutcome, type SchemaStep } from "./schema";
 import { SCHEMA_STEPS } from "./schema-steps";
 import { applyIndexes, type IndexReport } from "./indexes";
@@ -185,6 +185,12 @@ export function makeBusinessObject(serve: Serve, jobs?: BusinessJobs, options: {
       // remembered, and a request naming any other is refused, so even a routing mistake in the Worker cannot make an object serve the wrong business.
       const claimed = request.headers.get("X-Business-Id");
       if (!isBusinessId(claimed)) return Response.json({ error: "no business named" }, { status: 400 });
+      // An object is addressed by NAME (objectNameFor(business)) and the runtime tells it that name, which no request can supply. A claim that does not match is refused BEFORE anything is read, bound or written, so a request can
+      // neither bind an unused object nor take one over merely by naming a business (a router fault would otherwise give it to the wrong business for good and lock the real one out). Where the runtime exposes no name, or not a string,
+      // the first-claim binding below is the only protection: a deliberate fail-open so an unexpected runtime can never lock a business out; health.ts reports object.identityVisible so a real object can be checked.
+      const ownName = (this.state.id as { name?: unknown } | undefined)?.name;
+      const objectName = typeof ownName === "string" ? ownName : undefined;
+      if (objectName !== undefined && objectName !== objectNameFor(claimed)) return Response.json({ error: "this object belongs to another business" }, { status: 403 });
       if (this.businessId === null) {
         const known = (await this.db.prepare("SELECT value FROM object_meta WHERE key = 'business_id'").first<{ value: string }>())?.value ?? null;
         if (known === null) await this.db.prepare("INSERT INTO object_meta (key, value) VALUES ('business_id', ?)").bind(claimed).run();
@@ -214,6 +220,7 @@ export function makeBusinessObject(serve: Serve, jobs?: BusinessJobs, options: {
       }
       // The notes store, the file storage and the memory index are shared by every business, so each is confined to this business (scoped-bindings.ts).
       const objectEnv = scopeBindings({ ...this.env, OFFICE_DB: this.db as unknown as D1Database, SHARED_DB: this.env.OFFICE_DB, BUSINESS_ID: claimed, RETRY_SCHEMA: () => this.retrySchema() } as Env, claimed);
+      objectEnv.OBJECT_NAME = objectName;   // set on the scoped result, so the pinned scopeBindings(...) expression above (scoped-bindings.test.js) stays exactly as it was
       const ctx = { waitUntil: (p: Promise<unknown>) => this.state.waitUntil(p), passThroughOnException: () => undefined } as unknown as ExecutionContext;
       return serve(request, objectEnv, ctx);
     }

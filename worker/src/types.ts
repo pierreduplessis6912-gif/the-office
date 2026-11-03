@@ -40,6 +40,8 @@ export interface Env {
   BUSINESS_OBJECT_NAME?: string;
   // Set by a business's object for each request it serves (never by a client): which business this is. See business-object.ts.
   BUSINESS_ID?: string;
+  // The name this business's object was addressed by (objectNameFor(business)) as the runtime reports it; absent where the runtime exposes none. Set by the object itself, never by a client (business-object.ts, health.ts).
+  OBJECT_NAME?: string;
   CONVERSE_MODE?: string;   // "moonshot" turns the conversation front door on (converse-moonshot.ts): a Kimi model called directly at Moonshot decides to talk or to hand the message to the Office. Unset = off.
   CONVERSE_MODEL?: string;   // the Moonshot model; default kimi-k2.6
   CONVERSE_THINKING?: string;   // "on" runs the front door model with thinking on; default off (the fastest, and enough for routing)

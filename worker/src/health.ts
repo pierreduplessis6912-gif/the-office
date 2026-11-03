@@ -78,6 +78,8 @@ export async function healthReport(env: Env, now: Date = new Date()): Promise<Re
   const usage = await usageSummary(env, 7, now);
   return {
     business: env.BUSINESS_ID ?? null,
+    // The object's own name as the runtime reports it, and whether it reports one at all: where it does not, the object cannot verify which business it is (business-object.ts), so a real object is checked by reading this.
+    object: { name: env.OBJECT_NAME ?? null, identityVisible: typeof env.OBJECT_NAME === "string" },
     generatedAt: now.toISOString(),
     hourlyJob: { lastRunAt: lastJobAt, minutesSinceLastRun: minutesSince(lastJobAt, nowMs), lastOk: (await meta(env, "last_job_ok")) === null ? null : (await meta(env, "last_job_ok")) === "1", lastError: (await meta(env, "last_job_error")) || null, lastMs: Number((await meta(env, "last_job_ms")) ?? "") || null, nextAlarmAt: await meta(env, "next_alarm_at") },
     backup: { ...backup, newestAgeHours: backup.lastSuccessAt ? Math.round(((nowMs - Date.parse(backup.lastSuccessAt)) / 3_600_000) * 10) / 10 : null, skipped: await readSkipped(env) },

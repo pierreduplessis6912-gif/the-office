@@ -222,15 +222,34 @@ module.exports = kit.guard('engine isolation', async ({ check }) => {
   const back = await get('/engine/records/document/1', tA);
   check(back.status === 200 && field(back, 'grossMinor') === 141910, 'MISROUTE: (control) with the router correct again, alpha is served normally');
 
-  // OBSERVATION, recorded and NOT blessed as a security contract: an object that has never been named binds to the first business that names it
+  // IDENTITY: a request cannot establish or change an object's business merely by naming one (the finding the first version of this suite reported, now fixed in business-object.ts)
   await f.wake('gamma-co');
-  await f.objects['business-gamma-co'].db.prepare("INSERT INTO memberships (google_email, role, status) VALUES ('owner@gamma.example', 'accountant', 'active')").run();
+  await f.objects['business-gamma-co'].db.prepare("INSERT INTO memberships (google_email, role, status) VALUES ('owner@gamma.example', 'owner', 'active')").run();
   f.setMisroute((name) => (name === 'business-alpha-co' ? 'business-gamma-co' : name));
   const g1 = await get('/engine/records/document/1', tA);
   f.setMisroute(null);
-  const boundTo = f.raws['gamma-co'].prepare("SELECT value FROM object_meta WHERE key = 'business_id'").get()?.value ?? null;
+  const boundTo = () => f.raws['gamma-co'].prepare("SELECT value FROM object_meta WHERE key = 'business_id'").get()?.value ?? null;
+  check(g1.status === 403 && JSON.parse(g1.text).error === 'this object belongs to another business' && boundTo() === null, `IDENTITY: alpha's request, misrouted to an UNUSED object that is gamma's, is refused 403 ("${JSON.parse(g1.text).error}") and binds nothing (bound to: ${boundTo()})`);
   const g2 = await get('/engine/records/document/1', await f.token('owner@gamma.example', 'gamma-co'));
-  check(!A_ONLY.test(g1.text) && !B_ONLY.test(g1.text) && !A_ONLY.test(g2.text) && !B_ONLY.test(g2.text), `OBSERVATION (a recorded behaviour, NOT a security contract; reported for a decision): gamma's object had never been named; alpha's request, misrouted to it, got ${g1.status}, and it then bound itself to "${boundTo}"; gamma's own owner then got ${g2.status}. No business data was exposed either way (the object has none), but an unused object accepts whichever business names it first`);
+  check(!/belongs to another business/.test(g2.text) && boundTo() === 'gamma-co', `IDENTITY: gamma's own owner is then served normally and the object binds to gamma (status ${g2.status}): the misroute did not lock the real owner out`);
+  check(!A_ONLY.test(g1.text + g2.text) && !B_ONLY.test(g1.text + g2.text), 'IDENTITY: and no data of either business was exposed');
+  // the health report makes the check observable on a REAL object: staging reads it to learn whether the runtime exposes the name at all
+  const health = async (fleet, b) => JSON.parse((await grab(await fleet.front('/admin/health', { headers: { 'X-Admin-Key': 'fleet-admin', 'X-Target-Business': b } }))).text);
+  const h1 = await health(f, 'alpha-co');
+  check(h1.object && h1.object.name === 'business-alpha-co' && h1.object.identityVisible === true && h1.business === 'alpha-co', `IDENTITY: the admin health report shows the object's own name and that the runtime exposes it (${JSON.stringify(h1.object)})`);
+  // the same fleet, but a runtime that tells the object nothing about its name
+  const blind = await kit.makeFleet({ ids: ['alpha-co'], exposeIdentity: false });
+  await blind.wake('gamma-co');
+  blind.setMisroute((name) => (name === 'business-alpha-co' ? 'business-gamma-co' : name));
+  await blind.token('owner@alpha.example', 'alpha-co').then((t) => blind.front('/engine/records/document/1', { headers: { cookie: 'office_session=' + t } }));
+  const blindBound = blind.raws['gamma-co'].prepare("SELECT value FROM object_meta WHERE key = 'business_id'").get()?.value ?? null;
+  const h2 = await health(blind, 'alpha-co');
+  // the SECOND layer on its own: with no name to check, an object that is already bound still refuses another business's claim (the identity check above would otherwise mask its removal)
+  await blind.direct('alpha-co', '/health', { headers: { 'X-Business-Id': 'alpha-co' } });
+  await blind.objects['business-alpha-co'].db.prepare("INSERT INTO memberships (google_email, role, status) VALUES ('both@example.com', 'accountant', 'active')").run();
+  const lieBlind = await grab(await blind.direct('alpha-co', '/engine/records/document/1', { headers: { cookie: 'office_session=' + (await blind.token('both@example.com', 'beta-co')), 'X-Business-Id': 'beta-co' } }));
+  check(lieBlind.status === 403 && JSON.parse(lieBlind.text).error === 'this object belongs to another business', `OBJECT (binding layer alone, runtime exposes no name): an object already bound to alpha refuses a claim for beta even from a person who is a member of alpha (${lieBlind.status} ${lieBlind.text.slice(0, 70)})`);
+  check(blindBound === 'alpha-co' && h2.object && h2.object.name === null && h2.object.identityVisible === false, `KNOWN LIMITATION (fail-open, deliberate; NOT a security contract): on a runtime that exposes no object name the identity check cannot apply and the first-claim binding remains (gamma bound to "${blindBound}"); the health report then says identityVisible is false, which is how a real object is checked`);
 });
 
 if (require.main === module) kit.standalone(module.exports);

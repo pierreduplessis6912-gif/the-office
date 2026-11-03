@@ -4,7 +4,7 @@
 const fs = require('fs'), path = require('path'), { spawnSync } = require('child_process');
 const root = path.join(__dirname, '..');
 const E = (f) => `worker/src/engine/${f}`, CONTRACT = 'worker/src/capability-contract.ts', MIG = 'worker/migrations/0004_engine_foundation.sql';
-const ISOL = 'engine-isolation.test.js', OWN = 'engine-ownership.test.js', INTEG = 'engine-integrity.test.js', ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
+const OBJ = 'business-object.standalone.js', ISOL = 'engine-isolation.test.js', OWN = 'engine-ownership.test.js', INTEG = 'engine-integrity.test.js', ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
 
 const MUTATIONS = [
   // money: exact integer arithmetic
@@ -70,6 +70,11 @@ const MUTATIONS = [
   { name: 'ownership: a stray UPDATE of a fact table', suite: OWN, file: 'worker/src/engine/records.ts', find: 'import type { Env } from "../types";', replace: 'import type { Env } from "../types";\nconst __u = "UPDATE eng_money_movement SET amount_minor = 0";' },
   { name: 'ownership: an engine file imports an unreviewed module', suite: OWN, file: 'worker/src/engine/ledger.ts', find: 'import type { Env } from "../types";', replace: 'import type { Env } from "../types";\nimport "../customers";' },
   { name: 'ownership: a new legacy-to-engine coupling', suite: OWN, file: 'worker/src/index.ts', find: 'import { handleEngineRoute } from "./engine/routes";', replace: 'import { handleEngineRoute } from "./engine/routes";\nimport { isAvailable as __x } from "./engine/availability";' },
+  // the object's own identity (the fix for the first-claim binding finding)
+  { name: 'object identity: a claim that does not match the object\'s own name is no longer refused', suite: OBJ, file: 'worker/src/business-object.ts', find: 'if (objectName !== undefined && objectName !== objectNameFor(claimed)) return Response.json({ error: "this object belongs to another business" }, { status: 403 });', replace: 'if (false) return Response.json({ error: "this object belongs to another business" }, { status: 403 });' },
+  { name: 'object identity: the object\'s name is no longer handed to the pipeline (so health cannot show it)', suite: ISOL, file: 'worker/src/business-object.ts', find: 'objectEnv.OBJECT_NAME = objectName;', replace: 'objectEnv.OBJECT_NAME = undefined;' },
+  { name: 'object identity: an unexpected name shape locks a business out (fail-closed instead of fail-open)', suite: OBJ, file: 'worker/src/business-object.ts', find: 'const objectName = typeof ownName === "string" ? ownName : undefined;', replace: 'const objectName = ownName === undefined ? undefined : String(ownName);' },
+  { name: 'health: the report no longer says whether the runtime exposes the object\'s name', suite: ISOL, file: 'worker/src/health.ts', find: 'identityVisible: typeof env.OBJECT_NAME === "string"', replace: 'identityVisible: true' },
   // the admin routes (privileged: they can put a business into engine mode)
   { name: 'admin: provisioning exists on a deployment that is not a rehearsal', suite: ADMIN, file: E('admin.ts'), find: 'if (env.ENGINE_REHEARSAL !== "1") return bad("this route exists only on a rehearsal deployment", 404);', replace: '/* mutation: no rehearsal flag */' },
   { name: 'admin: provisioning without the business id as confirmation', suite: ADMIN, file: E('admin.ts'), find: 'if (!body || body.confirm !== env.BUSINESS_ID) return bad("confirm must be the business id", 400);', replace: '/* mutation: no confirmation */' },

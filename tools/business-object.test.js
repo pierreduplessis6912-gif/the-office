@@ -66,6 +66,26 @@ async function businessObjectTests({ check, srcDir }) {
   const woken = new Business(A.state, workerEnv);
   check((await woken.fetch(named('beta-co'))).status === 403 && (await woken.fetch(named('alpha-co'))).status === 200, 'a fresh wake over the same storage still remembers which business it is');
 
+  // ---- an object's OWN identity: the runtime tells it the name it was addressed by, and a claim that does not match is refused BEFORE anything is bound -------------------------------------------------
+  // The finding (Task 3 misroute test): an UNUSED object bound itself to whichever business named it first, before any authentication, so a router fault could permanently give it to the wrong business and lock the real one out.
+  // The router always addresses an object as objectNameFor(business) = "business-<id>", so an object that knows its own name can refuse any other claim, bound or not.
+  const boundTo = (db) => db.prepare("SELECT value FROM object_meta WHERE key = 'business_id'").get()?.value ?? null;
+  const dbG = new DatabaseSync(':memory:'); const G = makeState(dbG); G.state.id = { name: 'business-gamma-co' };
+  const objG = new Business(G.state, workerEnv);
+  const seenBefore = seen.length;
+  const mis = await objG.fetch(named('alpha-co'));
+  check(mis.status === 403 && (await mis.json()).error === 'this object belongs to another business' && seen.length === seenBefore, 'IDENTITY: an UNUSED object whose runtime name is business-gamma-co refuses a claim for alpha-co with a 403, and the request never reaches the pipeline');
+  check(boundTo(dbG) === null, 'IDENTITY: and the refused claim bound NOTHING: the object is still unowned (before the fix it became alpha-co\'s and locked out its real owner)');
+  const own = await objG.fetch(named('gamma-co'));
+  check(own.status === 200 && boundTo(dbG) === 'gamma-co' && seen[seen.length - 1].env.OBJECT_NAME === 'business-gamma-co', 'IDENTITY: its own business is then served and bound, and the pipeline is told the object\'s name (OBJECT_NAME, shown in the health report)');
+  const wokenG = new Business(G.state, workerEnv);
+  check((await wokenG.fetch(named('alpha-co'))).status === 403 && (await wokenG.fetch(named('gamma-co'))).status === 200, 'IDENTITY: a fresh wake over the same storage behaves the same');
+  const dbH = new DatabaseSync(':memory:'); const H = makeState(dbH);   // a runtime that exposes no name, and every stand-in that gives none
+  const objH = new Business(H.state, workerEnv);
+  check((await objH.fetch(named('alpha-co'))).status === 200 && boundTo(dbH) === 'alpha-co' && (await objH.fetch(named('beta-co'))).status === 403 && seen[seen.length - 1].env.OBJECT_NAME === undefined, 'KNOWN LIMITATION (fail-open, deliberate): where the runtime exposes NO object name the object cannot know its identity and keeps the first-claim binding; whether the production runtime exposes it is decided by reading /admin/health (object.identityVisible) on a real object, NOT by this test');
+  const dbI = new DatabaseSync(':memory:'); const I = makeState(dbI); I.state.id = { name: 42 };
+  check((await new Business(I.state, workerEnv).fetch(named('alpha-co'))).status === 200 && boundTo(dbI) === 'alpha-co', 'KNOWN LIMITATION: a name that is not a string is treated as not exposed (fail-open), never as a mismatch, so an unexpected runtime shape cannot lock a business out');
+
   // ---- a second wake ---------------------------------------------------------------------------------------------------------------------------
   const again = await bo.ensureObjectSchema(objA.db, workerEnv);
   check(again.appliedBaseline === false && again.indexes.created.length === 0 && dbA.prepare('SELECT COUNT(*) AS n FROM customers').get().n === 1, 'a second wake does not redo the baseline, creates no index twice, and keeps the data');
