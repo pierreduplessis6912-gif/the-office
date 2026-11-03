@@ -4,7 +4,7 @@
 const fs = require('fs'), path = require('path'), { spawnSync } = require('child_process');
 const root = path.join(__dirname, '..');
 const E = (f) => `worker/src/engine/${f}`, CONTRACT = 'worker/src/capability-contract.ts', MIG = 'worker/migrations/0004_engine_foundation.sql';
-const OBJ = 'business-object.standalone.js', ISOL = 'engine-isolation.test.js', OWN = 'engine-ownership.test.js', INTEG = 'engine-integrity.test.js', ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
+const STID = 'staging-identity.test.js', OBJ = 'business-object.standalone.js', ISOL = 'engine-isolation.test.js', OWN = 'engine-ownership.test.js', INTEG = 'engine-integrity.test.js', ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
 
 const MUTATIONS = [
   // money: exact integer arithmetic
@@ -75,6 +75,13 @@ const MUTATIONS = [
   { name: 'object identity: the object\'s name is no longer handed to the pipeline (so health cannot show it)', suite: ISOL, file: 'worker/src/business-object.ts', find: 'objectEnv.OBJECT_NAME = objectName;', replace: 'objectEnv.OBJECT_NAME = undefined;' },
   { name: 'object identity: an unexpected name shape locks a business out (fail-closed instead of fail-open)', suite: OBJ, file: 'worker/src/business-object.ts', find: 'const objectName = typeof ownName === "string" ? ownName : undefined;', replace: 'const objectName = ownName === undefined ? undefined : String(ownName);' },
   { name: 'health: the report no longer says whether the runtime exposes the object\'s name', suite: ISOL, file: 'worker/src/health.ts', find: 'identityVisible: typeof env.OBJECT_NAME === "string"', replace: 'identityVisible: true' },
+  // the staging identity check (read only; what the real objects report about their own name)
+  { name: 'staging identity: a wrong deployed commit no longer stops the check before any object is read', suite: STID, file: 'tools/staging-identity.py', find: 'if not EXPECT or record["deployed_commit"] != EXPECT: finish("commit_mismatch", 1)', replace: 'if False: finish("commit_mismatch", 1)' },
+  { name: 'staging identity: a name exposed in the wrong shape is no longer the unsafe answer', suite: STID, file: 'tools/staging-identity.py', find: 'if any(e["identity_visible"] and not e["name_matches"] for e in es): finish("runtime_exposes_the_name_but_it_does_not_match", 1)', replace: 'if False: finish("runtime_exposes_the_name_but_it_does_not_match", 1)' },
+  { name: 'staging identity: a report with no object entry no longer fails as \'the fix is not deployed\'', suite: STID, file: 'tools/staging-identity.py', find: 'if not all(e["has_object_field"] for e in es): finish("the_fix_is_not_deployed", 1)', replace: 'if False: finish("the_fix_is_not_deployed", 1)' },
+  { name: 'staging identity: an unreadable report is no longer \'unreachable\'', suite: STID, file: 'tools/staging-identity.py', find: 'if not es or not all(e["reachable"] for e in es): finish("unreachable", 1)', replace: 'if False: finish("unreachable", 1)' },
+  { name: 'staging identity: the admin key is derived differently from staging.yml\'s', suite: STID, file: 'tools/staging-identity.py', find: 'return re.sub(r"[=+/\\n]", "", raw)[:43]', replace: 'return re.sub(r"[=+/\\n]", "", raw)[:42]' },
+  { name: 'staging identity: the default Python User-Agent is sent (which Cloudflare tends to refuse)', suite: STID, file: 'tools/staging-identity.py', find: 'headers = {"User-Agent": "staging-identity", "Accept": "application/json"}', replace: 'headers = {"Accept": "application/json"}' },
   // the admin routes (privileged: they can put a business into engine mode)
   { name: 'admin: provisioning exists on a deployment that is not a rehearsal', suite: ADMIN, file: E('admin.ts'), find: 'if (env.ENGINE_REHEARSAL !== "1") return bad("this route exists only on a rehearsal deployment", 404);', replace: '/* mutation: no rehearsal flag */' },
   { name: 'admin: provisioning without the business id as confirmation', suite: ADMIN, file: E('admin.ts'), find: 'if (!body || body.confirm !== env.BUSINESS_ID) return bad("confirm must be the business id", 400);', replace: '/* mutation: no confirmation */' },
