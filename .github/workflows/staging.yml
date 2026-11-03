@@ -24,6 +24,7 @@ on:
           - gate
           - gate-drill
           - load
+          - identity
         default: rehearsal
       load_sentences:
         description: "Load mode only: how many real sentences wait on the model while reads are timed (each costs a little; never more than 8)"
@@ -341,6 +342,28 @@ jobs:
               sys.exit(1)
           print("The staging gate passed: every business object applied the real schema steps and nothing was lost.")
           PY
+
+      - name: Identity - read what the real objects report about their own name (read only)
+        if: env.MODE == 'identity'
+        env:
+          EXPECT_COMMIT: ${{ github.sha }}
+          OUT: ${{ github.workspace }}/staging-identity-result.json
+        run: |
+          # business-object.ts refuses a claim that does not match the name an object was addressed by, but only if the runtime tells the object that name. tools/staging-identity.py reads /admin/health on the real
+          # staging objects (GET only, no key printed) and records the answer. It stops, reading no object, if staging is not running THIS commit. Records to the BRANCH, never to main (a push to main deploys production).
+          RC=0
+          python3 tools/staging-identity.py || RC=$?
+          if [ -f "$OUT" ]; then
+            mkdir -p ops
+            cp "$OUT" ops/staging-identity-last.json
+            git config user.name "staging-workflow"
+            git config user.email "noreply@github.com"
+            git add ops/staging-identity-last.json
+            git commit -m "Staging object identity check record (read only: what the real staging objects report about their own name)" || echo "nothing to record"
+            git pull --rebase origin "$GITHUB_REF_NAME"
+            git push origin HEAD:"$GITHUB_REF_NAME"
+          fi
+          exit $RC
 
       - name: Drill - recover by removing the broken step and redeploying
         id: recover

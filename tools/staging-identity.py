@@ -39,7 +39,9 @@ def finish(verdict, code):
 
 status, h = get("/health")
 record["deployed_commit"] = h.get("commit") if isinstance(h, dict) else None
-if not EXPECT or record["deployed_commit"] != EXPECT: finish("commit_mismatch", 1)   # nothing about any object is read: the record must not describe the wrong code
+deployed = record["deployed_commit"] or ""
+same_commit = bool(EXPECT) and bool(deployed) and (deployed == EXPECT or (len(deployed) >= 7 and EXPECT.startswith(deployed)))   # /health may report a short hash: a prefix of the full one is the same commit
+if not same_commit: finish("commit_mismatch", 1)   # nothing about any object is read: the record must not describe the wrong code
 
 for b in BUSINESSES:
     status, rep = get("/admin/health", b)
