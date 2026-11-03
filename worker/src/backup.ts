@@ -151,19 +151,89 @@ export async function listSnapshotNames(env: Env): Promise<string[]> {
   return names.sort();
 }
 
-export async function readManifest(env: Env, name: string): Promise<Manifest | null> {
-  if (!SNAPSHOT_NAME.test(name)) throw new Error("not a snapshot name");
-  const object = await bucketOf(env).get(keyOf(businessOf(env), name, "manifest.json"));
-  if (!object) return null;
-  const manifest = JSON.parse(await object.text()) as Manifest;
-  return manifest.complete === true && manifest.business === businessOf(env) && manifest.name === name ? manifest : null;
+// ---- the manifest, validated BEFORE anything acts on it ------------------------------------------------------------------------------------------------------------------------------------------------------
+// Until 2026-11-02 the manifest was parsed and cast: its checksums were verified but its SHAPE was trusted. A manifest missing the columns of a table that no longer exists, or its fingerprint, made restore REPLACE THE DATA and only then throw
+// (so the caller was told it had failed after it had succeeded); its `version` was never read; one damaged manifest made listSnapshots throw for EVERY snapshot; and a part's key could point outside the snapshot's own folder.
+// THE RULE: check exactly what restore and listing USE, before the lock, the safety snapshot or any schema change, and tolerate everything else (unknown extra fields are fine), so a good older snapshot is never made unrestorable by a
+// validator stricter than the data. A manifest that is not complete, or names another business or snapshot, is "incomplete" (no complete snapshot), exactly as before; only a manifest that claims to be complete and cannot be trusted is "unreadable".
+const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
+export type ManifestCheck = { status: "ok"; manifest: Manifest } | { status: "missing" } | { status: "incomplete" } | { status: "unreadable"; reason: string };
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+const isCount = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0;
+const isNumber = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+
+// Never throws: undefined, a string, a half-written object all come back as a status.
+export function validateManifest(raw: unknown, business: string, name: string): ManifestCheck {
+  const bad = (reason: string): ManifestCheck => ({ status: "unreadable", reason });
+  if (!isObject(raw)) return bad("the manifest is not a JSON object");
+  if (raw.complete !== true || raw.business !== business || raw.name !== name) return { status: "incomplete" };
+  if (raw.version !== 1) return bad(`unsupported manifest version ${JSON.stringify(raw.version) ?? "(missing)"}`);
+  const folder = keyOf(business, name, "");
+  // a part must be read from THIS snapshot's own folder, never from another business's or another snapshot's
+  const partProblem = (v: unknown, where: string): string | null => {
+    if (!isObject(v)) return `${where} is not a part`;
+    if (typeof v.key !== "string" || v.key === "") return `${where}.key is missing`;
+    if (!v.key.startsWith(folder)) return `${where}.key is outside this snapshot's folder`;
+    if (!isCount(v.bytes)) return `${where}.bytes is not a size`;
+    if (typeof v.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(v.sha256)) return `${where}.sha256 is not a SHA-256 checksum`;
+    return null;
+  };
+  if (!Array.isArray(raw.tables)) return bad("tables is not an array");
+  const seen = new Set<string>();
+  for (const [i, t] of (raw.tables as unknown[]).entries()) {
+    const w = `tables[${i}]`;
+    if (!isObject(t)) return bad(`${w} is not an object`);
+    if (typeof t.name !== "string" || !IDENT.test(t.name)) return bad(`${w}.name is not a table name`);
+    if (seen.has(t.name)) return bad(`duplicate table name ${t.name}`);
+    seen.add(t.name);
+    if (typeof t.sql !== "string" || t.sql.trim() === "") return bad(`${w}.sql is missing`);
+    if (!Array.isArray(t.columns)) return bad(`${w}.columns is not an array`);
+    for (const [j, c] of (t.columns as unknown[]).entries()) {
+      if (!isObject(c)) return bad(`${w}.columns[${j}] is not a column`);
+      if (typeof c.name !== "string" || !IDENT.test(c.name)) return bad(`${w}.columns[${j}].name is not a column name`);
+      if (typeof c.type !== "string") return bad(`${w}.columns[${j}].type is missing`);
+    }
+    if (!isCount(t.rows)) return bad(`${w}.rows is not a row count`);
+    const p = partProblem(t.part, `${w}.part`); if (p) return bad(p);
+  }
+  if (!Array.isArray(raw.sequences)) return bad("sequences is not an array");
+  for (const [i, s] of (raw.sequences as unknown[]).entries()) if (!isObject(s) || typeof s.name !== "string" || !isNumber(s.seq)) return bad(`sequences[${i}] is not {name, seq}`);
+  if (!isObject(raw.notes) || !isCount(raw.notes.count)) return bad("notes is missing or has no count");
+  { const p = partProblem(raw.notes.part, "notes.part"); if (p) return bad(p); }
+  if (!isObject(raw.files) || !isCount(raw.files.count)) return bad("files is missing or has no count");
+  { const p = partProblem(raw.files.inventory, "files.inventory"); if (p) return bad(p); }
+  const f = raw.fingerprint;
+  if (!isObject(f)) return bad("fingerprint is missing");
+  if (!isObject(f.tables)) return bad("fingerprint.tables is missing");
+  for (const [k, v] of Object.entries(f.tables)) if (!isObject(v) || !isNumber(v.count) || typeof v.hash !== "string") return bad(`fingerprint.tables.${k} has no count and hash`);
+  if (!isObject(f.sequences) || Object.values(f.sequences).some((v) => !isNumber(v))) return bad("fingerprint.sequences is missing or malformed");
+  for (const k of ["notes", "files"] as const) { const v = f[k]; if (!isObject(v) || !isNumber(v.count) || typeof v.hash !== "string") return bad(`fingerprint.${k} is missing or malformed`); }
+  return { status: "ok", manifest: raw as unknown as Manifest };
 }
 
-export async function listSnapshots(env: Env): Promise<{ name: string; complete: boolean; finishedAt: string | null; tables: number; rows: number; notes: number; files: number }[]> {
+export async function inspectManifest(env: Env, name: string): Promise<ManifestCheck> {
+  if (!SNAPSHOT_NAME.test(name)) throw new Error("not a snapshot name");
+  const business = businessOf(env);
+  const object = await bucketOf(env).get(keyOf(business, name, "manifest.json"));
+  if (!object) return { status: "missing" };
+  let raw: unknown;
+  try { raw = JSON.parse(await object.text()); } catch { return { status: "unreadable", reason: "the manifest is not valid JSON (truncated or damaged)" }; }
+  return validateManifest(raw, business, name);
+}
+
+// Kept for its callers: the manifest of a complete, trustworthy snapshot, or null (no such snapshot, not complete, or not trustworthy; inspectManifest says which).
+export async function readManifest(env: Env, name: string): Promise<Manifest | null> {
+  const checked = await inspectManifest(env, name);
+  return checked.status === "ok" ? checked.manifest : null;
+}
+
+// One snapshot whose manifest cannot be trusted is listed as unreadable, with the reason; it no longer makes the whole list throw (and so hides the good snapshots from the admin routes).
+export async function listSnapshots(env: Env): Promise<{ name: string; complete: boolean; finishedAt: string | null; tables: number; rows: number; notes: number; files: number; unreadable?: string }[]> {
   const out = [];
   for (const name of await listSnapshotNames(env)) {
-    const m = await readManifest(env, name);
-    out.push({ name, complete: m !== null, finishedAt: m?.finishedAt ?? null, tables: m?.tables.length ?? 0, rows: m?.tables.reduce((n, t) => n + t.rows, 0) ?? 0, notes: m?.notes.count ?? 0, files: m?.files.count ?? 0 });
+    const checked = await inspectManifest(env, name);
+    const m = checked.status === "ok" ? checked.manifest : null;
+    out.push({ name, complete: m !== null, ...(checked.status === "unreadable" ? { unreadable: checked.reason } : {}), finishedAt: m?.finishedAt ?? null, tables: m?.tables.length ?? 0, rows: m?.tables.reduce((n, t) => n + t.rows, 0) ?? 0, notes: m?.notes.count ?? 0, files: m?.files.count ?? 0 });
   }
   return out;
 }
@@ -203,8 +273,11 @@ async function setMeta(env: Env, key: string, value: string): Promise<void> {
 export async function restoreSnapshot(env: Env, name: string, confirm: string): Promise<RestoreReport> {
   const bucket = bucketOf(env), business = businessOf(env);
   if (confirm !== business) throw new Error(`to restore, confirm by sending this business's id (${business}) as "confirm"`);
-  const manifest = await readManifest(env, name);
-  if (!manifest) throw new Error("no complete snapshot of that name (a snapshot without its manifest never finished)");
+  // The manifest is trusted, or the restore stops HERE: before the lock, the safety snapshot, any schema change or any data being replaced.
+  const checked = await inspectManifest(env, name);
+  if (checked.status === "unreadable") throw new Error(`the manifest of snapshot ${name} cannot be trusted (${checked.reason}); nothing was changed`);
+  if (checked.status !== "ok") throw new Error("no complete snapshot of that name (a snapshot without its manifest never finished)");
+  const manifest = checked.manifest;
 
   // 1. Everything the snapshot holds is read and CHECKSUMMED before anything is changed: a damaged snapshot must never be half-applied. What is KEPT is only each table's COMPRESSED bytes (small);
   // each table is also decompressed once here and the text dropped, so a part that will not decompress is found now, not half way through. Holding every table's decompressed text at once,

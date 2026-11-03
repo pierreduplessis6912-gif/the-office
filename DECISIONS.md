@@ -308,3 +308,4 @@ Split on 2026-10-24 from the 7958-line original, which is `git show 95bf743:DECI
 - [Investigation foundation: open questions and what is deliberately deferred (2026-11-02)](docs/decisions/investigation-foundation.md) (new)
 - [Engine integrity: the invariants, the event model, and what a clean result means (2026-11-02)](docs/decisions/engine-foundation.md) (new)
 - [Engine tenant isolation and the ownership boundary: what is tested, and what is not (2026-11-02)](docs/decisions/engine-foundation.md) (new)
+- [Recovery hardening: the snapshot manifest is validated before anything acts on it (2026-11-02, Task 4 item 1)](docs/decisions/engine-foundation.md) (new)

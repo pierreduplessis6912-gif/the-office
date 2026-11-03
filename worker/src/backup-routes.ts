@@ -15,7 +15,7 @@ export async function backupRoute(request: Request, env: Env, url: URL): Promise
         const meta = await readBackupMeta(env);
         const snapshots = env.BACKUPS ? await listSnapshots(env) : [];
         const newest = snapshots.filter((s) => s.complete).slice(-1)[0] ?? null;
-        return Response.json({ business: env.BUSINESS_ID, backupBucketConfigured: Boolean(env.BACKUPS), keep: KEEP_SNAPSHOTS, ...meta, snapshots: snapshots.length, complete: snapshots.filter((s) => s.complete).length, newest, newestAgeHours: newest?.finishedAt ? Math.round(((Date.now() - Date.parse(newest.finishedAt)) / 3_600_000) * 10) / 10 : null });
+        return Response.json({ business: env.BUSINESS_ID, backupBucketConfigured: Boolean(env.BACKUPS), keep: KEEP_SNAPSHOTS, ...meta, snapshots: snapshots.length, complete: snapshots.filter((s) => s.complete).length, unreadable: snapshots.filter((s) => s.unreadable !== undefined).length, newest, newestAgeHours: newest?.finishedAt ? Math.round(((Date.now() - Date.parse(newest.finishedAt)) / 3_600_000) * 10) / 10 : null });
       }
       case "GET /list":
         return Response.json({ snapshots: await listSnapshots(env) });
