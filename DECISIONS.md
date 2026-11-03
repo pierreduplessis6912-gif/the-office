@@ -310,3 +310,4 @@ Split on 2026-10-24 from the 7958-line original, which is `git show 95bf743:DECI
 - [Engine tenant isolation and the ownership boundary: what is tested, and what is not (2026-11-02)](docs/decisions/engine-foundation.md) (new)
 - [Recovery hardening: the snapshot manifest is validated before anything acts on it (2026-11-02, Task 4 item 1)](docs/decisions/engine-foundation.md) (new)
 - [Real-object re-proof of the restore-verification fix (2026-11-02, Task 4 item 2)](docs/decisions/engine-foundation.md) (new)
+\n- [Object ownership: how it is established, what is pinned, and what is recorded but not endorsed (2026-11-03)](docs/decisions/engine-foundation.md) (new)\n

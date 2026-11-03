@@ -86,6 +86,47 @@ async function businessObjectTests({ check, srcDir }) {
   const dbI = new DatabaseSync(':memory:'); const I = makeState(dbI); I.state.id = { name: 42 };
   check((await new Business(I.state, workerEnv).fetch(named('alpha-co'))).status === 200 && boundTo(dbI) === 'alpha-co', 'KNOWN LIMITATION: a name that is not a string is treated as not exposed (fail-open), never as a mismatch, so an unexpected runtime shape cannot lock a business out');
 
+  // ---- the STATES the stored identity can be in (Task: pin the exact refusal behaviour; the review of 2026-11-03) ---------------------------------------------------------------------------------------------------------
+  // Each is what the code does TODAY. Where today's behaviour is fail-closed it is pinned as an invariant; where it is not what the ownership principle wants (only authenticated provisioning should create ownership), it is labelled OBSERVATION: recorded, not endorsed.
+  const sjobs = (ranBy, backups) => ({ consolidate: async (e) => { ranBy.push(e.BUSINESS_ID); }, backup: async (e) => { backups.push(e.BUSINESS_ID); } });
+  const woke = async (name, jobsRan, backupsRan, db = new DatabaseSync(':memory:'), st = null) => {
+    const state = st || makeState(db); if (name && !st) state.state.id = { name };
+    const Cls = bo.makeBusinessObject(serve, sjobs(jobsRan, backupsRan)); const obj = new Cls(state.state, { ...workerEnv, BACKUPS: {} }); await obj.ready;
+    return { db, state, Cls, obj, again: async () => { const o = new Cls(state.state, { ...workerEnv, BACKUPS: {} }); await o.ready; return o; } };
+  };
+  const bindingOf = (db) => db.prepare("SELECT value FROM object_meta WHERE key = 'business_id'").get()?.value ?? null;
+  const unseen = () => seen.length;
+
+  // MISSING: the row is gone from an object that holds a business
+  { const ran = [], bk = []; const x = await woke(null, ran, bk); await x.obj.fetch(named('alpha-co')); x.db.exec("DELETE FROM object_meta WHERE key = 'business_id'");
+    const o2 = await x.again(), r = await o2.fetch(named('beta-co'));
+    check(r.status === 200 && bindingOf(x.db) === 'beta-co', 'OBSERVATION (recorded, NOT endorsed: only authenticated provisioning should create ownership): with no runtime name, an object whose binding row is gone is re-bound by the NEXT valid claim, whichever business that is (here alpha-co\'s object became beta-co\'s)'); }
+  { const ran = [], bk = []; const x = await woke('business-alpha-co', ran, bk); await x.obj.fetch(named('alpha-co')); x.db.exec("DELETE FROM object_meta WHERE key = 'business_id'");
+    const o2 = await x.again(), wrong = await o2.fetch(named('beta-co')), right = await o2.fetch(named('alpha-co'));
+    check(wrong.status === 403 && right.status === 200 && bindingOf(x.db) === 'alpha-co', 'MISSING binding WITH a runtime name: a claim for another business is refused, and the object can only be re-bound to the business its own name says: the name constrains re-binding'); }
+
+  // MALFORMED: a stored value that is not a business id (never validated on the way in, so it fails CLOSED: nobody is served and nothing is rewritten)
+  for (const bad of ['', 'NOT A BUSINESS', 'Alpha-Co', ' alpha-co', 'a']) {
+    const ran = [], bk = []; const x = await woke(null, ran, bk); await x.obj.ready;
+    x.db.prepare("INSERT INTO object_meta (key, value) VALUES ('business_id', ?)").run(bad);
+    const o2 = await x.again(), before = unseen(), r1 = await o2.fetch(named('alpha-co')), r2 = await o2.fetch(named('beta-co'));
+    check(r1.status === 403 && r2.status === 403 && unseen() === before && bindingOf(x.db) === bad, `MALFORMED stored binding ${JSON.stringify(bad)}: EVERY valid claim is refused 403, nothing reaches the pipeline, and the row is left exactly as it was (fail-closed, not repaired)`);
+    await o2.alarm();
+    const skipped = x.db.prepare("SELECT value FROM object_meta WHERE key = 'backup_skipped'").get()?.value || '';
+    check(ran.length === 0 && bk.length === 0 && /does not know its business/.test(skipped) && x.state.alarmSets() >= 1, `MALFORMED stored binding ${JSON.stringify(bad)}: the alarm runs NO job and NO backup, records WHY (the object does not know its business's name), and still arms the next alarm`);
+  }
+
+  // MISMATCHED: a stored binding that disagrees with the runtime name
+  { const ran = [], bk = []; const x = await woke(null, ran, bk); await x.obj.fetch(named('alpha-co'));   // bound to alpha-co with no name known
+    const named2 = makeState(x.db); named2.state.id = { name: 'business-beta-co' };               // the same storage, now woken under a name that does not match the binding
+    const o2 = await woke('business-beta-co', ran, bk, x.db, named2).then((y) => y.obj);
+    const a = await o2.fetch(named('alpha-co')), b = await o2.fetch(named('beta-co'));
+    check(a.status === 403 && b.status === 403 && bindingOf(x.db) === 'alpha-co', 'MISMATCHED (bound to alpha-co, runtime name business-beta-co): a claim for alpha-co is refused by the NAME check, a claim for beta-co by the BINDING check, and the binding is untouched: the object serves nobody');
+    const blind = await woke(null, ran, bk, x.db, makeState(x.db)); const c = await blind.obj.fetch(named('alpha-co'));
+    check(c.status === 200 && bindingOf(x.db) === 'alpha-co', 'MISMATCHED, but the runtime exposes no name: the stored binding is the only authority and the object serves alpha-co (the name witness is absent, so there is nothing to disagree with)');
+    ran.length = 0; await o2.alarm();
+    check(ran.length === 1 && ran[0] === 'alpha-co', 'OBSERVATION (recorded, NOT endorsed): the hourly alarm checks only the STORED binding, never the runtime name, so an object whose name disagrees with its binding still runs its job for the stored business'); }
+
   // ---- a second wake ---------------------------------------------------------------------------------------------------------------------------
   const again = await bo.ensureObjectSchema(objA.db, workerEnv);
   check(again.appliedBaseline === false && again.indexes.created.length === 0 && dbA.prepare('SELECT COUNT(*) AS n FROM customers').get().n === 1, 'a second wake does not redo the baseline, creates no index twice, and keeps the data');

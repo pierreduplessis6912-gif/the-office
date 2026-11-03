@@ -142,19 +142,34 @@ const plain = plainRow;
     const storage = { sql, transactionSync(fn) { db.exec('BEGIN'); try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; } }, getAlarm: async () => alarmAt, setAlarm: async (t) => { alarmAt = t; alarmSets++; } };
     return { state: { storage, blockConcurrencyWhile: (fn) => fn(), waitUntil: (p) => waited.push(p) }, waited, alarm: () => alarmAt, alarmSets: () => alarmSets };
   };
-async function makeFleet({ ids = ['alpha-co', 'beta-co'], exposeIdentity = true } = {}) {
+// directory: give the Worker a real shared directory (and the confirm key privileged admin routes need), so sign-up and create-business run for real. autoWake: an object is woken under its real name the first time it is addressed (an unknown business id gets an object too, as on the real platform).
+// Every call into an object is recorded in `calls` (name, claim, method, path, whether an admin key was sent, and whether the directory had a row for that business AT THAT MOMENT), which is what lets a test check provisioning ORDER.
+async function makeFleet({ ids = ['alpha-co', 'beta-co'], exposeIdentity = true, directory = false, autoWake = false } = {}) {
   const fns = await buildHandler(), mod = fns.mod;
   const env = { BUSINESS_MODE: 'object', SESSION_SECRET: 'fleet-secret', ADMIN_KEY: 'fleet-admin', METER_USAGE: '0' };
   const objects = {}, raws = {}; let misroute = null;
   // forwardToBusiness calls namespace.get(namespace.idFromName(name), { locationHint }).fetch(request); misroute(name) lets a test send a request to the WRONG object on purpose
-  env.BUSINESS = { idFromName: (name) => ({ name }), get: (id) => ({ fetch: (req) => objects[misroute ? misroute(id.name) : id.name].fetch(req) }) };
+  let dirRaw = null; const calls = [];
+  if (directory) {
+    dirRaw = new DatabaseSync(':memory:');
+    env.OFFICE_DB = { prepare: (sql) => { const st = (binds) => ({ bind: (...b) => st(b), first: async () => dirRaw.prepare(sql).get(...binds) ?? null, all: async () => ({ results: dirRaw.prepare(sql).all(...binds) }), run: async () => dirRaw.prepare(sql).run(...binds) }); return st([]); } };
+    env.ADMIN_CONFIRM_KEY = 'fleet-confirm'; env.PLAN_CACHE_SECONDS = '0';
+  }
+  const directoryHas = (id) => { if (!dirRaw) return null; try { return Boolean(dirRaw.prepare('SELECT 1 FROM businesses WHERE id = ?').get(id)); } catch { return false; } };   // false before the directory exists at all
+  // the Worker calls stub.fetch(request) when it forwards and stub.fetch(url, init) for its own internal calls (callBusiness): both shapes are accepted, as on the real platform
+  env.BUSINESS = { idFromName: (name) => ({ name }), get: (id) => ({ fetch: async (input, init) => {
+    const name = misroute ? misroute(id.name) : id.name, req = input instanceof Request ? input : new Request(input, init);
+    calls.push({ name, claim: req.headers.get('X-Business-Id'), method: req.method, path: new URL(req.url).pathname, adminKey: req.headers.has('X-Admin-Key'), directoryHasRow: directoryHas(id.name.replace(/^business-/, '')) });
+    if (!objects[name] && autoWake) await wake(name.replace(/^business-/, ''));
+    return objects[name].fetch(req);
+  } }) };
   const ctx = { waitUntil() {}, passThroughOnException() {} };
   const wake = async (b) => { const raw = new DatabaseSync(':memory:'); const st = makeDoState(raw); if (exposeIdentity) st.state.id = { name: 'business-' + b };   // what the runtime tells an object about the name it was addressed by (exposeIdentity: false simulates a runtime that tells it nothing)
     const o = new mod.BusinessObject(st.state, env); await o.ready; objects['business-' + b] = o; raws[b] = raw; return o; };
   for (const b of ids) await wake(b);
   const url = (p) => 'https://office.example' + p;
   return {
-    env, mod, auth: fns.auth, objects, raws, wake, ctx,
+    env, mod, auth: fns.auth, objects, raws, wake, ctx, calls, directoryRaw: dirRaw,
     setMisroute: (fn) => { misroute = fn; },
     db: (b) => objects['business-' + b].db,   // the object's own database, in the D1 shape the engine uses
     token: (email, b) => fns.auth.signSession(env, email, b),
