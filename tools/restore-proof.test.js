@@ -112,15 +112,20 @@ module.exports = kit.guard('restore proof (judge and workflow)', async ({ check 
   const startAt = p2.indexOf('git config user.name'), endAt = p2.indexOf('if [ "$RC" -ne 0 ]');
   check(startAt > 0 && endAt > startAt && /git checkout -- worker\/src\/schema-steps\.ts worker\/src\/baseline-sql\.ts/.test(p2) && /for attempt in/.test(p2), 'part 2 puts the regenerated tracked files back before it rebases, and retries the push');
   const gitTail = startAt > 0 && endAt > startAt ? p2.slice(startAt, endAt).split('\n').map((l) => l.replace(/^ {10}/, '')).join('\n') : '';
-  const race = (script) => {
+  const race = (script, opts = {}) => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'race-')), sh = (cmd, cwd = dir) => spawnSync('bash', ['-c', cmd], { cwd, encoding: 'utf8' });
     sh(`set -e; git init -q --bare -b main origin.git; git init -q -b main work; cd work; git config user.email a@b.c; git config user.name t; mkdir -p worker/src ops; echo base > worker/src/schema-steps.ts; echo base > worker/src/baseline-sql.ts; git add .; git commit -qm base; git remote add origin ../origin.git; git push -q origin main`);
     const work = path.join(dir, 'work');
     sh('echo regenerated-by-gen-baseline >> worker/src/schema-steps.ts; echo regenerated >> worker/src/baseline-sql.ts; echo \'{"all_ok": true}\' > ops/staging-restore-proof-last.json', work);   // what the run has done by the time it records
     sh('set -e; git clone -q origin.git other; cd other; git config user.email a@b.c; git config user.name t; echo ci > ci.json; git add .; git commit -qm "proof-tests record"; git push -q origin main');   // the branch advances while the run goes
+    if (opts.betweenPullAndPush) {   // a record lands on the branch AFTER the pull and BEFORE the push: the first push is rejected, and only a retry (which pulls again) can record
+      const hook = path.join(work, '.git', 'hooks', 'pre-push');
+      fs.writeFileSync(hook, `#!/bin/bash\nM="${work}/.git/raced"\nif [ ! -f "$M" ]; then touch "$M"; (cd "${dir}/other" && git pull -q --rebase origin main && echo ci2 >> ci.json && git add . && git commit -qm "second proof-tests record" && git push -q origin main) >/dev/null 2>&1; fi\nexit 0\n`);
+      fs.chmodSync(hook, 0o755);
+    }
     const r = sh(`set +e; export GITHUB_REF_NAME=main; ${script}`, work);
     const log = sh('git --git-dir=origin.git log --format=%s main').stdout;
-    return { recorded: /Staging restore re-proof record/.test(log), kept: /proof-tests record/.test(log), out: r.stdout + r.stderr };
+    return { recorded: /Staging restore re-proof record/.test(log), kept: /proof-tests record/.test(log), second: /second proof-tests record/.test(log), code: r.status, out: r.stdout + r.stderr };
   };
   if (gitTail) {
     const fixed = race(gitTail);
@@ -129,6 +134,11 @@ module.exports = kit.guard('restore proof (judge and workflow)', async ({ check 
     check(!broken.recorded, 'CONTROL: without putting the regenerated files back, the same race leaves NO record (this is what silently failed a run whose code was identical to a run that recorded)');
     const single = race(gitTail.replace(/for attempt in[\s\S]*?\ndone/, 'git pull --rebase origin "$GITHUB_REF_NAME"\nPUSHRC=0\ngit push origin HEAD:"$GITHUB_REF_NAME" || PUSHRC=$?'));
     check(single.recorded, 'a single pull and push also works when the branch is merely behind (the retry exists for a push that loses a race between the pull and the push)');
+    // THE RETRY ITSELF, which nothing exercised until the breakage run found its removal went unnoticed (mutation: "the push is attempted once")
+    const lost = race(gitTail, { betweenPullAndPush: true });
+    check(lost.recorded && lost.kept && lost.second, `RETRY: when the first push loses a race between the pull and the push (a record lands in that gap), the retry pulls again and the record is STILL pushed, on top of BOTH commits that landed${lost.recorded ? '' : ' [' + lost.out.replace(/\s+/g, ' ').slice(0, 160) + ']'}`);
+    const once = race(gitTail.replace('for attempt in 1 2 3; do', 'for attempt in 1; do'), { betweenPullAndPush: true });
+    check(!once.recorded && once.second, 'CONTROL: with a single attempt the same lost race leaves NO record (the race is real, and the retry is what survives it)');
   }
 });
 
