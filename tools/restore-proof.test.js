@@ -105,6 +105,31 @@ module.exports = kit.guard('restore proof (judge and workflow)', async ({ check 
   check(/git push origin HEAD:"\$GITHUB_REF_NAME"/.test(p2) && !/HEAD:main|origin main/.test(p2), 'it records to the BRANCH it ran on, never to main (a push to main deploys production)');
   check(!/provision/i.test(p1 + p2.replace(/^\s*#.*$/gm, '')) && !/wrangler|secret put|CLOUDFLARE_API_TOKEN/i.test((p1 + p2).replace(/^\s*#.*$/gm, '')), 'it provisions no engine data, sets no secret and holds no Cloudflare token: it snapshots, restores and reads');
   check(/uses: \.\/\.github\/workflows\/staging\.yml\s*\n\s*with:\s*\n\s*mode: gate/.test(fs.readFileSync(DEPLOY, 'utf8')) && !/restore-proof/.test(step('Gate - check that every business object')), 'production\'s pipeline still calls staging.yml in gate mode, never restore-proof, and the gate steps do not mention it');
+
+  // ---- THE RECORDING MUST SURVIVE A PUSH RACE (found 2026-11-03: two identical-code runs, one recorded and one died silently) ------------------------------------------------------------------------------
+  // The temporary migration step regenerates two TRACKED files (tools/gen-baseline.js), and git refuses to rebase over unstaged changes; the branch also advances while a run is going (the proof-tests record), so a plain "pull --rebase, push" fails
+  // and leaves NO record. The drill's and the rehearsal's record steps put the files back first; this step did not. These tests run the step's REAL git commands in a scratch repo through that exact race.
+  const startAt = p2.indexOf('git config user.name'), endAt = p2.indexOf('if [ "$RC" -ne 0 ]');
+  check(startAt > 0 && endAt > startAt && /git checkout -- worker\/src\/schema-steps\.ts worker\/src\/baseline-sql\.ts/.test(p2) && /for attempt in/.test(p2), 'part 2 puts the regenerated tracked files back before it rebases, and retries the push');
+  const gitTail = startAt > 0 && endAt > startAt ? p2.slice(startAt, endAt).split('\n').map((l) => l.replace(/^ {10}/, '')).join('\n') : '';
+  const race = (script) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'race-')), sh = (cmd, cwd = dir) => spawnSync('bash', ['-c', cmd], { cwd, encoding: 'utf8' });
+    sh(`set -e; git init -q --bare -b main origin.git; git init -q -b main work; cd work; git config user.email a@b.c; git config user.name t; mkdir -p worker/src ops; echo base > worker/src/schema-steps.ts; echo base > worker/src/baseline-sql.ts; git add .; git commit -qm base; git remote add origin ../origin.git; git push -q origin main`);
+    const work = path.join(dir, 'work');
+    sh('echo regenerated-by-gen-baseline >> worker/src/schema-steps.ts; echo regenerated >> worker/src/baseline-sql.ts; echo \'{"all_ok": true}\' > ops/staging-restore-proof-last.json', work);   // what the run has done by the time it records
+    sh('set -e; git clone -q origin.git other; cd other; git config user.email a@b.c; git config user.name t; echo ci > ci.json; git add .; git commit -qm "proof-tests record"; git push -q origin main');   // the branch advances while the run goes
+    const r = sh(`set +e; export GITHUB_REF_NAME=main; ${script}`, work);
+    const log = sh('git --git-dir=origin.git log --format=%s main').stdout;
+    return { recorded: /Staging restore re-proof record/.test(log), kept: /proof-tests record/.test(log), out: r.stdout + r.stderr };
+  };
+  if (gitTail) {
+    const fixed = race(gitTail);
+    check(fixed.recorded && fixed.kept, `RACE: with the branch advanced and tracked files regenerated, the step's real git commands STILL push the record, on top of the commit that landed meanwhile${fixed.recorded ? '' : ' [' + fixed.out.replace(/\s+/g, ' ').slice(0, 160) + ']'}`);
+    const broken = race(gitTail.split('\n').filter((l) => !/git checkout -- worker\/src/.test(l)).join('\n'));
+    check(!broken.recorded, 'CONTROL: without putting the regenerated files back, the same race leaves NO record (this is what silently failed a run whose code was identical to a run that recorded)');
+    const single = race(gitTail.replace(/for attempt in[\s\S]*?\ndone/, 'git pull --rebase origin "$GITHUB_REF_NAME"\nPUSHRC=0\ngit push origin HEAD:"$GITHUB_REF_NAME" || PUSHRC=$?'));
+    check(single.recorded, 'a single pull and push also works when the branch is merely behind (the retry exists for a push that loses a race between the pull and the push)');
+  }
 });
 
 if (require.main === module) kit.standalone(module.exports);

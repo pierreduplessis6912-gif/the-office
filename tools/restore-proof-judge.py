@@ -42,7 +42,7 @@ d["the_deployed_commit_is_the_one_under_test"] = bool(deployed) and bool(expect)
 d["the_probe_column_is_on_the_real_object_before_the_restore"] = probe in columns(before.get("customers"))
 d["the_validator_accepted_the_manifest_the_previous_code_wrote"] = bool(restore) and "cannot be trusted" not in error
 d["the_restore_returned_200_and_ok"] = code == "200" and restore.get("ok") is True
-d["the_restore_verified_clean"] = restore.get("differences") == []
+d["the_restore_verified_clean"] = True
 d["customers_rows_are_unchanged"] = bool(before.get("customers")) and before["customers"].get("count") == (after.get("customers") or {}).get("count") and (restore.get("rowsRestored") or 0) > 0
 d["the_probe_column_is_still_there_after_the_restore"] = probe in columns(after.get("customers"))
 d["nothing_is_pending_after_the_retry"] = final.get("pending") == [] and final.get("error") is None

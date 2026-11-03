@@ -420,11 +420,16 @@ jobs:
           fi
           git config user.name "staging-workflow"
           git config user.email "noreply@github.com"
+          # The temporary migration step regenerated two TRACKED files (tools/gen-baseline.js) and git refuses to rebase over unstaged changes; the branch also advances while a run is going (the proof-tests record).
+          # A plain pull and push therefore left no record at all (run 41591517170, whose code was identical to the run that recorded). Put the files back, then retry the rebase and push: an unrecorded proof is not a proof.
+          git checkout -- worker/src/schema-steps.ts worker/src/baseline-sql.ts
           git add ops/staging-restore-proof-last.json
           git commit -m "Staging restore re-proof record (the restore-verification fix on a real object; ids, counts and results only)" || echo "nothing to record"
-          git pull --rebase origin "$GITHUB_REF_NAME"
-          PUSHRC=0
-          git push origin HEAD:"$GITHUB_REF_NAME" || PUSHRC=$?
+          PUSHRC=1
+          for attempt in 1 2 3; do
+            git pull --rebase origin "$GITHUB_REF_NAME" && git push origin HEAD:"$GITHUB_REF_NAME" && { PUSHRC=0; break; }
+            sleep 3
+          done
           if [ "$RC" -ne 0 ]; then exit "$RC"; fi
           exit "$PUSHRC"
 
