@@ -8,6 +8,9 @@ Written 2026-11-03 so work can continue when one assistant's usage runs out. It 
 - Pierre is a solo founder working **from a phone** (Termux and GitHub Actions). He wants direct answers, **one priority at a time**, results in chat (no long documents). **He decides.** Every build, staging run and merge needs his explicit approval.
 - Evidence labels used everywhere: **[C]** code read, **[T]** automated test, **[X]** committed record of a real staging run, **[D]** public Cloudflare docs, **[I]** inference, **[U]** unknown. Never present [I] or [U] as fact. CI is authoritative; a local pass is not.
 
+## Orient yourself: read in this order
+1. **This file.** 2. [docs/PRODUCT_VISION.md](docs/PRODUCT_VISION.md): what The Office is meant to become and why. 3. [docs/ROADMAP.md](docs/ROADMAP.md): the stages, what each unlocks, what is unresolved. 4. The architecture that governs your task: [docs/decisions/engine-foundation.md](docs/decisions/engine-foundation.md), [docs/decisions/investigation-foundation.md](docs/decisions/investigation-foundation.md) (proposed), [DECISIONS.md](DECISIONS.md), [VISION.md](VISION.md) (the projection layer), [FUTURE_CAPABILITIES.md](FUTURE_CAPABILITIES.md), [SHIP_CHECKLIST.md](SHIP_CHECKLIST.md), [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) (owner-only decisions). 5. **Establish the live repository state** (commands under Working rules); never trust a commit id written in a document. 6. Read "Known release blockers" below. 7. Your immediate task is under "First task". 8. **Restate the approval boundaries to Pierre before acting.**
+
 ## Last verified state (re-check with git; the newest commit is usually a CI record, not code)
 | Field | Value |
 |---|---|
@@ -45,14 +48,16 @@ Integrity verifier with 10 codes and an event model; tenant-isolation tests (rou
 | Phase 2 (Flutter receivables shell against a fake API, in `app/`) | **Can proceed on the branch.** Not started. |
 | Merge, deploy | **Pierre's call.** Not established as production-ready. |
 
-## First task for the next model: accept or reject `da55997` (read only)
-It is committed and CI-green but **not reviewed**. Green CI does not show the tests prove the intended invariant. Report, with evidence, whether the tests (`tools/object-binding.test.js`, the new checks in `tools/business-object.test.js`):
+## First task for the next model: accept or reject `da55997` (read only, no code changes)
+`da55997` ("Object ownership: tests only") is committed and CI-green but **not reviewed**. Green CI does not show the tests prove the intended invariant. **Read the actual test code** (`tools/object-binding.test.js`, the new checks in `tools/business-object.test.js`, the mutations it added to `tools/engine-breakage.js`); do not infer coverage from test names or counts. Establish whether the tests:
 1. exercise the REAL object lifecycle (the production class over a stand-in for Durable Object storage, not a re-implementation);
-2. prove the binding is write-once and that an ordinary request cannot create, change or reset it;
-3. cover a missing, a malformed and a mismatched stored binding, with the exact behaviour asserted;
-4. **fail when the protection is removed**: for each claim, name the mutation in `tools/engine-breakage.js` that removes it and run `node tools/engine-breakage.js --only <text>` (it works on a copy);
-5. do not assert behaviour as a security contract where the code only observes it (the first-claim binding on a runtime with no name is a known limitation, not a guarantee).
-Do not change code to make a test pass. Report gaps to Pierre; he decides.
+2. prove the binding is genuinely write-once, and that **an ordinary request cannot establish, change or reset ownership**;
+3. cover a **missing**, a **malformed** and a **mismatched** stored binding, with the exact behaviour asserted;
+4. **fail when the protection is deliberately removed**: for each claim name the mutation and run it on a copy with the established runner (`node tools/engine-breakage.js --only <text>`; it never touches the tree);
+5. do not assert the first-claim binding on a runtime with no name as an acceptable security contract (it is a known limitation, not a guarantee).
+**Report:** code evidence, test evidence, mutation evidence, gaps, unknowns, and an acceptance recommendation. Do not change code to make a test pass; Pierre decides.
+
+**After that review**, the next engineering task returns to **Phase 2 on `engine-phase1`, using a fake API where appropriate**, toward the milestone in [docs/ROADMAP.md](docs/ROADMAP.md): an authorised user asks a meaningful business question, The Office investigates authoritative records, returns an evidence-bearing answer, and lets the user trace it to source records. **Do not start that work without Pierre's approval.**
 
 ## Known release blockers (why it is not merge-ready)
 1. The deploy smoke test is unauthenticated, so it cannot detect an object-level failure; it needs an authenticated gate (design in `engine-foundation.md`).
@@ -78,7 +83,7 @@ Do not change code to make a test pass. Report gaps to Pierre; he decides.
 Ask Pierre to run in Termux and paste the output: `git fetch && git log -5 --oneline && git status`, then the one suite or command you need. Give him one command at a time. Do not guess file contents: ask for them.
 
 ## First 10 minutes (any model)
-1. Read this file and `HANDOVER.md`. 2. Verify state (above). 3. Tell Pierre in three lines what you found and which single item from the ledger you propose. 4. Wait for his approval. 5. Do one item per turn; end with what is verified, what is not, and the next step.
+1. Read this file, then the product vision and roadmap (Orient yourself). 2. Verify live state, changing nothing. 3. Tell Pierre in three lines what you found and that your first task is the `da55997` review. 4. Restate the approval boundaries. 5. Wait for his approval. 6. One item per turn; end with what is verified, what is not, and the next step.
 
 ## Paste this to start a new session
-"You are continuing work on The Office (repo pierreduplessis6912-gif/the-office, branch engine-phase1). Read HANDOFF.md and HANDOVER.md first. Do not merge, deploy, or touch production. Verify git state, tell me in three lines what you find and which one ledger item you propose, then wait for my approval. Keep replies short, label evidence, never claim what you have not verified."
+"You are continuing work on The Office (repo pierreduplessis6912-gif/the-office, branch engine-phase1). Before proposing anything, read HANDOFF.md, docs/PRODUCT_VISION.md and docs/ROADMAP.md and the architecture documents they link, so you understand what The Office is meant to become and why it is built this way. Verify the LIVE git state without fetching or changing anything (git status, git log -5, git rev-parse HEAD, compare with origin) and do not trust commit ids written in documents. Restate the approval boundaries to me: never merge to main, never deploy, never touch production, never expose a secret, a recommendation is not approval, never silently change an architectural decision. Your first task is a READ-ONLY review of commit da55997 using the checklist in HANDOFF.md; report code evidence, test evidence, mutation evidence, gaps, unknowns and an acceptance recommendation, and change no code. Keep replies short, label evidence, never claim what you have not verified, and wait for my approval before anything else."
