@@ -1,0 +1,67 @@
+{
+ "a_snapshot_was_taken_before_the_deploy": true,
+ "the_deployed_commit_is_the_one_under_test": true,
+ "the_probe_column_is_on_the_real_object_before_the_restore": true,
+ "the_validator_accepted_the_manifest_the_previous_code_wrote": true,
+ "the_restore_returned_200_and_ok": true,
+ "the_restore_verified_clean": true,
+ "customers_rows_are_unchanged": true,
+ "the_probe_column_is_still_there_after_the_restore": true,
+ "nothing_is_pending_after_the_retry": true,
+ "the_engine_is_back_exactly_and_verifies_clean": true,
+ "the_calls_all_completed": true,
+ "the_backup_lists_of_staging_two_were_read": true,
+ "every_existing_snapshot_of_staging-co_validates": true,
+ "every_existing_snapshot_of_staging-two_validates": true,
+ "all_ok": true,
+ "failed": [],
+ "details": {
+  "pre_snapshot": "20261103T063701Z",
+  "deployed_commit": "843e67e41c0450eb6859d785d0fd533c14329d95",
+  "expected_commit": "843e67e41c0450eb6859d785d0fd533c14329d95",
+  "probe_column": "probe_105",
+  "restore": {
+   "ok": true,
+   "snapshot": "20261103T063701Z",
+   "safetySnapshot": "20261103T063849Z-pre-restore",
+   "tablesRestored": 55,
+   "rowsRestored": 219,
+   "differences": [],
+   "error": null
+  },
+  "restore_http_status": "200",
+  "customers_rows": {
+   "before_restore": 101,
+   "after_restore": 101
+  },
+  "snapshots_validated": {
+   "staging-co": {
+    "snapshots": 14,
+    "complete": 14,
+    "unreadable": 0
+   },
+   "staging-two": {
+    "snapshots": 14,
+    "complete": 14,
+    "unreadable": 0
+   }
+  },
+  "unreadable_snapshots": {},
+  "calls": [
+   "pre-snapshot curl_exit=0 http=200",
+   "pre-snapshot-staging-co curl_exit=0 http=200",
+   "health curl_exit=0 http=200",
+   "manifest-before curl_exit=0 http=200",
+   "engine-before curl_exit=0 http=200",
+   "restore curl_exit=0 http=200",
+   "manifest-after curl_exit=0 http=200",
+   "retry curl_exit=0 http=200",
+   "health-final curl_exit=0 http=200",
+   "engine-after curl_exit=0 http=200",
+   "status-staging-two curl_exit=0 http=200",
+   "list-staging-two curl_exit=0 http=200",
+   "status-staging-co curl_exit=0 http=200",
+   "list-staging-co curl_exit=0 http=200"
+  ]
+ }
+}
