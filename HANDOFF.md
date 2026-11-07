@@ -14,18 +14,26 @@ Written 2026-11-03 so work can continue when one assistant's usage runs out. It 
 ## Environments: what each kind of assistant can and cannot do
 | Environment | Can | Cannot | Use it for |
 |---|---|---|---|
-| **Repository plus a shell** (for example Claude Code) | Everything in this file: read, run tests, run mutations on a copy, use CI | nothing relevant | All engineering. **Preferred for the first task.** |
-| **Browse-only chat** (can read GitHub pages, often only URLs you paste) | Read code and diffs | Run tests or mutations; fetch a URL Pierre did not supply | A read-only review **from the review bundle**. It must label the review PARTIAL (no mutation evidence). |
-| **Chat-only** (nothing) | Reason about text Pierre pastes | Read the repository | A review from the pasted bundle, labelled PARTIAL. |
-- **Say what you cannot do in your first reply.** Do not loop. If a tool refuses URLs Pierre did not supply, ask for **all** the URLs you need in **one** message (the review bundle lists them); never ask for the same URLs twice.
+| **Repository plus a shell** (for example Claude Code, or a command-line agent in Termux) | Everything in this file: read, run tests, run mutations on a copy, use CI | nothing relevant | All engineering. **Required for the first task.** |
+| **Browse-only chat** (can read GitHub pages, often only URLs Pierre pastes) | Read code and diffs | Run tests or mutations; fetch a URL Pierre did not supply | A read-only review **from the review bundle**, labelled PARTIAL. The repository is public, so the bundle's pinned raw URLs should work. |
+| **Chat-only, no network** | Reason about text Pierre pastes or attaches | Read the repository | A review from the attached bundle, labelled PARTIAL. |
+- **A free chat session cannot do the engineering work, and no prompt changes that.** In the last session two such sessions correctly refused: they had no repository, shell or network. That is the right behaviour.
+- **Say what you cannot do in your first reply.** Do not loop. If a tool refuses URLs Pierre did not supply, ask for **all** the URLs you need in **one** message; never ask twice.
 - A review that did not run the mutations has **no evidence for check 4**. Do not give an acceptance recommendation on it.
+
+## Where the last session stopped (2026-11-03)
+- **Documentation is complete and pushed:** `docs/PRODUCT_VISION.md`, `docs/ROADMAP.md`, `docs/review/da55997-review-bundle.md` and this file.
+- **The review of `da55997` has NOT been done.** It is the first task and needs a repository-enabled environment.
+- **A decision is waiting on Pierre:** which repository-enabled environment he will use (a command-line agent in Termux, an agent run inside GitHub Actions, or a cloud shell such as Codespaces), and whether he has an API key or paid plan for the model. Proposed, not built: one setup script that clones the repo, installs `worker/` dependencies, prints the live git state and shows the start prompt.
+- **Credentials:** Pierre pasted a classic GitHub token (scopes `repo` and `workflow`) into a chat so this file could be pushed. **Treat that token as exposed: it must be revoked, and any new one created fine-grained, scoped to this repo, with a short expiry.**
+- Open ownership questions are NOT resolved (see "First task").
 
 ## Last verified state (re-check with git; the newest commit is usually a CI record, not code)
 | Field | Value |
 |---|---|
 | Branch | `engine-phase1` (`main` is `30a249f`, untouched) |
 | Last commit that changed production code (`worker/src`, migrations, `wrangler.toml`) | `243b3fa` |
-| Last code commit with a green CI record | `da55997`: 9,353 of 9,353 default, 9,350 of 9,350 adapter, typecheck success (`ops/proof-tests-last.json`). The production code itself was last verified at `ec3baed` (run 41607411580). |
+| Last code commit with a green CI record | `da55997`: 9,353 of 9,353 default, 9,350 of 9,350 adapter, typecheck success (`ops/proof-tests-last.json`). The production code itself was last verified at `ec3baed` (run 41607411580). Commits after `da55997` were documentation only. |
 | Last full staging rehearsal (real sessions, two-business isolation, sign-up, model, memory, backup and restore, migration `0004` rollback) | `0ed2de0`, run 41445346938, 12 of 13 (the 13th was a restore-verification bug since fixed) |
 | Later staging runs | gate `496c1aa`; identity check `1ea2d45`; restore re-proof `843e67e` and `b985ace` (`ops/staging-*-last.json`) |
 | Production | Last deploy `f469510` (2026-11-01). **Nothing from this branch is deployed or authorised.** |
@@ -43,18 +51,20 @@ Never confuse the newest commit with the newest *verified* implementation: a gre
 - The engine is a new module (`worker/src/engine/*`, migration `0004`, additive, 13 tables, no triggers). Existing (non-engine) businesses are unchanged except: one extra `eng_config` read on legacy write routes and on MCP calls, `/engine/*` answers 409 for them, the identity check, restore and listing validation.
 
 ## What is DONE (approved, tested, CI green)
-Integrity verifier with 10 codes and an event model; tenant-isolation tests (router, object, front door, misroute) and an ownership test; the identity fix (an object refuses a claim that does not match its runtime name; verified on real staging objects); manifest validation before restore; the restore-verification fix **proven on real staging objects**; a copy-based, filterable breakage runner; staging modes `identity` and `restore-proof`.
+Integrity verifier with 10 codes and an event model; tenant-isolation tests (router, object, front door, misroute) and an ownership test; the identity fix (an object refuses a claim that does not match its runtime name; verified on real staging objects); manifest validation before restore; the restore-verification fix **proven on real staging objects**; a copy-based, filterable breakage runner; staging modes `identity` and `restore-proof`; the documentation set (vision, roadmap, review bundle, this file).
 
 ## Approval ledger (nothing below is approved unless it says so)
 | Item | Status |
 |---|---|
-| Identity tests: pin write-once binding; missing, malformed and mismatched binding states; both provisioning paths (sign-up, admin create) | **A commit exists: `da55997`, tests only, CI green.** It came from a parallel or retried attempt, was **never approved or reviewed by Pierre, and its test content was not read by the assistant that wrote this file.** Review it before relying on it. |
-| Authenticated post-deploy health gate (design) | Design only, **not approved** |
+| Review of `da55997` (read only) | **Not done. It is the first task.** |
+| Identity tests (write-once binding, missing, malformed and mismatched states, both provisioning paths) | **A commit exists: `da55997`, tests only, CI green.** It came from a parallel or retried attempt, was **never approved or reviewed by Pierre**, and its content was not read by the assistant that wrote this file. |
+| Authenticated post-deploy health gate | Design only, **not approved** |
 | Staging rehearsal of that gate and of a rollback while objects are on migration `0004` | **Not approved** |
 | Production manifest validation (read-only) | **Separate approval, not given** |
 | Memory ramp test on a real object | **Not approved** |
 | Recovery-gate acceptance | **Pierre's alone** |
-| Phase 2 (Flutter receivables shell against a fake API, in `app/`) | **Can proceed on the branch.** Not started. |
+| Setup script for a repository-enabled environment | **Proposed, not built**, awaiting Pierre's choice of environment |
+| Phase 2 (Flutter receivables shell against a fake API, in `app/`) | Can proceed on the branch **after the `da55997` review and Pierre's approval**. Not started. |
 | Merge, deploy | **Pierre's call.** Not established as production-ready. |
 
 ## First task for the next model: accept or reject `da55997` (read only, no code changes)
@@ -76,6 +86,7 @@ Integrity verifier with 10 codes and an event model; tenant-isolation tests (rou
 1. The deploy smoke test is unauthenticated, so it cannot detect an object-level failure; it needs an authenticated gate (design in `engine-foundation.md`).
 2. Production's real manifests have not been checked against the new validator.
 3. The recovery gate is open. 4. Memory margin at size is unmeasured on a real object. 5. Not re-run end to end on staging at this exact head.
+6. The ownership-boundary policy is undecided (whether a name mismatch on a bound object refuses or only reports; whether only authenticated provisioning may bind an object).
 
 ## Working rules
 - **STANDING RULE: never retry a Git operation or any write after an uncertain timeout.** First run `git status`, `git log -3` and `git rev-parse HEAD` (and compare with `origin/engine-phase1`) and decide whether the earlier attempt already succeeded. Only then act. Duplicate attempts have already produced unexpected commits.
@@ -90,7 +101,7 @@ Integrity verifier with 10 codes and an event model; tenant-isolation tests (rou
 - Tool calls are limited to about 5 minutes. Run long jobs **detached** (`setsid nohup ... > log 2>&1 < /dev/null &`) and poll. Let CI run the full matrix.
 - The shell is `sh` (dash): no bashisms, quote parentheses, no `time ( )`.
 - Raw CI logs cannot be downloaded from the sandbox (blob host blocked); use the API's step results and `ops/proof-tests-last.json`.
-- Credentials: a fine-grained GitHub token lived in the previous assistant's sandbox, **not in the repo**. Pierre must supply a new one (Contents, Actions, Workflows read/write; reaches only this repo and Website-hub). Staging admin keys are GitHub Actions secrets, never visible to an assistant.
+- Credentials: **no token is stored in the repo, and any token an earlier assistant used must be treated as expired or exposed.** Pierre must supply a new fine-grained token (Contents, Actions, Workflows read/write; scoped to this repo, short expiry). It must never be pasted into a chat or committed. Staging admin keys are GitHub Actions secrets, never visible to an assistant.
 
 ## Chat-only models (no repo access)
 Ask Pierre to run in Termux and paste the output: `git fetch && git log -5 --oneline && git status`, then the one suite or command you need. Give him one command at a time. Do not guess file contents: ask for them.
@@ -98,5 +109,8 @@ Ask Pierre to run in Termux and paste the output: `git fetch && git log -5 --one
 ## First 10 minutes (any model)
 1. Read this file, then the product vision and roadmap (Orient yourself). 2. Verify live state, changing nothing. 3. Tell Pierre in three lines what you found and that your first task is the `da55997` review. 4. Restate the approval boundaries. 5. Wait for his approval. 6. One item per turn; end with what is verified, what is not, and the next step.
 
-## Paste this to start a new session
+## Paste this to start a new session (needs a repository and a shell)
 "You are continuing work on The Office (repo pierreduplessis6912-gif/the-office, branch engine-phase1). Before proposing anything, read HANDOFF.md, docs/PRODUCT_VISION.md and docs/ROADMAP.md and the architecture documents they link, so you understand what The Office is meant to become and why it is built this way. Verify the LIVE git state without fetching or changing anything (git status, git log -5, git rev-parse HEAD, compare with origin) and do not trust commit ids written in documents. Restate the approval boundaries to me: never merge to main, never deploy, never touch production, never expose a secret, a recommendation is not approval, never silently change an architectural decision. Your first task is a READ-ONLY review of commit da55997 using the checklist in HANDOFF.md; report code evidence, test evidence, mutation evidence, gaps, unknowns and an acceptance recommendation, and change no code. If your environment cannot read the repository or run commands, say so in your first reply and ask me for docs/review/da55997-review-bundle.md and label the review partial; do not try to coax a browsing tool. Keep replies short, label evidence, never claim what you have not verified, and wait for my approval before anything else."
+
+## Paste this instead if the model has no repository or network
+"You are helping me continue work on The Office. You cannot see the repository, so I am attaching HANDOFF.md and docs/review/da55997-review-bundle.md. Read HANDOFF.md first and restate its hard limits, approval ledger and first task in your own words. Then do the da55997 review from the bundle only, labelled PARTIAL: give no acceptance recommendation on check 4, give code evidence with file names and line numbers for checks 1, 2, 3 and 5, list gaps and unknowns, and tell me which mutations I must run later in a shell. Change nothing. Never tell me to merge, deploy or touch production. Keep it short."

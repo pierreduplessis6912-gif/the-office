@@ -2,6 +2,8 @@
 
 > The State section below names the commit production runs. Replaces the August handover. Keep this file CURRENT: it is the first thing a new chat reads. Nothing in this repo is untouchable; the only rule is that it stays true.
 
+> **Entry point is now [HANDOFF.md](HANDOFF.md).** This file is older context; where they differ, HANDOFF.md and the live repository win.
+
 # The Office: handover for a fresh chat
 
 **Start a chat with:** "Read HANDOVER.md in pierreduplessis6912-gif/the-office and continue." Then paste the GitHub classic token (scopes repo + workflow, expires 2026-11-23). The repo is PUBLIC: never print, commit or store the token. Save it to `/home/claude/.office_gh_token` (chmod 600); git over HTTPS as `x-access-token`; commit identity `Claude <noreply@anthropic.com>`. Containers do not persist: the repo is the source of truth.
