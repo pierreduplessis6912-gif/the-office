@@ -4,9 +4,9 @@
     "status": "confirmed",
     "capability": "payment.record",
     "outcome": {
-      "movementId": 1,
+      "movementId": 3,
       "allocationIds": [
-        1
+        3
       ]
     }
   }

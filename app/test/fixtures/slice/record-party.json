@@ -7,7 +7,7 @@
         "kind": "party",
         "id": 1
       },
-      "version": 3,
+      "version": 10,
       "title": "Mokoena",
       "fields": [
         {
@@ -28,7 +28,7 @@
         {
           "key": "outstandingMinor",
           "label": "Outstanding",
-          "value": 138000,
+          "value": 85000,
           "derivedBy": "ledger.outstandingForParty"
         }
       ],
@@ -40,20 +40,20 @@
             "kind": "invoice",
             "issuedOn": "2026-10-01",
             "grossMinor": 115000,
-            "allocatedMinor": 0,
-            "outstandingMinor": 115000
-          },
-          {
-            "id": 2,
-            "number": 2,
-            "kind": "invoice",
-            "issuedOn": "2026-10-15",
-            "grossMinor": 23000,
-            "allocatedMinor": 0,
-            "outstandingMinor": 23000
+            "allocatedMinor": 30000,
+            "outstandingMinor": 85000
           }
         ],
-        "payments": []
+        "payments": [
+          {
+            "id": 2,
+            "direction": "in",
+            "amountMinor": 30000,
+            "occurredOn": "2026-10-20",
+            "unallocatedMinor": 0,
+            "effective": true
+          }
+        ]
       },
       "relations": [
         {
@@ -65,12 +65,12 @@
           "label": "invoice 1"
         },
         {
-          "role": "invoice",
+          "role": "payment",
           "ref": {
-            "kind": "document",
+            "kind": "movement",
             "id": 2
           },
-          "label": "invoice 2"
+          "label": "Payment 2"
         }
       ],
       "actions": [
@@ -86,7 +86,14 @@
           "eventId": 1,
           "type": "party.created",
           "at": "2026-01-01T00:00:00.000Z",
-          "actor": "seed@example.com",
+          "actor": "engine-rehearsal@example.com",
+          "reason": null
+        },
+        {
+          "eventId": 7,
+          "type": "payment.recorded",
+          "at": "2026-01-01T00:00:00.000Z",
+          "actor": "engine-rehearsal@example.com",
           "reason": null
         }
       ],

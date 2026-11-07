@@ -1,81 +1,116 @@
-// Mokoena receivables slice (branch engine-phase1). TESTS FIRST. This is the BACKEND CONTRACT the visible slice stands on, walked as one story through the engine's REAL routes on the test harness (a stand-in for Durable Object storage, NOT staging, NOT production):
-//   STAGE ONE   a natural question (scripted: "what does Mokoena owe?") -> a permission-aware, evidence-bearing answer -> drill-down to the records beneath it -> back to the conversation (the shell's own state, not a server step).
-//   STAGE TWO   propose a payment -> it is HELD, not recorded -> an authorised member approves -> the new position is read back.
-// Nothing here is authorised to ship; it states what the shell may rely on. The slice is checked against the 16-domain blueprint as a DESIGN check once that document is supplied; until then the neutrality checks below are structural only.
-// Evidence labels: every check is a TEST of the existing engine; a check that fails is a GAP the slice must close or a contract the shell must not assume.
+// Mokoena receivables slice (branch engine-phase1), the BACKEND CONTRACT the visible slice stands on, in the world docs/decisions/first-slice.md section C defines: Mokoena has invoice #1 (R1,150.00), a R300.00 payment first recorded against
+// Patel Builders by mistake and then corrected (a reversal and a replacement), so R850.00 is outstanding; Patel has invoice #2 (R460.00, unpaid) and must never appear in Mokoena's answer. The world is built by the engine's own sample-seed admin route
+// (worker/src/engine/admin.ts) inside the route harness, so it is the same data the staging rehearsal uses. Walked through the engine's REAL routes on the harness (a stand-in for Durable Object storage, NOT staging, NOT production):
+//   STAGE ONE   "What does Mokoena owe me?" (scripted) -> a permission-aware, evidence-bearing answer -> drill-down to the invoice, its payments and the correction -> back to the conversation (the shell's own state, not a server step).
+//   STAGE TWO   "Record R500 from Mokoena" -> HELD, nothing recorded -> an authorised member approves -> R350.00 outstanding. A business WITHOUT the capability is answered honestly and writes only a capture and an observation.
+// Evidence labels: every check is a TEST of the existing engine; a check that fails is a GAP the slice must close or a contract the shell must not assume. Characterisation of existing behaviour, not red-first.
 const kit = require('./engine-kit.js');
 
 module.exports = kit.guard('mokoena slice', async ({ check }) => {
-  const ENV = { BUSINESS_ID: 'eng-a' };
-  const run = (spec) => kit.route({ env: ENV, seed: kit.seedReceivables(), ...spec });
+  const ENV_A = { BUSINESS_ID: 'eng-a', ENGINE_REHEARSAL: '1' };
+  const SEED = { admin: true, method: 'POST', path: '/admin/engine/provision-sample', body: { confirm: 'eng-a' } };
+  const run = (spec) => kit.route({ env: ENV_A, ...spec, before: [SEED, ...(spec.before || [])] });
   const ask = (role, party = 'Mokoena') => ({ method: 'GET', path: `/engine/receivables?party=${encodeURIComponent(party)}`, role });
   const open = (role, kind, id) => ({ method: 'GET', path: `/engine/records/${kind}/${id}`, role });
-  const propose = (role, payload, capability = 'payment.record') => ({ method: 'POST', path: '/engine/proposals', role, body: { capability, payload, transcript: 'Mokoena paid R1,150' } });
+  const r500 = { partyId: 1, amountMinor: 50000, currency: 'ZAR', occurredOn: '2026-11-07', method: 'eft', allocate: 'oldest_first' };
+  const propose = (role, payload = r500, transcript = 'Record R500 from Mokoena') => ({ method: 'POST', path: '/engine/proposals', role, body: { capability: 'payment.record', payload, transcript } });
   const confirm = (role, id = 1) => ({ method: 'POST', path: `/actions/${id}/confirm`, role, body: {} });
   const added = (res, t) => ((res.writes && res.writes[t] && res.writes[t].added) || []).length;
+  const addedTables = (res) => Object.keys(res.writes || {}).filter((t) => added(res, t) > 0).sort();
   const body = (res) => (res.result && res.result.body) || {};
-  const pay = { partyId: 1, amountMinor: 115000, currency: 'ZAR', occurredOn: '2026-11-07', method: 'eft', allocate: 'oldest_first' };
-  const figures = ['138000', '115000', '23000'];
-  const leaksFigure = (res) => figures.some((f) => JSON.stringify(body(res)).includes(f));
+  const text = (res) => JSON.stringify(body(res));
+  const figures = ['85000', '115000', '30000', '46000'];
+  const leaksFigure = (res) => figures.some((f) => text(res).includes(f));
 
   // ---- STAGE ONE: the question and the evidence-bearing answer --------------------------------------------------------------------------------------------------------------------------------
   const q = await run(ask('accountant'));
   const a = body(q).result || {};
   check(q.result && q.result.status === 200 && body(q).status === 'ok', 'an accountant asking what Mokoena owes gets an ok answer');
-  check(a.party && a.party.id === 1 && a.party.name === 'Mokoena' && a.currency === 'ZAR' && a.totalMinor === 138000, 'the answer names the customer, the currency and the total: R1,380.00 outstanding');
-  check(Array.isArray(a.documents) && a.documents.length === 2 && a.documents[0].outstandingMinor === 115000 && a.documents[1].outstandingMinor === 23000, 'the total is carried by two documents, oldest first: R1,150.00 (2026-10-01) and R230.00 (2026-10-15)');
-  check(a.documents && a.documents.every((d) => d.ref && d.ref.kind === 'document' && Number.isInteger(d.ref.id) && Number.isInteger(d.grossMinor) && Number.isInteger(d.allocatedMinor)), 'each document line carries a record reference to open and whole-number figures (nothing is a decimal the shell would have to compute)');
-  check(Number.isInteger(a.version) && a.version > 0 && typeof a.derivedBy === 'string' && a.derivedBy.length > 0, 'the answer carries the version of the account it read and which derivation produced the figure (the evidence the engine has today)');
+  check(a.party && a.party.id === 1 && a.party.name === 'Mokoena' && a.currency === 'ZAR' && a.totalMinor === 85000, 'the answer names the customer, the currency and the total: R850.00 outstanding');
+  const l0 = (a.documents || [])[0] || {};
+  check(Array.isArray(a.documents) && a.documents.length === 1 && l0.number === 1 && l0.grossMinor === 115000 && l0.allocatedMinor === 30000 && l0.outstandingMinor === 85000, 'carried by one document: invoice #1, R1,150.00 issued, R300.00 paid (the corrected payment), R850.00 outstanding');
+  check(l0.ref && l0.ref.kind === 'document' && l0.ref.id === 1 && Number.isInteger(l0.grossMinor) && Number.isInteger(l0.outstandingMinor), 'the line carries a record reference to open and whole-number figures (nothing is a decimal the shell would have to compute)');
+  check(!/Patel|Skirting/.test(text(q)) && !text(q).includes('46000'), 'Patel Builders and invoice #2 never appear in Mokoena\'s answer');
+  check(Number.isInteger(a.version) && a.version > 0 && typeof a.derivedBy === 'string' && a.derivedBy.length > 0, 'the answer carries the version of the account it read and which derivation produced the figure (the provenance the engine gives today: a version and a free-text label, not structured source references)');
   check(a.documents && a.documents.reduce((s, d) => s + d.outstandingMinor, 0) === a.totalMinor, 'the lines add up to the total, so the shell never needs to calculate one');
   const keyNames = []; JSON.stringify(a, (k, v) => { if (k) keyNames.push(k); return v; });
   check(!keyNames.some((k) => /invoice|quote|sales|order/i.test(k)), 'the answer\'s field names are generic (party, document, kind), so the same shape can carry other domains: ' + [...new Set(keyNames)].join(', '));
+  const patel = await run(ask('accountant', '2'));
+  check(body(patel).result && body(patel).result.party.name === 'Patel Builders' && body(patel).result.totalMinor === 46000, 'Patel Builders (asked by number) owes R460.00 on invoice #2, which no payment has touched');
 
   // ---- permission-aware: a refusal reveals no figure -----------------------------------------------------------------------------------------------------------------------------------------
-  for (const role of ['owner', 'admin']) { const r = await run(ask(role)); check(r.result && r.result.status === 200 && body(r).result && body(r).result.totalMinor === 138000, `${role} gets the same answer`); }
+  for (const role of ['owner', 'admin']) { const r = await run(ask(role)); check(r.result && r.result.status === 200 && body(r).result && body(r).result.totalMinor === 85000, `${role} gets the same answer`); }
   for (const role of ['installer', 'sales']) {
     const r = await run(ask(role));
     check(r.result && r.result.status === 403 && !leaksFigure(r), `${role} is refused (403) and the refusal carries no figure`);
   }
   const nobody = await run(ask('accountant', 'Nobody'));
   check(nobody.result && nobody.result.status === 404 && !leaksFigure(nobody), 'an unknown customer answers not_found with no figure');
-  const two = await run({ ...ask('accountant'), seed: (db) => { kit.seedReceivables()(db); const e = Number(db.prepare("INSERT INTO eng_event (type, actor_email, contract, contract_version, payload_json) VALUES ('party.created', 'seed@example.com', 'seed', 1, ?) RETURNING id").get(JSON.stringify({ kind: 'organisation', name: 'Mokoena', roles: ['customer'] })).id); db.prepare("INSERT INTO eng_party (kind, name, event_id) VALUES ('organisation', 'Mokoena', ?)").run(e); db.prepare("INSERT INTO eng_party_role (party_id, role, event_id) VALUES (2, 'customer', ?)").run(e); } });
-  check(two.result && body(two).status === 'ambiguous' && Array.isArray(body(two).candidates) && body(two).candidates.length === 2 && !leaksFigure(two), 'a name that matches two customers comes back ambiguous with both candidates and no figure, so the shell must ask which one');
+  // a name that matches two customers: asked of the receivables kit world (two customers called Mokoena), because the sample world has one
+  const two = await kit.route({ env: { BUSINESS_ID: 'eng-a' }, ...ask('accountant'), seed: (db) => { kit.seedReceivables()(db); const e = Number(db.prepare("INSERT INTO eng_event (type, actor_email, contract, contract_version, payload_json) VALUES ('party.created', 'seed@example.com', 'seed', 1, ?) RETURNING id").get(JSON.stringify({ kind: 'organisation', name: 'Mokoena', roles: ['customer'] })).id); db.prepare("INSERT INTO eng_party (kind, name, event_id) VALUES ('organisation', 'Mokoena', ?)").run(e); db.prepare("INSERT INTO eng_party_role (party_id, role, event_id) VALUES (2, 'customer', ?)").run(e); } });
+  check(two.result && body(two).status === 'ambiguous' && Array.isArray(body(two).candidates) && body(two).candidates.length === 2 && !/\d{5}/.test(text(two)), 'a name that matches two customers comes back ambiguous with both candidates and no figure, so the shell must ask which one');
 
-  // ---- STAGE ONE: drill-down from the answer to the records beneath it ----------------------------------------------------------------------------------------------------------------------
-  const ref = a.documents && a.documents[0] && a.documents[0].ref;
+  // ---- STAGE ONE: drill-down from the answer to the invoice, its payments and the correction -------------------------------------------------------------------------------------------
+  const ref = l0.ref;
   const doc = ref ? await run(open('accountant', ref.kind, ref.id)) : null;
   const d = doc ? (body(doc).result || {}) : {};
-  check(doc && doc.result && doc.result.status === 200, 'following the first line\'s reference opens that document for an accountant');
+  const field = (k) => ((d.fields || []).find((f) => f.key === k) || {}).value;
+  check(doc && doc.result && doc.result.status === 200 && d.title === 'Invoice #1' && Number.isInteger(d.version) && d.version > 0, 'following the line\'s reference opens invoice #1, with its own version');
   console.log('  slice (information): a document record view has these top-level fields: ' + Object.keys(d).join(', '));
-  check(Number.isInteger(d.version) && d.version > 0, 'the record view carries its own version');
-  check(JSON.stringify(d).includes('115000'), 'and shows the figure the answer summarised (R1,150.00), so the drill-down agrees with the answer');
-  check(JSON.stringify(d).includes('Vinyl plank'), 'and shows what was sold, the line beneath the figure');
+  check(field('grossMinor') === 115000 && field('allocatedMinor') === 30000 && field('outstandingMinor') === 85000, 'the invoice shows the same figures the answer summarised, so the drill-down agrees with the answer');
+  const lines = (d.collections && d.collections.lines) || [];
+  check(lines.length === 1 && lines[0].description === 'Vinyl plank' && lines[0].quantityMilli === 2000 && lines[0].unitPriceMinor === 50000, 'and the line beneath the figure: Vinyl plank, 2.000 m2 at R500.00');
+  const allocs = (d.collections && d.collections.allocations) || [];
+  check(allocs.length === 2 && allocs.filter((x) => x.effective).length === 1 && allocs.every((x) => x.amountMinor === 30000), 'its payments show the correction: the R300.00 first recorded against the wrong customer is kept as a reversed allocation and the corrected one stands (an effective allocation of R300.00)');
+  const types = (d.history || []).map((h) => h.type);
+  check(types.includes('document.issued') && types.includes('payment.allocation_reversed'), 'its history records the issue and the reversal: ' + types.join(', '));
+  check(d.relations && d.relations.some((x) => x.role === 'customer' && x.ref.id === 1 && x.label === 'Mokoena'), 'it names its customer, the way back up');
+  const mv = await run(open('accountant', 'movement', allocs.find((x) => !x.effective).movementId));
+  check(mv.result && mv.result.status === 200 && JSON.stringify(body(mv).result.fields).includes('reversed'), 'the first payment opens as a record of its own and says it was reversed');
   const party = await run(open('accountant', 'party', 1));
-  check(party.result && party.result.status === 200, 'the customer record opens too (the other way back up from a document)');
+  check(party.result && party.result.status === 200, 'the customer record opens too (the other way up from an invoice)');
   console.log('  slice (information): a party record view has these top-level fields: ' + Object.keys(body(party).result || {}).join(', '));
   const hidden = ref ? await run(open('installer', ref.kind, ref.id)) : null, absent = await run(open('installer', 'document', 99999));
   check(hidden && absent && hidden.result.status === absent.result.status && JSON.stringify(body(hidden)) === JSON.stringify(body(absent)), 'a record an installer may not see answers exactly as one that does not exist, so drill-down reveals nothing');
 
-  // ---- STAGE TWO: propose, hold, approve, see the result -------------------------------------------------------------------------------------------------------------------------------------
-  const proposed = await run(propose('accountant', pay));
-  check(proposed.result && proposed.result.status === 200 && body(proposed).status === 'held' && Number.isInteger(body(proposed).actionId), 'proposing a payment from an accountant is HELD with an action number');
+  // ---- STAGE TWO: "Record R500 from Mokoena": propose, hold, approve, see the result -------------------------------------------------------------------------------------------------------
+  const proposed = await run(propose('accountant'));
+  check(proposed.result && proposed.result.status === 200 && body(proposed).status === 'held' && Number.isInteger(body(proposed).actionId), 'proposing R500 from an accountant is HELD with an action number');
   check(added(proposed, 'eng_money_movement') === 0 && added(proposed, 'eng_allocation') === 0, 'and nothing is recorded yet: a proposal is not an approval');
-  const stillOwes = await run({ ...ask('accountant'), before: [propose('accountant', pay)] });
-  check(body(stillOwes).result && body(stillOwes).result.totalMinor === 138000, 'while it is held the customer still owes R1,380.00 (a held payment changes no figure)');
-  const refused = await run(propose('installer', pay));
-  check(refused.result && refused.result.status === 403 && added(refused, 'pending_actions') === 0, 'an installer cannot propose a payment (403) and nothing is held');
-  const approved = await run({ before: [propose('accountant', pay)], ...confirm('accountant') });
+  const pending = await run({ before: [propose('accountant')], method: 'GET', path: '/actions/pending', role: 'accountant' });
+  const card = ((body(pending).pending || [])[0]) || {};
+  let held = {}; try { held = JSON.parse(card.payload); } catch (e) { held = {}; }
+  check(card.type === 'engine.payment.record' && card.source_transcript === 'Record R500 from Mokoena' && held.amountMinor === 50000 && held.partyId === 1 && JSON.stringify(held.allocations) === JSON.stringify([{ documentId: 1, amountMinor: 50000 }]) && held.basedOn && Number.isInteger(held.basedOn.partyVersion), 'what waits for approval carries the words said, the amount and the EXACT allocation (R500.00 to invoice #1), and the version of the account it was based on');
+  console.log('  slice (information): the held payment names the customer and the invoice only by number (partyId, documentId); an approval card that shows names, type and total (audit D2) must read them through permission-checked record reads or a server projection that does not exist yet');
+  const stillOwes = await run({ ...ask('accountant'), before: [propose('accountant')] });
+  check(body(stillOwes).result && body(stillOwes).result.totalMinor === 85000, 'while it is held Mokoena still owes R850.00 (a held payment changes no figure)');
+  const refused = await run(propose('installer'));
+  check(refused.result && refused.result.status === 403 && body(refused).error === 'not_permitted' && JSON.stringify(addedTables(refused)) === JSON.stringify(['captures']), 'an installer cannot propose a payment (403, not_permitted): nothing is held or recorded, and only what was said is kept (a capture)');
+  const approved = await run({ before: [propose('accountant')], ...confirm('accountant') });
   check(approved.result && approved.result.status === 200 && added(approved, 'eng_money_movement') === 1 && added(approved, 'eng_allocation') === 1, 'an accountant approving it records the payment and its allocation');
-  const after = await run({ before: [propose('accountant', pay), confirm('accountant')], ...ask('accountant') });
+  const after = await run({ before: [propose('accountant'), confirm('accountant')], ...ask('accountant') });
   const n = body(after).result || {};
-  check(n.totalMinor === 23000, 'reading back afterwards, Mokoena owes R230.00');
-  const first = (n.documents || []).find((x) => x.ref && x.ref.id === 1);
-  check(!first || first.outstandingMinor === 0, 'and the settled invoice no longer shows an outstanding amount');
+  const n0 = (n.documents || [])[0] || {};
+  check(n.totalMinor === 35000 && n0.allocatedMinor === 80000 && n0.outstandingMinor === 35000, 'reading back afterwards, Mokoena owes R350.00 (R800.00 paid of R1,150.00)');
   check(n.version > a.version, 'the account\'s version has moved on, so an approval built on the old figures could not be replayed');
-  const cannot = await run({ before: [propose('accountant', pay)], ...confirm('installer') });
+  const patelAfter = await run({ before: [propose('accountant'), confirm('accountant')], ...ask('accountant', '2') });
+  check(body(patelAfter).result && body(patelAfter).result.totalMinor === 46000, 'and Patel Builders still owes R460.00: the payment touched nobody else');
+  const docAfter = await run({ before: [propose('accountant'), confirm('accountant')], ...open('accountant', 'document', 1) });
+  const htypes = ((body(docAfter).result || {}).history || []).map((h) => h.type);
+  console.log('  slice (information): after approval the invoice\'s history reads: ' + htypes.join(', ') + ' (capture, interpretation, proposal and approval are NOT in it: the trace the first-slice criteria ask for is only partly there)');
+  check(htypes.filter((t) => t === 'payment.allocated').length === 3 && htypes.filter((t) => t === 'payment.allocation_reversed').length === 1, 'the invoice\'s history now shows the new allocation after the original, its reversal and the corrected one');
+  const cannot = await run({ before: [propose('accountant')], ...confirm('installer') });
   check(cannot.result && cannot.result.status === 403 && added(cannot, 'eng_money_movement') === 0, 'an installer cannot approve the held payment (403) and nothing is recorded');
-  const stale = await run({ before: [propose('accountant', pay), propose('accountant', { ...pay, amountMinor: 23000 }), confirm('accountant', 2)], ...confirm('accountant', 1) });
+  const stale = await run({ before: [propose('accountant'), propose('accountant', { ...r500, amountMinor: 10000 }, 'Record R100 from Mokoena'), confirm('accountant', 2)], ...confirm('accountant', 1) });
   check(stale.result && stale.result.status === 409 && body(stale).error === 'stale' && added(stale, 'eng_money_movement') === 0, 'approving after the account changed underneath is refused as stale: an approval is only for what it showed');
+
+  // ---- BUSINESS B: the capability is not available; the request is answered honestly and only a capture and an observation are written ---------------------------------------------------------
+  const offB = kit.asEngineBusiness((db) => db.prepare("INSERT INTO eng_config (key, value_json) VALUES ('available', '[]')").run());
+  const bAsk = await kit.route({ env: { BUSINESS_ID: 'eng-b' }, seed: offB, ...ask('accountant') });
+  check(bAsk.result && bAsk.result.status === 409 && body(bAsk).error === 'capability_unavailable' && !/\d{4}/.test(text(bAsk)) && addedTables(bAsk).length === 0, 'in a business without the capability the question is answered honestly (409, unavailable, no figure) and nothing is written');
+  const bProp = await kit.route({ env: { BUSINESS_ID: 'eng-b' }, seed: offB, ...propose('accountant') });
+  check(bProp.result && bProp.result.status === 409 && body(bProp).error === 'capability_unavailable' && JSON.stringify(addedTables(bProp)) === JSON.stringify(['captures', 'eng_observation']), '"Record R500" there is answered honestly too (409, unavailable) and ONLY a capture and an observation are written');
+
   // ---- the app's reader and the backend cannot drift apart unseen: the committed fixtures (read by app/test/slice_model_test.dart) must equal what the engine answers now --------------------------------------------
   const fixtures = require('./slice-fixtures.js'), fs = require('fs'), path = require('path');
   const now = await fixtures.build();

@@ -38,23 +38,26 @@ void main() {
       expect(a.partyId, 1);
       expect(a.partyName, 'Mokoena');
       expect(a.currency, 'ZAR');
-      expect(a.totalMinor, 138000);
-      expect(a.totalText, 'R1,380.00');
-      expect(a.lines.length, 2);
+      expect(a.totalMinor, 85000);
+      expect(a.totalText, 'R850.00');
+      expect(a.lines.length, 1);
       expect(a.lines[0].ref.kind, 'document');
       expect(a.lines[0].ref.id, 1);
-      expect(a.lines[0].outstandingMinor, 115000);
+      expect(a.lines[0].number, 1);
+      expect(a.lines[0].grossMinor, 115000);
+      expect(a.lines[0].allocatedMinor, 30000);
+      expect(a.lines[0].outstandingMinor, 85000);
       expect(a.lines[0].issuedOn, '2026-10-01');
-      expect(a.lines[1].outstandingMinor, 23000);
       expect(a.version, greaterThan(0));
       expect(a.derivedBy, 'ledger.outstandingForParty');
     });
 
-    test('after the payment the total moves and the settled line shows nothing outstanding', () {
+    test('after R500 is approved the total moves to R350.00', () {
       final a = _read('receivables-after-payment').answer!;
-      expect(a.totalMinor, 23000);
-      expect(a.lines[0].outstandingMinor, 0);
-      expect(a.lines[0].allocatedMinor, 115000);
+      expect(a.totalMinor, 35000);
+      expect(a.totalText, 'R350.00');
+      expect(a.lines[0].outstandingMinor, 35000);
+      expect(a.lines[0].allocatedMinor, 80000);
       expect(a.version, greaterThan(_read('receivables-answer').answer!.version));
     });
 
@@ -63,6 +66,14 @@ void main() {
       expect(r.kind, SliceReadKind.ambiguous);
       expect(r.answer, isNull);
       expect(r.candidates.map((c) => c.id).toList(), [1, 2]);
+    });
+
+    test('a business without the capability is answered honestly, with no figure', () {
+      final r = _read('unavailable-ask');
+      expect(r.kind, SliceReadKind.unavailable);
+      expect(r.answer, isNull);
+      expect(r.message, contains('not available'));
+      expect(parseReceivables(409, <String, Object?>{'error': 'stale'}).kind, SliceReadKind.unusable);
     });
 
     test('a refusal and a missing customer carry nothing', () {
@@ -108,24 +119,53 @@ void main() {
       final gross = d.fields.firstWhere((f) => f.key == 'grossMinor');
       expect(gross.display, 'R1,150.00');
       expect(gross.derivedBy, 'ledger.documentTotals');
-      expect(d.fields.firstWhere((f) => f.key == 'status').display, 'unpaid');
+      expect(d.fields.firstWhere((f) => f.key == 'allocatedMinor').display, 'R300.00');
+      expect(d.fields.firstWhere((f) => f.key == 'outstandingMinor').display, 'R850.00');
+      expect(d.fields.firstWhere((f) => f.key == 'status').display, 'part_paid');
       expect(d.collections['lines']!.length, 1);
       expect(d.collections['lines']!.first['description'], 'Vinyl plank');
-      expect(d.relations.single.role, 'customer');
-      expect(d.relations.single.ref.kind, 'party');
-      expect(d.relations.single.ref.id, 1);
-      expect(d.relations.single.label, 'Mokoena');
+      expect(d.relations.first.role, 'customer');
+      expect(d.relations.first.ref.kind, 'party');
+      expect(d.relations.first.ref.id, 1);
+      expect(d.relations.first.label, 'Mokoena');
       expect(d.actions.single.capability, 'payment.record');
       expect(d.actions.single.valid, isTrue);
-      expect(d.history.single.type, 'document.issued');
+      expect(d.history.first.type, 'document.issued');
+    });
+
+    test('the invoice shows the correction: a reversed allocation and the one that stands', () {
+      final d = _record('record-document')!;
+      final allocations = d.collections['allocations']!;
+      expect(allocations.length, 2);
+      expect(allocations.where((a) => a['effective'] == true).length, 1);
+      expect(allocations.every((a) => a['amountMinor'] == 30000), isTrue);
+      expect(d.history.map((h) => h.type).toList(), ['document.issued', 'payment.allocated', 'payment.allocation_reversed', 'payment.allocated']);
+    });
+
+    test('after approval the invoice shows the new allocation of R500.00', () {
+      final d = _record('record-document-after-payment')!;
+      final allocations = d.collections['allocations']!;
+      expect(allocations.length, 3);
+      expect(allocations.last['amountMinor'], 50000);
+      expect(allocations.last['effective'], isTrue);
+      expect(d.fields.firstWhere((f) => f.key == 'outstandingMinor').display, 'R350.00');
+    });
+
+    test('the first payment opens as a record of its own and says it was reversed', () {
+      final m = _record('record-movement-reversed')!;
+      expect(m.ref.kind, 'movement');
+      expect(m.fields.firstWhere((f) => f.key == 'status').display, 'reversed');
+      expect(m.fields.firstWhere((f) => f.key == 'amountMinor').display, 'R300.00');
+      expect(m.collections['allocations']!.single['effective'], false);
     });
 
     test('reads the real customer view, the way back up from a document', () {
       final p = _record('record-party')!;
       expect(p.title, 'Mokoena');
       expect(p.relations.length, 2);
-      expect(p.collections['documents']!.length, 2);
-      expect(p.fields.firstWhere((f) => f.key == 'outstandingMinor').display, 'R1,380.00');
+      expect(p.collections['documents']!.length, 1);
+      expect(p.collections['payments']!.length, 1);
+      expect(p.fields.firstWhere((f) => f.key == 'outstandingMinor').display, 'R850.00');
     });
 
     test('anything that is not an ok view is null, so a hidden record and a missing one look the same', () {
@@ -136,11 +176,43 @@ void main() {
     });
   });
 
+  group('a payment waiting for approval', () {
+    test('reads the exact amount and allocation the approver is approving', () {
+      final fx = _fx('pending-held');
+      final held = parseHeldPayments(_status(fx), _body(fx));
+      expect(held.length, 1);
+      expect(held.single.actionId, 1);
+      expect(held.single.transcript, 'Record R500 from Mokoena');
+      expect(held.single.partyId, 1);
+      expect(held.single.amountMinor, 50000);
+      expect(held.single.amountText, 'R500.00');
+      expect(held.single.occurredOn, '2026-11-07');
+      expect(held.single.allocations.length, 1);
+      expect(held.single.allocations.single.documentId, 1);
+      expect(held.single.allocations.single.amountMinor, 50000);
+      expect(held.single.partyVersion, greaterThan(0));
+    });
+
+    test('other kinds of held action and unusable payloads are skipped, and nothing throws', () {
+      expect(parseHeldPayments(200, <String, Object?>{'pending': [<String, Object?>{'id': 1, 'type': 'invoice', 'payload': '{}'}]}), isEmpty);
+      expect(parseHeldPayments(200, <String, Object?>{'pending': [<String, Object?>{'id': 1, 'type': 'engine.payment.record', 'payload': 'not json'}]}), isEmpty);
+      expect(parseHeldPayments(200, <String, Object?>{'pending': [<String, Object?>{'id': 1, 'type': 'engine.payment.record', 'payload': '{"partyId":1}'}]}), isEmpty);
+      expect(parseHeldPayments(403, <String, Object?>{'error': 'x'}), isEmpty);
+      expect(parseHeldPayments(200, null), isEmpty);
+    });
+  });
+
   group('proposing and approving a payment', () {
     test('a proposal is held, not recorded', () {
       final p = _proposal('proposal-held');
       expect(p.held, isTrue);
       expect(p.actionId, 1);
+    });
+
+    test('a proposal in a business without the capability is refused honestly', () {
+      final p = _proposal('unavailable-proposal');
+      expect(p.held, isFalse);
+      expect(p.error, 'capability_unavailable');
     });
 
     test('a proposal from a member who may not is refused with the reason', () {
@@ -171,7 +243,7 @@ void main() {
       expect(f.orbPhase, 'thinking');
       f = f.received(_read('receivables-answer'));
       expect(f.step, SliceStep.answered);
-      expect(f.answer!.totalMinor, 138000);
+      expect(f.answer!.totalMinor, 85000);
       f = f.opened(_record('record-document')!);
       expect(f.step, SliceStep.record);
       expect(f.record!.title, 'Invoice #1');
@@ -179,7 +251,7 @@ void main() {
       f = f.backToConversation();
       expect(f.step, SliceStep.answered);
       expect(f.record, isNull);
-      expect(f.answer!.totalMinor, 138000);
+      expect(f.answer!.totalMinor, 85000);
     });
 
     test('a record can lead to another record and still return to the answer', () {
@@ -215,6 +287,14 @@ void main() {
       final f = answered.proposed(_proposal('proposal-held')).approving().confirmed(_confirm('confirm-stale'));
       expect(f.step, SliceStep.problem);
       expect(f.needsRefresh, isTrue);
+    });
+
+    test('a business without the capability ends honestly, with no answer', () {
+      final f = const SliceFlow.resting().asked().received(_read('unavailable-ask'));
+      expect(f.step, SliceStep.unavailable);
+      expect(f.answer, isNull);
+      expect(f.message, contains('not available'));
+      expect(f.orbPhase, 'responding');
     });
 
     test('an ambiguous name, a refusal and a missing customer end where they should', () {

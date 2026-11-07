@@ -1,0 +1,185 @@
+{
+  "status": 200,
+  "body": {
+    "status": "ok",
+    "result": {
+      "ref": {
+        "kind": "document",
+        "id": 1
+      },
+      "version": 12,
+      "title": "Invoice #1",
+      "fields": [
+        {
+          "key": "kind",
+          "label": "Kind",
+          "value": "invoice"
+        },
+        {
+          "key": "number",
+          "label": "Number",
+          "value": 1
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "value": "part_paid",
+          "derivedBy": "ledger.outstandingForDocument"
+        },
+        {
+          "key": "issuedOn",
+          "label": "Issued",
+          "value": "2026-10-01"
+        },
+        {
+          "key": "currency",
+          "label": "Currency",
+          "value": "ZAR"
+        },
+        {
+          "key": "netMinor",
+          "label": "Net",
+          "value": 100000,
+          "derivedBy": "ledger.documentTotals"
+        },
+        {
+          "key": "taxMinor",
+          "label": "Tax",
+          "value": 15000,
+          "derivedBy": "ledger.documentTotals"
+        },
+        {
+          "key": "grossMinor",
+          "label": "Total",
+          "value": 115000,
+          "derivedBy": "ledger.documentTotals"
+        },
+        {
+          "key": "allocatedMinor",
+          "label": "Paid",
+          "value": 80000,
+          "derivedBy": "ledger.allocatedToDocument"
+        },
+        {
+          "key": "outstandingMinor",
+          "label": "Outstanding",
+          "value": 35000,
+          "derivedBy": "ledger.outstandingForDocument"
+        }
+      ],
+      "collections": {
+        "lines": [
+          {
+            "lineNo": 1,
+            "description": "Vinyl plank",
+            "quantityMilli": 2000,
+            "unit": "m2",
+            "unitPriceMinor": 50000,
+            "taxBp": 1500
+          }
+        ],
+        "allocations": [
+          {
+            "id": 1,
+            "movementId": 1,
+            "amountMinor": 30000,
+            "effective": false
+          },
+          {
+            "id": 2,
+            "movementId": 2,
+            "amountMinor": 30000,
+            "effective": true
+          },
+          {
+            "id": 3,
+            "movementId": 3,
+            "amountMinor": 50000,
+            "effective": true
+          }
+        ]
+      },
+      "relations": [
+        {
+          "role": "customer",
+          "ref": {
+            "kind": "party",
+            "id": 1
+          },
+          "label": "Mokoena"
+        },
+        {
+          "role": "payment",
+          "ref": {
+            "kind": "movement",
+            "id": 2
+          },
+          "label": "Payment 2"
+        },
+        {
+          "role": "payment",
+          "ref": {
+            "kind": "movement",
+            "id": 3
+          },
+          "label": "Payment 3"
+        }
+      ],
+      "actions": [
+        {
+          "capability": "payment.record",
+          "label": "Record a payment",
+          "valid": true,
+          "reason": null
+        }
+      ],
+      "history": [
+        {
+          "eventId": 3,
+          "type": "document.issued",
+          "at": "2026-01-01T00:00:00.000Z",
+          "actor": "engine-rehearsal@example.com",
+          "reason": null
+        },
+        {
+          "eventId": 6,
+          "type": "payment.allocated",
+          "at": "2026-01-01T00:00:00.000Z",
+          "actor": "engine-rehearsal@example.com",
+          "reason": null
+        },
+        {
+          "eventId": 9,
+          "type": "payment.allocation_reversed",
+          "at": "2026-01-01T00:00:00.000Z",
+          "actor": "engine-rehearsal@example.com",
+          "reason": "recorded against the wrong customer"
+        },
+        {
+          "eventId": 10,
+          "type": "payment.allocated",
+          "at": "2026-01-01T00:00:00.000Z",
+          "actor": "engine-rehearsal@example.com",
+          "reason": null
+        },
+        {
+          "eventId": 12,
+          "type": "payment.allocated",
+          "at": "2026-01-01T00:00:00.000Z",
+          "actor": "accountant@example.com",
+          "reason": null
+        }
+      ],
+      "exports": [
+        {
+          "kind": "pdf",
+          "available": false
+        },
+        {
+          "kind": "share",
+          "available": false
+        }
+      ]
+    }
+  }
+}

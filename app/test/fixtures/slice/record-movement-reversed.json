@@ -1,0 +1,121 @@
+{
+  "status": 200,
+  "body": {
+    "status": "ok",
+    "result": {
+      "ref": {
+        "kind": "movement",
+        "id": 1
+      },
+      "version": 9,
+      "title": "Payment 1",
+      "fields": [
+        {
+          "key": "direction",
+          "label": "Direction",
+          "value": "in"
+        },
+        {
+          "key": "amountMinor",
+          "label": "Amount",
+          "value": 30000
+        },
+        {
+          "key": "currency",
+          "label": "Currency",
+          "value": "ZAR"
+        },
+        {
+          "key": "occurredOn",
+          "label": "Date",
+          "value": "2026-10-20"
+        },
+        {
+          "key": "method",
+          "label": "Method",
+          "value": null
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "value": "reversed"
+        },
+        {
+          "key": "unallocatedMinor",
+          "label": "Unallocated",
+          "value": 0,
+          "derivedBy": "ledger.unallocatedForMovement"
+        }
+      ],
+      "collections": {
+        "allocations": [
+          {
+            "id": 1,
+            "documentId": 1,
+            "amountMinor": 30000,
+            "effective": false
+          }
+        ]
+      },
+      "relations": [
+        {
+          "role": "party",
+          "ref": {
+            "kind": "party",
+            "id": 2
+          },
+          "label": "Party"
+        },
+        {
+          "role": "invoice",
+          "ref": {
+            "kind": "document",
+            "id": 1
+          },
+          "label": "Document 1"
+        }
+      ],
+      "actions": [],
+      "history": [
+        {
+          "eventId": 5,
+          "type": "payment.recorded",
+          "at": "2026-01-01T00:00:00.000Z",
+          "actor": "engine-rehearsal@example.com",
+          "reason": null
+        },
+        {
+          "eventId": 6,
+          "type": "payment.allocated",
+          "at": "2026-01-01T00:00:00.000Z",
+          "actor": "engine-rehearsal@example.com",
+          "reason": null
+        },
+        {
+          "eventId": 8,
+          "type": "payment.reversed",
+          "at": "2026-01-01T00:00:00.000Z",
+          "actor": "engine-rehearsal@example.com",
+          "reason": "recorded against the wrong customer"
+        },
+        {
+          "eventId": 9,
+          "type": "payment.allocation_reversed",
+          "at": "2026-01-01T00:00:00.000Z",
+          "actor": "engine-rehearsal@example.com",
+          "reason": "recorded against the wrong customer"
+        }
+      ],
+      "exports": [
+        {
+          "kind": "pdf",
+          "available": false
+        },
+        {
+          "kind": "share",
+          "available": false
+        }
+      ]
+    }
+  }
+}

@@ -7,7 +7,7 @@
         "kind": "document",
         "id": 1
       },
-      "version": 2,
+      "version": 10,
       "title": "Invoice #1",
       "fields": [
         {
@@ -23,7 +23,7 @@
         {
           "key": "status",
           "label": "Status",
-          "value": "unpaid",
+          "value": "part_paid",
           "derivedBy": "ledger.outstandingForDocument"
         },
         {
@@ -57,13 +57,13 @@
         {
           "key": "allocatedMinor",
           "label": "Paid",
-          "value": 0,
+          "value": 30000,
           "derivedBy": "ledger.allocatedToDocument"
         },
         {
           "key": "outstandingMinor",
           "label": "Outstanding",
-          "value": 115000,
+          "value": 85000,
           "derivedBy": "ledger.outstandingForDocument"
         }
       ],
@@ -72,13 +72,26 @@
           {
             "lineNo": 1,
             "description": "Vinyl plank",
-            "quantityMilli": 1000,
-            "unit": "job",
-            "unitPriceMinor": 100000,
+            "quantityMilli": 2000,
+            "unit": "m2",
+            "unitPriceMinor": 50000,
             "taxBp": 1500
           }
         ],
-        "allocations": []
+        "allocations": [
+          {
+            "id": 1,
+            "movementId": 1,
+            "amountMinor": 30000,
+            "effective": false
+          },
+          {
+            "id": 2,
+            "movementId": 2,
+            "amountMinor": 30000,
+            "effective": true
+          }
+        ]
       },
       "relations": [
         {
@@ -88,6 +101,14 @@
             "id": 1
           },
           "label": "Mokoena"
+        },
+        {
+          "role": "payment",
+          "ref": {
+            "kind": "movement",
+            "id": 2
+          },
+          "label": "Payment 2"
         }
       ],
       "actions": [
@@ -100,10 +121,31 @@
       ],
       "history": [
         {
-          "eventId": 2,
+          "eventId": 3,
           "type": "document.issued",
           "at": "2026-01-01T00:00:00.000Z",
-          "actor": "seed@example.com",
+          "actor": "engine-rehearsal@example.com",
+          "reason": null
+        },
+        {
+          "eventId": 6,
+          "type": "payment.allocated",
+          "at": "2026-01-01T00:00:00.000Z",
+          "actor": "engine-rehearsal@example.com",
+          "reason": null
+        },
+        {
+          "eventId": 9,
+          "type": "payment.allocation_reversed",
+          "at": "2026-01-01T00:00:00.000Z",
+          "actor": "engine-rehearsal@example.com",
+          "reason": "recorded against the wrong customer"
+        },
+        {
+          "eventId": 10,
+          "type": "payment.allocated",
+          "at": "2026-01-01T00:00:00.000Z",
+          "actor": "engine-rehearsal@example.com",
           "reason": null
         }
       ],

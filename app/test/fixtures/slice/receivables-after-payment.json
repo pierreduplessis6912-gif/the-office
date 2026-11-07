@@ -8,7 +8,7 @@
         "name": "Mokoena"
       },
       "currency": "ZAR",
-      "totalMinor": 23000,
+      "totalMinor": 35000,
       "documents": [
         {
           "ref": {
@@ -19,23 +19,11 @@
           "kind": "invoice",
           "issuedOn": "2026-10-01",
           "grossMinor": 115000,
-          "allocatedMinor": 115000,
-          "outstandingMinor": 0
-        },
-        {
-          "ref": {
-            "kind": "document",
-            "id": 2
-          },
-          "number": 2,
-          "kind": "invoice",
-          "issuedOn": "2026-10-15",
-          "grossMinor": 23000,
-          "allocatedMinor": 0,
-          "outstandingMinor": 23000
+          "allocatedMinor": 80000,
+          "outstandingMinor": 35000
         }
       ],
-      "version": 5,
+      "version": 12,
       "derivedBy": "ledger.outstandingForParty"
     }
   }

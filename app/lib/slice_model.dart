@@ -4,6 +4,8 @@
 // THE SHELL COMPUTES NOTHING. A figure arrives as a whole number of minor units and is only formatted here (randFromMinor); no balance, total or status is worked out in the app. Every reader is defensive: it never throws and returns
 // an unusable result for anything it does not understand, and lists and text are bounded so a hostile or very large answer cannot make the app do unbounded work. This file has no Flutter import, so it can be tested without a device.
 // What it does NOT do: it grants nothing (the engine decides what a member may see and do), it does not call the network, and it is not wired into main.dart yet.
+import 'dart:convert';
+
 const int _maxList = 50;
 const int _maxText = 400;
 
@@ -84,17 +86,21 @@ class SliceCandidate {
   const SliceCandidate({required this.id, required this.name});
 }
 
-enum SliceReadKind { answer, ambiguous, refused, notFound, unusable }
+enum SliceReadKind { answer, ambiguous, refused, notFound, unavailable, unusable }
 
 class SliceRead {
   final SliceReadKind kind;
   final SliceAnswer? answer;
   final List<SliceCandidate> candidates;
-  const SliceRead._(this.kind, this.answer, this.candidates);
+  final String? message;
+  const SliceRead._(this.kind, this.answer, this.candidates, [this.message]);
   const SliceRead.answer(SliceAnswer a) : this._(SliceReadKind.answer, a, const <SliceCandidate>[]);
   const SliceRead.ambiguous(List<SliceCandidate> c) : this._(SliceReadKind.ambiguous, null, c);
   const SliceRead.refused() : this._(SliceReadKind.refused, null, const <SliceCandidate>[]);
   const SliceRead.notFound() : this._(SliceReadKind.notFound, null, const <SliceCandidate>[]);
+
+  /// This business does not have the capability. The engine says so in its own words and nothing else; the reader never looks for a figure.
+  const SliceRead.unavailable(String? m) : this._(SliceReadKind.unavailable, null, const <SliceCandidate>[], m);
   const SliceRead.unusable() : this._(SliceReadKind.unusable, null, const <SliceCandidate>[]);
 }
 
@@ -115,6 +121,11 @@ SliceLine? _line(Object? v) {
 SliceRead parseReceivables(int status, Object? body) {
   if (status == 403) return const SliceRead.refused();
   if (status == 404) return const SliceRead.notFound();
+  if (status == 409) {
+    final conflict = _map(body);
+    if (conflict != null && conflict['error'] == 'capability_unavailable') return SliceRead.unavailable(_text(conflict['message']));
+    return const SliceRead.unusable();
+  }
   final b = _map(body);
   if (status != 200 || b == null) return const SliceRead.unusable();
   if (b['status'] == 'ambiguous') {
@@ -277,6 +288,71 @@ SliceProposal parseProposal(int status, Object? body) {
   return SliceProposal(held: false, error: _text(b['error']) ?? 'unusable', message: _text(b['message']));
 }
 
+/// A payment waiting for approval, read from GET /actions/pending. It names the customer and the invoices only by number (partyId, documentId): an approval card that shows names, the document type and the total (audit decision D2)
+/// must read them through permission-checked record reads, or from a server projection that does not exist yet. The allocations are the EXACT ones the approver is approving, and partyVersion is the account version they were based on.
+class SliceHeldAllocation {
+  final int documentId;
+  final int amountMinor;
+  const SliceHeldAllocation({required this.documentId, required this.amountMinor});
+}
+
+class SliceHeldPayment {
+  final int actionId;
+  final String transcript;
+  final int partyId;
+  final int amountMinor;
+  final String currency;
+  final String occurredOn;
+  final List<SliceHeldAllocation> allocations;
+  final int? partyVersion;
+  const SliceHeldPayment({required this.actionId, required this.transcript, required this.partyId, required this.amountMinor, required this.currency, required this.occurredOn, required this.allocations, required this.partyVersion});
+
+  String get amountText => randFromMinor(amountMinor, currency: currency);
+}
+
+/// Reads the engine's held payments out of GET /actions/pending (other kinds of held action are ignored; anything unusable is skipped).
+List<SliceHeldPayment> parseHeldPayments(int status, Object? body) {
+  final b = _map(body);
+  if (status != 200 || b == null) return const <SliceHeldPayment>[];
+  final out = <SliceHeldPayment>[];
+  for (final item in _list(b['pending'])) {
+    final m = _map(item);
+    if (m == null || m['type'] != 'engine.payment.record') continue;
+    final id = _int(m['id']);
+    final raw = m['payload'];
+    if (id == null || raw is! String) continue;
+    Object? decoded;
+    try {
+      decoded = jsonDecode(raw);
+    } catch (_) {
+      continue;
+    }
+    final p = _map(decoded);
+    if (p == null) continue;
+    final partyId = _int(p['partyId']);
+    final amount = _int(p['amountMinor']);
+    final currency = _text(p['currency']);
+    final occurredOn = _text(p['occurredOn']);
+    if (partyId == null || amount == null || currency == null || occurredOn == null || p['allocations'] is! List) continue;
+    final allocations = <SliceHeldAllocation>[];
+    var usable = true;
+    for (final a in _list(p['allocations'])) {
+      final am = _map(a);
+      final documentId = am == null ? null : _int(am['documentId']);
+      final allocated = am == null ? null : _int(am['amountMinor']);
+      if (documentId == null || allocated == null) {
+        usable = false;
+        break;
+      }
+      allocations.add(SliceHeldAllocation(documentId: documentId, amountMinor: allocated));
+    }
+    if (!usable) continue;
+    final basedOn = _map(p['basedOn']);
+    out.add(SliceHeldPayment(actionId: id, transcript: _text(m['source_transcript']) ?? '', partyId: partyId, amountMinor: amount, currency: currency, occurredOn: occurredOn, allocations: allocations, partyVersion: basedOn == null ? null : _int(basedOn['partyVersion'])));
+  }
+  return out;
+}
+
 class SliceConfirm {
   final bool ok;
   final String? error;
@@ -297,7 +373,7 @@ SliceConfirm parseConfirm(int status, Object? body) {
 
 // ---- the journey -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-enum SliceStep { resting, asking, answered, ambiguous, refused, record, held, approving, done, problem }
+enum SliceStep { resting, asking, answered, ambiguous, refused, unavailable, record, held, approving, done, problem }
 
 /// Where the person is in the journey. Immutable: every transition returns a new flow, and a transition that does not make sense from where the person is returns the same flow unchanged, so a late or repeated answer cannot move the screen somewhere wrong.
 class SliceFlow {
@@ -327,6 +403,7 @@ class SliceFlow {
       case SliceStep.answered:
       case SliceStep.ambiguous:
       case SliceStep.refused:
+      case SliceStep.unavailable:
       case SliceStep.record:
       case SliceStep.done:
         return 'responding';
@@ -344,6 +421,8 @@ class SliceFlow {
         return SliceFlow._(step: SliceStep.ambiguous, candidates: read.candidates);
       case SliceReadKind.refused:
         return const SliceFlow._(step: SliceStep.refused);
+      case SliceReadKind.unavailable:
+        return SliceFlow._(step: SliceStep.unavailable, message: read.message ?? 'This is not available for this business.');
       case SliceReadKind.notFound:
         return const SliceFlow._(step: SliceStep.problem, message: 'There is no such customer.');
       case SliceReadKind.unusable:

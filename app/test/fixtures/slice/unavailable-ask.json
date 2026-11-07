@@ -1,0 +1,7 @@
+{
+  "status": 409,
+  "body": {
+    "error": "capability_unavailable",
+    "message": "Reading what a customer owes is not available for this business."
+  }
+}

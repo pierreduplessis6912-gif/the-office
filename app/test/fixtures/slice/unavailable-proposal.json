@@ -1,0 +1,7 @@
+{
+  "status": 409,
+  "body": {
+    "error": "capability_unavailable",
+    "message": "Recording a payment is not available for this business, so nothing was done."
+  }
+}
