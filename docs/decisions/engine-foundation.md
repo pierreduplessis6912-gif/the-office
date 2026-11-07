@@ -2,7 +2,7 @@
 
 # DECISIONS: engine-foundation
 
-Branch `engine-phase1` (local, not pushed, not merged, not deployed). Decided with Pierre 2026-11-01/02 after the architecture assessment (rebuild the engine core on the retained platform substrate, in this repository). Each section says what was decided, why, and what evidence stands behind it. Phase 1 builds foundations and proves them on the test harness; it does NOT close the recovery gate and it changes nothing in production.
+Branch `engine-phase1` (pushed to GitHub; not merged, not deployed). Decided with Pierre 2026-11-01/02 after the architecture assessment (rebuild the engine core on the retained platform substrate, in this repository). Each section says what was decided, why, and what evidence stands behind it. Phase 1 builds foundations and proves them on the test harness; it does NOT close the recovery gate and it changes nothing in production.
 
 ## Engine foundation: the facts are recorded once and corrected, never edited (2026-11-02)
 
