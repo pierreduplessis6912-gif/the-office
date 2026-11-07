@@ -1,18 +1,18 @@
 {
- "commit": "63ad182",
- "when": "2026-11-07T18:18:05.756415+00:00",
+ "commit": "b5caefc",
+ "when": "2026-11-07T22:09:27.321559+00:00",
  "analyze": "success",
  "analyze_errors": 0,
  "analyze_error_lines": [],
  "tests": "success",
  "failing_lines": [],
  "test_tail": [
-  "\u2705 /home/runner/work/the-office/the-office/app/test/mcp_keys_model_test.dart: the address to give an assistant is the API base plus /mcp, whatever slashes the base ends with",
-  "\u2705 /home/runner/work/the-office/the-office/app/test/mcp_keys_model_test.dart: the lines on a key say when it was made and used, in plain words",
-  "\u2705 /home/runner/work/the-office/the-office/app/test/mcp_keys_model_test.dart: a typed label is tidied: trimmed, control characters removed, at most 60 characters, and nothing usable is null",
+  "\u2705 /home/runner/work/the-office/the-office/app/test/engine_shell_test.dart: the customer opens from the invoice, with its documents and payments",
+  "\u2705 /home/runner/work/the-office/the-office/app/test/engine_shell_test.dart: a record the engine will not show leaves the person where they are, with a plain line",
+  "\u2705 /home/runner/work/the-office/the-office/app/test/engine_shell_test.dart: a new question closes the room",
   "::endgroup::",
   "",
-  "\ud83c\udf89 221 tests passed."
+  "\ud83c\udf89 227 tests passed."
  ],
  "build": "success"
 }
