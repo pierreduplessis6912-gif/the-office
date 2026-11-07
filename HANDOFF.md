@@ -15,8 +15,11 @@ Anything decided in a chat must be committed to this repository in that session.
 - **Decisions reported by the build chat (Pierre's, recorded nowhere else):** build on `engine-phase1`, no merge; the question is scripted against the real read endpoints in the test harness; stage two proposes and confirms a payment through the real engine in the harness, not staging.
 - **Boundary:** no production, no staging, no merge, until Pierre says so. A repository record of his approval of the slice does not exist yet.
 
-## Still missing from the repository (ask Pierre; never invent)
-The 71-rule decision register (kept as evidence only, not a checklist; it is in the 2026-11-01 session transcript, not yet extracted).
+## The 71-rule decision register
+[docs/audit/DECISION_REGISTER_D1-D11.md](docs/audit/DECISION_REGISTER_D1-D11.md): eleven decisions (D1 to D11) as 71 numbered rules, recovered on 2026-11-07 from the Claude Doc it was written in. **Its own status: proposed for owner approval; none is accepted.** Pierre has reported them as **evidence only, not a checklist** (the register sequence is stopped). Whether any was signed off is recorded nowhere in the repository: **do not treat any rule as approved policy.**
+
+## Still missing from the repository
+Nothing known. Any decision made in chat must be committed in that session (rule zero).
 
 ## Parked (they block deploying, not building)
 Review of commit `da55997`; an authenticated post-deploy health gate; production manifest validation (a separate approval, not given); the memory test on a real object; the recovery-gate decision (Pierre's alone).
