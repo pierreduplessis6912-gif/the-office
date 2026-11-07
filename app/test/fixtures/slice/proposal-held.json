@@ -1,0 +1,8 @@
+{
+  "status": 200,
+  "body": {
+    "status": "held",
+    "actionId": 1,
+    "message": "Recording a payment is held for confirmation."
+  }
+}

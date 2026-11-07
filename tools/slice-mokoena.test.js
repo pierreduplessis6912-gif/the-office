@@ -76,6 +76,11 @@ module.exports = kit.guard('mokoena slice', async ({ check }) => {
   check(cannot.result && cannot.result.status === 403 && added(cannot, 'eng_money_movement') === 0, 'an installer cannot approve the held payment (403) and nothing is recorded');
   const stale = await run({ before: [propose('accountant', pay), propose('accountant', { ...pay, amountMinor: 23000 }), confirm('accountant', 2)], ...confirm('accountant', 1) });
   check(stale.result && stale.result.status === 409 && body(stale).error === 'stale' && added(stale, 'eng_money_movement') === 0, 'approving after the account changed underneath is refused as stale: an approval is only for what it showed');
+  // ---- the app's reader and the backend cannot drift apart unseen: the committed fixtures (read by app/test/slice_model_test.dart) must equal what the engine answers now --------------------------------------------
+  const fixtures = require('./slice-fixtures.js'), fs = require('fs'), path = require('path');
+  const now = await fixtures.build();
+  const drifted = Object.entries(now).filter(([name, v]) => { try { return JSON.stringify(JSON.parse(fs.readFileSync(path.join(fixtures.DIR, name), 'utf8'))) !== JSON.stringify(v); } catch (e) { return true; } }).map(([name]) => name);
+  check(drifted.length === 0, `every committed fixture equals the engine's answer now (${Object.keys(now).length} checked)` + (drifted.length ? '; DRIFTED: ' + drifted.join(', ') + ' (regenerate with node tools/slice-fixtures.js)' : ''));
 });
 
 if (require.main === module) kit.standalone(module.exports);

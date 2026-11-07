@@ -1,0 +1,122 @@
+{
+  "status": 200,
+  "body": {
+    "status": "ok",
+    "result": {
+      "ref": {
+        "kind": "document",
+        "id": 1
+      },
+      "version": 2,
+      "title": "Invoice #1",
+      "fields": [
+        {
+          "key": "kind",
+          "label": "Kind",
+          "value": "invoice"
+        },
+        {
+          "key": "number",
+          "label": "Number",
+          "value": 1
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "value": "unpaid",
+          "derivedBy": "ledger.outstandingForDocument"
+        },
+        {
+          "key": "issuedOn",
+          "label": "Issued",
+          "value": "2026-10-01"
+        },
+        {
+          "key": "currency",
+          "label": "Currency",
+          "value": "ZAR"
+        },
+        {
+          "key": "netMinor",
+          "label": "Net",
+          "value": 100000,
+          "derivedBy": "ledger.documentTotals"
+        },
+        {
+          "key": "taxMinor",
+          "label": "Tax",
+          "value": 15000,
+          "derivedBy": "ledger.documentTotals"
+        },
+        {
+          "key": "grossMinor",
+          "label": "Total",
+          "value": 115000,
+          "derivedBy": "ledger.documentTotals"
+        },
+        {
+          "key": "allocatedMinor",
+          "label": "Paid",
+          "value": 0,
+          "derivedBy": "ledger.allocatedToDocument"
+        },
+        {
+          "key": "outstandingMinor",
+          "label": "Outstanding",
+          "value": 115000,
+          "derivedBy": "ledger.outstandingForDocument"
+        }
+      ],
+      "collections": {
+        "lines": [
+          {
+            "lineNo": 1,
+            "description": "Vinyl plank",
+            "quantityMilli": 1000,
+            "unit": "job",
+            "unitPriceMinor": 100000,
+            "taxBp": 1500
+          }
+        ],
+        "allocations": []
+      },
+      "relations": [
+        {
+          "role": "customer",
+          "ref": {
+            "kind": "party",
+            "id": 1
+          },
+          "label": "Mokoena"
+        }
+      ],
+      "actions": [
+        {
+          "capability": "payment.record",
+          "label": "Record a payment",
+          "valid": true,
+          "reason": null
+        }
+      ],
+      "history": [
+        {
+          "eventId": 2,
+          "type": "document.issued",
+          "at": "2026-01-01T00:00:00.000Z",
+          "actor": "seed@example.com",
+          "reason": null
+        }
+      ],
+      "exports": [
+        {
+          "kind": "pdf",
+          "available": false
+        },
+        {
+          "kind": "share",
+          "available": false
+        }
+      ]
+    }
+  }
+}

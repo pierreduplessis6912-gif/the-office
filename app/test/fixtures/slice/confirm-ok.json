@@ -1,0 +1,13 @@
+{
+  "status": 200,
+  "body": {
+    "status": "confirmed",
+    "capability": "payment.record",
+    "outcome": {
+      "movementId": 1,
+      "allocationIds": [
+        1
+      ]
+    }
+  }
+}

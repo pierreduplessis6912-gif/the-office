@@ -1,0 +1,105 @@
+{
+  "status": 200,
+  "body": {
+    "status": "ok",
+    "result": {
+      "ref": {
+        "kind": "party",
+        "id": 1
+      },
+      "version": 3,
+      "title": "Mokoena",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "value": "Mokoena"
+        },
+        {
+          "key": "kind",
+          "label": "Kind",
+          "value": "person"
+        },
+        {
+          "key": "roles",
+          "label": "Roles",
+          "value": "customer"
+        },
+        {
+          "key": "outstandingMinor",
+          "label": "Outstanding",
+          "value": 138000,
+          "derivedBy": "ledger.outstandingForParty"
+        }
+      ],
+      "collections": {
+        "documents": [
+          {
+            "id": 1,
+            "number": 1,
+            "kind": "invoice",
+            "issuedOn": "2026-10-01",
+            "grossMinor": 115000,
+            "allocatedMinor": 0,
+            "outstandingMinor": 115000
+          },
+          {
+            "id": 2,
+            "number": 2,
+            "kind": "invoice",
+            "issuedOn": "2026-10-15",
+            "grossMinor": 23000,
+            "allocatedMinor": 0,
+            "outstandingMinor": 23000
+          }
+        ],
+        "payments": []
+      },
+      "relations": [
+        {
+          "role": "invoice",
+          "ref": {
+            "kind": "document",
+            "id": 1
+          },
+          "label": "invoice 1"
+        },
+        {
+          "role": "invoice",
+          "ref": {
+            "kind": "document",
+            "id": 2
+          },
+          "label": "invoice 2"
+        }
+      ],
+      "actions": [
+        {
+          "capability": "payment.record",
+          "label": "Record a payment",
+          "valid": true,
+          "reason": null
+        }
+      ],
+      "history": [
+        {
+          "eventId": 1,
+          "type": "party.created",
+          "at": "2026-01-01T00:00:00.000Z",
+          "actor": "seed@example.com",
+          "reason": null
+        }
+      ],
+      "exports": [
+        {
+          "kind": "pdf",
+          "available": false
+        },
+        {
+          "kind": "share",
+          "available": false
+        }
+      ]
+    }
+  }
+}

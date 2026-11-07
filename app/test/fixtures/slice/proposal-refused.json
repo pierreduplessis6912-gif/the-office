@@ -1,0 +1,7 @@
+{
+  "status": 403,
+  "body": {
+    "error": "not_permitted",
+    "message": "Recording a payment needs permission this member does not have, so nothing was done."
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "status": 409,
+  "body": {
+    "error": "stale",
+    "message": "The account changed after this was proposed, so it needs to be proposed again."
+  }
+}

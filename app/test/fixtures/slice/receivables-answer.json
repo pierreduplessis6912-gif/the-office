@@ -1,0 +1,42 @@
+{
+  "status": 200,
+  "body": {
+    "status": "ok",
+    "result": {
+      "party": {
+        "id": 1,
+        "name": "Mokoena"
+      },
+      "currency": "ZAR",
+      "totalMinor": 138000,
+      "documents": [
+        {
+          "ref": {
+            "kind": "document",
+            "id": 1
+          },
+          "number": 1,
+          "kind": "invoice",
+          "issuedOn": "2026-10-01",
+          "grossMinor": 115000,
+          "allocatedMinor": 0,
+          "outstandingMinor": 115000
+        },
+        {
+          "ref": {
+            "kind": "document",
+            "id": 2
+          },
+          "number": 2,
+          "kind": "invoice",
+          "issuedOn": "2026-10-15",
+          "grossMinor": 23000,
+          "allocatedMinor": 0,
+          "outstandingMinor": 23000
+        }
+      ],
+      "version": 3,
+      "derivedBy": "ledger.outstandingForParty"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "status": 404,
+  "body": {
+    "error": "not_found",
+    "message": "There is no such customer."
+  }
+}

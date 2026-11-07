@@ -1,0 +1,16 @@
+{
+  "status": 200,
+  "body": {
+    "status": "ambiguous",
+    "candidates": [
+      {
+        "id": 1,
+        "name": "Mokoena"
+      },
+      {
+        "id": 2,
+        "name": "Mokoena"
+      }
+    ]
+  }
+}
