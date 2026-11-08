@@ -51,6 +51,7 @@ def main(results, commit):
         snapj = parse_json(read(os.path.join(results, f"snapshot-{n}.json"))) or {}
         restj = parse_json(read(os.path.join(results, f"restore-{n}.json"))) or {}
         healthj = parse_json(read(os.path.join(results, f"health-{n}.json"))) or {}
+        schema = healthj.get("schema") or {}
         snap_ok = snap.get("http") == 200 and bool(snapj.get("snapshot"))
         rest_ok = rest.get("http") == 200 and restj.get("ok") is True and not restj.get("differences")
         step = {
@@ -60,7 +61,8 @@ def main(results, commit):
             "ramp_http": ramp.get("http"),
             "snapshot": {"http": snap.get("http"), "seconds": snap.get("seconds"), "ok": snap_ok, "tables": snapj.get("tables"), "rows": snapj.get("rows")},
             "restore": {"http": rest.get("http"), "seconds": rest.get("seconds"), "ok": rest_ok, "tables_restored": restj.get("tablesRestored"), "rows_restored": restj.get("rowsRestored"), "differences": restj.get("differences")},
-            "health_ok_after": healthj.get("ok"),
+            "health_http": calls.get(f"health-{n}", {}).get("http"),
+            "schema_clean_after": (schema.get("pending") == [] and schema.get("error") is None) if schema else None,
         }
         if not snap_ok:
             step["snapshot"]["error_excerpt"] = excerpt(read(os.path.join(results, f"snapshot-{n}.json")))
@@ -75,6 +77,7 @@ def main(results, commit):
     clear = calls.get("clear", {})
     cleared = parse_json(read(os.path.join(results, "ramp-clear.json"))) or {}
     final_health = parse_json(read(os.path.join(results, "ramp-final-health.json"))) or {}
+    final_schema = final_health.get("schema") or {}
     summary = {
         "commit": commit,
         "business": "staging-two",
@@ -85,7 +88,7 @@ def main(results, commit):
         "first_failure_at_rows": first_failure,
         "ramp_completed_all_sizes": bool(sizes) and first_failure is None,
         "marker_rows_cleared": {"http": clear.get("http"), "removed": cleared.get("removed")},
-        "health_ok_at_the_end": final_health.get("ok"),
+        "schema_clean_at_the_end": (final_schema.get("pending") == [] and final_schema.get("error") is None) if final_schema else None,
         "calls": calls,
     }
     print(json.dumps(summary, indent=2))
