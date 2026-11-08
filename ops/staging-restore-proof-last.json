@@ -16,16 +16,16 @@
  "all_ok": true,
  "failed": [],
  "details": {
-  "pre_snapshot": "20261103T073058Z",
-  "deployed_commit": "b985ace5bfd914a5da68ff49746976fea9d9ee09",
-  "expected_commit": "b985ace5bfd914a5da68ff49746976fea9d9ee09",
-  "probe_column": "probe_107",
+  "pre_snapshot": "20261108T202349Z",
+  "deployed_commit": "4982ee0d8d17b6cc8d600936fa9e815a89654b4f",
+  "expected_commit": "4982ee0d8d17b6cc8d600936fa9e815a89654b4f",
+  "probe_column": "probe_108",
   "restore": {
    "ok": true,
-   "snapshot": "20261103T073058Z",
-   "safetySnapshot": "20261103T073243Z-pre-restore",
+   "snapshot": "20261108T202349Z",
+   "safetySnapshot": "20261108T202553Z-pre-restore",
    "tablesRestored": 55,
-   "rowsRestored": 221,
+   "rowsRestored": 222,
    "differences": [],
    "error": null
   },
