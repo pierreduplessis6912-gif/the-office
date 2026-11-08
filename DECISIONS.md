@@ -315,3 +315,4 @@ Split on 2026-10-24 from the 7958-line original, which is `git show 95bf743:DECI
 - [B. The visible slice with Flutter (as amended after Pierre's review)](docs/decisions/first-slice.md) (new)
 - [C. What the engine's sample seed provides (added; not part of the originals)](docs/decisions/first-slice.md) (new)
 - [D. Build status against section B (added 2026-11-07 by the build chat; evidence labels: [T] test, [X] committed staging record, [D] documentation, [U] unknown)](docs/decisions/first-slice.md) (new)
+- [E. The twelve invariants against the tests (criterion 7; added 2026-11-07 by the build chat; evidence labels: [T] test, [C] code read, [D] documentation, [U] unknown)](docs/decisions/first-slice.md) (new)
