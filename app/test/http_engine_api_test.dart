@@ -91,11 +91,15 @@ void main() {
     });
     await client.pending();
     await client.confirm(7);
+    await client.reject(7);
     expect(seen[0].method, 'GET');
     expect(seen[0].url.path, '/actions/pending');
     expect(seen[1].method, 'POST');
     expect(seen[1].url.path, '/actions/7/confirm');
     expect(jsonDecode(seen[1].body), <String, Object?>{});
+    expect(seen[2].method, 'POST');
+    expect(seen[2].url.path, '/actions/7/reject');
+    expect(jsonDecode(seen[2].body), <String, Object?>{});
   });
 
   test('every status and body is carried through, and a body that is not JSON becomes null', () async {

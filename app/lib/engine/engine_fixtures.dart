@@ -827,6 +827,31 @@ const Map<String, String> engineFixtureJson = <String, String>{
     "message": "The account changed after this was proposed, so it needs to be proposed again."
   }
 }''',
+  'reject-ok': r'''{
+  "status": 200,
+  "body": {
+    "status": "rejected",
+    "id": 1
+  }
+}''',
+  'reject-refused': r'''{
+  "status": 403,
+  "body": {
+    "error": "not available for your role"
+  }
+}''',
+  'confirm-after-reject': r'''{
+  "status": 409,
+  "body": {
+    "error": "action already rejected"
+  }
+}''',
+  'pending-empty': r'''{
+  "status": 200,
+  "body": {
+    "pending": []
+  }
+}''',
   'unavailable-ask': r'''{
   "status": 409,
   "body": {

@@ -400,6 +400,22 @@ SliceConfirm parseConfirm(int status, Object? body) {
   return SliceConfirm(ok: false, error: _text(b['error']) ?? 'unusable', message: _text(b['message']));
 }
 
+class SliceReject {
+  final bool ok;
+  final String? error;
+  final String? message;
+  const SliceReject({required this.ok, this.error, this.message});
+}
+
+/// Reads the answer of POST /actions/<id>/reject. Declined means nothing was recorded and nothing waits any more. The engine's refusals here use the older shape {error: "..."} (the error text is the message).
+SliceReject parseReject(int status, Object? body) {
+  final b = _map(body);
+  if (b == null) return const SliceReject(ok: false, error: 'unusable');
+  if (status == 200 && b['status'] == 'rejected') return const SliceReject(ok: true);
+  final error = _text(b['error']);
+  return SliceReject(ok: false, error: error ?? 'unusable', message: _text(b['message']) ?? error);
+}
+
 // ---- the journey -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 enum SliceStep { resting, asking, answered, ambiguous, refused, unavailable, record, held, approving, done, problem }
@@ -476,6 +492,12 @@ class SliceFlow {
     if (answer == null || (step != SliceStep.answered && step != SliceStep.record)) return this;
     if (p.held && p.actionId != null) return SliceFlow._(step: SliceStep.held, answer: answer, actionId: p.actionId, message: p.message);
     return SliceFlow._(step: SliceStep.problem, answer: answer, message: p.message ?? 'The payment could not be proposed.');
+  }
+
+  /// A held payment was declined: back to the answer, nothing recorded. A refused decline leaves the payment held, because it still waits.
+  SliceFlow declined(SliceReject r) {
+    if (step != SliceStep.held || !r.ok) return this;
+    return SliceFlow._(step: SliceStep.answered, answer: answer);
   }
 
   SliceFlow approving() {

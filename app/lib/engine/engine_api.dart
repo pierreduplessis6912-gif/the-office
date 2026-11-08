@@ -45,6 +45,9 @@ abstract class EngineApi {
 
   /// Approves a held action: POST /actions/<id>/confirm.
   Future<EngineResponse> confirm(int actionId);
+
+  /// Declines a held action: POST /actions/<id>/reject. Nothing is recorded.
+  Future<EngineResponse> reject(int actionId);
 }
 
 /// Answers from recorded engine responses, chosen by who is asking and what the business has. [fixtures] is keyed by fixture name without its extension.
@@ -68,9 +71,14 @@ class FixtureEngineApi implements EngineApi {
   /// What the shell sent, for tests to check: every proposed payload, and every action number approved.
   final List<Map<String, Object?>> proposals = <Map<String, Object?>>[];
   final List<int> confirmations = <int>[];
+  final List<int> rejections = <int>[];
   bool _approved = false;
+  bool _rejected = false;
 
-  FixtureEngineApi(this.fixtures, {this.role = 'accountant', this.capabilityAvailable = true, this.ambiguous = false, this.canRecord = true, this.staleApproval = false});
+  /// False stands for a member who may not decline a held payment: the engine refuses it and the payment still waits.
+  final bool canDecline;
+
+  FixtureEngineApi(this.fixtures, {this.role = 'accountant', this.capabilityAvailable = true, this.ambiguous = false, this.canRecord = true, this.staleApproval = false, this.canDecline = true});
 
   static const EngineResponse _missing = EngineResponse(500, null);
 
@@ -110,13 +118,22 @@ class FixtureEngineApi implements EngineApi {
   }
 
   @override
-  Future<EngineResponse> pending() async => fixtures['pending-held'] ?? _missing;
+  Future<EngineResponse> pending() async => fixtures[_rejected ? 'pending-empty' : 'pending-held'] ?? _missing;
 
   @override
   Future<EngineResponse> confirm(int actionId) async {
     confirmations.add(actionId);
+    if (_rejected) return fixtures['confirm-after-reject'] ?? _missing;
     if (staleApproval) return fixtures['confirm-stale'] ?? _missing;
     _approved = true;
     return fixtures['confirm-ok'] ?? _missing;
+  }
+
+  @override
+  Future<EngineResponse> reject(int actionId) async {
+    rejections.add(actionId);
+    if (!canDecline || role == 'installer' || role == 'sales') return fixtures['reject-refused'] ?? _missing;
+    _rejected = true;
+    return fixtures['reject-ok'] ?? _missing;
   }
 }

@@ -35,6 +35,7 @@ class _EngineShellState extends State<EngineShell> {
   String? _recordNote;
   final List<SliceRecord> _trail = <SliceRecord>[];
   _Approval? _approval;
+  String? _approvalNote;
   bool _viewingApproval = false;
   String? _recorded;
   bool _working = false;
@@ -175,6 +176,7 @@ class _EngineShellState extends State<EngineShell> {
       _flow = _flow.proposed(proposal);
       if (_flow.step == SliceStep.held) {
         _approval = approval;
+        _approvalNote = null;
         _viewingApproval = true;
       }
     });
@@ -211,6 +213,31 @@ class _EngineShellState extends State<EngineShell> {
         _recorded = 'Recorded ${approval.held.amountText} from ${approval.customerName ?? answer?.partyName ?? 'the customer'}.';
         _flow = const SliceFlow.resting().asked().received(again ?? const SliceRead.unusable());
       }
+    });
+  }
+
+  /// The person declines the held payment. Only the engine's answer decides: if it refuses (the member may not decline), the payment still waits and the card says why.
+  Future<void> _decline() async {
+    final approval = _approval;
+    if (approval == null || _flow.step != SliceStep.held) return;
+    SliceReject result;
+    try {
+      final response = await widget.api.reject(approval.held.actionId);
+      result = parseReject(response.status, response.body);
+    } catch (_) {
+      result = const SliceReject(ok: false, error: 'unusable');
+    }
+    if (!mounted) return;
+    setState(() {
+      if (!result.ok) {
+        _approvalNote = result.message ?? 'The payment could not be declined, so it still waits.';
+        return;
+      }
+      _flow = _flow.declined(result);
+      _approvalNote = null;
+      _approval = null;
+      _viewingApproval = false;
+      _recorded = 'Declined. ${approval.held.amountText} from ${approval.customerName ?? _flow.answer?.partyName ?? 'the customer'} was not recorded.';
     });
   }
 
@@ -263,7 +290,7 @@ class _EngineShellState extends State<EngineShell> {
         final approval = _approval;
         if (approval == null) return const SizedBox.shrink();
         if (_viewingApproval || _flow.step == SliceStep.approving) {
-          return _ApprovalCard(approval: approval, currency: answer?.currency, busy: _flow.step == SliceStep.approving, onApprove: _approve, onBack: _leaveApproval);
+          return _ApprovalCard(approval: approval, currency: answer?.currency, busy: _flow.step == SliceStep.approving, note: _approvalNote, onApprove: _approve, onDecline: _decline, onBack: _leaveApproval);
         }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -443,9 +470,11 @@ class _ApprovalCard extends StatelessWidget {
   final _Approval approval;
   final String? currency;
   final bool busy;
+  final String? note;
   final VoidCallback onApprove;
+  final VoidCallback onDecline;
   final VoidCallback onBack;
-  const _ApprovalCard({required this.approval, required this.currency, required this.busy, required this.onApprove, required this.onBack});
+  const _ApprovalCard({required this.approval, required this.currency, required this.busy, required this.note, required this.onApprove, required this.onDecline, required this.onBack});
 
   @override
   Widget build(BuildContext context) {
@@ -480,8 +509,11 @@ class _ApprovalCard extends StatelessWidget {
           if (held.partyVersion != null) Text('Based on account version ${held.partyVersion}.', style: const TextStyle(color: _textTertiary, fontSize: 11)),
           const SizedBox(height: 10),
           const Text('Nothing is recorded until you approve.', style: TextStyle(color: _textSecondary, fontSize: 12)),
+          if (note != null) Padding(padding: const EdgeInsets.only(top: 10), child: Text(note!, key: const Key('approval-note'), style: const TextStyle(color: _ember, fontSize: 12))),
           const SizedBox(height: 18),
-          Row(
+          Wrap(
+            spacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               ElevatedButton(
                 key: const Key('approve'),
@@ -489,7 +521,7 @@ class _ApprovalCard extends StatelessWidget {
                 style: ElevatedButton.styleFrom(backgroundColor: _ember, foregroundColor: _textPrimary),
                 child: const Text('Approve'),
               ),
-              const SizedBox(width: 8),
+              TextButton(key: const Key('decline'), onPressed: busy ? null : onDecline, child: const Text('Decline', style: TextStyle(color: _textSecondary))),
               TextButton(key: const Key('approval-conversation'), onPressed: busy ? null : onBack, child: const Text('Back to the conversation', style: TextStyle(color: _textSecondary))),
             ],
           ),

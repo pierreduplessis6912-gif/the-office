@@ -252,6 +252,37 @@ void main() {
     });
   });
 
+  group('declining a held payment', () {
+    test('a decline is read, and a refusal keeps its words', () {
+      expect(parseReject(_status(_fx('reject-ok')), _body(_fx('reject-ok'))).ok, isTrue);
+      final refused = parseReject(_status(_fx('reject-refused')), _body(_fx('reject-refused')));
+      expect(refused.ok, isFalse);
+      expect(refused.message, 'not available for your role');
+      final late = parseReject(_status(_fx('confirm-after-reject')), _body(_fx('confirm-after-reject')));
+      expect(late.ok, isFalse);
+      expect(late.message, 'action already rejected');
+      expect(parseReject(200, null).ok, isFalse);
+      expect(parseReject(200, <String, Object?>{'status': 'other'}).ok, isFalse);
+    });
+
+    test('declining from the approval returns to the answer with nothing recorded; a refused decline leaves it held', () {
+      final held = const SliceFlow.resting().asked().received(_read('receivables-answer')).proposed(_proposal('proposal-held'));
+      expect(held.step, SliceStep.held);
+      final back = held.declined(const SliceReject(ok: true));
+      expect(back.step, SliceStep.answered);
+      expect(back.answer!.totalMinor, 85000);
+      expect(held.declined(const SliceReject(ok: false, error: 'x')).step, SliceStep.held);
+    });
+
+    test('a decline that makes no sense from here changes nothing', () {
+      final answered = const SliceFlow.resting().asked().received(_read('receivables-answer'));
+      expect(answered.declined(const SliceReject(ok: true)).step, SliceStep.answered);
+      expect(const SliceFlow.resting().declined(const SliceReject(ok: true)).step, SliceStep.resting);
+      final approving = answered.proposed(_proposal('proposal-held')).approving();
+      expect(approving.declined(const SliceReject(ok: true)).step, SliceStep.approving);
+    });
+  });
+
   group('the journey', () {
     final answered = const SliceFlow.resting().asked().received(_read('receivables-answer'));
 

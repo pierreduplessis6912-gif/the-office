@@ -16,6 +16,7 @@ async function build() {
   const r500 = { partyId: 1, amountMinor: 50000, currency: 'ZAR', occurredOn: '2026-11-07', method: 'eft', allocate: 'oldest_first' };
   const propose = (role = 'accountant', payload = r500, transcript = 'Record R500 from Mokoena') => ({ method: 'POST', path: '/engine/proposals', role, body: { capability: 'payment.record', payload, transcript } });
   const confirm = (role = 'accountant', id = 1) => ({ method: 'POST', path: `/actions/${id}/confirm`, role, body: {} });
+  const reject = (role = 'accountant', id = 1) => ({ method: 'POST', path: `/actions/${id}/reject`, role, body: {} });
   const ask = (role, party) => ({ method: 'GET', path: `/engine/receivables?party=${party}`, role });
   const open = (role, kind, id) => ({ method: 'GET', path: `/engine/records/${kind}/${id}`, role });
   const twoMokoenas = (db) => { kit.seedReceivables()(db); const e = Number(db.prepare("INSERT INTO eng_event (type, actor_email, contract, contract_version, payload_json) VALUES ('party.created', 'seed@example.com', 'seed', 1, ?) RETURNING id").get(JSON.stringify({ kind: 'organisation', name: 'Mokoena', roles: ['customer'] })).id); db.prepare("INSERT INTO eng_party (kind, name, event_id) VALUES ('organisation', 'Mokoena', ?)").run(e); db.prepare("INSERT INTO eng_party_role (party_id, role, event_id) VALUES (2, 'customer', ?)").run(e); };
@@ -35,6 +36,10 @@ async function build() {
     'proposal-refused': (await run(propose('installer'))).result,
     'confirm-ok': (await run({ before: [propose()], ...confirm() })).result,
     'confirm-stale': (await run({ before: [propose(), propose('accountant', { ...r500, amountMinor: 10000 }, 'Record R100 from Mokoena'), confirm('accountant', 2)], ...confirm('accountant', 1) })).result,
+    'reject-ok': (await run({ before: [propose()], ...reject() })).result,
+    'reject-refused': (await run({ before: [propose()], ...reject('installer') })).result,
+    'confirm-after-reject': (await run({ before: [propose(), reject()], ...confirm() })).result,
+    'pending-empty': (await run({ before: [propose(), reject()], method: 'GET', path: '/actions/pending', role: 'accountant' })).result,
     'unavailable-ask': (await kit.route({ env: { BUSINESS_ID: 'eng-b' }, seed: offB, ...ask('accountant', 'Mokoena') })).result,
     'unavailable-proposal': (await kit.route({ env: { BUSINESS_ID: 'eng-b' }, seed: offB, ...propose() })).result,
   };

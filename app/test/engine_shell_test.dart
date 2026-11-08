@@ -31,8 +31,8 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.pump(const Duration(milliseconds: 100));
 }
 
-Future<FixtureEngineApi> _answered(WidgetTester tester, {bool canRecord = true, bool staleApproval = false}) async {
-  final api = FixtureEngineApi(_fx, canRecord: canRecord, staleApproval: staleApproval);
+Future<FixtureEngineApi> _answered(WidgetTester tester, {bool canRecord = true, bool staleApproval = false, bool canDecline = true}) async {
+  final api = FixtureEngineApi(_fx, canRecord: canRecord, staleApproval: staleApproval, canDecline: canDecline);
   await _open(tester, api);
   await _ask(tester, 'What does Mokoena owe me?');
   return api;
@@ -279,5 +279,28 @@ void main() {
     await _ask(tester, 'Record R500 from Patel');
     expect(find.text('Ask what Patel owes first, so I know which customer you mean.'), findsOneWidget);
     expect(api.proposals, isEmpty);
+  });
+
+  testWidgets('declining a held payment records nothing, says so, and returns to the answer', (tester) async {
+    final api = await _answered(tester);
+    await _ask(tester, 'Record R500 from Mokoena');
+    await _tap(tester, find.byKey(const Key('decline')));
+    expect(api.rejections, [1]);
+    expect(api.confirmations, isEmpty);
+    expect(find.text('Declined. R500.00 from Mokoena was not recorded.'), findsOneWidget);
+    expect(find.text('AWAITING YOUR APPROVAL'), findsNothing);
+    expect(find.text('R850.00'), findsOneWidget);
+    expect(find.textContaining('waiting for your approval'), findsNothing);
+    expect(find.byType(EngineOrb), findsOneWidget);
+  });
+
+  testWidgets('a decline the engine refuses leaves the payment waiting and says why', (tester) async {
+    final api = await _answered(tester, canDecline: false);
+    await _ask(tester, 'Record R500 from Mokoena');
+    await _tap(tester, find.byKey(const Key('decline')));
+    expect(api.rejections, [1]);
+    expect(find.text('not available for your role'), findsOneWidget);
+    expect(find.text('AWAITING YOUR APPROVAL'), findsOneWidget);
+    expect(find.byKey(const Key('approve')), findsOneWidget);
   });
 }

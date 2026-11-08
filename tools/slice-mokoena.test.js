@@ -104,6 +104,24 @@ module.exports = kit.guard('mokoena slice', async ({ check }) => {
   const stale = await run({ before: [propose('accountant'), propose('accountant', { ...r500, amountMinor: 10000 }, 'Record R100 from Mokoena'), confirm('accountant', 2)], ...confirm('accountant', 1) });
   check(stale.result && stale.result.status === 409 && body(stale).error === 'stale' && added(stale, 'eng_money_movement') === 0, 'approving after the account changed underneath is refused as stale: an approval is only for what it showed');
 
+  // ---- DECLINING a held payment: the existing reject route, which already works for the engine's held type ------------------------------------------------------------------------------------------------------
+  const reject = (role, id = 1) => ({ method: 'POST', path: `/actions/${id}/reject`, role, body: {} });
+  const declined = await run({ before: [propose('accountant')], ...reject('accountant') });
+  check(declined.result && declined.result.status === 200 && body(declined).status === 'rejected' && JSON.stringify(addedTables(declined)) === JSON.stringify([]) && ((((declined.writes || {}).pending_actions || {}).changed) || []).length === 1 && added(declined, 'eng_money_movement') === 0, 'an accountant can decline a held payment: it is marked rejected, nothing is recorded');
+  const afterDecline = await run({ before: [propose('accountant'), reject('accountant')], ...ask('accountant') });
+  check(body(afterDecline).result && body(afterDecline).result.totalMinor === 85000, 'and Mokoena still owes R850.00');
+  const waiting = await run({ before: [propose('accountant'), reject('accountant')], method: 'GET', path: '/actions/pending', role: 'accountant' });
+  check(Array.isArray(body(waiting).pending) && body(waiting).pending.length === 0, 'nothing waits for approval any more');
+  const lateConfirm = await run({ before: [propose('accountant'), reject('accountant')], ...confirm('accountant') });
+  check(lateConfirm.result && lateConfirm.result.status === 409 && body(lateConfirm).error === 'action already rejected' && added(lateConfirm, 'eng_money_movement') === 0, 'a declined payment cannot be approved afterwards (409), and nothing is recorded');
+  const installerDecline = await run({ before: [propose('accountant')], ...reject('installer') });
+  const stillWaiting = await run({ before: [propose('accountant')], method: 'GET', path: '/actions/pending', role: 'accountant' });
+  check(installerDecline.result && installerDecline.result.status === 403 && body(stillWaiting).pending.length === 1, 'an installer cannot decline it (403) and it still waits');
+  const over = await run({ before: [], ...propose('accountant', { ...r500, amountMinor: 100000 }, 'Record R1000 from Mokoena') });
+  const overPending = await run({ before: [propose('accountant', { ...r500, amountMinor: 100000 }, 'Record R1000 from Mokoena')], method: 'GET', path: '/actions/pending', role: 'accountant' });
+  let overHeld = {}; try { overHeld = JSON.parse(((body(overPending).pending || [])[0] || {}).payload); } catch (e) { overHeld = {}; }
+  check(over.result && over.result.status === 200 && body(over).status === 'held' && overHeld.amountMinor === 100000 && overHeld.allocations.length === 1 && overHeld.allocations[0].amountMinor === 85000, 'FINDING (characterised, not a decision): a payment larger than what is owed (R1,000.00 against R850.00) is HELD with only the R850.00 owed allocated, so R150.00 would stay unallocated; the approval view shows the amount and the allocation, and the difference is the approver\'s to notice');
+
   // ---- PROVENANCE (invariant 6, docs/decisions/first-slice.md part E): capture, proposal and approval are linked by reference, and a record's history shows them --------------------------------------------------
   const capRows = (((proposed.writes || {}).captures || {}).added) || [];
   const capId = capRows[0] && capRows[0].id;
@@ -120,6 +138,25 @@ module.exports = kit.guard('mokoena slice', async ({ check }) => {
   check('captureId' in issued && issued.captureId === null && issued.proposalId === null && issued.interpretationId === null && issued.interpreter === null, 'while a fact written without a proposal (the seeded invoice) shows no capture, interpretation or proposal rather than inventing one');
   const forged = await run(propose('accountant', { ...r500, captureId: 1 }));
   check(forged.result && forged.result.status === 422 && body(forged).error === 'invalid_payload' && JSON.stringify(addedTables(forged)) === JSON.stringify(['captures']), 'a client cannot name its own capture: a payload that carries one is refused as invalid, and only what was said is kept');
+
+  // ---- INVARIANT 4 at confirm: a held payment that over-allocates (more than the invoice still owes) is refused when approved, and nothing is recorded -------------------------------------------------------------------
+  const forgedHeld = (db) => db.prepare("INSERT INTO pending_actions (id, type, payload, source_transcript) VALUES (1, 'engine.payment.record', ?, 'Record R5000 from Mokoena')").run(JSON.stringify({ partyId: 1, amountMinor: 500000, currency: 'ZAR', occurredOn: '2026-11-07', allocations: [{ documentId: 1, amountMinor: 500000 }], basedOn: { partyVersion: a.version } }));
+  const overConfirm = await run({ seed: forgedHeld, ...confirm('accountant') });
+  check(overConfirm.result && overConfirm.result.status >= 400 && body(overConfirm).error === 'over_allocated' && added(overConfirm, 'eng_money_movement') === 0 && added(overConfirm, 'eng_allocation') === 0, `approving a held payment that allocates R5,000.00 to an invoice that owes R850.00 is refused (${overConfirm.result && overConfirm.result.status}, over_allocated) and nothing is recorded`);
+
+  // ---- INVARIANT 5: one derivation per position: the answer, the invoice and the customer record cannot disagree --------------------------------------------------------------------------------------------------
+  for (const [pid, who] of [[1, 'Mokoena'], [2, 'Patel Builders']]) {
+    const answer = body(await run(ask('accountant', String(pid)))).result || {};
+    const partyView = body(await run(open('accountant', 'party', pid))).result || {};
+    const partyOutstanding = ((partyView.fields || []).find((f) => f.key === 'outstandingMinor') || {}).value;
+    let lineAgree = (answer.documents || []).length > 0;
+    for (const line of (answer.documents || [])) {
+      const docView = body(await run(open('accountant', 'document', line.ref.id))).result || {};
+      const f = (k) => ((docView.fields || []).find((x) => x.key === k) || {}).value;
+      lineAgree = lineAgree && f('outstandingMinor') === line.outstandingMinor && f('grossMinor') === line.grossMinor && f('allocatedMinor') === line.allocatedMinor;
+    }
+    check(answer.totalMinor === partyOutstanding && lineAgree, `for ${who} the answer's total (${answer.totalMinor}), the customer record's outstanding (${partyOutstanding}) and every invoice record's gross, paid and outstanding agree: one derivation, three ways to read it`);
+  }
 
   // ---- BUSINESS B: the capability is not available; the request is answered honestly and only a capture and an observation are written ---------------------------------------------------------
   const offB = kit.asEngineBusiness((db) => db.prepare("INSERT INTO eng_config (key, value_json) VALUES ('available', '[]')").run());

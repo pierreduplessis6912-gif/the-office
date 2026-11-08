@@ -60,4 +60,7 @@ class HttpEngineApi implements EngineApi {
 
   @override
   Future<EngineResponse> confirm(int actionId) => _post('/actions/$actionId/confirm', <String, Object?>{});
+
+  @override
+  Future<EngineResponse> reject(int actionId) => _post('/actions/$actionId/reject', <String, Object?>{});
 }
