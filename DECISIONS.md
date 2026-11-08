@@ -316,3 +316,4 @@ Split on 2026-10-24 from the 7958-line original, which is `git show 95bf743:DECI
 - [C. What the engine's sample seed provides (added; not part of the originals)](docs/decisions/first-slice.md) (new)
 - [D. Build status against section B (added 2026-11-07 by the build chat; evidence labels: [T] test, [X] committed staging record, [D] documentation, [U] unknown)](docs/decisions/first-slice.md) (new)
 - [E. The twelve invariants against the tests (criterion 7; added 2026-11-07 by the build chat; evidence labels: [T] test, [C] code read, [D] documentation, [U] unknown)](docs/decisions/first-slice.md) (new)
+- [F. Paper check against the 16 domains (added 2026-11-07 by the build chat; evidence labels: [T] test, [C] code read, [D] documentation, [I] inference, [U] unknown)](docs/decisions/first-slice.md) (new)
