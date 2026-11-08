@@ -151,6 +151,24 @@ void main() {
       expect(d.fields.firstWhere((f) => f.key == 'outstandingMinor').display, 'R350.00');
     });
 
+    test('after approval the new allocation carries its trail: the capture, the proposal, the approver and the contract', () {
+      final d = _record('record-document-after-payment')!;
+      final last = d.history.last;
+      expect(last.type, 'payment.allocated');
+      expect(last.captureId, 2);
+      expect(last.proposalId, 1);
+      expect(last.approvedBy, 'accountant@example.com');
+      expect(last.contract, 'payment.record');
+      expect(last.contractVersion, 1);
+      expect(last.hasTrail, isTrue);
+    });
+
+    test('a fact written without a proposal shows no trail rather than an invented one', () {
+      final d = _record('record-document')!;
+      expect(d.history.every((h) => !h.hasTrail), isTrue);
+      expect(d.history.every((h) => h.captureId == null && h.proposalId == null && h.approvedBy == null), isTrue);
+    });
+
     test('the first payment opens as a record of its own and says it was reversed', () {
       final m = _record('record-movement-reversed')!;
       expect(m.ref.kind, 'movement');

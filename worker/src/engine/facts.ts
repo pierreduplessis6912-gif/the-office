@@ -239,3 +239,14 @@ export async function correctMovement(env: Env, input: { movementId: number; rea
     return { reversalId: rev.id, replacementMovementId: repl.id, allocationIds, eventIds };
   });
 }
+
+/**
+ * What an interpreter understood from a capture: a proposal, never business truth. The door writes it for an engine held type, so the trail runs capture, interpretation, proposal, approval, execution
+ * (docs/decisions/first-slice.md part E, invariant 6), and the confirm step finds the capture again through it. The interpreter is 'script' unless the caller says 'model': today the only interpreter is the app's scripted one.
+ */
+export async function recordInterpretation(env: Env, input: { captureId: number; interpreter: "script" | "model"; capability: string; actionId: number }): Promise<{ id: number }> {
+  const row = await env.OFFICE_DB.prepare("INSERT INTO eng_interpretation (capture_id, interpreter, capability, payload_json, status) VALUES (?, ?, ?, ?, 'proposed') RETURNING id")
+    .bind(input.captureId, input.interpreter, input.capability, JSON.stringify({ actionId: input.actionId }))
+    .first<{ id: number }>();
+  return { id: row!.id };
+}

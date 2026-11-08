@@ -22,6 +22,8 @@ export type RefusalCode = "unknown_capability" | "capability_unavailable" | "inv
 export interface ContractContext {
   actionId: number;
   actorEmail: string | null;
+  // The capture the held action came from (what was said), set by the engine's door and never by a client; null for a held action that has none.
+  captureId?: number | null;
 }
 
 export interface ContractMember { email: string | null; caps: readonly string[] }
@@ -41,6 +43,10 @@ export interface CapabilityContract<P = unknown> {
   permissions?: readonly EnginePermission[];
   version?: number;
   recordsExecution?: boolean;
+  // Provenance hooks (the engine's contracts only; a legacy contract has neither, so nothing about it changes): `recordUnderstood` runs at the door once the proposal is held, to record what was understood from the capture;
+  // `captureOf` runs at the confirm to find the capture a held action came from, so the facts it records carry it. The legacy door names no engine table and imports nothing for this.
+  recordUnderstood?(env: Env, info: { captureId: number; actionId: number; interpreter: "script" | "model" }): Promise<void>;
+  captureOf?(env: Env, actionId: number): Promise<number | null>;
   stamp?(env: Env, value: P): Promise<P>;
   check?(env: Env, value: P): Promise<void>;
 }
@@ -83,7 +89,7 @@ const statusFor = (code: string): number => (code === "not_permitted" ? 403 : co
 // The door, as the engine uses it: availability from the business's own configuration, the member's permission, and an honest OBSERVATION when the request could not be acted on. The body is the proof's, below.
 export async function proposeCapability(
   env: Env,
-  request: { capability: unknown; payload: unknown; transcript: string; source?: string; member?: ContractMember }
+  request: { capability: unknown; payload: unknown; transcript: string; source?: string; interpreter?: string; member?: ContractMember }
 ): Promise<ProposeResult> {
   const scoped = await withEngineAvailability(env);
   const result = await proposeCapabilityInner(scoped, request);
@@ -95,10 +101,10 @@ export async function proposeCapability(
 
 async function proposeCapabilityInner(
   env: Env,
-  request: { capability: unknown; payload: unknown; transcript: string; source?: string; member?: ContractMember }
+  request: { capability: unknown; payload: unknown; transcript: string; source?: string; interpreter?: string; member?: ContractMember }
 ): Promise<ProposeResult> {
   // 1. What was said is kept FIRST, whatever happens next. It is a capture, not a business record.
-  await logCapture(env, request.transcript, request.source || "text");
+  const captureId = await logCapture(env, request.transcript, request.source || "text");
   // 2. Then the request is answered honestly. Nothing below writes anything until it is held.
   const contract = typeof request.capability === "string" ? contractById(request.capability) : null;
   if (!contract) return { status: "refused", code: "unknown_capability", message: "There is no such capability, so nothing was done." };
@@ -116,6 +122,8 @@ async function proposeCapabilityInner(
     throw e;
   }
   const held = await holdForConfirmation(env, contract.heldType, value as Record<string, unknown>, request.transcript);
+  // An engine contract also records what was understood and from which capture (invariant 6); a legacy contract has no such hook and is written exactly as before.
+  if (contract.recordUnderstood && captureId !== null) await contract.recordUnderstood(env, { captureId, actionId: held.id, interpreter: request.interpreter === "model" ? "model" : "script" });
   return { status: "held", actionId: held.id, message: `${contract.label} is held for confirmation.` };
 }
 
@@ -162,10 +170,11 @@ async function executeChecked(
   const checked = contract.validate(raw);
   if (!checked.ok) return refusal(422, "invalid_payload", checked.reason);
   // 4. Execution and confirmation are one unit: all of it happens or none of it does.
+  const captureId = contract.captureOf ? await contract.captureOf(env, action.id) : null;
   const outcome = await atomically(env, async (tx) => {
     if (contract.check) await contract.check(tx, checked.value);   // VALID NOW, inside the transaction: an approval is only for what it showed
-    const result = await contract.execute(tx, checked.value, { actionId: action.id, actorEmail: member.email });
-    if (contract.recordsExecution) await tx.OFFICE_DB.prepare("INSERT INTO eng_event (type, actor_email, proposal_id, approved_by, contract, contract_version, payload_json) VALUES ('operation.executed', ?, ?, ?, ?, ?, ?)").bind(member.email, action.id, member.email, contract.id, contract.version ?? 1, JSON.stringify(result)).run();   // once per approved proposal: unique
+    const result = await contract.execute(tx, checked.value, { actionId: action.id, actorEmail: member.email, captureId });
+    if (contract.recordsExecution) await tx.OFFICE_DB.prepare("INSERT INTO eng_event (type, actor_email, capture_id, proposal_id, approved_by, contract, contract_version, payload_json) VALUES ('operation.executed', ?, ?, ?, ?, ?, ?, ?)").bind(member.email, captureId, action.id, member.email, contract.id, contract.version ?? 1, JSON.stringify(result)).run();   // once per approved proposal: unique
     await tx.OFFICE_DB.prepare("UPDATE pending_actions SET status = 'confirmed', resolved_at = datetime('now') WHERE id = ?").bind(action.id).run();
     return result;
   });

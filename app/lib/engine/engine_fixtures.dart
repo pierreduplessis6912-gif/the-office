@@ -218,28 +218,48 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "type": "document.issued",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
-          "reason": null
+          "reason": null,
+          "captureId": null,
+          "proposalId": null,
+          "approvedBy": null,
+          "contract": "rehearsal",
+          "contractVersion": 1
         },
         {
           "eventId": 6,
           "type": "payment.allocated",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
-          "reason": null
+          "reason": null,
+          "captureId": null,
+          "proposalId": null,
+          "approvedBy": null,
+          "contract": "rehearsal",
+          "contractVersion": 1
         },
         {
           "eventId": 9,
           "type": "payment.allocation_reversed",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
-          "reason": "recorded against the wrong customer"
+          "reason": "recorded against the wrong customer",
+          "captureId": null,
+          "proposalId": null,
+          "approvedBy": null,
+          "contract": "rehearsal",
+          "contractVersion": 1
         },
         {
           "eventId": 10,
           "type": "payment.allocated",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
-          "reason": null
+          "reason": null,
+          "captureId": null,
+          "proposalId": null,
+          "approvedBy": null,
+          "contract": "rehearsal",
+          "contractVersion": 1
         }
       ],
       "exports": [
@@ -396,35 +416,60 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "type": "document.issued",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
-          "reason": null
+          "reason": null,
+          "captureId": null,
+          "proposalId": null,
+          "approvedBy": null,
+          "contract": "rehearsal",
+          "contractVersion": 1
         },
         {
           "eventId": 6,
           "type": "payment.allocated",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
-          "reason": null
+          "reason": null,
+          "captureId": null,
+          "proposalId": null,
+          "approvedBy": null,
+          "contract": "rehearsal",
+          "contractVersion": 1
         },
         {
           "eventId": 9,
           "type": "payment.allocation_reversed",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
-          "reason": "recorded against the wrong customer"
+          "reason": "recorded against the wrong customer",
+          "captureId": null,
+          "proposalId": null,
+          "approvedBy": null,
+          "contract": "rehearsal",
+          "contractVersion": 1
         },
         {
           "eventId": 10,
           "type": "payment.allocated",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
-          "reason": null
+          "reason": null,
+          "captureId": null,
+          "proposalId": null,
+          "approvedBy": null,
+          "contract": "rehearsal",
+          "contractVersion": 1
         },
         {
           "eventId": 12,
           "type": "payment.allocated",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "accountant@example.com",
-          "reason": null
+          "reason": null,
+          "captureId": 2,
+          "proposalId": 1,
+          "approvedBy": "accountant@example.com",
+          "contract": "payment.record",
+          "contractVersion": 1
         }
       ],
       "exports": [
@@ -529,14 +574,24 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "type": "party.created",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
-          "reason": null
+          "reason": null,
+          "captureId": null,
+          "proposalId": null,
+          "approvedBy": null,
+          "contract": "rehearsal",
+          "contractVersion": 1
         },
         {
           "eventId": 7,
           "type": "payment.recorded",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
-          "reason": null
+          "reason": null,
+          "captureId": null,
+          "proposalId": null,
+          "approvedBy": null,
+          "contract": "rehearsal",
+          "contractVersion": 1
         }
       ],
       "exports": [
@@ -636,28 +691,48 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "type": "payment.recorded",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
-          "reason": null
+          "reason": null,
+          "captureId": null,
+          "proposalId": null,
+          "approvedBy": null,
+          "contract": "rehearsal",
+          "contractVersion": 1
         },
         {
           "eventId": 6,
           "type": "payment.allocated",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
-          "reason": null
+          "reason": null,
+          "captureId": null,
+          "proposalId": null,
+          "approvedBy": null,
+          "contract": "rehearsal",
+          "contractVersion": 1
         },
         {
           "eventId": 8,
           "type": "payment.reversed",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
-          "reason": "recorded against the wrong customer"
+          "reason": "recorded against the wrong customer",
+          "captureId": null,
+          "proposalId": null,
+          "approvedBy": null,
+          "contract": "rehearsal",
+          "contractVersion": 1
         },
         {
           "eventId": 9,
           "type": "payment.allocation_reversed",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
-          "reason": "recorded against the wrong customer"
+          "reason": "recorded against the wrong customer",
+          "captureId": null,
+          "proposalId": null,
+          "approvedBy": null,
+          "contract": "rehearsal",
+          "contractVersion": 1
         }
       ],
       "exports": [

@@ -104,6 +104,22 @@ module.exports = kit.guard('mokoena slice', async ({ check }) => {
   const stale = await run({ before: [propose('accountant'), propose('accountant', { ...r500, amountMinor: 10000 }, 'Record R100 from Mokoena'), confirm('accountant', 2)], ...confirm('accountant', 1) });
   check(stale.result && stale.result.status === 409 && body(stale).error === 'stale' && added(stale, 'eng_money_movement') === 0, 'approving after the account changed underneath is refused as stale: an approval is only for what it showed');
 
+  // ---- PROVENANCE (invariant 6, docs/decisions/first-slice.md part E): capture, proposal and approval are linked by reference, and a record's history shows them --------------------------------------------------
+  const capRows = (((proposed.writes || {}).captures || {}).added) || [];
+  const capId = capRows[0] && capRows[0].id;
+  const interp = ((((proposed.writes || {}).eng_interpretation || {}).added) || [])[0] || {};
+  check(Number.isInteger(capId) && interp.capture_id === capId && interp.capability === 'payment.record' && interp.status === 'proposed' && interp.interpreter === 'script' && JSON.parse(interp.payload_json).actionId === body(proposed).actionId, 'the held payment is linked to the capture it came from through what was understood (an interpretation: the words, the capability, the proposal)');
+  check(JSON.stringify(addedTables(proposed)) === JSON.stringify(['captures', 'eng_interpretation', 'pending_actions']), 'and a proposal writes only the capture, the interpretation and the held action: ' + addedTables(proposed).join(', '));
+  const evs = (((approved.writes || {}).eng_event || {}).added) || [];
+  check(evs.length >= 3 && evs.every((e) => e.capture_id === capId && e.proposal_id === 1 && typeof e.approved_by === 'string' && e.approved_by.length > 0 && e.contract === 'payment.record' && e.contract_version === 1), `every event the approval wrote (payment, allocation, execution: ${evs.length}) carries the capture, the proposal, the approver and the contract`);
+  const trail = ((body(docAfter).result || {}).history || []);
+  const last = trail.filter((h) => h.type === 'payment.allocated').pop() || {};
+  check(last.captureId === capId && last.proposalId === 1 && typeof last.approvedBy === 'string' && last.approvedBy.length > 0 && last.contract === 'payment.record' && last.contractVersion === 1, 'the invoice\'s history shows that trail on the new allocation: capture, proposal, approver, contract and version');
+  const issued = trail.find((h) => h.type === 'document.issued') || {};
+  check('captureId' in issued && issued.captureId === null && issued.proposalId === null, 'while a fact written without a proposal (the seeded invoice) shows no capture or proposal rather than inventing one');
+  const forged = await run(propose('accountant', { ...r500, captureId: 1 }));
+  check(forged.result && forged.result.status === 422 && body(forged).error === 'invalid_payload' && JSON.stringify(addedTables(forged)) === JSON.stringify(['captures']), 'a client cannot name its own capture: a payload that carries one is refused as invalid, and only what was said is kept');
+
   // ---- BUSINESS B: the capability is not available; the request is answered honestly and only a capture and an observation are written ---------------------------------------------------------
   const offB = kit.asEngineBusiness((db) => db.prepare("INSERT INTO eng_config (key, value_json) VALUES ('available', '[]')").run());
   const bAsk = await kit.route({ env: { BUSINESS_ID: 'eng-b' }, seed: offB, ...ask('accountant') });

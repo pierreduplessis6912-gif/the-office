@@ -110,14 +110,14 @@ module.exports = kit.guard('engine ownership', async ({ check }) => {
   const EXPECT = {
     eng_event: ['capability-contract.ts INSERT', 'engine/facts.ts INSERT'],   // facts.ts for every fact; capability-contract.ts for the single operation.executed record
     eng_party: ['engine/facts.ts INSERT'], eng_party_role: ['engine/facts.ts INSERT'], eng_document: ['engine/facts.ts INSERT'], eng_document_line: ['engine/facts.ts INSERT'], eng_document_number: ['engine/facts.ts INSERT'],
-    eng_money_movement: ['engine/facts.ts INSERT'], eng_allocation: ['engine/facts.ts INSERT'], eng_reversal: ['engine/facts.ts INSERT'],
+    eng_money_movement: ['engine/facts.ts INSERT'], eng_allocation: ['engine/facts.ts INSERT'], eng_reversal: ['engine/facts.ts INSERT'], eng_interpretation: ['engine/facts.ts INSERT'],
     eng_config: ['engine/admin.ts INSERT', 'engine/boundary.ts DELETE', 'engine/boundary.ts INSERT'], eng_draft: ['engine/drafts.ts INSERT', 'engine/drafts.ts UPDATE'], eng_observation: ['engine/admin.ts INSERT', 'engine/availability.ts INSERT'],
   };
   const factVerbs = Object.entries(W).filter(([t]) => FACT.has(t)).flatMap(([t, v]) => v.filter((x) => !x.endsWith(' INSERT')).map((x) => `${t}: ${x}`));
   check(factVerbs.length === 0, `R6: the ten FACT tables are INSERT-ONLY everywhere in the source: there is no UPDATE and no DELETE of any of them${factVerbs.length ? ' [VIOLATIONS: ' + factVerbs.join('; ') + ']' : ''}`);
   const factWriters = Object.entries(W).filter(([t]) => FACT.has(t)).flatMap(([t, v]) => v.map((x) => `${t}: ${x}`)).filter((x) => !x.includes('engine/facts.ts') && !x.startsWith('eng_event: capability-contract.ts'));
   check(factWriters.length === 0, `R6: fact rows are written only by engine/facts.ts, with the one exception of capability-contract.ts recording operation.executed in eng_event${factWriters.length ? ' [VIOLATIONS: ' + factWriters.join('; ') + ']' : ''}`);
-  check(!W.eng_interpretation, 'R6: nothing writes eng_interpretation (it has no writer yet)');
+  check(JSON.stringify(W.eng_interpretation) === JSON.stringify(['engine/facts.ts INSERT']), 'R6: eng_interpretation has exactly one writer, engine/facts.ts, and it only inserts (the door records what was understood from a capture)');
   check(canon(W) === canon(Object.fromEntries(Object.entries(EXPECT).map(([t, v]) => [t, [...v].sort()]))), `R6: the full map of who writes which engine table is exactly the pinned one, so a new writer anywhere fails until reviewed [seen: ${canon(W).slice(0, 700)}]`);
 });
 

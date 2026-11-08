@@ -230,6 +230,12 @@ void main() {
     await _tap(tester, find.byKey(const Key('approve')));
     await _tap(tester, find.byKey(const Key('open-document-1')));
     expect(find.text('Outstanding: R350.00'), findsOneWidget);
+    expect(find.text('said in capture 2, proposal 1, approved by accountant@example.com, payment.record v1'), findsOneWidget);
+  });
+
+  testWidgets('before any approval the invoice shows no trail line, because none exists', (tester) async {
+    await _openInvoice(tester, FixtureEngineApi(_fx));
+    expect(find.textContaining('said in capture'), findsNothing);
   });
 
   testWidgets('a member who may read but not record is refused with the engine\'s words, and nothing is held', (tester) async {

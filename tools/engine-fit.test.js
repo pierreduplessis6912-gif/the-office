@@ -104,7 +104,7 @@ module.exports = kit.guard('engine fit', async ({ check }) => {
   const said = 'Mokoena paid R2,000';
   const door = await ops.proposeCapabilityAs(w.env, member('accountant'), { capability: 'payment.record', payload: { partyId: customer, amountMinor: 20000, currency: 'ZAR', occurredOn: '2026-11-03', method: 'eft', allocate: 'oldest_first' }, transcript: said, source: 'text' });
   const captureId = Number(db.prepare('SELECT id FROM captures WHERE raw_text = ? ORDER BY id DESC LIMIT 1').get(said).id);
-  db.prepare("INSERT INTO eng_interpretation (capture_id, interpreter, capability, payload_json, status) VALUES (?, 'script', 'payment.record', ?, 'proposed')").run(captureId, JSON.stringify({ actionId: door.actionId }));   // what an interpreter records: understood, never business truth
+  // (the door itself now records what was understood: an interpretation naming the capture and the held action, never business truth)
   const held = db.prepare('SELECT id, payload FROM pending_actions WHERE id = ?').get(door.actionId);
   const outcome = await contract.executeThroughContract(w.env, contract.contractForHeldType('engine.payment.record'), { id: held.id, payload: held.payload }, member('accountant'));
   check(door.status === 'held' && outcome.status === 200, 'a spoken payment is captured, interpreted, held as a proposal and approved by an accountant');

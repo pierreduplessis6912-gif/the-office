@@ -85,7 +85,7 @@ export const recordsGet: ReadCapability<{ kind: RecordKind; id: number }> = {
 export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet];
 
 // ---- writes ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-const ctxOf = (c: { actionId: number; actorEmail: string | null }, id: string) => ({ actorEmail: c.actorEmail, approvedBy: c.actorEmail, proposalId: c.actionId, contract: id, contractVersion: 1 });
+const ctxOf = (c: { actionId: number; actorEmail: string | null; captureId?: number | null }, id: string) => ({ actorEmail: c.actorEmail, approvedBy: c.actorEmail, captureId: c.captureId ?? null, proposalId: c.actionId, contract: id, contractVersion: 1 });
 type Allocation = { documentId: number; amountMinor: number };
 const allocationsOf = (raw: unknown): Checked<Allocation[]> => {
   if (!Array.isArray(raw)) return { ok: false, reason: "allocations must be a list" };
@@ -211,5 +211,11 @@ export const invoiceIssue: CapabilityContract<InvoiceIssue> = {
   },
 };
 
-export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = [paymentRecord, paymentCorrect, invoiceIssue];
+// Provenance (invariant 6): every engine contract records what was understood at the door (an interpretation naming the capture and the held action) and finds the capture again at the confirm.
+const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => ({
+  ...c,
+  recordUnderstood: async (env, info) => { await facts.recordInterpretation(env, { captureId: info.captureId, interpreter: info.interpreter, capability: c.id, actionId: info.actionId }); },
+  captureOf: async (env, actionId) => (await env.OFFICE_DB.prepare("SELECT capture_id FROM eng_interpretation WHERE json_extract(payload_json, '$.actionId') = ? AND capability = ? ORDER BY id DESC LIMIT 1").bind(actionId, c.id).first<{ capture_id: number }>())?.capture_id ?? null,
+});
+export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue] as CapabilityContract<any>[]).map((c) => withProvenance(c));
 export const CAPABILITY_IDS: readonly string[] = [...READS.map((r) => r.id), ...ENGINE_CONTRACTS.map((c) => c.id)];

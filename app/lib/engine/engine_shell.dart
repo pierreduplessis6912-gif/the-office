@@ -625,7 +625,18 @@ class _RecordRoom extends StatelessWidget {
           ],
           if (record.history.isNotEmpty) ...[
             _heading('HISTORY'),
-            for (final h in record.history) _row('${h.type} · ${h.at.length >= 10 ? h.at.substring(0, 10) : h.at}${h.reason == null ? '' : ' · ${h.reason}'}'),
+            for (final h in record.history) ...[
+              _row('${h.type} · ${h.at.length >= 10 ? h.at.substring(0, 10) : h.at}${h.reason == null ? '' : ' · ${h.reason}'}'),
+              if (h.hasTrail)
+                Padding(
+                  padding: const EdgeInsets.only(left: 12, bottom: 4),
+                  child: Text(
+                    'said in capture ${h.captureId ?? 'unknown'}, proposal ${h.proposalId}, approved by ${h.approvedBy}${h.contract == null ? '' : ', ${h.contract} v${h.contractVersion ?? 1}'}',
+                    key: Key('trail-${h.eventId}'),
+                    style: const TextStyle(color: _textTertiary, fontSize: 11),
+                  ),
+                ),
+            ],
           ],
           if (note != null) Padding(padding: const EdgeInsets.only(top: 16), child: Text(note!, style: const TextStyle(color: _textSecondary, fontSize: 13))),
         ],

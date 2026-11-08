@@ -108,7 +108,8 @@ module.exports = kit.guard('engine operations', async ({ check }) => {
   const pay = { partyId: mokoena, amountMinor: 50000, currency: 'ZAR', occurredOn: '2026-11-04', method: 'eft', allocate: 'oldest_first' };
   let b = w.counts(); let p = await prop(w, 'accountant', 'payment.record', pay);
   check(p.status === 'held' && Number.isInteger(p.actionId), 'a valid proposal from a permitted member where the capability is available is held for approval');
-  check(JSON.stringify(w.changedTables(b)) === JSON.stringify(['captures', 'pending_actions']), 'and writes only the capture and the held action: ' + w.changedTables(b).join(', '));
+  check(JSON.stringify(w.changedTables(b)) === JSON.stringify(['captures', 'eng_interpretation', 'pending_actions']), 'and writes only the capture, what was understood from it and the held action: ' + w.changedTables(b).join(', '));
+  { const it = w.db.prepare('SELECT * FROM eng_interpretation').all(); check(it.length === 1 && it[0].capture_id === Number(w.db.prepare('SELECT id FROM captures ORDER BY id DESC LIMIT 1').get().id) && it[0].capability === 'payment.record' && it[0].status === 'proposed' && JSON.parse(it[0].payload_json).actionId === p.actionId, 'the interpretation names the capture, the capability and the held action (invariant 6: the trail from what was said to the proposal)'); }
   const held = JSON.parse(w.db.prepare('SELECT payload FROM pending_actions WHERE id = ?').get(p.actionId).payload);
   check(Array.isArray(held.allocations) && held.allocations.length === 1 && held.allocations[0].documentId === inv1.id && held.allocations[0].amountMinor === 50000 && !('allocate' in held), 'the held action carries the EXACT allocations the approver will be approving (oldest invoice first), not an instruction to work them out later');
   check(Number.isInteger(held.basedOn && held.basedOn.partyVersion) && held.basedOn.partyVersion > 0, 'and the version of the account it was based on');

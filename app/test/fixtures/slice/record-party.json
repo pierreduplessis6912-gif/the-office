@@ -87,14 +87,24 @@
           "type": "party.created",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
-          "reason": null
+          "reason": null,
+          "captureId": null,
+          "proposalId": null,
+          "approvedBy": null,
+          "contract": "rehearsal",
+          "contractVersion": 1
         },
         {
           "eventId": 7,
           "type": "payment.recorded",
           "at": "2026-01-01T00:00:00.000Z",
           "actor": "engine-rehearsal@example.com",
-          "reason": null
+          "reason": null,
+          "captureId": null,
+          "proposalId": null,
+          "approvedBy": null,
+          "contract": "rehearsal",
+          "contractVersion": 1
         }
       ],
       "exports": [

@@ -20,7 +20,8 @@ export interface RecordView {
   collections: Record<string, Array<Record<string, unknown>>>;
   relations: Array<{ role: string; ref: RecordRef; label: string }>;
   actions: RecordAction[];
-  history: Array<{ eventId: number; type: string; at: string; actor: string | null; reason: string | null }>;
+  // captureId, proposalId, approvedBy, contract and contractVersion are the provenance (invariant 6): null where the fact was written without a proposal (a seeded or system-generated record), never invented.
+  history: Array<{ eventId: number; type: string; at: string; actor: string | null; reason: string | null; captureId: number | null; proposalId: number | null; approvedBy: string | null; contract: string | null; contractVersion: number | null }>;
   exports: Array<{ kind: string; available: boolean }>;
 }
 export const RECORD_KINDS: readonly RecordKind[] = ["party", "document", "movement", "draft"];
@@ -67,8 +68,8 @@ export async function versionOf(env: Env, ref: RecordRef): Promise<number> {
 async function history(env: Env, eventIds: number[]): Promise<RecordView["history"]> {
   const ids = [...new Set(eventIds.filter((x) => Number.isInteger(x)))].sort((a, b) => a - b).slice(-50);
   if (ids.length === 0) return [];
-  const rows = await many<{ id: number; type: string; occurred_at: string; actor_email: string | null; reason: string | null }>(env, `SELECT id, type, occurred_at, actor_email, reason FROM eng_event WHERE id IN (${ids.map(() => "?").join(",")}) ORDER BY id`, ...ids);
-  return rows.map((r) => ({ eventId: r.id, type: r.type, at: r.occurred_at, actor: r.actor_email, reason: r.reason }));
+  const rows = await many<{ id: number; type: string; occurred_at: string; actor_email: string | null; reason: string | null; capture_id: number | null; proposal_id: number | null; approved_by: string | null; contract: string | null; contract_version: number | null }>(env, `SELECT id, type, occurred_at, actor_email, reason, capture_id, proposal_id, approved_by, contract, contract_version FROM eng_event WHERE id IN (${ids.map(() => "?").join(",")}) ORDER BY id`, ...ids);
+  return rows.map((r) => ({ eventId: r.id, type: r.type, at: r.occurred_at, actor: r.actor_email, reason: r.reason, captureId: r.capture_id, proposalId: r.proposal_id, approvedBy: r.approved_by, contract: r.contract, contractVersion: r.contract_version }));
 }
 
 const EXPORTS = [{ kind: "pdf", available: false }, { kind: "share", available: false }];

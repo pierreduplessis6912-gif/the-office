@@ -190,7 +190,17 @@ class SliceHistoryEntry {
   final String at;
   final String? actor;
   final String? reason;
-  const SliceHistoryEntry({required this.eventId, required this.type, required this.at, required this.actor, required this.reason});
+
+  /// The provenance (invariant 6): the capture (what was said), the proposal and the approver behind this fact, and the contract that executed it. Null where the fact was written without a proposal (a seeded or system-generated record); never invented.
+  final int? captureId;
+  final int? proposalId;
+  final String? approvedBy;
+  final String? contract;
+  final int? contractVersion;
+  const SliceHistoryEntry({required this.eventId, required this.type, required this.at, required this.actor, required this.reason, this.captureId, this.proposalId, this.approvedBy, this.contract, this.contractVersion});
+
+  /// True when a proposal and an approver stand behind this fact.
+  bool get hasTrail => proposalId != null && approvedBy != null;
 }
 
 class SliceRecord {
@@ -264,7 +274,20 @@ SliceRecord? parseRecord(int status, Object? body) {
     final eventId = m == null ? null : _int(m['eventId']);
     final type = m == null ? null : _text(m['type']);
     final at = m == null ? null : _text(m['at']);
-    if (m != null && eventId != null && type != null && at != null) history.add(SliceHistoryEntry(eventId: eventId, type: type, at: at, actor: _text(m['actor']), reason: _text(m['reason'])));
+    if (m != null && eventId != null && type != null && at != null) {
+      history.add(SliceHistoryEntry(
+        eventId: eventId,
+        type: type,
+        at: at,
+        actor: _text(m['actor']),
+        reason: _text(m['reason']),
+        captureId: _int(m['captureId']),
+        proposalId: _int(m['proposalId']),
+        approvedBy: _text(m['approvedBy']),
+        contract: _text(m['contract']),
+        contractVersion: _int(m['contractVersion']),
+      ));
+    }
   }
   return SliceRecord(ref: ref, version: version, title: title, fields: fields, collections: collections, relations: relations, actions: actions, history: history);
 }
