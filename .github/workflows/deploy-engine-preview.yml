@@ -1,0 +1,60 @@
+name: Deploy engine preview
+
+# Publishes the engine shell DEMO (app/lib/engine_main.dart: the orb, a typed question, the answer card, drill-down and the approval card, running on the engine's RECORDED answers, not on any business) so it can be opened in a phone browser.
+# It is NOT the real app and NOT production: it deploys to a Cloudflare Pages PREVIEW alias (branch alias "engine-slice") of the existing preview project, which never replaces the production alias that deploy-web-preview.yml publishes from main.
+#
+# HOW TO PUBLISH (Pierre's decision, every time): point the branch `engine-preview` at the commit to show, for example
+#   git push origin <commit>:refs/heads/engine-preview --force
+# or create or move the branch `engine-preview` in the GitHub web interface. A push to that branch is the only trigger; nothing publishes on any other push, and this workflow never runs on main.
+# (A manually dispatched workflow must exist on the default branch, which is main; main must not be touched, so a dedicated branch is the gate instead.)
+on:
+  push:
+    branches: [engine-preview]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Bootstrap web scaffolding if missing
+        run: |
+          cd app
+          if [ ! -d "web" ]; then
+            echo "No web/ folder: generating it with flutter create."
+            cp pubspec.yaml /tmp/pubspec.yaml.bak
+            cp lib/main.dart /tmp/main.dart.bak
+            flutter create --platforms=web --org za.co.websitehub --project-name the_office .
+            cp /tmp/pubspec.yaml.bak pubspec.yaml
+            cp /tmp/main.dart.bak lib/main.dart
+          else
+            echo "web/ already present, skipping bootstrap."
+          fi
+
+      - name: Get packages
+        run: |
+          cd app
+          flutter pub get
+
+      - name: Build the engine shell demo for web
+        run: |
+          cd app
+          flutter build web --release -t lib/engine_main.dart
+
+      - name: Deploy to the engine-slice preview alias (never production)
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy app/build/web --project-name=the-office-preview --branch=engine-slice --commit-dirty=true
+
+      - name: Say where it is
+        run: |
+          echo "Engine shell demo (recorded answers, not a live business) published to a PREVIEW alias." >> "$GITHUB_STEP_SUMMARY"
+          echo "Deployment: ${{ steps.deploy.outputs.deployment-url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Alias: ${{ steps.deploy.outputs.pages-deployment-alias-url }}" >> "$GITHUB_STEP_SUMMARY"
