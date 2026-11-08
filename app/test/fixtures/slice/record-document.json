@@ -130,7 +130,9 @@
           "proposalId": null,
           "approvedBy": null,
           "contract": "rehearsal",
-          "contractVersion": 1
+          "contractVersion": 1,
+          "interpretationId": null,
+          "interpreter": null
         },
         {
           "eventId": 6,
@@ -142,7 +144,9 @@
           "proposalId": null,
           "approvedBy": null,
           "contract": "rehearsal",
-          "contractVersion": 1
+          "contractVersion": 1,
+          "interpretationId": null,
+          "interpreter": null
         },
         {
           "eventId": 9,
@@ -154,7 +158,9 @@
           "proposalId": null,
           "approvedBy": null,
           "contract": "rehearsal",
-          "contractVersion": 1
+          "contractVersion": 1,
+          "interpretationId": null,
+          "interpreter": null
         },
         {
           "eventId": 10,
@@ -166,7 +172,9 @@
           "proposalId": null,
           "approvedBy": null,
           "contract": "rehearsal",
-          "contractVersion": 1
+          "contractVersion": 1,
+          "interpretationId": null,
+          "interpreter": null
         }
       ],
       "exports": [

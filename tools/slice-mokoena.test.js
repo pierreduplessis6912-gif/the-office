@@ -115,8 +115,9 @@ module.exports = kit.guard('mokoena slice', async ({ check }) => {
   const trail = ((body(docAfter).result || {}).history || []);
   const last = trail.filter((h) => h.type === 'payment.allocated').pop() || {};
   check(last.captureId === capId && last.proposalId === 1 && typeof last.approvedBy === 'string' && last.approvedBy.length > 0 && last.contract === 'payment.record' && last.contractVersion === 1, 'the invoice\'s history shows that trail on the new allocation: capture, proposal, approver, contract and version');
+  check(last.interpretationId === interp.id && last.interpreter === 'script', 'and what was understood: the interpretation that linked the words to the proposal, and who interpreted (a script, today)');
   const issued = trail.find((h) => h.type === 'document.issued') || {};
-  check('captureId' in issued && issued.captureId === null && issued.proposalId === null, 'while a fact written without a proposal (the seeded invoice) shows no capture or proposal rather than inventing one');
+  check('captureId' in issued && issued.captureId === null && issued.proposalId === null && issued.interpretationId === null && issued.interpreter === null, 'while a fact written without a proposal (the seeded invoice) shows no capture, interpretation or proposal rather than inventing one');
   const forged = await run(propose('accountant', { ...r500, captureId: 1 }));
   check(forged.result && forged.result.status === 422 && body(forged).error === 'invalid_payload' && JSON.stringify(addedTables(forged)) === JSON.stringify(['captures']), 'a client cannot name its own capture: a payload that carries one is refused as invalid, and only what was said is kept');
 

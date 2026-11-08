@@ -197,7 +197,11 @@ class SliceHistoryEntry {
   final String? approvedBy;
   final String? contract;
   final int? contractVersion;
-  const SliceHistoryEntry({required this.eventId, required this.type, required this.at, required this.actor, required this.reason, this.captureId, this.proposalId, this.approvedBy, this.contract, this.contractVersion});
+
+  /// What was understood: the interpretation that linked the capture to the proposal, and who interpreted ('script' or 'model'). Null where there was no proposal.
+  final int? interpretationId;
+  final String? interpreter;
+  const SliceHistoryEntry({required this.eventId, required this.type, required this.at, required this.actor, required this.reason, this.captureId, this.proposalId, this.approvedBy, this.contract, this.contractVersion, this.interpretationId, this.interpreter});
 
   /// True when a proposal and an approver stand behind this fact.
   bool get hasTrail => proposalId != null && approvedBy != null;
@@ -286,6 +290,8 @@ SliceRecord? parseRecord(int status, Object? body) {
         approvedBy: _text(m['approvedBy']),
         contract: _text(m['contract']),
         contractVersion: _int(m['contractVersion']),
+        interpretationId: _int(m['interpretationId']),
+        interpreter: _text(m['interpreter']),
       ));
     }
   }

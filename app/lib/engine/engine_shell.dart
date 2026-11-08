@@ -631,7 +631,7 @@ class _RecordRoom extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(left: 12, bottom: 4),
                   child: Text(
-                    'said in capture ${h.captureId ?? 'unknown'}, proposal ${h.proposalId}, approved by ${h.approvedBy}${h.contract == null ? '' : ', ${h.contract} v${h.contractVersion ?? 1}'}',
+                    'said in capture ${h.captureId ?? 'unknown'}, understood by ${h.interpreter ?? 'unknown'}, proposal ${h.proposalId}, approved by ${h.approvedBy}${h.contract == null ? '' : ', ${h.contract} v${h.contractVersion ?? 1}'}',
                     key: Key('trail-${h.eventId}'),
                     style: const TextStyle(color: _textTertiary, fontSize: 11),
                   ),

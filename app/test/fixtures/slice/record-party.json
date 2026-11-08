@@ -92,7 +92,9 @@
           "proposalId": null,
           "approvedBy": null,
           "contract": "rehearsal",
-          "contractVersion": 1
+          "contractVersion": 1,
+          "interpretationId": null,
+          "interpreter": null
         },
         {
           "eventId": 7,
@@ -104,7 +106,9 @@
           "proposalId": null,
           "approvedBy": null,
           "contract": "rehearsal",
-          "contractVersion": 1
+          "contractVersion": 1,
+          "interpretationId": null,
+          "interpreter": null
         }
       ],
       "exports": [

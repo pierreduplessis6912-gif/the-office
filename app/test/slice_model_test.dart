@@ -160,13 +160,15 @@ void main() {
       expect(last.approvedBy, 'accountant@example.com');
       expect(last.contract, 'payment.record');
       expect(last.contractVersion, 1);
+      expect(last.interpretationId, 1);
+      expect(last.interpreter, 'script');
       expect(last.hasTrail, isTrue);
     });
 
     test('a fact written without a proposal shows no trail rather than an invented one', () {
       final d = _record('record-document')!;
       expect(d.history.every((h) => !h.hasTrail), isTrue);
-      expect(d.history.every((h) => h.captureId == null && h.proposalId == null && h.approvedBy == null), isTrue);
+      expect(d.history.every((h) => h.captureId == null && h.proposalId == null && h.approvedBy == null && h.interpretationId == null && h.interpreter == null), isTrue);
     });
 
     test('the first payment opens as a record of its own and says it was reversed', () {

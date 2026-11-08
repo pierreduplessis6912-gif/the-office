@@ -223,7 +223,9 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "proposalId": null,
           "approvedBy": null,
           "contract": "rehearsal",
-          "contractVersion": 1
+          "contractVersion": 1,
+          "interpretationId": null,
+          "interpreter": null
         },
         {
           "eventId": 6,
@@ -235,7 +237,9 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "proposalId": null,
           "approvedBy": null,
           "contract": "rehearsal",
-          "contractVersion": 1
+          "contractVersion": 1,
+          "interpretationId": null,
+          "interpreter": null
         },
         {
           "eventId": 9,
@@ -247,7 +251,9 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "proposalId": null,
           "approvedBy": null,
           "contract": "rehearsal",
-          "contractVersion": 1
+          "contractVersion": 1,
+          "interpretationId": null,
+          "interpreter": null
         },
         {
           "eventId": 10,
@@ -259,7 +265,9 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "proposalId": null,
           "approvedBy": null,
           "contract": "rehearsal",
-          "contractVersion": 1
+          "contractVersion": 1,
+          "interpretationId": null,
+          "interpreter": null
         }
       ],
       "exports": [
@@ -421,7 +429,9 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "proposalId": null,
           "approvedBy": null,
           "contract": "rehearsal",
-          "contractVersion": 1
+          "contractVersion": 1,
+          "interpretationId": null,
+          "interpreter": null
         },
         {
           "eventId": 6,
@@ -433,7 +443,9 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "proposalId": null,
           "approvedBy": null,
           "contract": "rehearsal",
-          "contractVersion": 1
+          "contractVersion": 1,
+          "interpretationId": null,
+          "interpreter": null
         },
         {
           "eventId": 9,
@@ -445,7 +457,9 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "proposalId": null,
           "approvedBy": null,
           "contract": "rehearsal",
-          "contractVersion": 1
+          "contractVersion": 1,
+          "interpretationId": null,
+          "interpreter": null
         },
         {
           "eventId": 10,
@@ -457,7 +471,9 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "proposalId": null,
           "approvedBy": null,
           "contract": "rehearsal",
-          "contractVersion": 1
+          "contractVersion": 1,
+          "interpretationId": null,
+          "interpreter": null
         },
         {
           "eventId": 12,
@@ -469,7 +485,9 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "proposalId": 1,
           "approvedBy": "accountant@example.com",
           "contract": "payment.record",
-          "contractVersion": 1
+          "contractVersion": 1,
+          "interpretationId": 1,
+          "interpreter": "script"
         }
       ],
       "exports": [
@@ -579,7 +597,9 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "proposalId": null,
           "approvedBy": null,
           "contract": "rehearsal",
-          "contractVersion": 1
+          "contractVersion": 1,
+          "interpretationId": null,
+          "interpreter": null
         },
         {
           "eventId": 7,
@@ -591,7 +611,9 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "proposalId": null,
           "approvedBy": null,
           "contract": "rehearsal",
-          "contractVersion": 1
+          "contractVersion": 1,
+          "interpretationId": null,
+          "interpreter": null
         }
       ],
       "exports": [
@@ -696,7 +718,9 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "proposalId": null,
           "approvedBy": null,
           "contract": "rehearsal",
-          "contractVersion": 1
+          "contractVersion": 1,
+          "interpretationId": null,
+          "interpreter": null
         },
         {
           "eventId": 6,
@@ -708,7 +732,9 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "proposalId": null,
           "approvedBy": null,
           "contract": "rehearsal",
-          "contractVersion": 1
+          "contractVersion": 1,
+          "interpretationId": null,
+          "interpreter": null
         },
         {
           "eventId": 8,
@@ -720,7 +746,9 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "proposalId": null,
           "approvedBy": null,
           "contract": "rehearsal",
-          "contractVersion": 1
+          "contractVersion": 1,
+          "interpretationId": null,
+          "interpreter": null
         },
         {
           "eventId": 9,
@@ -732,7 +760,9 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "proposalId": null,
           "approvedBy": null,
           "contract": "rehearsal",
-          "contractVersion": 1
+          "contractVersion": 1,
+          "interpretationId": null,
+          "interpreter": null
         }
       ],
       "exports": [
