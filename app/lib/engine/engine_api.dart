@@ -20,6 +20,16 @@ class EngineResponse {
   }
 }
 
+/// Reads embedded fixture text (name to file text, as in engine_fixtures.dart) into responses. Anything not of the fixture shape is left out.
+Map<String, EngineResponse> engineResponsesFrom(Map<String, String> json) {
+  final out = <String, EngineResponse>{};
+  json.forEach((name, text) {
+    final response = EngineResponse.fromFixtureJson(text);
+    if (response != null) out[name] = response;
+  });
+  return out;
+}
+
 abstract class EngineApi {
   /// What a customer owes: GET /engine/receivables?party=<name or number>.
   Future<EngineResponse> receivables(String party);

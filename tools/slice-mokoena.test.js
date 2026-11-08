@@ -116,6 +116,8 @@ module.exports = kit.guard('mokoena slice', async ({ check }) => {
   const now = await fixtures.build();
   const drifted = Object.entries(now).filter(([name, v]) => { try { return JSON.stringify(JSON.parse(fs.readFileSync(path.join(fixtures.DIR, name), 'utf8'))) !== JSON.stringify(v); } catch (e) { return true; } }).map(([name]) => name);
   check(drifted.length === 0, `every committed fixture equals the engine's answer now (${Object.keys(now).length} checked)` + (drifted.length ? '; DRIFTED: ' + drifted.join(', ') + ' (regenerate with node tools/slice-fixtures.js)' : ''));
+  let dartNow = ''; try { dartNow = fs.readFileSync(fixtures.DART_FILE, 'utf8'); } catch (e) { dartNow = ''; }
+  check(dartNow === fixtures.dartSource(now), 'and the Dart copy the demo entry point runs on (app/lib/engine/engine_fixtures.dart) equals them too (regenerate with node tools/slice-fixtures.js)');
 });
 
 if (require.main === module) kit.standalone(module.exports);

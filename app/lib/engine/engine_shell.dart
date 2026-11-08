@@ -19,7 +19,10 @@ class EngineShell extends StatefulWidget {
 
   /// Today, for the date a payment is proposed with. Injected so a test can fix it.
   final DateTime Function()? clock;
-  const EngineShell({super.key, required this.api, this.clock});
+
+  /// A quiet line under the input, for a demo to say plainly what it is running on.
+  final String? footnote;
+  const EngineShell({super.key, required this.api, this.clock, this.footnote});
 
   @override
   State<EngineShell> createState() => _EngineShellState();
@@ -352,6 +355,11 @@ class _EngineShellState extends State<EngineShell> {
                 ],
               ),
             ),
+            if (widget.footnote != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                child: Text(widget.footnote!, key: const Key('footnote'), textAlign: TextAlign.center, style: const TextStyle(color: _textTertiary, fontSize: 10)),
+              ),
           ],
         ),
       ),
