@@ -78,7 +78,7 @@ module.exports = kit.guard('engine admin', async ({ check }) => {
   check(r.status === 404 && JSON.stringify(wr.counts()) === JSON.stringify(b4), `without ENGINE_REHEARSAL=1 the ramp does not exist for this deployment (${r.status}) and nothing is written`);
   r = await call(wr.env, 'POST', '/admin/engine/ramp-clear', { confirm: 'eng-a' });
   check(r.status === 404, 'nor does the clear route');
-  for (const bad of [{ confirm: 'another-business', rows: 50 }, { rows: 50 }, { confirm: 'eng-a' }, { confirm: 'eng-a', rows: 0 }, { confirm: 'eng-a', rows: -5 }, { confirm: 'eng-a', rows: '50' }, { confirm: 'eng-a', rows: 1.5 }, { confirm: 'eng-a', rows: 250001 }]) {
+  for (const bad of [{ confirm: 'another-business', rows: 50 }, { rows: 50 }, { confirm: 'eng-a' }, { confirm: 'eng-a', rows: 0 }, { confirm: 'eng-a', rows: -5 }, { confirm: 'eng-a', rows: '50' }, { confirm: 'eng-a', rows: 1.5 }, { confirm: 'eng-a', rows: 2000001 }]) {
     r = await call(flagged(wr), 'POST', '/admin/engine/ramp', bad);
     check(r.status === 400 && JSON.stringify(wr.counts()) === JSON.stringify(b4), `a ramp request ${JSON.stringify(bad)} is refused (400) and nothing is written`);
   }

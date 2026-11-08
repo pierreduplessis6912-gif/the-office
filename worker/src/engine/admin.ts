@@ -51,7 +51,7 @@ async function provisionSample(env: Env): Promise<void> {
   await env.OFFICE_DB.prepare("INSERT INTO eng_observation (capture_id, kind, note) VALUES (?, 'unsupported', 'book a skip')").bind(capture!.id).run();
 }
 
-const RAMP_MAX_ROWS = 250_000;
+const RAMP_MAX_ROWS = 2_000_000;
 
 /**
  * Tops the marker rows in `captures` (source = 'ramp', plain text of about 110 bytes) up to `rows`; never removes any. The rows are written in statements of a few at a time (no series or helper table is named, so the engine's SQL

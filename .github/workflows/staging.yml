@@ -28,6 +28,10 @@ on:
           - restore-proof
           - ramp
         default: rehearsal
+      ramp_sizes:
+        description: "Ramp mode only: the marker-row counts to try, ascending, separated by spaces (each at most 2000000); the ramp stops at the first size that fails"
+        required: false
+        default: "20000 40000 80000 120000 160000"
       load_sentences:
         description: "Load mode only: how many real sentences wait on the model while reads are timed (each costs a little; never more than 8)"
         required: false
@@ -361,6 +365,8 @@ jobs:
 
       - name: Memory ramp (mode ramp, staging-two only, one table grown in steps with a snapshot and a restore tried at each size)
         if: env.MODE == 'ramp'
+        env:
+          RAMP_SIZES: ${{ inputs.ramp_sizes }}
         run: |
           # The question: how large a single table can a real Durable Object snapshot and restore before it runs out of memory (the limit is 128 MB; the 2026-10-28 failure was about size)? The deploy above has put this branch's code, with the
           # staging-only ramp routes, on staging. For each size the table is topped up with marker rows (POST /admin/engine/ramp), a snapshot is taken (POST /admin/backup/run), and that snapshot is restored (POST /admin/backup/restore, which takes its
@@ -376,7 +382,16 @@ jobs:
           bcall start-status "$RESULTS/ramp-start-status.json" "$BASE/admin/backup/status"
           bcall start-engine "$RESULTS/ramp-start-engine.json" "$BASE/admin/engine/status"
           STOP=0
-          for N in 20000 40000 80000 120000 160000; do
+          SIZES="${RAMP_SIZES:-20000 40000 80000 120000 160000}"
+          # The sizes come from a person's input: only digits and spaces, each between 1 and 2000000, in ascending order. Anything else and the ramp does not start.
+          PREV=0
+          for N in $SIZES; do
+            case "$N" in ''|*[!0-9]*) echo "bad ramp size: $N"; SIZES=""; break;; esac
+            if [ "$N" -le "$PREV" ] || [ "$N" -gt 2000000 ]; then echo "bad ramp size order or range: $N"; SIZES=""; break; fi
+            PREV=$N
+          done
+          echo "ramp sizes: ${SIZES:-NONE}"
+          for N in $SIZES; do
             [ "$STOP" = 1 ] && break
             bcall "ramp-$N" "$RESULTS/ramp-$N.json" -X POST -H "Content-Type: application/json" -d "{\"confirm\":\"$B\",\"rows\":$N}" "$BASE/admin/engine/ramp"
             bcall "snapshot-$N" "$RESULTS/snapshot-$N.json" -X POST "$BASE/admin/backup/run"
