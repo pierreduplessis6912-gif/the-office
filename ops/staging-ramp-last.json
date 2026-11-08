@@ -1,13 +1,36 @@
 {
-  "commit": "ed81e4681b6c6bb0da2803cf9458ab7454faaa12",
+  "commit": "db207a93c7a04926abd94ea3328dbb28e9fb1661",
   "business": "staging-two",
   "table": "captures (marker rows, source = 'ramp', about 110 bytes each)",
   "limit_note": "A Durable Object's memory limit is 128 MB; a local proxy suggested restore peaks at roughly 6 to 7 times the largest table's JSON.",
   "steps": [
     {
-      "rows_requested": 200000,
-      "marker_rows": 200000,
-      "marker_bytes": 21688895,
+      "rows_requested": 170000,
+      "marker_rows": 170000,
+      "marker_bytes": 18418895,
+      "ramp_http": 200,
+      "snapshot": {
+        "http": 200,
+        "seconds": 31.9,
+        "ok": true,
+        "tables": 55,
+        "rows": 170223
+      },
+      "restore": {
+        "http": 200,
+        "seconds": 54.4,
+        "ok": true,
+        "tables_restored": 55,
+        "rows_restored": 170223,
+        "differences": []
+      },
+      "health_http": 200,
+      "schema_clean_after": true
+    },
+    {
+      "rows_requested": 180000,
+      "marker_rows": 180000,
+      "marker_bytes": 19508895,
       "ramp_http": 200,
       "snapshot": {
         "http": 500,
@@ -29,18 +52,18 @@
       "schema_clean_after": null
     }
   ],
-  "largest_size_snapshotted_and_restored_ok": 0,
-  "first_failure_at_rows": 200000,
+  "largest_size_snapshotted_and_restored_ok": 170000,
+  "first_failure_at_rows": 180000,
   "ramp_completed_all_sizes": false,
   "marker_rows_cleared": {
     "http": 200,
-    "removed": 200000
+    "removed": 180000
   },
   "schema_clean_at_the_end": true,
   "calls": {
     "start-status": {
       "http": 200,
-      "seconds": 2.3,
+      "seconds": 2.2,
       "curl_exit": 0
     },
     "start-engine": {
@@ -48,19 +71,39 @@
       "seconds": 0.2,
       "curl_exit": 0
     },
-    "ramp-200000": {
+    "ramp-170000": {
       "http": 200,
-      "seconds": 1.4,
+      "seconds": 1.0,
       "curl_exit": 0
     },
-    "snapshot-200000": {
+    "snapshot-170000": {
+      "http": 200,
+      "seconds": 31.9,
+      "curl_exit": 0
+    },
+    "restore-170000": {
+      "http": 200,
+      "seconds": 54.4,
+      "curl_exit": 0
+    },
+    "health-170000": {
+      "http": 200,
+      "seconds": 0.3,
+      "curl_exit": 0
+    },
+    "ramp-180000": {
+      "http": 200,
+      "seconds": 0.4,
+      "curl_exit": 0
+    },
+    "snapshot-180000": {
       "http": 500,
       "seconds": 1.7,
       "curl_exit": 0
     },
     "clear": {
       "http": 200,
-      "seconds": 0.9,
+      "seconds": 1.1,
       "curl_exit": 0
     },
     "final-health": {
@@ -75,7 +118,7 @@
     },
     "final-status": {
       "http": 200,
-      "seconds": 2.1,
+      "seconds": 2.4,
       "curl_exit": 0
     }
   }
