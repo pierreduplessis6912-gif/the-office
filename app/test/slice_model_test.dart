@@ -223,6 +223,18 @@ void main() {
   });
 
   group('proposing and approving a payment', () {
+    test('the held payment states what no invoice will take; a payment fully applied has none', () {
+      final fx = _fx('pending-held');
+      final normal = parseHeldPayments(_status(fx), _body(fx)).single;
+      expect(normal.unallocatedMinor, 0);
+      final over = _fx('pending-held-over');
+      final big = parseHeldPayments(_status(over), _body(over)).single;
+      expect(big.amountMinor, 100000);
+      expect(big.allocations.single.amountMinor, 85000);
+      expect(big.unallocatedMinor, 15000);
+      expect(big.unallocatedText, 'R150.00');
+    });
+
     test('a proposal is held, not recorded', () {
       final p = _proposal('proposal-held');
       expect(p.held, isTrue);

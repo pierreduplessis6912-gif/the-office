@@ -210,7 +210,7 @@ class _EngineShellState extends State<EngineShell> {
       _approval = null;
       _viewingApproval = false;
       if (confirm.ok) {
-        _recorded = 'Recorded ${approval.held.amountText} from ${approval.customerName ?? answer?.partyName ?? 'the customer'}.';
+        _recorded = 'Recorded ${approval.held.amountText} from ${approval.customerName ?? answer?.partyName ?? 'the customer'}.${approval.held.unallocatedMinor > 0 ? ' ${approval.held.unallocatedText} of it is on the account, not applied to an invoice.' : ''}';
         _flow = const SliceFlow.resting().asked().received(again ?? const SliceRead.unusable());
       }
     });
@@ -501,6 +501,11 @@ class _ApprovalCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 3),
               child: Text('${line.title ?? 'Document ${line.documentId} (name not available)'}: ${randFromMinor(line.amountMinor, currency: held.currency)}', style: const TextStyle(color: _textPrimary, fontSize: 14)),
+            ),
+          if (held.unallocatedMinor > 0)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Text('Not applied to any invoice: ${held.unallocatedText}. It stays on the account as unallocated.', key: const Key('approval-unallocated'), style: const TextStyle(color: _ember, fontSize: 14)),
             ),
           const SizedBox(height: 10),
           const Text('Applied oldest first: the Office chose this, you did not say.', style: TextStyle(color: _textSecondary, fontSize: 12)),

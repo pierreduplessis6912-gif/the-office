@@ -337,6 +337,19 @@ class SliceHeldPayment {
   const SliceHeldPayment({required this.actionId, required this.transcript, required this.partyId, required this.amountMinor, required this.currency, required this.occurredOn, required this.allocations, required this.partyVersion});
 
   String get amountText => randFromMinor(amountMinor, currency: currency);
+
+  /// The part of the payment that no invoice will take: the amount less its allocations, for DISPLAY before approval (Pierre, 2026-11-09: an over-payment is held with the remainder showing). The engine stays the authority: after approval its own
+  /// record shows the same figure as the payment's unallocated amount, and tools/slice-mokoena.test.js checks the two agree. Zero when the payment is fully applied.
+  int get unallocatedMinor {
+    var applied = 0;
+    for (final a in allocations) {
+      applied += a.amountMinor;
+    }
+    final rest = amountMinor - applied;
+    return rest > 0 ? rest : 0;
+  }
+
+  String get unallocatedText => randFromMinor(unallocatedMinor, currency: currency);
 }
 
 /// Reads the engine's held payments out of GET /actions/pending (other kinds of held action are ignored; anything unusable is skipped).

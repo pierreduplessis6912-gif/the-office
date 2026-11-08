@@ -40,6 +40,8 @@ async function build() {
     'reject-refused': (await run({ before: [propose()], ...reject('installer') })).result,
     'confirm-after-reject': (await run({ before: [propose(), reject()], ...confirm() })).result,
     'pending-empty': (await run({ before: [propose(), reject()], method: 'GET', path: '/actions/pending', role: 'accountant' })).result,
+    'pending-held-over': (await run({ before: [propose('accountant', { ...r500, amountMinor: 100000 }, 'Record R1000 from Mokoena')], method: 'GET', path: '/actions/pending', role: 'accountant' })).result,
+    'receivables-after-overpay': (await run({ before: [propose('accountant', { ...r500, amountMinor: 100000 }, 'Record R1000 from Mokoena'), confirm()], ...ask('accountant', 'Mokoena') })).result,
     'unavailable-ask': (await kit.route({ env: { BUSINESS_ID: 'eng-b' }, seed: offB, ...ask('accountant', 'Mokoena') })).result,
     'unavailable-proposal': (await kit.route({ env: { BUSINESS_ID: 'eng-b' }, seed: offB, ...propose() })).result,
   };

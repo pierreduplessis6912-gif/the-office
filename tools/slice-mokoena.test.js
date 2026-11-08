@@ -122,6 +122,16 @@ module.exports = kit.guard('mokoena slice', async ({ check }) => {
   let overHeld = {}; try { overHeld = JSON.parse(((body(overPending).pending || [])[0] || {}).payload); } catch (e) { overHeld = {}; }
   check(over.result && over.result.status === 200 && body(over).status === 'held' && overHeld.amountMinor === 100000 && overHeld.allocations.length === 1 && overHeld.allocations[0].amountMinor === 85000, 'FINDING (characterised, not a decision): a payment larger than what is owed (R1,000.00 against R850.00) is HELD with only the R850.00 owed allocated, so R150.00 would stay unallocated; the approval view shows the amount and the allocation, and the difference is the approver\'s to notice');
 
+  // ---- OVER-PAYMENT (Pierre, 2026-11-09: hold it, and show the unallocated remainder): R1,000.00 against R850.00 owed ------------------------------------------------------------------------------------------------
+  const r1000 = { ...r500, amountMinor: 100000 };
+  const overConfirmed = await run({ before: [propose('accountant', r1000, 'Record R1000 from Mokoena')], ...confirm('accountant') });
+  check(overConfirmed.result && overConfirmed.result.status === 200 && added(overConfirmed, 'eng_money_movement') === 1 && added(overConfirmed, 'eng_allocation') === 1 && ((overConfirmed.writes.eng_allocation.added[0] || {}).amount_minor) === 85000, 'approving the R1,000.00 payment records all of it but allocates only the R850.00 owed');
+  const overMovement = await run({ before: [propose('accountant', r1000, 'Record R1000 from Mokoena'), confirm('accountant')], ...open('accountant', 'movement', 3) });
+  const unalloc = ((body(overMovement).result || {}).fields || []).find((f) => f.key === 'unallocatedMinor');
+  check(unalloc && unalloc.value === 15000 && overHeld.amountMinor - overHeld.allocations.reduce((s, x) => s + x.amountMinor, 0) === unalloc.value, 'the engine\'s own record then shows R150.00 unallocated, equal to the held amount minus its allocations (the figure the approval card shows beforehand)');
+  const overAfter = await run({ before: [propose('accountant', r1000, 'Record R1000 from Mokoena'), confirm('accountant')], ...ask('accountant') });
+  check(body(overAfter).result && body(overAfter).result.totalMinor === 0 && body(overAfter).result.documents[0].outstandingMinor === 0, 'and Mokoena then owes nothing: the invoice is settled and the extra R150.00 sits on the account, not on any invoice');
+
   // ---- PROVENANCE (invariant 6, docs/decisions/first-slice.md part E): capture, proposal and approval are linked by reference, and a record's history shows them --------------------------------------------------
   const capRows = (((proposed.writes || {}).captures || {}).added) || [];
   const capId = capRows[0] && capRows[0].id;

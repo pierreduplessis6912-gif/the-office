@@ -78,7 +78,10 @@ class FixtureEngineApi implements EngineApi {
   /// False stands for a member who may not decline a held payment: the engine refuses it and the payment still waits.
   final bool canDecline;
 
-  FixtureEngineApi(this.fixtures, {this.role = 'accountant', this.capabilityAvailable = true, this.ambiguous = false, this.canRecord = true, this.staleApproval = false, this.canDecline = true});
+  /// True stands for a payment larger than what is owed (R1,000.00 against R850.00): the held view shows the unallocated remainder and, once approved, the customer owes nothing.
+  final bool overpay;
+
+  FixtureEngineApi(this.fixtures, {this.role = 'accountant', this.capabilityAvailable = true, this.ambiguous = false, this.canRecord = true, this.staleApproval = false, this.canDecline = true, this.overpay = false});
 
   static const EngineResponse _missing = EngineResponse(500, null);
 
@@ -97,7 +100,7 @@ class FixtureEngineApi implements EngineApi {
     if (!capabilityAvailable) return fixtures['unavailable-ask'] ?? _missing;
     if (role == 'installer' || role == 'sales') return fixtures['receivables-refused'] ?? _missing;
     if (party.trim().toLowerCase() != 'mokoena') return fixtures['receivables-not-found'] ?? _missing;
-    return fixtures[ambiguous ? 'receivables-ambiguous' : (_approved ? 'receivables-after-payment' : 'receivables-answer')] ?? _missing;
+    return fixtures[ambiguous ? 'receivables-ambiguous' : (_approved ? (overpay ? 'receivables-after-overpay' : 'receivables-after-payment') : 'receivables-answer')] ?? _missing;
   }
 
   @override
@@ -118,7 +121,7 @@ class FixtureEngineApi implements EngineApi {
   }
 
   @override
-  Future<EngineResponse> pending() async => fixtures[_rejected ? 'pending-empty' : 'pending-held'] ?? _missing;
+  Future<EngineResponse> pending() async => fixtures[_rejected ? 'pending-empty' : (overpay ? 'pending-held-over' : 'pending-held')] ?? _missing;
 
   @override
   Future<EngineResponse> confirm(int actionId) async {

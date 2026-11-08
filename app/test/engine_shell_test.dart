@@ -31,8 +31,8 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.pump(const Duration(milliseconds: 100));
 }
 
-Future<FixtureEngineApi> _answered(WidgetTester tester, {bool canRecord = true, bool staleApproval = false, bool canDecline = true}) async {
-  final api = FixtureEngineApi(_fx, canRecord: canRecord, staleApproval: staleApproval, canDecline: canDecline);
+Future<FixtureEngineApi> _answered(WidgetTester tester, {bool canRecord = true, bool staleApproval = false, bool canDecline = true, bool overpay = false}) async {
+  final api = FixtureEngineApi(_fx, canRecord: canRecord, staleApproval: staleApproval, canDecline: canDecline, overpay: overpay);
   await _open(tester, api);
   await _ask(tester, 'What does Mokoena owe me?');
   return api;
@@ -302,5 +302,25 @@ void main() {
     expect(find.text('not available for your role'), findsOneWidget);
     expect(find.text('AWAITING YOUR APPROVAL'), findsOneWidget);
     expect(find.byKey(const Key('approve')), findsOneWidget);
+  });
+
+  testWidgets('a payment larger than what is owed is held with the unallocated remainder showing, and approving records it', (tester) async {
+    final api = await _answered(tester, overpay: true);
+    await _ask(tester, 'Record R1000 from Mokoena');
+    expect(find.text('AWAITING YOUR APPROVAL'), findsOneWidget);
+    expect(find.text('Amount: R1,000.00'), findsOneWidget);
+    expect(find.text('Invoice #1: R850.00'), findsOneWidget);
+    expect(find.byKey(const Key('approval-unallocated')), findsOneWidget);
+    expect(find.text('Not applied to any invoice: R150.00. It stays on the account as unallocated.'), findsOneWidget);
+    expect(api.confirmations, isEmpty);
+    await _tap(tester, find.byKey(const Key('approve')));
+    expect(find.text('Recorded R1,000.00 from Mokoena. R150.00 of it is on the account, not applied to an invoice.'), findsOneWidget);
+    expect(find.text('R0.00'), findsOneWidget);
+  });
+
+  testWidgets('a payment fully applied shows no unallocated line', (tester) async {
+    await _answered(tester);
+    await _ask(tester, 'Record R500 from Mokoena');
+    expect(find.byKey(const Key('approval-unallocated')), findsNothing);
   });
 }

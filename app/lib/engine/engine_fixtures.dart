@@ -852,6 +852,50 @@ const Map<String, String> engineFixtureJson = <String, String>{
     "pending": []
   }
 }''',
+  'pending-held-over': r'''{
+  "status": 200,
+  "body": {
+    "pending": [
+      {
+        "id": 1,
+        "type": "engine.payment.record",
+        "payload": "{\"partyId\":1,\"amountMinor\":100000,\"currency\":\"ZAR\",\"occurredOn\":\"2026-11-07\",\"method\":\"eft\",\"allocations\":[{\"documentId\":1,\"amountMinor\":85000}],\"basedOn\":{\"partyVersion\":10}}",
+        "source_transcript": "Record R1000 from Mokoena",
+        "created_at": "2026-01-01 00:00:00"
+      }
+    ]
+  }
+}''',
+  'receivables-after-overpay': r'''{
+  "status": 200,
+  "body": {
+    "status": "ok",
+    "result": {
+      "party": {
+        "id": 1,
+        "name": "Mokoena"
+      },
+      "currency": "ZAR",
+      "totalMinor": 0,
+      "documents": [
+        {
+          "ref": {
+            "kind": "document",
+            "id": 1
+          },
+          "number": 1,
+          "kind": "invoice",
+          "issuedOn": "2026-10-01",
+          "grossMinor": 115000,
+          "allocatedMinor": 115000,
+          "outstandingMinor": 0
+        }
+      ],
+      "version": 12,
+      "derivedBy": "ledger.outstandingForParty"
+    }
+  }
+}''',
   'unavailable-ask': r'''{
   "status": 409,
   "body": {

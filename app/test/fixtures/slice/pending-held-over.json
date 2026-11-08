@@ -1,0 +1,14 @@
+{
+  "status": 200,
+  "body": {
+    "pending": [
+      {
+        "id": 1,
+        "type": "engine.payment.record",
+        "payload": "{\"partyId\":1,\"amountMinor\":100000,\"currency\":\"ZAR\",\"occurredOn\":\"2026-11-07\",\"method\":\"eft\",\"allocations\":[{\"documentId\":1,\"amountMinor\":85000}],\"basedOn\":{\"partyVersion\":10}}",
+        "source_transcript": "Record R1000 from Mokoena",
+        "created_at": "2026-01-01 00:00:00"
+      }
+    ]
+  }
+}
