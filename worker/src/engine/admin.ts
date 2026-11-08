@@ -51,6 +51,30 @@ async function provisionSample(env: Env): Promise<void> {
   await env.OFFICE_DB.prepare("INSERT INTO eng_observation (capture_id, kind, note) VALUES (?, 'unsupported', 'book a skip')").bind(capture!.id).run();
 }
 
+const RAMP_MAX_ROWS = 250_000;
+
+/**
+ * Tops the marker rows in `captures` (source = 'ramp', plain text of about 110 bytes) up to `rows`; never removes any. The rows are written in statements of a few at a time (no series or helper table is named, so the engine's SQL
+ * still names only the tables it owns plus captures), inside the object itself, where a write costs microseconds and not a network trip. The marker is the `source` column, so ramp-clear removes exactly these rows and nothing else.
+ */
+const RAMP_ROWS_PER_STATEMENT = 20;
+
+async function rampTo(env: Env, rows: number): Promise<Record<string, unknown>> {
+  const have = (await env.OFFICE_DB.prepare("SELECT COUNT(*) AS n FROM captures WHERE source = 'ramp'").first<{ n: number }>())?.n ?? 0;
+  for (let from = have + 1; from <= rows; from += RAMP_ROWS_PER_STATEMENT) {
+    const to = Math.min(rows, from + RAMP_ROWS_PER_STATEMENT - 1);
+    const values: string[] = [];
+    const binds: string[] = [];
+    for (let i = from; i <= to; i++) {
+      values.push("(?, 'ramp')");
+      binds.push(`ramp-filler ${i} ${String(i).padStart(90, "0")}`);
+    }
+    await env.OFFICE_DB.prepare(`INSERT INTO captures (raw_text, source) VALUES ${values.join(", ")}`).bind(...binds).run();
+  }
+  const now = await env.OFFICE_DB.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(LENGTH(raw_text)), 0) AS bytes FROM captures WHERE source = 'ramp'").first<{ n: number; bytes: number }>();
+  return { requested: rows, added: (now?.n ?? 0) - have, rampRows: now?.n ?? 0, rampBytes: now?.bytes ?? 0 };
+}
+
 export async function engineAdminRoute(request: Request, env: Env, url: URL): Promise<Response | null> {
   if (!url.pathname.startsWith("/admin/engine/")) return null;
   if (!env.BUSINESS_ID) return bad("the engine is per business: name one with X-Target-Business", 400);
@@ -67,6 +91,22 @@ export async function engineAdminRoute(request: Request, env: Env, url: URL): Pr
         if ((now.rows as number) > 0 || now.mode !== "legacy") return bad("this business already has engine data, so nothing was done", 409);
         await provisionSample(env);
         return Response.json(await engineStatus(env));
+      }
+      case "POST /ramp": {
+        // The memory RAMP (staging only): fill ONE table with marker rows so a snapshot and a restore can be tried at size on a real object. Same conditions as provisioning; it touches the captures table and nothing else.
+        if (env.ENGINE_REHEARSAL !== "1") return bad("this route exists only on a rehearsal deployment", 404);
+        const body = (await request.json().catch(() => null)) as { confirm?: string; rows?: unknown } | null;
+        if (!body || body.confirm !== env.BUSINESS_ID) return bad("confirm must be the business id", 400);
+        if (typeof body.rows !== "number" || !Number.isInteger(body.rows) || body.rows < 1 || body.rows > RAMP_MAX_ROWS) return bad(`rows must be a whole number from 1 to ${RAMP_MAX_ROWS}`, 400);
+        return Response.json(await rampTo(env, body.rows));
+      }
+      case "POST /ramp-clear": {
+        if (env.ENGINE_REHEARSAL !== "1") return bad("this route exists only on a rehearsal deployment", 404);
+        const body = (await request.json().catch(() => null)) as { confirm?: string } | null;
+        if (!body || body.confirm !== env.BUSINESS_ID) return bad("confirm must be the business id", 400);
+        const removed = (await env.OFFICE_DB.prepare("SELECT COUNT(*) AS n FROM captures WHERE source = 'ramp'").first<{ n: number }>())?.n ?? 0;
+        await env.OFFICE_DB.prepare("DELETE FROM captures WHERE source = 'ramp'").run();
+        return Response.json({ removed, rampRows: 0 });
       }
       default:
         return bad("no such engine admin route", 404);

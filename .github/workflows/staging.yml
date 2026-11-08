@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "rehearsal = everything; gate = what a migration must pass (as the pipeline runs it); gate-drill = prove the gate stops a deliberately broken step, then recover; load = load test the business objects (staging only)"
+        description: "rehearsal = everything; gate = what a migration must pass (as the pipeline runs it); gate-drill = prove the gate stops a deliberately broken step, then recover; load = load test the business objects (staging only); restore-proof = re-prove the restore on a real object; ramp = grow one table on staging-two in steps and try a snapshot and a restore at each size (staging only, answers: where does memory run out)"
         type: choice
         options:
           - rehearsal
@@ -26,6 +26,7 @@ on:
           - load
           - identity
           - restore-proof
+          - ramp
         default: rehearsal
       load_sentences:
         description: "Load mode only: how many real sentences wait on the model while reads are timed (each costs a little; never more than 8)"
@@ -357,6 +358,53 @@ jobs:
               sys.exit(1)
           print("The staging gate passed: every business object applied the real schema steps and nothing was lost.")
           PY
+
+      - name: Memory ramp (mode ramp, staging-two only, one table grown in steps with a snapshot and a restore tried at each size)
+        if: env.MODE == 'ramp'
+        run: |
+          # The question: how large a single table can a real Durable Object snapshot and restore before it runs out of memory (the limit is 128 MB; the 2026-10-28 failure was about size)? The deploy above has put this branch's code, with the
+          # staging-only ramp routes, on staging. For each size the table is topped up with marker rows (POST /admin/engine/ramp), a snapshot is taken (POST /admin/backup/run), and that snapshot is restored (POST /admin/backup/restore, which takes its
+          # own safety snapshot first). The first failure ends the ramp: a failure is a RESULT, not a failed run. Every call is logged with its HTTP status and seconds, and the marker rows are ALWAYS cleared afterwards. Never production, never any business but staging-two.
+          set +e
+          BASE="https://${SLUG}.websitehub.co.za"
+          A=(-H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY")
+          B=staging-two
+          mkdir -p "$RESULTS"
+          : > "$RESULTS/ramp-log.tsv"
+          call() { name=$1; out=$2; shift 2; R=$(curl -s --max-time 590 -o "$out" -w '%{http_code}\t%{time_total}' "$@"); rc=$?; printf '%s\t%s\t%s\n' "$name" "$R" "$rc" | tee -a "$RESULTS/ramp-log.tsv"; }
+          bcall() { name=$1; out=$2; shift 2; call "$name" "$out" "${A[@]}" -H "X-Target-Business: $B" "$@"; }
+          bcall start-status "$RESULTS/ramp-start-status.json" "$BASE/admin/backup/status"
+          bcall start-engine "$RESULTS/ramp-start-engine.json" "$BASE/admin/engine/status"
+          STOP=0
+          for N in 20000 40000 80000 120000 160000; do
+            [ "$STOP" = 1 ] && break
+            bcall "ramp-$N" "$RESULTS/ramp-$N.json" -X POST -H "Content-Type: application/json" -d "{\"confirm\":\"$B\",\"rows\":$N}" "$BASE/admin/engine/ramp"
+            bcall "snapshot-$N" "$RESULTS/snapshot-$N.json" -X POST "$BASE/admin/backup/run"
+            SNAP=$(sed -n 's/.*"snapshot" *: *"\([^"]*\)".*/\1/p' "$RESULTS/snapshot-$N.json" 2>/dev/null | head -n 1)
+            if [ -z "$SNAP" ]; then echo "no snapshot name at $N rows: the ramp stops here"; STOP=1; break; fi
+            bcall "restore-$N" "$RESULTS/restore-$N.json" -X POST -H "Content-Type: application/json" -d "{\"snapshot\":\"$SNAP\",\"confirm\":\"$B\"}" "$BASE/admin/backup/restore"
+            bcall "health-$N" "$RESULTS/health-$N.json" "$BASE/admin/health"
+            if ! grep -q '"ok" *: *true' "$RESULTS/restore-$N.json" 2>/dev/null; then echo "the restore at $N rows did not report ok: the ramp stops here"; STOP=1; fi
+          done
+          bcall clear "$RESULTS/ramp-clear.json" -X POST -H "Content-Type: application/json" -d "{\"confirm\":\"$B\"}" "$BASE/admin/engine/ramp-clear"
+          bcall final-health "$RESULTS/ramp-final-health.json" "$BASE/admin/health"
+          bcall final-engine "$RESULTS/ramp-final-engine.json" "$BASE/admin/engine/status"
+          bcall final-status "$RESULTS/ramp-final-status.json" "$BASE/admin/backup/status"
+          python3 tools/ramp-summary.py "$RESULTS" "${{ github.sha }}" > "$RESULTS/ramp-summary.json"
+          mkdir -p ops
+          cp "$RESULTS/ramp-summary.json" ops/staging-ramp-last.json
+          git config user.name "staging-workflow"
+          git config user.email "noreply@github.com"
+          git checkout -- worker/src/schema-steps.ts worker/src/baseline-sql.ts 2>/dev/null
+          git add ops/staging-ramp-last.json
+          git commit -m "Staging memory ramp record (sizes, HTTP statuses, seconds and results only)" || echo "nothing to record"
+          PUSHRC=1
+          for attempt in 1 2 3; do
+            git pull --rebase origin "$GITHUB_REF_NAME" && git push origin HEAD:"$GITHUB_REF_NAME" && { PUSHRC=0; break; }
+            sleep 3
+          done
+          echo "ramp record pushed: rc=$PUSHRC"
+          exit $PUSHRC
 
       - name: Identity - read what the real objects report about their own name (read only)
         if: env.MODE == 'identity'

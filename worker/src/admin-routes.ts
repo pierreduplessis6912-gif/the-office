@@ -118,6 +118,8 @@ export const ADMIN_ROUTE_TIERS: Readonly<Record<string, AdminTier>> = {
   "POST /admin/schema/retry": "write",
   "POST /admin/backup/run": "write",
   "POST /admin/engine/provision-sample": "privileged",
+  "POST /admin/engine/ramp": "privileged",
+  "POST /admin/engine/ramp-clear": "privileged",
   "GET /debug/trial-ai": "write",
   "GET /debug/trial-do": "write",
   "POST /debug/complete-task/:id": "write",

@@ -65,6 +65,44 @@ module.exports = kit.guard('engine admin', async ({ check }) => {
   const report = await bk.restoreSnapshot(w.env, snap.name, 'eng-a');
   const s2 = (await call(w.env, 'GET', '/admin/engine/status')).body;
   check(report.ok && JSON.stringify(s2) === JSON.stringify(s1), 'after the restore the status is IDENTICAL to what it was before the damage: counts, hashes, mode, availability, integrity');
+
+  // ---- the memory RAMP (staging only): fill ONE table with marker rows so a snapshot and a restore can be tried at size on a real object -------------------------------------------------------------
+  // POST /admin/engine/ramp {confirm, rows}  tops the number of marker rows in `captures` (source = 'ramp', about 110 bytes each) up to `rows`, never removing any; POST /admin/engine/ramp-clear {confirm} removes exactly the marker rows.
+  // Same conditions as provisioning: PRIVILEGED, only where ENGINE_REHEARSAL=1, only with the business id as confirmation. It touches the captures table and nothing else.
+  check(tiers['POST /admin/engine/ramp'] === 'privileged' && tiers['POST /admin/engine/ramp-clear'] === 'privileged', 'the ramp routes are tier PRIVILEGED (both admin secrets)');
+  const wr = kit.makeWorld();
+  const ramped = (w) => w.db.prepare("SELECT COUNT(*) AS n FROM captures WHERE source = 'ramp'").get().n;
+  const others = (w) => w.db.prepare("SELECT COUNT(*) AS n FROM captures WHERE source <> 'ramp'").get().n;
+  let b4 = wr.counts();
+  r = await call(wr.env, 'POST', '/admin/engine/ramp', { confirm: 'eng-a', rows: 50 });
+  check(r.status === 404 && JSON.stringify(wr.counts()) === JSON.stringify(b4), `without ENGINE_REHEARSAL=1 the ramp does not exist for this deployment (${r.status}) and nothing is written`);
+  r = await call(wr.env, 'POST', '/admin/engine/ramp-clear', { confirm: 'eng-a' });
+  check(r.status === 404, 'nor does the clear route');
+  for (const bad of [{ confirm: 'another-business', rows: 50 }, { rows: 50 }, { confirm: 'eng-a' }, { confirm: 'eng-a', rows: 0 }, { confirm: 'eng-a', rows: -5 }, { confirm: 'eng-a', rows: '50' }, { confirm: 'eng-a', rows: 1.5 }, { confirm: 'eng-a', rows: 250001 }]) {
+    r = await call(flagged(wr), 'POST', '/admin/engine/ramp', bad);
+    check(r.status === 400 && JSON.stringify(wr.counts()) === JSON.stringify(b4), `a ramp request ${JSON.stringify(bad)} is refused (400) and nothing is written`);
+  }
+  r = await call(flagged(wr), 'POST', '/admin/engine/ramp', { confirm: 'eng-a', rows: 50 });
+  check(r.status === 200 && r.body.rampRows === 50 && ramped(wr) === 50, 'a valid ramp request puts exactly the marker rows asked for into captures');
+  const sample = wr.db.prepare("SELECT raw_text, source FROM captures WHERE source = 'ramp' ORDER BY id LIMIT 1").get();
+  const avg = wr.db.prepare("SELECT AVG(LENGTH(raw_text)) AS a, MIN(LENGTH(raw_text)) AS lo, MAX(LENGTH(raw_text)) AS hi FROM captures WHERE source = 'ramp'").get();
+  check(sample.raw_text.startsWith('ramp-filler ') && avg.lo >= 100 && avg.hi <= 125, `each marker row is plain text of about 110 bytes (${avg.lo} to ${avg.hi}), clearly marked`);
+  r = await call(flagged(wr), 'POST', '/admin/engine/ramp', { confirm: 'eng-a', rows: 80 });
+  check(r.status === 200 && r.body.rampRows === 80 && ramped(wr) === 80, 'a larger request tops the marker rows up to the new total');
+  r = await call(flagged(wr), 'POST', '/admin/engine/ramp', { confirm: 'eng-a', rows: 80 });
+  check(r.status === 200 && ramped(wr) === 80, 'the same request again changes nothing');
+  r = await call(flagged(wr), 'POST', '/admin/engine/ramp', { confirm: 'eng-a', rows: 10 });
+  check(r.status === 200 && r.body.rampRows === 80 && ramped(wr) === 80, 'a smaller request never removes anything (it stays at 80)');
+  const hashesBefore = (await call(wr.env, 'GET', '/admin/engine/status')).body.hashes;
+  wr.db.prepare("INSERT INTO captures (raw_text, source) VALUES ('a real sentence', 'text')").run();
+  const countsWithReal = wr.counts();
+  r = await call(flagged(wr), 'POST', '/admin/engine/ramp-clear', { confirm: 'eng-a' });
+  check(r.status === 200 && r.body.removed === 80 && ramped(wr) === 0 && others(wr) === 1, 'clearing removes exactly the marker rows and leaves a real capture alone');
+  const after = wr.counts();
+  check(Object.keys(after).every((t) => t === 'captures' || after[t] === countsWithReal[t]), 'and no other table was touched by the ramp or the clear');
+  check(JSON.stringify((await call(wr.env, 'GET', '/admin/engine/status')).body.hashes) === JSON.stringify(hashesBefore), 'the engine tables are byte-for-byte as they were: the ramp never touches them');
+  r = await call(flagged(wr), 'POST', '/admin/engine/ramp-clear', { confirm: 'wrong' });
+  check(r.status === 400 && others(wr) === 1, 'clearing needs the business id as confirmation too');
 });
 
 if (require.main === module) kit.standalone(module.exports);
