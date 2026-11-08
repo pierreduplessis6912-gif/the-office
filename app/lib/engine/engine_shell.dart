@@ -1,6 +1,6 @@
 // The engine shell, first step of the visible slice (docs/decisions/first-slice.md, section B): the persistent orb, a typed question, and the answer card. A quiet black screen (DESIGN_CONSTITUTION_V2.md): one orb, nothing else until the
 // person asks, and an answer that arrives as a card, not a chat bubble. THE SHELL COMPUTES NOTHING: every figure is formatted from the engine's whole-number minor units (slice_model.dart), and what a member may see is the engine's decision.
-// A refusal is a boundary, never red; a business without the capability is told so honestly. Drill-down (criterion 3): a tap on an invoice line opens its record as a ROOM that replaces the answer (not a popup) and the orb stays; from a room the person can open what it names (the customer, a payment, an invoice) and go back one step at a time, and "back to the conversation" returns to the answer. The approval card and the trace sheet come in later steps. This file is not wired into main.dart.
+// A refusal is a boundary, never red; a business without the capability is told so honestly. Drill-down (criterion 3): a tap on an invoice line opens its record as a ROOM that replaces the answer (not a popup) and the orb stays; from a room the person can open what it names (the customer, a payment, an invoice) and go back one step at a time, and "back to the conversation" returns to the answer. Approval (criterion 4): "Record R500 from Mokoena" (a payment the person says was made, understood by a scripted pattern, and only for the customer whose answer is on screen) is proposed to the engine, which HOLDS it; an approval view then shows what the approver is approving, read from the held payment and, for names, through permission-checked record reads (audit decision D2): the customer, the amount, the exact invoice allocation, what was said and the account version it was based on, with what the Office assumed marked. Nothing is recorded until the person approves; then the answer is read again. The trace sheet comes in a later step. This file is not wired into main.dart.
 import 'package:flutter/material.dart';
 import '../refusal_view.dart';
 import '../slice_model.dart';
@@ -16,7 +16,10 @@ const Color _ember = Color(0xFFC4432B);
 
 class EngineShell extends StatefulWidget {
   final EngineApi api;
-  const EngineShell({super.key, required this.api});
+
+  /// Today, for the date a payment is proposed with. Injected so a test can fix it.
+  final DateTime Function()? clock;
+  const EngineShell({super.key, required this.api, this.clock});
 
   @override
   State<EngineShell> createState() => _EngineShellState();
@@ -28,6 +31,10 @@ class _EngineShellState extends State<EngineShell> {
   String? _note;
   String? _recordNote;
   final List<SliceRecord> _trail = <SliceRecord>[];
+  _Approval? _approval;
+  bool _viewingApproval = false;
+  String? _recorded;
+  bool _working = false;
 
   Future<void> _submit() async {
     final text = _controller.text.trim();
@@ -35,15 +42,25 @@ class _EngineShellState extends State<EngineShell> {
     _controller.clear();
     final name = scriptedCustomerName(text);
     if (name == null) {
+      final payment = scriptedPayment(text);
+      if (payment != null) {
+        await _propose(payment, text);
+        return;
+      }
       setState(() {
         _flow = const SliceFlow.resting();
-        _note = 'In this first version I can only answer what a customer owes. Try: "What does Mokoena owe me?"';
+        _approval = null;
+        _recorded = null;
+        _note = 'In this first version I can only answer what a customer owes, or take a payment you say was made. Try: "What does Mokoena owe me?"';
       });
       return;
     }
     setState(() {
       _note = null;
       _recordNote = null;
+      _recorded = null;
+      _approval = null;
+      _viewingApproval = false;
       _trail.clear();
       _flow = const SliceFlow.resting().asked();
     });
@@ -60,6 +77,7 @@ class _EngineShellState extends State<EngineShell> {
 
   /// Opens a record named by the answer or by another record. A record the engine will not show (hidden or missing: it answers the same either way) leaves the person where they are, with a plain line.
   Future<void> _open(SliceRef ref) async {
+    if (_flow.step != SliceStep.answered && _flow.step != SliceStep.record) return;
     SliceRecord? record;
     try {
       final response = await widget.api.record(ref.kind, ref.id);
@@ -80,6 +98,123 @@ class _EngineShellState extends State<EngineShell> {
       _flow = _flow.opened(opened);
     });
   }
+
+
+  String _today() {
+    final d = (widget.clock ?? DateTime.now)();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${d.year.toString().padLeft(4, '0')}-${two(d.month)}-${two(d.day)}';
+  }
+
+  Future<SliceRecord?> _read(String kind, int id) async {
+    try {
+      final response = await widget.api.record(kind, id);
+      return parseRecord(response.status, response.body);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// "Record R500 from Mokoena": propose it, then show what the approver would be approving. Only for the customer whose answer is on screen, so the Office never guesses which customer is meant.
+  Future<void> _propose(ScriptedPayment payment, String said) async {
+    final answer = _flow.answer;
+    final inAnswer = _flow.step == SliceStep.answered || _flow.step == SliceStep.record;
+    if (answer == null || !inAnswer || answer.partyName.toLowerCase() != payment.customerName.toLowerCase()) {
+      setState(() => _recordNote = 'Ask what ${payment.customerName} owes first, so I know which customer you mean.');
+      if (_flow.step == SliceStep.resting) setState(() => _note = 'Ask what ${payment.customerName} owes first, so I know which customer you mean.');
+      return;
+    }
+    setState(() {
+      _recordNote = null;
+      _working = true;
+    });
+    SliceProposal proposal;
+    try {
+      final response = await widget.api.proposePayment(<String, Object?>{
+        'partyId': answer.partyId,
+        'amountMinor': payment.amountMinor,
+        'currency': answer.currency,
+        'occurredOn': _today(),
+        'allocate': 'oldest_first',
+      }, said);
+      proposal = parseProposal(response.status, response.body);
+    } catch (_) {
+      proposal = const SliceProposal(held: false, error: 'unusable');
+    }
+    SliceHeldPayment? held;
+    if (proposal.held) {
+      try {
+        final response = await widget.api.pending();
+        for (final h in parseHeldPayments(response.status, response.body)) {
+          if (h.actionId == proposal.actionId) held = h;
+        }
+      } catch (_) {
+        held = null;
+      }
+    }
+    _Approval? approval;
+    if (held != null) {
+      final customer = await _read('party', held.partyId);
+      final lines = <_ApprovalLine>[];
+      for (final a in held.allocations) {
+        final doc = await _read('document', a.documentId);
+        lines.add(_ApprovalLine(documentId: a.documentId, title: doc?.title, amountMinor: a.amountMinor));
+      }
+      approval = _Approval(held: held, customerName: customer?.title, lines: lines);
+    }
+    if (!mounted) return;
+    setState(() {
+      _working = false;
+      if (proposal.held && approval == null) {
+        _flow = _flow.proposed(const SliceProposal(held: false, message: 'The payment was proposed, but I could not read what is waiting for approval, so nothing more was done.'));
+        return;
+      }
+      _flow = _flow.proposed(proposal);
+      if (_flow.step == SliceStep.held) {
+        _approval = approval;
+        _viewingApproval = true;
+      }
+    });
+  }
+
+  /// The person approves. Only then does the engine record the payment; the answer is then read again so the figures are the engine's.
+  Future<void> _approve() async {
+    final approval = _approval;
+    if (approval == null || _flow.step != SliceStep.held) return;
+    setState(() => _flow = _flow.approving());
+    SliceConfirm confirm;
+    try {
+      final response = await widget.api.confirm(approval.held.actionId);
+      confirm = parseConfirm(response.status, response.body);
+    } catch (_) {
+      confirm = const SliceConfirm(ok: false, error: 'unusable');
+    }
+    final answer = _flow.answer;
+    SliceRead? again;
+    if (confirm.ok && answer != null) {
+      try {
+        final response = await widget.api.receivables(answer.partyName);
+        again = parseReceivables(response.status, response.body);
+      } catch (_) {
+        again = const SliceRead.unusable();
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _flow = _flow.confirmed(confirm);
+      _approval = null;
+      _viewingApproval = false;
+      if (confirm.ok) {
+        _recorded = 'Recorded ${approval.held.amountText} from ${approval.customerName ?? answer?.partyName ?? 'the customer'}.';
+        _flow = const SliceFlow.resting().asked().received(again ?? const SliceRead.unusable());
+      }
+    });
+  }
+
+  /// Back to the conversation from the approval view: the payment stays held, and the answer says so.
+  void _leaveApproval() => setState(() => _viewingApproval = false);
+
+  void _reviewApproval() => setState(() => _viewingApproval = true);
 
   /// Back one step: to the record the person came from, or, from the first record, to the conversation.
   void _back() {
@@ -115,8 +250,31 @@ class _EngineShellState extends State<EngineShell> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (_recorded != null) Padding(padding: const EdgeInsets.only(bottom: 16), child: Text(_recorded!, key: const Key('recorded'), style: const TextStyle(color: _textPrimary, fontSize: 14))),
             _AnswerCard(answer: answer, onOpen: _open),
             if (_recordNote != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_recordNote!, style: const TextStyle(color: _textSecondary, fontSize: 13))),
+          ],
+        );
+      case SliceStep.held:
+      case SliceStep.approving:
+        final approval = _approval;
+        if (approval == null) return const SizedBox.shrink();
+        if (_viewingApproval || _flow.step == SliceStep.approving) {
+          return _ApprovalCard(approval: approval, currency: answer?.currency, busy: _flow.step == SliceStep.approving, onApprove: _approve, onBack: _leaveApproval);
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (answer != null) _AnswerCard(answer: answer, onOpen: _open),
+            const SizedBox(height: 12),
+            InkWell(
+              key: const Key('review-waiting'),
+              onTap: _reviewApproval,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text('A payment of ${approval.held.amountText} is waiting for your approval. Review it.', style: const TextStyle(color: _ember, fontSize: 13)),
+              ),
+            ),
           ],
         );
       case SliceStep.record:
@@ -151,7 +309,7 @@ class _EngineShellState extends State<EngineShell> {
 
   @override
   Widget build(BuildContext context) {
-    final busy = _flow.orbPhase == 'thinking' || _flow.orbPhase == 'executing';
+    final busy = _working || _flow.orbPhase == 'thinking' || _flow.orbPhase == 'executing';
     return Scaffold(
       backgroundColor: _void,
       body: SafeArea(
@@ -252,6 +410,81 @@ class _AnswerCard extends StatelessWidget {
             ),
           const SizedBox(height: 8),
           Text('Source: ${answer.derivedBy}, account version ${answer.version}', style: const TextStyle(color: _textTertiary, fontSize: 11)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ApprovalLine {
+  final int documentId;
+  final String? title;
+  final int amountMinor;
+  const _ApprovalLine({required this.documentId, required this.title, required this.amountMinor});
+}
+
+/// What the approver is approving: the held payment, with the names read through record reads. A name that could not be read is shown as a number and marked, never guessed.
+class _Approval {
+  final SliceHeldPayment held;
+  final String? customerName;
+  final List<_ApprovalLine> lines;
+  const _Approval({required this.held, required this.customerName, required this.lines});
+}
+
+class _ApprovalCard extends StatelessWidget {
+  final _Approval approval;
+  final String? currency;
+  final bool busy;
+  final VoidCallback onApprove;
+  final VoidCallback onBack;
+  const _ApprovalCard({required this.approval, required this.currency, required this.busy, required this.onApprove, required this.onBack});
+
+  @override
+  Widget build(BuildContext context) {
+    final held = approval.held;
+    final customer = approval.customerName ?? 'customer ${held.partyId} (name not available)';
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      label: 'Awaiting your approval: record ${held.amountText} from $customer',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('AWAITING YOUR APPROVAL', style: TextStyle(color: _ember, fontSize: 11, letterSpacing: 1.4)),
+          const SizedBox(height: 8),
+          const Text('Record a payment', key: Key('approval-title'), style: TextStyle(color: _textPrimary, fontSize: 26, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 14),
+          Text('From: $customer', style: const TextStyle(color: _textPrimary, fontSize: 15)),
+          const SizedBox(height: 6),
+          Text('Amount: ${held.amountText}', style: const TextStyle(color: _textPrimary, fontSize: 15)),
+          const SizedBox(height: 14),
+          const Text('Applied to', style: TextStyle(color: _textTertiary, fontSize: 11, letterSpacing: 1.4)),
+          const SizedBox(height: 4),
+          for (final line in approval.lines)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Text('${line.title ?? 'Document ${line.documentId} (name not available)'}: ${randFromMinor(line.amountMinor, currency: held.currency)}', style: const TextStyle(color: _textPrimary, fontSize: 14)),
+            ),
+          const SizedBox(height: 10),
+          const Text('Applied oldest first: the Office chose this, you did not say.', style: TextStyle(color: _textSecondary, fontSize: 12)),
+          Text('Dated ${held.occurredOn}: today, assumed.', style: const TextStyle(color: _textSecondary, fontSize: 12)),
+          if (held.transcript.isNotEmpty) Text('You said: "${held.transcript}"', style: const TextStyle(color: _textSecondary, fontSize: 12)),
+          if (held.partyVersion != null) Text('Based on account version ${held.partyVersion}.', style: const TextStyle(color: _textTertiary, fontSize: 11)),
+          const SizedBox(height: 10),
+          const Text('Nothing is recorded until you approve.', style: TextStyle(color: _textSecondary, fontSize: 12)),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              ElevatedButton(
+                key: const Key('approve'),
+                onPressed: busy ? null : onApprove,
+                style: ElevatedButton.styleFrom(backgroundColor: _ember, foregroundColor: _textPrimary),
+                child: const Text('Approve'),
+              ),
+              const SizedBox(width: 8),
+              TextButton(key: const Key('approval-conversation'), onPressed: busy ? null : onBack, child: const Text('Back to the conversation', style: TextStyle(color: _textSecondary))),
+            ],
+          ),
         ],
       ),
     );

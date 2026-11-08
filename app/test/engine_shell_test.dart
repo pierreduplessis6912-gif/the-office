@@ -12,7 +12,7 @@ import 'package:the_office/engine/engine_shell.dart';
 late Map<String, EngineResponse> _fx;
 
 Future<void> _open(WidgetTester tester, EngineApi api) async {
-  await tester.pumpWidget(MaterialApp(home: EngineShell(api: api)));
+  await tester.pumpWidget(MaterialApp(home: EngineShell(api: api, clock: () => DateTime(2026, 11, 7))));
   await tester.pump(const Duration(milliseconds: 50));
 }
 
@@ -29,6 +29,13 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.tap(finder);
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 100));
+}
+
+Future<FixtureEngineApi> _answered(WidgetTester tester, {bool canRecord = true, bool staleApproval = false}) async {
+  final api = FixtureEngineApi(_fx, canRecord: canRecord, staleApproval: staleApproval);
+  await _open(tester, api);
+  await _ask(tester, 'What does Mokoena owe me?');
+  return api;
 }
 
 Future<void> _openInvoice(WidgetTester tester, EngineApi api) async {
@@ -184,5 +191,87 @@ void main() {
     await _ask(tester, 'What does Nobody owe me?');
     expect(find.byKey(const Key('room-title')), findsNothing);
     expect(find.text('There is no such customer.'), findsOneWidget);
+  });
+
+  testWidgets('"Record R500 from Mokoena" is proposed and shown for approval with what the approver needs, and nothing is recorded', (tester) async {
+    final api = await _answered(tester);
+    await _ask(tester, 'Record R500 from Mokoena');
+    expect(api.proposals.length, 1);
+    expect(api.proposals.single, equals(<String, Object?>{'partyId': 1, 'amountMinor': 50000, 'currency': 'ZAR', 'occurredOn': '2026-11-07', 'allocate': 'oldest_first'}));
+    expect(find.text('AWAITING YOUR APPROVAL'), findsOneWidget);
+    expect(find.byKey(const Key('approval-title')), findsOneWidget);
+    expect(find.text('From: Mokoena'), findsOneWidget);
+    expect(find.text('Amount: R500.00'), findsOneWidget);
+    expect(find.text('Invoice #1: R500.00'), findsOneWidget);
+    expect(find.text('Applied oldest first: the Office chose this, you did not say.'), findsOneWidget);
+    expect(find.text('Dated 2026-11-07: today, assumed.'), findsOneWidget);
+    expect(find.text('You said: "Record R500 from Mokoena"'), findsOneWidget);
+    expect(find.textContaining('Based on account version'), findsOneWidget);
+    expect(find.text('Nothing is recorded until you approve.'), findsOneWidget);
+    expect(find.byType(EngineOrb), findsOneWidget);
+    expect(api.confirmations, isEmpty);
+  });
+
+  testWidgets('approving records it and the answer is read again: R350.00', (tester) async {
+    final api = await _answered(tester);
+    await _ask(tester, 'Record R500 from Mokoena');
+    await _tap(tester, find.byKey(const Key('approve')));
+    expect(api.confirmations, [1]);
+    expect(find.text('Recorded R500.00 from Mokoena.'), findsOneWidget);
+    expect(find.text('R350.00'), findsOneWidget);
+    expect(find.text('issued 2026-10-01 · R1,150.00 · paid R800.00'), findsOneWidget);
+    expect(find.text('AWAITING YOUR APPROVAL'), findsNothing);
+    expect(find.byType(EngineOrb), findsOneWidget);
+  });
+
+  testWidgets('the invoice opened after approval shows the new payment', (tester) async {
+    await _answered(tester);
+    await _ask(tester, 'Mokoena paid R500');
+    await _tap(tester, find.byKey(const Key('approve')));
+    await _tap(tester, find.byKey(const Key('open-document-1')));
+    expect(find.text('Outstanding: R350.00'), findsOneWidget);
+  });
+
+  testWidgets('a member who may read but not record is refused with the engine\'s words, and nothing is held', (tester) async {
+    final api = await _answered(tester, canRecord: false);
+    await _ask(tester, 'Record R500 from Mokoena');
+    expect(find.text('Recording a payment needs permission this member does not have, so nothing was done.'), findsOneWidget);
+    expect(find.text('AWAITING YOUR APPROVAL'), findsNothing);
+    expect(api.proposals.length, 1);
+    expect(api.confirmations, isEmpty);
+  });
+
+  testWidgets('an approval after the account changed is refused as stale, and nothing is said to be recorded', (tester) async {
+    final api = await _answered(tester, staleApproval: true);
+    await _ask(tester, 'Record R500 from Mokoena');
+    await _tap(tester, find.byKey(const Key('approve')));
+    expect(api.confirmations, [1]);
+    expect(find.text('The account changed after this was proposed, so it needs to be proposed again.'), findsOneWidget);
+    expect(find.textContaining('Recorded'), findsNothing);
+    expect(find.text('R350.00'), findsNothing);
+  });
+
+  testWidgets('leaving the approval keeps the payment held, says so, and it can be reviewed again', (tester) async {
+    final api = await _answered(tester);
+    await _ask(tester, 'Record R500 from Mokoena');
+    await _tap(tester, find.byKey(const Key('approval-conversation')));
+    expect(find.text('AWAITING YOUR APPROVAL'), findsNothing);
+    expect(find.text('R850.00'), findsOneWidget);
+    expect(find.text('A payment of R500.00 is waiting for your approval. Review it.'), findsOneWidget);
+    expect(api.confirmations, isEmpty);
+    await _tap(tester, find.byKey(const Key('review-waiting')));
+    expect(find.text('AWAITING YOUR APPROVAL'), findsOneWidget);
+  });
+
+  testWidgets('a payment is only taken for the customer on screen, and without an answer the Office asks first', (tester) async {
+    final api = FixtureEngineApi(_fx);
+    await _open(tester, api);
+    await _ask(tester, 'Record R500 from Mokoena');
+    expect(find.text('Ask what Mokoena owes first, so I know which customer you mean.'), findsOneWidget);
+    expect(api.proposals, isEmpty);
+    await _ask(tester, 'What does Mokoena owe me?');
+    await _ask(tester, 'Record R500 from Patel');
+    expect(find.text('Ask what Patel owes first, so I know which customer you mean.'), findsOneWidget);
+    expect(api.proposals, isEmpty);
   });
 }

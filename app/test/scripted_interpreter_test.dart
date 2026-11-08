@@ -18,4 +18,25 @@ void main() {
     expect(scriptedCustomerName('What does owe me?'), isNull);
     expect(scriptedCustomerName('What does ${'x' * 80} owe me?'), isNull);
   });
+
+  test('a payment the person says was made, in whole minor units', () {
+    final a = scriptedPayment('Record R500 from Mokoena')!;
+    expect(a.customerName, 'Mokoena');
+    expect(a.amountMinor, 50000);
+    expect(scriptedPayment('record r1,150.50 from Patel Builders.')!.amountMinor, 115050);
+    expect(scriptedPayment('record R500.5 from Mokoena')!.amountMinor, 50050);
+    expect(scriptedPayment('Mokoena paid R500')!.customerName, 'Mokoena');
+    expect(scriptedPayment('Mokoena paid me 500')!.amountMinor, 50000);
+    expect(scriptedPayment('Patel Builders paid us R1,150')!.amountMinor, 115000);
+  });
+
+  test('anything that is not a clear payment is not taken', () {
+    expect(scriptedPayment('Record R0 from Mokoena'), isNull);
+    expect(scriptedPayment('Record R500 from'), isNull);
+    expect(scriptedPayment('Record from Mokoena'), isNull);
+    expect(scriptedPayment('Mokoena paid'), isNull);
+    expect(scriptedPayment('What does Mokoena owe me?'), isNull);
+    expect(scriptedPayment('Record R99999999999 from Mokoena'), isNull);
+    expect(scriptedPayment(''), isNull);
+  });
 }

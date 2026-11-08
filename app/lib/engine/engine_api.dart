@@ -26,6 +26,15 @@ abstract class EngineApi {
 
   /// A record opened from an answer: GET /engine/records/<kind>/<id>.
   Future<EngineResponse> record(String kind, int id);
+
+  /// Proposes recording a payment: POST /engine/proposals. The engine HOLDS it; nothing is recorded until it is confirmed.
+  Future<EngineResponse> proposePayment(Map<String, Object?> payload, String transcript);
+
+  /// What is waiting for approval: GET /actions/pending.
+  Future<EngineResponse> pending();
+
+  /// Approves a held action: POST /actions/<id>/confirm.
+  Future<EngineResponse> confirm(int actionId);
 }
 
 /// Answers from recorded engine responses, chosen by who is asking and what the business has. [fixtures] is keyed by fixture name without its extension.
@@ -40,7 +49,18 @@ class FixtureEngineApi implements EngineApi {
 
   /// True stands for a business with two customers called Mokoena.
   final bool ambiguous;
-  const FixtureEngineApi(this.fixtures, {this.role = 'accountant', this.capabilityAvailable = true, this.ambiguous = false});
+  /// False stands for a member who may read but not record payments: the engine refuses the proposal.
+  final bool canRecord;
+
+  /// True stands for an account that changed between the proposal and the approval: the engine refuses the approval as stale.
+  final bool staleApproval;
+
+  /// What the shell sent, for tests to check: every proposed payload, and every action number approved.
+  final List<Map<String, Object?>> proposals = <Map<String, Object?>>[];
+  final List<int> confirmations = <int>[];
+  bool _approved = false;
+
+  FixtureEngineApi(this.fixtures, {this.role = 'accountant', this.capabilityAvailable = true, this.ambiguous = false, this.canRecord = true, this.staleApproval = false});
 
   static const EngineResponse _missing = EngineResponse(500, null);
 
@@ -59,7 +79,7 @@ class FixtureEngineApi implements EngineApi {
     if (!capabilityAvailable) return fixtures['unavailable-ask'] ?? _missing;
     if (role == 'installer' || role == 'sales') return fixtures['receivables-refused'] ?? _missing;
     if (party.trim().toLowerCase() != 'mokoena') return fixtures['receivables-not-found'] ?? _missing;
-    return fixtures[ambiguous ? 'receivables-ambiguous' : 'receivables-answer'] ?? _missing;
+    return fixtures[ambiguous ? 'receivables-ambiguous' : (_approved ? 'receivables-after-payment' : 'receivables-answer')] ?? _missing;
   }
 
   @override
@@ -68,6 +88,25 @@ class FixtureEngineApi implements EngineApi {
     if (role == 'installer' || role == 'sales') return _notFound;
     final name = _recordFixtures['$kind/$id'];
     if (name == null) return _notFound;
-    return fixtures[name] ?? _notFound;
+    return fixtures[(_approved && name == 'record-document') ? 'record-document-after-payment' : name] ?? _notFound;
+  }
+
+  @override
+  Future<EngineResponse> proposePayment(Map<String, Object?> payload, String transcript) async {
+    proposals.add(Map<String, Object?>.from(payload));
+    if (!capabilityAvailable) return fixtures['unavailable-proposal'] ?? _missing;
+    if (!canRecord || role == 'installer' || role == 'sales') return fixtures['proposal-refused'] ?? _missing;
+    return fixtures['proposal-held'] ?? _missing;
+  }
+
+  @override
+  Future<EngineResponse> pending() async => fixtures['pending-held'] ?? _missing;
+
+  @override
+  Future<EngineResponse> confirm(int actionId) async {
+    confirmations.add(actionId);
+    if (staleApproval) return fixtures['confirm-stale'] ?? _missing;
+    _approved = true;
+    return fixtures['confirm-ok'] ?? _missing;
   }
 }
