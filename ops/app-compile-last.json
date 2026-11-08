@@ -1,18 +1,18 @@
 {
- "commit": "1465283",
- "when": "2026-11-08T22:33:26.300883+00:00",
+ "commit": "340c027",
+ "when": "2026-11-08T23:10:38.551385+00:00",
  "analyze": "success",
  "analyze_errors": 0,
  "analyze_error_lines": [],
  "tests": "success",
  "failing_lines": [],
  "test_tail": [
-  "\u2705 /home/runner/work/the-office/the-office/app/test/engine_shell_test.dart: a payment is only taken for the customer on screen, and without an answer the Office asks first",
-  "\u2705 /home/runner/work/the-office/the-office/app/test/engine_shell_test.dart: declining a held payment records nothing, says so, and returns to the answer",
   "\u2705 /home/runner/work/the-office/the-office/app/test/engine_shell_test.dart: a decline the engine refuses leaves the payment waiting and says why",
+  "\u2705 /home/runner/work/the-office/the-office/app/test/engine_shell_test.dart: a payment larger than what is owed is held with the unallocated remainder showing, and approving records it",
+  "\u2705 /home/runner/work/the-office/the-office/app/test/engine_shell_test.dart: a payment fully applied shows no unallocated line",
   "::endgroup::",
   "",
-  "\ud83c\udf89 258 tests passed."
+  "\ud83c\udf89 261 tests passed."
  ],
  "build": "success"
 }
