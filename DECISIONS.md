@@ -316,6 +316,7 @@ Split on 2026-10-24 from the 7958-line original, which is `git show 95bf743:DECI
 - [The memory ramp: result (2026-11-08, run 42524277585, staging-two only)](docs/decisions/engine-foundation.md) (new)
 - [The memory ramp: pushed past 160,000 rows to find the edge (2026-11-09, owner-approved, staging only)](docs/decisions/engine-foundation.md) (new)
 - [The memory ramp: the edge was found (2026-11-09, runs 42534386323 and 42534720075, staging-two only)](docs/decisions/engine-foundation.md) (new)
+- [A real-platform defect found by the model run: a compound SELECT the real object refuses (2026-11-09, fixed)](docs/decisions/engine-foundation.md) (new)
 - [A. First working product slice (as first proposed)](docs/decisions/first-slice.md) (new)
 - [B. The visible slice with Flutter (as amended after Pierre's review)](docs/decisions/first-slice.md) (new)
 - [C. What the engine's sample seed provides (added; not part of the originals)](docs/decisions/first-slice.md) (new)

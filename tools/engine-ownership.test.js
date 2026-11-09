@@ -63,6 +63,12 @@ module.exports = kit.guard('engine ownership', async ({ check }) => {
   check(r1stale.length === 0, `R1: every allowance is still needed (an allowlist entry that no file uses would silently widen the rule)${r1stale.length ? ' [STALE: ' + r1stale.join('; ') + ']' : ''}`);
   check(r1bad.length === 0, `R1: engine SQL names only engine tables, plus captures where allowed; never a legacy domain table${r1bad.length ? ' [VIOLATIONS: ' + r1bad.join('; ') + ']' : ''}`);
 
+  // ---- R7: no compound SELECT in the engine's SQL --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  // Found 2026-11-09 on the real staging-two object: every member read of a customer answered "too many terms in compound SELECT", because the engine's version query chained NINE selects with UNION ALL and a real Durable Object's SQLite allows only a few terms in one compound SELECT
+  // (the harness's SQLite allows 500, so no test could see it). The engine's SQL therefore uses no compound SELECT at all: where several values are needed, each is its own small query.
+  const r7bad = engineFiles.filter((file) => facts[file].strings.some((str) => /\bUNION\b/.test(str)));
+  check(r7bad.length === 0, `R7: the engine's SQL contains no compound SELECT (UNION), because a real Durable Object's SQLite allows only a few terms${r7bad.length ? ' [VIOLATIONS: ' + r7bad.join('; ') + ']' : ''}`);
+
   // ---- R2: environment fields, per file -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   const typesSf = ts.createSourceFile('types.ts', fs.readFileSync(path.join(SRC, 'types.ts'), 'utf8'), ts.ScriptTarget.Latest, true);
   let ENV_FIELDS = []; typesSf.forEachChild((n) => { if (ts.isInterfaceDeclaration(n) && n.name.text === 'Env') ENV_FIELDS = n.members.map((m) => m.name && m.name.text).filter(Boolean); });

@@ -29,40 +29,44 @@ export const RECORD_KINDS: readonly RecordKind[] = ["party", "document", "moveme
 const one = <T>(env: Env, sql: string, ...binds: unknown[]) => env.OFFICE_DB.prepare(sql).bind(...binds).first<T>();
 const many = async <T>(env: Env, sql: string, ...binds: unknown[]): Promise<T[]> => ((await env.OFFICE_DB.prepare(sql).bind(...binds).all<T>()).results ?? []);
 
-// The version of a record: the latest event that touched it or anything hanging off it.
+// The version of a record: the latest event that touched it or anything hanging off it. Each value is its OWN small query and the largest is taken here: a real Durable Object's SQLite allows only a few terms in one compound SELECT, and the first version of this chained nine
+// of them with UNION ALL, which answered "too many terms in compound SELECT" for every read of a customer on the real staging object (found 2026-11-09; the harness's SQLite allows 500 and could not show it). The ownership rule R7 now bans compound SELECT in the engine.
+const VERSION_QUERIES: Record<"party" | "document" | "movement", readonly string[]> = {
+  party: [
+    "SELECT MAX(event_id) AS v FROM eng_document WHERE party_id = ?",
+    "SELECT MAX(event_id) AS v FROM eng_money_movement WHERE party_id = ?",
+    "SELECT MAX(a.event_id) AS v FROM eng_allocation a JOIN eng_document d ON d.id = a.document_id WHERE d.party_id = ?",
+    "SELECT MAX(a.event_id) AS v FROM eng_allocation a JOIN eng_money_movement m ON m.id = a.movement_id WHERE m.party_id = ?",
+    "SELECT MAX(r.event_id) AS v FROM eng_reversal r JOIN eng_document d ON d.id = r.document_id WHERE d.party_id = ?",
+    "SELECT MAX(r.event_id) AS v FROM eng_reversal r JOIN eng_money_movement m ON m.id = r.movement_id WHERE m.party_id = ?",
+    "SELECT MAX(r.event_id) AS v FROM eng_reversal r JOIN eng_allocation a ON a.id = r.allocation_id JOIN eng_document d ON d.id = a.document_id WHERE d.party_id = ?",
+    "SELECT MAX(r.event_id) AS v FROM eng_reversal r JOIN eng_allocation a ON a.id = r.allocation_id JOIN eng_money_movement m ON m.id = a.movement_id WHERE m.party_id = ?",
+    "SELECT event_id AS v FROM eng_party WHERE id = ?",
+  ],
+  document: [
+    "SELECT event_id AS v FROM eng_document WHERE id = ?",
+    "SELECT MAX(event_id) AS v FROM eng_allocation WHERE document_id = ?",
+    "SELECT MAX(event_id) AS v FROM eng_reversal WHERE document_id = ?",
+    "SELECT MAX(r.event_id) AS v FROM eng_reversal r JOIN eng_allocation a ON a.id = r.allocation_id WHERE a.document_id = ?",
+    "SELECT MAX(r.event_id) AS v FROM eng_reversal r JOIN eng_allocation a ON a.movement_id = r.movement_id WHERE a.document_id = ?",
+  ],
+  movement: [
+    "SELECT event_id AS v FROM eng_money_movement WHERE id = ?",
+    "SELECT MAX(event_id) AS v FROM eng_allocation WHERE movement_id = ?",
+    "SELECT MAX(event_id) AS v FROM eng_reversal WHERE movement_id = ?",
+    "SELECT MAX(r.event_id) AS v FROM eng_reversal r JOIN eng_allocation a ON a.id = r.allocation_id WHERE a.movement_id = ?",
+  ],
+};
+
 export async function versionOf(env: Env, ref: RecordRef): Promise<number> {
   const id = ref.id;
   if (ref.kind === "draft") return Number((await one<{ v: number }>(env, "SELECT version AS v FROM eng_draft WHERE id = ?", id))?.v ?? 0);
-  let sql = "", n = 0;
-  if (ref.kind === "party") {
-    n = 9;
-    sql = `SELECT MAX(v) AS v FROM (
-      SELECT MAX(event_id) AS v FROM eng_document WHERE party_id = ?
-      UNION ALL SELECT MAX(event_id) FROM eng_money_movement WHERE party_id = ?
-      UNION ALL SELECT MAX(a.event_id) FROM eng_allocation a JOIN eng_document d ON d.id = a.document_id WHERE d.party_id = ?
-      UNION ALL SELECT MAX(a.event_id) FROM eng_allocation a JOIN eng_money_movement m ON m.id = a.movement_id WHERE m.party_id = ?
-      UNION ALL SELECT MAX(r.event_id) FROM eng_reversal r JOIN eng_document d ON d.id = r.document_id WHERE d.party_id = ?
-      UNION ALL SELECT MAX(r.event_id) FROM eng_reversal r JOIN eng_money_movement m ON m.id = r.movement_id WHERE m.party_id = ?
-      UNION ALL SELECT MAX(r.event_id) FROM eng_reversal r JOIN eng_allocation a ON a.id = r.allocation_id JOIN eng_document d ON d.id = a.document_id WHERE d.party_id = ?
-      UNION ALL SELECT MAX(r.event_id) FROM eng_reversal r JOIN eng_allocation a ON a.id = r.allocation_id JOIN eng_money_movement m ON m.id = a.movement_id WHERE m.party_id = ?
-      UNION ALL SELECT event_id FROM eng_party WHERE id = ?)`;
-  } else if (ref.kind === "document") {
-    n = 5;
-    sql = `SELECT MAX(v) AS v FROM (
-      SELECT event_id AS v FROM eng_document WHERE id = ?
-      UNION ALL SELECT MAX(event_id) FROM eng_allocation WHERE document_id = ?
-      UNION ALL SELECT MAX(event_id) FROM eng_reversal WHERE document_id = ?
-      UNION ALL SELECT MAX(r.event_id) FROM eng_reversal r JOIN eng_allocation a ON a.id = r.allocation_id WHERE a.document_id = ?
-      UNION ALL SELECT MAX(r.event_id) FROM eng_reversal r JOIN eng_allocation a ON a.movement_id = r.movement_id WHERE a.document_id = ?)`;
-  } else {
-    n = 4;
-    sql = `SELECT MAX(v) AS v FROM (
-      SELECT event_id AS v FROM eng_money_movement WHERE id = ?
-      UNION ALL SELECT MAX(event_id) FROM eng_allocation WHERE movement_id = ?
-      UNION ALL SELECT MAX(event_id) FROM eng_reversal WHERE movement_id = ?
-      UNION ALL SELECT MAX(r.event_id) FROM eng_reversal r JOIN eng_allocation a ON a.id = r.allocation_id WHERE a.movement_id = ?)`;
+  let latest = 0;
+  for (const sql of VERSION_QUERIES[ref.kind as "party" | "document" | "movement"]) {
+    const v = Number((await one<{ v: number | null }>(env, sql, id))?.v ?? 0);
+    if (v > latest) latest = v;
   }
-  return Number((await one<{ v: number | null }>(env, sql, ...Array(n).fill(id)))?.v ?? 0);
+  return latest;
 }
 
 async function history(env: Env, eventIds: number[]): Promise<RecordView["history"]> {
