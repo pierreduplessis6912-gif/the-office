@@ -6,18 +6,15 @@
 
 **Where we are (2026-11-09):** the engine's foundation is built and proven (tests, plus real tests on staging). One small scenario works end to end in the engine, "What does Mokoena owe me?" then "Record R500", with a demo you can open. **It is not connected to the app, not merged, not live.** Nothing a customer uses has changed yet.
 
-**The one thing that matters next:** make the engine run a real business. That means widening what it can do (customers, quotes, invoices, payments, expenses), connecting it to the app, and moving ONE business onto it as a pilot (the plan is in `docs/decisions/engine-legacy-coexistence-scoping.md`).
+**The one thing that matters next (Pierre's priority, 2026-11-09): the VISION, with ALL capabilities tested and wired into the final product eventually.** `docs/CAPABILITY_MAP.md` is the board: every capability, how far it has got (engine, CI, real platform, conversation, explained, app, outside assistants), and what "done" means. Work goes down that list one capability at a time, each to the same standard. The pilot and the look of the app are NOT the priority.
 
-**Only three decisions are ever needed from Pierre to keep moving; everything else has a default:**
-1. Go with the plan "migrate one business at a time, pilot first" (the default if not said otherwise)?
-2. Approve connecting the engine to the app on staging (first time it touches anything real; asks nothing of production).
-3. Which business is the pilot (the default is Pierre's own).
+**Only ONE decision is needed from Pierre to keep moving, and it has a default:** the order of capabilities in the map (default: customers and suppliers, quotations, invoices in full, payments and expenses, purchasing, stock, jobs, reports, then the reach channels). Connecting the engine to the real app is approved separately when the first widened capability is ready.
 
 **Defaults the build chat may take without asking:** tests, docs, small code on `engine-phase1`, CI. **Always ask first:** merging to `main`, anything on production or staging, any token, money or customer data.
 
-**Parked on purpose (do not spend tokens on these until asked):** the table-size guard, the recovery-gate acceptance, extra domain walks, the shell's question history.
+**Parked on purpose (do not spend tokens on these until asked):** the pilot business and the migration plan (`engine-legacy-coexistence-scoping.md`), the table-size guard, the recovery-gate acceptance, the shell's question history.
 
 **To start a fresh chat, paste this:**
-> Continue The Office (repo pierreduplessis6912-gif/the-office, branch engine-phase1). Read docs/RESUME.md, then HANDOFF.md. Tell me in five lines where we are and do the next step. Keep replies short.
+> Continue The Office (repo pierreduplessis6912-gif/the-office, branch engine-phase1). Read docs/RESUME.md, then HANDOFF.md. Read docs/CAPABILITY_MAP.md, tell me in five lines where we are, and do the next capability on its list. Keep replies short.
 
 Detail lives in `HANDOFF.md` and part D of `docs/decisions/first-slice.md`; this card is only the short version.

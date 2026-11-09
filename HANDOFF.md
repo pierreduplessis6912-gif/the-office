@@ -1,6 +1,6 @@
 > **Status:** real. **Verified:** not yet. **Owns:** none.
 
-> **Short on time or tokens? Read [docs/RESUME.md](docs/RESUME.md) first: one screen, three decisions, and a paste-in starter for a fresh chat.**
+> **Short on time or tokens? Read [docs/RESUME.md](docs/RESUME.md) first (one screen and a paste-in starter), then [docs/CAPABILITY_MAP.md](docs/CAPABILITY_MAP.md): every capability in the vision, how far each has got, and what "done" means.**
 
 # HANDOFF: start here (short; detail lives in the linked documents)
 
