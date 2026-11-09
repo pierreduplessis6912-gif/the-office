@@ -1,5 +1,7 @@
 > **Status:** real. **Verified:** not yet. **Owns:** none.
 
+> **Short on time or tokens? Read [docs/RESUME.md](docs/RESUME.md) first: one screen, three decisions, and a paste-in starter for a fresh chat.**
+
 # HANDOFF: start here (short; detail lives in the linked documents)
 
 ## Rule zero
