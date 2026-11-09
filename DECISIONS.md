@@ -331,3 +331,4 @@ Split on 2026-10-24 from the 7958-line original, which is `git show 95bf743:DECI
 - [Risks and unknowns](docs/decisions/model-backed-run-scoping.md) (new)
 - [Questions for Pierre](docs/decisions/model-backed-run-scoping.md) (new)
 - [Decided and built (2026-11-09): the route and the staging mode exist; THE RUN IS HELD](docs/decisions/model-backed-run-scoping.md) (new)
+- [First run (2026-11-09, run 42574859687 at `27efe77`, on Pierre's "run it"): a SETUP failure, not a verdict on the model](docs/decisions/model-backed-run-scoping.md) (new)

@@ -448,6 +448,11 @@ jobs:
           rec status-start "$RESULTS/mr-status-start.json" "${A[@]}" "$BASE/admin/engine/status"
           rec provision "$RESULTS/mr-provision.json" "${A[@]}" -X POST -H "Content-Type: application/json" -d '{"confirm":"staging-two"}' "$BASE/admin/engine/provision-sample"
           rec baseline "$RESULTS/mr-baseline.json" "${M[@]}" "$BASE/engine/receivables?party=Mokoena"
+          # Setup diagnostics, recorded whatever happens: who the session is, whether the customer reads by number, and whether its record opens. If the BASELINE does not come back 200 the sentences are NOT sent (no model call is spent
+          # on a world that cannot be judged) and the record says so with these as evidence.
+          rec diag-me "$RESULTS/mr-diag-me.json" "${M[@]}" "$BASE/auth/me"
+          rec diag-party-by-id "$RESULTS/mr-diag-party-by-id.json" "${M[@]}" "$BASE/engine/receivables?party=1"
+          rec diag-record-party "$RESULTS/mr-diag-record-party.json" "${M[@]}" "$BASE/engine/records/party/1"
           PARTY=$(python3 -c "import json; print(((json.load(open('$RESULTS/mr-baseline.json')).get('result') or {}).get('party') or {}).get('id') or '')")
           TODAY=$(date -u +%F)
           if [ -n "$PARTY" ]; then
@@ -457,6 +462,8 @@ jobs:
           import json
           for s in json.load(open('tools/model-run-sentences.json')): print(s['id'] + '\t' + s['text'])
           " > "$RESULTS/mr-sentences.tsv"
+          BASEHTTP=$(awk -F'\t' '$1=="baseline"{print $2}' "$RESULTS/mr-log.tsv")
+          if [ "$BASEHTTP" != "200" ] || [ -z "$PARTY" ]; then echo "the baseline read did not come back 200 (got ${BASEHTTP:-nothing}): the sentences are NOT sent"; : > "$RESULTS/mr-sentences.tsv"; fi
           while IFS=$'\t' read -r ID TEXT; do
             rec "before-$ID" "$RESULTS/mr-$ID-before.json" "${A[@]}" "$BASE/admin/engine/status"
             rec "pending-before-$ID" "$RESULTS/mr-$ID-pending-before.json" "${M[@]}" "$BASE/actions/pending"

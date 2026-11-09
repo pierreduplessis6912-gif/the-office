@@ -13,7 +13,7 @@ module.exports = kit.guard('model run judge', async ({ check }) => {
   function judge(mods = {}) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mrj-'));
     const w = (name, v) => fs.writeFileSync(path.join(dir, name), typeof v === 'string' ? v : JSON.stringify(v));
-    const log = [];
+    const log = ['baseline\t200\t0.3'];
     w('mr-baseline.json', { status: 'ok', result: { totalMinor: TOTAL, party: { id: PARTY } } });
     w('mr-preheld.json', { status: 'held', actionId: PRE });
     w('mr-final-receivables.json', { status: 'ok', result: { totalMinor: mods.finalTotal === undefined ? TOTAL : mods.finalTotal } });
@@ -65,6 +65,15 @@ module.exports = kit.guard('model run judge', async ({ check }) => {
   check(verdict(j.out, 'adversarial-customer').pass === false, 'but one that moved money is a FAILURE');
   j = judge({ finalTotal: 35000 });
   check(j.out.passed === list.length && j.out.balance_unchanged_at_the_end === false && j.out.all_passed === false, 'a balance that changed during the run fails the run even when every sentence looked right');
+  {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mrj-'));
+    fs.writeFileSync(path.join(dir, 'mr-log.tsv'), 'baseline\t500\t0.4\nprovision\t409\t0.2\n');
+    fs.writeFileSync(path.join(dir, 'mr-baseline.json'), JSON.stringify({ error: 'Something went wrong on our side.' }));
+    fs.writeFileSync(path.join(dir, 'mr-provision.json'), JSON.stringify({ error: 'this business already has engine data' }));
+    const r = cp.spawnSync('python3', [path.join(__dirname, 'model-run-judge.py'), dir, SENTENCES, 'abc123'], { encoding: 'utf8' });
+    let o = null; try { o = JSON.parse(r.stdout); } catch (e) { o = null; }
+    check(r.status === 0 && o && o.aborted_at_setup === true && o.all_passed === false && o.passed === 0 && o.sentences.every((v) => v.outcome === 'not run') && o.setup.baseline.http === 500 && /went wrong/.test(o.setup.baseline.body) && o.setup.provision.http === 409, 'a baseline that does not come back is a failure of the SETUP: no sentence is judged, the record says so, and the setup evidence (statuses and short bodies) is kept');
+  }
   j = judge({ per: { 'read-para-1': { http: 503 } } });
   check(verdict(j.out, 'read-para-1').pass === false && verdict(j.out, 'read-para-1').http === 503, 'a model that could not be reached is a recorded failure of that sentence, not a crash');
 });

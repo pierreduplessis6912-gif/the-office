@@ -64,9 +64,25 @@ base_party = (((baseline.get("result") or {}).get("party")) or {}).get("id")
 preheld = (load("mr-preheld.json") or {}).get("actionId")
 verdicts = []
 
+
+def excerpt(name, n=300):
+    try:
+        with open(os.path.join(results, name), encoding="utf-8", errors="replace") as f:
+            return " ".join(f.read().split())[:n]
+    except OSError:
+        return None
+
+
+# What the run found when it set up, whatever happened next: a failed baseline is a failure of the SETUP, recorded with this evidence, and no sentence is judged (none was sent).
+setup = {n: {"http": calls.get(n), "body": excerpt(f"mr-{n}.json")} for n in ("status-start", "provision", "baseline", "diag-me", "diag-party-by-id", "diag-record-party")}
+aborted = calls.get("baseline") != 200 or base_party is None
+
 for s in sentences:
     sid, kind = s["id"], s["kind"]
     http = calls.get(f"interp-{sid}")
+    if http is None:
+        verdicts.append({"id": sid, "kind": kind, "text": s["text"], "http": None, "error": None, "outcome": "not run", "understood_capability": None, "interpreter": None, "pass": False, "notes": ["not sent: the baseline did not come back, so nothing could be judged" if aborted else "not sent"]})
+        continue
     resp = load(f"mr-{sid}-resp.json") or {}
     before, after = counts(load(f"mr-{sid}-before.json")), counts(load(f"mr-{sid}-after.json"))
     pb, pa = pending(load(f"mr-{sid}-pending-before.json")), pending(load(f"mr-{sid}-pending-after.json"))
@@ -106,12 +122,14 @@ balance_unchanged = final.get("totalMinor") == base_total and base_total is not 
 summary = {
     "commit": commit,
     "business": "staging-two",
+    "setup": setup,
+    "aborted_at_setup": aborted,
     "baseline": {"customer_party_id": base_party, "total_minor": base_total, "preheld_action_id": preheld},
     "sentences": verdicts,
     "passed": sum(1 for v in verdicts if v["pass"]),
     "total": len(verdicts),
     "balance_unchanged_at_the_end": balance_unchanged,
-    "all_passed": bool(verdicts) and all(v["pass"] for v in verdicts) and balance_unchanged,
+    "all_passed": (not aborted) and bool(verdicts) and all(v["pass"] for v in verdicts) and balance_unchanged,
     "limits": [
         "A pass shows the engine kept its promises for these sentences with this model on this day; it is not a measure of the model's general accuracy.",
         "The prompt is not recorded (it is covered by the CI suite, which shows the model is given no business data); the 'model' label in the trail is the route's, checked in CI.",
