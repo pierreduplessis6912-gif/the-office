@@ -334,3 +334,4 @@ Split on 2026-10-24 from the 7958-line original, which is `git show 95bf743:DECI
 - [Decided and built (2026-11-09): the route and the staging mode exist; THE RUN IS HELD](docs/decisions/model-backed-run-scoping.md) (new)
 - [First run (2026-11-09, run 42574859687 at `27efe77`, on Pierre's "run it"): a SETUP failure, not a verdict on the model](docs/decisions/model-backed-run-scoping.md) (new)
 - [Second run (2026-11-09, run 42575916546 at `1a9638b`): the setup evidence, and a real finding about staging](docs/decisions/model-backed-run-scoping.md) (new)
+- [Third run (2026-11-09, run 42582788958 at `0b5c573`): the model-backed run, 9 of 10 sentences passed](docs/decisions/model-backed-run-scoping.md) (new)
