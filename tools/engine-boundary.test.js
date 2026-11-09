@@ -105,6 +105,15 @@ module.exports = kit.guard('engine boundary', async ({ check }) => {
   check(Boolean(alarm), 'the Durable Object alarm is found (business-object.ts)');
   if (alarm) { const t = writtenTables(alarm); check(t.every((x) => ['object_meta', 'schema_steps'].includes(x)), `the object's alarm writes only its own bookkeeping directly: ${t.join(', ') || 'nothing'}`); }
 
+
+  // ---- a failure inside an engine route: generic everywhere, explained ONLY on a rehearsal (staging) deployment ----------------------------------------------------------------------------------------------------------
+  // Found 2026-11-09: every member engine read on the real staging-two object answered the front door's generic 500, which tells the caller nothing by design. On a deployment with ENGINE_REHEARSAL=1 (staging has it, production does not) an unexpected exception inside an /engine route now
+  // comes back with its name and message so a staging run can show WHY; anywhere else it still reaches the front door's generic answer, with nothing about what failed.
+  const broken = (db) => { kit.seedReceivables()(db); db.prepare('PRAGMA foreign_keys = OFF').run(); db.prepare('DROP TABLE eng_party').run(); };
+  r = await kit.route({ env: { BUSINESS_ID: 'eng-a', ENGINE_REHEARSAL: '1' }, seed: broken, frontDoor: true, method: 'GET', path: '/engine/receivables?party=Mokoena', role: 'accountant' });
+  check(r.result && r.result.status === 500 && r.result.body.error === 'engine_route_failed' && /no such table/.test(String(r.result.body.detail)), 'on a rehearsal deployment an unexpected failure inside an engine route says what failed (' + (r.result && r.result.body && r.result.body.detail) + ')');
+  r = await kit.route({ env: { BUSINESS_ID: 'eng-a' }, seed: broken, frontDoor: true, method: 'GET', path: '/engine/receivables?party=Mokoena', role: 'accountant' });
+  check(r.result && r.result.status === 500 && r.result.body.error !== 'engine_route_failed' && !/no such table|eng_party/.test(JSON.stringify(r.result.body)), 'anywhere else (production has no ENGINE_REHEARSAL) the same failure is the front door\'s generic answer, with nothing about what failed');
 });
 
 if (require.main === module) kit.standalone(module.exports);

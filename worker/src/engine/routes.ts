@@ -17,6 +17,18 @@ const answer = (o: { status: string; result?: unknown; candidates?: unknown; cod
 };
 
 export async function handleEngineRoute(request: Request, env: Env, url: URL, member: Member): Promise<Response> {
+  try {
+    return await route(request, env, url, member);
+  } catch (e) {
+    // Found 2026-11-09: every member engine read on the real staging-two object answered the front door's generic 500, which says nothing about what failed (by design). On a REHEARSAL deployment (ENGINE_REHEARSAL=1: staging has it, production does not)
+    // an unexpected exception inside an engine route says what it was (its name and message, never a stack, and never anything about another business), so a staging run can show why. Anywhere else it reaches the front door's generic answer, as before.
+    if (env.ENGINE_REHEARSAL !== "1") throw e;
+    const failure = e instanceof Error ? e : new Error(String(e));
+    return Response.json({ error: "engine_route_failed", message: "An engine route failed on this rehearsal deployment.", detail: `${failure.name}: ${failure.message}`.slice(0, 300) }, { status: 500 });
+  }
+}
+
+async function route(request: Request, env: Env, url: URL, member: Member): Promise<Response> {
   const path = url.pathname;
   if (request.method === "GET" && path === "/engine/receivables") {
     const party = url.searchParams.get("party") ?? "";
