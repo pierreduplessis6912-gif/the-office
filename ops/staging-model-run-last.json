@@ -1,5 +1,5 @@
 {
-  "commit": "1a9638bd8875382efd77c562082702440a1dc643",
+  "commit": "e5b4daf04dac8544f05f4237fa0607430a2c43db",
   "business": "staging-two",
   "setup": {
     "status-start": {
@@ -12,7 +12,7 @@
     },
     "baseline": {
       "http": 500,
-      "body": "{\"error\":\"Something went wrong on our side. Please try again.\",\"requestId\":\"71e07850-1204-48c9-aa8b-dc23fdb68cc8\"}"
+      "body": "{\"error\":\"engine_route_failed\",\"message\":\"An engine route failed on this rehearsal deployment.\",\"detail\":\"Error: too many terms in compound SELECT: SQLITE_ERROR\"}"
     },
     "diag-me": {
       "http": 200,
@@ -20,11 +20,11 @@
     },
     "diag-party-by-id": {
       "http": 500,
-      "body": "{\"error\":\"Something went wrong on our side. Please try again.\",\"requestId\":\"125ce0cf-bd6b-46a6-8a0c-f792b7155a53\"}"
+      "body": "{\"error\":\"engine_route_failed\",\"message\":\"An engine route failed on this rehearsal deployment.\",\"detail\":\"Error: too many terms in compound SELECT: SQLITE_ERROR\"}"
     },
     "diag-record-party": {
       "http": 500,
-      "body": "{\"error\":\"Something went wrong on our side. Please try again.\",\"requestId\":\"d6e1e388-d8a0-488d-abff-f516a6ebbd51\"}"
+      "body": "{\"error\":\"engine_route_failed\",\"message\":\"An engine route failed on this rehearsal deployment.\",\"detail\":\"Error: too many terms in compound SELECT: SQLITE_ERROR\"}"
     }
   },
   "aborted_at_setup": true,
