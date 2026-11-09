@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "rehearsal = everything; gate = what a migration must pass (as the pipeline runs it); gate-drill = prove the gate stops a deliberately broken step, then recover; load = load test the business objects (staging only); restore-proof = re-prove the restore on a real object; ramp = grow one table on staging-two in steps and try a snapshot and a restore at each size (staging only, answers: where does memory run out)"
+        description: "rehearsal = everything; gate = what a migration must pass (as the pipeline runs it); gate-drill = prove the gate stops a deliberately broken step, then recover; load = load test the business objects (staging only); restore-proof = re-prove the restore on a real object; model-run = HELD until Pierre says run it: send a fixed list of sentences to the engine's model interpreter on staging-two and record what the engine did (staging only); ramp = grow one table on staging-two in steps and try a snapshot and a restore at each size (staging only, answers: where does memory run out)"
         type: choice
         options:
           - rehearsal
@@ -27,6 +27,7 @@ on:
           - identity
           - restore-proof
           - ramp
+          - model-run
         default: rehearsal
       ramp_sizes:
         description: "Ramp mode only: the marker-row counts to try, ascending, separated by spaces (each at most 2000000); the ramp stops at the first size that fails"
@@ -419,6 +420,72 @@ jobs:
             sleep 3
           done
           echo "ramp record pushed: rc=$PUSHRC"
+          exit $PUSHRC
+
+      - name: Model-backed run (mode model-run, staging-two only, HELD until Pierre says run it)
+        if: env.MODE == 'model-run'
+        run: |
+          # criterion 13 of docs/decisions/first-slice.md, agreed in docs/decisions/model-backed-run-scoping.md: a REAL model interprets a fixed list of sentences (tools/model-run-sentences.json) through POST /engine/interpret on staging-two,
+          # signed in as that business's owner (a session minted here, the same way the rehearsal does it). Every sentence is bracketed by the engine's status and its waiting actions, so tools/model-run-judge.py can say whether the engine kept its promises.
+          # NOTHING IS APPROVED: every payment the run causes to be held is declined by the run afterwards. Never production, never any business but staging-two.
+          set +e
+          BASE="https://${SLUG}.websitehub.co.za"
+          A=(-H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY" -H "X-Target-Business: staging-two")
+          mkdir -p "$RESULTS"
+          : > "$RESULTS/mr-log.tsv"
+          cat > "$RESULTS/mkcookie.py" <<'PY'
+          import os, json, hmac, hashlib, base64, time
+          b = lambda x: base64.urlsafe_b64encode(x).rstrip(b"=").decode()
+          body = {"email": os.environ["EMAIL"], "exp": int(time.time() * 1000) + 3600000, "b": os.environ["BIZ"]}
+          p = b(json.dumps(body, separators=(",", ":")).encode())
+          s = b(hmac.new(os.environ["STAGING_SESSION_SECRET"].encode(), p.encode(), hashlib.sha256).digest())
+          print("office_session=" + p + "." + s)
+          PY
+          COOKIE=$(EMAIL="staging-two-owner@example.com" BIZ="staging-two" python3 "$RESULTS/mkcookie.py")
+          echo "::add-mask::$COOKIE"
+          M=(-H "Cookie: $COOKIE" -H "Content-Type: application/json")
+          rec() { name=$1; out=$2; shift 2; R=$(curl -s --max-time 120 -o "$out" -w '%{http_code}\t%{time_total}' "$@"); printf '%s\t%s\n' "$name" "$R" | tee -a "$RESULTS/mr-log.tsv"; }
+          rec status-start "$RESULTS/mr-status-start.json" "${A[@]}" "$BASE/admin/engine/status"
+          rec provision "$RESULTS/mr-provision.json" "${A[@]}" -X POST -H "Content-Type: application/json" -d '{"confirm":"staging-two"}' "$BASE/admin/engine/provision-sample"
+          rec baseline "$RESULTS/mr-baseline.json" "${M[@]}" "$BASE/engine/receivables?party=Mokoena"
+          PARTY=$(python3 -c "import json; print(((json.load(open('$RESULTS/mr-baseline.json')).get('result') or {}).get('party') or {}).get('id') or '')")
+          TODAY=$(date -u +%F)
+          if [ -n "$PARTY" ]; then
+            rec preheld "$RESULTS/mr-preheld.json" "${M[@]}" -X POST -d "{\"capability\":\"payment.record\",\"payload\":{\"partyId\":$PARTY,\"amountMinor\":50000,\"currency\":\"ZAR\",\"occurredOn\":\"$TODAY\",\"allocate\":\"oldest_first\"},\"transcript\":\"(model-run) a payment already waiting\"}" "$BASE/engine/proposals"
+          fi
+          python3 -c "
+          import json
+          for s in json.load(open('tools/model-run-sentences.json')): print(s['id'] + '\t' + s['text'])
+          " > "$RESULTS/mr-sentences.tsv"
+          while IFS=$'\t' read -r ID TEXT; do
+            rec "before-$ID" "$RESULTS/mr-$ID-before.json" "${A[@]}" "$BASE/admin/engine/status"
+            rec "pending-before-$ID" "$RESULTS/mr-$ID-pending-before.json" "${M[@]}" "$BASE/actions/pending"
+            BODY=$(python3 -c 'import json,sys; print(json.dumps({"text": sys.argv[1]}))' "$TEXT")
+            rec "interp-$ID" "$RESULTS/mr-$ID-resp.json" "${M[@]}" -X POST -d "$BODY" "$BASE/engine/interpret"
+            rec "after-$ID" "$RESULTS/mr-$ID-after.json" "${A[@]}" "$BASE/admin/engine/status"
+            rec "pending-after-$ID" "$RESULTS/mr-$ID-pending-after.json" "${M[@]}" "$BASE/actions/pending"
+            HELD=$(python3 -c "import json; d=json.load(open('$RESULTS/mr-$ID-resp.json')); print(d.get('actionId') if d.get('status')=='held' else '')" 2>/dev/null)
+            if [ -n "$HELD" ]; then rec "decline-$ID" "$RESULTS/mr-$ID-decline.json" "${M[@]}" -X POST -d '{}' "$BASE/actions/$HELD/reject"; fi
+          done < "$RESULTS/mr-sentences.tsv"
+          PRE=$(python3 -c "import json; print(json.load(open('$RESULTS/mr-preheld.json')).get('actionId') or '')" 2>/dev/null)
+          if [ -n "$PRE" ]; then rec decline-preheld "$RESULTS/mr-preheld-decline.json" "${M[@]}" -X POST -d '{}' "$BASE/actions/$PRE/reject"; fi
+          rec final-receivables "$RESULTS/mr-final-receivables.json" "${M[@]}" "$BASE/engine/receivables?party=Mokoena"
+          rec final-pending "$RESULTS/mr-final-pending.json" "${M[@]}" "$BASE/actions/pending"
+          rec status-end "$RESULTS/mr-status-end.json" "${A[@]}" "$BASE/admin/engine/status"
+          python3 tools/model-run-judge.py "$RESULTS" tools/model-run-sentences.json "${{ github.sha }}" > "$RESULTS/model-run.json"
+          mkdir -p ops
+          cp "$RESULTS/model-run.json" ops/staging-model-run-last.json
+          git config user.name "staging-workflow"
+          git config user.email "noreply@github.com"
+          git checkout -- worker/src/schema-steps.ts worker/src/baseline-sql.ts 2>/dev/null
+          git add ops/staging-model-run-last.json
+          git commit -m "Staging model-backed run record (sentences, HTTP statuses, outcomes and pass or fail only)" || echo "nothing to record"
+          PUSHRC=1
+          for attempt in 1 2 3; do
+            git pull --rebase origin "$GITHUB_REF_NAME" && git push origin HEAD:"$GITHUB_REF_NAME" && { PUSHRC=0; break; }
+            sleep 3
+          done
+          echo "model run record pushed: rc=$PUSHRC"
           exit $PUSHRC
 
       - name: Identity - read what the real objects report about their own name (read only)

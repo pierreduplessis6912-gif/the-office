@@ -1018,6 +1018,8 @@ async function expect(role, method, path, want) {
   await require('./engine-fit.test.js')({ check, bundleTo, srcDir });
   await require('./slice-mokoena.test.js')({ check, bundleTo, srcDir });
   await require('./engine-admin.test.js')({ check, bundleTo, srcDir });
+  await require('./engine-interpret.test.js')({ check, bundleTo, srcDir });
+  await require('./model-run-judge.test.js')({ check, bundleTo, srcDir });
   await require('./restore-added-column.test.js')({ check, bundleTo, srcDir });
 
   // Capability contract proof (branch claim/proof-1): what a declared capability contract must enforce, and that the old declarations cannot get round it.

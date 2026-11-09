@@ -36,7 +36,7 @@ export async function invokeRead(env: Env, member: Member, capability: unknown, 
 }
 
 // A proposal from a member: what was said is kept first, then the request is answered honestly (see capability-contract.ts).
-export function proposeCapabilityAs(env: Env, member: Member, request: { capability: unknown; payload: unknown; transcript: string; source?: string }): Promise<ProposeResult> {
+export function proposeCapabilityAs(env: Env, member: Member, request: { capability: unknown; payload: unknown; transcript: string; source?: string; interpreter?: string }): Promise<ProposeResult> {
   return proposeCapability(env, { ...request, member });
 }
 export { availabilityOf, observe, withEngineAvailability } from "./availability";
