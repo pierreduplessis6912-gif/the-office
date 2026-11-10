@@ -26,6 +26,6 @@ Capability-map row 1 (`docs/CAPABILITY_MAP.md`). Everything else points at a par
 - **Unknown / not done:** a real Durable Object has not run it (the compound-SELECT defect of 2026-11-09 is why that box is separate); finding scans every party's profile in memory (fine for hundreds; measure on staging before thousands); a real model has not been shown these capabilities (`interpret.ts` still offers only the receivables read and the payment); the app does not call it; the outside-assistant (MCP) door does not offer it; snapshot and restore with revision events is unproven.
 
 ## Next for this capability (each needs Pierre's word)
-1. A staging proof (`rehearsal`) of create, edit and find on a real object.
+1. A staging proof of create, edit and find on a real object: workflow `staging.yml` mode **`parties-proof`** (added 2026-11-10; its own business `staging-parties`, safe to re-run, record in `ops/staging-parties-proof-last.json`). The existing `rehearsal` has no party scenario and its two failures need separate diagnosis (HANDOFF.md).
 2. Showing the model the three capabilities and judging it against a written pass rule.
 3. Wiring to the app through the real client (needs his approval to connect).
