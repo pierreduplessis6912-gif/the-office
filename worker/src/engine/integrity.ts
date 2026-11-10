@@ -52,6 +52,8 @@ export const EVENT_MODEL: Record<string, { creates: FactKind | null; note: strin
   "credit.refunded": { creates: null, note: "part of a credit note's credit is paid back to the customer; the money-out movement is created by its own event beside it" },
   "credit_note.voided": { creates: null, note: "a credit note is voided; the reversals are created by their own events beside it" },
   "debit_note.issued": { creates: null, note: "an invoice is debited: ties the debit note document to the invoice; the document is created by its own event beside it" },
+  "overpayment.allocated": { creates: null, note: "part of an unapplied payment (an overpayment) is allocated to another invoice; the allocation is created by its own event beside it" },
+  "overpayment.refunded": { creates: null, note: "part of an unapplied payment is paid back to the customer; the money-out movement is created by its own event beside it" },
   "operation.executed": { creates: null, note: "the record that an approved proposal executed; it creates no fact" },
 };
 const FACT_TABLE: Record<FactKind, string> = { party: "eng_party", document: "eng_document", movement: "eng_money_movement", allocation: "eng_allocation", reversal: "eng_reversal" };
@@ -244,6 +246,8 @@ export async function verifyIntegrity(env: Env): Promise<{ ok: boolean; problems
   const spent = new Map<number, number>();
   const allocs = new Set((await many<{ id: number }>(env, "SELECT id FROM eng_allocation")).map((a) => a.id));
   const reversed = new Set((await many<{ document_id: number | null }>(env, "SELECT document_id FROM eng_reversal WHERE document_id IS NOT NULL")).map((r) => Number(r.document_id)));
+  const reversedAllocs = new Set((await many<{ allocation_id: number | null }>(env, "SELECT allocation_id FROM eng_reversal WHERE allocation_id IS NOT NULL")).map((r) => Number(r.allocation_id)));
+  const reversedMovs = new Set((await many<{ movement_id: number | null }>(env, "SELECT movement_id FROM eng_reversal WHERE movement_id IS NOT NULL")).map((r) => Number(r.movement_id)));
   for (const e of await many<{ id: number; type: string; payload_json: string }>(env, "SELECT id, type, payload_json FROM eng_event WHERE type IN ('credit.allocated', 'credit.refunded', 'credit_note.voided', 'debit_note.issued') ORDER BY id")) {
     let p: Record<string, unknown> = {};
     try { p = JSON.parse(e.payload_json) ?? {}; } catch { /* a malformed payload is reported by the payload check */ }
@@ -258,13 +262,31 @@ export async function verifyIntegrity(env: Env): Promise<{ ok: boolean; problems
     if (e.type === "credit.allocated") {
       if (typeof p.invoiceId !== "number" || !allDocs.has(p.invoiceId)) missing("invoice", p.invoiceId);
       if (typeof p.allocationId !== "number" || !allocs.has(p.allocationId)) missing("allocation", p.allocationId);
-      spent.set(cnKey, (spent.get(cnKey) ?? 0) + (Number(p.amountMinor) || 0));
+      if (!reversedAllocs.has(Number(p.allocationId))) spent.set(cnKey, (spent.get(cnKey) ?? 0) + (Number(p.amountMinor) || 0));
     } else if (e.type === "credit.refunded") {
       if (typeof p.refundMovementId !== "number" || !creditMovements.has(p.refundMovementId)) missing("refund movement", p.refundMovementId);
-      spent.set(cnKey, (spent.get(cnKey) ?? 0) + (Number(p.amountMinor) || 0));
+      if (!reversedMovs.has(Number(p.refundMovementId))) spent.set(cnKey, (spent.get(cnKey) ?? 0) + (Number(p.amountMinor) || 0));
     } else if (!reversed.has(cnKey)) problems.push({ code: "orphan", detail: `event ${e.id} (credit_note.voided): credit note ${cnKey} is not reversed` });
   }
   for (const [cnId, amount] of spent) { const g = (await docTotals(env, cnId)).grossMinor; if (amount > g) problems.push({ code: "orphan", detail: `credit note ${cnId}: applications and refunds together (${amount}) spend more than the credit note's total ${g}` }); }
+
+  // payments (overpayments): an allocation or refund must point at a payment, invoice, allocation or refund movement that exists, and together they can never spend more than the payment, counting only what is still in force
+  const payAlloc = new Map<number, number>();
+  for (const e of await many<{ id: number; type: string; payload_json: string }>(env, "SELECT id, type, payload_json FROM eng_event WHERE type IN ('overpayment.allocated', 'overpayment.refunded') ORDER BY id")) {
+    let p: Record<string, unknown> = {};
+    try { p = JSON.parse(e.payload_json) ?? {}; } catch { /* a malformed payload is reported by the payload check */ }
+    const gone = (what: string, v: unknown) => problems.push({ code: "orphan", detail: `event ${e.id} (${e.type}) points at ${what} ${String(v)}, which does not exist` });
+    if (typeof p.movementId !== "number" || !creditMovements.has(p.movementId)) { gone("payment", p.movementId); continue; }
+    if (e.type === "overpayment.allocated") {
+      if (typeof p.invoiceId !== "number" || !allDocs.has(p.invoiceId)) gone("invoice", p.invoiceId);
+      if (typeof p.allocationId !== "number" || !allocs.has(p.allocationId)) gone("allocation", p.allocationId);
+      if (!reversedAllocs.has(Number(p.allocationId))) payAlloc.set(p.movementId, (payAlloc.get(p.movementId) ?? 0) + (Number(p.amountMinor) || 0));
+    } else {
+      if (typeof p.refundMovementId !== "number" || !creditMovements.has(p.refundMovementId)) gone("refund movement", p.refundMovementId);
+      if (!reversedMovs.has(Number(p.refundMovementId))) payAlloc.set(p.movementId, (payAlloc.get(p.movementId) ?? 0) + (Number(p.amountMinor) || 0));
+    }
+  }
+  for (const [mvId, amount] of payAlloc) { const total = creditMovements.get(mvId) ?? 0; if (amount > total) problems.push({ code: "orphan", detail: `payment ${mvId}: allocations and refunds together (${amount}) spend more than the payment's ${total}` }); }
 
   return { ok: problems.length === 0, problems, warnings };
 }

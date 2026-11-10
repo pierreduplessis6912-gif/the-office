@@ -107,19 +107,30 @@ export async function planCreditNote(env: Env, input: { invoiceId: number; reaso
 import { unallocatedForMovement } from "./ledger";
 const wholeMinor = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= 1 && v <= 1_000_000_000_000;
 
+// Applications and refunds of a credit note that are still IN FORCE: an application whose allocation was removed, or a refund whose movement was voided, no longer counts.
 export async function creditEvents(env: Env, type: "credit.allocated" | "credit.refunded", creditNoteId: number) {
-  return (await many<{ id: number; payload_json: string }>(env, "SELECT id, payload_json FROM eng_event WHERE type = ? AND json_extract(payload_json, '$.creditNoteId') = ? ORDER BY id", type, creditNoteId)).map((e) => ({ eventId: e.id, ...parse(e.payload_json) }));
+  const rows = await many<{ id: number; payload_json: string }>(env, "SELECT id, payload_json FROM eng_event WHERE type = ? AND json_extract(payload_json, '$.creditNoteId') = ? ORDER BY id", type, creditNoteId);
+  const live = [];
+  for (const e of rows) {
+    const p = parse(e.payload_json);
+    const inForce = type === "credit.allocated" ? await isEffective(env, "allocation", Number(p.allocationId)) : await isEffective(env, "movement", Number(p.refundMovementId));
+    if (inForce) live.push({ eventId: e.id, ...p });
+  }
+  return live;
 }
 export async function refundedFor(env: Env, movementId: number): Promise<number> {
   let sum = 0;
-  for (const e of await many<{ payload_json: string }>(env, "SELECT payload_json FROM eng_event WHERE type = 'credit.refunded' AND json_extract(payload_json, '$.movementId') = ?", movementId)) sum += Number(parse(e.payload_json).amountMinor) || 0;
+  for (const e of await many<{ payload_json: string }>(env, "SELECT payload_json FROM eng_event e WHERE e.type IN ('credit.refunded', 'overpayment.refunded') AND json_extract(e.payload_json, '$.movementId') = ? AND NOT EXISTS (SELECT 1 FROM eng_reversal r WHERE r.movement_id = json_extract(e.payload_json, '$.refundMovementId'))", movementId)) sum += Number(parse(e.payload_json).amountMinor) || 0;
   return sum;
 }
-// What is still available to apply or refund: the credit's movement not yet allocated, less what has been refunded. 0 for a voided credit note.
+// What is still available to apply or refund from a movement (a credit note's credit, or an overpayment): not yet allocated, less refunds still in force.
+export async function movementAvailable(env: Env, movementId: number): Promise<number> {
+  return Math.max(0, (await unallocatedForMovement(env, movementId)) - (await refundedFor(env, movementId)));
+}
 export async function creditAvailable(env: Env, creditNoteId: number): Promise<number> {
   const l = await creditOf(env, creditNoteId);
   if (!l || !(await isEffective(env, "document", creditNoteId))) return 0;
-  return Math.max(0, (await unallocatedForMovement(env, l.movementId)) - (await refundedFor(env, l.movementId)));
+  return movementAvailable(env, l.movementId);
 }
 export async function creditStoryIds(env: Env, creditNoteId: number): Promise<number[]> {
   const rows = await many<{ id: number; payload_json: string }>(env, "SELECT id, payload_json FROM eng_event WHERE type IN ('credit.allocated', 'credit.refunded', 'credit_note.voided') ORDER BY id");
@@ -213,4 +224,46 @@ export async function planDebitNote(env: Env, input: { invoiceId: number; reason
     docLines.push({ description: `Debit: ${o.description}`.slice(0, 200), quantityMilli: l.quantityMilli, unit: o.unit, unitPriceMinor: l.unitPriceMinor, taxBp: o.tax_bp });
   }
   return { invoiceId: inv.id, invoiceNumber: num ? num.number : null, partyId: inv.party_id, currency: inv.currency, reason: reason.value, issuedOn: date.value, docLines, eventLines: lines.value, totals: sumLines(docLines) };
+}
+
+// ---- an unapplied OVERPAYMENT is handled exactly like a credit: allocated to another invoice of the same customer, or refunded ---------------------------------------------------------------------------
+async function overpaymentRow(env: Env, id: number) {
+  const m = await env.OFFICE_DB.prepare("SELECT id, direction, party_id, currency, occurred_on, method FROM eng_money_movement WHERE id = ?").bind(id).first<{ id: number; direction: string; party_id: number; currency: string; occurred_on: string; method: string | null }>();
+  if (!m) throw new EngineError("not_found", "There is no such payment.");
+  if (m.direction !== "in") throw new EngineError("invalid_state", "Only money received from a customer can be allocated or refunded here.");
+  if (m.method === "credit") throw new EngineError("invalid_state", "That movement is a credit note's credit: apply it with credit.apply and refund it with refund.record.");
+  if (!(await isEffective(env, "movement", id))) throw new EngineError("invalid_state", "That payment has been reversed.");
+  return m;
+}
+export async function planPaymentAllocation(env: Env, input: { paymentId: number; invoiceId: number; amountMinor: unknown; allocatedOn: unknown }) {
+  const m = await overpaymentRow(env, input.paymentId);
+  const inv = await env.OFFICE_DB.prepare("SELECT id, kind, direction, party_id, issued_on FROM eng_document WHERE id = ?").bind(input.invoiceId).first<{ id: number; kind: string; direction: string; party_id: number; issued_on: string }>();
+  if (!inv) throw new EngineError("not_found", "There is no such invoice.");
+  const cfg = await readConfig(env);
+  if (inv.direction !== "sell" || !cfg.receivableKinds.includes(inv.kind) || !(await isEffective(env, "document", inv.id))) throw new EngineError("invalid_state", "A payment can only be allocated to an invoice (or debit note) that is still owed.");
+  if (inv.party_id !== m.party_id) throw new EngineError("invalid_state", "A payment can only be allocated to an invoice of the same customer.");
+  if (!wholeMinor(input.amountMinor)) throw new EngineError("invalid_input", "The amount must be a whole number of cents, at least 1.");
+  const allocatedOn = dateOf(input.allocatedOn, "The allocation date", [m.occurred_on, inv.issued_on]);
+  const available = await movementAvailable(env, m.id);
+  if (input.amountMinor > available) throw new EngineError("invalid_state", `Only ${available} of that payment is left to allocate.`);
+  const owed = await outstandingForDocument(env, inv.id);
+  if (input.amountMinor > owed) throw new EngineError("invalid_state", `That invoice only owes ${Math.max(0, owed)}.`);
+  return { paymentId: m.id, invoiceId: inv.id, partyId: m.party_id, amountMinor: input.amountMinor, allocatedOn };
+}
+export async function planPaymentRefund(env: Env, input: { paymentId: number; amountMinor: unknown; refundedOn: unknown; method: unknown }) {
+  const m = await overpaymentRow(env, input.paymentId);
+  if (!wholeMinor(input.amountMinor)) throw new EngineError("invalid_input", "The amount must be a whole number of cents, at least 1.");
+  if (typeof input.method !== "string" || !(REFUND_METHODS as readonly string[]).includes(input.method)) throw new EngineError("invalid_input", `method must be one of ${REFUND_METHODS.join(", ")}.`);
+  const refundedOn = dateOf(input.refundedOn, "The refund date", [m.occurred_on]);
+  const available = await movementAvailable(env, m.id);
+  if (input.amountMinor > available) throw new EngineError("invalid_state", `Only ${available} of that payment is left to refund.`);
+  return { paymentId: m.id, partyId: m.party_id, currency: m.currency, amountMinor: input.amountMinor, refundedOn, method: input.method };
+}
+// A refund movement (paid out of a credit or an overpayment), for voiding it.
+export async function refundMovementOrThrow(env: Env, movementId: number): Promise<void> {
+  const mv = await env.OFFICE_DB.prepare("SELECT id FROM eng_money_movement WHERE id = ?").bind(movementId).first<{ id: number }>();
+  if (!mv) throw new EngineError("not_found", "There is no such refund.");
+  const hit = await many<{ id: number }>(env, "SELECT id FROM eng_event WHERE type IN ('credit.refunded', 'overpayment.refunded') AND json_extract(payload_json, '$.refundMovementId') = ? LIMIT 1", movementId);
+  if (hit.length === 0) throw new EngineError("invalid_state", "That money movement is not a refund of credit.");
+  if (!(await isEffective(env, "movement", movementId))) throw new EngineError("invalid_state", "That refund has already been voided.");
 }

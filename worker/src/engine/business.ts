@@ -6,7 +6,8 @@
 import type { Env } from "../types";
 import { EngineError } from "./errors";
 import { creditOf } from "./credits";
-import { documentTotals } from "./ledger";
+import { documentTotals, isEffective } from "./ledger";
+import { documentTotals as sumLines } from "./money";
 import { partyProfile } from "./parties";
 import { checkDate } from "./quotations";
 
@@ -98,3 +99,52 @@ export async function documentParticulars(env: Env, documentId: number): Promise
 }
 
 export { checkDate };
+
+// ---- the VAT period summary (OUTPUT side only) ------------------------------------------------------------------------------------------------------------------------------------------------------
+// Follows the VAT201 (https://www.sars.gov.za/guide-to-completing-the-value-added-tax-vat201-return/ and docs/decisions/credit-note-follow-ups.md): field 1 is the value of standard-rated supplies INCLUDING VAT, credit notes issued in the
+// period are offset against it, field 4 is output tax by the TAX FRACTION on field 1, and field 2 is zero-rated supplies. A document counts in the period of its own issue date. The input side needs purchases, which the engine does
+// not have yet, so it says so. Exempt supplies are not told apart from zero-rated ones (both are 0%), and any rate that is neither 15% nor 0% is listed apart for the accountant instead of being guessed.
+export const STANDARD_RATE_BP = 1500;
+export interface VatSummary {
+  period: { from: string; to: string }; locked: boolean; lockDate: string | null; standardRateBp: number;
+  field1Minor: number; field4Minor: number; taxPerDocumentsMinor: number; differenceMinor: number; field2Minor: number;
+  otherRates: Array<{ taxBp: number; netMinor: number; taxMinor: number }>;
+  documents: Array<{ ref: { kind: "document"; id: number }; kind: string; number: number | null; issuedOn: string; sign: 1 | -1; netMinor: number; taxMinor: number; grossMinor: number; complete: boolean }>;
+  incompleteDocuments: number; outputOnly: true; inputTaxMinor: null; notes: string[];
+}
+export async function vatSummary(env: Env, period: { from: string; to: string }): Promise<VatSummary> {
+  const docs = await many<{ id: number; kind: string; issued_on: string; number: number | null }>(env,
+    "SELECT d.id, d.kind, d.issued_on, n.number AS number FROM eng_document d LEFT JOIN eng_document_number n ON n.document_id = d.id WHERE d.direction = 'sell' AND d.kind IN ('invoice', 'credit_note', 'debit_note') AND d.issued_on >= ? AND d.issued_on <= ? ORDER BY d.issued_on, d.id", period.from, period.to);
+  let std = 0, zero = 0, stdTax = 0, incomplete = 0;
+  const other = new Map<number, { netMinor: number; taxMinor: number }>();
+  const out: VatSummary["documents"] = [];
+  for (const d of docs) {
+    if (!(await isEffective(env, "document", d.id))) continue;     // a voided credit note, or a reversed invoice, no longer counts
+    const sign: 1 | -1 = d.kind === "credit_note" ? -1 : 1;
+    const lines = await many<{ description: string; quantity_milli: number; unit: string | null; unit_price_minor: number; tax_bp: number }>(env, "SELECT description, quantity_milli, unit, unit_price_minor, tax_bp FROM eng_document_line WHERE document_id = ? ORDER BY line_no", d.id);
+    for (const l of lines) {
+      const t = sumLines([{ description: l.description, quantityMilli: l.quantity_milli, unit: l.unit, unitPriceMinor: l.unit_price_minor, taxBp: l.tax_bp }]);
+      if (l.tax_bp === STANDARD_RATE_BP) { std += sign * t.grossMinor; stdTax += sign * t.taxMinor; }
+      else if (l.tax_bp === 0) zero += sign * t.netMinor;
+      else { const o = other.get(l.tax_bp) ?? { netMinor: 0, taxMinor: 0 }; o.netMinor += sign * t.netMinor; o.taxMinor += sign * t.taxMinor; other.set(l.tax_bp, o); }
+    }
+    const totals = await documentTotals(env, d.id);
+    const p = await documentParticulars(env, d.id);
+    if (p && p.applicable && !p.complete) incomplete++;
+    out.push({ ref: { kind: "document", id: d.id }, kind: d.kind, number: d.number, issuedOn: d.issued_on, sign, netMinor: sign * totals.netMinor, taxMinor: sign * totals.taxMinor, grossMinor: sign * totals.grossMinor, complete: !p || !p.applicable || p.complete });
+  }
+  const field4 = Math.round(std * STANDARD_RATE_BP / (10000 + STANDARD_RATE_BP));   // the tax fraction: r / (100 + r)
+  const lock = await taxLockDate(env);
+  return {
+    period, locked: lock !== null && period.to <= lock, lockDate: lock, standardRateBp: STANDARD_RATE_BP,
+    field1Minor: std, field4Minor: field4, taxPerDocumentsMinor: stdTax, differenceMinor: field4 - stdTax, field2Minor: zero,
+    otherRates: [...other.entries()].sort((a, b) => a[0] - b[0]).map(([taxBp, v]) => ({ taxBp, ...v })),
+    documents: out.slice(0, 200), incompleteDocuments: incomplete, outputOnly: true, inputTaxMinor: null,
+    notes: [
+      "Output side only: input tax needs purchases and expenses, which are not built yet, so it is not reported.",
+      "Exempt supplies are not told apart from zero-rated ones (both are 0%): all 0% lines are shown as zero-rated, and an accountant must classify them.",
+      "A document counts in the period of its own issue date (time-of-supply rules are not applied); credit notes reduce the period they are issued in.",
+      "Field 4 is output tax by the tax fraction on field 1; the difference from the sum of per-document tax is per-line rounding and is shown, not hidden.",
+    ],
+  };
+}

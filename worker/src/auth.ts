@@ -505,6 +505,10 @@ export const ACTION_TYPE_CAPABILITY: Record<string, string[]> = {
   "engine.refund.record": ["can_manage_invoices"],
   "engine.credit_note.void": ["can_manage_invoices"],
   "engine.debit_note.issue": ["can_manage_invoices"],
+  "engine.allocation.remove": ["can_manage_invoices"],
+  "engine.refund.void": ["can_manage_invoices"],
+  "engine.payment.allocate": ["can_manage_invoices"],
+  "engine.payment.refund": ["can_manage_invoices"],
   "engine.business.profile.set": ["can_manage_settings"],
   "engine.tax_lock.set": ["can_manage_settings"],
   "engine.quotation.create": ["can_manage_invoices", "can_make_quotes"],
@@ -791,6 +795,7 @@ export const ROUTE_RULES: Array<{ method: string; path: RegExp; anyOf: string[] 
   { method: "GET", path: /^\/engine\/parties$/, anyOf: ["can_know_debtors"] },
   { method: "GET", path: /^\/engine\/business$/, anyOf: ["can_manage_settings"] },
   { method: "GET", path: /^\/engine\/credits$/, anyOf: ["can_manage_invoices"] },
+  { method: "GET", path: /^\/engine\/vat$/, anyOf: ["can_manage_invoices"] },
   { method: "GET", path: /^\/engine\/quotations$/, anyOf: ["can_manage_invoices", "can_make_quotes"] },
   // Money — accountant and owner.
   { method: "GET", path: /^\/customers\/\d+\/profitability$/, anyOf: ["can_know_profit"] },

@@ -23,4 +23,5 @@ import * as parties from "./parties";
 import * as quotations from "./quotations";
 import * as credits from "./credits";
 import * as business from "./business";
-export { boundary, permissions, drafts, records, operations, capabilities, parties, quotations, credits, business };
+import * as config from "./config";
+export { boundary, permissions, drafts, records, operations, capabilities, parties, quotations, credits, business, config };

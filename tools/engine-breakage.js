@@ -7,7 +7,7 @@ const { parseArgs, select } = require('./breakage-select.js');
 const sourceRoot = path.join(__dirname, '..');
 let root = sourceRoot;   // becomes the isolated copy before anything is edited or run
 const E = (f) => `worker/src/engine/${f}`, CONTRACT = 'worker/src/capability-contract.ts', MIG = 'worker/migrations/0004_engine_foundation.sql';
-const ACTIONS = 'capability-credit-actions.test.js', TAXDOC = 'capability-tax-documents.test.js', CREDITS = 'capability-credit-notes.test.js', QUOTES = 'capability-quotations.test.js', PARTIES = 'capability-parties.test.js', OBIND = 'object-binding.test.js', RPROOF = 'restore-proof.test.js', MANI = 'backup-manifest.test.js', STID = 'staging-identity.test.js', OBJ = 'business-object.standalone.js', ISOL = 'engine-isolation.test.js', OWN = 'engine-ownership.test.js', INTEG = 'engine-integrity.test.js', ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
+const UNDO = 'capability-credit-undo-vat.test.js', ACTIONS = 'capability-credit-actions.test.js', TAXDOC = 'capability-tax-documents.test.js', CREDITS = 'capability-credit-notes.test.js', QUOTES = 'capability-quotations.test.js', PARTIES = 'capability-parties.test.js', OBIND = 'object-binding.test.js', RPROOF = 'restore-proof.test.js', MANI = 'backup-manifest.test.js', STID = 'staging-identity.test.js', OBJ = 'business-object.standalone.js', ISOL = 'engine-isolation.test.js', OWN = 'engine-ownership.test.js', INTEG = 'engine-integrity.test.js', ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
 
 const MUTATIONS = [
   // money: exact integer arithmetic
@@ -213,6 +213,24 @@ const MUTATIONS = [
   { name: 'credit actions: a salesperson may apply credit', suite: ACTIONS, file: E('permissions.ts'), find: 'can_make_quotes: ["quotation.read", "quotation.manage"],', replace: 'can_make_quotes: ["quotation.read", "quotation.manage", "credit.apply"],' },
   { name: 'credit actions: the verifier ignores credit spent more than once', suite: ACTIONS, file: E('integrity.ts'), find: 'if (amount > g) problems.push', replace: 'if (false) problems.push' },
   { name: 'credit actions: the verifier ignores an application of a missing credit note', suite: ACTIONS, file: E('integrity.ts'), find: 'if (typeof cnKey !== "number" || !creditDocs.has(cnKey)) {', replace: 'if (false) {' },
+  // undo, overpayments, VAT summary and the config gap (capability-credit-undo-vat.test.js)
+  { name: 'undo: a removed application still counts against the credit note', suite: UNDO, file: E('credits.ts'), find: 'const inForce = type === "credit.allocated" ? await isEffective(env, "allocation", Number(p.allocationId)) : await isEffective(env, "movement", Number(p.refundMovementId));', replace: 'const inForce = true;' },
+  { name: 'undo: a voided refund still reduces the credit available', suite: UNDO, file: E('credits.ts'), find: '\'$.refundMovementId\'))", movementId)) sum', replace: '\'$.refundMovementId\') AND 1 = 0)", movementId)) sum' },
+  { name: 'undo: the customer account still subtracts a voided refund', suite: UNDO, file: E('ledger.ts'), find: '\'$.refundMovementId\'))", m.id))', replace: '\'$.refundMovementId\') AND 1 = 0)", m.id))' },
+  { name: 'undo: voiding something that is not a refund', suite: UNDO, file: E('credits.ts'), find: 'if (hit.length === 0) throw new EngineError("invalid_state", "That money movement is not a refund of credit.");', replace: '' },
+  { name: 'overpayments: allocate more than the payment has left', suite: UNDO, file: E('credits.ts'), find: 'if (input.amountMinor > available) throw new EngineError("invalid_state", `Only ${available} of that payment is left to allocate.`);', replace: '' },
+  { name: "overpayments: allocate to another customer's invoice", suite: UNDO, file: E('credits.ts'), find: 'if (inv.party_id !== m.party_id) throw', replace: 'if (false) throw' },
+  { name: 'overpayments: refund more than the payment has left', suite: UNDO, file: E('credits.ts'), find: 'if (input.amountMinor > available) throw new EngineError("invalid_state", `Only ${available} of that payment is left to refund.`);', replace: '' },
+  { name: "overpayments: treat a credit note's movement as a plain payment", suite: UNDO, file: E('credits.ts'), find: 'if (m.method === "credit") throw', replace: 'if (false) throw' },
+  { name: 'config: a debit note is not owed when the stored config predates it', suite: UNDO, file: E('config.ts'), find: 'if (receivableKinds.includes("invoice") && !receivableKinds.includes("debit_note")) receivableKinds.push("debit_note");', replace: '' },
+  { name: 'vat: a credit note adds to output tax instead of reducing it', suite: UNDO, file: E('business.ts'), find: 'const sign: 1 | -1 = d.kind === "credit_note" ? -1 : 1;', replace: 'const sign: 1 | -1 = 1;' },
+  { name: 'vat: a voided credit note still counts', suite: UNDO, file: E('business.ts'), find: 'if (!(await isEffective(env, "document", d.id))) continue;', replace: '' },
+  { name: 'vat: field 1 uses the value without VAT', suite: UNDO, file: E('business.ts'), find: 'std += sign * t.grossMinor;', replace: 'std += sign * t.netMinor;' },
+  { name: 'vat: documents outside the period count', suite: UNDO, file: E('business.ts'), find: 'd.issued_on >= ? AND d.issued_on <= ? ORDER BY', replace: 'd.issued_on >= ? AND d.issued_on <= ? OR 1 = 1 ORDER BY' },
+  { name: 'vat: the summary never says a period is locked', suite: UNDO, file: E('business.ts'), find: 'locked: lock !== null && period.to <= lock,', replace: 'locked: false,' },
+  { name: 'vat: a salesperson may read the VAT summary', suite: UNDO, file: E('permissions.ts'), find: 'can_make_quotes: ["quotation.read", "quotation.manage"],', replace: 'can_make_quotes: ["quotation.read", "quotation.manage", "vat.read"],' },
+  { name: 'overpayments: the verifier ignores payments spent more than once', suite: UNDO, file: E('integrity.ts'), find: 'if (amount > total) problems.push', replace: 'if (false) problems.push' },
+  { name: 'overpayments: the verifier ignores an allocation of a missing payment', suite: UNDO, file: E('integrity.ts'), find: 'if (typeof p.movementId !== "number" || !creditMovements.has(p.movementId)) { gone("payment", p.movementId); continue; }', replace: 'if (false) { continue; }' },
 ];
 
 let opts;

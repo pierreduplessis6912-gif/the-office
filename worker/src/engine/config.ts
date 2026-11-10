@@ -19,5 +19,8 @@ export async function readConfig(env: Env): Promise<EngineConfig> {
   for (const r of rows) {
     try { byKey[r.key] = JSON.parse(r.value_json); } catch { /* a value that is not JSON is ignored, the default stands */ }
   }
-  return { receivableKinds: textList(byKey.receivable_kinds, DEFAULTS.receivableKinds), payableKinds: textList(byKey.payable_kinds, DEFAULTS.payableKinds) };
+  const receivableKinds = textList(byKey.receivable_kinds, DEFAULTS.receivableKinds);
+  // a debit note is part of an invoice's family: wherever invoices are owed, so are the debit notes that add to them (a stored configuration written before debit notes existed does not have to be rewritten)
+  if (receivableKinds.includes("invoice") && !receivableKinds.includes("debit_note")) receivableKinds.push("debit_note");
+  return { receivableKinds, payableKinds: textList(byKey.payable_kinds, DEFAULTS.payableKinds) };
 }

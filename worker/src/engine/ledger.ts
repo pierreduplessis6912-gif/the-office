@@ -56,8 +56,8 @@ export async function unallocatedForMovement(env: Env, movementId: number): Prom
 export async function unappliedCreditForParty(env: Env, partyId: number): Promise<number> {
   let sum = 0;
   for (const m of await many<{ id: number }>(env, "SELECT id FROM eng_money_movement WHERE party_id = ? AND direction = 'in' ORDER BY id", partyId)) {
-    let refunded = 0;   // a refund of a credit is recorded as a credit.refunded event naming the credit's movement (credits.ts)
-    for (const e of await many<{ payload_json: string }>(env, "SELECT payload_json FROM eng_event WHERE type = 'credit.refunded' AND json_extract(payload_json, '$.movementId') = ?", m.id)) { try { refunded += Number(JSON.parse(e.payload_json).amountMinor) || 0; } catch { /* ignored */ } }
+    let refunded = 0;   // a refund is a credit.refunded or payment.refunded event naming the movement it was paid out of; a refund that was voided (its movement reversed) no longer counts
+    for (const e of await many<{ payload_json: string }>(env, "SELECT payload_json FROM eng_event e WHERE e.type IN ('credit.refunded', 'overpayment.refunded') AND json_extract(e.payload_json, '$.movementId') = ? AND NOT EXISTS (SELECT 1 FROM eng_reversal r WHERE r.movement_id = json_extract(e.payload_json, '$.refundMovementId'))", m.id)) { try { refunded += Number(JSON.parse(e.payload_json).amountMinor) || 0; } catch { /* ignored */ } }
     sum += Math.max(0, (await unallocatedForMovement(env, m.id)) - refunded);
   }
   return sum;

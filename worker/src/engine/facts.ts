@@ -11,7 +11,7 @@ import { readConfig } from "./config";
 import { isEffective, outstandingForDocument, unallocatedForMovement } from "./ledger";
 import { applyRevision, checkContact, checkName, checkRoles, partyProfile } from "./parties";
 import { planQuotationAcceptance, planQuotationRevision } from "./quotations";
-import { planCreditApplication, planCreditNote, planDebitNote, planRefund, planVoid, type CreditLineInput } from "./credits";
+import { planCreditApplication, planCreditNote, planDebitNote, planPaymentAllocation, planPaymentRefund, planRefund, planVoid, refundMovementOrThrow, checkReason, type CreditLineInput } from "./credits";
 import { applyProfile, businessProfile, checkProfileChange, taxLockDate, type ProfileChange } from "./business";
 import { checkDate } from "./quotations";
 
@@ -231,6 +231,38 @@ export async function issueDebitNote(env: Env, input: { invoiceId: number; reaso
     const doc = await recordDocument(tx, { kind: "debit_note", direction: "sell", partyId: plan.partyId, currency: plan.currency, reference: plan.invoiceNumber !== null ? `Debit for invoice #${plan.invoiceNumber}` : "Debit note", issuedOn: plan.issuedOn, terms: { debitsDocumentId: invoiceId, reason: plan.reason }, lines: plan.docLines }, ctx);
     const eventId = await appendEvent(tx, "debit_note.issued", ctx, { documentId: doc.id, invoiceId, reason: plan.reason, lines: plan.eventLines }, plan.reason);
     return { documentId: doc.id, number: doc.number, eventId, totals: doc.totals };
+  });
+}
+
+// UNDO is a new fact, never an edit: removing an allocation or voiding a refund records a reversal, and every derived figure (the credit left, the credit owed back, whether a credit note can be voided) honours it. Neither changes VAT,
+// so neither is blocked by the tax lock.
+export async function removeAllocation(env: Env, input: { allocationId: number; reason: string }, ctx: Ctx): Promise<{ reversalId: number }> {
+  const allocationId = id(input.allocationId, "allocation");
+  const reason = checkReason(input.reason, "removal"); if (!reason.ok) throw new EngineError("invalid_input", reason.reason);
+  return inTransaction(env, async (tx) => ({ reversalId: (await reverse(tx, { allocationId, reason: reason.value }, ctx)).id }));
+}
+export async function voidRefund(env: Env, input: { movementId: number; reason: string }, ctx: Ctx): Promise<{ reversalId: number }> {
+  const movementId = id(input.movementId, "refund");
+  const reason = checkReason(input.reason, "void"); if (!reason.ok) throw new EngineError("invalid_input", reason.reason);
+  return inTransaction(env, async (tx) => { await refundMovementOrThrow(tx, movementId); return { reversalId: (await reverse(tx, { movementId, reason: reason.value }, ctx)).id }; });
+}
+// An unapplied OVERPAYMENT is allocated to another invoice of the same customer, or refunded, exactly as a credit is (credits.ts).
+export async function allocatePayment(env: Env, input: { paymentId: number; invoiceId: number; amountMinor: number; allocatedOn: string }, ctx: Ctx): Promise<{ allocationId: number; eventId: number }> {
+  const paymentId = id(input.paymentId, "payment"), invoiceId = id(input.invoiceId, "invoice");
+  return inTransaction(env, async (tx) => {
+    const plan = await planPaymentAllocation(tx, { ...input, paymentId, invoiceId });
+    const al = await insertAllocation(tx, { movementId: paymentId, documentId: invoiceId, amountMinor: plan.amountMinor }, ctx);
+    const eventId = await appendEvent(tx, "overpayment.allocated", ctx, { movementId: paymentId, invoiceId, allocationId: al.id, amountMinor: plan.amountMinor, allocatedOn: plan.allocatedOn });
+    return { allocationId: al.id, eventId };
+  });
+}
+export async function refundPayment(env: Env, input: { paymentId: number; amountMinor: number; refundedOn: string; method: string }, ctx: Ctx): Promise<{ movementId: number; eventId: number }> {
+  const paymentId = id(input.paymentId, "payment");
+  return inTransaction(env, async (tx) => {
+    const plan = await planPaymentRefund(tx, { ...input, paymentId });
+    const mv = await insertMovement(tx, { direction: "out", partyId: plan.partyId, amountMinor: plan.amountMinor, currency: plan.currency, occurredOn: plan.refundedOn, method: plan.method }, ctx);
+    const eventId = await appendEvent(tx, "overpayment.refunded", ctx, { movementId: paymentId, refundMovementId: mv.id, amountMinor: plan.amountMinor, refundedOn: plan.refundedOn, method: plan.method });
+    return { movementId: mv.id, eventId };
   });
 }
 

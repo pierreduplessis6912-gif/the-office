@@ -13,7 +13,8 @@ import type { EnginePermission } from "./permissions";
 import { unappliedCreditForParty } from "./ledger";
 import { allQuotations, checkDate, checkLines, checkReference, planQuotationAcceptance, planQuotationRevision, type QuoteLine } from "./quotations";
 import { documentTotals as sumTotals } from "./money";
-import { applyProfile, businessProfile, checkProfileChange, taxLockDate, type ProfileChange } from "./business";
+import { applyProfile, businessProfile, checkProfileChange, taxLockDate, vatSummary, type ProfileChange } from "./business";
+import { movementAvailable, planPaymentAllocation, planPaymentRefund, refundMovementOrThrow } from "./credits";
 import { creditAvailable, debitsOf, planCreditApplication, planDebitNote, planRefund, planVoid } from "./credits";
 import { checkCreditLines, checkReason, planCreditNote, type CreditLineInput } from "./credits";
 import { allProfiles, applyRevision, checkContact, checkName, checkRoles, holderOfName, partyProfile, PARTY_ROLES, sameName } from "./parties";
@@ -591,7 +592,7 @@ export const debitNoteIssue: CapabilityContract<DebitNoteIssue> = {
 
 // Finding credit that can still be applied or refunded.
 export const creditsFind: ReadCapability<{ partyId?: number }> = {
-  id: "credits.find", label: "Finding credit to apply", permissions: ["credit.apply"],
+  id: "credits.find", label: "Finding credit and overpayments to apply", permissions: ["credit.apply"],
   validate(params) {
     if (!isObj(params)) return { ok: false, reason: "the request must be an object" };
     const s = stray(params, ["partyId"]);
@@ -608,11 +609,113 @@ export const creditsFind: ReadCapability<{ partyId?: number }> = {
       const available = await creditAvailable(env, d.id);
       if (available > 0) out.push({ ref: { kind: "document", id: d.id }, id: d.id, number: d.number, partyId: d.party_id, partyName: names.get(d.party_id) ?? null, currency: d.currency, issuedOn: d.issued_on, availableMinor: available });
     }
-    return { credits: out.slice(0, 50), count: out.length, truncated: out.length > 50, derivedBy: "credits.creditAvailable" };
+    const payments: Array<Record<string, unknown>> = [];
+    const mrows = await env.OFFICE_DB.prepare("SELECT id, party_id, currency, occurred_on FROM eng_money_movement WHERE direction = 'in' AND (method IS NULL OR method != 'credit') ORDER BY id").all<{ id: number; party_id: number; currency: string; occurred_on: string }>();
+    for (const m of mrows.results ?? []) {
+      if (value.partyId !== undefined && m.party_id !== value.partyId) continue;
+      const available = await movementAvailable(env, m.id);
+      if (available > 0) payments.push({ ref: { kind: "movement", id: m.id }, id: m.id, partyId: m.party_id, partyName: names.get(m.party_id) ?? null, currency: m.currency, receivedOn: m.occurred_on, availableMinor: available });
+    }
+    return { credits: out.slice(0, 50), payments: payments.slice(0, 50), count: out.length + payments.length, truncated: out.length > 50 || payments.length > 50, derivedBy: "credits.creditAvailable" };
   },
 };
 
-export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind];
+// ---- undo, overpayments and the VAT summary (docs/decisions/credit-note-follow-ups.md, "The last four") -----------------------------------------------------------------------------------------------------
+// Removing an allocation and voiding a refund are held writes that record REVERSALS (new facts); an unapplied overpayment is allocated or refunded exactly like a credit.
+interface AllocationRemove { allocationId: number; reason: string }
+export const allocationRemove: CapabilityContract<AllocationRemove> = {
+  id: "allocation.remove", heldType: "engine.allocation.remove", label: "Removing an allocation", requires: [], permissions: ["allocation.remove"], version: 1, recordsExecution: true,
+  validate(payload) {
+    if (!isObj(payload)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(payload, ["allocationId", "reason"]);
+    if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    if (!whole(payload.allocationId)) return { ok: false, reason: "allocationId must be a record number" };
+    const r = checkReason(payload.reason, "removal"); if (!r.ok) return r;
+    return { ok: true, value: { allocationId: payload.allocationId, reason: r.value } };
+  },
+  async check(env, value) {
+    const a = await one(env, "SELECT id FROM eng_allocation WHERE id = ?", value.allocationId);
+    if (!a) throw new EngineError("not_found", "There is no such allocation.");
+    if (!(await isEffective(env, "allocation", value.allocationId))) throw new EngineError("not_effective", "That allocation has already been removed.");
+  },
+  async execute(env, v, c) { const r = await facts.removeAllocation(env, v, ctxOf(c, "allocation.remove")); return { reversalId: r.reversalId }; },
+};
+
+interface RefundVoid { movementId: number; reason: string }
+export const refundVoid: CapabilityContract<RefundVoid> = {
+  id: "refund.void", heldType: "engine.refund.void", label: "Voiding a refund", requires: [], permissions: ["refund.void"], version: 1, recordsExecution: true,
+  validate(payload) {
+    if (!isObj(payload)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(payload, ["movementId", "reason"]);
+    if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    if (!whole(payload.movementId)) return { ok: false, reason: "movementId must be a record number" };
+    const r = checkReason(payload.reason, "void"); if (!r.ok) return r;
+    return { ok: true, value: { movementId: payload.movementId, reason: r.value } };
+  },
+  async check(env, value) { await refundMovementOrThrow(env, value.movementId); },
+  async execute(env, v, c) { const r = await facts.voidRefund(env, v, ctxOf(c, "refund.void")); return { reversalId: r.reversalId }; },
+};
+
+interface PaymentAllocate { paymentId: number; invoiceId: number; amountMinor: number; allocatedOn: string; basedOn?: { paymentVersion: number; invoiceVersion: number } }
+export const paymentAllocate: CapabilityContract<PaymentAllocate> = {
+  id: "payment.allocate", heldType: "engine.payment.allocate", label: "Allocating an overpayment to an invoice", requires: [], permissions: ["payment.allocate"], version: 1, recordsExecution: true,
+  validate(payload) {
+    if (!isObj(payload)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(payload, ["paymentId", "invoiceId", "amountMinor", "allocatedOn", "basedOn"]);
+    if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    if (!whole(payload.paymentId) || !whole(payload.invoiceId)) return { ok: false, reason: "paymentId and invoiceId must be record numbers" };
+    if (!nowMinor(payload.amountMinor)) return { ok: false, reason: "amountMinor must be a whole number of cents, at least 1" };
+    const d = checkDate(payload.allocatedOn, "allocatedOn"); if (!d.ok) return d;
+    const out: PaymentAllocate = { paymentId: payload.paymentId, invoiceId: payload.invoiceId, amountMinor: payload.amountMinor as number, allocatedOn: d.value };
+    if (payload.basedOn !== undefined) { const b = payload.basedOn; if (!isObj(b) || stray(b, ["paymentVersion", "invoiceVersion"]) || !whole(b.paymentVersion, 0) || !whole(b.invoiceVersion, 0)) return { ok: false, reason: "basedOn must name the versions it was proposed against" }; out.basedOn = { paymentVersion: b.paymentVersion as number, invoiceVersion: b.invoiceVersion as number }; }
+    return { ok: true, value: out };
+  },
+  async stamp(env, value) { await planPaymentAllocation(env, value); return { ...value, basedOn: { paymentVersion: await versionOf(env, { kind: "movement", id: value.paymentId }), invoiceVersion: await verOf(env, value.invoiceId) } }; },
+  async check(env, value) {
+    if (value.basedOn && ((await versionOf(env, { kind: "movement", id: value.paymentId })) !== value.basedOn.paymentVersion || (await verOf(env, value.invoiceId)) !== value.basedOn.invoiceVersion)) throw new EngineError("stale", "The payment or the invoice changed after this was proposed, so it needs to be proposed again.");
+    await planPaymentAllocation(env, value);
+  },
+  async execute(env, v, c) { const r = await facts.allocatePayment(env, { paymentId: v.paymentId, invoiceId: v.invoiceId, amountMinor: v.amountMinor, allocatedOn: v.allocatedOn }, ctxOf(c, "payment.allocate")); return { allocationId: r.allocationId, eventId: r.eventId }; },
+};
+
+interface PaymentRefund { paymentId: number; amountMinor: number; refundedOn: string; method: string; basedOn?: { paymentVersion: number } }
+export const paymentRefund: CapabilityContract<PaymentRefund> = {
+  id: "payment.refund", heldType: "engine.payment.refund", label: "Refunding an overpayment", requires: [], permissions: ["payment.refund"], version: 1, recordsExecution: true,
+  validate(payload) {
+    if (!isObj(payload)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(payload, ["paymentId", "amountMinor", "refundedOn", "method", "basedOn"]);
+    if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    if (!whole(payload.paymentId)) return { ok: false, reason: "paymentId must be a record number" };
+    if (!nowMinor(payload.amountMinor)) return { ok: false, reason: "amountMinor must be a whole number of cents, at least 1" };
+    if (typeof payload.method !== "string" || !["eft", "cash", "card", "cheque", "other"].includes(payload.method)) return { ok: false, reason: "method must be eft, cash, card, cheque or other" };
+    const d = checkDate(payload.refundedOn, "refundedOn"); if (!d.ok) return d;
+    const out: PaymentRefund = { paymentId: payload.paymentId, amountMinor: payload.amountMinor as number, refundedOn: d.value, method: payload.method };
+    if (payload.basedOn !== undefined) { if (!stampOk(payload.basedOn, "paymentVersion")) return { ok: false, reason: "basedOn must name the version it was proposed against" }; out.basedOn = { paymentVersion: (payload.basedOn as Record<string, number>).paymentVersion }; }
+    return { ok: true, value: out };
+  },
+  async stamp(env, value) { await planPaymentRefund(env, value); return { ...value, basedOn: { paymentVersion: await versionOf(env, { kind: "movement", id: value.paymentId }) } }; },
+  async check(env, value) {
+    if (value.basedOn && (await versionOf(env, { kind: "movement", id: value.paymentId })) !== value.basedOn.paymentVersion) throw new EngineError("stale", "That payment changed after this was proposed, so it needs to be proposed again.");
+    await planPaymentRefund(env, value);
+  },
+  async execute(env, v, c) { const r = await facts.refundPayment(env, { paymentId: v.paymentId, amountMinor: v.amountMinor, refundedOn: v.refundedOn, method: v.method }, ctxOf(c, "payment.refund")); return { movementId: r.movementId, eventId: r.eventId }; },
+};
+
+export const vatSummaryRead: ReadCapability<{ from: string; to: string }> = {
+  id: "vat.summary", label: "The VAT summary for a period", permissions: ["vat.read"],
+  validate(params) {
+    if (!isObj(params)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(params, ["from", "to"]);
+    if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    const f = checkDate(params.from, "from"); if (!f.ok) return f;
+    const t = checkDate(params.to, "to"); if (!t.ok) return t;
+    if (t.value < f.value) return { ok: false, reason: "to cannot be before from" };
+    return { ok: true, value: { from: f.value, to: t.value } };
+  },
+  async run(env, _viewer, value) { return { ...(await vatSummary(env, value)), derivedBy: "business.vatSummary" }; },
+};
+
+export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead];
 
 // Provenance (invariant 6): every engine contract records what was understood at the door (an interpretation naming the capture and the held action) and finds the capture again at the confirm.
 const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => ({
@@ -620,5 +723,5 @@ const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => (
   recordUnderstood: async (env, info) => { await facts.recordInterpretation(env, { captureId: info.captureId, interpreter: info.interpreter, capability: c.id, actionId: info.actionId }); },
   captureOf: async (env, actionId) => (await env.OFFICE_DB.prepare("SELECT capture_id FROM eng_interpretation WHERE json_extract(payload_json, '$.actionId') = ? AND capability = ? ORDER BY id DESC LIMIT 1").bind(actionId, c.id).first<{ capture_id: number }>())?.capture_id ?? null,
 });
-export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, creditApply, refundRecord, creditNoteVoid, debitNoteIssue] as CapabilityContract<any>[]).map((c) => withProvenance(c));
+export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund] as CapabilityContract<any>[]).map((c) => withProvenance(c));
 export const CAPABILITY_IDS: readonly string[] = [...READS.map((r) => r.id), ...ENGINE_CONTRACTS.map((c) => c.id)];
