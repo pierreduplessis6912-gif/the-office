@@ -10,6 +10,8 @@
 
 **Built since (2026-11-10, second capability):** quotations (create, revise, accept, find) are in the engine and CI-tested, no schema change; `docs/decisions/quotations.md` has the defaults. Pierre approved the defaults, and the staging proof passed 14 of 14 on a real object.
 
+**Built since (2026-11-10, third capability):** credit notes (issue) are in the engine and CI-tested, no schema change; Pierre delegated the accounting choices to "best practice" (not accountant-reviewed); `docs/decisions/credit-notes.md` has them. It waits on his word for a staging proof.
+
 **The one thing that matters next (Pierre's priority, 2026-11-09): the VISION, with ALL capabilities tested and wired into the final product eventually.** `docs/CAPABILITY_MAP.md` is the board: every capability, how far it has got (engine, CI, real platform, conversation, explained, app, outside assistants), and what "done" means. Work goes down that list one capability at a time, each to the same standard. The pilot and the look of the app are NOT the priority.
 
 **Only ONE decision is needed from Pierre to keep moving, and it has a default:** the order of capabilities in the map (default: customers and suppliers, quotations, invoices in full, payments and expenses, purchasing, stock, jobs, reports, then the reach channels). Connecting the engine to the real app is approved separately when the first widened capability is ready.

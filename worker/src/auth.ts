@@ -500,6 +500,7 @@ export const ACTION_TYPE_CAPABILITY: Record<string, string[]> = {
   "engine.invoice.issue": ["can_manage_invoices"],
   "engine.party.create": ["can_manage_invoices"],
   "engine.party.edit": ["can_manage_invoices"],
+  "engine.credit_note.issue": ["can_manage_invoices"],
   "engine.quotation.create": ["can_manage_invoices", "can_make_quotes"],
   "engine.quotation.revise": ["can_manage_invoices", "can_make_quotes"],
   "engine.quotation.accept": ["can_manage_invoices", "can_make_quotes"],

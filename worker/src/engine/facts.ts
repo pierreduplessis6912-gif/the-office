@@ -11,6 +11,7 @@ import { readConfig } from "./config";
 import { isEffective, outstandingForDocument, unallocatedForMovement } from "./ledger";
 import { applyRevision, checkContact, checkName, checkRoles, partyProfile } from "./parties";
 import { planQuotationAcceptance, planQuotationRevision } from "./quotations";
+import { planCreditNote, type CreditLineInput } from "./credits";
 
 export interface Ctx {
   actorEmail?: string | null;
@@ -150,6 +151,19 @@ export async function acceptQuotation(env: Env, input: { quotationId: number }, 
   return inTransaction(env, async (tx) => {
     await planQuotationAcceptance(tx, quotationId);
     return { eventId: await appendEvent(tx, "quotation.accepted", ctx, { documentId: quotationId }) };
+  });
+}
+
+// A CREDIT NOTE credits an invoice (credits.ts has the rules). It records four facts in ONE transaction: the credit_note document, a non-cash "in" movement (method "credit") for its total, an allocation of the part that is
+// still owed on the invoice (the rest stays UNAPPLIED on the customer; nothing is refunded here), and a credit_note.issued event that ties them to the invoice. The invoice itself is never touched.
+export async function issueCreditNote(env: Env, input: { invoiceId: number; reason: string; issuedOn: string; lines: CreditLineInput[] }, ctx: Ctx): Promise<{ documentId: number; number: number; movementId: number; appliedMinor: number; unappliedMinor: number; eventId: number; totals: Totals }> {
+  const invoiceId = id(input.invoiceId, "invoice");
+  return inTransaction(env, async (tx) => {
+    const plan = await planCreditNote(tx, { ...input, invoiceId });
+    const doc = await recordDocument(tx, { kind: "credit_note", direction: "sell", partyId: plan.partyId, currency: plan.currency, reference: plan.invoiceNumber !== null ? `Credit for invoice #${plan.invoiceNumber}` : "Credit note", issuedOn: plan.issuedOn, terms: { creditsDocumentId: invoiceId, reason: plan.reason }, lines: plan.docLines }, ctx);
+    const pay = await recordPayment(tx, { direction: "in", partyId: plan.partyId, amountMinor: doc.totals.grossMinor, currency: plan.currency, occurredOn: plan.issuedOn, method: "credit", allocations: plan.appliedMinor > 0 ? [{ documentId: invoiceId, amountMinor: plan.appliedMinor }] : [] }, ctx);
+    const eventId = await appendEvent(tx, "credit_note.issued", ctx, { documentId: doc.id, invoiceId, movementId: pay.movementId, appliedMinor: plan.appliedMinor, unappliedMinor: plan.unappliedMinor, reason: plan.reason, lines: plan.eventLines }, plan.reason);
+    return { documentId: doc.id, number: doc.number, movementId: pay.movementId, appliedMinor: plan.appliedMinor, unappliedMinor: plan.unappliedMinor, eventId, totals: doc.totals };
   });
 }
 

@@ -65,6 +65,12 @@
           "label": "Outstanding",
           "value": 35000,
           "derivedBy": "ledger.outstandingForDocument"
+        },
+        {
+          "key": "creditedMinor",
+          "label": "Credited",
+          "value": 0,
+          "derivedBy": "credits.creditedGross"
         }
       ],
       "collections": {

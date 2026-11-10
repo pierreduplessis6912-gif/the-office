@@ -12,6 +12,7 @@ import { RECORD_KINDS, recordView, versionOf, type RecordKind, type ViewerContex
 import type { EnginePermission } from "./permissions";
 import { allQuotations, checkDate, checkLines, checkReference, planQuotationAcceptance, planQuotationRevision, type QuoteLine } from "./quotations";
 import { documentTotals as sumTotals } from "./money";
+import { checkCreditLines, checkReason, planCreditNote, type CreditLineInput } from "./credits";
 import { allProfiles, applyRevision, checkContact, checkName, checkRoles, holderOfName, partyProfile, PARTY_ROLES, sameName } from "./parties";
 
 type Checked<T> = { ok: true; value: T } | { ok: false; reason: string };
@@ -418,6 +419,40 @@ export const quotationsFind: ReadCapability<{ partyId?: number; status?: string 
   },
 };
 
+// ---- credit notes -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Crediting an invoice, line by line, for a stated reason (credits.ts has the rules and docs/decisions/credit-notes.md the decisions). The approval is shown the exact credit the engine worked out, and how much of it will be
+// applied to the invoice now. Tax is never chosen here: every credited line inherits its invoice line's rate.
+interface CreditNoteIssue { invoiceId: number; reason: string; issuedOn: string; lines: CreditLineInput[]; basedOn?: { invoiceVersion: number }; totals?: { netMinor: number; taxMinor: number; grossMinor: number } }
+export const creditNoteIssue: CapabilityContract<CreditNoteIssue> = {
+  id: "credit_note.issue", heldType: "engine.credit_note.issue", label: "Issuing a credit note", requires: [], permissions: ["credit_note.issue"], version: 1, recordsExecution: true,
+  validate(payload) {
+    if (!isObj(payload)) return { ok: false, reason: "the credit note must be an object" };
+    const s = stray(payload, ["invoiceId", "reason", "issuedOn", "lines", "basedOn", "totals"]);
+    if (s) return { ok: false, reason: `${s} is not a field of a credit note` };
+    if (!whole(payload.invoiceId)) return { ok: false, reason: "invoiceId must be a record number" };
+    const reason = checkReason(payload.reason); if (!reason.ok) return reason;
+    const issued = checkDate(payload.issuedOn, "issuedOn"); if (!issued.ok) return issued;
+    const lines = checkCreditLines(payload.lines); if (!lines.ok) return lines;
+    const out: CreditNoteIssue = { invoiceId: payload.invoiceId, reason: reason.value, issuedOn: issued.value, lines: lines.value };
+    if (payload.basedOn !== undefined) { if (!isObj(payload.basedOn) || stray(payload.basedOn, ["invoiceVersion"]) || !whole(payload.basedOn.invoiceVersion, 0)) return { ok: false, reason: "basedOn must name the version it was proposed against" }; out.basedOn = { invoiceVersion: payload.basedOn.invoiceVersion as number }; }
+    if (payload.totals !== undefined) { const t = payload.totals; if (!isObj(t) || !whole(t.netMinor, 0) || !whole(t.taxMinor, 0) || !whole(t.grossMinor, 0)) return { ok: false, reason: "totals must be the engine's worked-out totals" }; out.totals = { netMinor: t.netMinor, taxMinor: t.taxMinor, grossMinor: t.grossMinor }; }
+    return { ok: true, value: out };
+  },
+  async stamp(env, value) {
+    const plan = await planCreditNote(env, value);   // refuses a missing invoice, a non-invoice, an over-credit and the rest BEFORE anything is held
+    return { ...value, totals: plan.totals, basedOn: { invoiceVersion: await versionOf(env, { kind: "document", id: value.invoiceId }) } };
+  },
+  async check(env, value) {
+    if (value.basedOn && (await versionOf(env, { kind: "document", id: value.invoiceId })) !== value.basedOn.invoiceVersion) throw new EngineError("stale", "That invoice changed after this was proposed, so it needs to be proposed again.");
+    const plan = await planCreditNote(env, value);
+    if (value.totals && JSON.stringify(value.totals) !== JSON.stringify(plan.totals)) throw new EngineError("invalid_state", "The totals shown do not match the credit, so this needs to be proposed again.");
+  },
+  async execute(env, v, c) {
+    const r = await facts.issueCreditNote(env, { invoiceId: v.invoiceId, reason: v.reason, issuedOn: v.issuedOn, lines: v.lines }, ctxOf(c, "credit_note.issue"));
+    return { documentId: r.documentId, number: r.number, appliedMinor: r.appliedMinor, unappliedMinor: r.unappliedMinor, eventId: r.eventId };
+  },
+};
+
 export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind, quotationsFind];
 
 // Provenance (invariant 6): every engine contract records what was understood at the door (an interpretation naming the capture and the held action) and finds the capture again at the confirm.
@@ -426,5 +461,5 @@ const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => (
   recordUnderstood: async (env, info) => { await facts.recordInterpretation(env, { captureId: info.captureId, interpreter: info.interpreter, capability: c.id, actionId: info.actionId }); },
   captureOf: async (env, actionId) => (await env.OFFICE_DB.prepare("SELECT capture_id FROM eng_interpretation WHERE json_extract(payload_json, '$.actionId') = ? AND capability = ? ORDER BY id DESC LIMIT 1").bind(actionId, c.id).first<{ capture_id: number }>())?.capture_id ?? null,
 });
-export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept] as CapabilityContract<any>[]).map((c) => withProvenance(c));
+export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue] as CapabilityContract<any>[]).map((c) => withProvenance(c));
 export const CAPABILITY_IDS: readonly string[] = [...READS.map((r) => r.id), ...ENGINE_CONTRACTS.map((c) => c.id)];

@@ -21,4 +21,5 @@ import * as operations from "./operations";
 import * as capabilities from "./capabilities";
 import * as parties from "./parties";
 import * as quotations from "./quotations";
-export { boundary, permissions, drafts, records, operations, capabilities, parties, quotations };
+import * as credits from "./credits";
+export { boundary, permissions, drafts, records, operations, capabilities, parties, quotations, credits };

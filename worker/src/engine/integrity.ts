@@ -23,6 +23,7 @@
 // NOT checked at all: eng_interpretation, and the working-state tables (eng_config, eng_draft, eng_observation).
 import type { Env } from "../types";
 import { documentTotals as sumTotals } from "./money";
+import { documentTotals as docTotals } from "./ledger";
 
 export interface IntegrityProblem {
   code: "orphan" | "fact_changed" | "over_allocated" | "allocation_on_reversed" | "number_gap" | "event_without_fact" | "event_multiple_facts" | "fact_wrong_event" | "reversal_mismatch" | "event_payload_malformed";
@@ -44,6 +45,7 @@ export const EVENT_MODEL: Record<string, { creates: FactKind | null; note: strin
   "party.revised": { creates: null, note: "a change to a party's name, roles or contact details; it creates no fact row, because the current profile is DERIVED from the party and its revisions (parties.ts)" },
   "quotation.revised": { creates: null, note: "a new quotation document replaces an older one; the event says which, and creates no fact row of its own (the new document is created by the document.issued event beside it)" },
   "quotation.accepted": { creates: null, note: "a quotation is accepted; state is derived from the event, nothing is stored (quotations.ts)" },
+  "credit_note.issued": { creates: null, note: "an invoice is credited: ties the credit note document, its non-cash movement and the invoice together; the document, movement and allocation are created by their own events beside it" },
   "operation.executed": { creates: null, note: "the record that an approved proposal executed; it creates no fact" },
 };
 const FACT_TABLE: Record<FactKind, string> = { party: "eng_party", document: "eng_document", movement: "eng_money_movement", allocation: "eng_allocation", reversal: "eng_reversal" };
@@ -202,6 +204,23 @@ export async function verifyIntegrity(env: Env): Promise<{ ok: boolean; problems
     if (e.type === "quotation.revised" && typeof p.supersedes === "number") {
       if (replaced.has(p.supersedes)) problems.push({ code: "orphan", detail: `quotation ${p.supersedes} is replaced more than once (events ${replaced.get(p.supersedes)} and ${e.id}): a forked chain` });
       else replaced.set(p.supersedes, e.id);
+    }
+  }
+
+  // credit notes: the event must point at a credit_note document, an existing invoice and an existing movement, and what was applied plus what stays unapplied must equal the credit note's total and the movement
+  const creditDocs = new Set((await many<{ id: number }>(env, "SELECT id FROM eng_document WHERE kind = 'credit_note'")).map((d) => d.id));
+  const allDocs = new Set((await many<{ id: number }>(env, "SELECT id FROM eng_document")).map((d) => d.id));
+  const creditMovements = new Map((await many<{ id: number; amount_minor: number }>(env, "SELECT id, amount_minor FROM eng_money_movement")).map((m) => [m.id, m.amount_minor]));
+  for (const e of await many<{ id: number; payload_json: string }>(env, "SELECT id, payload_json FROM eng_event WHERE type = 'credit_note.issued' ORDER BY id")) {
+    let p: { documentId?: unknown; invoiceId?: unknown; movementId?: unknown; appliedMinor?: unknown; unappliedMinor?: unknown } = {};
+    try { p = JSON.parse(e.payload_json) ?? {}; } catch { /* a malformed payload is reported by the payload check */ }
+    let ok = true;
+    if (typeof p.documentId !== "number" || !creditDocs.has(p.documentId)) { problems.push({ code: "orphan", detail: `event ${e.id} (credit_note.issued) points at credit note ${String(p.documentId)}, which does not exist` }); ok = false; }
+    if (typeof p.invoiceId !== "number" || !allDocs.has(p.invoiceId)) { problems.push({ code: "orphan", detail: `event ${e.id} (credit_note.issued) credits invoice ${String(p.invoiceId)}, which does not exist` }); ok = false; }
+    if (typeof p.movementId !== "number" || !creditMovements.has(p.movementId)) { problems.push({ code: "orphan", detail: `event ${e.id} (credit_note.issued) points at movement ${String(p.movementId)}, which does not exist` }); ok = false; }
+    if (ok) {
+      const gross = (await docTotals(env, p.documentId as number)).grossMinor;
+      if (Number(p.appliedMinor) + Number(p.unappliedMinor) !== gross || creditMovements.get(p.movementId as number) !== gross) problems.push({ code: "orphan", detail: `credit note ${p.documentId}: the applied and unapplied amounts do not add up to its total ${gross} and its movement` });
     }
   }
 

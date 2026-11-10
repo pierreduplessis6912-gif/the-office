@@ -1020,6 +1020,7 @@ async function expect(role, method, path, want) {
   await require('./slice-mokoena.test.js')({ check, bundleTo, srcDir });
   await require('./capability-parties.test.js')({ check, bundleTo, srcDir });
   await require('./capability-quotations.test.js')({ check, bundleTo, srcDir });
+  await require('./capability-credit-notes.test.js')({ check, bundleTo, srcDir });
   await require('./engine-admin.test.js')({ check, bundleTo, srcDir });
   await require('./engine-interpret.test.js')({ check, bundleTo, srcDir });
   await require('./model-run-judge.test.js')({ check, bundleTo, srcDir });

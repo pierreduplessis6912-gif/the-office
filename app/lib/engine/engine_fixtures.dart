@@ -158,6 +158,12 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "label": "Outstanding",
           "value": 85000,
           "derivedBy": "ledger.outstandingForDocument"
+        },
+        {
+          "key": "creditedMinor",
+          "label": "Credited",
+          "value": 0,
+          "derivedBy": "credits.creditedGross"
         }
       ],
       "collections": {
@@ -350,6 +356,12 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "label": "Outstanding",
           "value": 35000,
           "derivedBy": "ledger.outstandingForDocument"
+        },
+        {
+          "key": "creditedMinor",
+          "label": "Credited",
+          "value": 0,
+          "derivedBy": "credits.creditedGross"
         }
       ],
       "collections": {

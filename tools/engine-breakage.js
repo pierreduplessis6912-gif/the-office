@@ -7,7 +7,7 @@ const { parseArgs, select } = require('./breakage-select.js');
 const sourceRoot = path.join(__dirname, '..');
 let root = sourceRoot;   // becomes the isolated copy before anything is edited or run
 const E = (f) => `worker/src/engine/${f}`, CONTRACT = 'worker/src/capability-contract.ts', MIG = 'worker/migrations/0004_engine_foundation.sql';
-const QUOTES = 'capability-quotations.test.js', PARTIES = 'capability-parties.test.js', OBIND = 'object-binding.test.js', RPROOF = 'restore-proof.test.js', MANI = 'backup-manifest.test.js', STID = 'staging-identity.test.js', OBJ = 'business-object.standalone.js', ISOL = 'engine-isolation.test.js', OWN = 'engine-ownership.test.js', INTEG = 'engine-integrity.test.js', ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
+const CREDITS = 'capability-credit-notes.test.js', QUOTES = 'capability-quotations.test.js', PARTIES = 'capability-parties.test.js', OBIND = 'object-binding.test.js', RPROOF = 'restore-proof.test.js', MANI = 'backup-manifest.test.js', STID = 'staging-identity.test.js', OBJ = 'business-object.standalone.js', ISOL = 'engine-isolation.test.js', OWN = 'engine-ownership.test.js', INTEG = 'engine-integrity.test.js', ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
 
 const MUTATIONS = [
   // money: exact integer arithmetic
@@ -166,6 +166,22 @@ const MUTATIONS = [
   { name: 'quotations: the verifier ignores a forked chain', suite: QUOTES, file: E('integrity.ts'), find: 'if (replaced.has(p.supersedes)) problems.push', replace: 'if (false) problems.push' },
   { name: 'quotations: an installer can open a quotation', suite: QUOTES, file: E('records.ts'), find: 'd.kind === "quotation" ? viewer.perms.has("quotation.read") : seesMoney', replace: 'true' },
   { name: 'quotations: the record treats a quotation as a debt (no derived status)', suite: QUOTES, file: E('records.ts'), find: 'const qs = d.kind === "quotation" ? await quotationSummary(env, d.id) : null;', replace: 'const qs = null as any;' },
+  // credit notes (capability-credit-notes.test.js): never credit more than was invoiced, tax is inherited, applied up to what is owed, nothing edited
+  { name: 'credit notes: allow crediting more than a line was worth', suite: CREDITS, file: E('credits.ts'), find: 'if ((before.get(l.invoiceLineNo) ?? 0) + net > lineNetMinor(o.quantity_milli, o.unit_price_minor)) throw', replace: 'if (false) throw' },
+  { name: 'credit notes: forget the credit notes already issued', suite: CREDITS, file: E('credits.ts'), find: 'before.set(l.invoiceLineNo, (before.get(l.invoiceLineNo) ?? 0) + lineNetMinor(l.quantityMilli, l.unitPriceMinor))', replace: 'before.set(l.invoiceLineNo, 0)' },
+  { name: 'credit notes: allow a credit at a higher price than invoiced', suite: CREDITS, file: E('credits.ts'), find: 'if (l.unitPriceMinor > o.unit_price_minor) throw', replace: 'if (false) throw' },
+  { name: 'credit notes: allow crediting something that is not an invoice', suite: CREDITS, file: E('credits.ts'), find: 'if (inv.direction !== "sell" || !cfg.receivableKinds.includes(inv.kind)) throw', replace: 'if (false) throw' },
+  { name: 'credit notes: allow a credit note with no reason', suite: CREDITS, file: E('credits.ts'), find: 'if (typeof v !== "string" || !v.trim()) return { ok: false, reason: "a credit note needs a reason" };', replace: 'if (false) return { ok: false, reason: "a credit note needs a reason" };' },
+  { name: 'credit notes: let the credit line choose its own tax rate', suite: CREDITS, file: E('credits.ts'), find: '["invoiceLineNo", "quantityMilli", "unitPriceMinor"]', replace: '["invoiceLineNo", "quantityMilli", "unitPriceMinor", "taxBp"]' },
+  { name: 'credit notes: apply more than is owed on the invoice', suite: CREDITS, file: E('credits.ts'), find: 'const appliedMinor = Math.min(totals.grossMinor, Math.max(0, owed));', replace: 'const appliedMinor = totals.grossMinor;' },
+  { name: 'credit notes: a credit note edits the invoice', suite: CREDITS, file: E('facts.ts'), find: 'const eventId = await appendEvent(tx, "credit_note.issued"', replace: 'await run(tx, "UPDATE eng_document SET reference = ? WHERE id = ?", "edited", invoiceId); const eventId = await appendEvent(tx, "credit_note.issued"' },
+  { name: 'credit notes: forget the unapplied credit', suite: CREDITS, file: E('credits.ts'), find: 'unappliedMinor: totals.grossMinor - appliedMinor', replace: 'unappliedMinor: 0' },
+  { name: 'credit notes: nobody may issue one (permission removed from the money roles)', suite: CREDITS, file: E('permissions.ts'), find: '"quotation.read", "quotation.manage", "credit_note.issue"],', replace: '"quotation.read", "quotation.manage"],' },
+  { name: 'credit notes: a salesperson may issue one', suite: CREDITS, file: E('permissions.ts'), find: 'can_make_quotes: ["quotation.read", "quotation.manage"],', replace: 'can_make_quotes: ["quotation.read", "quotation.manage", "credit_note.issue"],' },
+  { name: 'credit notes: ignore that the invoice was credited since the proposal', suite: CREDITS, file: E('capabilities.ts'), find: 'if (value.basedOn && (await versionOf(env, { kind: "document", id: value.invoiceId })) !== value.basedOn.invoiceVersion) throw', replace: 'if (false) throw' },
+  { name: 'credit notes: the verifier ignores a credit of a missing credit note', suite: CREDITS, file: E('integrity.ts'), find: 'if (typeof p.documentId !== "number" || !creditDocs.has(p.documentId)) {', replace: 'if (false) {' },
+  { name: 'credit notes: the verifier ignores amounts that do not add up', suite: CREDITS, file: E('integrity.ts'), find: 'if (Number(p.appliedMinor) + Number(p.unappliedMinor) !== gross ||', replace: 'if (false &&' },
+  { name: 'credit notes: the record treats a credit note as a debt', suite: CREDITS, file: E('records.ts'), find: 'const cl = d.kind === "credit_note" ? await creditOf(env, d.id) : null;', replace: 'const cl: any = null;' },
 ];
 
 let opts;
