@@ -9,6 +9,7 @@ import { EngineError } from "./errors";
 import { documentTotals as sumTotals, positiveMinor, wholeNumber, type Totals } from "./money";
 import { readConfig } from "./config";
 import { isEffective, outstandingForDocument, unallocatedForMovement } from "./ledger";
+import { applyRevision, checkContact, checkName, checkRoles, partyProfile } from "./parties";
 
 export interface Ctx {
   actorEmail?: string | null;
@@ -64,15 +65,35 @@ async function requireParty(env: Env, partyId: number): Promise<void> {
 }
 
 // ---- parties -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-export async function recordParty(env: Env, input: { kind: string; name: string; roles?: string[] }, ctx: Ctx): Promise<{ id: number; eventId: number }> {
+export async function recordParty(env: Env, input: { kind: string; name: string; roles?: string[]; contact?: Record<string, string> }, ctx: Ctx): Promise<{ id: number; eventId: number }> {
   const kind = oneOf(input.kind, ["person", "organisation"] as const, "kind");
   const name = text(input.name, "name");
   const roles = (input.roles ?? []).map((r) => text(r, "role"));
+  let contact: Record<string, string | null> | undefined;
+  if (input.contact !== undefined) { const c = checkContact(input.contact, false); if (!c.ok) throw new EngineError("invalid_input", c.reason); contact = c.value; }
   return inTransaction(env, async (tx) => {
-    const eventId = await appendEvent(tx, "party.created", ctx, { kind, name, roles });
+    const eventId = await appendEvent(tx, "party.created", ctx, { kind, name, roles, ...(contact && Object.keys(contact).length ? { contact } : {}) });
     const row = await one<{ id: number }>(tx, "INSERT INTO eng_party (kind, name, event_id) VALUES (?, ?, ?) RETURNING id", kind, name, eventId);
     for (const role of roles) await run(tx, "INSERT INTO eng_party_role (party_id, role, event_id) VALUES (?, ?, ?)", row!.id, role, eventId);
     return { id: Number(row!.id), eventId };
+  });
+}
+
+// An EDIT to a party is a NEW FACT, never an update: the party's rows stay as they were created, and a party.revised event carries only what changed. What the party is now is derived from both (parties.ts).
+export async function reviseParty(env: Env, input: { partyId: number; name?: string; addRoles?: string[]; removeRoles?: string[]; contact?: Record<string, string | null> }, ctx: Ctx): Promise<{ eventId: number }> {
+  const partyId = id(input.partyId, "party");
+  const change: { name?: string; addRoles?: string[]; removeRoles?: string[]; contact?: Record<string, string | null> } = {};
+  if (input.name !== undefined) { const n = checkName(input.name); if (!n.ok) throw new EngineError("invalid_input", n.reason); change.name = n.value; }
+  if (input.addRoles !== undefined) { const r = checkRoles(input.addRoles, "addRoles", 1); if (!r.ok) throw new EngineError("invalid_input", r.reason); change.addRoles = r.value; }
+  if (input.removeRoles !== undefined) { const r = checkRoles(input.removeRoles, "removeRoles", 1); if (!r.ok) throw new EngineError("invalid_input", r.reason); change.removeRoles = r.value; }
+  if (input.contact !== undefined) { const c = checkContact(input.contact, true); if (!c.ok) throw new EngineError("invalid_input", c.reason); change.contact = c.value; }
+  return inTransaction(env, async (tx) => {
+    await requireParty(tx, partyId);
+    const now = await partyProfile(tx, partyId);
+    const plan = applyRevision(now!, change);
+    if (!plan.ok) throw new EngineError(plan.code, plan.reason);
+    const eventId = await appendEvent(tx, "party.revised", ctx, { partyId, ...change });
+    return { eventId };
   });
 }
 

@@ -7,7 +7,7 @@ const { parseArgs, select } = require('./breakage-select.js');
 const sourceRoot = path.join(__dirname, '..');
 let root = sourceRoot;   // becomes the isolated copy before anything is edited or run
 const E = (f) => `worker/src/engine/${f}`, CONTRACT = 'worker/src/capability-contract.ts', MIG = 'worker/migrations/0004_engine_foundation.sql';
-const OBIND = 'object-binding.test.js', RPROOF = 'restore-proof.test.js', MANI = 'backup-manifest.test.js', STID = 'staging-identity.test.js', OBJ = 'business-object.standalone.js', ISOL = 'engine-isolation.test.js', OWN = 'engine-ownership.test.js', INTEG = 'engine-integrity.test.js', ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
+const PARTIES = 'capability-parties.test.js', OBIND = 'object-binding.test.js', RPROOF = 'restore-proof.test.js', MANI = 'backup-manifest.test.js', STID = 'staging-identity.test.js', OBJ = 'business-object.standalone.js', ISOL = 'engine-isolation.test.js', OWN = 'engine-ownership.test.js', INTEG = 'engine-integrity.test.js', ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
 
 const MUTATIONS = [
   // money: exact integer arithmetic
@@ -140,6 +140,17 @@ const MUTATIONS = [
   { name: 'restore: the column restriction ignores every value (the check goes blind)', suite: ADDCOL, file: 'worker/src/migration.ts', find: 'canonical(keep ? Object.fromEntries(keep.map((k) => [k, row[k]])) : row)', replace: 'canonical(keep ? {} : row)' },
   // the database itself
   { name: 'migration: a reversal may point at two things', suite: SCHEMA, file: MIG, find: '+ (document_id IS NOT NULL) = 1)', replace: '+ (document_id IS NOT NULL) >= 0)' },
+  // customers and suppliers (capability-parties.test.js): an edit is a new fact, a name is unique, an approval is only for what it showed
+  { name: 'parties: allow a second party with a taken name', suite: PARTIES, file: E('capabilities.ts'), find: 'if (h) throw new EngineError("duplicate"', replace: 'if (false) throw new EngineError("duplicate"' },
+  { name: 'parties: ignore that the party changed since the edit was proposed', suite: PARTIES, file: E('capabilities.ts'), find: 'if (value.basedOn && (await versionOf(env, { kind: "party", id: value.partyId })) !== value.basedOn.partyVersion) throw new EngineError("stale", "That record', replace: 'if (false) throw new EngineError("stale", "That record' },
+  { name: 'parties: let an edit remove the last role', suite: PARTIES, file: E('parties.ts'), find: 'if (roles.size === 0) return', replace: 'if (false) return' },
+  { name: 'parties: let an edit add a role the party already has', suite: PARTIES, file: E('parties.ts'), find: 'if (roles.has(x)) return { ok: false', replace: 'if (false) return { ok: false' },
+  { name: 'parties: accept an email that is not one', suite: PARTIES, file: E('parties.ts'), find: '/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(s)', replace: 'true' },
+  { name: 'parties: an edit updates the party row instead of recording a revision', suite: PARTIES, file: E('facts.ts'), find: 'const eventId = await appendEvent(tx, "party.revised", ctx, { partyId, ...change });', replace: 'const eventId = await appendEvent(tx, "party.revised", ctx, { partyId, ...change }); if (change.name) await run(tx, "UPDATE eng_party SET name = ? WHERE id = ?", change.name, partyId);' },
+  { name: 'parties: finding ignores the current name (uses the original)', suite: PARTIES, file: E('parties.ts'), find: 'return parties.map((p) => fold({ id: p.id, kind: p.kind, name: p.name, roles: roles.filter((r) => r.party_id === p.id).map((r) => r.role), contact: {}, revisionEventIds: [] }, created.get(p.event_id) ?? {}, byParty.get(p.id) ?? []));', replace: 'return parties.map((p) => fold({ id: p.id, kind: p.kind, name: p.name, roles: roles.filter((r) => r.party_id === p.id).map((r) => r.role), contact: {}, revisionEventIds: [] }, created.get(p.event_id) ?? {}, []));' },
+  { name: 'parties: the verifier does not report a revision of a missing party', suite: PARTIES, file: E('integrity.ts'), find: 'if (typeof pid !== "number" || !known.has(pid)) problems.push', replace: 'if (false) problems.push' },
+  { name: 'parties: the record does not offer the edit only to those who may', suite: PARTIES, file: E('records.ts'), find: 'may(viewer, "party.edit", "party.manage")', replace: 'true' },
+  { name: 'parties: grant managing parties to every legacy capability holder (installer)', suite: PARTIES, file: E('permissions.ts'), find: 'can_know_debtors: ["receivables.read", "records.read", "party.read"],', replace: 'can_know_debtors: ["receivables.read", "records.read", "party.read", "party.manage"], can_capture_voice_notes: ["party.read", "party.manage"],' },
 ];
 
 let opts;

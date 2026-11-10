@@ -531,6 +531,21 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "value": "customer"
         },
         {
+          "key": "email",
+          "label": "Email",
+          "value": null
+        },
+        {
+          "key": "phone",
+          "label": "Phone",
+          "value": null
+        },
+        {
+          "key": "address",
+          "label": "Address",
+          "value": null
+        },
+        {
           "key": "outstandingMinor",
           "label": "Outstanding",
           "value": 85000,
@@ -579,6 +594,12 @@ const Map<String, String> engineFixtureJson = <String, String>{
         }
       ],
       "actions": [
+        {
+          "capability": "party.edit",
+          "label": "Change this customer",
+          "valid": true,
+          "reason": null
+        },
         {
           "capability": "payment.record",
           "label": "Record a payment",

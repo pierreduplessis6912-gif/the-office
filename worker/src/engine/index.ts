@@ -19,4 +19,5 @@ import * as drafts from "./drafts";
 import * as records from "./records";
 import * as operations from "./operations";
 import * as capabilities from "./capabilities";
-export { boundary, permissions, drafts, records, operations, capabilities };
+import * as parties from "./parties";
+export { boundary, permissions, drafts, records, operations, capabilities, parties };

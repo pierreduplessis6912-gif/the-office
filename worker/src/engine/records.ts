@@ -7,6 +7,7 @@ import { allocatedToDocument, documentTotals, isEffective, outstandingForDocumen
 import { readConfig } from "./config";
 import { readDraft } from "./drafts";
 import type { EnginePermission } from "./permissions";
+import { partyProfile } from "./parties";
 
 export type RecordKind = "party" | "document" | "movement" | "draft";
 export interface RecordRef { kind: RecordKind; id: number }
@@ -42,6 +43,7 @@ const VERSION_QUERIES: Record<"party" | "document" | "movement", readonly string
     "SELECT MAX(r.event_id) AS v FROM eng_reversal r JOIN eng_allocation a ON a.id = r.allocation_id JOIN eng_document d ON d.id = a.document_id WHERE d.party_id = ?",
     "SELECT MAX(r.event_id) AS v FROM eng_reversal r JOIN eng_allocation a ON a.id = r.allocation_id JOIN eng_money_movement m ON m.id = a.movement_id WHERE m.party_id = ?",
     "SELECT event_id AS v FROM eng_party WHERE id = ?",
+    "SELECT MAX(id) AS v FROM eng_event WHERE type = 'party.revised' AND json_extract(payload_json, '$.partyId') = ?",
   ],
   document: [
     "SELECT event_id AS v FROM eng_document WHERE id = ?",
@@ -112,7 +114,7 @@ export async function recordView(env: Env, viewer: ViewerContext, ref: RecordRef
     const allocated = await allocatedToDocument(env, d.id);
     const effective = await isEffective(env, "document", d.id);
     const outstanding = await outstandingForDocument(env, d.id);
-    const party = await one<{ name: string }>(env, "SELECT name FROM eng_party WHERE id = ?", d.party_id);
+    const party = await partyProfile(env, d.party_id);
     const lines = await many<{ line_no: number; description: string; quantity_milli: number; unit: string | null; unit_price_minor: number; tax_bp: number }>(env, "SELECT line_no, description, quantity_milli, unit, unit_price_minor, tax_bp FROM eng_document_line WHERE document_id = ? ORDER BY line_no", d.id);
     const allocs = await many<{ id: number; movement_id: number; amount_minor: number; event_id: number }>(env, "SELECT id, movement_id, amount_minor, event_id FROM eng_allocation WHERE document_id = ? ORDER BY id", d.id);
     const effAllocs: Array<{ id: number; movement_id: number; amount_minor: number; event_id: number; effective: boolean }> = [];
@@ -139,20 +141,20 @@ export async function recordView(env: Env, viewer: ViewerContext, ref: RecordRef
   }
 
   if (ref.kind === "party") {
-    const p = await one<{ id: number; kind: string; name: string; event_id: number }>(env, "SELECT id, kind, name, event_id FROM eng_party WHERE id = ?", ref.id);
+    const p = await partyProfile(env, ref.id);
     if (!p) return null;
-    const roles = (await many<{ role: string }>(env, "SELECT role FROM eng_party_role WHERE party_id = ? ORDER BY role", p.id)).map((r) => r.role);
+    const roles = p.roles;
     const acct = await outstandingForParty(env, p.id);
     const moves = await many<{ id: number; direction: string; amount_minor: number; occurred_on: string; event_id: number }>(env, "SELECT id, direction, amount_minor, occurred_on, event_id FROM eng_money_movement WHERE party_id = ? ORDER BY id", p.id);
     const payments: Array<Record<string, unknown>> = [];
     for (const m of moves) payments.push({ id: m.id, direction: m.direction, amountMinor: m.amount_minor, occurredOn: m.occurred_on, unallocatedMinor: await unallocatedForMovement(env, m.id), effective: await isEffective(env, "movement", m.id) });
     return {
       ref, version: await versionOf(env, ref), title: p.name,
-      fields: [{ key: "name", label: "Name", value: p.name }, { key: "kind", label: "Kind", value: p.kind }, { key: "roles", label: "Roles", value: roles.join(", ") }, { key: "outstandingMinor", label: "Outstanding", value: acct.totalMinor, derivedBy: "ledger.outstandingForParty" }],
+      fields: [{ key: "name", label: "Name", value: p.name }, { key: "kind", label: "Kind", value: p.kind }, { key: "roles", label: "Roles", value: roles.join(", ") }, { key: "email", label: "Email", value: p.contact.email ?? null }, { key: "phone", label: "Phone", value: p.contact.phone ?? null }, { key: "address", label: "Address", value: p.contact.address ?? null }, { key: "outstandingMinor", label: "Outstanding", value: acct.totalMinor, derivedBy: "ledger.outstandingForParty" }],
       collections: { documents: acct.documents.map((d) => ({ ...d })), payments },
       relations: [...acct.documents.map((d) => ({ role: "invoice", ref: { kind: "document" as const, id: d.id }, label: `${d.kind} ${d.number ?? ""}`.trim() })), ...moves.map((m) => ({ role: "payment", ref: { kind: "movement" as const, id: m.id }, label: `Payment ${m.id}` }))],
-      actions: may(viewer, "payment.record", "payment.record") ? [{ capability: "payment.record", label: "Record a payment", valid: true, reason: null }] : [],
-      history: await history(env, [p.event_id, ...moves.map((m) => m.event_id)]), exports: EXPORTS,
+      actions: [...(may(viewer, "party.edit", "party.manage") ? [{ capability: "party.edit", label: "Change this " + (roles.includes("supplier") && !roles.includes("customer") ? "supplier" : "customer"), valid: true, reason: null }] : []), ...(may(viewer, "payment.record", "payment.record") ? [{ capability: "payment.record", label: "Record a payment", valid: true, reason: null }] : [])],
+      history: await history(env, [(await one<{ event_id: number }>(env, "SELECT event_id FROM eng_party WHERE id = ?", p.id))!.event_id, ...p.revisionEventIds, ...moves.map((m) => m.event_id)]), exports: EXPORTS,
     };
   }
 

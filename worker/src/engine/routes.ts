@@ -34,6 +34,10 @@ async function route(request: Request, env: Env, url: URL, member: Member): Prom
     const party = url.searchParams.get("party") ?? "";
     return answer(await invokeRead(env, member, "receivables.query", /^\d+$/.test(party) ? { partyId: Number(party) } : party ? { partyName: party } : {}));
   }
+  if (request.method === "GET" && path === "/engine/parties") {
+    const name = url.searchParams.get("name"), role = url.searchParams.get("role");
+    return answer(await invokeRead(env, member, "parties.find", { ...(name !== null ? { name } : {}), ...(role !== null ? { role } : {}) }));
+  }
   const rec = path.match(/^\/engine\/records\/([a-z]+)\/(\d+)$/);
   if (request.method === "GET" && rec) return answer(await invokeRead(env, member, "records.get", { kind: rec[1], id: Number(rec[2]) }));
   if (request.method === "POST" && path === "/engine/proposals") {

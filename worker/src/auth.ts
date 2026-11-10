@@ -498,6 +498,8 @@ export const ACTION_TYPE_CAPABILITY: Record<string, string[]> = {
   "engine.payment.record": ["can_manage_invoices"],
   "engine.payment.correct": ["can_manage_invoices"],
   "engine.invoice.issue": ["can_manage_invoices"],
+  "engine.party.create": ["can_manage_invoices"],
+  "engine.party.edit": ["can_manage_invoices"],
   invoice: ["can_manage_invoices"],
   quotation: ["can_make_quotes"],
   convert_quote: ["can_manage_invoices"],
@@ -775,6 +777,8 @@ const MEMBER_OPEN_ROUTES: Array<{ method: string; path: RegExp }> = [
 export const ROUTE_RULES: Array<{ method: string; path: RegExp; anyOf: string[] }> = [
   // What a customer owes, from the engine's ledger (worker/src/engine): the same knowledge the debtors report needs.
   { method: "GET", path: /^\/engine\/receivables$/, anyOf: ["can_know_debtors"] },
+  // Finding customers and suppliers (the engine's parties.find): the same people who may read receivables; the contract checks its own engine permission (party.read) again.
+  { method: "GET", path: /^\/engine\/parties$/, anyOf: ["can_know_debtors"] },
   // Money — accountant and owner.
   { method: "GET", path: /^\/customers\/\d+\/profitability$/, anyOf: ["can_know_profit"] },
   { method: "PATCH", path: /^\/(invoices|customers)\/\d+$/, anyOf: ["can_manage_invoices"] },

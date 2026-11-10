@@ -41,6 +41,7 @@ export const EVENT_MODEL: Record<string, { creates: FactKind | null; note: strin
   "payment.reversed": { creates: "reversal", note: "one eng_reversal whose target is a payment" },
   "payment.allocation_reversed": { creates: "reversal", note: "one eng_reversal whose target is an allocation" },
   "document.reversed": { creates: "reversal", note: "one eng_reversal whose target is a document" },
+  "party.revised": { creates: null, note: "a change to a party's name, roles or contact details; it creates no fact row, because the current profile is DERIVED from the party and its revisions (parties.ts)" },
   "operation.executed": { creates: null, note: "the record that an approved proposal executed; it creates no fact" },
 };
 const FACT_TABLE: Record<FactKind, string> = { party: "eng_party", document: "eng_document", movement: "eng_money_movement", allocation: "eng_allocation", reversal: "eng_reversal" };
@@ -179,6 +180,14 @@ export async function verifyIntegrity(env: Env): Promise<{ ok: boolean; problems
   }
   const unnumbered = await many<{ id: number }>(env, "SELECT d.id FROM eng_document d WHERE NOT EXISTS (SELECT 1 FROM eng_document_number n WHERE n.document_id = d.id)");
   for (const u of unnumbered) problems.push({ code: "number_gap", detail: `document ${u.id} has no number` });
+
+  // revisions: a party.revised event creates no fact, but it must point at a party that exists
+  const known = new Set((await many<{ id: number }>(env, "SELECT id FROM eng_party")).map((p) => p.id));
+  for (const e of await many<{ id: number; payload_json: string }>(env, "SELECT id, payload_json FROM eng_event WHERE type = 'party.revised'")) {
+    let pid: unknown = null;
+    try { pid = JSON.parse(e.payload_json)?.partyId; } catch { /* a malformed payload is reported by the payload check */ }
+    if (typeof pid !== "number" || !known.has(pid)) problems.push({ code: "orphan", detail: `event ${e.id} revises party ${String(pid)}, which does not exist` });
+  }
 
   return { ok: problems.length === 0, problems, warnings };
 }

@@ -1,4 +1,4 @@
-> **Status:** partly built. **Verified:** 2026-11-09 (statuses read from the repository and the committed CI and staging records that day; the "real platform" column is only what a staging record shows). **Owns:** none.
+> **Status:** partly built. **Verified:** 2026-11-09 (row 1 updated after the customers and suppliers build; statuses read from the repository and the committed CI and staging records that day; the "real platform" column is only what a staging record shows). **Owns:** none.
 
 # CAPABILITY MAP: the vision, one capability at a time, and how far each has got
 
@@ -30,7 +30,7 @@ Legend for the columns: **E** engine, **C** CI-tested, **R** real platform, **V*
 | Provenance trail (capture, interpretation, proposal, approval) | Governance | ✓ | ✓ | - | ✓ | ✓ | p | - | Not yet seen on a real approval |
 | Backup and restore of engine tables | Platform | ✓ | ✓ | ✓ | - | - | - | - | A single table above about 18 MB cannot be snapshotted |
 | A model as one more interpreter | Automation/AI | ✓ | ✓ | ✓ | n/a | - | - | - | One staging run, 9 of 10 |
-| Create and edit customers and suppliers | CRM | - | - | - | - | - | - | - | Parties exist as facts; no capability |
+| Create and edit customers and suppliers (and find them) | CRM | ✓ | ✓ | - | - | ✓ | - | - | party.create, party.edit (held) and parties.find, CI-tested with ten deliberate breakages; no schema change (an edit is a new fact). Not run on a real object, not shown to the model, not called by the app. docs/decisions/customers-suppliers.md |
 | Quotations (create, revise, accept) | Sales | - | - | - | - | - | - | - | Walked on paper [fit test] |
 | Credit notes | Sales | - | - | - | - | - | - | - | Walked [fit-domains] |
 | Expenses | Finance | - | - | - | - | - | - | - | |

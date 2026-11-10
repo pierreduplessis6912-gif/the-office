@@ -10,6 +10,7 @@ import { isEffective, outstandingForDocument, outstandingForParty } from "./ledg
 import { issueDraft, readDraft } from "./drafts";
 import { RECORD_KINDS, recordView, versionOf, type RecordKind, type ViewerContext } from "./records";
 import type { EnginePermission } from "./permissions";
+import { allProfiles, applyRevision, checkContact, checkName, checkRoles, holderOfName, partyProfile, PARTY_ROLES, sameName } from "./parties";
 
 type Checked<T> = { ok: true; value: T } | { ok: false; reason: string };
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -47,9 +48,9 @@ export const receivablesQuery: ReadCapability<{ partyId?: number; partyName?: st
   },
   async run(env, _viewer, value) {
     let party: { id: number; name: string } | null;
-    if (value.partyId !== undefined) party = await one<{ id: number; name: string }>(env, "SELECT id, name FROM eng_party WHERE id = ?", value.partyId);
+    if (value.partyId !== undefined) { const p = await partyProfile(env, value.partyId); party = p ? { id: p.id, name: p.name } : null; }
     else {
-      const rows = await many<{ id: number; name: string }>(env, "SELECT id, name FROM eng_party WHERE lower(name) = lower(?) ORDER BY id", value.partyName);
+      const rows = (await allProfiles(env)).filter((p) => sameName(p.name, value.partyName!)).map((p) => ({ id: p.id, name: p.name }));
       if (rows.length > 1) throw new Ambiguous(rows);
       party = rows[0] ?? null;
     }
@@ -82,7 +83,30 @@ export const recordsGet: ReadCapability<{ kind: RecordKind; id: number }> = {
     return view;
   },
 };
-export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet];
+// Finding customers and suppliers: by part of the current name, by role, or both; with neither it lists them all (up to 50, and says when there are more).
+export const partiesFind: ReadCapability<{ name?: string; role?: string }> = {
+  id: "parties.find",
+  label: "Finding customers and suppliers",
+  permissions: ["party.read"],
+  validate(params) {
+    if (!isObj(params)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(params, ["name", "role"]);
+    if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    const out: { name?: string; role?: string } = {};
+    if (params.name !== undefined) { if (typeof params.name !== "string" || !params.name.trim()) return { ok: false, reason: "name must be text" }; out.name = params.name.trim(); }
+    if (params.role !== undefined) { if (typeof params.role !== "string" || !(PARTY_ROLES as readonly string[]).includes(params.role)) return { ok: false, reason: `role must be ${PARTY_ROLES.join(" or ")}` }; out.role = params.role; }
+    return { ok: true, value: out };
+  },
+  async run(env, _viewer, value) {
+    const needle = value.name ? value.name.toLowerCase() : null;
+    const hits = (await allProfiles(env)).filter((p) => (!needle || p.name.toLowerCase().includes(needle)) && (!value.role || p.roles.includes(value.role)));
+    return {
+      parties: hits.slice(0, 50).map((p) => ({ ref: { kind: "party", id: p.id }, id: p.id, name: p.name, kind: p.kind, roles: p.roles, contact: p.contact })),
+      count: hits.length, truncated: hits.length > 50, derivedBy: "parties.allProfiles",
+    };
+  },
+};
+export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind];
 
 // ---- writes ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 const ctxOf = (c: { actionId: number; actorEmail: string | null; captureId?: number | null }, id: string) => ({ actorEmail: c.actorEmail, approvedBy: c.actorEmail, captureId: c.captureId ?? null, proposalId: c.actionId, contract: id, contractVersion: 1 });
@@ -211,11 +235,73 @@ export const invoiceIssue: CapabilityContract<InvoiceIssue> = {
   },
 };
 
+// ---- customers and suppliers -------------------------------------------------------------------------------------------------------------------------------------------------------------------
+const nameTaken = async (env: Env, name: string, exceptId?: number) => {
+  const h = await holderOfName(env, name, exceptId);
+  if (h) throw new EngineError("duplicate", `There is already a customer or supplier called ${h.name}. Add the role to that record instead of making a second one.`);
+};
+
+interface PartyCreate { kind: "person" | "organisation"; name: string; roles: string[]; contact?: Record<string, string> }
+export const partyCreate: CapabilityContract<PartyCreate> = {
+  id: "party.create", heldType: "engine.party.create", label: "Adding a customer or supplier", requires: [], permissions: ["party.manage"], version: 1, recordsExecution: true,
+  validate(payload) {
+    if (!isObj(payload)) return { ok: false, reason: "the party must be an object" };
+    const s = stray(payload, ["kind", "name", "roles", "contact"]);
+    if (s) return { ok: false, reason: `${s} is not a field of a party` };
+    if (payload.kind !== "person" && payload.kind !== "organisation") return { ok: false, reason: "kind must be person or organisation" };
+    const name = checkName(payload.name); if (!name.ok) return name;
+    const roles = checkRoles(payload.roles, "roles", 1); if (!roles.ok) return roles;
+    let contact: Record<string, string> | undefined;
+    if (payload.contact !== undefined) { const c = checkContact(payload.contact, false); if (!c.ok) return c; contact = c.value as Record<string, string>; }
+    return { ok: true, value: { kind: payload.kind, name: name.value, roles: roles.value, ...(contact && Object.keys(contact).length ? { contact } : {}) } };
+  },
+  async check(env, value) { await nameTaken(env, value.name); },
+  async execute(env, v, c) {
+    const r = await facts.recordParty(env, { kind: v.kind, name: v.name, roles: v.roles, ...(v.contact ? { contact: v.contact } : {}) }, ctxOf(c, "party.create"));
+    return { partyId: r.id, eventId: r.eventId };
+  },
+};
+
+interface PartyEdit { partyId: number; name?: string; addRoles?: string[]; removeRoles?: string[]; contact?: Record<string, string | null>; basedOn?: { partyVersion: number } }
+export const partyEdit: CapabilityContract<PartyEdit> = {
+  id: "party.edit", heldType: "engine.party.edit", label: "Changing a customer or supplier", requires: [], permissions: ["party.manage"], version: 1, recordsExecution: true,
+  validate(payload) {
+    if (!isObj(payload)) return { ok: false, reason: "the change must be an object" };
+    const s = stray(payload, ["partyId", "name", "addRoles", "removeRoles", "contact", "basedOn"]);
+    if (s) return { ok: false, reason: `${s} is not a field of a change` };
+    if (!whole(payload.partyId)) return { ok: false, reason: "partyId must be a record number" };
+    const out: PartyEdit = { partyId: payload.partyId };
+    if (payload.name !== undefined) { const n = checkName(payload.name); if (!n.ok) return n; out.name = n.value; }
+    if (payload.addRoles !== undefined) { const r = checkRoles(payload.addRoles, "addRoles", 1); if (!r.ok) return r; out.addRoles = r.value; }
+    if (payload.removeRoles !== undefined) { const r = checkRoles(payload.removeRoles, "removeRoles", 1); if (!r.ok) return r; out.removeRoles = r.value; }
+    if (payload.contact !== undefined) { const c = checkContact(payload.contact, true); if (!c.ok) return c; out.contact = c.value; }
+    if (out.name === undefined && out.addRoles === undefined && out.removeRoles === undefined && (out.contact === undefined || Object.keys(out.contact).length === 0)) return { ok: false, reason: "say what to change: a name, a role or a contact detail" };
+    if (payload.basedOn !== undefined) { if (!isObj(payload.basedOn) || stray(payload.basedOn, ["partyVersion"]) || !whole(payload.basedOn.partyVersion, 0)) return { ok: false, reason: "basedOn must name the version it was proposed against" }; out.basedOn = { partyVersion: payload.basedOn.partyVersion as number }; }
+    return { ok: true, value: out };
+  },
+  async stamp(env, value) {
+    if (!(await partyProfile(env, value.partyId))) throw new EngineError("not_found", "There is no such customer or supplier.");
+    return { ...value, basedOn: { partyVersion: await versionOf(env, { kind: "party", id: value.partyId }) } };
+  },
+  async check(env, value) {
+    const now = await partyProfile(env, value.partyId);
+    if (!now) throw new EngineError("not_found", "There is no such customer or supplier.");
+    if (value.basedOn && (await versionOf(env, { kind: "party", id: value.partyId })) !== value.basedOn.partyVersion) throw new EngineError("stale", "That record changed after this was proposed, so it needs to be proposed again.");
+    const plan = applyRevision(now, { name: value.name, addRoles: value.addRoles, removeRoles: value.removeRoles, contact: value.contact });
+    if (!plan.ok) throw new EngineError(plan.code, plan.reason);
+    if (value.name !== undefined) await nameTaken(env, value.name, value.partyId);
+  },
+  async execute(env, v, c) {
+    const r = await facts.reviseParty(env, { partyId: v.partyId, name: v.name, addRoles: v.addRoles, removeRoles: v.removeRoles, contact: v.contact }, ctxOf(c, "party.edit"));
+    return { partyId: v.partyId, eventId: r.eventId };
+  },
+};
+
 // Provenance (invariant 6): every engine contract records what was understood at the door (an interpretation naming the capture and the held action) and finds the capture again at the confirm.
 const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => ({
   ...c,
   recordUnderstood: async (env, info) => { await facts.recordInterpretation(env, { captureId: info.captureId, interpreter: info.interpreter, capability: c.id, actionId: info.actionId }); },
   captureOf: async (env, actionId) => (await env.OFFICE_DB.prepare("SELECT capture_id FROM eng_interpretation WHERE json_extract(payload_json, '$.actionId') = ? AND capability = ? ORDER BY id DESC LIMIT 1").bind(actionId, c.id).first<{ capture_id: number }>())?.capture_id ?? null,
 });
-export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue] as CapabilityContract<any>[]).map((c) => withProvenance(c));
+export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit] as CapabilityContract<any>[]).map((c) => withProvenance(c));
 export const CAPABILITY_IDS: readonly string[] = [...READS.map((r) => r.id), ...ENGINE_CONTRACTS.map((c) => c.id)];

@@ -6,6 +6,8 @@
 
 **Where we are (2026-11-09):** the engine's foundation is built and proven (tests, plus real tests on staging). One small scenario works end to end in the engine, "What does Mokoena owe me?" then "Record R500", with a demo you can open. **It is not connected to the app, not merged, not live.** Nothing a customer uses has changed yet.
 
+**Built since (2026-11-09):** customers and suppliers (create, edit, find) are in the engine and CI-tested, with no schema change; `docs/decisions/customers-suppliers.md` has the defaults. It waits on Pierre's word for a staging proof, then the model and the app.
+
 **The one thing that matters next (Pierre's priority, 2026-11-09): the VISION, with ALL capabilities tested and wired into the final product eventually.** `docs/CAPABILITY_MAP.md` is the board: every capability, how far it has got (engine, CI, real platform, conversation, explained, app, outside assistants), and what "done" means. Work goes down that list one capability at a time, each to the same standard. The pilot and the look of the app are NOT the priority.
 
 **Only ONE decision is needed from Pierre to keep moving, and it has a default:** the order of capabilities in the map (default: customers and suppliers, quotations, invoices in full, payments and expenses, purchasing, stock, jobs, reports, then the reach channels). Connecting the engine to the real app is approved separately when the first widened capability is ready.
