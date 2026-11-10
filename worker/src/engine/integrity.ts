@@ -54,6 +54,8 @@ export const EVENT_MODEL: Record<string, { creates: FactKind | null; note: strin
   "debit_note.issued": { creates: null, note: "an invoice is debited: ties the debit note document to the invoice; the document is created by its own event beside it" },
   "overpayment.allocated": { creates: null, note: "part of an unapplied payment (an overpayment) is allocated to another invoice; the allocation is created by its own event beside it" },
   "overpayment.refunded": { creates: null, note: "part of an unapplied payment is paid back to the customer; the money-out movement is created by its own event beside it" },
+  "expense.recorded": { creates: null, note: "a paid expense: ties the expense document to the money-out movement that paid it; the document and the movement are created by their own events beside it" },
+  "expense.voided": { creates: null, note: "an expense is voided; the reversals are created by their own events beside it" },
   "operation.executed": { creates: null, note: "the record that an approved proposal executed; it creates no fact" },
 };
 const FACT_TABLE: Record<FactKind, string> = { party: "eng_party", document: "eng_document", movement: "eng_money_movement", allocation: "eng_allocation", reversal: "eng_reversal" };
@@ -287,6 +289,19 @@ export async function verifyIntegrity(env: Env): Promise<{ ok: boolean; problems
     }
   }
   for (const [mvId, amount] of payAlloc) { const total = creditMovements.get(mvId) ?? 0; if (amount > total) problems.push({ code: "orphan", detail: `payment ${mvId}: allocations and refunds together (${amount}) spend more than the payment's ${total}` }); }
+
+  // expenses: an expense must point at an expense document, an existing supplier and a money-out movement that is exactly what was paid; a void must point at an expense that really was reversed
+  const expenseDocs = new Set((await many<{ id: number }>(env, "SELECT id FROM eng_document WHERE kind = 'expense'")).map((d) => d.id));
+  for (const e of await many<{ id: number; type: string; payload_json: string }>(env, "SELECT id, type, payload_json FROM eng_event WHERE type IN ('expense.recorded', 'expense.voided') ORDER BY id")) {
+    let p: Record<string, unknown> = {};
+    try { p = JSON.parse(e.payload_json) ?? {}; } catch { /* a malformed payload is reported by the payload check */ }
+    if (typeof p.documentId !== "number" || !expenseDocs.has(p.documentId)) { problems.push({ code: "orphan", detail: `event ${e.id} (${e.type}) points at expense ${String(p.documentId)}, which does not exist` }); continue; }
+    if (e.type === "expense.recorded") {
+      if (typeof p.supplierId !== "number" || !known.has(p.supplierId)) problems.push({ code: "orphan", detail: `event ${e.id} (expense.recorded) points at supplier ${String(p.supplierId)}, which does not exist` });
+      if (typeof p.movementId !== "number" || !creditMovements.has(p.movementId)) problems.push({ code: "orphan", detail: `event ${e.id} (expense.recorded) points at movement ${String(p.movementId)}, which does not exist` });
+      else if (creditMovements.get(p.movementId) !== Number(p.amountPaidMinor)) problems.push({ code: "orphan", detail: `expense ${p.documentId}: the amount paid (${String(p.amountPaidMinor)}) does not match its money-out movement (${creditMovements.get(p.movementId)})` });
+    } else if (!reversed.has(p.documentId)) problems.push({ code: "orphan", detail: `event ${e.id} (expense.voided): expense ${p.documentId} is not reversed` });
+  }
 
   return { ok: problems.length === 0, problems, warnings };
 }

@@ -148,7 +148,7 @@ module.exports = kit.guard('credit undo, overpayments and VAT summary', async ({
   r = await run(vat('accountant', '?from=2026-10-01&to=2026-10-31'));
   let v = body(r).result || {};
   check(status(r) === 200 && v.field1Minor === 138000 && v.taxPerDocumentsMinor === 18000 && v.field4Minor === 18000 && v.differenceMinor === 0 && v.field2Minor === 0, 'October: standard-rated supplies INCLUDING VAT are R1,380.00 (VAT201 field 1), output tax R180.00 by the tax fraction (field 4) and by the documents, and they agree');
-  check(v.outputOnly === true && v.inputTaxMinor === null && (v.notes || []).some((n) => /input/i.test(n)) && (v.notes || []).some((n) => /exempt/i.test(n)), 'it says plainly that it covers the OUTPUT side only, and that exempt supplies are not told apart from zero-rated ones');
+  check(v.inputTaxMinor === 0 && v.netVatMinor === 18000 && (v.notes || []).some((n) => /input/i.test(n) && /bill/i.test(n)) && (v.notes || []).some((n) => /exempt/i.test(n)), 'with no expenses recorded the input side is R0.00 (net VAT R180.00), and it says plainly that input tax covers expenses only (not supplier bills yet) and that exempt supplies are not told apart from zero-rated ones');
   r = await run(vat('accountant', '?from=2026-09-01&to=2026-09-30')); v = body(r).result || {};
   check(v.field1Minor === 0 && v.field4Minor === 0 && (v.documents || []).length === 0, 'a period with no sales reports nothing');
   r = await run(vat('accountant', '?from=2026-10-01&to=2026-10-14')); v = body(r).result || {};

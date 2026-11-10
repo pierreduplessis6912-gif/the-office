@@ -10,6 +10,7 @@ import { documentTotals, isEffective } from "./ledger";
 import { documentTotals as sumLines } from "./money";
 import { partyProfile } from "./parties";
 import { checkDate } from "./quotations";
+import { allExpenses } from "./expenses";
 
 export interface BusinessProfile { legalName?: string; tradingName?: string; address?: string; vatRegistered?: boolean; vatNumber?: string; companyRegistrationNumber?: string }
 export type ProfileChange = { [K in keyof BusinessProfile]?: BusinessProfile[K] | null };
@@ -110,7 +111,8 @@ export interface VatSummary {
   field1Minor: number; field4Minor: number; taxPerDocumentsMinor: number; differenceMinor: number; field2Minor: number;
   otherRates: Array<{ taxBp: number; netMinor: number; taxMinor: number }>;
   documents: Array<{ ref: { kind: "document"; id: number }; kind: string; number: number | null; issuedOn: string; sign: 1 | -1; netMinor: number; taxMinor: number; grossMinor: number; complete: boolean }>;
-  incompleteDocuments: number; outputOnly: true; inputTaxMinor: null; notes: string[];
+  incompleteDocuments: number; outputOnly: boolean; field14Minor: number; field15Minor: number; inputTaxMinor: number; netVatMinor: number;
+  inputExcluded: Array<{ ref: { kind: "document"; id: number }; number: number | null; taxMinor: number; reasons: string[] }>; notes: string[];
 }
 export async function vatSummary(env: Env, period: { from: string; to: string }): Promise<VatSummary> {
   const docs = await many<{ id: number; kind: string; issued_on: string; number: number | null }>(env,
@@ -133,15 +135,22 @@ export async function vatSummary(env: Env, period: { from: string; to: string })
     if (p && p.applicable && !p.complete) incomplete++;
     out.push({ ref: { kind: "document", id: d.id }, kind: d.kind, number: d.number, issuedOn: d.issued_on, sign, netMinor: sign * totals.netMinor, taxMinor: sign * totals.taxMinor, grossMinor: sign * totals.grossMinor, complete: !p || !p.applicable || p.complete });
   }
+  // the input side: recorded expenses whose VAT CLAIM DATE falls in the period (fixed when each was recorded): capital goods are field 14, everything else field 15; expenses with tax that cannot be claimed are listed with their reasons
+  let f14 = 0, f15 = 0; const excluded: VatSummary["inputExcluded"] = [];
+  for (const x of await allExpenses(env, { status: "recorded" })) {
+    if (x.claimDate < period.from || x.claimDate > period.to) continue;
+    if (x.inputTaxClaimable) { if (x.capital) f14 += x.inputTaxMinor; else f15 += x.inputTaxMinor; }
+    else if (x.taxMinor > 0) excluded.push({ ref: x.ref, number: x.number, taxMinor: x.taxMinor, reasons: x.inputTaxReasons });
+  }
   const field4 = Math.round(std * STANDARD_RATE_BP / (10000 + STANDARD_RATE_BP));   // the tax fraction: r / (100 + r)
   const lock = await taxLockDate(env);
   return {
     period, locked: lock !== null && period.to <= lock, lockDate: lock, standardRateBp: STANDARD_RATE_BP,
     field1Minor: std, field4Minor: field4, taxPerDocumentsMinor: stdTax, differenceMinor: field4 - stdTax, field2Minor: zero,
     otherRates: [...other.entries()].sort((a, b) => a[0] - b[0]).map(([taxBp, v]) => ({ taxBp, ...v })),
-    documents: out.slice(0, 200), incompleteDocuments: incomplete, outputOnly: true, inputTaxMinor: null,
+    documents: out.slice(0, 200), incompleteDocuments: incomplete, outputOnly: false, field14Minor: f14, field15Minor: f15, inputTaxMinor: f14 + f15, netVatMinor: field4 - (f14 + f15), inputExcluded: excluded,
     notes: [
-      "Output side only: input tax needs purchases and expenses, which are not built yet, so it is not reported.",
+      "Input tax covers recorded EXPENSES only (fields 14 and 15, claimed on the date fixed when each was recorded): supplier bills (procurement), imported services (field 16) and adjustments are not in it yet, so this is still not a complete VAT201.",
       "Exempt supplies are not told apart from zero-rated ones (both are 0%): all 0% lines are shown as zero-rated, and an accountant must classify them.",
       "A document counts in the period of its own issue date (time-of-supply rules are not applied); credit notes reduce the period they are issued in.",
       "Field 4 is output tax by the tax fraction on field 1; the difference from the sum of per-document tax is per-line rounding and is shown, not hidden.",

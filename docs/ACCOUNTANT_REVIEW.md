@@ -36,3 +36,9 @@ All figures come from recorded facts; nothing is typed in. Every document, movem
 
 ## How to produce the figures for a period
 Open the owner or accountant view and ask for the VAT summary of the period (for the API: `GET /engine/vat?from=2026-10-01&to=2026-10-31`). It lists every document counted, with whether its tax particulars are complete, whether the period is locked, and the notes above. Nothing here has been run on a real business's data.
+
+## Added with expenses (2026-11-10): questions 13 to 16
+13. **Expense categories and s17(2).** The engine applies the denial of input tax to three categories only (entertainment, motor car acquisition, club subscriptions) from a fixed list of 21 categories. Is the list right for this business, and are there other categories to deny or restrict (e.g. fuel for a private-use vehicle, apportionment for mixed use)?
+14. **Valid tax invoice.** The person records whether a valid tax invoice is HELD (a statement, approved by a person); the engine cannot verify it. Above R50 the claim needs it; at or below R50 the receipt is enough. Is that the right threshold and the right evidence for this business's expenses?
+15. **Claim date.** The input tax is claimed on the invoice date, or on the first open day if that period is already locked (a claim up to five years later is allowed). Is that how the business wants late claims treated, and does a payments-basis vendor need a different date?
+16. **Capital goods (field 14).** A purchase marked capital goes to field 14, anything else to field 15; the engine has no asset register or threshold. Is a manual capital flag acceptable, and what about the apportionment and adjustment rules for capital goods?

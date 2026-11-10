@@ -1024,6 +1024,7 @@ async function expect(role, method, path, want) {
   await require('./capability-tax-documents.test.js')({ check, bundleTo, srcDir });
   await require('./capability-credit-actions.test.js')({ check, bundleTo, srcDir });
   await require('./capability-credit-undo-vat.test.js')({ check, bundleTo, srcDir });
+  await require('./capability-expenses.test.js')({ check, bundleTo, srcDir });
   await require('./engine-admin.test.js')({ check, bundleTo, srcDir });
   await require('./engine-interpret.test.js')({ check, bundleTo, srcDir });
   await require('./model-run-judge.test.js')({ check, bundleTo, srcDir });

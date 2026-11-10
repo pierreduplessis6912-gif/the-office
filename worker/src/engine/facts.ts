@@ -11,6 +11,7 @@ import { readConfig } from "./config";
 import { isEffective, outstandingForDocument, unallocatedForMovement } from "./ledger";
 import { applyRevision, checkContact, checkName, checkRoles, partyProfile } from "./parties";
 import { planQuotationAcceptance, planQuotationRevision } from "./quotations";
+import { planExpense, planExpenseVoid, type ExpenseInput } from "./expenses";
 import { planCreditApplication, planCreditNote, planDebitNote, planPaymentAllocation, planPaymentRefund, planRefund, planVoid, refundMovementOrThrow, checkReason, type CreditLineInput } from "./credits";
 import { applyProfile, businessProfile, checkProfileChange, taxLockDate, type ProfileChange } from "./business";
 import { checkDate } from "./quotations";
@@ -263,6 +264,29 @@ export async function refundPayment(env: Env, input: { paymentId: number; amount
     const mv = await insertMovement(tx, { direction: "out", partyId: plan.partyId, amountMinor: plan.amountMinor, currency: plan.currency, occurredOn: plan.refundedOn, method: plan.method }, ctx);
     const eventId = await appendEvent(tx, "overpayment.refunded", ctx, { movementId: paymentId, refundMovementId: mv.id, amountMinor: plan.amountMinor, refundedOn: plan.refundedOn, method: plan.method });
     return { movementId: mv.id, eventId };
+  });
+}
+
+// An EXPENSE is a paid purchase: ONE expense document (direction buy, from a supplier) and the money-out movement that paid it, tied by an expense.recorded event. No payable and no allocation. The VAT claim date is fixed
+// here (the invoice date, or the first open day after the tax lock). expenses.ts has the rules and derives the input tax.
+export async function recordExpense(env: Env, input: ExpenseInput, ctx: Ctx): Promise<{ documentId: number; number: number; movementId: number; eventId: number; totals: Totals; claimDate: string }> {
+  return inTransaction(env, async (tx) => {
+    const plan = await planExpense(tx, input);
+    const doc = await recordDocument(tx, { kind: "expense", direction: "buy", partyId: input.supplierId, currency: input.currency, reference: input.supplierInvoiceNumber ?? null, issuedOn: input.incurredOn, terms: { category: input.category, taxInvoiceHeld: input.taxInvoiceHeld, capital: input.capital === true, amountsIncludeTax: input.amountsIncludeTax, ...(input.receiptRef ? { receiptRef: input.receiptRef } : {}) }, lines: plan.docLines }, ctx);
+    const mv = await insertMovement(tx, { direction: "out", partyId: input.supplierId, amountMinor: input.amountPaidMinor, currency: input.currency, occurredOn: plan.paidOn, method: input.method }, ctx);
+    const eventId = await appendEvent(tx, "expense.recorded", ctx, { documentId: doc.id, movementId: mv.id, supplierId: input.supplierId, category: input.category, amountPaidMinor: input.amountPaidMinor, paidOn: plan.paidOn, method: input.method, incurredOn: input.incurredOn, claimDate: plan.claimDate, taxInvoiceHeld: input.taxInvoiceHeld, supplierInvoiceNumber: input.supplierInvoiceNumber ?? null, receiptRef: input.receiptRef ?? null, capital: input.capital === true });
+    return { documentId: doc.id, number: doc.number, movementId: mv.id, eventId, totals: doc.totals, claimDate: plan.claimDate };
+  });
+}
+// VOID an expense: reverse the money-out movement and then the document, and record expense.voided. Nothing is deleted. Refused if its claimed input tax is in a locked tax period.
+export async function voidExpense(env: Env, input: { expenseId: number; reason: string; voidedOn: string }, ctx: Ctx): Promise<{ eventId: number; reversalIds: number[] }> {
+  const expenseId = id(input.expenseId, "expense");
+  return inTransaction(env, async (tx) => {
+    const plan = await planExpenseVoid(tx, { ...input, expenseId });
+    const m = await reverse(tx, { movementId: plan.movementId, reason: plan.reason }, ctx);
+    const d = await reverse(tx, { documentId: expenseId, reason: plan.reason }, ctx);
+    const eventId = await appendEvent(tx, "expense.voided", ctx, { documentId: expenseId, movementId: plan.movementId, reason: plan.reason, voidedOn: plan.voidedOn }, plan.reason);
+    return { eventId, reversalIds: [m.id, d.id] };
   });
 }
 

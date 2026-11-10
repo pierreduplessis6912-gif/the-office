@@ -15,6 +15,7 @@ import { allQuotations, checkDate, checkLines, checkReference, planQuotationAcce
 import { documentTotals as sumTotals } from "./money";
 import { applyProfile, businessProfile, checkProfileChange, taxLockDate, vatSummary, type ProfileChange } from "./business";
 import { movementAvailable, planPaymentAllocation, planPaymentRefund, refundMovementOrThrow } from "./credits";
+import { allExpenses, checkExpenseInput, EXPENSE_CATEGORIES, planExpense, planExpenseVoid, type ExpenseInput } from "./expenses";
 import { creditAvailable, debitsOf, planCreditApplication, planDebitNote, planRefund, planVoid } from "./credits";
 import { checkCreditLines, checkReason, planCreditNote, type CreditLineInput } from "./credits";
 import { allProfiles, applyRevision, checkContact, checkName, checkRoles, holderOfName, partyProfile, PARTY_ROLES, sameName } from "./parties";
@@ -715,7 +716,68 @@ export const vatSummaryRead: ReadCapability<{ from: string; to: string }> = {
   async run(env, _viewer, value) { return { ...(await vatSummary(env, value)), derivedBy: "business.vatSummary" }; },
 };
 
-export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead];
+// ---- expenses ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// A PAID purchase: record it (one held write: the expense document and the money-out movement that paid it), void it, find them (docs/decisions/expenses.md). Input tax is derived with its reasons, never typed.
+interface ExpenseRecordPayload extends ExpenseInput { totals?: { netMinor: number; taxMinor: number; grossMinor: number } }
+export const expenseRecord: CapabilityContract<ExpenseRecordPayload> = {
+  id: "expense.record", heldType: "engine.expense.record", label: "Recording an expense", requires: [], permissions: ["expense.record"], version: 1, recordsExecution: true,
+  validate(payload) {
+    const c = checkExpenseInput(payload); if (!c.ok) return c;
+    const out: ExpenseRecordPayload = { ...c.value };
+    const t = (payload as Record<string, unknown>).totals;
+    if (t !== undefined) { if (!isObj(t) || !whole(t.netMinor, 0) || !whole(t.taxMinor, 0) || !whole(t.grossMinor, 0)) return { ok: false, reason: "totals must be the engine's worked-out totals" }; out.totals = { netMinor: t.netMinor, taxMinor: t.taxMinor, grossMinor: t.grossMinor }; }
+    return { ok: true, value: out };
+  },
+  async stamp(env, value) { const plan = await planExpense(env, value); return { ...value, totals: plan.totals }; },
+  async check(env, value) {
+    const plan = await planExpense(env, value);
+    if (value.totals && JSON.stringify(value.totals) !== JSON.stringify(plan.totals)) throw new EngineError("invalid_state", "The totals shown do not match the lines, so this needs to be proposed again.");
+  },
+  async execute(env, v, c) {
+    const { totals: _shown, ...input } = v;
+    const r = await facts.recordExpense(env, input, ctxOf(c, "expense.record"));
+    return { documentId: r.documentId, number: r.number, movementId: r.movementId, eventId: r.eventId };
+  },
+};
+
+interface ExpenseVoidPayload { expenseId: number; reason: string; voidedOn: string }
+export const expenseVoid: CapabilityContract<ExpenseVoidPayload> = {
+  id: "expense.void", heldType: "engine.expense.void", label: "Voiding an expense", requires: [], permissions: ["expense.void"], version: 1, recordsExecution: true,
+  validate(payload) {
+    if (!isObj(payload)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(payload, ["expenseId", "reason", "voidedOn"]);
+    if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    if (!whole(payload.expenseId)) return { ok: false, reason: "expenseId must be a record number" };
+    const r = checkReason(payload.reason, "void"); if (!r.ok) return r;
+    const d = checkDate(payload.voidedOn, "voidedOn"); if (!d.ok) return d;
+    return { ok: true, value: { expenseId: payload.expenseId, reason: r.value, voidedOn: d.value } };
+  },
+  async check(env, value) { await planExpenseVoid(env, value); },
+  async execute(env, v, c) { const r = await facts.voidExpense(env, v, ctxOf(c, "expense.void")); return { eventId: r.eventId, reversalIds: r.reversalIds }; },
+};
+
+export const expensesFind: ReadCapability<{ from?: string; to?: string; category?: string; supplierId?: number; status?: string }> = {
+  id: "expenses.find", label: "Finding expenses", permissions: ["expense.read"],
+  validate(params) {
+    if (!isObj(params)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(params, ["from", "to", "category", "supplierId", "status"]);
+    if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    const out: { from?: string; to?: string; category?: string; supplierId?: number; status?: string } = {};
+    if (params.from !== undefined) { const d = checkDate(params.from, "from"); if (!d.ok) return d; out.from = d.value; }
+    if (params.to !== undefined) { const d = checkDate(params.to, "to"); if (!d.ok) return d; out.to = d.value; }
+    if (out.from !== undefined && out.to !== undefined && out.to < out.from) return { ok: false, reason: "to cannot be before from" };
+    if (params.category !== undefined) { if (typeof params.category !== "string" || !(EXPENSE_CATEGORIES as readonly string[]).includes(params.category)) return { ok: false, reason: `category must be one of ${EXPENSE_CATEGORIES.join(", ")}` }; out.category = params.category; }
+    if (params.supplierId !== undefined) { if (!whole(params.supplierId)) return { ok: false, reason: "supplierId must be a record number" }; out.supplierId = params.supplierId; }
+    if (params.status !== undefined) { if (typeof params.status !== "string" || !["recorded", "voided", "any"].includes(params.status)) return { ok: false, reason: "status must be recorded, voided or any" }; out.status = params.status; }
+    return { ok: true, value: out };
+  },
+  async run(env, _viewer, value) {
+    const all = await allExpenses(env, value);
+    return { expenses: all.slice(0, 100), count: all.length, truncated: all.length > 100, categories: [...new Set(all.map((x) => x.category))].sort(), derivedBy: "expenses.allExpenses" };
+  },
+};
+
+export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind, vatSummaryRead, expensesFind];
 
 // Provenance (invariant 6): every engine contract records what was understood at the door (an interpretation naming the capture and the held action) and finds the capture again at the confirm.
 const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => ({
@@ -723,5 +785,5 @@ const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => (
   recordUnderstood: async (env, info) => { await facts.recordInterpretation(env, { captureId: info.captureId, interpreter: info.interpreter, capability: c.id, actionId: info.actionId }); },
   captureOf: async (env, actionId) => (await env.OFFICE_DB.prepare("SELECT capture_id FROM eng_interpretation WHERE json_extract(payload_json, '$.actionId') = ? AND capability = ? ORDER BY id DESC LIMIT 1").bind(actionId, c.id).first<{ capture_id: number }>())?.capture_id ?? null,
 });
-export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund] as CapabilityContract<any>[]).map((c) => withProvenance(c));
+export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, creditApply, refundRecord, creditNoteVoid, debitNoteIssue, allocationRemove, refundVoid, paymentAllocate, paymentRefund, expenseRecord, expenseVoid] as CapabilityContract<any>[]).map((c) => withProvenance(c));
 export const CAPABILITY_IDS: readonly string[] = [...READS.map((r) => r.id), ...ENGINE_CONTRACTS.map((c) => c.id)];
