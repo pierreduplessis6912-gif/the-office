@@ -8,7 +8,7 @@
 
 **Built since (2026-11-09):** customers and suppliers (create, edit, find) are in the engine and CI-tested, with no schema change; `docs/decisions/customers-suppliers.md` has the defaults. It waits on Pierre's word for a staging proof, then the model and the app.
 
-**Built since (2026-11-10, second capability):** quotations (create, revise, accept, find) are in the engine and CI-tested, no schema change; `docs/decisions/quotations.md` has the defaults. It waits on Pierre's approval of those defaults and his word for a staging proof.
+**Built since (2026-11-10, second capability):** quotations (create, revise, accept, find) are in the engine and CI-tested, no schema change; `docs/decisions/quotations.md` has the defaults. Pierre approved the defaults, and the staging proof passed 14 of 14 on a real object.
 
 **The one thing that matters next (Pierre's priority, 2026-11-09): the VISION, with ALL capabilities tested and wired into the final product eventually.** `docs/CAPABILITY_MAP.md` is the board: every capability, how far it has got (engine, CI, real platform, conversation, explained, app, outside assistants), and what "done" means. Work goes down that list one capability at a time, each to the same standard. The pilot and the look of the app are NOT the priority.
 

@@ -1,4 +1,4 @@
-> **Status:** built in the engine and CI-tested on branch `engine-phase1` (2026-11-10); **not** proven on a real staging object, **not** read by a real model, **not** wired to the app. **Verified:** by `tools/capability-quotations.test.js` (91 checks) and fourteen deliberate breakages in `tools/engine-breakage.js`. **Owns:** the meaning of "a quotation" in the engine.
+> **Status:** built in the engine, CI-tested and proven on a real staging Durable Object (`quotations-proof`, 14 of 14, run 42811115797, 2026-11-10); **not** read by a real model, **not** wired to the app. **Verified:** by `tools/capability-quotations.test.js` (91 checks) and fourteen deliberate breakages in `tools/engine-breakage.js`. **Owns:** the meaning of "a quotation" in the engine.
 
 # Quotations: create, revise, accept, find
 
@@ -24,9 +24,10 @@ Capability-map row 2 (`docs/CAPABILITY_MAP.md`), the next one in Pierre's order 
 ## Evidence (labelled)
 - **Test** (route harness, a stand-in for Durable Object storage): every happy path; sixteen invalid creates, seven invalid revisions, seven invalid acceptances, each refused for its own reason with nothing recorded; permissions per role; availability; stale and race cases; the integrity verifier (orphan references and a forked chain are reported); atomicity of a revision at each of its writes; the replaced document byte-for-byte unchanged; and that the customer's debt never changes.
 - **Test** (deliberate breakage): fourteen mutations (revising a replaced or accepted quotation, accepting twice or a replaced one, an unchanged revision, an assumed tax rate, quoting a non-customer, a revision that edits the old document, replaced quotations listed by default, who may manage, the verifier's two checks, who may open one, and the record treating it as a debt) each make the suite fail.
-- **Unknown / not done:** a real Durable Object has not run it; finding derives every quotation in memory (fine for hundreds; measure on staging before thousands); a real model has not been shown these capabilities (`interpret.ts` still offers only the receivables read and the payment); the app does not call it; the outside-assistant (MCP) door does not offer it; snapshot and restore with these events is unproven.
+- **Real staging record:** `ops/staging-quotations-proof-last.json`: held create at R402.50, a line without tax refused, a revision replacing the old quotation, a second revision of the same version refused (stale), replaced and accepted quotations refused further changes, an installer refused, a salesperson allowed, the customer's debt unchanged, integrity clean.
+- **Unknown / not done:** finding derives every quotation in memory (fine for hundreds; measure on staging before thousands); a real model has not been shown these capabilities (`interpret.ts` still offers only the receivables read and the payment); the app does not call it; the outside-assistant (MCP) door does not offer it; snapshot and restore with these events is unproven.
 
 ## Next for this capability (each needs Pierre's word)
-1. A staging proof of create, revise, accept and find on a real object: workflow mode **`quotations-proof`** (added 2026-11-10 on Pierre's word; own business `staging-quotes`; record `ops/staging-quotations-proof-last.json`).
+1. DONE (2026-11-10): a staging proof of create, revise, accept and find on a real object: workflow mode **`quotations-proof`** (added 2026-11-10 on Pierre's word; own business `staging-quotes`; record `ops/staging-quotations-proof-last.json`).
 2. Showing the model the capabilities and judging it against a written pass rule.
 3. Wiring to the app through the real client (needs his approval to connect).
