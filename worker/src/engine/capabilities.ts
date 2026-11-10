@@ -14,6 +14,7 @@ import { unappliedCreditForParty } from "./ledger";
 import { allQuotations, checkDate, checkLines, checkReference, planQuotationAcceptance, planQuotationRevision, type QuoteLine } from "./quotations";
 import { documentTotals as sumTotals } from "./money";
 import { applyProfile, businessProfile, checkProfileChange, taxLockDate, type ProfileChange } from "./business";
+import { creditAvailable, debitsOf, planCreditApplication, planDebitNote, planRefund, planVoid } from "./credits";
 import { checkCreditLines, checkReason, planCreditNote, type CreditLineInput } from "./credits";
 import { allProfiles, applyRevision, checkContact, checkName, checkRoles, holderOfName, partyProfile, PARTY_ROLES, sameName } from "./parties";
 
@@ -490,7 +491,128 @@ export const businessGet: ReadCapability<Record<string, never>> = {
   async run(env) { return { profile: await businessProfile(env), taxLockDate: await taxLockDate(env), derivedBy: "business.businessProfile" }; },
 };
 
-export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet];
+// ---- what can happen to a credit note's leftover credit, and debit notes -----------------------------------------------------------------------------------------------------------------------------
+// apply, refund and void a credit note, and issue a debit note (docs/decisions/credit-note-follow-ups.md, point 4). All held writes for the money roles; each is stamped with the versions of what it was proposed against.
+const verOf = (env: Env, id: number) => versionOf(env, { kind: "document", id });
+const stampOk = (v: unknown, key: string): v is Record<string, number> => isObj(v) && !stray(v, [key, "invoiceVersion"]) && whole((v as Record<string, unknown>)[key], 0);
+const nowMinor = (v: unknown) => whole(v) && (v as number) >= 1;
+
+interface CreditApply { creditNoteId: number; invoiceId: number; amountMinor: number; appliedOn: string; basedOn?: { creditVersion: number; invoiceVersion: number } }
+export const creditApply: CapabilityContract<CreditApply> = {
+  id: "credit.apply", heldType: "engine.credit.apply", label: "Applying a credit to an invoice", requires: [], permissions: ["credit.apply"], version: 1, recordsExecution: true,
+  validate(payload) {
+    if (!isObj(payload)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(payload, ["creditNoteId", "invoiceId", "amountMinor", "appliedOn", "basedOn"]);
+    if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    if (!whole(payload.creditNoteId) || !whole(payload.invoiceId)) return { ok: false, reason: "creditNoteId and invoiceId must be record numbers" };
+    if (!nowMinor(payload.amountMinor)) return { ok: false, reason: "amountMinor must be a whole number of cents, at least 1" };
+    const d = checkDate(payload.appliedOn, "appliedOn"); if (!d.ok) return d;
+    const out: CreditApply = { creditNoteId: payload.creditNoteId, invoiceId: payload.invoiceId, amountMinor: payload.amountMinor as number, appliedOn: d.value };
+    if (payload.basedOn !== undefined) { const b = payload.basedOn; if (!isObj(b) || stray(b, ["creditVersion", "invoiceVersion"]) || !whole(b.creditVersion, 0) || !whole(b.invoiceVersion, 0)) return { ok: false, reason: "basedOn must name the versions it was proposed against" }; out.basedOn = { creditVersion: b.creditVersion as number, invoiceVersion: b.invoiceVersion as number }; }
+    return { ok: true, value: out };
+  },
+  async stamp(env, value) { await planCreditApplication(env, value); return { ...value, basedOn: { creditVersion: await verOf(env, value.creditNoteId), invoiceVersion: await verOf(env, value.invoiceId) } }; },
+  async check(env, value) {
+    if (value.basedOn && ((await verOf(env, value.creditNoteId)) !== value.basedOn.creditVersion || (await verOf(env, value.invoiceId)) !== value.basedOn.invoiceVersion)) throw new EngineError("stale", "The credit or the invoice changed after this was proposed, so it needs to be proposed again.");
+    await planCreditApplication(env, value);
+  },
+  async execute(env, v, c) { const r = await facts.applyCredit(env, { creditNoteId: v.creditNoteId, invoiceId: v.invoiceId, amountMinor: v.amountMinor, appliedOn: v.appliedOn }, ctxOf(c, "credit.apply")); return { allocationId: r.allocationId, eventId: r.eventId }; },
+};
+
+interface RefundRecord { creditNoteId: number; amountMinor: number; refundedOn: string; method: string; basedOn?: { creditVersion: number } }
+export const refundRecord: CapabilityContract<RefundRecord> = {
+  id: "refund.record", heldType: "engine.refund.record", label: "Recording a refund of credit", requires: [], permissions: ["refund.record"], version: 1, recordsExecution: true,
+  validate(payload) {
+    if (!isObj(payload)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(payload, ["creditNoteId", "amountMinor", "refundedOn", "method", "basedOn"]);
+    if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    if (!whole(payload.creditNoteId)) return { ok: false, reason: "creditNoteId must be a record number" };
+    if (!nowMinor(payload.amountMinor)) return { ok: false, reason: "amountMinor must be a whole number of cents, at least 1" };
+    if (typeof payload.method !== "string" || !["eft", "cash", "card", "cheque", "other"].includes(payload.method)) return { ok: false, reason: "method must be eft, cash, card, cheque or other" };
+    const d = checkDate(payload.refundedOn, "refundedOn"); if (!d.ok) return d;
+    const out: RefundRecord = { creditNoteId: payload.creditNoteId, amountMinor: payload.amountMinor as number, refundedOn: d.value, method: payload.method };
+    if (payload.basedOn !== undefined) { if (!stampOk(payload.basedOn, "creditVersion")) return { ok: false, reason: "basedOn must name the version it was proposed against" }; out.basedOn = { creditVersion: (payload.basedOn as Record<string, number>).creditVersion }; }
+    return { ok: true, value: out };
+  },
+  async stamp(env, value) { await planRefund(env, value); return { ...value, basedOn: { creditVersion: await verOf(env, value.creditNoteId) } }; },
+  async check(env, value) {
+    if (value.basedOn && (await verOf(env, value.creditNoteId)) !== value.basedOn.creditVersion) throw new EngineError("stale", "That credit changed after this was proposed, so it needs to be proposed again.");
+    await planRefund(env, value);
+  },
+  async execute(env, v, c) { const r = await facts.refundCredit(env, { creditNoteId: v.creditNoteId, amountMinor: v.amountMinor, refundedOn: v.refundedOn, method: v.method }, ctxOf(c, "refund.record")); return { movementId: r.movementId, eventId: r.eventId }; },
+};
+
+interface CreditNoteVoid { creditNoteId: number; reason: string; voidedOn: string; basedOn?: { creditVersion: number } }
+export const creditNoteVoid: CapabilityContract<CreditNoteVoid> = {
+  id: "credit_note.void", heldType: "engine.credit_note.void", label: "Voiding a credit note", requires: [], permissions: ["credit_note.void"], version: 1, recordsExecution: true,
+  validate(payload) {
+    if (!isObj(payload)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(payload, ["creditNoteId", "reason", "voidedOn", "basedOn"]);
+    if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    if (!whole(payload.creditNoteId)) return { ok: false, reason: "creditNoteId must be a record number" };
+    const r = checkReason(payload.reason, "void"); if (!r.ok) return r;
+    const d = checkDate(payload.voidedOn, "voidedOn"); if (!d.ok) return d;
+    const out: CreditNoteVoid = { creditNoteId: payload.creditNoteId, reason: r.value, voidedOn: d.value };
+    if (payload.basedOn !== undefined) { if (!stampOk(payload.basedOn, "creditVersion")) return { ok: false, reason: "basedOn must name the version it was proposed against" }; out.basedOn = { creditVersion: (payload.basedOn as Record<string, number>).creditVersion }; }
+    return { ok: true, value: out };
+  },
+  async stamp(env, value) { await planVoid(env, value); return { ...value, basedOn: { creditVersion: await verOf(env, value.creditNoteId) } }; },
+  async check(env, value) {
+    if (value.basedOn && (await verOf(env, value.creditNoteId)) !== value.basedOn.creditVersion) throw new EngineError("stale", "That credit note changed after this was proposed, so it needs to be proposed again.");
+    await planVoid(env, value);
+  },
+  async execute(env, v, c) { const r = await facts.voidCreditNote(env, { creditNoteId: v.creditNoteId, reason: v.reason, voidedOn: v.voidedOn }, ctxOf(c, "credit_note.void")); return { eventId: r.eventId, reversalIds: r.reversalIds }; },
+};
+
+interface DebitNoteIssue { invoiceId: number; reason: string; issuedOn: string; lines: CreditLineInput[]; basedOn?: { invoiceVersion: number }; totals?: { netMinor: number; taxMinor: number; grossMinor: number } }
+export const debitNoteIssue: CapabilityContract<DebitNoteIssue> = {
+  id: "debit_note.issue", heldType: "engine.debit_note.issue", label: "Issuing a debit note", requires: [], permissions: ["debit_note.issue"], version: 1, recordsExecution: true,
+  validate(payload) {
+    if (!isObj(payload)) return { ok: false, reason: "the debit note must be an object" };
+    const s = stray(payload, ["invoiceId", "reason", "issuedOn", "lines", "basedOn", "totals"]);
+    if (s) return { ok: false, reason: `${s} is not a field of a debit note` };
+    if (!whole(payload.invoiceId)) return { ok: false, reason: "invoiceId must be a record number" };
+    const reason = checkReason(payload.reason, "debit note"); if (!reason.ok) return reason;
+    const issued = checkDate(payload.issuedOn, "issuedOn"); if (!issued.ok) return issued;
+    const lines = checkCreditLines(payload.lines, "debit note"); if (!lines.ok) return lines;
+    const out: DebitNoteIssue = { invoiceId: payload.invoiceId, reason: reason.value, issuedOn: issued.value, lines: lines.value };
+    if (payload.basedOn !== undefined) { if (!stampOk(payload.basedOn, "invoiceVersion")) return { ok: false, reason: "basedOn must name the version it was proposed against" }; out.basedOn = { invoiceVersion: (payload.basedOn as Record<string, number>).invoiceVersion }; }
+    if (payload.totals !== undefined) { const t = payload.totals; if (!isObj(t) || !whole(t.netMinor, 0) || !whole(t.taxMinor, 0) || !whole(t.grossMinor, 0)) return { ok: false, reason: "totals must be the engine's worked-out totals" }; out.totals = { netMinor: t.netMinor, taxMinor: t.taxMinor, grossMinor: t.grossMinor }; }
+    return { ok: true, value: out };
+  },
+  async stamp(env, value) { const plan = await planDebitNote(env, value); return { ...value, totals: plan.totals, basedOn: { invoiceVersion: await verOf(env, value.invoiceId) } }; },
+  async check(env, value) {
+    if (value.basedOn && (await verOf(env, value.invoiceId)) !== value.basedOn.invoiceVersion) throw new EngineError("stale", "That invoice changed after this was proposed, so it needs to be proposed again.");
+    const plan = await planDebitNote(env, value);
+    if (value.totals && JSON.stringify(value.totals) !== JSON.stringify(plan.totals)) throw new EngineError("invalid_state", "The totals shown do not match the debit, so this needs to be proposed again.");
+  },
+  async execute(env, v, c) { const r = await facts.issueDebitNote(env, { invoiceId: v.invoiceId, reason: v.reason, issuedOn: v.issuedOn, lines: v.lines }, ctxOf(c, "debit_note.issue")); return { documentId: r.documentId, number: r.number, eventId: r.eventId }; },
+};
+
+// Finding credit that can still be applied or refunded.
+export const creditsFind: ReadCapability<{ partyId?: number }> = {
+  id: "credits.find", label: "Finding credit to apply", permissions: ["credit.apply"],
+  validate(params) {
+    if (!isObj(params)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(params, ["partyId"]);
+    if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    if (params.partyId !== undefined && !whole(params.partyId)) return { ok: false, reason: "partyId must be a record number" };
+    return { ok: true, value: params.partyId !== undefined ? { partyId: params.partyId as number } : {} };
+  },
+  async run(env, _viewer, value) {
+    const names = new Map((await allProfiles(env)).map((p) => [p.id, p.name]));
+    const rows = await env.OFFICE_DB.prepare("SELECT d.id, d.party_id, d.currency, d.issued_on, n.number AS number FROM eng_document d LEFT JOIN eng_document_number n ON n.document_id = d.id WHERE d.kind = 'credit_note' ORDER BY d.id").all<{ id: number; party_id: number; currency: string; issued_on: string; number: number | null }>();
+    const out: Array<Record<string, unknown>> = [];
+    for (const d of rows.results ?? []) {
+      if (value.partyId !== undefined && d.party_id !== value.partyId) continue;
+      const available = await creditAvailable(env, d.id);
+      if (available > 0) out.push({ ref: { kind: "document", id: d.id }, id: d.id, number: d.number, partyId: d.party_id, partyName: names.get(d.party_id) ?? null, currency: d.currency, issuedOn: d.issued_on, availableMinor: available });
+    }
+    return { credits: out.slice(0, 50), count: out.length, truncated: out.length > 50, derivedBy: "credits.creditAvailable" };
+  },
+};
+
+export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet, creditsFind];
 
 // Provenance (invariant 6): every engine contract records what was understood at the door (an interpretation naming the capture and the held action) and finds the capture again at the confirm.
 const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => ({
@@ -498,5 +620,5 @@ const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => (
   recordUnderstood: async (env, info) => { await facts.recordInterpretation(env, { captureId: info.captureId, interpreter: info.interpreter, capability: c.id, actionId: info.actionId }); },
   captureOf: async (env, actionId) => (await env.OFFICE_DB.prepare("SELECT capture_id FROM eng_interpretation WHERE json_extract(payload_json, '$.actionId') = ? AND capability = ? ORDER BY id DESC LIMIT 1").bind(actionId, c.id).first<{ capture_id: number }>())?.capture_id ?? null,
 });
-export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet] as CapabilityContract<any>[]).map((c) => withProvenance(c));
+export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet, creditApply, refundRecord, creditNoteVoid, debitNoteIssue] as CapabilityContract<any>[]).map((c) => withProvenance(c));
 export const CAPABILITY_IDS: readonly string[] = [...READS.map((r) => r.id), ...ENGINE_CONTRACTS.map((c) => c.id)];

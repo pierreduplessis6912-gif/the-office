@@ -501,6 +501,10 @@ export const ACTION_TYPE_CAPABILITY: Record<string, string[]> = {
   "engine.party.create": ["can_manage_invoices"],
   "engine.party.edit": ["can_manage_invoices"],
   "engine.credit_note.issue": ["can_manage_invoices"],
+  "engine.credit.apply": ["can_manage_invoices"],
+  "engine.refund.record": ["can_manage_invoices"],
+  "engine.credit_note.void": ["can_manage_invoices"],
+  "engine.debit_note.issue": ["can_manage_invoices"],
   "engine.business.profile.set": ["can_manage_settings"],
   "engine.tax_lock.set": ["can_manage_settings"],
   "engine.quotation.create": ["can_manage_invoices", "can_make_quotes"],
@@ -786,6 +790,7 @@ export const ROUTE_RULES: Array<{ method: string; path: RegExp; anyOf: string[] 
   // Finding customers and suppliers (the engine's parties.find): the same people who may read receivables; the contract checks its own engine permission (party.read) again.
   { method: "GET", path: /^\/engine\/parties$/, anyOf: ["can_know_debtors"] },
   { method: "GET", path: /^\/engine\/business$/, anyOf: ["can_manage_settings"] },
+  { method: "GET", path: /^\/engine\/credits$/, anyOf: ["can_manage_invoices"] },
   { method: "GET", path: /^\/engine\/quotations$/, anyOf: ["can_manage_invoices", "can_make_quotes"] },
   // Money — accountant and owner.
   { method: "GET", path: /^\/customers\/\d+\/profitability$/, anyOf: ["can_know_profit"] },

@@ -11,7 +11,7 @@ import { readConfig } from "./config";
 import { isEffective, outstandingForDocument, unallocatedForMovement } from "./ledger";
 import { applyRevision, checkContact, checkName, checkRoles, partyProfile } from "./parties";
 import { planQuotationAcceptance, planQuotationRevision } from "./quotations";
-import { planCreditNote, type CreditLineInput } from "./credits";
+import { planCreditApplication, planCreditNote, planDebitNote, planRefund, planVoid, type CreditLineInput } from "./credits";
 import { applyProfile, businessProfile, checkProfileChange, taxLockDate, type ProfileChange } from "./business";
 import { checkDate } from "./quotations";
 
@@ -184,6 +184,53 @@ export async function setTaxLock(env: Env, input: { lockDate: string }, ctx: Ctx
     const now = await taxLockDate(tx);
     if (now !== null && d.value <= now) throw new EngineError("invalid_state", `The tax lock is already at ${now}; it can only move forward.`);
     return { eventId: await appendEvent(tx, "tax_lock.set", ctx, { lockDate: d.value }) };
+  });
+}
+
+// APPLY a leftover credit to another invoice of the same customer: ONE allocation of the credit note's movement to the invoice, plus a credit.allocated event. No new money, no new document. It carries its own date and is not
+// blocked by the tax lock (it changes no VAT). credits.ts has the rules.
+export async function applyCredit(env: Env, input: { creditNoteId: number; invoiceId: number; amountMinor: number; appliedOn: string }, ctx: Ctx): Promise<{ allocationId: number; eventId: number }> {
+  const creditNoteId = id(input.creditNoteId, "credit note"), invoiceId = id(input.invoiceId, "invoice");
+  return inTransaction(env, async (tx) => {
+    const plan = await planCreditApplication(tx, { ...input, creditNoteId, invoiceId });
+    const al = await insertAllocation(tx, { movementId: plan.movementId, documentId: invoiceId, amountMinor: plan.amountMinor }, ctx);
+    const eventId = await appendEvent(tx, "credit.allocated", ctx, { creditNoteId, movementId: plan.movementId, invoiceId, allocationId: al.id, amountMinor: plan.amountMinor, appliedOn: plan.appliedOn });
+    return { allocationId: al.id, eventId };
+  });
+}
+
+// REFUND a leftover credit: a separate money-OUT movement to the customer (nothing is allocated) plus a credit.refunded event naming the credit's movement, so the credit left (credits.ts) and the customer's account fall by it.
+export async function refundCredit(env: Env, input: { creditNoteId: number; amountMinor: number; refundedOn: string; method: string }, ctx: Ctx): Promise<{ movementId: number; eventId: number }> {
+  const creditNoteId = id(input.creditNoteId, "credit note");
+  return inTransaction(env, async (tx) => {
+    const plan = await planRefund(tx, { ...input, creditNoteId });
+    const mv = await insertMovement(tx, { direction: "out", partyId: plan.partyId, amountMinor: plan.amountMinor, currency: plan.currency, occurredOn: plan.refundedOn, method: plan.method }, ctx);
+    const eventId = await appendEvent(tx, "credit.refunded", ctx, { creditNoteId, movementId: plan.movementId, refundMovementId: mv.id, amountMinor: plan.amountMinor, refundedOn: plan.refundedOn, method: plan.method });
+    return { movementId: mv.id, eventId };
+  });
+}
+
+// VOID a credit note: reverse its movement (which reverses its allocation) and then the document itself, and record a credit_note.voided event. Refused once any of its credit has been applied elsewhere or refunded, and once it
+// falls in a locked tax period. Nothing is deleted: the reversals are new facts, and a voided credit note simply stops being effective.
+export async function voidCreditNote(env: Env, input: { creditNoteId: number; reason: string; voidedOn: string }, ctx: Ctx): Promise<{ eventId: number; reversalIds: number[] }> {
+  const creditNoteId = id(input.creditNoteId, "credit note");
+  return inTransaction(env, async (tx) => {
+    const plan = await planVoid(tx, { ...input, creditNoteId });
+    const m = await reverse(tx, { movementId: plan.movementId, reason: plan.reason }, ctx);
+    const d = await reverse(tx, { documentId: creditNoteId, reason: plan.reason }, ctx);
+    const eventId = await appendEvent(tx, "credit_note.voided", ctx, { documentId: creditNoteId, invoiceId: plan.invoiceId, reason: plan.reason, voidedOn: plan.voidedOn }, plan.reason);
+    return { eventId, reversalIds: [m.id, d.id] };
+  });
+}
+
+// A DEBIT NOTE increases an invoice already issued: a document of kind debit_note (owed by the customer like an invoice) whose lines inherit the tax rate of the invoice line they add to, and a debit_note.issued event.
+export async function issueDebitNote(env: Env, input: { invoiceId: number; reason: string; issuedOn: string; lines: CreditLineInput[] }, ctx: Ctx): Promise<{ documentId: number; number: number; eventId: number; totals: Totals }> {
+  const invoiceId = id(input.invoiceId, "invoice");
+  return inTransaction(env, async (tx) => {
+    const plan = await planDebitNote(tx, { ...input, invoiceId });
+    const doc = await recordDocument(tx, { kind: "debit_note", direction: "sell", partyId: plan.partyId, currency: plan.currency, reference: plan.invoiceNumber !== null ? `Debit for invoice #${plan.invoiceNumber}` : "Debit note", issuedOn: plan.issuedOn, terms: { debitsDocumentId: invoiceId, reason: plan.reason }, lines: plan.docLines }, ctx);
+    const eventId = await appendEvent(tx, "debit_note.issued", ctx, { documentId: doc.id, invoiceId, reason: plan.reason, lines: plan.eventLines }, plan.reason);
+    return { documentId: doc.id, number: doc.number, eventId, totals: doc.totals };
   });
 }
 

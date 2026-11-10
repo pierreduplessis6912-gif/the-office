@@ -7,7 +7,7 @@ const { parseArgs, select } = require('./breakage-select.js');
 const sourceRoot = path.join(__dirname, '..');
 let root = sourceRoot;   // becomes the isolated copy before anything is edited or run
 const E = (f) => `worker/src/engine/${f}`, CONTRACT = 'worker/src/capability-contract.ts', MIG = 'worker/migrations/0004_engine_foundation.sql';
-const TAXDOC = 'capability-tax-documents.test.js', CREDITS = 'capability-credit-notes.test.js', QUOTES = 'capability-quotations.test.js', PARTIES = 'capability-parties.test.js', OBIND = 'object-binding.test.js', RPROOF = 'restore-proof.test.js', MANI = 'backup-manifest.test.js', STID = 'staging-identity.test.js', OBJ = 'business-object.standalone.js', ISOL = 'engine-isolation.test.js', OWN = 'engine-ownership.test.js', INTEG = 'engine-integrity.test.js', ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
+const ACTIONS = 'capability-credit-actions.test.js', TAXDOC = 'capability-tax-documents.test.js', CREDITS = 'capability-credit-notes.test.js', QUOTES = 'capability-quotations.test.js', PARTIES = 'capability-parties.test.js', OBIND = 'object-binding.test.js', RPROOF = 'restore-proof.test.js', MANI = 'backup-manifest.test.js', STID = 'staging-identity.test.js', OBJ = 'business-object.standalone.js', ISOL = 'engine-isolation.test.js', OWN = 'engine-ownership.test.js', INTEG = 'engine-integrity.test.js', ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
 
 const MUTATIONS = [
   // money: exact integer arithmetic
@@ -195,6 +195,24 @@ const MUTATIONS = [
   { name: 'tax docs: the verifier ignores a lock that moved backward', suite: TAXDOC, file: E('integrity.ts'), find: 'if (lockSeen !== null && d <= lockSeen) problems.push', replace: 'if (false) problems.push' },
   { name: 'tax docs: anyone who makes quotes may set the business details', suite: TAXDOC, file: E('permissions.ts'), find: 'can_make_quotes: ["quotation.read", "quotation.manage"],', replace: 'can_make_quotes: ["quotation.read", "quotation.manage", "business.manage"],' },
   { name: 'tax docs: the record hides what a tax document lacks', suite: TAXDOC, file: E('records.ts'), find: '...(pt && pt.applicable ?', replace: '...(false ?' },
+  // credit actions (capability-credit-actions.test.js): the rounding rule, apply, refund, void and debit notes
+  { name: 'credit actions: credits may add up to more tax than the invoice charged', suite: ACTIONS, file: E('credits.ts'), find: 'if ((beforeTax.get(l.invoiceLineNo) ?? 0) + oneLine(l.quantityMilli, l.unitPriceMinor, o.tax_bp) > oneLine(o.quantity_milli, o.unit_price_minor, o.tax_bp)) throw', replace: 'if (false) throw' },
+  { name: 'credit actions: apply more than the credit that is left', suite: ACTIONS, file: E('credits.ts'), find: 'if (input.amountMinor > available) throw new EngineError("invalid_state", `Only ${available} of that credit is left to apply.`);', replace: '' },
+  { name: 'credit actions: apply more than the invoice owes', suite: ACTIONS, file: E('credits.ts'), find: 'if (input.amountMinor > owed) throw', replace: 'if (false) throw' },
+  { name: "credit actions: apply a credit to another customer's invoice", suite: ACTIONS, file: E('credits.ts'), find: 'if (inv.party_id !== cn.party_id) throw', replace: 'if (false) throw' },
+  { name: 'credit actions: refund more than the credit that is left', suite: ACTIONS, file: E('credits.ts'), find: 'if (input.amountMinor > available) throw new EngineError("invalid_state", `Only ${available} of that credit is left to refund.`);', replace: '' },
+  { name: 'credit actions: a refund does not reduce the credit available', suite: ACTIONS, file: E('credits.ts'), find: '- (await refundedFor(env, l.movementId)))', replace: ')' },
+  { name: 'credit actions: the customer account ignores refunds', suite: ACTIONS, file: E('ledger.ts'), find: 'sum += Math.max(0, (await unallocatedForMovement(env, m.id)) - refunded);', replace: 'sum += Math.max(0, await unallocatedForMovement(env, m.id)) + 0 * refunded;' },
+  { name: 'credit actions: void a credit note whose credit was applied elsewhere', suite: ACTIONS, file: E('credits.ts'), find: 'if ((await creditEvents(env, "credit.allocated", cn.id)).length > 0) throw', replace: 'if (false) throw' },
+  { name: 'credit actions: void a credit note whose credit was refunded', suite: ACTIONS, file: E('credits.ts'), find: 'if ((await creditEvents(env, "credit.refunded", cn.id)).length > 0) throw', replace: 'if (false) throw' },
+  { name: 'credit actions: void a credit note in a locked tax period', suite: ACTIONS, file: E('credits.ts'), find: 'if (lock !== null && cn.issued_on <= lock) throw', replace: 'if (false) throw' },
+  { name: 'credit actions: a void forgets to reverse the credit movement', suite: ACTIONS, file: E('facts.ts'), find: 'const m = await reverse(tx, { movementId: plan.movementId, reason: plan.reason }, ctx);', replace: 'const m = { id: 0 };' },
+  { name: 'credit actions: a voided credit note still counts against the line', suite: ACTIONS, file: E('credits.ts'), find: 'if (await isEffective(env, "document", l.documentId)) live.push(l);', replace: 'live.push(l);' },
+  { name: 'credit actions: a debit note is not a receivable (the customer does not owe it)', suite: ACTIONS, file: E('config.ts'), find: 'receivableKinds: ["invoice", "debit_note"]', replace: 'receivableKinds: ["invoice"]' },
+  { name: 'credit actions: debit notes ignore the tax lock', suite: ACTIONS, file: E('credits.ts'), find: 'await requireOpenTaxPeriod(env, date.value, "A debit note");', replace: '' },
+  { name: 'credit actions: a salesperson may apply credit', suite: ACTIONS, file: E('permissions.ts'), find: 'can_make_quotes: ["quotation.read", "quotation.manage"],', replace: 'can_make_quotes: ["quotation.read", "quotation.manage", "credit.apply"],' },
+  { name: 'credit actions: the verifier ignores credit spent more than once', suite: ACTIONS, file: E('integrity.ts'), find: 'if (amount > g) problems.push', replace: 'if (false) problems.push' },
+  { name: 'credit actions: the verifier ignores an application of a missing credit note', suite: ACTIONS, file: E('integrity.ts'), find: 'if (typeof cnKey !== "number" || !creditDocs.has(cnKey)) {', replace: 'if (false) {' },
 ];
 
 let opts;

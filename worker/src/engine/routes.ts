@@ -43,6 +43,10 @@ async function route(request: Request, env: Env, url: URL, member: Member): Prom
     return answer(await invokeRead(env, member, "quotations.find", { ...(pid !== null ? { partyId: /^\d+$/.test(pid) ? Number(pid) : pid } : {}), ...(st !== null ? { status: st } : {}) }));
   }
   if (request.method === "GET" && path === "/engine/business") return answer(await invokeRead(env, member, "business.get", {}));
+  if (request.method === "GET" && path === "/engine/credits") {
+    const pid = url.searchParams.get("partyId");
+    return answer(await invokeRead(env, member, "credits.find", pid !== null ? { partyId: /^\d+$/.test(pid) ? Number(pid) : pid } : {}));
+  }
   const rec = path.match(/^\/engine\/records\/([a-z]+)\/(\d+)$/);
   if (request.method === "GET" && rec) return answer(await invokeRead(env, member, "records.get", { kind: rec[1], id: Number(rec[2]) }));
   if (request.method === "POST" && path === "/engine/proposals") {

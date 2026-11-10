@@ -28,8 +28,15 @@ Pierre's instruction (2026-11-10): close the four points left open after credit 
 | --- | --- | --- |
 | 1. Business profile, recipient VAT number, completeness check | as above | **Built 2026-11-10** (CI-tested; `tools/capability-tax-documents.test.js`, eleven deliberate breakages): `business.profile.set` and `business.get`, `vatNumber` on customers and suppliers, `business.documentParticulars` shown on every tax document's record. Owner-only (`can_manage_settings` cannot be granted to another role). Not run on staging. |
 | 2. Tax lock date (forward-only), enforced on invoices and credit notes | as above | **Built 2026-11-10** (same suite): `tax_lock.set` (owner-only), enforced for credit notes (`credits.planCreditNote`) and invoices (`drafts.issueDraft`) at the fact layer, so every door is covered; the verifier reports a lock that moved backward. Not run on staging. |
-| 3. Per-line rounding rules and the recipient-detail threshold | as above | see map |
-| 4a. credit.apply | as above | see map |
-| 4b. refund.record | as above | see map |
-| 4c. credit_note.void | as above | see map |
-| 4d. debit_note.issue | as above | see map |
+| 3. Per-line rounding rules and the recipient-detail threshold | as above | **Built 2026-11-10** (`tools/capability-credit-actions.test.js`): 40 random invoices fully credited reproduce net, tax and total to the cent; credits may never add up to more tax than the line charged (`credits.planCreditNote`); the recipient-detail threshold (R5,000) is in `business.documentParticulars`. No abridged tier (every document has a customer; a full document is always allowed). |
+| 4a. credit.apply | as above | **Built 2026-11-10**: held write, own date, not blocked by the tax lock, never more than the credit left or the invoice owes, same customer only. Not run on staging. |
+| 4b. refund.record | as above | **Built 2026-11-10**: held write, a separate money-out movement plus a `credit.refunded` event; the credit left and the customer's account fall by it. Not run on staging. |
+| 4c. credit_note.void | as above | **Built 2026-11-10**: held write, reverses the credit note, its movement and its allocation; refused once credit has been applied elsewhere or refunded, and in a locked period; a voided credit note no longer counts against its invoice line. Not run on staging. |
+| 4d. debit_note.issue | as above | **Built 2026-11-10**: held write, kind `debit_note` (a receivable kind by default), tax inherited from the invoice line, tax lock enforced; a payment allocates to it like any debt. Businesses whose stored ledger configuration omits `debit_note` are refused with a clear message until it is added. Not run on staging. |
+
+## Findings from building these four (2026-11-10)
+- **The leftover credit is now fully traceable.** A credit note's leftover is the movement not yet allocated, less refunds (events); `receivables.query` and the customer record show it net of refunds; `credits.find` (`GET /engine/credits?partyId=`) lists credit notes that still have credit.
+- **A refund and an application cannot both spend the same credit**: each checks what is left, and the verifier reports any credit note whose applications and refunds together exceed its total.
+- **Unapplying an application is not built.** A credit note whose credit has been applied or refunded therefore cannot be voided (the ERPs above also make you remove allocations first); undoing an application or a refund is a separate, later decision.
+- **Refunding an overpayment** (not a credit note) is not built; `refund.record` is for credit notes only.
+- **No staging run yet** for any of the follow-ups; each would need its own proof mode, on Pierre's word.

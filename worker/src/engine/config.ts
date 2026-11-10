@@ -7,7 +7,7 @@ export interface EngineConfig {
   payableKinds: string[];
 }
 
-const DEFAULTS: EngineConfig = { receivableKinds: ["invoice"], payableKinds: ["supplier_invoice"] };
+const DEFAULTS: EngineConfig = { receivableKinds: ["invoice", "debit_note"], payableKinds: ["supplier_invoice"] };
 
 function textList(value: unknown, fallback: string[]): string[] {
   return Array.isArray(value) && value.every((x) => typeof x === "string" && x.trim().length > 0) ? (value as string[]) : fallback;

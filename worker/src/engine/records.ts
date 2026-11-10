@@ -9,7 +9,7 @@ import { readDraft } from "./drafts";
 import type { EnginePermission } from "./permissions";
 import { partyProfile } from "./parties";
 import { quotationEventIds, quotationSummary } from "./quotations";
-import { creditedGross, creditOf, creditsOf } from "./credits";
+import { appliedToInvoiceIds, creditAvailable, creditedGross, creditOf, creditsOf, creditStoryIds, debitOf, debitsOf } from "./credits";
 import { documentParticulars } from "./business";
 
 export type RecordKind = "party" | "document" | "movement" | "draft";
@@ -49,6 +49,8 @@ const VERSION_QUERIES: Record<"party" | "document" | "movement", readonly string
     "SELECT MAX(id) AS v FROM eng_event WHERE type = 'party.revised' AND json_extract(payload_json, '$.partyId') = ?",
   ],
   document: [
+    "SELECT MAX(id) AS v FROM eng_event WHERE type IN ('credit.allocated', 'credit.refunded', 'credit_note.voided') AND json_extract(payload_json, '$.creditNoteId') = ?",
+    "SELECT MAX(id) AS v FROM eng_event WHERE type IN ('credit.allocated', 'debit_note.issued') AND json_extract(payload_json, '$.invoiceId') = ?",
     "SELECT MAX(id) AS v FROM eng_event WHERE type = 'credit_note.issued' AND json_extract(payload_json, '$.invoiceId') = ?",
     "SELECT MAX(id) AS v FROM eng_event WHERE type IN ('quotation.revised', 'quotation.accepted') AND json_extract(payload_json, '$.documentId') = ?",
     "SELECT MAX(id) AS v FROM eng_event WHERE type = 'quotation.revised' AND json_extract(payload_json, '$.supersedes') = ?",
@@ -120,7 +122,9 @@ export async function recordView(env: Env, viewer: ViewerContext, ref: RecordRef
     const qs = d.kind === "quotation" ? await quotationSummary(env, d.id) : null;
     const pt = !qs ? await documentParticulars(env, d.id) : null;                     // what a tax document still lacks (flags only)
     const cl = d.kind === "credit_note" ? await creditOf(env, d.id) : null;           // the credit note's own story (what it credited, applied and left over)
-    const credits = !qs && !cl ? await creditsOf(env, d.id) : [];                    // the credit notes that credit THIS document (an invoice)
+    const dl = d.kind === "debit_note" ? await debitOf(env, d.id) : null;           // the debit note's own story (what it debits)
+    const debits = !qs && !cl && !dl ? await debitsOf(env, d.id) : [];               // the debit notes that add to THIS document (an invoice)
+    const credits = !qs && !cl && !dl ? await creditsOf(env, d.id) : [];                    // the credit notes that credit THIS document (an invoice)
     const n = await one<{ number: number }>(env, "SELECT number FROM eng_document_number WHERE document_id = ?", d.id);
     const totals = await documentTotals(env, d.id);
     const allocated = await allocatedToDocument(env, d.id);
@@ -132,7 +136,7 @@ export async function recordView(env: Env, viewer: ViewerContext, ref: RecordRef
     const effAllocs: Array<{ id: number; movement_id: number; amount_minor: number; event_id: number; effective: boolean }> = [];
     for (const a of allocs) effAllocs.push({ ...a, effective: await isEffective(env, "allocation", a.id) });
     const reversals = await many<{ event_id: number }>(env, "SELECT event_id FROM eng_reversal WHERE document_id = ? OR allocation_id IN (SELECT id FROM eng_allocation WHERE document_id = ?)", d.id, d.id);
-    const status = qs ? qs.status : cl ? "issued" : !effective ? "reversed" : outstanding === 0 ? "paid" : allocated > 0 ? "part_paid" : "unpaid";
+    const status = qs ? qs.status : cl ? (effective ? "issued" : "voided") : !effective ? "reversed" : outstanding === 0 ? "paid" : allocated > 0 ? "part_paid" : "unpaid";
     const settled = (d.direction === "sell" ? cfg.receivableKinds : cfg.payableKinds).includes(d.kind);
     return {
       ref, version: await versionOf(env, ref), title: `${d.kind[0].toUpperCase()}${d.kind.slice(1).replace(/_/g, " ")} ${n ? "#" + n.number : ""}`.trim(),
@@ -140,15 +144,15 @@ export async function recordView(env: Env, viewer: ViewerContext, ref: RecordRef
         { key: "kind", label: "Kind", value: d.kind }, { key: "number", label: "Number", value: n ? n.number : null }, { key: "status", label: "Status", value: status, derivedBy: qs ? "quotations.allQuotations" : "ledger.outstandingForDocument" }, ...(pt && pt.applicable ? [{ key: "particularsComplete", label: "Tax particulars complete", value: pt.complete, derivedBy: "business.documentParticulars" }, { key: "particularsMissing", label: "Tax particulars missing", value: pt.missing.join(", "), derivedBy: "business.documentParticulars" }] : []),
         { key: "issuedOn", label: "Issued", value: d.issued_on }, { key: "currency", label: "Currency", value: d.currency },
         { key: "netMinor", label: "Net", value: totals.netMinor, derivedBy: "ledger.documentTotals" }, { key: "taxMinor", label: "Tax", value: totals.taxMinor, derivedBy: "ledger.documentTotals" }, { key: "grossMinor", label: "Total", value: totals.grossMinor, derivedBy: "ledger.documentTotals" },
-        ...(qs ? [{ key: "validUntil", label: "Valid until", value: qs.validUntil }, { key: "reference", label: "Reference", value: qs.reference }, { key: "allocatedMinor", label: "Paid", value: null }, { key: "outstandingMinor", label: "Outstanding", value: null }] : cl ? [{ key: "reason", label: "Reason", value: cl.reason }, { key: "appliedMinor", label: "Applied to the invoice", value: cl.appliedMinor }, { key: "unappliedMinor", label: "Left unapplied", value: cl.unappliedMinor }, { key: "allocatedMinor", label: "Paid", value: null }, { key: "outstandingMinor", label: "Outstanding", value: null }] : [{ key: "allocatedMinor", label: "Paid", value: allocated, derivedBy: "ledger.allocatedToDocument" }, { key: "outstandingMinor", label: "Outstanding", value: outstanding, derivedBy: "ledger.outstandingForDocument" }, { key: "creditedMinor", label: "Credited", value: await creditedGross(env, d.id), derivedBy: "credits.creditedGross" }]),
+        ...(qs ? [{ key: "validUntil", label: "Valid until", value: qs.validUntil }, { key: "reference", label: "Reference", value: qs.reference }, { key: "allocatedMinor", label: "Paid", value: null }, { key: "outstandingMinor", label: "Outstanding", value: null }] : cl ? [{ key: "reason", label: "Reason", value: cl.reason }, { key: "appliedMinor", label: "Applied to the invoice", value: cl.appliedMinor }, { key: "unappliedMinor", label: "Left unapplied", value: cl.unappliedMinor }, { key: "availableMinor", label: "Credit available", value: await creditAvailable(env, d.id), derivedBy: "credits.creditAvailable" }, { key: "allocatedMinor", label: "Paid", value: null }, { key: "outstandingMinor", label: "Outstanding", value: null }] : [{ key: "allocatedMinor", label: "Paid", value: allocated, derivedBy: "ledger.allocatedToDocument" }, { key: "outstandingMinor", label: "Outstanding", value: outstanding, derivedBy: "ledger.outstandingForDocument" }, { key: "creditedMinor", label: "Credited", value: await creditedGross(env, d.id), derivedBy: "credits.creditedGross" }]),
       ],
       collections: {
         lines: lines.map((l) => ({ lineNo: l.line_no, description: l.description, quantityMilli: l.quantity_milli, unit: l.unit, unitPriceMinor: l.unit_price_minor, taxBp: l.tax_bp })),
         allocations: effAllocs.map((a) => ({ id: a.id, movementId: a.movement_id, amountMinor: a.amount_minor, effective: a.effective })),
       },
-      relations: [...(cl ? [{ role: "credits", ref: { kind: "document" as const, id: cl.invoiceId }, label: "Credits invoice" }] : []), ...credits.map((c) => ({ role: "credit_note", ref: { kind: "document" as const, id: c.documentId }, label: "Credit note" })), ...(qs ? [...(qs.supersededBy ? [{ role: "superseded_by", ref: { kind: "document" as const, id: qs.supersededBy }, label: "Replaced by" }] : []), ...(qs.supersedes ? [{ role: "revises", ref: { kind: "document" as const, id: qs.supersedes }, label: "Revises" }] : [])] : []), { role: d.direction === "sell" ? "customer" : "supplier", ref: { kind: "party", id: d.party_id }, label: party ? party.name : "Party" }, ...effAllocs.filter((a) => a.effective).map((a) => ({ role: "payment", ref: { kind: "movement" as const, id: a.movement_id }, label: `Payment ${a.movement_id}` }))],
+      relations: [...(dl ? [{ role: "debits", ref: { kind: "document" as const, id: dl.invoiceId }, label: "Debits invoice" }] : []), ...debits.map((x) => ({ role: "debit_note", ref: { kind: "document" as const, id: x.documentId }, label: "Debit note" })), ...(cl ? [{ role: "credits", ref: { kind: "document" as const, id: cl.invoiceId }, label: "Credits invoice" }] : []), ...credits.map((c) => ({ role: "credit_note", ref: { kind: "document" as const, id: c.documentId }, label: "Credit note" })), ...(qs ? [...(qs.supersededBy ? [{ role: "superseded_by", ref: { kind: "document" as const, id: qs.supersededBy }, label: "Replaced by" }] : []), ...(qs.supersedes ? [{ role: "revises", ref: { kind: "document" as const, id: qs.supersedes }, label: "Revises" }] : [])] : []), { role: d.direction === "sell" ? "customer" : "supplier", ref: { kind: "party", id: d.party_id }, label: party ? party.name : "Party" }, ...effAllocs.filter((a) => a.effective).map((a) => ({ role: "payment", ref: { kind: "movement" as const, id: a.movement_id }, label: `Payment ${a.movement_id}` }))],
       actions: cl ? [] : qs ? (qs.status === "open" ? [...(may(viewer, "quotation.revise", "quotation.manage") ? [{ capability: "quotation.revise", label: "Revise this quotation", valid: true, reason: null }] : []), ...(may(viewer, "quotation.accept", "quotation.manage") ? [{ capability: "quotation.accept", label: "Record that it was accepted", valid: true, reason: null }] : [])] : []) : settled && effective && may(viewer, "payment.record", "payment.record") ? [{ capability: "payment.record", label: "Record a payment", valid: outstanding > 0, reason: outstanding > 0 ? null : "nothing is outstanding" }] : [],
-      history: await history(env, [d.event_id, ...allocs.map((a) => a.event_id), ...reversals.map((r) => r.event_id), ...(qs ? await quotationEventIds(env, d.id) : []), ...(cl ? [cl.eventId] : []), ...credits.map((c) => c.eventId)]), exports: EXPORTS,
+      history: await history(env, [d.event_id, ...allocs.map((a) => a.event_id), ...reversals.map((r) => r.event_id), ...(qs ? await quotationEventIds(env, d.id) : []), ...(cl ? [cl.eventId, ...(await creditStoryIds(env, d.id))] : []), ...credits.map((c) => c.eventId), ...(dl ? [dl.eventId] : []), ...(!qs && !cl && !dl ? await appliedToInvoiceIds(env, d.id) : [])]), exports: EXPORTS,
     };
   }
 
