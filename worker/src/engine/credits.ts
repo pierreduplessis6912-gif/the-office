@@ -79,7 +79,7 @@ export async function planCreditNote(env: Env, input: { invoiceId: number; reaso
   const num = await env.OFFICE_DB.prepare("SELECT number FROM eng_document_number WHERE document_id = ?").bind(inv.id).first<{ number: number }>();
   const orig = await many<{ line_no: number; description: string; quantity_milli: number; unit: string | null; unit_price_minor: number; tax_bp: number }>(env, "SELECT line_no, description, quantity_milli, unit, unit_price_minor, tax_bp FROM eng_document_line WHERE document_id = ? ORDER BY line_no", inv.id);
   const before = new Map<number, number>(), beforeTax = new Map<number, number>();
-  const oneLine = (qty: number, price: number, bp: number) => sumLines([{ description: "x", quantityMilli: qty, unit: null, unitPriceMinor: price, taxBp: bp }]).taxMinor;
+  const oneLine = (qty: number, price: number, bp: number) => sumLines([{ quantityMilli: qty, unitPriceMinor: price, taxBp: bp }]).taxMinor;
   for (const c of await creditsOf(env, inv.id)) for (const l of c.lines) {
     before.set(l.invoiceLineNo, (before.get(l.invoiceLineNo) ?? 0) + lineNetMinor(l.quantityMilli, l.unitPriceMinor));
     const bp = orig.find((x) => x.line_no === l.invoiceLineNo)?.tax_bp ?? 0;

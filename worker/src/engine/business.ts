@@ -125,7 +125,7 @@ export async function vatSummary(env: Env, period: { from: string; to: string })
     const sign: 1 | -1 = d.kind === "credit_note" ? -1 : 1;
     const lines = await many<{ description: string; quantity_milli: number; unit: string | null; unit_price_minor: number; tax_bp: number }>(env, "SELECT description, quantity_milli, unit, unit_price_minor, tax_bp FROM eng_document_line WHERE document_id = ? ORDER BY line_no", d.id);
     for (const l of lines) {
-      const t = sumLines([{ description: l.description, quantityMilli: l.quantity_milli, unit: l.unit, unitPriceMinor: l.unit_price_minor, taxBp: l.tax_bp }]);
+      const t = sumLines([{ quantityMilli: l.quantity_milli, unitPriceMinor: l.unit_price_minor, taxBp: l.tax_bp }]);
       if (l.tax_bp === STANDARD_RATE_BP) { std += sign * t.grossMinor; stdTax += sign * t.taxMinor; }
       else if (l.tax_bp === 0) zero += sign * t.netMinor;
       else { const o = other.get(l.tax_bp) ?? { netMinor: 0, taxMinor: 0 }; o.netMinor += sign * t.netMinor; o.taxMinor += sign * t.taxMinor; other.set(l.tax_bp, o); }
