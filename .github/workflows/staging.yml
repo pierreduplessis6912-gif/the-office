@@ -29,6 +29,7 @@ on:
           - ramp
           - model-run
           - parties-proof
+          - quotations-proof
         default: rehearsal
       ramp_sizes:
         description: "Ramp mode only: the marker-row counts to try, ascending, separated by spaces (each at most 2000000); the ramp stops at the first size that fails"
@@ -532,6 +533,142 @@ jobs:
             sleep 3
           done
           python3 -c "import json,sys; sys.exit(0 if json.load(open('$RESULTS/parties-proof.json'))['passed'] else 1)"
+
+      - name: Quotations proof (mode quotations-proof, the dedicated staging business staging-quotes only)
+        if: env.MODE == 'quotations-proof'
+        run: |
+          # docs/decisions/quotations.md, "Next for this capability" item 1. Proves quotation.create, .revise, .accept and quotations.find on a REAL Durable Object, through the real routes, signed in as the business's owner (and an installer,
+          # who must be refused, and a salesperson, who may quote). Its OWN business (staging-quotes), so it never disturbs staging-two or staging-co; every reference carries this run's id; it provisions only an engine-EMPTY object; it approves only
+          # the quotation actions it proposes itself and never touches money. Staging only; never production.
+          set +e
+          BASE="https://${SLUG}.websitehub.co.za"
+          B=staging-quotes
+          RUN="${{ github.run_id }}"
+          A=(-H "X-Admin-Key: $STAGING_ADMIN_KEY" -H "X-Admin-Confirm: $STAGING_CONFIRM_KEY" -H "X-Target-Business: $B")
+          mkdir -p "$RESULTS"
+          : > "$RESULTS/qp-log.tsv"
+          cat > "$RESULTS/mkcookie.py" <<'PY'
+          import os, json, hmac, hashlib, base64, time
+          b = lambda x: base64.urlsafe_b64encode(x).rstrip(b"=").decode()
+          body = {"email": os.environ["EMAIL"], "exp": int(time.time() * 1000) + 3600000, "b": os.environ["BIZ"]}
+          p = b(json.dumps(body, separators=(",", ":")).encode())
+          s = b(hmac.new(os.environ["STAGING_SESSION_SECRET"].encode(), p.encode(), hashlib.sha256).digest())
+          print("office_session=" + p + "." + s)
+          PY
+          OWNER=$(EMAIL="staging-quotes-owner@example.com" BIZ="$B" python3 "$RESULTS/mkcookie.py")
+          INSTALLER=$(EMAIL="staging-quotes-installer@example.com" BIZ="$B" python3 "$RESULTS/mkcookie.py")
+          SALES=$(EMAIL="staging-quotes-sales@example.com" BIZ="$B" python3 "$RESULTS/mkcookie.py")
+          echo "::add-mask::$OWNER"; echo "::add-mask::$INSTALLER"; echo "::add-mask::$SALES"
+          M=(-H "Cookie: $OWNER" -H "Content-Type: application/json")
+          I=(-H "Cookie: $INSTALLER" -H "Content-Type: application/json")
+          S=(-H "Cookie: $SALES" -H "Content-Type: application/json")
+          rec() { name=$1; out=$2; shift 2; R=$(curl -s --max-time 120 -o "$out" -w '%{http_code}' "$@"); printf '%s\t%s\n' "$name" "$R" | tee -a "$RESULTS/qp-log.tsv"; }
+          jget() { python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(eval(sys.argv[2]))" "$1" "$2" 2>/dev/null; }
+          rec status-start "$RESULTS/qp-status-start.json" "${A[@]}" "$BASE/admin/engine/status"
+          MODE0=$(jget "$RESULTS/qp-status-start.json" "d.get('mode')")
+          echo "start: mode=$MODE0"
+          for pair in "owner:owner" "installer:installer" "sales:sales"; do
+            rec "membership-${pair%%:*}" "$RESULTS/qp-m-${pair%%:*}.json" -X POST "${A[@]}" -H "Content-Type: application/json" -d "{\"google_email\":\"staging-quotes-${pair%%:*}@example.com\",\"role\":\"${pair##*:}\"}" "$BASE/debug/create-membership"
+          done
+          if [ "$MODE0" != "engine" ]; then
+            rec provision "$RESULTS/qp-provision.json" -X POST "${A[@]}" -H "Content-Type: application/json" -d "{\"confirm\":\"$B\"}" "$BASE/admin/engine/provision-sample"
+          fi
+          rec status-ready "$RESULTS/qp-status-ready.json" "${A[@]}" "$BASE/admin/engine/status"
+          PARTY=$(curl -s "${M[@]}" "$BASE/engine/receivables?party=Mokoena" | python3 -c "import json,sys; print(((json.load(sys.stdin).get('result') or {}).get('party') or {}).get('id') or '')" 2>/dev/null)
+          echo "customer id: $PARTY"
+          rec owes-before "$RESULTS/qp-owes-before.json" "${M[@]}" "$BASE/engine/receivables?party=Mokoena"
+          LINES='[{"description":"Boards","quantityMilli":2000,"unit":"m2","unitPriceMinor":12500,"taxBp":1500},{"description":"Fitting","quantityMilli":1000,"unit":"hr","unitPriceMinor":10000,"taxBp":1500}]'
+          LINES2='[{"description":"Boards","quantityMilli":2000,"unit":"m2","unitPriceMinor":12500,"taxBp":1500},{"description":"Fitting","quantityMilli":1500,"unit":"hr","unitPriceMinor":10000,"taxBp":1500}]'
+          q() { echo "{\"capability\":\"$1\",\"payload\":$2,\"transcript\":\"(quotations-proof) $1\"}"; }
+          CREATE="{\"partyId\":$PARTY,\"issuedOn\":\"2026-11-10\",\"currency\":\"ZAR\",\"validUntil\":\"2026-12-10\",\"reference\":\"Proof $RUN\",\"lines\":$LINES}"
+          rec find-before "$RESULTS/qp-find-before.json" "${M[@]}" "$BASE/engine/quotations?partyId=$PARTY&status=any"
+          rec propose-create "$RESULTS/qp-propose-create.json" "${M[@]}" -X POST -d "$(q quotation.create "$CREATE")" "$BASE/engine/proposals"
+          A1=$(jget "$RESULTS/qp-propose-create.json" "d.get('actionId') if d.get('status')=='held' else ''")
+          rec find-while-held "$RESULTS/qp-find-held.json" "${M[@]}" "$BASE/engine/quotations?partyId=$PARTY&status=any"
+          [ -n "$A1" ] && rec confirm-create "$RESULTS/qp-confirm-create.json" "${M[@]}" -X POST -d '{}' "$BASE/actions/$A1/confirm"
+          rec find-created "$RESULTS/qp-find-created.json" "${M[@]}" "$BASE/engine/quotations?partyId=$PARTY&status=any"
+          QID=$(jget "$RESULTS/qp-find-created.json" "[x for x in (d.get('result') or {}).get('quotations',[]) if x.get('reference')=='Proof $RUN'][0]['id']")
+          rec propose-no-tax "$RESULTS/qp-no-tax.json" "${M[@]}" -X POST -d "$(q quotation.create "{\"partyId\":$PARTY,\"issuedOn\":\"2026-11-10\",\"currency\":\"ZAR\",\"lines\":[{\"description\":\"x\",\"quantityMilli\":1000,\"unitPriceMinor\":100}]}")" "$BASE/engine/proposals"
+          if [ -n "$QID" ]; then
+            rec propose-revise "$RESULTS/qp-propose-revise.json" "${M[@]}" -X POST -d "$(q quotation.revise "{\"quotationId\":$QID,\"lines\":$LINES2,\"validUntil\":\"2026-12-24\"}")" "$BASE/engine/proposals"
+            R1=$(jget "$RESULTS/qp-propose-revise.json" "d.get('actionId') if d.get('status')=='held' else ''")
+            rec propose-revise-stale "$RESULTS/qp-propose-revise2.json" "${M[@]}" -X POST -d "$(q quotation.revise "{\"quotationId\":$QID,\"validUntil\":\"2026-12-30\"}")" "$BASE/engine/proposals"
+            R2=$(jget "$RESULTS/qp-propose-revise2.json" "d.get('actionId') if d.get('status')=='held' else ''")
+            [ -n "$R1" ] && rec confirm-revise "$RESULTS/qp-confirm-revise.json" "${M[@]}" -X POST -d '{}' "$BASE/actions/$R1/confirm"
+            [ -n "$R2" ] && rec confirm-revise-stale "$RESULTS/qp-confirm-revise2.json" "${M[@]}" -X POST -d '{}' "$BASE/actions/$R2/confirm"
+            rec find-revised "$RESULTS/qp-find-revised.json" "${M[@]}" "$BASE/engine/quotations?partyId=$PARTY&status=any"
+            QID2=$(jget "$RESULTS/qp-find-revised.json" "[x for x in (d.get('result') or {}).get('quotations',[]) if x.get('supersedes')==$QID][0]['id']")
+            rec propose-revise-replaced "$RESULTS/qp-revise-replaced.json" "${M[@]}" -X POST -d "$(q quotation.revise "{\"quotationId\":$QID,\"validUntil\":\"2026-12-31\"}")" "$BASE/engine/proposals"
+            rec propose-accept-replaced "$RESULTS/qp-accept-replaced.json" "${M[@]}" -X POST -d "$(q quotation.accept "{\"quotationId\":$QID}")" "$BASE/engine/proposals"
+          fi
+          if [ -n "$QID2" ]; then
+            rec propose-accept "$RESULTS/qp-propose-accept.json" "${M[@]}" -X POST -d "$(q quotation.accept "{\"quotationId\":$QID2}")" "$BASE/engine/proposals"
+            AC=$(jget "$RESULTS/qp-propose-accept.json" "d.get('actionId') if d.get('status')=='held' else ''")
+            [ -n "$AC" ] && rec confirm-accept "$RESULTS/qp-confirm-accept.json" "${M[@]}" -X POST -d '{}' "$BASE/actions/$AC/confirm"
+            rec propose-accept-again "$RESULTS/qp-accept-again.json" "${M[@]}" -X POST -d "$(q quotation.accept "{\"quotationId\":$QID2}")" "$BASE/engine/proposals"
+            rec propose-revise-accepted "$RESULTS/qp-revise-accepted.json" "${M[@]}" -X POST -d "$(q quotation.revise "{\"quotationId\":$QID2,\"validUntil\":\"2027-01-31\"}")" "$BASE/engine/proposals"
+            rec record-final "$RESULTS/qp-record-final.json" "${M[@]}" "$BASE/engine/records/document/$QID2"
+            rec find-accepted "$RESULTS/qp-find-accepted.json" "${M[@]}" "$BASE/engine/quotations?partyId=$PARTY&status=accepted"
+            rec installer-record "$RESULTS/qp-installer-record.json" "${I[@]}" "$BASE/engine/records/document/$QID2"
+          fi
+          rec owes-after "$RESULTS/qp-owes-after.json" "${M[@]}" "$BASE/engine/receivables?party=Mokoena"
+          rec installer-find "$RESULTS/qp-installer-find.json" "${I[@]}" "$BASE/engine/quotations"
+          rec installer-propose "$RESULTS/qp-installer-propose.json" "${I[@]}" -X POST -d "$(q quotation.create "$CREATE")" "$BASE/engine/proposals"
+          rec sales-find "$RESULTS/qp-sales-find.json" "${S[@]}" "$BASE/engine/quotations?partyId=$PARTY"
+          rec sales-propose "$RESULTS/qp-sales-propose.json" "${S[@]}" -X POST -d "$(q quotation.create "$CREATE")" "$BASE/engine/proposals"
+          SA=$(jget "$RESULTS/qp-sales-propose.json" "d.get('actionId') if d.get('status')=='held' else ''")
+          [ -n "$SA" ] && rec sales-reject "$RESULTS/qp-sales-reject.json" "${M[@]}" -X POST -d '{}' "$BASE/actions/$SA/reject"
+          rec status-end "$RESULTS/qp-status-end.json" "${A[@]}" "$BASE/admin/engine/status"
+          python3 - <<'PY' > "$RESULTS/quotations-proof.json"
+          import json, os
+          r = os.environ["RESULTS"]
+          def load(n):
+              try: return json.load(open(os.path.join(r, n)))
+              except Exception: return {}
+          log = {}
+          for line in open(os.path.join(r, "qp-log.tsv")):
+              k, _, v = line.rstrip("\n").partition("\t"); log[k] = v
+          res = lambda n: (load(n).get("result") or {})
+          qs = lambda n: res(n).get("quotations") or []
+          fields = lambda n: {f.get("key"): f.get("value") for f in (res(n).get("fields") or [])}
+          fin = fields("qp-record-final.json")
+          st0, st1 = load("qp-status-start.json"), load("qp-status-end.json")
+          n0 = len(qs("qp-find-before.json"))
+          c = {}
+          ready = load("qp-status-ready.json")
+          c["the_object_is_in_engine_mode_with_the_quotation_capabilities"] = ready.get("mode") == "engine" and all(x in (ready.get("available") or []) for x in ["quotations.find", "quotation.create", "quotation.revise", "quotation.accept"])
+          c["proposing_a_quotation_is_held"] = log.get("propose-create") == "200" and load("qp-propose-create.json").get("status") == "held"
+          c["a_held_proposal_records_no_quotation"] = log.get("find-while-held") == "200" and len(qs("qp-find-held.json")) == n0
+          c["approving_it_records_the_quotation_at_the_engines_total"] = log.get("confirm-create") == "200" and len(qs("qp-find-created.json")) == n0 + 1 and any(x.get("reference", "").startswith("Proof ") and x.get("grossMinor") == 40250 and x.get("status") == "open" for x in qs("qp-find-created.json"))
+          c["a_line_with_no_tax_rate_is_refused"] = log.get("propose-no-tax") == "422" and load("qp-no-tax.json").get("error") == "invalid_payload"
+          c["a_revision_replaces_the_old_quotation_with_a_new_one"] = log.get("confirm-revise") == "200" and any(x.get("status") == "superseded" for x in qs("qp-find-revised.json")) and any(x.get("grossMinor") == 46000 and x.get("status") == "open" for x in qs("qp-find-revised.json"))
+          c["a_second_revision_of_the_same_version_is_stale"] = log.get("confirm-revise-stale") == "409" and load("qp-confirm-revise2.json").get("error") in ("stale", "invalid_state")
+          c["a_replaced_quotation_cannot_be_revised_or_accepted"] = log.get("propose-revise-replaced") == "409" and log.get("propose-accept-replaced") == "409"
+          c["accepting_the_current_quotation_works"] = log.get("confirm-accept") == "200" and fin.get("status") == "accepted"
+          c["an_accepted_quotation_cannot_be_accepted_again_or_revised"] = log.get("propose-accept-again") == "409" and log.get("propose-revise-accepted") == "409"
+          c["the_record_is_explained"] = {"quotation.accepted", "quotation.revised"} <= {h.get("type") for h in (res("qp-record-final.json").get("history") or [])}
+          c["a_quotation_is_not_a_debt"] = log.get("owes-before") == "200" and log.get("owes-after") == "200" and res("qp-owes-before.json").get("totalMinor") == res("qp-owes-after.json").get("totalMinor")
+          c["an_installer_is_refused_a_read_a_proposal_and_the_record"] = log.get("installer-find") == "403" and log.get("installer-propose") == "403" and log.get("installer-record") in ("403", "404")
+          c["a_salesperson_may_find_and_propose"] = log.get("sales-find") == "200" and log.get("sales-propose") == "200"
+          c["the_integrity_verifier_is_clean_at_the_end"] = (st1.get("integrity") or {}).get("ok") is True
+          out = {"when": __import__("datetime").datetime.utcnow().isoformat() + "Z", "run": os.environ.get("GITHUB_RUN_ID"), "commit": os.environ.get("GITHUB_SHA", "")[:7], "mode": "quotations-proof", "business": "staging-quotes",
+                 "started_in": {"mode": st0.get("mode"), "rows": st0.get("rows")}, "http": log, "checks": c, "passed": all(c.values()), "failed": [k for k, v in c.items() if not v]}
+          print(json.dumps(out, indent=1))
+          PY
+          cat "$RESULTS/quotations-proof.json"
+          mkdir -p ops
+          cp "$RESULTS/quotations-proof.json" ops/staging-quotations-proof-last.json
+          git config user.name "staging-workflow"
+          git config user.email "noreply@github.com"
+          git checkout -- worker/src/schema-steps.ts worker/src/baseline-sql.ts 2>/dev/null
+          git add ops/staging-quotations-proof-last.json
+          git commit -m "Staging quotations proof record (statuses, checks and pass or fail only)" || echo "nothing to record"
+          PUSHRC=1
+          for attempt in 1 2 3; do
+            git pull --rebase origin "$GITHUB_REF_NAME" && git push origin HEAD:"$GITHUB_REF_NAME" && { PUSHRC=0; break; }
+            sleep 3
+          done
+          python3 -c "import json,sys; sys.exit(0 if json.load(open('$RESULTS/quotations-proof.json'))['passed'] else 1)"
 
       - name: Model-backed run (mode model-run, staging-two only, HELD until Pierre says run it)
         if: env.MODE == 'model-run'

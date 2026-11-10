@@ -11,7 +11,7 @@ Capability-map row 2 (`docs/CAPABILITY_MAP.md`), the next one in Pierre's order 
 - **`quotations.find`** (read): `GET /engine/quotations?partyId=&status=`; by default only CURRENT quotations; `status=any` lists the whole history.
 - The record view of a quotation shows its status, validity and reference, links to what it replaces or what replaced it, offers revise and accept only while it is open, and lists its revisions and acceptance in its history with what was said, who approved, under which contract.
 
-## Decisions taken (defaults; each is open to change by Pierre)
+## Decisions taken (**approved by Pierre 2026-11-10**, including that a salesperson may propose AND approve a quotation; still open to change by him)
 1. **State is derived, never stored, and nothing is edited.** A quotation is an ordinary document of kind `quotation`; open, accepted and superseded come from the events (`worker/src/engine/quotations.ts`). **No schema migration**, so nothing here touches the recovery gate. The `tf_document_link` table of the fit test is the later, general answer for document relationships (orders, deliveries, credit notes); these two events say the same thing for quotations until that migration is decided, and it can absorb them.
 2. **A revision is a new document with its own number** (a revision is quotation #2, not "#1 rev 2"). Number continuity for quotations, as for invoices, is not done.
 3. **A quotation is not a debt.** The engine's configuration decides which kinds a customer owes for (invoices by default); quotations are not among them, and the record view shows no "paid" or "outstanding" for one. Tested: the customer owes exactly the same after create, revise and accept.
@@ -27,6 +27,6 @@ Capability-map row 2 (`docs/CAPABILITY_MAP.md`), the next one in Pierre's order 
 - **Unknown / not done:** a real Durable Object has not run it; finding derives every quotation in memory (fine for hundreds; measure on staging before thousands); a real model has not been shown these capabilities (`interpret.ts` still offers only the receivables read and the payment); the app does not call it; the outside-assistant (MCP) door does not offer it; snapshot and restore with these events is unproven.
 
 ## Next for this capability (each needs Pierre's word)
-1. A staging proof of create, revise, accept and find on a real object (a `quotations-proof` mode like `parties-proof`).
+1. A staging proof of create, revise, accept and find on a real object: workflow mode **`quotations-proof`** (added 2026-11-10 on Pierre's word; own business `staging-quotes`; record `ops/staging-quotations-proof-last.json`).
 2. Showing the model the capabilities and judging it against a written pass rule.
 3. Wiring to the app through the real client (needs his approval to connect).
