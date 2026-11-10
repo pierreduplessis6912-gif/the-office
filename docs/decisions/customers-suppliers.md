@@ -1,4 +1,4 @@
-> **Status:** built in the engine and CI-tested on branch `engine-phase1` (2026-11-09); **not** proven on a real staging object, **not** read by a real model, **not** wired to the app. **Verified:** by `tools/capability-parties.test.js` (82 checks) and ten deliberate breakages in `tools/engine-breakage.js`. **Owns:** the meaning of "a customer or supplier" in the engine.
+> **Status:** built in the engine, CI-tested and proven on a real staging Durable Object (`parties-proof`, 13 of 13, 2026-11-10); **not** read by a real model, **not** wired to the app. **Verified:** by `tools/capability-parties.test.js` (82 checks) and ten deliberate breakages in `tools/engine-breakage.js`. **Owns:** the meaning of "a customer or supplier" in the engine.
 
 # Customers and suppliers: create, edit, find
 
@@ -23,9 +23,10 @@ Capability-map row 1 (`docs/CAPABILITY_MAP.md`). Everything else points at a par
 - **Test** (route harness, a stand-in for Durable Object storage): every happy path, every refusal at the door, the stale and duplicate cases at approval, permissions per role, availability, the integrity verifier, atomicity of the create at every write, and that an edit leaves the party rows byte-for-byte unchanged.
 - **Test** (deliberate breakage): ten mutations (duplicate check, stale check, last role, repeated role, email check, update-instead-of-revise, current-name lookup, orphan revision, who may edit, who holds the permission) each make the suite fail.
 - **Code read:** the Dart shell does not use record actions or the party fields, so the regenerated party fixture (new fields, a new action) cannot change what it shows; Dart cannot run here, CI is the check.
-- **Unknown / not done:** a real Durable Object has not run it (the compound-SELECT defect of 2026-11-09 is why that box is separate); finding scans every party's profile in memory (fine for hundreds; measure on staging before thousands); a real model has not been shown these capabilities (`interpret.ts` still offers only the receivables read and the payment); the app does not call it; the outside-assistant (MCP) door does not offer it; snapshot and restore with revision events is unproven.
+- **Real staging record:** `ops/staging-parties-proof-last.json`, run 42802521790 at 53b72a5: held create, duplicate refused, rename, stale edit refused, contact cleared, installer refused 403, integrity clean, all through the real routes.
+- **Unknown / not done:** finding scans every party's profile in memory (fine for hundreds; measure on staging before thousands); a real model has not been shown these capabilities (`interpret.ts` still offers only the receivables read and the payment); the app does not call it; the outside-assistant (MCP) door does not offer it; snapshot and restore with revision events is unproven.
 
 ## Next for this capability (each needs Pierre's word)
-1. A staging proof of create, edit and find on a real object: workflow `staging.yml` mode **`parties-proof`** (added 2026-11-10; its own business `staging-parties`, safe to re-run, record in `ops/staging-parties-proof-last.json`). The existing `rehearsal` has no party scenario and its two failures need separate diagnosis (HANDOFF.md).
+1. DONE (2026-11-10): a staging proof of create, edit and find on a real object: workflow `staging.yml` mode **`parties-proof`** (added 2026-11-10; its own business `staging-parties`, safe to re-run, record in `ops/staging-parties-proof-last.json`). The existing `rehearsal` has no party scenario and its two failures need separate diagnosis (HANDOFF.md).
 2. Showing the model the three capabilities and judging it against a written pass rule.
 3. Wiring to the app through the real client (needs his approval to connect).
