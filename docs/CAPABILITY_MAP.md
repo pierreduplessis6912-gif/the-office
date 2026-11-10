@@ -30,7 +30,7 @@ Legend for the columns: **E** engine, **C** CI-tested, **R** real platform, **V*
 | Provenance trail (capture, interpretation, proposal, approval) | Governance | ✓ | ✓ | - | ✓ | ✓ | p | - | Not yet seen on a real approval |
 | Backup and restore of engine tables | Platform | ✓ | ✓ | ✓ | - | - | - | - | A single table above about 18 MB cannot be snapshotted |
 | A model as one more interpreter | Automation/AI | ✓ | ✓ | ✓ | n/a | - | - | - | One staging run, 9 of 10 |
-| Create and edit customers and suppliers (and find them) | CRM | ✓ | ✓ | - | - | ✓ | - | - | party.create, party.edit (held) and parties.find, CI-tested with ten deliberate breakages; no schema change (an edit is a new fact). Not run on a real object, not shown to the model, not called by the app. docs/decisions/customers-suppliers.md |
+| Create and edit customers and suppliers (and find them) | CRM | ✓ | ✓ | - | - | ✓ | - | - | party.create, party.edit (held) and parties.find, CI-tested with ten deliberate breakages; no schema change (an edit is a new fact). Staging `rehearsal` run at 026d11d (2026-11-10, ops/staging-last-run.json) does NOT exercise it (its scenario has no party step; real-object proof still needs one) and recorded two failed steps (business_object_e2e, engine_migration_rehearsal) that look like leftover state from earlier runs on the same staging objects (inference, not yet diagnosed). CI (proof tests, app compile) green at 026d11d. Not shown to the model, not called by the app. docs/decisions/customers-suppliers.md |
 | Quotations (create, revise, accept) | Sales | - | - | - | - | - | - | - | Walked on paper [fit test] |
 | Credit notes | Sales | - | - | - | - | - | - | - | Walked [fit-domains] |
 | Expenses | Finance | - | - | - | - | - | - | - | |
