@@ -12,6 +12,7 @@ export type EngineErrorCode =
   | "stale"                  // the record changed since the person looked at it: an approval or a save is only for the version it showed
   | "invalid_state"          // valid in form, but the facts do not allow it now (a closed draft, an incomplete draft)
   | "duplicate"              // another customer or supplier already has that name (ignoring case and spacing): edit the existing record instead of making a second
+  | "period_locked"           // the document is dated on or before the tax lock date: date it in the open period
   | "already_executed";      // this approval has been executed already: it cannot record twice
 
 export class EngineError extends Error {

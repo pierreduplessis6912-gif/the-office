@@ -7,7 +7,7 @@ const { parseArgs, select } = require('./breakage-select.js');
 const sourceRoot = path.join(__dirname, '..');
 let root = sourceRoot;   // becomes the isolated copy before anything is edited or run
 const E = (f) => `worker/src/engine/${f}`, CONTRACT = 'worker/src/capability-contract.ts', MIG = 'worker/migrations/0004_engine_foundation.sql';
-const CREDITS = 'capability-credit-notes.test.js', QUOTES = 'capability-quotations.test.js', PARTIES = 'capability-parties.test.js', OBIND = 'object-binding.test.js', RPROOF = 'restore-proof.test.js', MANI = 'backup-manifest.test.js', STID = 'staging-identity.test.js', OBJ = 'business-object.standalone.js', ISOL = 'engine-isolation.test.js', OWN = 'engine-ownership.test.js', INTEG = 'engine-integrity.test.js', ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
+const TAXDOC = 'capability-tax-documents.test.js', CREDITS = 'capability-credit-notes.test.js', QUOTES = 'capability-quotations.test.js', PARTIES = 'capability-parties.test.js', OBIND = 'object-binding.test.js', RPROOF = 'restore-proof.test.js', MANI = 'backup-manifest.test.js', STID = 'staging-identity.test.js', OBJ = 'business-object.standalone.js', ISOL = 'engine-isolation.test.js', OWN = 'engine-ownership.test.js', INTEG = 'engine-integrity.test.js', ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
 
 const MUTATIONS = [
   // money: exact integer arithmetic
@@ -183,6 +183,18 @@ const MUTATIONS = [
   { name: 'credit notes: the verifier ignores amounts that do not add up', suite: CREDITS, file: E('integrity.ts'), find: 'if (Number(p.appliedMinor) + Number(p.unappliedMinor) !== gross ||', replace: 'if (false &&' },
   { name: 'credit notes: the customer account hides the credit owed back', suite: CREDITS, file: E('capabilities.ts'), find: 'unappliedCreditMinor: await unappliedCreditForParty(env, party.id),', replace: 'unappliedCreditMinor: 0,' },
   { name: 'credit notes: the record treats a credit note as a debt', suite: CREDITS, file: E('records.ts'), find: 'const cl = d.kind === "credit_note" ? await creditOf(env, d.id) : null;', replace: 'const cl: any = null;' },
+  // tax documents and periods (capability-tax-documents.test.js): the lock only moves forward and guards tax documents; the completeness check flags what is missing
+  { name: 'tax docs: let the tax lock move backward', suite: TAXDOC, file: E('facts.ts'), find: 'if (now !== null && d.value <= now) throw new EngineError("invalid_state", `The tax lock is already at', replace: 'if (false) throw new EngineError("invalid_state", `The tax lock is already at' },
+  { name: 'tax docs: credit notes ignore the tax lock', suite: TAXDOC, file: E('credits.ts'), find: 'await requireOpenTaxPeriod(env, date.value, "A credit note");', replace: '' },
+  { name: 'tax docs: a document dated ON the lock date is allowed', suite: TAXDOC, file: E('business.ts'), find: 'if (lock !== null && date <= lock) throw', replace: 'if (lock !== null && date < lock) throw' },
+  { name: 'tax docs: invoices ignore the tax lock', suite: TAXDOC, file: E('drafts.ts'), find: 'if (v.ok && typeof payload.issuedOn === "string") await requireOpenTaxPeriod(tx, payload.issuedOn, "An invoice");', replace: '' },
+  { name: 'tax docs: accept any VAT number for the business', suite: TAXDOC, file: E('business.ts'), find: '!/^4\\d{9}$/.test(t)', replace: 'false' },
+  { name: 'tax docs: a business can be VAT registered with no number', suite: TAXDOC, file: E('business.ts'), find: 'if (next.vatRegistered === true && !next.vatNumber) return', replace: 'if (false) return' },
+  { name: 'tax docs: the check forgets the vendor VAT number', suite: TAXDOC, file: E('business.ts'), find: 'else if (!p.vatNumber) missing.push("vendor VAT number");', replace: 'else if (false) missing.push("vendor VAT number");' },
+  { name: 'tax docs: the check ignores the recipient threshold', suite: TAXDOC, file: E('business.ts'), find: 'if (basis > ABRIDGED_LIMIT_MINOR) {', replace: 'if (false) {' },
+  { name: 'tax docs: the verifier ignores a lock that moved backward', suite: TAXDOC, file: E('integrity.ts'), find: 'if (lockSeen !== null && d <= lockSeen) problems.push', replace: 'if (false) problems.push' },
+  { name: 'tax docs: anyone who makes quotes may set the business details', suite: TAXDOC, file: E('permissions.ts'), find: 'can_make_quotes: ["quotation.read", "quotation.manage"],', replace: 'can_make_quotes: ["quotation.read", "quotation.manage", "business.manage"],' },
+  { name: 'tax docs: the record hides what a tax document lacks', suite: TAXDOC, file: E('records.ts'), find: '...(pt && pt.applicable ?', replace: '...(false ?' },
 ];
 
 let opts;

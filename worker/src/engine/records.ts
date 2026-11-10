@@ -10,6 +10,7 @@ import type { EnginePermission } from "./permissions";
 import { partyProfile } from "./parties";
 import { quotationEventIds, quotationSummary } from "./quotations";
 import { creditedGross, creditOf, creditsOf } from "./credits";
+import { documentParticulars } from "./business";
 
 export type RecordKind = "party" | "document" | "movement" | "draft";
 export interface RecordRef { kind: RecordKind; id: number }
@@ -117,6 +118,7 @@ export async function recordView(env: Env, viewer: ViewerContext, ref: RecordRef
     if (!d) return null;
     if (!(d.kind === "quotation" ? viewer.perms.has("quotation.read") : seesMoney)) return null;   // a quotation is seen by those who make quotes; money documents by those who may see money
     const qs = d.kind === "quotation" ? await quotationSummary(env, d.id) : null;
+    const pt = !qs ? await documentParticulars(env, d.id) : null;                     // what a tax document still lacks (flags only)
     const cl = d.kind === "credit_note" ? await creditOf(env, d.id) : null;           // the credit note's own story (what it credited, applied and left over)
     const credits = !qs && !cl ? await creditsOf(env, d.id) : [];                    // the credit notes that credit THIS document (an invoice)
     const n = await one<{ number: number }>(env, "SELECT number FROM eng_document_number WHERE document_id = ?", d.id);
@@ -135,7 +137,7 @@ export async function recordView(env: Env, viewer: ViewerContext, ref: RecordRef
     return {
       ref, version: await versionOf(env, ref), title: `${d.kind[0].toUpperCase()}${d.kind.slice(1).replace(/_/g, " ")} ${n ? "#" + n.number : ""}`.trim(),
       fields: [
-        { key: "kind", label: "Kind", value: d.kind }, { key: "number", label: "Number", value: n ? n.number : null }, { key: "status", label: "Status", value: status, derivedBy: qs ? "quotations.allQuotations" : "ledger.outstandingForDocument" },
+        { key: "kind", label: "Kind", value: d.kind }, { key: "number", label: "Number", value: n ? n.number : null }, { key: "status", label: "Status", value: status, derivedBy: qs ? "quotations.allQuotations" : "ledger.outstandingForDocument" }, ...(pt && pt.applicable ? [{ key: "particularsComplete", label: "Tax particulars complete", value: pt.complete, derivedBy: "business.documentParticulars" }, { key: "particularsMissing", label: "Tax particulars missing", value: pt.missing.join(", "), derivedBy: "business.documentParticulars" }] : []),
         { key: "issuedOn", label: "Issued", value: d.issued_on }, { key: "currency", label: "Currency", value: d.currency },
         { key: "netMinor", label: "Net", value: totals.netMinor, derivedBy: "ledger.documentTotals" }, { key: "taxMinor", label: "Tax", value: totals.taxMinor, derivedBy: "ledger.documentTotals" }, { key: "grossMinor", label: "Total", value: totals.grossMinor, derivedBy: "ledger.documentTotals" },
         ...(qs ? [{ key: "validUntil", label: "Valid until", value: qs.validUntil }, { key: "reference", label: "Reference", value: qs.reference }, { key: "allocatedMinor", label: "Paid", value: null }, { key: "outstandingMinor", label: "Outstanding", value: null }] : cl ? [{ key: "reason", label: "Reason", value: cl.reason }, { key: "appliedMinor", label: "Applied to the invoice", value: cl.appliedMinor }, { key: "unappliedMinor", label: "Left unapplied", value: cl.unappliedMinor }, { key: "allocatedMinor", label: "Paid", value: null }, { key: "outstandingMinor", label: "Outstanding", value: null }] : [{ key: "allocatedMinor", label: "Paid", value: allocated, derivedBy: "ledger.allocatedToDocument" }, { key: "outstandingMinor", label: "Outstanding", value: outstanding, derivedBy: "ledger.outstandingForDocument" }, { key: "creditedMinor", label: "Credited", value: await creditedGross(env, d.id), derivedBy: "credits.creditedGross" }]),
@@ -160,7 +162,7 @@ export async function recordView(env: Env, viewer: ViewerContext, ref: RecordRef
     for (const m of moves) payments.push({ id: m.id, direction: m.direction, amountMinor: m.amount_minor, occurredOn: m.occurred_on, unallocatedMinor: await unallocatedForMovement(env, m.id), effective: await isEffective(env, "movement", m.id) });
     return {
       ref, version: await versionOf(env, ref), title: p.name,
-      fields: [{ key: "name", label: "Name", value: p.name }, { key: "kind", label: "Kind", value: p.kind }, { key: "roles", label: "Roles", value: roles.join(", ") }, { key: "email", label: "Email", value: p.contact.email ?? null }, { key: "phone", label: "Phone", value: p.contact.phone ?? null }, { key: "address", label: "Address", value: p.contact.address ?? null }, { key: "outstandingMinor", label: "Outstanding", value: acct.totalMinor, derivedBy: "ledger.outstandingForParty" }, { key: "unappliedCreditMinor", label: "Credit owed back", value: await unappliedCreditForParty(env, p.id), derivedBy: "ledger.unappliedCreditForParty" }],
+      fields: [{ key: "name", label: "Name", value: p.name }, { key: "kind", label: "Kind", value: p.kind }, { key: "roles", label: "Roles", value: roles.join(", ") }, { key: "email", label: "Email", value: p.contact.email ?? null }, { key: "phone", label: "Phone", value: p.contact.phone ?? null }, { key: "address", label: "Address", value: p.contact.address ?? null }, { key: "vatNumber", label: "VAT number", value: p.contact.vatNumber ?? null }, { key: "outstandingMinor", label: "Outstanding", value: acct.totalMinor, derivedBy: "ledger.outstandingForParty" }, { key: "unappliedCreditMinor", label: "Credit owed back", value: await unappliedCreditForParty(env, p.id), derivedBy: "ledger.unappliedCreditForParty" }],
       collections: { documents: acct.documents.map((d) => ({ ...d })), payments },
       relations: [...acct.documents.map((d) => ({ role: "invoice", ref: { kind: "document" as const, id: d.id }, label: `${d.kind} ${d.number ?? ""}`.trim() })), ...moves.map((m) => ({ role: "payment", ref: { kind: "movement" as const, id: m.id }, label: `Payment ${m.id}` }))],
       actions: [...(may(viewer, "party.edit", "party.manage") ? [{ capability: "party.edit", label: "Change this " + (roles.includes("supplier") && !roles.includes("customer") ? "supplier" : "customer"), valid: true, reason: null }] : []), ...(may(viewer, "payment.record", "payment.record") ? [{ capability: "payment.record", label: "Record a payment", valid: true, reason: null }] : [])],

@@ -41,6 +41,11 @@
           "value": null
         },
         {
+          "key": "vatNumber",
+          "label": "VAT number",
+          "value": null
+        },
+        {
           "key": "outstandingMinor",
           "label": "Outstanding",
           "value": 85000,

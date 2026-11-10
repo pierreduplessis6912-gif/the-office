@@ -9,6 +9,7 @@ import { EngineError } from "./errors";
 import { documentTotals, isEffective, outstandingForDocument } from "./ledger";
 import { documentTotals as sumLines, lineNetMinor, type Totals } from "./money";
 import { checkDate } from "./quotations";
+import { requireOpenTaxPeriod } from "./business";
 
 export interface CreditLineInput { invoiceLineNo: number; quantityMilli: number; unitPriceMinor: number }
 export interface CreditLink { eventId: number; documentId: number; invoiceId: number; movementId: number; appliedMinor: number; unappliedMinor: number; reason: string; lines: CreditLineInput[] }
@@ -70,6 +71,7 @@ export async function planCreditNote(env: Env, input: { invoiceId: number; reaso
   const reason = checkReason(input.reason); if (!reason.ok) throw new EngineError("invalid_input", reason.reason);
   const date = checkDate(input.issuedOn, "issue date"); if (!date.ok) throw new EngineError("invalid_input", date.reason);
   if (date.value < inv.issued_on) throw new EngineError("invalid_input", "A credit note cannot be dated before the invoice it credits.");
+  await requireOpenTaxPeriod(env, date.value, "A credit note");
   const lines = checkCreditLines(input.lines); if (!lines.ok) throw new EngineError("invalid_input", lines.reason);
   const num = await env.OFFICE_DB.prepare("SELECT number FROM eng_document_number WHERE document_id = ?").bind(inv.id).first<{ number: number }>();
   const orig = await many<{ line_no: number; description: string; quantity_milli: number; unit: string | null; unit_price_minor: number; tax_bp: number }>(env, "SELECT line_no, description, quantity_milli, unit, unit_price_minor, tax_bp FROM eng_document_line WHERE document_id = ? ORDER BY line_no", inv.id);

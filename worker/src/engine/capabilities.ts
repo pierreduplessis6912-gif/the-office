@@ -13,6 +13,7 @@ import type { EnginePermission } from "./permissions";
 import { unappliedCreditForParty } from "./ledger";
 import { allQuotations, checkDate, checkLines, checkReference, planQuotationAcceptance, planQuotationRevision, type QuoteLine } from "./quotations";
 import { documentTotals as sumTotals } from "./money";
+import { applyProfile, businessProfile, checkProfileChange, taxLockDate, type ProfileChange } from "./business";
 import { checkCreditLines, checkReason, planCreditNote, type CreditLineInput } from "./credits";
 import { allProfiles, applyRevision, checkContact, checkName, checkRoles, holderOfName, partyProfile, PARTY_ROLES, sameName } from "./parties";
 
@@ -454,7 +455,42 @@ export const creditNoteIssue: CapabilityContract<CreditNoteIssue> = {
   },
 };
 
-export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind, quotationsFind];
+// ---- the business profile and the tax lock ---------------------------------------------------------------------------------------------------------------------------------------------------
+// The owner sets the business's own particulars and moves the tax lock forward (docs/decisions/credit-note-follow-ups.md, points 1 and 2). Both are held writes; the lock can never move backward.
+export const businessProfileSet: CapabilityContract<ProfileChange> = {
+  id: "business.profile.set", heldType: "engine.business.profile.set", label: "Setting the business details", requires: [], permissions: ["business.manage"], version: 1, recordsExecution: true,
+  validate(payload) { return checkProfileChange(payload); },
+  async check(env, value) {
+    const a = applyProfile(await businessProfile(env), value);
+    if (!a.ok) throw new EngineError("invalid_state", a.reason);
+  },
+  async execute(env, v, c) { const r = await facts.setBusinessProfile(env, v, ctxOf(c, "business.profile.set")); return { eventId: r.eventId }; },
+};
+
+interface TaxLockSet { lockDate: string }
+export const taxLockSet: CapabilityContract<TaxLockSet> = {
+  id: "tax_lock.set", heldType: "engine.tax_lock.set", label: "Locking the tax period", requires: [], permissions: ["business.manage"], version: 1, recordsExecution: true,
+  validate(payload) {
+    if (!isObj(payload)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(payload, ["lockDate"]);
+    if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    const d = checkDate(payload.lockDate, "lockDate"); if (!d.ok) return d;
+    return { ok: true, value: { lockDate: d.value } };
+  },
+  async check(env, value) {
+    const now = await taxLockDate(env);
+    if (now !== null && value.lockDate <= now) throw new EngineError("invalid_state", `The tax lock is already at ${now}; it can only move forward.`);
+  },
+  async execute(env, v, c) { const r = await facts.setTaxLock(env, v, ctxOf(c, "tax_lock.set")); return { eventId: r.eventId }; },
+};
+
+export const businessGet: ReadCapability<Record<string, never>> = {
+  id: "business.get", label: "Reading the business details", permissions: ["business.manage"],
+  validate(params) { return isObj(params) && Object.keys(params).length === 0 ? { ok: true, value: {} } : { ok: false, reason: "this request takes no parameters" }; },
+  async run(env) { return { profile: await businessProfile(env), taxLockDate: await taxLockDate(env), derivedBy: "business.businessProfile" }; },
+};
+
+export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind, quotationsFind, businessGet];
 
 // Provenance (invariant 6): every engine contract records what was understood at the door (an interpretation naming the capture and the held action) and finds the capture again at the confirm.
 const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => ({
@@ -462,5 +498,5 @@ const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => (
   recordUnderstood: async (env, info) => { await facts.recordInterpretation(env, { captureId: info.captureId, interpreter: info.interpreter, capability: c.id, actionId: info.actionId }); },
   captureOf: async (env, actionId) => (await env.OFFICE_DB.prepare("SELECT capture_id FROM eng_interpretation WHERE json_extract(payload_json, '$.actionId') = ? AND capability = ? ORDER BY id DESC LIMIT 1").bind(actionId, c.id).first<{ capture_id: number }>())?.capture_id ?? null,
 });
-export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue] as CapabilityContract<any>[]).map((c) => withProvenance(c));
+export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept, creditNoteIssue, businessProfileSet, taxLockSet] as CapabilityContract<any>[]).map((c) => withProvenance(c));
 export const CAPABILITY_IDS: readonly string[] = [...READS.map((r) => r.id), ...ENGINE_CONTRACTS.map((c) => c.id)];

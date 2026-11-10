@@ -122,6 +122,18 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "derivedBy": "ledger.outstandingForDocument"
         },
         {
+          "key": "particularsComplete",
+          "label": "Tax particulars complete",
+          "value": false,
+          "derivedBy": "business.documentParticulars"
+        },
+        {
+          "key": "particularsMissing",
+          "label": "Tax particulars missing",
+          "value": "vendor name, vendor address, vendor VAT number",
+          "derivedBy": "business.documentParticulars"
+        },
+        {
           "key": "issuedOn",
           "label": "Issued",
           "value": "2026-10-01"
@@ -318,6 +330,18 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "label": "Status",
           "value": "part_paid",
           "derivedBy": "ledger.outstandingForDocument"
+        },
+        {
+          "key": "particularsComplete",
+          "label": "Tax particulars complete",
+          "value": false,
+          "derivedBy": "business.documentParticulars"
+        },
+        {
+          "key": "particularsMissing",
+          "label": "Tax particulars missing",
+          "value": "vendor name, vendor address, vendor VAT number",
+          "derivedBy": "business.documentParticulars"
         },
         {
           "key": "issuedOn",
@@ -557,6 +581,11 @@ const Map<String, String> engineFixtureJson = <String, String>{
         {
           "key": "address",
           "label": "Address",
+          "value": null
+        },
+        {
+          "key": "vatNumber",
+          "label": "VAT number",
           "value": null
         },
         {

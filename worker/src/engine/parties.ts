@@ -5,8 +5,8 @@ import type { Env } from "../types";
 
 export const PARTY_ROLES = ["customer", "supplier"] as const;
 export type PartyRole = (typeof PARTY_ROLES)[number];
-export interface Contact { email?: string; phone?: string; address?: string }
-export const CONTACT_FIELDS = ["email", "phone", "address"] as const;
+export interface Contact { email?: string; phone?: string; address?: string; vatNumber?: string }
+export const CONTACT_FIELDS = ["email", "phone", "address", "vatNumber"] as const;
 export interface PartyProfile { id: number; kind: string; name: string; roles: string[]; contact: Contact; revisionEventIds: number[] }
 export interface Revision { name?: string; addRoles?: string[]; removeRoles?: string[]; contact?: Record<string, string | null> }
 
@@ -34,6 +34,7 @@ const CHECKS: Record<(typeof CONTACT_FIELDS)[number], (s: string) => string | nu
   email: (s) => (s.length <= 120 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? null : "email must look like name@example.com"),
   phone: (s) => (/^\+?[0-9][0-9 ()-]{3,28}[0-9]$/.test(s) ? null : "phone must be a phone number"),
   address: (s) => (s.length <= 300 ? null : "address must be at most 300 characters"),
+  vatNumber: (s) => (/^[A-Za-z0-9]{5,20}$/.test(s) ? null : "vatNumber must be 5 to 20 letters or digits, no spaces"),
 };
 // allowNull: an EDIT may clear a field (null); a CREATE may not.
 export function checkContact(v: unknown, allowNull: boolean): Checked<Record<string, string | null>> {

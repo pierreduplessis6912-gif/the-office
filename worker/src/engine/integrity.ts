@@ -46,6 +46,8 @@ export const EVENT_MODEL: Record<string, { creates: FactKind | null; note: strin
   "quotation.revised": { creates: null, note: "a new quotation document replaces an older one; the event says which, and creates no fact row of its own (the new document is created by the document.issued event beside it)" },
   "quotation.accepted": { creates: null, note: "a quotation is accepted; state is derived from the event, nothing is stored (quotations.ts)" },
   "credit_note.issued": { creates: null, note: "an invoice is credited: ties the credit note document, its non-cash movement and the invoice together; the document, movement and allocation are created by their own events beside it" },
+  "business.profile_set": { creates: null, note: "the business's own particulars change; the current profile is derived from the events (business.ts)" },
+  "tax_lock.set": { creates: null, note: "the tax lock date moves forward; the current lock is derived (business.ts)" },
   "operation.executed": { creates: null, note: "the record that an approved proposal executed; it creates no fact" },
 };
 const FACT_TABLE: Record<FactKind, string> = { party: "eng_party", document: "eng_document", movement: "eng_money_movement", allocation: "eng_allocation", reversal: "eng_reversal" };
@@ -222,6 +224,16 @@ export async function verifyIntegrity(env: Env): Promise<{ ok: boolean; problems
       const gross = (await docTotals(env, p.documentId as number)).grossMinor;
       if (Number(p.appliedMinor) + Number(p.unappliedMinor) !== gross || creditMovements.get(p.movementId as number) !== gross) problems.push({ code: "orphan", detail: `credit note ${p.documentId}: the applied and unapplied amounts do not add up to its total ${gross} and its movement` });
     }
+  }
+
+  // the tax lock only moves forward
+  let lockSeen: string | null = null;
+  for (const e of await many<{ id: number; payload_json: string }>(env, "SELECT id, payload_json FROM eng_event WHERE type = 'tax_lock.set' ORDER BY id")) {
+    let d: unknown = null;
+    try { d = JSON.parse(e.payload_json)?.lockDate; } catch { /* a malformed payload is reported by the payload check */ }
+    if (typeof d !== "string") { problems.push({ code: "orphan", detail: `event ${e.id} (tax_lock.set) has no lock date` }); continue; }
+    if (lockSeen !== null && d <= lockSeen) problems.push({ code: "orphan", detail: `event ${e.id}: the tax lock moved from ${lockSeen} to ${d}, which is not forward (a lock only moves forward)` });
+    else lockSeen = d;
   }
 
   return { ok: problems.length === 0, problems, warnings };

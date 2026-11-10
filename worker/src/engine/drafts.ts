@@ -1,6 +1,7 @@
 // A DRAFT is a working copy, the one mutable thing in a document's life, and it is not a business fact. It can be saved incomplete, is validated on EVERY save (the totals are recalculated by the engine, never
 // supplied), and carries a version so nobody overwrites what they have not seen. ISSUING it is an operation: the draft is validated strictly, the immutable document is created (and numbered) through the one
 // write path, and the draft is closed, all as one transaction. After that the document changes only through corrections.
+import { requireOpenTaxPeriod } from "./business";
 import type { Env } from "../types";
 import { atomically } from "../atomic";
 import { EngineError } from "./errors";
@@ -84,6 +85,7 @@ export async function issueDraft(env: Env, id: number, input: { expectedVersion:
     if (d.version !== input.expectedVersion) throw new EngineError("stale", "that draft changed since it was opened");
     const payload = parse(d.payload_json);
     const v = validateDraft(d.party_id, payload);
+    if (v.ok && typeof payload.issuedOn === "string") await requireOpenTaxPeriod(tx, payload.issuedOn, "An invoice");   // the tax lock: invoices must be dated in the open period
     if (!v.ok) throw new EngineError("invalid_state", "the draft is not ready: " + v.errors.map((e) => `${e.field} ${e.message}`).join("; "));
     const lines = (payload.lines as DraftLine[]).map((l) => ({ description: String(l.description), quantityMilli: l.quantityMilli as number, unit: typeof l.unit === "string" ? l.unit : null, unitPriceMinor: l.unitPriceMinor as number, taxBp: l.taxBp as number }));
     const doc = await recordDocument(tx, { kind: d.kind, direction: d.direction, partyId: d.party_id as number, currency: payload.currency as string, reference: typeof payload.reference === "string" ? payload.reference : null, issuedOn: payload.issuedOn as string, terms: (payload.terms && typeof payload.terms === "object" ? payload.terms : {}) as Record<string, unknown>, lines }, ctx);

@@ -12,6 +12,8 @@ import { isEffective, outstandingForDocument, unallocatedForMovement } from "./l
 import { applyRevision, checkContact, checkName, checkRoles, partyProfile } from "./parties";
 import { planQuotationAcceptance, planQuotationRevision } from "./quotations";
 import { planCreditNote, type CreditLineInput } from "./credits";
+import { applyProfile, businessProfile, checkProfileChange, taxLockDate, type ProfileChange } from "./business";
+import { checkDate } from "./quotations";
 
 export interface Ctx {
   actorEmail?: string | null;
@@ -164,6 +166,24 @@ export async function issueCreditNote(env: Env, input: { invoiceId: number; reas
     const pay = await recordPayment(tx, { direction: "in", partyId: plan.partyId, amountMinor: doc.totals.grossMinor, currency: plan.currency, occurredOn: plan.issuedOn, method: "credit", allocations: plan.appliedMinor > 0 ? [{ documentId: invoiceId, amountMinor: plan.appliedMinor }] : [] }, ctx);
     const eventId = await appendEvent(tx, "credit_note.issued", ctx, { documentId: doc.id, invoiceId, movementId: pay.movementId, appliedMinor: plan.appliedMinor, unappliedMinor: plan.unappliedMinor, reason: plan.reason, lines: plan.eventLines }, plan.reason);
     return { documentId: doc.id, number: doc.number, movementId: pay.movementId, appliedMinor: plan.appliedMinor, unappliedMinor: plan.unappliedMinor, eventId, totals: doc.totals };
+  });
+}
+
+// The business's own particulars and its tax lock are EVENTS, never edited rows (business.ts derives the current profile and lock from them). The lock only moves FORWARD.
+export async function setBusinessProfile(env: Env, change: ProfileChange, ctx: Ctx): Promise<{ eventId: number }> {
+  const c = checkProfileChange(change); if (!c.ok) throw new EngineError("invalid_input", c.reason);
+  return inTransaction(env, async (tx) => {
+    const a = applyProfile(await businessProfile(tx), c.value);
+    if (!a.ok) throw new EngineError("invalid_state", a.reason);
+    return { eventId: await appendEvent(tx, "business.profile_set", ctx, c.value) };
+  });
+}
+export async function setTaxLock(env: Env, input: { lockDate: string }, ctx: Ctx): Promise<{ eventId: number }> {
+  const d = checkDate(input.lockDate, "lockDate"); if (!d.ok) throw new EngineError("invalid_input", d.reason);
+  return inTransaction(env, async (tx) => {
+    const now = await taxLockDate(tx);
+    if (now !== null && d.value <= now) throw new EngineError("invalid_state", `The tax lock is already at ${now}; it can only move forward.`);
+    return { eventId: await appendEvent(tx, "tax_lock.set", ctx, { lockDate: d.value }) };
   });
 }
 
