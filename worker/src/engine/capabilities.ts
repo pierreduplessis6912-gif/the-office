@@ -10,6 +10,8 @@ import { isEffective, outstandingForDocument, outstandingForParty } from "./ledg
 import { issueDraft, readDraft } from "./drafts";
 import { RECORD_KINDS, recordView, versionOf, type RecordKind, type ViewerContext } from "./records";
 import type { EnginePermission } from "./permissions";
+import { allQuotations, checkDate, checkLines, checkReference, planQuotationAcceptance, planQuotationRevision, type QuoteLine } from "./quotations";
+import { documentTotals as sumTotals } from "./money";
 import { allProfiles, applyRevision, checkContact, checkName, checkRoles, holderOfName, partyProfile, PARTY_ROLES, sameName } from "./parties";
 
 type Checked<T> = { ok: true; value: T } | { ok: false; reason: string };
@@ -106,7 +108,7 @@ export const partiesFind: ReadCapability<{ name?: string; role?: string }> = {
     };
   },
 };
-export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind];
+
 
 // ---- writes ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 const ctxOf = (c: { actionId: number; actorEmail: string | null; captureId?: number | null }, id: string) => ({ actorEmail: c.actorEmail, approvedBy: c.actorEmail, captureId: c.captureId ?? null, proposalId: c.actionId, contract: id, contractVersion: 1 });
@@ -297,11 +299,132 @@ export const partyEdit: CapabilityContract<PartyEdit> = {
   },
 };
 
+// ---- quotations --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// A quotation is a document of kind "quotation" for a customer. Creating, revising and accepting are held writes a person approves; the approval is shown the exact total the engine worked out. A quotation is not a debt:
+// no money or allocation is ever touched. VAT is never assumed: every line carries its own explicit tax rate.
+const QUOTE_STATUS = ["open", "accepted", "superseded", "any"] as const;
+const totalsOf = (lines: QuoteLine[]) => sumTotals(lines.map((l) => ({ description: l.description, quantityMilli: l.quantityMilli, unit: l.unit, unitPriceMinor: l.unitPriceMinor, taxBp: l.taxBp })));
+
+interface QuotationCreate { partyId: number; issuedOn: string; currency: string; validUntil?: string; reference?: string; lines: QuoteLine[]; totals?: { netMinor: number; taxMinor: number; grossMinor: number } }
+export const quotationCreate: CapabilityContract<QuotationCreate> = {
+  id: "quotation.create", heldType: "engine.quotation.create", label: "Making a quotation", requires: [], permissions: ["quotation.manage"], version: 1, recordsExecution: true,
+  validate(payload) {
+    if (!isObj(payload)) return { ok: false, reason: "the quotation must be an object" };
+    const s = stray(payload, ["partyId", "issuedOn", "currency", "validUntil", "reference", "lines", "totals"]);
+    if (s) return { ok: false, reason: `${s} is not a field of a quotation` };
+    if (!whole(payload.partyId)) return { ok: false, reason: "partyId must be a record number" };
+    const issued = checkDate(payload.issuedOn, "issuedOn"); if (!issued.ok) return issued;
+    if (typeof payload.currency !== "string" || !/^[A-Z]{3}$/.test(payload.currency)) return { ok: false, reason: "currency must be a 3-letter code such as ZAR" };
+    const out: QuotationCreate = { partyId: payload.partyId, issuedOn: issued.value, currency: payload.currency, lines: [] };
+    if (payload.validUntil !== undefined) { const v = checkDate(payload.validUntil, "validUntil"); if (!v.ok) return v; if (v.value < issued.value) return { ok: false, reason: "validUntil cannot be before the issue date" }; out.validUntil = v.value; }
+    if (payload.reference !== undefined) { const r = checkReference(payload.reference); if (!r.ok) return r; out.reference = r.value; }
+    const lines = checkLines(payload.lines); if (!lines.ok) return lines; out.lines = lines.value;
+    if (payload.totals !== undefined) { const t = payload.totals; if (!isObj(t) || !whole(t.netMinor, 0) || !whole(t.taxMinor, 0) || !whole(t.grossMinor, 0)) return { ok: false, reason: "totals must be the engine's worked-out totals" }; out.totals = { netMinor: t.netMinor, taxMinor: t.taxMinor, grossMinor: t.grossMinor }; }
+    return { ok: true, value: out };
+  },
+  async stamp(_env, value) { return { ...value, totals: totalsOf(value.lines) }; },
+  async check(env, value) {
+    const p = await partyProfile(env, value.partyId);
+    if (!p) throw new EngineError("not_found", "There is no such customer.");
+    if (!p.roles.includes("customer")) throw new EngineError("invalid_state", `${p.name} is not a customer, so they cannot be quoted.`);
+    if (value.totals && JSON.stringify(value.totals) !== JSON.stringify(totalsOf(value.lines))) throw new EngineError("invalid_state", "The totals shown do not match the lines, so this needs to be proposed again.");
+  },
+  async execute(env, v, c) {
+    const r = await facts.recordDocument(env, { kind: "quotation", direction: "sell", partyId: v.partyId, currency: v.currency, reference: v.reference ?? null, issuedOn: v.issuedOn, terms: v.validUntil ? { validUntil: v.validUntil } : {}, lines: v.lines }, ctxOf(c, "quotation.create"));
+    return { documentId: r.id, number: r.number, eventId: r.eventId };
+  },
+};
+
+interface QuotationRevise { quotationId: number; lines?: QuoteLine[]; validUntil?: string | null; reference?: string | null; issuedOn?: string; basedOn?: { quotationVersion: number }; totals?: { netMinor: number; taxMinor: number; grossMinor: number } }
+export const quotationRevise: CapabilityContract<QuotationRevise> = {
+  id: "quotation.revise", heldType: "engine.quotation.revise", label: "Revising a quotation", requires: [], permissions: ["quotation.manage"], version: 1, recordsExecution: true,
+  validate(payload) {
+    if (!isObj(payload)) return { ok: false, reason: "the revision must be an object" };
+    const s = stray(payload, ["quotationId", "lines", "validUntil", "reference", "issuedOn", "basedOn", "totals"]);
+    if (s) return { ok: false, reason: `${s} is not a field of a revision` };
+    if (!whole(payload.quotationId)) return { ok: false, reason: "quotationId must be a record number" };
+    const out: QuotationRevise = { quotationId: payload.quotationId };
+    if (payload.lines !== undefined) { const l = checkLines(payload.lines); if (!l.ok) return l; out.lines = l.value; }
+    if (payload.validUntil !== undefined) { if (payload.validUntil === null) out.validUntil = null; else { const v = checkDate(payload.validUntil, "validUntil"); if (!v.ok) return v; out.validUntil = v.value; } }
+    if (payload.reference !== undefined) { if (payload.reference === null) out.reference = null; else { const r = checkReference(payload.reference); if (!r.ok) return r; out.reference = r.value; } }
+    if (payload.issuedOn !== undefined) { const d = checkDate(payload.issuedOn, "issuedOn"); if (!d.ok) return d; out.issuedOn = d.value; }
+    if (out.lines === undefined && out.validUntil === undefined && out.reference === undefined && out.issuedOn === undefined) return { ok: false, reason: "say what to change: the lines, the validity, the reference or the date" };
+    if (payload.basedOn !== undefined) { if (!isObj(payload.basedOn) || stray(payload.basedOn, ["quotationVersion"]) || !whole(payload.basedOn.quotationVersion, 0)) return { ok: false, reason: "basedOn must name the version it was proposed against" }; out.basedOn = { quotationVersion: payload.basedOn.quotationVersion as number }; }
+    if (payload.totals !== undefined) { const t = payload.totals; if (!isObj(t) || !whole(t.netMinor, 0) || !whole(t.taxMinor, 0) || !whole(t.grossMinor, 0)) return { ok: false, reason: "totals must be the engine's worked-out totals" }; out.totals = { netMinor: t.netMinor, taxMinor: t.taxMinor, grossMinor: t.grossMinor }; }
+    return { ok: true, value: out };
+  },
+  async stamp(env, value) {
+    const plan = await planQuotationRevision(env, value);   // refuses a quotation that is missing, replaced, accepted or unchanged BEFORE anything is held
+    return { ...value, totals: totalsOf(plan.lines), basedOn: { quotationVersion: await versionOf(env, { kind: "document", id: value.quotationId }) } };
+  },
+  async check(env, value) {
+    if (value.basedOn && (await versionOf(env, { kind: "document", id: value.quotationId })) !== value.basedOn.quotationVersion) throw new EngineError("stale", "That quotation changed after this was proposed, so it needs to be proposed again.");
+    const plan = await planQuotationRevision(env, value);
+    if (value.totals && JSON.stringify(value.totals) !== JSON.stringify(totalsOf(plan.lines))) throw new EngineError("invalid_state", "The totals shown do not match the lines, so this needs to be proposed again.");
+  },
+  async execute(env, v, c) {
+    const r = await facts.reviseQuotation(env, { quotationId: v.quotationId, lines: v.lines, validUntil: v.validUntil, reference: v.reference, issuedOn: v.issuedOn }, ctxOf(c, "quotation.revise"));
+    return { documentId: r.documentId, number: r.number, eventId: r.eventId };
+  },
+};
+
+interface QuotationAccept { quotationId: number; basedOn?: { quotationVersion: number } }
+export const quotationAccept: CapabilityContract<QuotationAccept> = {
+  id: "quotation.accept", heldType: "engine.quotation.accept", label: "Recording that a quotation was accepted", requires: [], permissions: ["quotation.manage"], version: 1, recordsExecution: true,
+  validate(payload) {
+    if (!isObj(payload)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(payload, ["quotationId", "basedOn"]);
+    if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    if (!whole(payload.quotationId)) return { ok: false, reason: "quotationId must be a record number" };
+    const out: QuotationAccept = { quotationId: payload.quotationId };
+    if (payload.basedOn !== undefined) { if (!isObj(payload.basedOn) || stray(payload.basedOn, ["quotationVersion"]) || !whole(payload.basedOn.quotationVersion, 0)) return { ok: false, reason: "basedOn must name the version it was proposed against" }; out.basedOn = { quotationVersion: payload.basedOn.quotationVersion as number }; }
+    return { ok: true, value: out };
+  },
+  async stamp(env, value) {
+    await planQuotationAcceptance(env, value.quotationId);
+    return { ...value, basedOn: { quotationVersion: await versionOf(env, { kind: "document", id: value.quotationId }) } };
+  },
+  async check(env, value) {
+    if (value.basedOn && (await versionOf(env, { kind: "document", id: value.quotationId })) !== value.basedOn.quotationVersion) throw new EngineError("stale", "That quotation changed after this was proposed, so it needs to be proposed again.");
+    await planQuotationAcceptance(env, value.quotationId);
+  },
+  async execute(env, v, c) {
+    const r = await facts.acceptQuotation(env, { quotationId: v.quotationId }, ctxOf(c, "quotation.accept"));
+    return { documentId: v.quotationId, eventId: r.eventId };
+  },
+};
+
+// Finding quotations: for one customer or all; by default only the CURRENT ones (not those a revision replaced); status "any" lists the whole history.
+export const quotationsFind: ReadCapability<{ partyId?: number; status?: string }> = {
+  id: "quotations.find",
+  label: "Finding quotations",
+  permissions: ["quotation.read"],
+  validate(params) {
+    if (!isObj(params)) return { ok: false, reason: "the request must be an object" };
+    const s = stray(params, ["partyId", "status"]);
+    if (s) return { ok: false, reason: `${s} is not a field of this request` };
+    const out: { partyId?: number; status?: string } = {};
+    if (params.partyId !== undefined) { if (!whole(params.partyId)) return { ok: false, reason: "partyId must be a record number" }; out.partyId = params.partyId; }
+    if (params.status !== undefined) { if (typeof params.status !== "string" || !(QUOTE_STATUS as readonly string[]).includes(params.status)) return { ok: false, reason: `status must be ${QUOTE_STATUS.join(", ")}` }; out.status = params.status; }
+    return { ok: true, value: out };
+  },
+  async run(env, _viewer, value) {
+    const names = new Map((await allProfiles(env)).map((p) => [p.id, p.name]));
+    const hits = (await allQuotations(env, value.partyId !== undefined ? { partyId: value.partyId } : {})).filter((q) => (value.status === undefined ? q.status !== "superseded" : value.status === "any" || q.status === value.status));
+    return {
+      quotations: hits.slice(0, 50).map((q) => ({ ref: { kind: "document", id: q.id }, id: q.id, number: q.number, partyId: q.partyId, partyName: names.get(q.partyId) ?? null, currency: q.currency, issuedOn: q.issuedOn, validUntil: q.validUntil, reference: q.reference, netMinor: q.netMinor, taxMinor: q.taxMinor, grossMinor: q.grossMinor, status: q.status, supersedes: q.supersedes, supersededBy: q.supersededBy })),
+      count: hits.length, truncated: hits.length > 50, derivedBy: "quotations.allQuotations",
+    };
+  },
+};
+
+export const READS: readonly ReadCapability<any>[] = [receivablesQuery, recordsGet, partiesFind, quotationsFind];
+
 // Provenance (invariant 6): every engine contract records what was understood at the door (an interpretation naming the capture and the held action) and finds the capture again at the confirm.
 const withProvenance = <P>(c: CapabilityContract<P>): CapabilityContract<P> => ({
   ...c,
   recordUnderstood: async (env, info) => { await facts.recordInterpretation(env, { captureId: info.captureId, interpreter: info.interpreter, capability: c.id, actionId: info.actionId }); },
   captureOf: async (env, actionId) => (await env.OFFICE_DB.prepare("SELECT capture_id FROM eng_interpretation WHERE json_extract(payload_json, '$.actionId') = ? AND capability = ? ORDER BY id DESC LIMIT 1").bind(actionId, c.id).first<{ capture_id: number }>())?.capture_id ?? null,
 });
-export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit] as CapabilityContract<any>[]).map((c) => withProvenance(c));
+export const ENGINE_CONTRACTS: readonly CapabilityContract<any>[] = ([paymentRecord, paymentCorrect, invoiceIssue, partyCreate, partyEdit, quotationCreate, quotationRevise, quotationAccept] as CapabilityContract<any>[]).map((c) => withProvenance(c));
 export const CAPABILITY_IDS: readonly string[] = [...READS.map((r) => r.id), ...ENGINE_CONTRACTS.map((c) => c.id)];

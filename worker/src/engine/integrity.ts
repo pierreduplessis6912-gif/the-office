@@ -42,6 +42,8 @@ export const EVENT_MODEL: Record<string, { creates: FactKind | null; note: strin
   "payment.allocation_reversed": { creates: "reversal", note: "one eng_reversal whose target is an allocation" },
   "document.reversed": { creates: "reversal", note: "one eng_reversal whose target is a document" },
   "party.revised": { creates: null, note: "a change to a party's name, roles or contact details; it creates no fact row, because the current profile is DERIVED from the party and its revisions (parties.ts)" },
+  "quotation.revised": { creates: null, note: "a new quotation document replaces an older one; the event says which, and creates no fact row of its own (the new document is created by the document.issued event beside it)" },
+  "quotation.accepted": { creates: null, note: "a quotation is accepted; state is derived from the event, nothing is stored (quotations.ts)" },
   "operation.executed": { creates: null, note: "the record that an approved proposal executed; it creates no fact" },
 };
 const FACT_TABLE: Record<FactKind, string> = { party: "eng_party", document: "eng_document", movement: "eng_money_movement", allocation: "eng_allocation", reversal: "eng_reversal" };
@@ -187,6 +189,20 @@ export async function verifyIntegrity(env: Env): Promise<{ ok: boolean; problems
     let pid: unknown = null;
     try { pid = JSON.parse(e.payload_json)?.partyId; } catch { /* a malformed payload is reported by the payload check */ }
     if (typeof pid !== "number" || !known.has(pid)) problems.push({ code: "orphan", detail: `event ${e.id} revises party ${String(pid)}, which does not exist` });
+  }
+
+  // quotations: a revision or acceptance must point at quotation documents that exist, and a quotation may be replaced only once (no forked chain)
+  const quoteIds = new Set((await many<{ id: number }>(env, "SELECT id FROM eng_document WHERE kind = 'quotation'")).map((d) => d.id));
+  const replaced = new Map<number, number>();
+  for (const e of await many<{ id: number; type: string; payload_json: string }>(env, "SELECT id, type, payload_json FROM eng_event WHERE type IN ('quotation.revised', 'quotation.accepted') ORDER BY id")) {
+    let p: { documentId?: unknown; supersedes?: unknown } = {};
+    try { p = JSON.parse(e.payload_json) ?? {}; } catch { /* a malformed payload is reported by the payload check */ }
+    const refs = e.type === "quotation.revised" ? [p.documentId, p.supersedes] : [p.documentId];
+    for (const ref of refs) if (typeof ref !== "number" || !quoteIds.has(ref)) problems.push({ code: "orphan", detail: `event ${e.id} (${e.type}) points at quotation ${String(ref)}, which does not exist` });
+    if (e.type === "quotation.revised" && typeof p.supersedes === "number") {
+      if (replaced.has(p.supersedes)) problems.push({ code: "orphan", detail: `quotation ${p.supersedes} is replaced more than once (events ${replaced.get(p.supersedes)} and ${e.id}): a forked chain` });
+      else replaced.set(p.supersedes, e.id);
+    }
   }
 
   return { ok: problems.length === 0, problems, warnings };

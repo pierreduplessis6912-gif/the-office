@@ -1,4 +1,4 @@
-> **Status:** partly built. **Verified:** 2026-11-09 (row 1 updated after the customers and suppliers build; statuses read from the repository and the committed CI and staging records that day; the "real platform" column is only what a staging record shows). **Owns:** none.
+> **Status:** partly built. **Verified:** 2026-11-09 (rows 1 and 2 updated after the customers and suppliers and quotations builds; statuses read from the repository and the committed CI and staging records that day; the "real platform" column is only what a staging record shows). **Owns:** none.
 
 # CAPABILITY MAP: the vision, one capability at a time, and how far each has got
 
@@ -31,7 +31,7 @@ Legend for the columns: **E** engine, **C** CI-tested, **R** real platform, **V*
 | Backup and restore of engine tables | Platform | ✓ | ✓ | ✓ | - | - | - | - | A single table above about 18 MB cannot be snapshotted |
 | A model as one more interpreter | Automation/AI | ✓ | ✓ | ✓ | n/a | - | - | - | One staging run, 9 of 10 |
 | Create and edit customers and suppliers (and find them) | CRM | ✓ | ✓ | ✓ | - | ✓ | - | - | party.create, party.edit (held) and parties.find, CI-tested with ten deliberate breakages; no schema change (an edit is a new fact). Real platform: the staging mode `parties-proof` (run 42802521790, 2026-11-10, commit 53b72a5, own business staging-parties, ops/staging-parties-proof-last.json) passed 13 of 13 checks on a real Durable Object through the real routes: held create, duplicate refused, rename, stale edit refused, contact cleared, installer refused, integrity clean. The older `rehearsal` has no party step and two failed steps (business_object_e2e, engine_migration_rehearsal) that look like leftover state (inference). CI (proof tests, app compile) green at 026d11d. Not shown to the model, not called by the app. docs/decisions/customers-suppliers.md |
-| Quotations (create, revise, accept) | Sales | - | - | - | - | - | - | - | Walked on paper [fit test] |
+| Quotations (create, revise, accept, find) | Sales | ✓ | ✓ | - | - | ✓ | - | - | quotation.create, .revise, .accept (held) and quotations.find, CI-tested with fourteen deliberate breakages; no schema change (state is derived from events); not a debt; VAT never assumed. Not run on a real object, not shown to the model, not called by the app. Declining, sending, expiry and conversion to an order or invoice are not built. docs/decisions/quotations.md |
 | Credit notes | Sales | - | - | - | - | - | - | - | Walked [fit-domains] |
 | Expenses | Finance | - | - | - | - | - | - | - | |
 | Purchase orders, goods received, supplier invoices and payments, variances | Procurement | - | - | - | - | - | - | - | Walked [fit test] |

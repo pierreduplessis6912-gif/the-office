@@ -10,6 +10,7 @@ import { documentTotals as sumTotals, positiveMinor, wholeNumber, type Totals } 
 import { readConfig } from "./config";
 import { isEffective, outstandingForDocument, unallocatedForMovement } from "./ledger";
 import { applyRevision, checkContact, checkName, checkRoles, partyProfile } from "./parties";
+import { planQuotationAcceptance, planQuotationRevision } from "./quotations";
 
 export interface Ctx {
   actorEmail?: string | null;
@@ -129,6 +130,26 @@ export async function recordDocument(env: Env, input: DocumentInput, ctx: Ctx): 
     const next = await one<{ n: number }>(tx, "SELECT COALESCE(MAX(number), 0) + 1 AS n FROM eng_document_number WHERE kind = ?", kind);
     await run(tx, "INSERT INTO eng_document_number (kind, number, document_id) VALUES (?, ?, ?)", kind, Number(next!.n), doc!.id);
     return { id: Number(doc!.id), number: Number(next!.n), eventId, totals };
+  });
+}
+
+// A REVISION of a quotation is a NEW document (its own number) plus a quotation.revised event saying which one it replaces; the old document is never touched. Customer, currency and direction stay as they were.
+export async function reviseQuotation(env: Env, input: { quotationId: number; lines?: DocumentLineInput[]; validUntil?: string | null; reference?: string | null; issuedOn?: string }, ctx: Ctx): Promise<{ documentId: number; number: number; eventId: number; totals: Totals }> {
+  const quotationId = id(input.quotationId, "quotation");
+  return inTransaction(env, async (tx) => {
+    const plan = await planQuotationRevision(tx, { ...input, quotationId });
+    const doc = await recordDocument(tx, { kind: "quotation", direction: plan.direction, partyId: plan.old.partyId, currency: plan.old.currency, reference: plan.reference, issuedOn: plan.issuedOn, terms: plan.validUntil ? { validUntil: plan.validUntil } : {}, lines: plan.lines }, ctx);
+    const eventId = await appendEvent(tx, "quotation.revised", ctx, { documentId: doc.id, supersedes: quotationId });
+    return { documentId: doc.id, number: doc.number, eventId, totals: doc.totals };
+  });
+}
+
+// ACCEPTANCE is an event about the current revision: no fact row, nothing edited. What state a quotation is in is derived (quotations.ts).
+export async function acceptQuotation(env: Env, input: { quotationId: number }, ctx: Ctx): Promise<{ eventId: number }> {
+  const quotationId = id(input.quotationId, "quotation");
+  return inTransaction(env, async (tx) => {
+    await planQuotationAcceptance(tx, quotationId);
+    return { eventId: await appendEvent(tx, "quotation.accepted", ctx, { documentId: quotationId }) };
   });
 }
 

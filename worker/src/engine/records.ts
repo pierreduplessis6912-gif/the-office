@@ -8,6 +8,7 @@ import { readConfig } from "./config";
 import { readDraft } from "./drafts";
 import type { EnginePermission } from "./permissions";
 import { partyProfile } from "./parties";
+import { quotationEventIds, quotationSummary } from "./quotations";
 
 export type RecordKind = "party" | "document" | "movement" | "draft";
 export interface RecordRef { kind: RecordKind; id: number }
@@ -46,6 +47,8 @@ const VERSION_QUERIES: Record<"party" | "document" | "movement", readonly string
     "SELECT MAX(id) AS v FROM eng_event WHERE type = 'party.revised' AND json_extract(payload_json, '$.partyId') = ?",
   ],
   document: [
+    "SELECT MAX(id) AS v FROM eng_event WHERE type IN ('quotation.revised', 'quotation.accepted') AND json_extract(payload_json, '$.documentId') = ?",
+    "SELECT MAX(id) AS v FROM eng_event WHERE type = 'quotation.revised' AND json_extract(payload_json, '$.supersedes') = ?",
     "SELECT event_id AS v FROM eng_document WHERE id = ?",
     "SELECT MAX(event_id) AS v FROM eng_allocation WHERE document_id = ?",
     "SELECT MAX(event_id) AS v FROM eng_reversal WHERE document_id = ?",
@@ -103,12 +106,15 @@ export async function recordView(env: Env, viewer: ViewerContext, ref: RecordRef
       history: [], exports: EXPORTS,
     };
   }
-  if (!viewer.perms.has("receivables.read")) return null;
+  const seesMoney = viewer.perms.has("receivables.read");
+  if (!seesMoney && ref.kind !== "document") return null;
   const cfg = await readConfig(env);
 
   if (ref.kind === "document") {
     const d = await one<{ id: number; kind: string; direction: string; party_id: number; currency: string; issued_on: string; event_id: number }>(env, "SELECT id, kind, direction, party_id, currency, issued_on, event_id FROM eng_document WHERE id = ?", ref.id);
     if (!d) return null;
+    if (!(d.kind === "quotation" ? viewer.perms.has("quotation.read") : seesMoney)) return null;   // a quotation is seen by those who make quotes; money documents by those who may see money
+    const qs = d.kind === "quotation" ? await quotationSummary(env, d.id) : null;
     const n = await one<{ number: number }>(env, "SELECT number FROM eng_document_number WHERE document_id = ?", d.id);
     const totals = await documentTotals(env, d.id);
     const allocated = await allocatedToDocument(env, d.id);
@@ -120,23 +126,23 @@ export async function recordView(env: Env, viewer: ViewerContext, ref: RecordRef
     const effAllocs: Array<{ id: number; movement_id: number; amount_minor: number; event_id: number; effective: boolean }> = [];
     for (const a of allocs) effAllocs.push({ ...a, effective: await isEffective(env, "allocation", a.id) });
     const reversals = await many<{ event_id: number }>(env, "SELECT event_id FROM eng_reversal WHERE document_id = ? OR allocation_id IN (SELECT id FROM eng_allocation WHERE document_id = ?)", d.id, d.id);
-    const status = !effective ? "reversed" : outstanding === 0 ? "paid" : allocated > 0 ? "part_paid" : "unpaid";
+    const status = qs ? qs.status : !effective ? "reversed" : outstanding === 0 ? "paid" : allocated > 0 ? "part_paid" : "unpaid";
     const settled = (d.direction === "sell" ? cfg.receivableKinds : cfg.payableKinds).includes(d.kind);
     return {
       ref, version: await versionOf(env, ref), title: `${d.kind[0].toUpperCase()}${d.kind.slice(1)} ${n ? "#" + n.number : ""}`.trim(),
       fields: [
-        { key: "kind", label: "Kind", value: d.kind }, { key: "number", label: "Number", value: n ? n.number : null }, { key: "status", label: "Status", value: status, derivedBy: "ledger.outstandingForDocument" },
+        { key: "kind", label: "Kind", value: d.kind }, { key: "number", label: "Number", value: n ? n.number : null }, { key: "status", label: "Status", value: status, derivedBy: qs ? "quotations.allQuotations" : "ledger.outstandingForDocument" },
         { key: "issuedOn", label: "Issued", value: d.issued_on }, { key: "currency", label: "Currency", value: d.currency },
         { key: "netMinor", label: "Net", value: totals.netMinor, derivedBy: "ledger.documentTotals" }, { key: "taxMinor", label: "Tax", value: totals.taxMinor, derivedBy: "ledger.documentTotals" }, { key: "grossMinor", label: "Total", value: totals.grossMinor, derivedBy: "ledger.documentTotals" },
-        { key: "allocatedMinor", label: "Paid", value: allocated, derivedBy: "ledger.allocatedToDocument" }, { key: "outstandingMinor", label: "Outstanding", value: outstanding, derivedBy: "ledger.outstandingForDocument" },
+        ...(qs ? [{ key: "validUntil", label: "Valid until", value: qs.validUntil }, { key: "reference", label: "Reference", value: qs.reference }, { key: "allocatedMinor", label: "Paid", value: null }, { key: "outstandingMinor", label: "Outstanding", value: null }] : [{ key: "allocatedMinor", label: "Paid", value: allocated, derivedBy: "ledger.allocatedToDocument" }, { key: "outstandingMinor", label: "Outstanding", value: outstanding, derivedBy: "ledger.outstandingForDocument" }]),
       ],
       collections: {
         lines: lines.map((l) => ({ lineNo: l.line_no, description: l.description, quantityMilli: l.quantity_milli, unit: l.unit, unitPriceMinor: l.unit_price_minor, taxBp: l.tax_bp })),
         allocations: effAllocs.map((a) => ({ id: a.id, movementId: a.movement_id, amountMinor: a.amount_minor, effective: a.effective })),
       },
-      relations: [{ role: d.direction === "sell" ? "customer" : "supplier", ref: { kind: "party", id: d.party_id }, label: party ? party.name : "Party" }, ...effAllocs.filter((a) => a.effective).map((a) => ({ role: "payment", ref: { kind: "movement" as const, id: a.movement_id }, label: `Payment ${a.movement_id}` }))],
-      actions: settled && effective && may(viewer, "payment.record", "payment.record") ? [{ capability: "payment.record", label: "Record a payment", valid: outstanding > 0, reason: outstanding > 0 ? null : "nothing is outstanding" }] : [],
-      history: await history(env, [d.event_id, ...allocs.map((a) => a.event_id), ...reversals.map((r) => r.event_id)]), exports: EXPORTS,
+      relations: [...(qs ? [...(qs.supersededBy ? [{ role: "superseded_by", ref: { kind: "document" as const, id: qs.supersededBy }, label: "Replaced by" }] : []), ...(qs.supersedes ? [{ role: "revises", ref: { kind: "document" as const, id: qs.supersedes }, label: "Revises" }] : [])] : []), { role: d.direction === "sell" ? "customer" : "supplier", ref: { kind: "party", id: d.party_id }, label: party ? party.name : "Party" }, ...effAllocs.filter((a) => a.effective).map((a) => ({ role: "payment", ref: { kind: "movement" as const, id: a.movement_id }, label: `Payment ${a.movement_id}` }))],
+      actions: qs ? (qs.status === "open" ? [...(may(viewer, "quotation.revise", "quotation.manage") ? [{ capability: "quotation.revise", label: "Revise this quotation", valid: true, reason: null }] : []), ...(may(viewer, "quotation.accept", "quotation.manage") ? [{ capability: "quotation.accept", label: "Record that it was accepted", valid: true, reason: null }] : [])] : []) : settled && effective && may(viewer, "payment.record", "payment.record") ? [{ capability: "payment.record", label: "Record a payment", valid: outstanding > 0, reason: outstanding > 0 ? null : "nothing is outstanding" }] : [],
+      history: await history(env, [d.event_id, ...allocs.map((a) => a.event_id), ...reversals.map((r) => r.event_id), ...(qs ? await quotationEventIds(env, d.id) : [])]), exports: EXPORTS,
     };
   }
 

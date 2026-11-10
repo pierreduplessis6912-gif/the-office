@@ -10,7 +10,7 @@ Capability-map row 1 (`docs/CAPABILITY_MAP.md`). Everything else points at a par
 - **`parties.find`** (read): by part of the current name, by role, or both; an empty filter lists up to 50. Route `GET /engine/parties?name=&role=`.
 - The record view of a party now shows roles and contact details, offers the edit action to those who may, and lists every revision in its history with what was said, what was understood, who approved and under which contract.
 
-## Decisions taken (defaults; each is open to change by Pierre)
+## Decisions taken (**approved by Pierre 2026-11-10**: unique names, no schema change, and `can_manage_invoices` granting party management; still open to change by him)
 1. **An edit is a new fact, not an update.** `eng_party` and `eng_party_role` stay exactly as created. A change is a `party.revised` event carrying only what changed; the CURRENT profile is derived (`worker/src/engine/parties.ts`) by folding the creating event's details and then each revision in order. This follows the engine's existing doctrine (a mistake is corrected by a new fact) and needs **no schema migration**, so nothing here touches the recovery gate.
 2. **Names are unique** among customers and suppliers, ignoring case and spacing, checked at the door AND again at the approval (a name taken in between is caught). Creating "Patel" when a supplier "Patel" exists is refused with a pointer to add the role to the existing record. A case-only rename is a real edit.
 3. **A party always has at least one role.** Roles are `customer` and `supplier` only; the fact layer itself stays free of them (it does not know what a business sells).

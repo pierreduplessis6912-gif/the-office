@@ -7,7 +7,7 @@ const { parseArgs, select } = require('./breakage-select.js');
 const sourceRoot = path.join(__dirname, '..');
 let root = sourceRoot;   // becomes the isolated copy before anything is edited or run
 const E = (f) => `worker/src/engine/${f}`, CONTRACT = 'worker/src/capability-contract.ts', MIG = 'worker/migrations/0004_engine_foundation.sql';
-const PARTIES = 'capability-parties.test.js', OBIND = 'object-binding.test.js', RPROOF = 'restore-proof.test.js', MANI = 'backup-manifest.test.js', STID = 'staging-identity.test.js', OBJ = 'business-object.standalone.js', ISOL = 'engine-isolation.test.js', OWN = 'engine-ownership.test.js', INTEG = 'engine-integrity.test.js', ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
+const QUOTES = 'capability-quotations.test.js', PARTIES = 'capability-parties.test.js', OBIND = 'object-binding.test.js', RPROOF = 'restore-proof.test.js', MANI = 'backup-manifest.test.js', STID = 'staging-identity.test.js', OBJ = 'business-object.standalone.js', ISOL = 'engine-isolation.test.js', OWN = 'engine-ownership.test.js', INTEG = 'engine-integrity.test.js', ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
 
 const MUTATIONS = [
   // money: exact integer arithmetic
@@ -151,6 +151,21 @@ const MUTATIONS = [
   { name: 'parties: the verifier does not report a revision of a missing party', suite: PARTIES, file: E('integrity.ts'), find: 'if (typeof pid !== "number" || !known.has(pid)) problems.push', replace: 'if (false) problems.push' },
   { name: 'parties: the record does not offer the edit only to those who may', suite: PARTIES, file: E('records.ts'), find: 'may(viewer, "party.edit", "party.manage")', replace: 'true' },
   { name: 'parties: grant managing parties to every legacy capability holder (installer)', suite: PARTIES, file: E('permissions.ts'), find: 'can_know_debtors: ["receivables.read", "records.read", "party.read"],', replace: 'can_know_debtors: ["receivables.read", "records.read", "party.read", "party.manage"], can_capture_voice_notes: ["party.read", "party.manage"],' },
+  // quotations (capability-quotations.test.js): a revision is a new document, state is derived, an accepted quotation is final, VAT is never assumed
+  { name: 'quotations: allow revising a quotation that was already replaced', suite: QUOTES, file: E('quotations.ts'), find: 'if (old.status === "superseded") throw', replace: 'if (false) throw' },
+  { name: 'quotations: allow revising an accepted quotation', suite: QUOTES, file: E('quotations.ts'), find: 'if (old.status === "accepted") throw new EngineError("invalid_state", "That quotation has been accepted and is final', replace: 'if (false) throw new EngineError("invalid_state", "That quotation has been accepted and is final' },
+  { name: 'quotations: allow accepting twice', suite: QUOTES, file: E('quotations.ts'), find: 'if (q.status === "accepted") throw', replace: 'if (false) throw' },
+  { name: 'quotations: allow accepting a replaced quotation', suite: QUOTES, file: E('quotations.ts'), find: 'if (q.status === "superseded") throw new EngineError("invalid_state", "That quotation has been replaced; accept', replace: 'if (false) throw new EngineError("invalid_state", "That quotation has been replaced; accept' },
+  { name: 'quotations: allow a revision that changes nothing', suite: QUOTES, file: E('quotations.ts'), find: 'if (same) throw', replace: 'if (false) throw' },
+  { name: 'quotations: assume a tax rate when a line has none', suite: QUOTES, file: E('quotations.ts'), find: '!whole(l.taxBp, 0, 10000)', replace: 'false' },
+  { name: 'quotations: quote a party that is not a customer', suite: QUOTES, file: E('capabilities.ts'), find: 'if (!p.roles.includes("customer")) throw', replace: 'if (false) throw' },
+  { name: 'quotations: a revision edits the old document', suite: QUOTES, file: E('facts.ts'), find: 'const eventId = await appendEvent(tx, "quotation.revised", ctx, { documentId: doc.id, supersedes: quotationId });', replace: 'const eventId = await appendEvent(tx, "quotation.revised", ctx, { documentId: doc.id, supersedes: quotationId }); await run(tx, "UPDATE eng_document SET reference = ? WHERE id = ?", "edited", quotationId);' },
+  { name: 'quotations: finding lists replaced quotations by default', suite: QUOTES, file: E('capabilities.ts'), find: 'q.status !== "superseded"', replace: 'true' },
+  { name: 'quotations: the people who make quotes may not manage them', suite: QUOTES, file: E('permissions.ts'), find: 'can_make_quotes: ["quotation.read", "quotation.manage"],', replace: 'can_make_quotes: [],' },
+  { name: 'quotations: the verifier ignores a revision of a missing quotation', suite: QUOTES, file: E('integrity.ts'), find: 'if (typeof ref !== "number" || !quoteIds.has(ref)) problems.push', replace: 'if (false) problems.push' },
+  { name: 'quotations: the verifier ignores a forked chain', suite: QUOTES, file: E('integrity.ts'), find: 'if (replaced.has(p.supersedes)) problems.push', replace: 'if (false) problems.push' },
+  { name: 'quotations: an installer can open a quotation', suite: QUOTES, file: E('records.ts'), find: 'd.kind === "quotation" ? viewer.perms.has("quotation.read") : seesMoney', replace: 'true' },
+  { name: 'quotations: the record treats a quotation as a debt (no derived status)', suite: QUOTES, file: E('records.ts'), find: 'const qs = d.kind === "quotation" ? await quotationSummary(env, d.id) : null;', replace: 'const qs = null as any;' },
 ];
 
 let opts;
