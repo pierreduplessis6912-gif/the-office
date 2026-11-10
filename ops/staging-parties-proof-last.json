@@ -1,0 +1,53 @@
+{
+ "when": "2026-11-10T10:51:38.218962Z",
+ "run": "42802521790",
+ "commit": "53b72a5",
+ "mode": "parties-proof",
+ "business": "staging-parties",
+ "started_in": {
+  "mode": "legacy",
+  "rows": 0
+ },
+ "http": {
+  "status-start": "200",
+  "membership-owner": "200",
+  "membership-installer": "200",
+  "provision": "200",
+  "status-ready": "200",
+  "find-before": "200",
+  "propose-create": "200",
+  "find-while-held": "200",
+  "confirm-create": "200",
+  "find-after-create": "200",
+  "propose-duplicate": "409",
+  "propose-rename": "200",
+  "confirm-rename": "200",
+  "find-renamed": "200",
+  "record-party": "200",
+  "propose-edit-1": "200",
+  "propose-edit-2": "200",
+  "confirm-edit-2": "200",
+  "confirm-edit-1-stale": "409",
+  "record-final": "200",
+  "installer-find": "403",
+  "installer-propose": "403",
+  "status-end": "200"
+ },
+ "checks": {
+  "the_object_is_in_engine_mode_with_the_party_capabilities": true,
+  "finding_a_name_that_is_not_there_is_an_honest_empty_answer": true,
+  "proposing_a_new_customer_is_held": true,
+  "a_held_proposal_records_no_party": true,
+  "approving_it_records_the_party": true,
+  "a_duplicate_name_is_refused": true,
+  "a_rename_is_held_then_approved": true,
+  "finding_uses_the_current_name": true,
+  "the_record_keeps_both_facts_in_its_history": true,
+  "an_edit_approved_after_the_record_changed_is_stale": true,
+  "a_contact_field_can_be_cleared": true,
+  "an_installer_is_refused_a_read_and_a_proposal": true,
+  "the_integrity_verifier_is_clean_at_the_end": true
+ },
+ "passed": true,
+ "failed": []
+}
