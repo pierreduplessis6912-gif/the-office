@@ -51,6 +51,14 @@ export async function unallocatedForMovement(env: Env, movementId: number): Prom
   return m.amount_minor - Number(used?.n ?? 0);
 }
 
+// The value a customer is OWED BACK: every effective inbound movement of theirs that has not been fully allocated to a document (an overpayment, or a credit note applied to an invoice that was already paid). Shown beside what they
+// owe, never netted into it and never hidden: it is a liability to the customer until it is applied to another invoice or refunded (neither is built yet).
+export async function unappliedCreditForParty(env: Env, partyId: number): Promise<number> {
+  let sum = 0;
+  for (const m of await many<{ id: number }>(env, "SELECT id FROM eng_money_movement WHERE party_id = ? AND direction = 'in' ORDER BY id", partyId)) sum += await unallocatedForMovement(env, m.id);
+  return sum;
+}
+
 export interface AccountLine { id: number; number: number | null; kind: string; issuedOn: string; grossMinor: number; allocatedMinor: number; outstandingMinor: number }
 
 // A party's account: the effective documents it owes for (the kinds the business settles by money), each with what has been allocated and what is outstanding, and the total.

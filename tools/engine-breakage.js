@@ -181,6 +181,7 @@ const MUTATIONS = [
   { name: 'credit notes: ignore that the invoice was credited since the proposal', suite: CREDITS, file: E('capabilities.ts'), find: 'if (value.basedOn && (await versionOf(env, { kind: "document", id: value.invoiceId })) !== value.basedOn.invoiceVersion) throw', replace: 'if (false) throw' },
   { name: 'credit notes: the verifier ignores a credit of a missing credit note', suite: CREDITS, file: E('integrity.ts'), find: 'if (typeof p.documentId !== "number" || !creditDocs.has(p.documentId)) {', replace: 'if (false) {' },
   { name: 'credit notes: the verifier ignores amounts that do not add up', suite: CREDITS, file: E('integrity.ts'), find: 'if (Number(p.appliedMinor) + Number(p.unappliedMinor) !== gross ||', replace: 'if (false &&' },
+  { name: 'credit notes: the customer account hides the credit owed back', suite: CREDITS, file: E('capabilities.ts'), find: 'unappliedCreditMinor: await unappliedCreditForParty(env, party.id),', replace: 'unappliedCreditMinor: 0,' },
   { name: 'credit notes: the record treats a credit note as a debt', suite: CREDITS, file: E('records.ts'), find: 'const cl = d.kind === "credit_note" ? await creditOf(env, d.id) : null;', replace: 'const cl: any = null;' },
 ];
 

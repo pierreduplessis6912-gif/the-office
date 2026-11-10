@@ -13,6 +13,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
       },
       "currency": "ZAR",
       "totalMinor": 85000,
+      "unappliedCreditMinor": 0,
       "documents": [
         {
           "ref": {
@@ -43,6 +44,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
       },
       "currency": "ZAR",
       "totalMinor": 35000,
+      "unappliedCreditMinor": 0,
       "documents": [
         {
           "ref": {
@@ -562,6 +564,12 @@ const Map<String, String> engineFixtureJson = <String, String>{
           "label": "Outstanding",
           "value": 85000,
           "derivedBy": "ledger.outstandingForParty"
+        },
+        {
+          "key": "unappliedCreditMinor",
+          "label": "Credit owed back",
+          "value": 0,
+          "derivedBy": "ledger.unappliedCreditForParty"
         }
       ],
       "collections": {
@@ -910,6 +918,7 @@ const Map<String, String> engineFixtureJson = <String, String>{
       },
       "currency": "ZAR",
       "totalMinor": 0,
+      "unappliedCreditMinor": 15000,
       "documents": [
         {
           "ref": {

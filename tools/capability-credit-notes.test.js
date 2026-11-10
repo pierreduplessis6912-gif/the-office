@@ -78,9 +78,16 @@ module.exports = kit.guard('credit notes', async ({ check }) => {
   const cnPaid = await inv(paid.steps, ((i1.v.relations || []).find((x) => x.role === 'credit_note') || { ref: { id: 0 } }).ref.id);
   check(fieldOf(cnPaid.v, 'appliedMinor') === 0 && fieldOf(cnPaid.v, 'unappliedMinor') === 57500, 'and the whole R575.00 is recorded as UNAPPLIED credit on the customer: nothing was owed on the invoice, and nothing is silently refunded');
   check(await total(paid.steps) === 23000, 'the customer still owes only invoice 2 (R230.00): an unapplied credit does not change what they owe');
+  const acct = async (steps) => (body(await run({ before: steps, ...owes() })).result) || {};
+  check((await acct(paid.steps)).unappliedCreditMinor === 57500 && (await acct(paid.steps)).totalMinor === 23000, 'but the customer\'s account shows the R575.00 credit SEPARATELY (unappliedCreditMinor), never netted into what they owe and never hidden: the business owes them that value back');
+  check((await acct([])).unappliedCreditMinor === 0 && (await acct(one.steps)).unappliedCreditMinor === 0, 'a customer with nothing unapplied shows R0.00 of credit, including after a credit that was fully applied to the invoice');
   const part = seq(); part.do('payment.record', pay(100000)); part.do('credit_note.issue', credit());
   const cnPart = await inv(part.steps, ((await inv(part.steps)).v.relations.find((x) => x.role === 'credit_note') || { ref: { id: 0 } }).ref.id);
   check(fieldOf(cnPart.v, 'appliedMinor') === 15000 && fieldOf(cnPart.v, 'unappliedMinor') === 42500, 'a part-paid invoice (R150.00 owed) takes R150.00 of a R575.00 credit and R425.00 stays unapplied');
+
+  check((await acct(part.steps)).unappliedCreditMinor === 42500, 'and the account shows the R425.00 left over');
+  const pr = await run({ before: paid.steps, method: 'GET', path: '/engine/records/party/1', role: 'accountant' });
+  check(fieldOf(body(pr).result || {}, 'unappliedCreditMinor') === 57500, 'the customer\'s record shows it too');
 
   // ---- 4. REFUSALS: each for its own reason, nothing written ------------------------------------------------------------------------------------------------------------------------------------------
   const bad = [

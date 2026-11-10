@@ -45,6 +45,12 @@
           "label": "Outstanding",
           "value": 85000,
           "derivedBy": "ledger.outstandingForParty"
+        },
+        {
+          "key": "unappliedCreditMinor",
+          "label": "Credit owed back",
+          "value": 0,
+          "derivedBy": "ledger.unappliedCreditForParty"
         }
       ],
       "collections": {

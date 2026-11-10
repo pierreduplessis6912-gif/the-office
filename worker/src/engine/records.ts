@@ -3,7 +3,7 @@
 // produced it), its collections (lines, allocations, the account), its relations (what to follow next), the actions THIS member may take now (each with whether it is valid), and its history. What a member may not see
 // is INDISTINGUISHABLE from what does not exist: recordView returns null for both. Exports (PDF, a share link) arrive with phase 3 and are listed as not yet available.
 import type { Env } from "../types";
-import { allocatedToDocument, documentTotals, isEffective, outstandingForDocument, outstandingForParty, unallocatedForMovement } from "./ledger";
+import { allocatedToDocument, documentTotals, isEffective, outstandingForDocument, outstandingForParty, unallocatedForMovement, unappliedCreditForParty } from "./ledger";
 import { readConfig } from "./config";
 import { readDraft } from "./drafts";
 import type { EnginePermission } from "./permissions";
@@ -160,7 +160,7 @@ export async function recordView(env: Env, viewer: ViewerContext, ref: RecordRef
     for (const m of moves) payments.push({ id: m.id, direction: m.direction, amountMinor: m.amount_minor, occurredOn: m.occurred_on, unallocatedMinor: await unallocatedForMovement(env, m.id), effective: await isEffective(env, "movement", m.id) });
     return {
       ref, version: await versionOf(env, ref), title: p.name,
-      fields: [{ key: "name", label: "Name", value: p.name }, { key: "kind", label: "Kind", value: p.kind }, { key: "roles", label: "Roles", value: roles.join(", ") }, { key: "email", label: "Email", value: p.contact.email ?? null }, { key: "phone", label: "Phone", value: p.contact.phone ?? null }, { key: "address", label: "Address", value: p.contact.address ?? null }, { key: "outstandingMinor", label: "Outstanding", value: acct.totalMinor, derivedBy: "ledger.outstandingForParty" }],
+      fields: [{ key: "name", label: "Name", value: p.name }, { key: "kind", label: "Kind", value: p.kind }, { key: "roles", label: "Roles", value: roles.join(", ") }, { key: "email", label: "Email", value: p.contact.email ?? null }, { key: "phone", label: "Phone", value: p.contact.phone ?? null }, { key: "address", label: "Address", value: p.contact.address ?? null }, { key: "outstandingMinor", label: "Outstanding", value: acct.totalMinor, derivedBy: "ledger.outstandingForParty" }, { key: "unappliedCreditMinor", label: "Credit owed back", value: await unappliedCreditForParty(env, p.id), derivedBy: "ledger.unappliedCreditForParty" }],
       collections: { documents: acct.documents.map((d) => ({ ...d })), payments },
       relations: [...acct.documents.map((d) => ({ role: "invoice", ref: { kind: "document" as const, id: d.id }, label: `${d.kind} ${d.number ?? ""}`.trim() })), ...moves.map((m) => ({ role: "payment", ref: { kind: "movement" as const, id: m.id }, label: `Payment ${m.id}` }))],
       actions: [...(may(viewer, "party.edit", "party.manage") ? [{ capability: "party.edit", label: "Change this " + (roles.includes("supplier") && !roles.includes("customer") ? "supplier" : "customer"), valid: true, reason: null }] : []), ...(may(viewer, "payment.record", "payment.record") ? [{ capability: "payment.record", label: "Record a payment", valid: true, reason: null }] : [])],

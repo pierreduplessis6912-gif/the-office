@@ -10,6 +10,7 @@ import { isEffective, outstandingForDocument, outstandingForParty } from "./ledg
 import { issueDraft, readDraft } from "./drafts";
 import { RECORD_KINDS, recordView, versionOf, type RecordKind, type ViewerContext } from "./records";
 import type { EnginePermission } from "./permissions";
+import { unappliedCreditForParty } from "./ledger";
 import { allQuotations, checkDate, checkLines, checkReference, planQuotationAcceptance, planQuotationRevision, type QuoteLine } from "./quotations";
 import { documentTotals as sumTotals } from "./money";
 import { checkCreditLines, checkReason, planCreditNote, type CreditLineInput } from "./credits";
@@ -61,7 +62,7 @@ export const receivablesQuery: ReadCapability<{ partyId?: number; partyName?: st
     const acct = await outstandingForParty(env, party.id);
     const currency = acct.documents[0] ? (await one<{ currency: string }>(env, "SELECT currency FROM eng_document WHERE id = ?", acct.documents[0].id))?.currency ?? null : null;
     return {
-      party: { id: party.id, name: party.name }, currency, totalMinor: acct.totalMinor,
+      party: { id: party.id, name: party.name }, currency, totalMinor: acct.totalMinor, unappliedCreditMinor: await unappliedCreditForParty(env, party.id),
       documents: acct.documents.map((d) => ({ ref: { kind: "document", id: d.id }, number: d.number, kind: d.kind, issuedOn: d.issuedOn, grossMinor: d.grossMinor, allocatedMinor: d.allocatedMinor, outstandingMinor: d.outstandingMinor })),
       version: await versionOf(env, { kind: "party", id: party.id }), derivedBy: "ledger.outstandingForParty",
     };

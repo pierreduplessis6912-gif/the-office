@@ -9,6 +9,7 @@
       },
       "currency": "ZAR",
       "totalMinor": 85000,
+      "unappliedCreditMinor": 0,
       "documents": [
         {
           "ref": {
