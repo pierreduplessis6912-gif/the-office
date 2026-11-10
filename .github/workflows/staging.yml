@@ -702,7 +702,7 @@ jobs:
           log = {}
           samples = {}; ctx = {}; crash = None
           def call(name, method, path, body=None, role=None, admin=False):
-              h = {"Content-Type": "application/json"}
+              h = {"Content-Type": "application/json", "User-Agent": "curl/8.5.0"}   # Cloudflare refuses the default Python user agent with error 1010 (found by the second run, 2026-11-10)
               if role: h["Cookie"] = COOKIE[role]
               if admin: h.update(ADMIN)
               req = urllib.request.Request(BASE + path, data=(json.dumps(body).encode() if body is not None else None), headers=h, method=method)

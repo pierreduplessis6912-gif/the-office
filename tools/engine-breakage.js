@@ -7,7 +7,7 @@ const { parseArgs, select } = require('./breakage-select.js');
 const sourceRoot = path.join(__dirname, '..');
 let root = sourceRoot;   // becomes the isolated copy before anything is edited or run
 const E = (f) => `worker/src/engine/${f}`, CONTRACT = 'worker/src/capability-contract.ts', MIG = 'worker/migrations/0004_engine_foundation.sql';
-const EXP = 'capability-expenses.test.js', UNDO = 'capability-credit-undo-vat.test.js', ACTIONS = 'capability-credit-actions.test.js', TAXDOC = 'capability-tax-documents.test.js', CREDITS = 'capability-credit-notes.test.js', QUOTES = 'capability-quotations.test.js', PARTIES = 'capability-parties.test.js', OBIND = 'object-binding.test.js', RPROOF = 'restore-proof.test.js', MANI = 'backup-manifest.test.js', STID = 'staging-identity.test.js', OBJ = 'business-object.standalone.js', ISOL = 'engine-isolation.test.js', OWN = 'engine-ownership.test.js', INTEG = 'engine-integrity.test.js', ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
+const INTERP = 'engine-interpret-stack.test.js', EXP = 'capability-expenses.test.js', UNDO = 'capability-credit-undo-vat.test.js', ACTIONS = 'capability-credit-actions.test.js', TAXDOC = 'capability-tax-documents.test.js', CREDITS = 'capability-credit-notes.test.js', QUOTES = 'capability-quotations.test.js', PARTIES = 'capability-parties.test.js', OBIND = 'object-binding.test.js', RPROOF = 'restore-proof.test.js', MANI = 'backup-manifest.test.js', STID = 'staging-identity.test.js', OBJ = 'business-object.standalone.js', ISOL = 'engine-isolation.test.js', OWN = 'engine-ownership.test.js', INTEG = 'engine-integrity.test.js', ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
 
 const MUTATIONS = [
   // money: exact integer arithmetic
@@ -252,6 +252,19 @@ const MUTATIONS = [
   { name: 'expenses: the VAT summary puts capital goods in field 15', suite: EXP, file: E('business.ts'), find: 'if (x.capital) f14 += x.inputTaxMinor; else f15 += x.inputTaxMinor;', replace: 'f15 += x.inputTaxMinor;' },
   { name: 'expenses: the VAT summary claims tax that is not claimable', suite: EXP, file: E('business.ts'), find: 'if (x.inputTaxClaimable) { if (x.capital)', replace: 'if (true) { if (x.capital)' },
   { name: 'expenses: the VAT summary uses the invoice date instead of the claim date', suite: EXP, file: E('business.ts'), find: 'if (x.claimDate < period.from || x.claimDate > period.to) continue;', replace: 'if (x.incurredOn < period.from || x.incurredOn > period.to) continue;' },
+  // the interpreter, extended (engine-interpret-stack.test.js): words not ids; VAT never assumed; every write only proposed
+  { name: 'interpreter: assume VAT when the sentence does not say', suite: INTERP, file: E('interpret.ts'), find: 'if (vat !== "plus_vat" && vat !== "incl_vat" && vat !== "no_vat") return notUnderstood(env, member, text);', replace: '' },
+  { name: 'interpreter: always add 15% VAT even for "no VAT"', suite: INTERP, file: E('interpret.ts'), find: 'const rate = vat === "no_vat" ? 0 : STANDARD_RATE_BP;', replace: 'const rate = STANDARD_RATE_BP;' },
+  { name: 'interpreter: "plus VAT" pays only the net amount', suite: INTERP, file: E('interpret.ts'), find: 'const paid = vat === "plus_vat" ? cents + Math.round((cents * rate) / 10000) : cents;', replace: 'const paid = cents;' },
+  { name: 'interpreter: assume a tax invoice is held', suite: INTERP, file: E('interpret.ts'), find: 'taxInvoiceHeld: args.invoiceHeld === true', replace: 'taxInvoiceHeld: args.invoiceHeld !== false' },
+  { name: 'interpreter: accept an argument the model was never shown', suite: INTERP, file: E('interpret.ts'), find: 'if (Object.keys(args).some((k) => !Object.keys(chosen.arguments).includes(k))) return notUnderstood(env, member, text);', replace: '' },
+  { name: 'interpreter: guess the first of several matching suppliers', suite: INTERP, file: E('interpret.ts'), find: 'const pick = exact.length === 1 ? exact : list.length === 1 ? list : [];', replace: 'const pick = list.slice(0, 1);' },
+  { name: 'interpreter: a customer can be chosen as the supplier', suite: INTERP, file: E('interpret.ts'), find: 'invokeRead(env, member, "parties.find", { name, role })', replace: 'invokeRead(env, member, "parties.find", { name })' },
+  { name: 'interpreter: "yesterday" is today', suite: INTERP, file: E('interpret.ts'), find: 'args.when === "yesterday" ? addDays(today, -1) : today', replace: 'today' },
+  { name: 'interpreter: "last month" is this month', suite: INTERP, file: E('interpret.ts'), find: 'period === "last_month" ? -1 : 0', replace: '0' },
+  { name: 'interpreter: accept a category that is not on the list', suite: INTERP, file: E('interpret.ts'), find: 'if (!isName(args.description) || typeof args.category !== "string" || !(EXPENSE_CATEGORIES as readonly string[]).includes(args.category))', replace: 'if (!isName(args.description) || typeof args.category !== "string")' },
+  { name: 'interpreter: a new party defaults to a person', suite: INTERP, file: E('interpret.ts'), find: 'kind: (args.kind as string) ?? "organisation"', replace: 'kind: (args.kind as string) ?? "person"' },
+  { name: 'interpreter: the prompt no longer says never to assume VAT', suite: INTERP, file: E('interpret.ts'), find: 'Never assume VAT: say whether', replace: 'Be helpful: say whether' },
 ];
 
 let opts;
