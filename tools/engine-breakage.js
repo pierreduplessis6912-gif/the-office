@@ -7,7 +7,7 @@ const { parseArgs, select } = require('./breakage-select.js');
 const sourceRoot = path.join(__dirname, '..');
 let root = sourceRoot;   // becomes the isolated copy before anything is edited or run
 const E = (f) => `worker/src/engine/${f}`, CONTRACT = 'worker/src/capability-contract.ts', MIG = 'worker/migrations/0004_engine_foundation.sql';
-const MCPT = 'engine-mcp.test.js', INTERP = 'engine-interpret-stack.test.js', EXP = 'capability-expenses.test.js', UNDO = 'capability-credit-undo-vat.test.js', ACTIONS = 'capability-credit-actions.test.js', TAXDOC = 'capability-tax-documents.test.js', CREDITS = 'capability-credit-notes.test.js', QUOTES = 'capability-quotations.test.js', PARTIES = 'capability-parties.test.js', OBIND = 'object-binding.test.js', RPROOF = 'restore-proof.test.js', MANI = 'backup-manifest.test.js', STID = 'staging-identity.test.js', OBJ = 'business-object.standalone.js', ISOL = 'engine-isolation.test.js', OWN = 'engine-ownership.test.js', INTEG = 'engine-integrity.test.js', ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
+const RESTORE2 = 'engine-restore-stack.test.js', MCPT = 'engine-mcp.test.js', INTERP = 'engine-interpret-stack.test.js', EXP = 'capability-expenses.test.js', UNDO = 'capability-credit-undo-vat.test.js', ACTIONS = 'capability-credit-actions.test.js', TAXDOC = 'capability-tax-documents.test.js', CREDITS = 'capability-credit-notes.test.js', QUOTES = 'capability-quotations.test.js', PARTIES = 'capability-parties.test.js', OBIND = 'object-binding.test.js', RPROOF = 'restore-proof.test.js', MANI = 'backup-manifest.test.js', STID = 'staging-identity.test.js', OBJ = 'business-object.standalone.js', ISOL = 'engine-isolation.test.js', OWN = 'engine-ownership.test.js', INTEG = 'engine-integrity.test.js', ADDCOL = 'restore-added-column.test.js', ADMIN = 'engine-admin.test.js', LEDGER = 'engine-ledger.test.js', OPS = 'engine-operations.test.js', BOUNDARY = 'engine-boundary.test.js', SCHEMA = 'engine-schema.test.js';
 
 const MUTATIONS = [
   // money: exact integer arithmetic
@@ -279,6 +279,10 @@ const MUTATIONS = [
   { name: 'mcp: the list ignores what the member may do', suite: MCPT, file: E('mcp-engine.ts'), find: 'const readable = READS.filter((r) => isAvailable(scoped, r.id) && r.permissions.every((p) => perms.has(p)));', replace: 'const readable = READS.filter((r) => isAvailable(scoped, r.id));' },
   { name: 'mcp: the list ignores what the business has switched on', suite: MCPT, file: E('mcp-engine.ts'), find: 'const writable = ENGINE_CONTRACTS.filter((c) => isAvailable(scoped, c.id) && (c.permissions ?? []).every((p) => perms.has(p)));', replace: 'const writable = ENGINE_CONTRACTS.filter((c) => (c.permissions ?? []).every((p) => perms.has(p)));' },
   { name: 'mcp: no size limit on a request', suite: MCPT, file: E('mcp-engine.ts'), find: 'if (JSON.stringify(params).length > MAX_PARAMS_CHARS) return bad("params are too large.");', replace: '' },
+  // recovery for everything built since the first slice (engine-restore-stack.test.js)
+  { name: 'restore: children are refilled before their parents', suite: RESTORE2, file: 'worker/src/backup.ts', find: 'const parentsFirst = await tablesParentsFirst(env, await listTables(env));', replace: 'const parentsFirst = (await tablesParentsFirst(env, await listTables(env))).reverse();' },
+  { name: 'restore: a snapshot leaves out the event table', suite: RESTORE2, file: 'worker/src/backup.ts', find: 'for (const table of await listTables(env)) {', replace: 'for (const table of (await listTables(env)).filter((t) => t !== "eng_event")) {' },
+  { name: 'restore: the snapshot forgets the id sequences', suite: RESTORE2, file: 'worker/src/backup.ts', find: 'sequences: await sequences(env), notes,', replace: 'sequences: [], notes,' },
 ];
 
 let opts;
