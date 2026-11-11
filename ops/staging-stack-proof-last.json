@@ -1,18 +1,19 @@
 {
- "when": "2026-11-11T06:13:05.202183Z",
- "run": "42970712819",
- "commit": "c283db7",
+ "when": "2026-11-11T07:11:29.799124Z",
+ "run": "42977535953",
+ "commit": "3089476",
  "mode": "stack-proof",
- "business": "staging-stack",
+ "business": "staging-stack-42977535953",
  "started_in": {
-  "mode": "engine",
-  "rows": 106
+  "mode": "legacy",
+  "rows": 0
  },
  "http": {
   "status-start": 200,
-  "membership-owner": 409,
-  "membership-accountant": 409,
-  "membership-installer": 409,
+  "membership-owner": 200,
+  "membership-accountant": 200,
+  "membership-installer": 200,
+  "provision": 200,
   "status-ready": 200,
   "profile-propose": 200,
   "profile-approve": 200,
@@ -25,10 +26,13 @@
   "inv1-after-credit": 200,
   "cn1": 200,
   "credit-over-propose": 409,
-  "credit2-propose": 409,
-  "credit2-approve": -1,
+  "pay-rest-propose": 200,
+  "pay-rest-approve": 200,
+  "credit2-propose": 200,
+  "credit2-approve": 200,
   "inv1-after-credit2": 200,
   "cn2": 200,
+  "owes-after-credit2": 200,
   "credits-find": 200,
   "debit-target-propose": 200,
   "debit-target-approve": 200,
@@ -56,8 +60,8 @@
   "debit-propose": 200,
   "debit-approve": 200,
   "owes-after-debit": 200,
-  "lock-propose": 409,
-  "lock-approve": -1,
+  "lock-propose": 200,
+  "lock-approve": 200,
   "lock-back-propose": 409,
   "locked-credit-propose": 409,
   "supplier-propose": 200,
@@ -78,16 +82,11 @@
   "status-end": 200
  },
  "samples": {
-  "membership-owner": "{\"error\":\"UNIQUE constraint failed: memberships.google_email: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)\"}",
-  "membership-accountant": "{\"error\":\"UNIQUE constraint failed: memberships.google_email: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)\"}",
-  "membership-installer": "{\"error\":\"UNIQUE constraint failed: memberships.google_email: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)\"}",
   "installer-business": "{\"error\":\"not available for your role\"}",
   "credit-over-propose": "{\"error\":\"invalid_state\",\"message\":\"Line 1 cannot be credited for more than it was worth, counting the credit notes already issued. Nothing was done.\"}",
-  "credit2-propose": "{\"error\":\"invalid_state\",\"message\":\"Line 1 cannot be credited for more than it was worth, counting the credit notes already issued. Nothing was done.\"}",
-  "lock-propose": "{\"error\":\"invalid_state\",\"message\":\"The tax lock is already at 2026-11-09; it can only move forward. Nothing was done.\"}",
   "lock-back-propose": "{\"error\":\"invalid_state\",\"message\":\"The tax lock is already at 2026-11-09; it can only move forward. Nothing was done.\"}",
   "locked-credit-propose": "{\"error\":\"period_locked\",\"message\":\"A credit note cannot be dated 2026-11-09: the tax period up to 2026-11-09 is locked. Date it after 2026-11-09, in the open period. Nothing was done.\"}",
-  "expense-dup-propose": "{\"error\":\"duplicate\",\"message\":\"Supplier invoice SP-42970712819 from Stack Timber 42970712819 has already been recorded. Nothing was done.\"}",
+  "expense-dup-propose": "{\"error\":\"duplicate\",\"message\":\"Supplier invoice SP-42977535953 from Stack Timber 42977535953 has already been recorded. Nothing was done.\"}",
   "installer-credit": "{\"error\":\"not_permitted\",\"message\":\"Issuing a credit note needs permission this member does not have, so nothing was done.\"}",
   "installer-expenses": "{\"error\":\"not available for your role\"}",
   "installer-vat": "{\"error\":\"not available for your role\"}"
@@ -96,12 +95,12 @@
  "checks": {
   "the_object_is_in_engine_mode_with_every_capability": true,
   "the_owner_sets_the_business_profile_and_reads_it_back": true,
-  "a_credit_note_is_held_then_approved_and_reduces_what_is_owed": false,
+  "a_credit_note_is_held_then_approved_and_reduces_what_is_owed": true,
   "the_credit_note_is_explained": true,
   "tax_is_inherited_never_chosen": true,
   "the_tax_particulars_check_is_shown_on_the_invoice": true,
   "crediting_more_than_was_invoiced_is_refused": true,
-  "a_credit_on_a_paid_invoice_is_left_as_credit_owed_back": false,
+  "a_credit_on_a_paid_invoice_is_left_as_credit_owed_back": true,
   "finding_credit_lists_it": true,
   "a_leftover_credit_is_applied_to_another_invoice": true,
   "removing_the_application_restores_the_credit_and_what_the_invoice_owes": true,
@@ -109,7 +108,7 @@
   "voiding_the_refund_restores_the_credit": true,
   "a_credit_note_can_be_voided_once_nothing_was_spent": true,
   "a_debit_note_is_owed_by_the_customer": true,
-  "the_tax_lock_moves_forward_only_and_blocks_documents_in_the_locked_period": false,
+  "the_tax_lock_moves_forward_only_and_blocks_documents_in_the_locked_period": true,
   "a_paid_expense_is_recorded_and_explained": true,
   "its_input_tax_is_derived_as_claimable_with_no_reasons": true,
   "the_vat_summary_has_its_input_side": true,
@@ -118,10 +117,6 @@
   "an_installer_is_refused_credit_notes_expenses_the_vat_summary_and_the_business_settings": true,
   "the_integrity_verifier_is_clean_at_the_end": true
  },
- "passed": false,
- "failed": [
-  "a_credit_note_is_held_then_approved_and_reduces_what_is_owed",
-  "a_credit_on_a_paid_invoice_is_left_as_credit_owed_back",
-  "the_tax_lock_moves_forward_only_and_blocks_documents_in_the_locked_period"
- ]
+ "passed": true,
+ "failed": []
 }
